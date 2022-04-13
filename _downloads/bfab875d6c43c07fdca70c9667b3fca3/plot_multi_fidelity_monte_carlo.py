@@ -56,40 +56,34 @@ Let us use MFMC to estimate the mean of our high-fidelity model.
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import pyapprox as pya
 from functools import partial
-from pyapprox.tests.test_control_variate_monte_carlo import \
-    TunableModelEnsemble, ShortColumnModelEnsemble, PolynomialModelEnsemble
-np.random.seed(1)
+from pyapprox.benchmarks import setup_benchmark
+from pyapprox import interface
+from pyapprox import multifidelity
 
+benchmark = setup_benchmark("short_column_ensemble")
+short_column_model = benchmark.fun
+model_costs = np.asarray([100, 50, 5, 1, 0.2])
 
-short_column_model = ShortColumnModelEnsemble()
-model_ensemble = pya.ModelEnsemble(
-    [short_column_model.m0,short_column_model.m1,short_column_model.m2])
-
-costs = np.asarray([100, 50, 5])
 target_cost = int(1e4)
-idx = [0,1,2]
-cov = short_column_model.get_covariance_matrix()[np.ix_(idx,idx)]
+idx = [0, 1, 2]
+cov = short_column_model.get_covariance_matrix()[np.ix_(idx, idx)]
+model_ensemble = interface.ModelEnsemble(
+    [short_column_model.models[ii] for ii in idx])
+costs = model_costs[idx]
 
 # define the sample allocation
-nhf_samples,nsample_ratios = pya.allocate_samples_mfmc(
-    cov, costs, target_cost)[:2]
-# generate sample sets
-samples,values =pya.generate_samples_and_values_mfmc(
-    nhf_samples,nsample_ratios,model_ensemble,
-    short_column_model.generate_samples)
-# compute mean using only hf data
-hf_mean = values[0][0].mean()
-# compute mlmc control variate weights
-eta = pya.get_mfmc_control_variate_weights(cov)
-# compute MLMC mean
-mfmc_mean = pya.compute_approximate_control_variate_mean_estimate(eta,values)
+est = multifidelity.get_estimator("mfmc", cov, costs, benchmark.variable)
+nsample_ratios, variance, rounded_target_cost = est.allocate_samples(
+    target_cost)
+acv_samples, acv_values = est.generate_data(model_ensemble)
+mlmc_mean = est(acv_values)
+hf_mean = acv_values[0][1].mean()
 
 # get the true mean of the high-fidelity model
 true_mean = short_column_model.get_means()[0]
-print('MLMC error',abs(mfmc_mean-true_mean))
-print('MC error',abs(hf_mean-true_mean))
+print('MC error', abs(hf_mean-true_mean))
+print('MFMC error', abs(mlmc_mean-true_mean))
 
 #%%
 #Optimal Sample Allocation
@@ -107,34 +101,32 @@ print('MC error',abs(hf_mean-true_mean))
 #where :math:`\V{w}=[w_0,w_M]^T` are the relative costs of each model, and :math:`\rho_{j,k}` is the correlation between models :math:`j` and :math:`k`.
 #
 #Now lets us compare MC with MFMC using optimal sample allocations
-poly_model = PolynomialModelEnsemble()
-model_ensemble = pya.ModelEnsemble(poly_model.models)
+np.random.seed(1)
+benchmark = setup_benchmark("polynomial_ensemble")
+poly_model = benchmark.fun
+model_ensemble = interface.ModelEnsemble(poly_model.models)
 cov = poly_model.get_covariance_matrix()
-target_costs = np.array([1e1,1e2,1e3,1e4],dtype=int)
+target_costs = np.array([1e1, 1e2, 1e3, 1e4], dtype=int)
 costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
-model_labels=[r'$f_0$',r'$f_1$',r'$f_2$',r'$f_3$',r'$f_4$']
-variances, nsamples_history = [],[]
-npilot_samples = 5
-estimators = [pya.MC,pya.MFMC]
-for target_cost in target_costs:
-    for estimator in estimators:
-        est = estimator(cov,costs)
-        nhf_samples,nsample_ratios = est.allocate_samples(target_cost)[:2]
-        variances.append(est.get_variance(nhf_samples,nsample_ratios))
-        nsamples_history.append(est.get_nsamples(nhf_samples,nsample_ratios))
-variances = np.asarray(variances)
-nsamples_history = np.asarray(nsamples_history)
+model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
+npilot_samples = 10
+cov_mc = multifidelity.estimate_model_ensemble_covariance(
+    npilot_samples, benchmark.variable.rvs, model_ensemble)[0]
 
-fig,axs=plt.subplots(1,2,figsize=(2*8,6))
-# plot sample allocation
-pya.plot_acv_sample_allocation(nsamples_history[1::2],costs,model_labels,axs[1])
-mfmc_total_costs = np.array(nsamples_history[1::2]).dot(costs)
-mfmc_variances = variances[1::2]
-axs[0].loglog(mfmc_total_costs,mfmc_variances,':',label=r'$\mathrm{MFMC}$')
-mc_total_costs = np.array(nsamples_history[::2]).dot(costs)
-mc_variances = variances[::2]
-axs[0].loglog(mc_total_costs,mc_variances,label=r'$\mathrm{MC}$')
-axs[0].set_ylim(axs[0].get_ylim()[0],1e-2)
-_ = axs[0].legend()
-#plt.show()
+from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
+estimators = [
+    multifidelity.get_estimator("mfmc", cov, costs, poly_model.variable),
+    multifidelity.get_estimator("mc", cov, costs, poly_model.variable)]
+est_labels = mathrm_labels(["MFMC", "MC"])
+optimized_estimators = multifidelity.compare_estimator_variances(
+    target_costs, estimators)
+
+fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
+multifidelity.plot_estimator_variances(
+    optimized_estimators, est_labels, axs[0],
+    ylabel=mathrm_label("Relative Estimator Variance"))
+axs[0].set_xlim(target_costs.min(), target_costs.max())
+multifidelity.plot_acv_sample_allocation_comparison(
+    optimized_estimators[0], model_labels, axs[1])
+plt.show()
 #fig # necessary for jupyter notebook to reshow plot in new cell

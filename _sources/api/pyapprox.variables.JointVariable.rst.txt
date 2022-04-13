@@ -1,0 +1,17 @@
+JointVariable
+=============
+
+.. currentmodule:: pyapprox.variables
+
+.. autoclass:: JointVariable
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~JointVariable.rvs
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: rvs

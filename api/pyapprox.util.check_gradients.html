@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>check_gradients &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="plot_2d_samples" href="pyapprox.util.plot_2d_samples.html" />
+    <link rel="prev" title="outer_product" href="pyapprox.util.outer_product.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> PyApprox
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.analysis">pyapprox.analysis Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.bayes">pyapprox.bayes Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.benchmarks">pyapprox.benchmarks Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.expdesign">pyapprox.expdesign Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.interface">pyapprox.interface Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.multifidelity">pyapprox.multifidelity Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.optimization">pyapprox.optimization Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.surrogates">pyapprox.surrogates Package</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.util">pyapprox.util Package</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="../user_reference_guide.html#id12">Functions</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.util.cartesian_product.html">cartesian_product</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.util.outer_product.html">outer_product</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">check_gradients</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.util.plot_2d_samples.html">plot_2d_samples</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.variables">pyapprox.variables Package</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
+      <li>check_gradients</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/pyapprox.util.check_gradients.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="check-gradients">
+<h1>check_gradients<a class="headerlink" href="#check-gradients" title="Permalink to this headline"></a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="pyapprox.util.check_gradients">
+<span class="sig-prename descclassname"><span class="pre">pyapprox.util.</span></span><span class="sig-name descname"><span class="pre">check_gradients</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fun</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jac</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">disp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">direction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jacp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/util/utilities.html#check_gradients"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.util.check_gradients" title="Permalink to this definition"></a></dt>
+<dd><p>Compare a user specified jacobian with the jacobian computed with finite
+difference with multiple step sizes.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>fun</strong><span class="classifier">callable</span></dt><dd><p>A function with signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">fun(z)</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray</span></code></p>
+<p>where <code class="docutils literal notranslate"><span class="pre">z</span></code> is a 2D np.ndarray with shape (nvars, 1) and the
+output is a 2D np.ndarray with shape (nqoi, 1)</p>
+</dd>
+<dt><strong>jac</strong><span class="classifier">callable</span></dt><dd><p>The jacobian of <code class="docutils literal notranslate"><span class="pre">fun</span></code> with signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">jac(z)</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray</span></code></p>
+<p>where <code class="docutils literal notranslate"><span class="pre">z</span></code> is a 2D np.ndarray with shape (nvars, 1) and the
+output is a 2D np.ndarray with shape (nqoi, nvars)</p>
+</dd>
+<dt><strong>zz</strong><span class="classifier">np.ndarray (nvars, 1)</span></dt><dd><p>A sample of <code class="docutils literal notranslate"><span class="pre">z</span></code> at which to compute the gradient</p>
+</dd>
+<dt><strong>plot</strong><span class="classifier">boolean</span></dt><dd><p>Plot the errors as a function of the finite difference step size</p>
+</dd>
+<dt><strong>disp</strong><span class="classifier">boolean</span></dt><dd><p>True - print the errors
+False - do not print</p>
+</dd>
+<dt><strong>rel</strong><span class="classifier">boolean</span></dt><dd><p>True - compute the relative error in the directional derivative,
+i.e. the absolute error divided by the directional derivative using
+<code class="docutils literal notranslate"><span class="pre">jac</span></code>.
+False - compute the absolute error in the directional derivative</p>
+</dd>
+<dt><strong>direction</strong><span class="classifier">np.ndarray (nvars, 1)</span></dt><dd><p>Direction to which Jacobian is applied. Default is None in which
+case random direction is chosen.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>errors</strong><span class="classifier">np.ndarray (14, nqoi)</span></dt><dd><p>The errors in the directional derivative of <code class="docutils literal notranslate"><span class="pre">fun</span></code> at 14 different
+values of finite difference tolerance for each quantity of interest</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pyapprox.util.outer_product.html" class="btn btn-neutral float-left" title="outer_product" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pyapprox.util.plot_2d_samples.html" class="btn btn-neutral float-right" title="plot_2d_samples" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

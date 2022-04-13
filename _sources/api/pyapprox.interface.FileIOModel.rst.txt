@@ -1,0 +1,23 @@
+FileIOModel
+===========
+
+.. currentmodule:: pyapprox.interface
+
+.. autoclass:: FileIOModel
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~FileIOModel.__call__
+      ~FileIOModel.get
+      ~FileIOModel.run
+      ~FileIOModel.set_function_evaluation_id
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: get
+   .. automethod:: run
+   .. automethod:: set_function_evaluation_id

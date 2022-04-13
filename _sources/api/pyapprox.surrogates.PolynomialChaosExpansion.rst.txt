@@ -1,0 +1,47 @@
+PolynomialChaosExpansion
+========================
+
+.. currentmodule:: pyapprox.surrogates
+
+.. autoclass:: PolynomialChaosExpansion
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~PolynomialChaosExpansion.__call__
+      ~PolynomialChaosExpansion.basis_matrix
+      ~PolynomialChaosExpansion.canonical_basis_matrix
+      ~PolynomialChaosExpansion.configure
+      ~PolynomialChaosExpansion.covariance
+      ~PolynomialChaosExpansion.get_coefficients
+      ~PolynomialChaosExpansion.get_indices
+      ~PolynomialChaosExpansion.jacobian
+      ~PolynomialChaosExpansion.mean
+      ~PolynomialChaosExpansion.num_terms
+      ~PolynomialChaosExpansion.num_vars
+      ~PolynomialChaosExpansion.set_coefficients
+      ~PolynomialChaosExpansion.set_indices
+      ~PolynomialChaosExpansion.update_recursion_coefficients
+      ~PolynomialChaosExpansion.value
+      ~PolynomialChaosExpansion.variance
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: basis_matrix
+   .. automethod:: canonical_basis_matrix
+   .. automethod:: configure
+   .. automethod:: covariance
+   .. automethod:: get_coefficients
+   .. automethod:: get_indices
+   .. automethod:: jacobian
+   .. automethod:: mean
+   .. automethod:: num_terms
+   .. automethod:: num_vars
+   .. automethod:: set_coefficients
+   .. automethod:: set_indices
+   .. automethod:: update_recursion_coefficients
+   .. automethod:: value
+   .. automethod:: variance

@@ -1,0 +1,6 @@
+combine_uncertain_and_bounded_design_variables
+==============================================
+
+.. currentmodule:: pyapprox.variables
+
+.. autofunction:: combine_uncertain_and_bounded_design_variables

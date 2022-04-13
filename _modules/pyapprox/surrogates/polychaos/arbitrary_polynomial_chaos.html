@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.surrogates.polychaos.arbitrary_polynomial_chaos &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+        <script src="../../../../_static/jquery.js"></script>
+        <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/doctools.js"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.surrogates.polychaos.arbitrary_polynomial_chaos</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.surrogates.polychaos.arbitrary_polynomial_chaos</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.sparse_grid</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_sparse_grid_samples_and_weights</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.adaptive_sparse_grid</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">CombinationSparseGrid</span><span class="p">,</span>
+    <span class="n">max_level_admissibility_function</span><span class="p">,</span> <span class="n">variance_refinement_indicator</span><span class="p">,</span>
+    <span class="n">get_sparse_grid_univariate_leja_quadrature_rules_economical</span>
+<span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.polychaos.gpc</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PolynomialChaosExpansion</span><span class="p">,</span> <span class="n">evaluate_multivariate_orthonormal_polynomial</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">get_tensor_product_quadrature_rule</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.indexing</span> <span class="kn">import</span> <span class="n">set_difference</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.monomial</span> <span class="kn">import</span> <span class="n">monomial_basis_matrix</span>
+
+
+<div class="viewcode-block" id="APC"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.APC.html#pyapprox.surrogates.APC">[docs]</a><span class="k">class</span> <span class="nc">APC</span><span class="p">(</span><span class="n">PolynomialChaosExpansion</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A polynomial chaos expansion for dependent random variables.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">compute_moment_matrix_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">moments</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">compute_grammian_function</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Constructor.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        compute_moment_matrix_function : callable</span>
+<span class="sd">            A function to compute ``np.sqrt(np.diag(w)).dot(B)`` where ``w``</span>
+<span class="sd">            are the positive weights of the quadrature rule and B is the</span>
+<span class="sd">            basis matrix evaluated at the quadrature points.</span>
+<span class="sd">            It must have the signature</span>
+
+<span class="sd">            ``compute_moment_matrix_function(basis_mat_fun) -&gt; np.ndarray (</span>
+<span class="sd">              nsamples, nbasis)``</span>
+
+<span class="sd">            where basis_mat_fun is a function with the signature</span>
+<span class="sd">            ``basis_mat_fun(samples) -&gt; np.ndarray(nsamples, nbasis)``</span>
+<span class="sd">             where samples : np.ndarray (nvars, nsamples)</span>
+
+<span class="sd">        moments : np.ndarray (nbasis, nbasis)</span>
+<span class="sd">            The symmetric matrix containing the inner product of each</span>
+<span class="sd">            polynomial basis with every polynomial basis</span>
+<span class="sd">            (including itself - diagonal entries)</span>
+
+<span class="sd">        compute_grammian_function : callable</span>
+<span class="sd">            A function to compute the inner products of all basis combinations</span>
+<span class="sd">            with the signature</span>
+
+<span class="sd">            ``compute_moment_matrix_function(basis_mat) -&gt; np.ndarray (</span>
+<span class="sd">              nbasis, nbasis)``</span>
+
+<span class="sd">            where basis_mat : np.ndarray (nsamples, nbasis)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">APC</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compute_moment_matrix_function</span> <span class="o">=</span> <span class="n">compute_moment_matrix_function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compute_grammian_function</span> <span class="o">=</span> <span class="n">compute_grammian_function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">moment_matrix_cond</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">moments</span> <span class="o">=</span> <span class="n">moments</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">R_inv</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="APC.compute_rotation"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.APC.html#pyapprox.surrogates.APC.compute_rotation">[docs]</a>    <span class="k">def</span> <span class="nf">compute_rotation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">moments</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">moments</span><span class="p">)</span> <span class="o">!=</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;moments was given but was not a np.ndarray&#39;</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_moment_matrix_function</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">R_inv</span> <span class="o">=</span> <span class="n">compute_rotation_from_moments_linear_system</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">moments</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_moment_matrix_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compute_moment_matrix_function</span><span class="p">):</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;compute_moment_matrix_function was given but was &#39;</span>
+                <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;not a callable function&#39;</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">moments</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_grammian_function</span> <span class="ow">is</span> <span class="kc">None</span>
+
+            <span class="n">moment_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_moment_matrix_function</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">unrotated_basis_matrix</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">R_inv</span> <span class="o">=</span> <span class="n">compute_rotation_qr</span><span class="p">(</span><span class="n">moment_matrix</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">moment_matrix_cond</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cond</span><span class="p">(</span><span class="n">moment_matrix</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_grammian_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compute_grammian_function</span><span class="p">):</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;compute_grammian_function was given but was &#39;</span>
+                <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;not a callable function&#39;</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">moments</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_moment_matrix_function</span> <span class="ow">is</span> <span class="kc">None</span>
+
+            <span class="n">grammian</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_grammian_function</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">unrotated_basis_matrix</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+            <span class="c1"># cholesky requires moment_matrix function to return grammian</span>
+            <span class="c1"># A&#39;*A not basis matrix A</span>
+            <span class="k">assert</span> <span class="n">grammian</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">grammian</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">R_inv</span> <span class="o">=</span> <span class="n">compute_rotation_cholesky</span><span class="p">(</span><span class="n">grammian</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">moment_matrix_cond</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cond</span><span class="p">(</span><span class="n">grammian</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span></div>
+
+<div class="viewcode-block" id="APC.unrotated_canonical_basis_matrix"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.APC.html#pyapprox.surrogates.APC.unrotated_canonical_basis_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">unrotated_canonical_basis_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Cannot just call super(APCE,self).canonical_basis because I was</span>
+<span class="sd">        running into inheritance problems.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">deriv_order</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">recursion_coeffs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">unrotated_basis_matrix</span> <span class="o">=</span> \
+                <span class="n">evaluate_multivariate_orthonormal_polynomial</span><span class="p">(</span>
+                    <span class="n">canonical_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">recursion_coeffs</span><span class="p">,</span>
+                    <span class="n">deriv_order</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">basis_type_index_map</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">unrotated_basis_matrix</span> <span class="o">=</span> <span class="n">monomial_basis_matrix</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">unrotated_basis_matrix</span></div>
+
+<div class="viewcode-block" id="APC.unrotated_basis_matrix"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.APC.html#pyapprox.surrogates.APC.unrotated_basis_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">unrotated_basis_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+        <span class="n">canonical_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">map_to_canonical</span><span class="p">(</span>
+            <span class="n">samples</span><span class="p">)</span>
+        <span class="n">matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unrotated_canonical_basis_matrix</span><span class="p">(</span><span class="n">canonical_samples</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">matrix</span></div>
+
+<div class="viewcode-block" id="APC.canonical_basis_matrix"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.APC.html#pyapprox.surrogates.APC.canonical_basis_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">canonical_basis_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">,</span> <span class="n">opts</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
+        <span class="n">deriv_order</span> <span class="o">=</span> <span class="n">opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;deriv_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">deriv_order</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="n">unrotated_basis_mat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unrotated_canonical_basis_matrix</span><span class="p">(</span>
+            <span class="n">canonical_samples</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">R_inv</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># basis_matrix = np.dot(unrotated_basis_mat, self.R_inv)</span>
+            <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">unrotated_basis_mat</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">R_inv</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">num_terms</span><span class="p">(),</span> <span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">num_terms</span><span class="p">()])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">unrotated_basis_mat</span>
+        <span class="k">return</span> <span class="n">basis_matrix</span></div>
+
+<div class="viewcode-block" id="APC.basis_matrix"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.APC.html#pyapprox.surrogates.APC.basis_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">basis_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">opts</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
+        <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+        <span class="n">canonical_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">map_to_canonical</span><span class="p">(</span>
+            <span class="n">samples</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">canonical_basis_matrix</span><span class="p">(</span><span class="n">canonical_samples</span><span class="p">,</span> <span class="n">opts</span><span class="p">)</span></div>
+
+    <span class="c1"># def basis_matrix(self,samples):</span>
+    <span class="c1">#     if self.compute_moment_matrix_function is not None:</span>
+    <span class="c1">#         return np.dot(self.unrotated_basis_matrix(samples),self.R_inv)</span>
+    <span class="c1">#     else:</span>
+    <span class="c1">#         return self.unrotated_basis_matrix(samples)</span>
+
+    <span class="c1"># def unrotated_basis_matrix(self,samples):</span>
+    <span class="c1">#     return super(APC,self).basis_matrix(samples)</span>
+
+<div class="viewcode-block" id="APC.set_indices"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.APC.html#pyapprox.surrogates.APC.set_indices">[docs]</a>    <span class="k">def</span> <span class="nf">set_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">):</span>
+        <span class="c1"># need to perform check before base class updated self.indices</span>
+        <span class="c1"># if (self.compute_moment_matrix_function is not None and</span>
+        <span class="c1">#         (self.indices is None or</span>
+        <span class="c1">#              self.indices.shape[1]!=indices.shape[1] or</span>
+        <span class="c1">#         not np.allclose(indices,self.indices))):</span>
+        <span class="c1">#     update_rotation=True</span>
+        <span class="c1"># else:</span>
+        <span class="c1">#     update_rotation=False</span>
+
+        <span class="c1"># TODO eventually use following. need to distinguish between</span>
+        <span class="c1"># indices for pce and indices used for computing basis rotation</span>
+
+        <span class="n">update_indices</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">update_indices</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># check indices is subset of self.indices</span>
+            <span class="k">if</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">update_indices</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># check indices is subset of self.indices</span>
+                <span class="n">update_indices</span> <span class="o">=</span> <span class="n">set_difference</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="n">update_indices</span><span class="p">:</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">APC</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compute_moment_matrix_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">moments</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">compute_grammian_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">compute_rotation</span><span class="p">()</span></div></div>
+
+    <span class="c1"># TODO: __call__ take advantage of fact that</span>
+    <span class="c1"># basis_matrix.dot(R_inv.dot(coeff))</span>
+    <span class="c1"># (m x n)*((n x n)*(n*1)) = n**2+m*n</span>
+    <span class="c1"># is faster than</span>
+    <span class="c1"># (basis_matrix.dot(R_inv)).dot(coeff)</span>
+    <span class="c1"># ((m x n)*(n x n))*(n*1) = m*n**2+m*n</span>
+    <span class="c1"># faster way can also leverage subsitution solve</span>
+    <span class="c1"># instead of directly inverting R to get R_inv</span>
+
+
+<span class="k">def</span> <span class="nf">compute_moment_matrix_from_samples</span><span class="p">(</span><span class="n">basis_matrix_func</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">basis_matrix_func</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+
+<span class="k">def</span> <span class="nf">compute_moment_matrix_using_tensor_product_quadrature</span><span class="p">(</span>
+        <span class="n">basis_matrix_func</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span>
+        <span class="n">univariate_quadrature_rule</span><span class="p">,</span> <span class="n">density_function</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    num_samples : integer</span>
+<span class="sd">       The number of samples in the 1D quadrature rule</span>
+
+<span class="sd">    univariate_quadrature_rule : tuple (x,w)</span>
+<span class="sd">       x : np.ndarray (num_samples) the quadrature points in the user space</span>
+<span class="sd">       w : np.ndarray (num_samples) the quadrature weights</span>
+
+<span class="sd">    density_function : callable</span>
+<span class="sd">       v = density_function(x)</span>
+<span class="sd">       A probability density function. If not None then quadrature rule</span>
+<span class="sd">       should be for lebesque measure and weights will be multiplied by the</span>
+<span class="sd">       value of the density at the quarature points</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">samples</span><span class="p">,</span> <span class="n">weights</span> <span class="o">=</span> <span class="n">get_tensor_product_quadrature_rule</span><span class="p">(</span>
+        <span class="n">num_samples</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">univariate_quadrature_rule</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">density_function</span><span class="p">)</span>
+    <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">basis_matrix_func</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+    <span class="n">moment_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">weights</span><span class="p">)),</span> <span class="n">basis_matrix</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">moment_matrix</span>
+
+
+<span class="k">def</span> <span class="nf">compute_coefficients_of_unrotated_basis</span><span class="p">(</span><span class="n">coefficients</span><span class="p">,</span> <span class="n">R_inv</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given pce coefficients a such that p(z)=\Phi(Z)*a</span>
+<span class="sd">    where phi is the multivariate orthgonal Gram-Schmidt basis compute</span>
+<span class="sd">    coefficients of tensor-product basis \psi where \Phi(Z)=\Psi(Z)*R_inv</span>
+<span class="sd">    and \Phi(Z),\Psi(Z) are vandermonde matrices evaluate at the samples Z.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">num_terms</span> <span class="o">=</span> <span class="n">coefficients</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">unrotated_basis_coefficients</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">coefficients</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_terms</span><span class="p">):</span>
+        <span class="n">unrotated_basis_coefficients</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span>\
+            <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">coefficients</span><span class="p">[</span><span class="n">ii</span><span class="p">:,</span> <span class="p">:]</span><span class="o">*</span><span class="p">(</span><span class="n">R_inv</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">:])[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span>
+                   <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="c1"># for kk in range(pce.coefficients.shape[1]):</span>
+        <span class="c1"># for jj in range(ii,num_terms):</span>
+        <span class="c1">#    unrotated_basis_coefficients[ii,kk]+=\</span>
+        <span class="c1">#        pce.coefficients[jj,kk]*pce.R_inv[ii,jj]</span>
+    <span class="k">return</span> <span class="n">unrotated_basis_coefficients</span>
+
+
+<span class="k">class</span> <span class="nc">FPC</span><span class="p">(</span><span class="n">APC</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">compute_moment_matrix_function</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FPC</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">compute_moment_matrix_function</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">configure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">opts</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FPC</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">opts</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">truncation_tol</span> <span class="o">=</span> <span class="n">opts</span><span class="p">[</span><span class="s1">&#39;truncation_tol&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">compute_rotation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">moment_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_moment_matrix_function</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">unrotated_basis_matrix</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">moment_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">moment_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">grammian</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">moment_matrix</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">moment_matrix</span><span class="p">)</span>
+        <span class="n">U_factor</span><span class="p">,</span> <span class="n">S_factor</span><span class="p">,</span> <span class="n">V_factor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">svd</span><span class="p">(</span><span class="n">grammian</span><span class="p">)</span>
+        <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">S_factor</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">truncation_tol</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">II</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">grammian</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;frame approximation produced low-rank basis&#39;</span><span class="p">)</span>
+        <span class="n">truncated_singular_vectors</span> <span class="o">=</span> <span class="p">(</span><span class="n">U_factor</span><span class="p">[:,</span> <span class="n">II</span><span class="p">]</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">S_factor</span><span class="p">[</span><span class="n">II</span><span class="p">]))</span>
+        <span class="c1"># num_truncated_bases = truncated_singular_vectors.shape[1]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">R_inv</span> <span class="o">=</span> <span class="n">truncated_singular_vectors</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">moment_matrix_cond</span> <span class="o">=</span> <span class="n">S_factor</span><span class="p">[</span><span class="n">II</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">/</span><span class="n">S_factor</span><span class="p">[</span><span class="n">II</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">num_terms</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># truncated svd creates basis with num_terms &lt;= num_indices</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">R_inv</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">compute_rotation_from_moments_linear_system</span><span class="p">(</span><span class="n">poly_moments</span><span class="p">):</span>
+    <span class="n">num_terms</span> <span class="o">=</span> <span class="n">poly_moments</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">R_inv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_terms</span><span class="p">,</span> <span class="n">num_terms</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">R_inv</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span>
+    <span class="k">for</span> <span class="n">kk</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_terms</span><span class="p">):</span>
+        <span class="n">moment_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">kk</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">moment_matrix</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">poly_moments</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">]</span>
+        <span class="n">moment_matrix</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span>
+
+        <span class="n">rhs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">rhs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span>
+        <span class="n">rotated_basis_coefs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">moment_matrix</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+        <span class="n">R_inv</span><span class="p">[:</span><span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span> <span class="o">=</span> <span class="n">rotated_basis_coefs</span>
+
+        <span class="c1"># orthonormalize</span>
+        <span class="n">l2_norm</span> <span class="o">=</span> <span class="mf">0.</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">l2_norm</span> <span class="o">+=</span> <span class="n">R_inv</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span><span class="o">*</span><span class="n">R_inv</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span><span class="o">*</span><span class="n">poly_moments</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">]</span>
+        <span class="n">R_inv</span><span class="p">[:</span><span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">l2_norm</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">R_inv</span>
+
+
+<span class="k">def</span> <span class="nf">compute_rotation_from_moments_gram_schmidt</span><span class="p">(</span><span class="n">poly_moments</span><span class="p">):</span>
+    <span class="n">num_terms</span> <span class="o">=</span> <span class="n">poly_moments</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">R_inv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_terms</span><span class="p">,</span> <span class="n">num_terms</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">R_inv</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span>
+    <span class="k">for</span> <span class="n">kk</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_terms</span><span class="p">):</span>
+        <span class="n">R_inv</span><span class="p">[</span><span class="n">kk</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">kk</span><span class="p">):</span>
+            <span class="c1"># compute &lt;e_k,phi_i&gt;</span>
+            <span class="n">numerator</span> <span class="o">=</span> <span class="mf">0.</span>
+            <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">numerator</span> <span class="o">+=</span> <span class="n">poly_moments</span><span class="p">[</span><span class="n">kk</span><span class="p">,</span> <span class="n">jj</span><span class="p">]</span><span class="o">*</span><span class="n">R_inv</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span>
+            <span class="c1"># basis_norms are one because of Step ***</span>
+            <span class="n">ratio</span> <span class="o">=</span> <span class="n">numerator</span>  <span class="c1"># /basis_norms[ii]</span>
+            <span class="c1"># compute contribution to r_ik</span>
+            <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">R_inv</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span> <span class="o">+=</span> <span class="o">-</span><span class="n">ratio</span><span class="o">*</span><span class="n">R_inv</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span>
+
+        <span class="c1"># compute &lt;phi_k,phi_k&gt;</span>
+        <span class="n">basis_norm</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">basis_norm</span> <span class="o">+=</span> <span class="n">R_inv</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span><span class="o">*</span><span class="n">R_inv</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span><span class="o">*</span><span class="n">poly_moments</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">]</span>
+        <span class="n">R_inv</span><span class="p">[:</span><span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">basis_norm</span><span class="p">)</span>  <span class="c1"># Step ***</span>
+
+    <span class="k">return</span> <span class="n">R_inv</span>
+
+
+<span class="k">def</span> <span class="nf">compute_rotation_qr</span><span class="p">(</span><span class="n">moment_matrix</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">moment_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">moment_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">Q_factor</span><span class="p">,</span> <span class="n">R_factor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">qr</span><span class="p">(</span><span class="n">moment_matrix</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">R_factor</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="k">if</span> <span class="n">R_factor</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mf">0.</span><span class="p">:</span>
+            <span class="n">R_factor</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*=</span> <span class="o">-</span><span class="mf">1.</span>
+            <span class="n">Q_factor</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">*=</span> <span class="o">-</span><span class="mf">1.</span>
+    <span class="n">R_inv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">R_factor</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">R_inv</span>
+
+
+<span class="k">def</span> <span class="nf">compute_rotation_cholesky</span><span class="p">(</span><span class="n">grammian_matrix</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">grammian_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">grammian_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">L_factor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">grammian_matrix</span><span class="p">)</span>
+    <span class="n">R_inv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">L_factor</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">R_inv</span>
+
+
+<span class="k">def</span> <span class="nf">compute_polynomial_moments_using_tensor_product_quadrature</span><span class="p">(</span>
+        <span class="n">basis_matrix_function</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span>
+        <span class="n">univariate_quadrature_rule</span><span class="p">,</span> <span class="n">density_function</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the moments of a polynomial basis using tensor product quadrature</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    num_samples : integer</span>
+<span class="sd">       The number of samples in the 1D quadrature rule</span>
+
+<span class="sd">    univariate_quadrature_rule : tuple (x,w)</span>
+<span class="sd">       x : np.ndarray (num_samples) the quadrature points in the user space</span>
+<span class="sd">       w : np.ndarray (num_samples) the quadrature weights</span>
+
+<span class="sd">    density_function : callable</span>
+<span class="sd">       v = density_function(x)</span>
+<span class="sd">       A probability density function. If not None then quadrature rule</span>
+<span class="sd">       should be for lebesque measure and weights will be multiplied by the</span>
+<span class="sd">       value of the density at the quarature points</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    poly_moments : np.ndarray (num_terms, num_terms)</span>
+<span class="sd">       The symmetric matrix containing the inner product of each polynomial</span>
+<span class="sd">       basis with every polynomial basis (including itself - diagonal entries)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">samples</span><span class="p">,</span> <span class="n">weights</span> <span class="o">=</span> <span class="n">get_tensor_product_quadrature_rule</span><span class="p">(</span>
+        <span class="n">num_samples</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">univariate_quadrature_rule</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">density_function</span><span class="p">)</span>
+    <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">basis_matrix_function</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+
+    <span class="n">poly_moments</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">basis_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">basis_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+                            <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">basis_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ii</span><span class="p">,</span> <span class="n">basis_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="n">poly_moments</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
+                <span class="n">basis_matrix</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">basis_matrix</span><span class="p">[:,</span> <span class="n">jj</span><span class="p">],</span> <span class="n">weights</span><span class="p">)</span>
+            <span class="n">poly_moments</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">poly_moments</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">poly_moments</span>
+
+
+<span class="k">def</span> <span class="nf">compute_grammian_matrix_using_combination_sparse_grid</span><span class="p">(</span>
+        <span class="n">basis_matrix_function</span><span class="p">,</span> <span class="n">dummy_indices</span><span class="p">,</span> <span class="n">var_trans</span><span class="p">,</span> <span class="n">max_num_samples</span><span class="p">,</span>
+        <span class="n">error_tol</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">density_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">quad_rule_opts</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+    <span class="n">sparse_grid</span> <span class="o">=</span> <span class="n">CombinationSparseGrid</span><span class="p">(</span><span class="n">num_vars</span><span class="p">)</span>
+    <span class="n">admissibility_function</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
+        <span class="n">max_level_admissibility_function</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span><span class="o">*</span><span class="n">num_vars</span><span class="p">,</span>
+        <span class="n">max_num_samples</span><span class="p">,</span> <span class="n">error_tol</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">quad_rule_opts</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">quad_rules</span><span class="p">,</span> <span class="n">growth_rules</span><span class="p">,</span> <span class="n">unique_quadrule_indices</span> <span class="o">=</span> \
+            <span class="n">get_sparse_grid_univariate_leja_quadrature_rules_economical</span><span class="p">(</span>
+                <span class="n">var_trans</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">quad_rules</span> <span class="o">=</span> <span class="n">quad_rule_opts</span><span class="p">[</span><span class="s1">&#39;quad_rules&#39;</span><span class="p">]</span>
+        <span class="n">growth_rules</span> <span class="o">=</span> <span class="n">quad_rule_opts</span><span class="p">[</span><span class="s1">&#39;growth_rules&#39;</span><span class="p">]</span>
+        <span class="n">unique_quadrule_indices</span> <span class="o">=</span> <span class="n">quad_rule_opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s1">&#39;unique_quadrule_indices&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">density_function</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">def</span> <span class="nf">density_function</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span> <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">function</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+        <span class="c1"># need to make sure that basis_matrix_function takes</span>
+        <span class="c1"># points in user domain and not canonical domain</span>
+        <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">basis_matrix_function</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+        <span class="n">pdf_vals</span> <span class="o">=</span> <span class="n">density_function</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">basis_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ii</span><span class="p">,</span> <span class="n">basis_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+                <span class="n">vals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">basis_matrix</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">basis_matrix</span><span class="p">[:,</span> <span class="n">jj</span><span class="p">]</span><span class="o">*</span><span class="n">pdf_vals</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+
+    <span class="n">sparse_grid</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span>
+                      <span class="n">partial</span><span class="p">(</span><span class="n">variance_refinement_indicator</span><span class="p">),</span>
+                      <span class="n">admissibility_function</span><span class="p">,</span> <span class="n">growth_rules</span><span class="p">,</span> <span class="n">quad_rules</span><span class="p">,</span>
+                      <span class="n">var_trans</span><span class="p">,</span>
+                      <span class="n">unique_quadrule_indices</span><span class="o">=</span><span class="n">unique_quadrule_indices</span><span class="p">)</span>
+    <span class="n">sparse_grid</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+    <span class="c1"># todo allow level to be passed in per dimension so I can base it on</span>
+    <span class="c1"># sparse_grid.subspace_indices.max(axis=1)</span>
+    <span class="n">samples</span><span class="p">,</span> <span class="n">weights</span> <span class="o">=</span> <span class="n">get_sparse_grid_samples_and_weights</span><span class="p">(</span>
+        <span class="n">num_vars</span><span class="p">,</span> <span class="n">sparse_grid</span><span class="o">.</span><span class="n">subspace_indices</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+        <span class="n">sparse_grid</span><span class="o">.</span><span class="n">univariate_quad_rule</span><span class="p">,</span>
+        <span class="n">sparse_grid</span><span class="o">.</span><span class="n">univariate_growth_rule</span><span class="p">,</span> <span class="n">sparse_grid</span><span class="o">.</span><span class="n">subspace_indices</span><span class="p">)[:</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">map_from_canonical</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+    <span class="n">weights</span> <span class="o">*=</span> <span class="n">density_function</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+    <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">basis_matrix_function</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+    <span class="n">moment_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">basis_matrix</span><span class="o">.</span><span class="n">T</span><span class="o">*</span><span class="n">weights</span><span class="p">,</span> <span class="n">basis_matrix</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">moment_matrix</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

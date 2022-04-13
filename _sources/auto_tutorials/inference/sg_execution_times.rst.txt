@@ -1,0 +1,14 @@
+
+:orphan:
+
+.. _sphx_glr_auto_tutorials_inference_sg_execution_times:
+
+Computation times
+=================
+**00:00.886** total execution time for **auto_tutorials_inference** files:
+
++--------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_inference_plot_push_forward_based_inference.py` (``plot_push_forward_based_inference.py``) | 00:00.711 | 0.0 MB |
++--------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_inference_plot_bayesian_networks.py` (``plot_bayesian_networks.py``)                       | 00:00.175 | 0.0 MB |
++--------------------------------------------------------------------------------------------------------------------------+-----------+--------+

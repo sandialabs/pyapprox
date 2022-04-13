@@ -4,10 +4,10 @@
 
 .. _sphx_glr_auto_tutorials:
 
-PyApprox Tutorials
-==================
+Theoretical Tutorials
+=====================
 
-Below is a gallery of tutorials providing detailed mathematical background on the methods in Pyapprox.
+Below is a gallery of tutorials providing detailed mathematical background on the methods in PyApprox.
 
 This tutorials provide more detail than the set of examples found here which simply show how to use different methods with the least amount of code.
 
@@ -18,139 +18,13 @@ This tutorials provide more detail than the set of examples found here which sim
 
 
 
-.. _sphx_glr_auto_tutorials_foundations:
+.. _sphx_glr_auto_tutorials_analysis:
 
-Foundations
------------
-Below is a gallery of foundational tutorials on model and data analysis.
-
-
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="We start by defining a function of two random variables. We will use the Rosenbrock becnhmark. ...">
-
-.. only:: html
-
- .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_setup_model_thumb.png
-     :alt: Model Definition
-
-     :ref:`sphx_glr_auto_tutorials_foundations_plot_setup_model.py`
-
-.. raw:: html
-
-    </div>
+Model Analysis
+--------------
+Below are tutorials on various model analysis techniques
 
 
-.. toctree::
-   :hidden:
-
-   /auto_tutorials/foundations/plot_setup_model
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="Partial Differential Equations ------------------------------ We seek to quantify uncertainty i...">
-
-.. only:: html
-
- .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_advection_diffusion_model_thumb.png
-     :alt: Numerical Approximations of Governing Equations
-
-     :ref:`sphx_glr_auto_tutorials_foundations_plot_advection_diffusion_model.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_tutorials/foundations/plot_advection_diffusion_model
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="We can approximate th integral Q_\alpha using Monte Carlo quadrature by drawing N random sample...">
-
-.. only:: html
-
- .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_monte_carlo_thumb.png
-     :alt: Monte Carlo Quadrature
-
-     :ref:`sphx_glr_auto_tutorials_foundations_plot_monte_carlo.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_tutorials/foundations/plot_monte_carlo
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="Background ---------- When observational data are available, that data should be used to inform...">
-
-.. only:: html
-
- .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_bayesian_inference_thumb.png
-     :alt: Bayesian Inference
-
-     :ref:`sphx_glr_auto_tutorials_foundations_plot_bayesian_inference.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_tutorials/foundations/plot_bayesian_inference
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="PFI solves the inverse problem of inferring parameters \rv of a deterministic model f(\rv) from...">
-
-.. only:: html
-
- .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_push_forward_based_inference_thumb.png
-     :alt: Push Forward Based Inference
-
-     :ref:`sphx_glr_auto_tutorials_foundations_plot_push_forward_based_inference.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_tutorials/foundations/plot_push_forward_based_inference
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="Generally speaking surrogates are built using a ``small&#x27;&#x27; number of model simulations and are t...">
-
-.. only:: html
-
- .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_tensor_product_interpolation_thumb.png
-     :alt: Surrogate Modeling
-
-     :ref:`sphx_glr_auto_tutorials_foundations_plot_tensor_product_interpolation.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_tutorials/foundations/plot_tensor_product_interpolation
 
 .. raw:: html
 
@@ -158,10 +32,10 @@ Below is a gallery of foundational tutorials on model and data analysis.
 
 .. only:: html
 
- .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_sensitivity_analysis_thumb.png
+ .. figure:: /auto_tutorials/analysis/images/thumb/sphx_glr_plot_sensitivity_analysis_thumb.png
      :alt: Sensitivity Analysis
 
-     :ref:`sphx_glr_auto_tutorials_foundations_plot_sensitivity_analysis.py`
+     :ref:`sphx_glr_auto_tutorials_analysis_plot_sensitivity_analysis.py`
 
 .. raw:: html
 
@@ -171,7 +45,41 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. toctree::
    :hidden:
 
-   /auto_tutorials/foundations/plot_sensitivity_analysis
+   /auto_tutorials/analysis/plot_sensitivity_analysis
+.. raw:: html
+
+    <div class="sphx-glr-clear"></div>
+
+
+
+.. _sphx_glr_auto_tutorials_inference:
+
+Inference
+---------
+Below is a gallery of foundational tutorials probabilistic inversion
+
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="PFI solves the inverse problem of inferring parameters \rv of a deterministic model f(\rv) from...">
+
+.. only:: html
+
+ .. figure:: /auto_tutorials/inference/images/thumb/sphx_glr_plot_push_forward_based_inference_thumb.png
+     :alt: Push Forward Based Inference
+
+     :ref:`sphx_glr_auto_tutorials_inference_plot_push_forward_based_inference.py`
+
+.. raw:: html
+
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   /auto_tutorials/inference/plot_push_forward_based_inference
 
 .. raw:: html
 
@@ -179,10 +87,10 @@ Below is a gallery of foundational tutorials on model and data analysis.
 
 .. only:: html
 
- .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_bayesian_networks_thumb.png
+ .. figure:: /auto_tutorials/inference/images/thumb/sphx_glr_plot_bayesian_networks_thumb.png
      :alt: Gaussian Networks
 
-     :ref:`sphx_glr_auto_tutorials_foundations_plot_bayesian_networks.py`
+     :ref:`sphx_glr_auto_tutorials_inference_plot_bayesian_networks.py`
 
 .. raw:: html
 
@@ -192,7 +100,7 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. toctree::
    :hidden:
 
-   /auto_tutorials/foundations/plot_bayesian_networks
+   /auto_tutorials/inference/plot_bayesian_networks
 .. raw:: html
 
     <div class="sphx-glr-clear"></div>
@@ -217,6 +125,27 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 .. [KOB2000] `M. C. Kennedy and A. O'Hagan. Predicting the Output from a Complex Computer Code When Fast Approximations Are Available. Biometrika, 87(1), 1-13, 2000. <http://www.jstor.org/stable/2673557>`_
 
 
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="We can approximate the integral Q_\alpha using Monte Carlo quadrature by drawing N random sampl...">
+
+.. only:: html
+
+ .. figure:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_monte_carlo_thumb.png
+     :alt: Monte Carlo Quadrature
+
+     :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py`
+
+.. raw:: html
+
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   /auto_tutorials/multi_fidelity/plot_monte_carlo
 
 .. raw:: html
 
@@ -325,27 +254,6 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Despite the improved efficiency of surrogate methods relative to MC sampling, building a surrog...">
-
-.. only:: html
-
- .. figure:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_multi_index_collocation_thumb.png
-     :alt: Multi-index Stochastic Collocation
-
-     :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_tutorials/multi_fidelity/plot_multi_index_collocation
-
-.. raw:: html
-
     <div class="sphx-glr-thumbcontainer" tooltip="In the sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py tutorial we showe...">
 
 .. only:: html
@@ -370,23 +278,23 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 
 
 
-.. _sphx_glr_auto_tutorials_polynomial_chaos:
+.. _sphx_glr_auto_tutorials_surrogates:
 
-Polynomial Chaos Expansions
----------------------------
+Surrogates
+----------
 
 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="This tutorial describes how to construct a polynomial chaos expansion (PCE) of a function with ...">
+    <div class="sphx-glr-thumbcontainer" tooltip="Generally speaking surrogates are built using a &quot;small&quot; number of model simulations and are the...">
 
 .. only:: html
 
- .. figure:: /auto_tutorials/polynomial_chaos/images/thumb/sphx_glr_plot_adaptive_leja_interpolation_thumb.png
-     :alt: Adaptive Leja Sequences
+ .. figure:: /auto_tutorials/surrogates/images/thumb/sphx_glr_plot_tensor_product_interpolation_thumb.png
+     :alt: Tensor-product Barycentric Interpolation
 
-     :ref:`sphx_glr_auto_tutorials_polynomial_chaos_plot_adaptive_leja_interpolation.py`
+     :ref:`sphx_glr_auto_tutorials_surrogates_plot_tensor_product_interpolation.py`
 
 .. raw:: html
 
@@ -396,7 +304,49 @@ Polynomial Chaos Expansions
 .. toctree::
    :hidden:
 
-   /auto_tutorials/polynomial_chaos/plot_adaptive_leja_interpolation
+   /auto_tutorials/surrogates/plot_tensor_product_interpolation
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Adaptive Leja Sequences">
+
+.. only:: html
+
+ .. figure:: /auto_tutorials/surrogates/images/thumb/sphx_glr_plot_adaptive_leja_interpolation_thumb.png
+     :alt: Adaptive Leja Sequences
+
+     :ref:`sphx_glr_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py`
+
+.. raw:: html
+
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   /auto_tutorials/surrogates/plot_adaptive_leja_interpolation
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Constructing a GP requires specifying a prior mean m(\rv) and covariance kernel C(\rv, \rv^\sta...">
+
+.. only:: html
+
+ .. figure:: /auto_tutorials/surrogates/images/thumb/sphx_glr_plot_gaussian_processes_thumb.png
+     :alt: Gaussian processes
+
+     :ref:`sphx_glr_auto_tutorials_surrogates_plot_gaussian_processes.py`
+
+.. raw:: html
+
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   /auto_tutorials/surrogates/plot_gaussian_processes
 .. raw:: html
 
     <div class="sphx-glr-clear"></div>
@@ -411,13 +361,13 @@ Polynomial Chaos Expansions
 
   .. container:: sphx-glr-download sphx-glr-download-python
 
-    :download:`Download all examples in Python source code: auto_tutorials_python.zip <//Users/jdjakem/software/pyapprox/docs/source/auto_tutorials/auto_tutorials_python.zip>`
+    :download:`Download all examples in Python source code: auto_tutorials_python.zip </auto_tutorials/auto_tutorials_python.zip>`
 
 
 
   .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-    :download:`Download all examples in Jupyter notebooks: auto_tutorials_jupyter.zip <//Users/jdjakem/software/pyapprox/docs/source/auto_tutorials/auto_tutorials_jupyter.zip>`
+    :download:`Download all examples in Jupyter notebooks: auto_tutorials_jupyter.zip </auto_tutorials/auto_tutorials_jupyter.zip>`
 
 
 .. only:: html

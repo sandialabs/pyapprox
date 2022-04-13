@@ -64,7 +64,7 @@ By inductive reasoning we get the :math:`M` model ACV version of the MLMC estima
 where :math:`\eta_\alpha=-1,\forall\alpha` and :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{\alpha-1,2}`, and :math:`\mu_{\alpha,\mathcal{Z}_{\alpha,2}}=Q_{\alpha,\mathcal{Z}_{\alpha,2}}`.
 
 TODO: Add the F matrix of the MLMC estimator
- 
+
 By viewing MLMC as a control variate we can derive its variance reduction [GGEJJCP2020]_
 
 .. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1} - \eta_M^2 \frac{\tau_{M}}{\hat{r}_{M}} - \sum_{i=2}^M \frac{1}{\hat{r}_{i-1}}\left( \eta_i^2 \tau_{i}^2 + \tau_{i-1}^2 \tau_{i-1}^2 - 2 \eta_i \eta_{i-1} \rho_{i,i-1} \tau_{i} \tau_{i-1} \right),
@@ -76,7 +76,7 @@ Now consider what happens to this variance reduction if we have unlimited resour
 
 .. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1}
 
-From this expression it becomes clear that the variance reduction of a MLMC estimaor is bounded by the CVMC estimator (see :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py`) using the lowest fidelity model with the highest correlation with :math:`f_0`. 
+From this expression it becomes clear that the variance reduction of a MLMC estimaor is bounded by the CVMC estimator (see :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py`) using the lowest fidelity model with the highest correlation with :math:`f_0`.
 
 MFMC
 ^^^^
@@ -99,13 +99,13 @@ In the following we will introduce a ACV estimator which does not suffer from th
 A New ACV Estimator
 -------------------
 As we have discussed MLMC and MFMC are ACV estimators, are suboptimal for a fixed number of high-fidelity samples.
-In the following we detail a straightforward way to obtain an ACV estimator, which will call ACV-IS, that with enough resources can achieve the optimal variance reduction of CVMC when the low-fidelity means are known.  
+In the following we detail a straightforward way to obtain an ACV estimator, which will call ACV-IS, that with enough resources can achieve the optimal variance reduction of CVMC when the low-fidelity means are known.
 
 To obtain the ACV-IS estimator we first evaluate each model (including the high-fidelity model) at a set of :math:`N` samples  :math:`\mathcal{Z}_{\alpha,1}`. We then evaluate each low fidelity model at an additional :math:`N(1-r_\alpha)` samples :math:`\mathcal{Z}_{\alpha,2}`. That is the sample sets satisfy :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{0}\;\forall\alpha>0` and :math:`\left(\mathcal{Z}_{\alpha,2}\setminus\mathcal{Z}_{\alpha,1}\right)\cap\left(\mathcal{Z}_{\kappa,2}\setminus\mathcal{Z}_{\kappa,1}\right)=\emptyset\;\forall\kappa\neq\alpha`. See :ref:`acv-is-sample-allocation-mlmc-comparison` for a comparison of the sample sets used by ACV-IS and MLMC.
 
 .. list-table::
 
-   * - 
+   * -
        .. _mlmc-sample-allocation:
 
        .. figure:: ../../figures/mlmc.png
@@ -114,7 +114,7 @@ To obtain the ACV-IS estimator we first evaluate each model (including the high-
 
           MLMC sampling strategy
 
-     - 
+     -
        .. _acv-is-sample-allocation-mlmc-comparison:
 
        .. figure:: ../../figures/acv_is.png
@@ -132,88 +132,90 @@ The matrix :math:`F` corresponding to this sample scheme is
    \end{cases}
 """
 #%%
-#Lets apply ACV to the tunable model ensemble using some helper functions to reduce the amount of code we have to write
-import pyapprox as pya
+#Lets apply ACV to the tunable model ensemble
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.tests.test_control_variate_monte_carlo import \
-    TunableModelEnsemble, ShortColumnModelEnsemble, PolynomialModelEnsemble 
-from scipy.stats import uniform
 from functools import partial
-from scipy.stats import uniform,norm,lognorm
+
+from pyapprox.benchmarks import setup_benchmark
+from pyapprox import interface
+from pyapprox import multifidelity
+
 np.random.seed(2)
-
-shifts= [.1,.2]
-model = TunableModelEnsemble(1,shifts=shifts)
-exact_integral_f0=0
+shifts = [.1, .2]
+benchmark = setup_benchmark(
+    "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=shifts)
+model = benchmark.fun
+model_costs = 10.**(-np.arange(3))
 cov = model.get_covariance_matrix()
-nhf_samples = int(1e1)
-
-generate_samples_and_values = pya.generate_samples_and_values_acv_IS
-get_cv_weights = partial(
-    pya.get_approximate_control_variate_weights,
-    get_discrepancy_covariances=pya.get_discrepancy_covariances_IS)
-get_rsquared = partial(
-    pya.get_rsquared_acv,
-    get_discrepancy_covariances=pya.get_discrepancy_covariances_IS)
 
 #%%
 # First let us just use 2 models
 
 print('Two models')
-model_ensemble = pya.ModelEnsemble(model.models[:2])
-nsample_ratios = [10]
-allocate_samples = \
-    lambda cov, costs, target_cost : [nhf_samples, nsample_ratios, None]
-means1, numerical_var_reduction1, true_var_reduction1 = \
-    pya.estimate_variance_reduction(
-        model_ensemble, cov[:2,:2], model.generate_samples, allocate_samples,
-        generate_samples_and_values, get_cv_weights, get_rsquared, ntrials=1e3,
-        max_eval_concurrency=1)
-print("Theoretical ACV variance reduction",true_var_reduction1)
-print("Achieved ACV variance reduction",numerical_var_reduction1)
+model_ensemble = interface.ModelEnsemble(model.models[:2])
+nhf_samples = 10
+ntrials = 1000
+nsample_ratios = np.array([10])
+nsamples_per_model = np.hstack((1, nsample_ratios))*nhf_samples
+target_cost = np.dot(model_costs[:2], nsamples_per_model)
+est = multifidelity.get_estimator(
+    "acvis", benchmark.model_covariance[:2, :2], model_costs[:2],
+    benchmark.variable)
+means, numerical_var, true_var = \
+    multifidelity.estimate_variance(
+        model_ensemble, est, target_cost, ntrials, nsample_ratios)
+
+print("Theoretical ACV variance", true_var)
+print("Achieved ACV variance", numerical_var)
 
 #%%
 # Now let us use 3 models
+model_ensemble = interface.ModelEnsemble(model.models[:3])
+nhf_samples = 10
+ntrials = 1000
+nsample_ratios = np.array([10, 10])
+nsamples_per_model = np.hstack((1, nsample_ratios))*nhf_samples
+target_cost = np.dot(model_costs[:3], nsamples_per_model)
+est = multifidelity.get_estimator(
+    "acvis", benchmark.model_covariance[:3, :3], model_costs[:3],
+    benchmark.variable)
+means, numerical_var, true_var = \
+    multifidelity.estimate_variance(
+        model_ensemble, est, target_cost, ntrials, nsample_ratios)
 
 print('Three models')
-model_ensemble = pya.ModelEnsemble(model.models)
-nsample_ratios = [10,10]
-allocate_samples = \
-    lambda cov, costs, target_cost : [nhf_samples, nsample_ratios, None]
-means2, numerical_var_reduction2, true_var_reduction2 = \
-    pya.estimate_variance_reduction(
-        model_ensemble, cov, model.generate_samples, allocate_samples,
-        generate_samples_and_values, get_cv_weights, get_rsquared, ntrials=1e3,
-        max_eval_concurrency=1)
-print("Theoretical ACV variance reduction",true_var_reduction2)
-print("Achieved ACV variance reduction",numerical_var_reduction2)
+print("Theoretical ACV variance reduction", true_var)
+print("Achieved ACV variance reduction", numerical_var)
 
 #%%
 #The benefit of using three models over two models depends on the correlation between each low fidelity model and the high-fidelity model. The benefit on using more models also depends on the relative cost of evaluating each model, however here we will just investigate the effect of changing correlation. The following code shows the variance reduction (relative to standard Monte Carlo) obtained using CVMC (not approximate CVMC) using 2 (OCV1) and three models (OCV2). Unlike MLMC and MFMC, ACV-IS will achieve these variance reductions in the limit as the number of samples of the low fidelity models goes to infinity.
 
-theta1 = np.linspace(model.theta2*1.05,model.theta0*0.95,5)
+from pyapprox.multifidelity.control_variate_monte_carlo import (
+    get_control_variate_rsquared
+)
+theta1 = np.linspace(model.theta2*1.05, model.theta0*0.95, 5)
 covs = []
 var_reds = []
 for th1 in theta1:
-    model.theta1=th1
+    model.theta1 = th1
     covs.append(model.get_covariance_matrix())
-    OCV2_var_red = 1-pya.get_control_variate_rsquared(covs[-1])
+    OCV2_var_red = 1-get_control_variate_rsquared(covs[-1])
     # use model with largest covariance with high fidelity model
-    idx = [0,np.argmax(covs[-1][0,1:])+1]
-    assert idx == [0,1] #it will always be the first model
-    OCV1_var_red = pya.get_control_variate_rsquared(covs[-1][np.ix_(idx,idx)])
-    var_reds.append([OCV2_var_red,OCV1_var_red])
+    idx = [0, np.argmax(covs[-1][0, 1:])+1]
+    assert idx == [0, 1] #it will always be the first model
+    OCV1_var_red = get_control_variate_rsquared(covs[-1][np.ix_(idx, idx)])
+    var_reds.append([OCV2_var_red, OCV1_var_red])
 covs = np.array(covs)
 var_reds = np.array(var_reds)
 
-fig,axs = plt.subplots(1,2,figsize=(2*8,6))
-for ii,jj, in [[0,1],[0,2],[1,2]]:
-    axs[0].plot(theta1,covs[:,ii,jj],'o-',
-                label=r'$\rho_{%d%d}$'%(ii,jj))
-axs[1].plot(theta1,var_reds[:,0],'o-',label=r'$\mathrm{OCV2}$')
-axs[1].plot(theta1,var_reds[:,1],'o-',label=r'$\mathrm{OCV1}$')
-axs[1].plot(theta1,var_reds[:,0]/var_reds[:,1],'o-',
+fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
+for ii, jj in [[0, 1], [0, 2], [1, 2]]:
+    axs[0].plot(theta1, covs[:, ii, jj], 'o-',
+                label=r'$\rho_{%d%d}$' % (ii, jj))
+axs[1].plot(theta1, var_reds[:, 0], 'o-', label=r'$\mathrm{OCV2}$')
+axs[1].plot(theta1, var_reds[:, 1], 'o-', label=r'$\mathrm{OCV1}$')
+axs[1].plot(theta1, var_reds[:, 0]/var_reds[:, 1], 'o-',
             label=r'$\mathrm{OCV2/OCV1}$')
 axs[0].set_xlabel(r'$\theta_1$')
 axs[0].set_ylabel(r'$\mathrm{Correlation}$')
@@ -232,36 +234,42 @@ _ = axs[1].legend()
 #where each model is the function of a single uniform random variable defined on the unit interval :math:`[0,1]`.
 
 plt.figure()
-poly_model = PolynomialModelEnsemble()
+benchmark = setup_benchmark("polynomial_ensemble")
+poly_model = benchmark.fun
 cov = poly_model.get_covariance_matrix()
+model_costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
 nhf_samples = 10
-nsample_ratios_base = [2, 4, 8, 16]
-cv_labels = [r'$\mathrm{OCV-1}$',r'$\mathrm{OCV-2}$',r'$\mathrm{OCV-4}$']
-cv_rsquared_funcs=[
-    lambda cov: pya.get_control_variate_rsquared(cov[:2,:2]),
-    lambda cov: pya.get_control_variate_rsquared(cov[:3,:3]),
-    lambda cov: pya.get_control_variate_rsquared(cov)]
+nsample_ratios_base = np.array([2, 4, 8, 16])
+cv_labels = [r'$\mathrm{OCV-1}$', r'$\mathrm{OCV-2}$', r'$\mathrm{OCV-4}$']
+cv_rsquared_funcs = [
+    lambda cov: get_control_variate_rsquared(cov[:2, :2]),
+    lambda cov: get_control_variate_rsquared(cov[:3, :3]),
+    lambda cov: get_control_variate_rsquared(cov)]
 cv_gammas = [1-f(cov) for f in cv_rsquared_funcs]
 for ii in range(len(cv_gammas)):
-    plt.axhline(y=cv_gammas[ii],linestyle='--',c='k')
+    plt.axhline(y=cv_gammas[ii], linestyle='--', c='k')
     xloc = -.35
-    plt.text(xloc, cv_gammas[ii]*1.1, cv_labels[ii],fontsize=16)
-plt.axhline(y=1,linestyle='--',c='k')
-plt.text(xloc,1,r'$\mathrm{MC}$',fontsize=16)
+    plt.text(xloc, cv_gammas[ii]*1.1, cv_labels[ii], fontsize=16)
+plt.axhline(y=1, linestyle='--', c='k')
+plt.text(xloc, 1, r'$\mathrm{MC}$', fontsize=16)
 
-acv_labels = [r'$\mathrm{MLMC}$',r'$\mathrm{MFMC}$',r'$\mathrm{ACV}$-$\mathrm{MF}$']
-acv_rsquared_funcs = [
-    pya.get_rsquared_mlmc,pya.get_rsquared_mfmc,
-    partial(pya.get_rsquared_acv,
-            get_discrepancy_covariances=pya.get_discrepancy_covariances_MF)]
+from pyapprox.util.configure_plots import mathrm_labels
+acv_labels = mathrm_labels(["MLMC", "MFMC", "ACVMF"])
+estimators = [
+    multifidelity.get_estimator("mlmc", cov, model_costs, poly_model.variable),
+    multifidelity.get_estimator("mfmc", cov, model_costs, poly_model.variable),
+    multifidelity.get_estimator("acvmf", cov, model_costs, poly_model.variable)
+]
+acv_rsquared_funcs = [est._get_rsquared for est in estimators]
 
 nplot_points = 20
-acv_gammas = np.empty((nplot_points,len(acv_rsquared_funcs)))
+acv_gammas = np.empty((nplot_points, len(acv_rsquared_funcs)))
 for ii in range(nplot_points):
-    nsample_ratios = [r*(2**ii) for r in nsample_ratios_base]
-    acv_gammas[ii,:] = [1-f(cov,nsample_ratios) for f in acv_rsquared_funcs]
+    nsample_ratios = np.array([r*(2**ii) for r in nsample_ratios_base])
+    acv_gammas[ii, :] = [1-f(cov, nsample_ratios) for f in acv_rsquared_funcs]
 for ii in range(len(acv_labels)):
-    plt.semilogy(np.arange(nplot_points),acv_gammas[:,ii],label=acv_labels[ii])
+    plt.semilogy(np.arange(nplot_points), acv_gammas[:, ii],
+                 label=acv_labels[ii])
 plt.legend()
 plt.xlabel(r'$\log_2(r_i)-i$')
 _ = plt.ylabel(r'$\mathrm{Variance}$ $\mathrm{reduction}$ $\mathrm{ratio}$ $\gamma$')
@@ -272,85 +280,59 @@ _ = plt.ylabel(r'$\mathrm{Variance}$ $\mathrm{reduction}$ $\mathrm{ratio}$ $\gam
 #%%
 #Accelerated Approximate Control Variate Monte Carlo
 #---------------------------------------------------
-#The recursive estimators work well when the number of low-fidelity samples are smal but ACV can achieve a greater variance reduction for a fixed number of high-fidelity samples. In this section we present an approach called ACV-KL that combines the strengths of these methods.
+#The recursive estimators work well when the number of low-fidelity samples are smal but ACV can achieve a greater variance reduction for a fixed number of high-fidelity samples. In this section we present an approach called ACV-GMFB that combines the strengths of these methods [BLWLJCP2022]_.
 #
-#Let :math:`K,L \leq M` with :math:`0 \leq L \leq K`. The ACV-KL estimator is
+#This estimator differs from the previous recursive estimators because it uses some models as control variates and other models to estimate the mean of these control variates recursively. This estimator optimizes over the best use of models and returns the best model configuration.
 #
-#.. math::
-#
-#   Q^{\mathrm{ACV-KL}}_{0,\mathcal{Z}}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^K\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{0}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)+\sum_{\alpha=K+1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{L}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)
-#
-#We allocate samples to the terms of this estimator using a modified version of the MFMC sampling scheme. The sample allocation for K=2,L=2 is shown in :ref:`acv_mf-kl-sample-allocation-kl-comparison`. Note the subtle difference between this sampling scheme and the one used for MFMC. We also note that the sample sets can be chosen in several ways, this is just one choice.
-#
-#.. list-table::
-#
-#   * - 
-#       .. _mfmc-sample-allocation-kl-comparison:
-#
-#       .. figure:: ../../figures/mfmc.png
-#          :width: 100%
-#          :align: center
-#
-#          MFMC sampling strategy
-#
-#     - 
-#       .. _acv_mf-kl-sample-allocation-kl-comparison:
-#
-#       .. figure:: ../../figures/acv_kl_22.png
-#          :width: 100%
-#          :align: center
-#
-#          ACV KL MF sampling strategy K=2,L=2
-#
-#This estimator differs from the previous recursive estimators because the first two terms in correspond to an ACV-MF estimator with :math:`K` CVs and the last term adds a CV scheme to the ACV-MF estimator.
-#
-#The inclusion of the ACV-MF estimator enables the ACV-KL estimator to converge to the CV estimator and the last term reduces the variance of :math:`\mu_{L}`, thereby accelerating convergence of the scheme. The optimal weights and variance reduction for the ACV-KL estimator are now provided.
-#
-#The matrix :math:`F` used to compute the covariances of the control variate discrepancies, i.e.
-#
-#.. math::
-#
-#   \covar{\V{\Delta}}{Q_0}&=N^{-1}\left(\mathrm{diag}\left(F\right)\circ \covar{\V{Q}_\mathrm{LF}}{Q_0}\right)\\
-#   \covar{\V{\Delta}}{\V{\Delta}}&=N^{-1}\left(\covar{\V{Q}_\mathrm{LF}}{\V{Q}_\mathrm{LF}}\circ F\right)\\
-#
-#can be found in  [GGEJJCP2020]_.
-#
-#Let us add the ACV KL estimator with the optimal choice of K and L to the previous plot. The optimal values can be obtained by a simple grid search, over all possible values of K and L, which returns the combination that results in the smallest estimator variance. This step only requires an estimate of the model covariance which is required for all ACV estimators. Note in the following plot OCV-K denotews the optimal CV estimator using K low-fidelity models with known means)
+#Let us add the ACV-GMFB estimator to the previous plot
+
 
 plt.figure()
-cv_labels = [r'$\mathrm{OCV-1}$',r'$\mathrm{OCV-2}$',r'$\mathrm{OCV-4}$']
-cv_rsquared_funcs=[
-    lambda cov: pya.get_control_variate_rsquared(cov[:2,:2]),
-    lambda cov: pya.get_control_variate_rsquared(cov[:3,:3]),
-    lambda cov: pya.get_control_variate_rsquared(cov)]
+cv_labels = [r'$\mathrm{OCV-1}$', r'$\mathrm{OCV-2}$', r'$\mathrm{OCV-4}$']
+cv_rsquared_funcs = [
+    lambda cov: get_control_variate_rsquared(cov[:2, :2]),
+    lambda cov: get_control_variate_rsquared(cov[:3, :3]),
+    lambda cov: get_control_variate_rsquared(cov)]
 cv_gammas = [1-f(cov) for f in cv_rsquared_funcs]
 xloc = -.35
 for ii in range(len(cv_gammas)):
-    plt.axhline(y=cv_gammas[ii],linestyle='--',c='k')
-    plt.text(xloc, cv_gammas[ii]*1.1, cv_labels[ii],fontsize=16)
-plt.axhline(y=1,linestyle='--',c='k')
-plt.text(xloc,1,r'$\mathrm{MC}$',fontsize=16)
+    plt.axhline(y=cv_gammas[ii], linestyle='--', c='k')
+    plt.text(xloc, cv_gammas[ii]*1.1, cv_labels[ii], fontsize=16)
+plt.axhline(y=1, linestyle='--', c='k')
+plt.text(xloc, 1, r'$\mathrm{MC}$', fontsize=16)
 
-acv_labels = [r'$\mathrm{MLMC}$',r'$\mathrm{MFMC}$',r'$\mathrm{ACV}$-$\mathrm{MF}$',r'$\mathrm{ACV}$-$\mathrm{KL}$']
-acv_rsquared_funcs = [
-    pya.get_rsquared_mlmc,pya.get_rsquared_mfmc,
-    partial(pya.get_rsquared_acv,
-            get_discrepancy_covariances=pya.get_discrepancy_covariances_MF),
-    pya.get_rsquared_acv_KL_best]
-
+from pyapprox.multifidelity.monte_carlo_estimators import (
+    get_acv_recursion_indices
+)
+acv_labels = mathrm_labels(["MLMC", "MFMC", "ACVMF", "ACVGMFB"])
+estimator_types = ["mlmc", "mfmc", "acvmf", "acvgmfb"]
+estimators = [
+    multifidelity.get_estimator(t, cov, model_costs, poly_model.variable)
+    for t in estimator_types]
+# acvgmf requires total cost so create wrappers of methods that do not
 nplot_points = 20
-acv_gammas = np.empty((nplot_points,len(acv_rsquared_funcs)))
+acv_gammas = np.empty((nplot_points, len(estimators)))
 for ii in range(nplot_points):
-    nsample_ratios = [r*(2**ii) for r in nsample_ratios_base]
-    acv_gammas[ii,:] = [1-f(cov,nsample_ratios) for f in acv_rsquared_funcs]
+    nsample_ratios = np.array([r*(2**ii) for r in nsample_ratios_base])
+    target_cost = nhf_samples*model_costs[0]+nsample_ratios.dot(
+        model_costs[1:])*nhf_samples
+    acv_gammas[ii, :-1] = [1-est._get_rsquared(cov, nsample_ratios)
+                           for est in estimators[:-1]]
+    best_rsq = -np.inf
+    for index in get_acv_recursion_indices(cov.shape[0]):
+        estimators[-1].set_recursion_index(index)
+        rsq = estimators[-1]._get_rsquared(cov, nsample_ratios, target_cost)
+        best_rsq = max(best_rsq, rsq)
+    acv_gammas[ii, -1] = 1-best_rsq
 for ii in range(len(acv_labels)):
-    plt.semilogy(np.arange(nplot_points),acv_gammas[:,ii],label=acv_labels[ii])
+    plt.semilogy(np.arange(nplot_points), acv_gammas[:, ii],
+                 label=acv_labels[ii])
 plt.legend()
 plt.xlabel(r'$\log_2(r_i)-i$')
 _ = plt.ylabel(r'$\mathrm{Variance}$ $\mathrm{reduction}$ $\mathrm{ratio}$ $\gamma$')
 
 #%%
-#The variance of the best ACV-KL still converges to the lowest possible variance. But its variance at small sample sizes is better than ACV-MF  and comparable to MLMC.
+#The variance of the best ACV-GMFB still converges to the lowest possible variance. But its variance at small sample sizes is better than ACV-MF  and comparable to MLMC.
 #
 #TODO Make note about how this scheme is useful when one model may have multiple discretizations.!!!!
 
@@ -358,38 +340,27 @@ _ = plt.ylabel(r'$\mathrm{Variance}$ $\mathrm{reduction}$ $\mathrm{ratio}$ $\gam
 #Optimal Sample Allocation
 #-------------------------
 #
-#The previous results compared MLMC with MFMC and ACV-KL when the number of high-fidelity samples were fixed. In the following we compare these methods when the number of samples are optimized to minimize the variance of each estimator.
-variances, nsamples_history = [],[]
-npilot_samples = 5
-estimators = [pya.MFMC,pya.MLMC,pya.MC,pya.ACVMF]
-est_labels = [r'$\mathrm{MFMC}$',r'$\mathrm{MLMC}$',r'$\mathrm{MC}$',r'$\mathrm{ACV}-\mathrm{MF}$']
-linestyles=['-','--',':','-.']
-target_costs = np.array([1e1,1e2,1e3,1e4],dtype=int)
-model_labels=[r'$f_0$',r'$f_1$',r'$f_2$',r'$f_3$',r'$f_4$']
-costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
-for target_cost in target_costs:
-    for estimator in estimators:
-        est = estimator(cov,costs)
-        nhf_samples,nsample_ratios = est.allocate_samples(target_cost)[:2]
-        variances.append(est.get_variance(nhf_samples,nsample_ratios))
-        nsamples_history.append(est.get_nsamples(nhf_samples,nsample_ratios))
-variances = np.asarray(variances)
-nsamples_history = np.asarray(nsamples_history)
+#The previous results compared MLMC with MFMC and ACV-MF when the number of high-fidelity samples were fixed. In the following we compare these methods when the number of samples are optimized to minimize the variance of each estimator. We will only use the first 4 models
+from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
+estimator_types = ["mc", "mlmc", "mfmc", "acvmf", "acvgmfb"]
+estimators = [
+    multifidelity.get_estimator(t, cov[:4, :4], model_costs[:4], poly_model.variable)
+    for t in estimator_types]
+est_labels = mathrm_labels(["MC", "MLMC", "MFMC", "ACVMF", "ACVGMFB"])
+target_costs = np.array([1e1, 1e2, 1e3, 1e4], dtype=int)
+optimized_estimators = multifidelity.compare_estimator_variances(
+    target_costs, estimators)
 
-fig,axs=plt.subplots(1,1,figsize=(8,6))
-for ii in range(len(estimators)):
-    est_total_costs = np.array(nsamples_history[ii::len(estimators)]).dot(costs)
-    est_variances = variances[ii::len(estimators)]
-    axs.loglog(est_total_costs,est_variances,':',label=est_labels[ii],
-               ls=linestyles[ii])
-    
-axs.set_ylim(axs.get_ylim()[0],1e-3)
-_ = axs.legend()
-#fig # necessary for jupyter notebook to reshow plot in new cell
+fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+multifidelity.plot_estimator_variances(
+    optimized_estimators, est_labels, ax,
+    ylabel=mathrm_label("Relative Estimator Variance"))
+ax.set_xlim(target_costs.min(), target_costs.max())
 plt.show()
+#fig # necessary for jupyter notebook to reshow plot in new cell
 
 #%%
-#In this example ACV-KL is a more efficient estimator, i.e. it has a smaller variance for a fixed cost. However this improvement is problem dependent. For other model ensembles another estimator may be more efficient. Modify the above example to use another model to explore this more. The left plot shows the relative costs of evaluating each model using the ACVMF sampling strategy. Compare this to the MLMC sample allocation. Also edit above code to plot the MFMC sample allocation.
+#In this example ACVGMFB is the most efficient estimator, i.e. it has a smaller variance for a fixed cost. However this improvement is problem dependent. For other model ensembles another estimator may be more efficient. Modify the above example to use another model to explore this more. The left plot shows the relative costs of evaluating each model using the ACVMF sampling strategy. Compare this to the MLMC sample allocation. Also edit above code to plot the MFMC sample allocation.
 
 #%%
 #Before this tutorial ends it is worth noting that a section of the MLMC literature explores adaptive methods which do not assume there is a fixed high-fidelity model but rather attempt to balance the estimator variance with the deterministic bias. These methods add a higher-fidelity model, e.g. a finer finite element mesh, when the variance is made smaller than the bias. We will not explore this here, but an example of this is shown in the tutorial on multi-index collocation.
@@ -397,4 +368,6 @@ plt.show()
 #%%
 #References
 #^^^^^^^^^^
-#.. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification, Journal of Computational Physics, In press, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_
+#.. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification, Journal of Computational Physics, 408:109257, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_
+#
+#.. [BLWLJCP2022] `On the optimization of approximate control variates with parametrically defined estimators, Journal of Computational Physics,451:110882, 2022 <https://doi.org/10.1016/j.jcp.2021.110882>`_

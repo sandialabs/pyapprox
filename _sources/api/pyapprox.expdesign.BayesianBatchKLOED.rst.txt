@@ -1,0 +1,19 @@
+BayesianBatchKLOED
+==================
+
+.. currentmodule:: pyapprox.expdesign
+
+.. autoclass:: BayesianBatchKLOED
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~BayesianBatchKLOED.compute_expected_utility
+      ~BayesianBatchKLOED.populate
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: compute_expected_utility
+   .. automethod:: populate

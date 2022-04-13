@@ -1,0 +1,6 @@
+halton_sequence
+===============
+
+.. currentmodule:: pyapprox.expdesign
+
+.. autofunction:: halton_sequence

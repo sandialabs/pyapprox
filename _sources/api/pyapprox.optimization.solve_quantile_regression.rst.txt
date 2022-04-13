@@ -1,0 +1,6 @@
+solve_quantile_regression
+=========================
+
+.. currentmodule:: pyapprox.optimization
+
+.. autofunction:: solve_quantile_regression

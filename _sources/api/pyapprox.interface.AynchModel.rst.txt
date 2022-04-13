@@ -1,0 +1,25 @@
+AynchModel
+==========
+
+.. currentmodule:: pyapprox.interface
+
+.. autoclass:: AynchModel
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~AynchModel.__call__
+      ~AynchModel.asynchronous_evaluate_using_shell_command
+      ~AynchModel.cleanup_threads
+      ~AynchModel.create_work_dir
+      ~AynchModel.prepare_values
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: asynchronous_evaluate_using_shell_command
+   .. automethod:: cleanup_threads
+   .. automethod:: create_work_dir
+   .. automethod:: prepare_values

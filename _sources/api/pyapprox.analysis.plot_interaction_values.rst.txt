@@ -1,0 +1,6 @@
+plot_interaction_values
+=======================
+
+.. currentmodule:: pyapprox.analysis
+
+.. autofunction:: plot_interaction_values

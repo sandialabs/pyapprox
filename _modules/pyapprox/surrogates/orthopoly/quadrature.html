@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.surrogates.orthopoly.quadrature &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+        <script src="../../../../_static/jquery.js"></script>
+        <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/doctools.js"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.surrogates.orthopoly.quadrature</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.surrogates.orthopoly.quadrature</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.orthonormal_polynomials</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">gauss_quadrature</span><span class="p">,</span> <span class="n">define_orthopoly_options_from_marginal</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.orthonormal_recursions</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">jacobi_recurrence</span><span class="p">,</span> <span class="n">hermite_recurrence</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.recursion_factory</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_recursion_coefficients_from_variable</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.transforms</span> <span class="kn">import</span> <span class="n">AffineTransform</span>
+
+
+<span class="k">def</span> <span class="nf">clenshaw_curtis_rule_growth</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The number of samples in the 1D Clenshaw-Curtis quadrature rule of a given</span>
+<span class="sd">    level.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">       The level of the quadrature rule</span>
+
+<span class="sd">    Return</span>
+<span class="sd">    ------</span>
+<span class="sd">    num_samples_1d : integer</span>
+<span class="sd">        The number of samples in the quadrature rule</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">2</span><span class="o">**</span><span class="n">level</span><span class="o">+</span><span class="mi">1</span>
+
+
+<span class="k">def</span> <span class="nf">clenshaw_curtis_hierarchical_to_nodal_index</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="n">ll</span><span class="p">,</span> <span class="n">ii</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert a 1D hierarchical index (ll,ii) to a nodal index for lookup in a</span>
+<span class="sd">    Clenshaw-Curtis quadrature rule.</span>
+
+<span class="sd">    Given a quadrature rule of the specified max level (level)</span>
+<span class="sd">    with indices [0,1,...,num_indices] this function can be used</span>
+<span class="sd">    to convert a hierarchical index, e.g. of the constant function</span>
+<span class="sd">    (poly_index=0), to the quadrature index, e.g for poly_index=0,</span>
+<span class="sd">    index=num_indices/2). This allows one to take advantage of nestedness of</span>
+<span class="sd">    quadrature rule and only store quadrature rule for max level.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">        The maximum level of the quadrature rule</span>
+
+<span class="sd">    ll : integer</span>
+<span class="sd">        The level of the polynomial index</span>
+
+<span class="sd">    ii : integer</span>
+<span class="sd">        The polynomial index</span>
+
+<span class="sd">    Return</span>
+<span class="sd">    ------</span>
+<span class="sd">    nodal_index : integer</span>
+<span class="sd">        The equivalent nodal index of (ll,ii)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">num_indices</span> <span class="o">=</span> <span class="n">clenshaw_curtis_rule_growth</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+    <span class="c1"># mid point</span>
+    <span class="k">if</span> <span class="n">ll</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">num_indices</span><span class="o">/</span><span class="mi">2</span>
+    <span class="c1"># boundaries</span>
+    <span class="k">elif</span> <span class="n">ll</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">ii</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">num_indices</span><span class="o">-</span><span class="mi">1</span>
+    <span class="c1"># higher level points</span>
+    <span class="k">return</span> <span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="mi">2</span><span class="o">**</span><span class="p">(</span><span class="n">level</span><span class="o">-</span><span class="n">ll</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">clenshaw_curtis_poly_indices_to_quad_rule_indices</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert all 1D polynomial indices of up to and including a given level</span>
+<span class="sd">    to their equivalent nodal index for lookup in a Clenshaw-Curtis</span>
+<span class="sd">    quadrature rule.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">        The maximum level of the quadrature rule</span>
+
+<span class="sd">    Return</span>
+<span class="sd">    ------</span>
+<span class="sd">    quad_rule_indices : np.ndarray (num_vars x num_indices)</span>
+<span class="sd">        All the quadrature rule indices</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">quad_rule_indices</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">num_previous_hier_indices</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">level</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">num_hierarchical_indices</span> <span class="o">=</span>\
+            <span class="n">clenshaw_curtis_rule_growth</span><span class="p">(</span><span class="n">ll</span><span class="p">)</span><span class="o">-</span><span class="n">num_previous_hier_indices</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_hierarchical_indices</span><span class="p">):</span>
+            <span class="n">quad_index</span> <span class="o">=</span> <span class="n">clenshaw_curtis_hierarchical_to_nodal_index</span><span class="p">(</span>
+                <span class="n">level</span><span class="p">,</span> <span class="n">ll</span><span class="p">,</span> <span class="n">ii</span><span class="p">)</span>
+            <span class="n">quad_rule_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">quad_index</span><span class="p">)</span>
+        <span class="n">num_previous_hier_indices</span> <span class="o">+=</span> <span class="n">num_hierarchical_indices</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">quad_rule_indices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">clenshaw_curtis_in_polynomial_order</span><span class="p">(</span><span class="n">level</span><span class="p">,</span>
+                                        <span class="n">return_weights_for_all_levels</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return the samples and weights of the Clenshaw-Curtis rule using</span>
+<span class="sd">    polynomial ordering.</span>
+
+<span class="sd">    The first point will be the middle weight of the rule. The second and</span>
+<span class="sd">    third weights will be the left and right boundary weights. All other</span>
+<span class="sd">    weights left of mid point will come next followed by all remaining points.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">        The level of the isotropic sparse grid.</span>
+
+<span class="sd">    return_weights_for_all_levels : boolean</span>
+<span class="sd">        True  - return weights [w(0),w(1),...,w(level)]</span>
+<span class="sd">        False - return w(level)</span>
+
+<span class="sd">    Return</span>
+<span class="sd">    ------</span>
+<span class="sd">    ordered_samples_1d : np.ndarray (num_samples_1d)</span>
+<span class="sd">        The reordered samples.</span>
+
+<span class="sd">    ordered_weights_1d : np.ndarray (num_samples_1d)</span>
+<span class="sd">        The reordered weights.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># w*=2. #use if want do not want to use probability formulation</span>
+
+    <span class="k">if</span> <span class="n">return_weights_for_all_levels</span><span class="p">:</span>
+        <span class="n">ordered_weights_1d</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">level</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">clenshaw_curtis_pts_wts_1D</span><span class="p">(</span><span class="n">ll</span><span class="p">)</span>
+            <span class="n">quad_indices</span> <span class="o">=</span> <span class="n">clenshaw_curtis_poly_indices_to_quad_rule_indices</span><span class="p">(</span>
+                <span class="n">ll</span><span class="p">)</span>
+            <span class="n">ordered_weights_1d</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">w</span><span class="p">[</span><span class="n">quad_indices</span><span class="p">])</span>
+        <span class="c1"># ordered samples for last x</span>
+        <span class="n">ordered_samples_1d</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">quad_indices</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">clenshaw_curtis_pts_wts_1D</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+        <span class="n">quad_indices</span> <span class="o">=</span> <span class="n">clenshaw_curtis_poly_indices_to_quad_rule_indices</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+        <span class="n">ordered_samples_1d</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">quad_indices</span><span class="p">]</span>
+        <span class="n">ordered_weights_1d</span> <span class="o">=</span> <span class="n">w</span><span class="p">[</span><span class="n">quad_indices</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">ordered_samples_1d</span><span class="p">,</span> <span class="n">ordered_weights_1d</span>
+
+
+<span class="k">def</span> <span class="nf">clenshaw_curtis_pts_wts_1D</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generated a nested, exponentially-growing Clenshaw-Curtis quadrature rule</span>
+<span class="sd">    that exactly integrates polynomials of degree 2**level+1 with respect to</span>
+<span class="sd">    the uniform probability measure on [-1,1].</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">        The level of the nested quadrature rule. The number of samples in the</span>
+<span class="sd">        quadrature rule will be 2**level+1</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    x : np.ndarray(num_samples)</span>
+<span class="sd">        Quadrature samples</span>
+
+<span class="sd">    w : np.ndarray(num_samples)</span>
+<span class="sd">        Quadrature weights</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">pyapprox.cython.univariate_quadrature</span> <span class="kn">import</span> \
+            <span class="n">clenshaw_curtis_pts_wts_1D_pyx</span>
+        <span class="k">return</span> <span class="n">clenshaw_curtis_pts_wts_1D_pyx</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+        <span class="c1"># from pyapprox.weave.univariate_quadrature import \</span>
+        <span class="c1">#     c_clenshaw_curtis_pts_wts_1D</span>
+        <span class="c1"># return c_clenshaw_curtis_pts_wts_1D(level)</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;clenshaw_curtis_pts_wts failed&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">__clenshaw_curtis_pts_wts_1D</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">__clenshaw_curtis_pts_wts_1D</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
+    <span class="n">num_samples</span> <span class="o">=</span> <span class="n">clenshaw_curtis_rule_growth</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+
+    <span class="n">wt_factor</span> <span class="o">=</span> <span class="mf">1.</span><span class="o">/</span><span class="mf">2.</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_samples</span><span class="p">))</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">level</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+        <span class="n">w</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_samples</span><span class="p">):</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">jj</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="n">x</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.</span>
+                <span class="n">w</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">wt_factor</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">num_samples</span><span class="o">*</span><span class="p">(</span><span class="n">num_samples</span> <span class="o">-</span> <span class="mf">2.</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="p">(</span><span class="n">jj</span> <span class="o">==</span> <span class="n">num_samples</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">x</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span>
+                <span class="n">w</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">wt_factor</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">num_samples</span><span class="o">*</span><span class="p">(</span><span class="n">num_samples</span><span class="o">-</span><span class="mf">2.</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">x</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="nb">float</span><span class="p">(</span><span class="n">jj</span><span class="p">)</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">num_samples</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+                <span class="n">mysum</span> <span class="o">=</span> <span class="mf">0.0</span>
+                <span class="k">for</span> <span class="n">kk</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="n">num_samples</span><span class="o">-</span><span class="mi">3</span><span class="p">)</span><span class="o">//</span><span class="mi">2</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                    <span class="n">mysum</span> <span class="o">+=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="mf">4.</span><span class="o">*</span><span class="n">kk</span><span class="o">*</span><span class="n">kk</span><span class="o">-</span><span class="mf">1.</span><span class="p">)</span> <span class="o">*</span>\
+                        <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mf">2.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="nb">float</span><span class="p">(</span><span class="n">kk</span><span class="o">*</span><span class="n">jj</span><span class="p">)</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">num_samples</span><span class="o">-</span><span class="mf">1.</span><span class="p">))</span>
+                <span class="n">w</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="mf">2.</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">num_samples</span><span class="o">-</span><span class="mf">1.</span><span class="p">)</span><span class="o">*</span><span class="p">(</span>
+                    <span class="mf">1.</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="nb">float</span><span class="p">(</span><span class="n">jj</span><span class="p">))</span> <span class="o">/</span>
+                    <span class="nb">float</span><span class="p">(</span><span class="n">num_samples</span><span class="o">*</span><span class="p">(</span><span class="n">num_samples</span> <span class="o">-</span> <span class="mf">2.</span><span class="p">))</span><span class="o">-</span><span class="mf">2.</span><span class="o">*</span><span class="p">(</span><span class="n">mysum</span><span class="p">))</span>
+                <span class="n">w</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">*=</span> <span class="n">wt_factor</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="n">jj</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mf">2.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">):</span>
+                <span class="n">x</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+    <span class="k">return</span> <span class="n">x</span><span class="p">,</span> <span class="n">w</span>
+
+
+<span class="k">def</span> <span class="nf">gauss_hermite_pts_wts_1D</span><span class="p">(</span><span class="n">num_samples</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return Gauss Hermite quadrature rule that exactly integrates polynomials</span>
+<span class="sd">    of degree 2*num_samples-1 with respect to the Gaussian probability measure</span>
+<span class="sd">    1/sqrt(2*pi)exp(-x**2/2)</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    num_samples : integer</span>
+<span class="sd">        The number of samples in the quadrature rule</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    x : np.ndarray(num_samples)</span>
+<span class="sd">        Quadrature samples</span>
+
+<span class="sd">    w : np.ndarray(num_samples)</span>
+<span class="sd">        Quadrature weights</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">ab</span> <span class="o">=</span> <span class="n">hermite_recurrence</span><span class="p">(</span><span class="n">num_samples</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">probability</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">gauss_quadrature</span><span class="p">(</span><span class="n">ab</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">x</span><span class="p">,</span> <span class="n">w</span>
+
+
+<span class="k">def</span> <span class="nf">gauss_jacobi_pts_wts_1D</span><span class="p">(</span><span class="n">num_samples</span><span class="p">,</span> <span class="n">alpha_poly</span><span class="p">,</span> <span class="n">beta_poly</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return Gauss Jacobi quadrature rule that exactly integrates polynomials</span>
+<span class="sd">    of num_samples 2*num_samples-1 with respect to the probabilty density</span>
+<span class="sd">    function of Beta random variables on [-1,1]</span>
+
+<span class="sd">    C*(1+x)^(beta_poly)*(1-x)^alpha_poly</span>
+
+<span class="sd">    where</span>
+
+<span class="sd">    C = 1/(2**(alpha_poly+beta_poly)*beta_fn(beta_poly+1,alpha_poly+1))</span>
+
+<span class="sd">    or equivalently</span>
+
+<span class="sd">    C*(1+x)**(alpha_stat-1)*(1-x)**(beta_stat-1)</span>
+
+<span class="sd">    where</span>
+
+<span class="sd">    C = 1/(2**(alpha_stat+beta_stat-2)*beta_fn(alpha_stat,beta_stat))</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    num_samples : integer</span>
+<span class="sd">        The number of samples in the quadrature rule</span>
+
+<span class="sd">    alpha_poly : float</span>
+<span class="sd">        The Jaocbi parameter alpha = beta_stat-1</span>
+
+<span class="sd">    beta_poly : float</span>
+<span class="sd">        The Jacobi parameter beta = alpha_stat-1</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    x : np.ndarray(num_samples)</span>
+<span class="sd">        Quadrature samples</span>
+
+<span class="sd">    w : np.ndarray(num_samples)</span>
+<span class="sd">        Quadrature weights</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ab</span> <span class="o">=</span> <span class="n">jacobi_recurrence</span><span class="p">(</span>
+        <span class="n">num_samples</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha_poly</span><span class="p">,</span> <span class="n">beta</span><span class="o">=</span><span class="n">beta_poly</span><span class="p">,</span> <span class="n">probability</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">gauss_quadrature</span><span class="p">(</span><span class="n">ab</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">leja_growth_rule</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The number of samples in the 1D Leja quadrature rule of a given</span>
+<span class="sd">    level. Most leja rules produce two point quadrature rules which</span>
+<span class="sd">    have zero weight assigned to one point. Avoid this by skipping from</span>
+<span class="sd">    one point rule to 3 point rule and then increment by 1.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">       The level of the quadrature rule</span>
+
+<span class="sd">    Return</span>
+<span class="sd">    ------</span>
+<span class="sd">    num_samples_1d : integer</span>
+<span class="sd">        The number of samples in the quadrature rule</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">level</span><span class="o">+</span><span class="mi">2</span>
+
+
+<span class="k">def</span> <span class="nf">constant_increment_growth_rule</span><span class="p">(</span><span class="n">increment</span><span class="p">,</span> <span class="n">level</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The number of samples in the 1D quadrature rule where number of of points</span>
+<span class="sd">    grow by a fixed constant at each level.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">       The level of the quadrature rule</span>
+
+<span class="sd">    Return</span>
+<span class="sd">    ------</span>
+<span class="sd">    num_samples_1d : integer</span>
+<span class="sd">        The number of samples in the quadrature rule</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">3</span>
+    <span class="n">nsamples_1d</span> <span class="o">=</span> <span class="n">increment</span><span class="o">*</span><span class="n">level</span><span class="o">+</span><span class="mi">1</span>
+    <span class="k">return</span> <span class="n">nsamples_1d</span>
+
+
+<span class="k">def</span> <span class="nf">algebraic_growth</span><span class="p">(</span><span class="n">rate</span><span class="p">,</span> <span class="n">level</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">level</span><span class="p">)</span><span class="o">**</span><span class="n">rate</span><span class="o">+</span><span class="mi">1</span>
+
+
+<span class="k">def</span> <span class="nf">exponential_growth</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="n">constant</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The number of samples in an exponentially growing 1D quadrature rule of</span>
+<span class="sd">    a given level.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">       The level of the quadrature rule</span>
+
+<span class="sd">    Return</span>
+<span class="sd">    ------</span>
+<span class="sd">    num_samples_1d : integer</span>
+<span class="sd">        The number of samples in the quadrature rule</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">constant</span><span class="o">*</span><span class="mi">2</span><span class="o">**</span><span class="p">(</span><span class="n">level</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span>
+
+
+<span class="k">def</span> <span class="nf">exponential_growth_rule</span><span class="p">(</span><span class="n">quad_rule</span><span class="p">,</span> <span class="n">level</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">quad_rule</span><span class="p">(</span><span class="n">exponential_growth</span><span class="p">(</span><span class="n">level</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">transformed_quadrature_rule</span><span class="p">(</span><span class="n">marginal</span><span class="p">,</span> <span class="n">recursion_coeffs</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">):</span>
+    <span class="n">var_trans</span> <span class="o">=</span> <span class="n">AffineTransform</span><span class="p">([</span><span class="n">marginal</span><span class="p">])</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">gauss_quadrature</span><span class="p">(</span><span class="n">recursion_coeffs</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">map_from_canonical</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="k">return</span> <span class="n">x</span><span class="p">,</span> <span class="n">w</span>
+
+
+<div class="viewcode-block" id="get_gauss_quadrature_rule_from_marginal"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.get_gauss_quadrature_rule_from_marginal.html#pyapprox.surrogates.get_gauss_quadrature_rule_from_marginal">[docs]</a><span class="k">def</span> <span class="nf">get_gauss_quadrature_rule_from_marginal</span><span class="p">(</span>
+        <span class="n">marginal</span><span class="p">,</span> <span class="n">max_nsamples</span><span class="p">,</span> <span class="n">canonical</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return the quadrature rule associated with the marginal.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    marginal : scipy.stats.dist</span>
+<span class="sd">        The 1D variable</span>
+
+<span class="sd">    max_nsamples : integer</span>
+<span class="sd">        The maximum number of samples that can be in the generated quadrature</span>
+<span class="sd">        rules</span>
+
+<span class="sd">    canonical : boolean</span>
+<span class="sd">        True - the loc, and scale parameters of the marginal are</span>
+<span class="sd">        ignored. The quadrature rules for all bounded variables will be</span>
+<span class="sd">        defined on the interval [-1, 1].</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    quad_rule : callable</span>
+<span class="sd">        Function that returns the quadrature samples and weights with the</span>
+<span class="sd">        signature</span>
+
+<span class="sd">        `quad_rule(nsamples) -&gt; x, w</span>
+
+<span class="sd">        where x : np.ndarray (nsamples) and w : np.ndarray (nsamples)</span>
+<span class="sd">        are the quadrature samples and weights respectivelly.</span>
+<span class="sd">        Note nsamples &lt;= max_nsamples</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">basis_opts</span> <span class="o">=</span> <span class="n">define_orthopoly_options_from_marginal</span><span class="p">(</span><span class="n">marginal</span><span class="p">)</span>
+    <span class="n">recursion_coeffs</span> <span class="o">=</span> <span class="n">get_recursion_coefficients_from_variable</span><span class="p">(</span>
+        <span class="n">marginal</span><span class="p">,</span> <span class="n">max_nsamples</span><span class="p">,</span> <span class="n">basis_opts</span><span class="p">)</span>
+    <span class="n">univariate_quad_rule</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">gauss_quadrature</span><span class="p">,</span> <span class="n">recursion_coeffs</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">canonical</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">univariate_quad_rule</span>
+    <span class="k">return</span> <span class="n">partial</span><span class="p">(</span><span class="n">transformed_quadrature_rule</span><span class="p">,</span> <span class="n">marginal</span><span class="p">,</span> <span class="n">recursion_coeffs</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

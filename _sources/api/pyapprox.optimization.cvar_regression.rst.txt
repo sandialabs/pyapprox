@@ -1,0 +1,6 @@
+cvar_regression
+===============
+
+.. currentmodule:: pyapprox.optimization
+
+.. autofunction:: cvar_regression

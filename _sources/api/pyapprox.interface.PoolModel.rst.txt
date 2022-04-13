@@ -1,0 +1,19 @@
+PoolModel
+=========
+
+.. currentmodule:: pyapprox.interface
+
+.. autoclass:: PoolModel
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~PoolModel.__call__
+      ~PoolModel.set_max_eval_concurrency
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: set_max_eval_concurrency

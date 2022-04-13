@@ -1,0 +1,6 @@
+setup_oakley_function
+=====================
+
+.. currentmodule:: pyapprox.benchmarks
+
+.. autofunction:: setup_oakley_function

@@ -51,61 +51,63 @@ Again consider the tunable model ensemble. The correlation between the models :m
 
 #%%
 # First let us setup the problem and compute a single estimate using CVMC
-import pyapprox as pya
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.tests.test_control_variate_monte_carlo import TunableModelEnsemble
-from scipy.stats import uniform
+from pyapprox.benchmarks import setup_benchmark
 
 np.random.seed(1)
-shifts=[.1,.2]
-model = TunableModelEnsemble(np.pi/2*.95,shifts=shifts)
+shifts = [.1, .2]
+benchmark = setup_benchmark(
+    "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=shifts)
+model = benchmark.fun
+print(benchmark.variable)
 
 nsamples = int(1e2)
-samples = model.generate_samples(nsamples)
+samples = benchmark.variable.rvs(nsamples)
 values0 = model.m0(samples)
 values1 = model.m1(samples)
 cov = model.get_covariance_matrix()
-eta = -cov[0,1]/cov[0,0]
+eta = -cov[0, 1]/cov[0, 0]
 #cov_mc = np.cov(values0,values1)
 #eta_mc = -cov_mc[0,1]/cov_mc[0,0]
-exact_integral_f0,exact_integral_f1=0,shifts[0]
+exact_integral_f0, exact_integral_f1 = 0, shifts[0]
 cv_mean = values0.mean()+eta*(values1.mean()-exact_integral_f1)
-print('MC difference squared =',(values0.mean()-exact_integral_f0)**2)
-print('CVMC difference squared =',(cv_mean-exact_integral_f0)**2)
+print('MC difference squared =', (values0.mean()-exact_integral_f0)**2)
+print('CVMC difference squared =', (cv_mean-exact_integral_f0)**2)
 
 #%%
 # Now lets look at the statistical properties of the CVMC estimator
 
-ntrials=1000
-means = np.empty((ntrials,2))
+ntrials = 1000
+means = np.empty((ntrials, 2))
 for ii in range(ntrials):
-    samples = model.generate_samples(nsamples)
+    samples = benchmark.variable.rvs(nsamples)
     values0 = model.m0(samples)
     values1 = model.m1(samples)
-    means[ii,0] = values0.mean()
-    means[ii,1] = values0.mean()+eta*(values1.mean()-exact_integral_f1)
+    means[ii, 0] = values0.mean()
+    means[ii, 1] = values0.mean()+eta*(values1.mean()-exact_integral_f1)
 
 print("Theoretical variance reduction",
-      1-cov[0,1]**2/(cov[0,0]*cov[1,1]))
+      1-cov[0, 1]**2/(cov[0, 0]*cov[1, 1]))
 print("Achieved variance reduction",
-      means[:,1].var(axis=0)/means[:,0].var(axis=0))
+      means[:, 1].var(axis=0)/means[:, 0].var(axis=0))
 
 #%%
 # The following plot shows that unlike the :ref:`Monte Carlo estimator <estimator-histogram>`. :math:`\mean{f_1}` the CVMC estimator is unbiased and has a smaller variance.
 
 fig,ax = plt.subplots()
-textstr = '\n'.join([r'$E[Q_{0,N}]=\mathrm{%.2e}$'%means[:,0].mean(),
-                     r'$V[Q_{0,N}]=\mathrm{%.2e}$'%means[:,0].var(),
-                     r'$E[Q_{0,N}^\mathrm{CV}]=\mathrm{%.2e}$'%means[:,1].mean(),
-                     r'$V[Q_{0,N}^\mathrm{CV}]=\mathrm{%.2e}$'%means[:,1].var()])
-ax.hist(means[:,0],bins=ntrials//100,density=True,alpha=0.5,
+textstr = '\n'.join(
+    [r'$E[Q_{0,N}]=\mathrm{%.2e}$' % means[:, 0].mean(),
+     r'$V[Q_{0,N}]=\mathrm{%.2e}$' % means[:, 0].var(),
+     r'$E[Q_{0,N}^\mathrm{CV}]=\mathrm{%.2e}$' % means[:, 1].mean(),
+     r'$V[Q_{0,N}^\mathrm{CV}]=\mathrm{%.2e}$' % means[:, 1].var()])
+ax.hist(means[:, 0], bins=ntrials//100, density=True, alpha=0.5,
         label=r'$Q_{0,N}$')
-ax.hist(means[:,1],bins=ntrials//100,density=True,alpha=0.5,
+ax.hist(means[:, 1], bins=ntrials//100, density=True, alpha=0.5,
         label=r'$Q_{0,N}^\mathrm{CV}$')
 ax.axvline(x=0,c='k',label=r'$E[Q_0]$')
-props = {'boxstyle':'round','facecolor':'white','alpha':1}
-ax.text(0.6,0.75,textstr,transform=ax.transAxes,bbox=props)
+props = {'boxstyle': 'round', 'facecolor': 'white', 'alpha': 1}
+ax.text(0.6, 0.75, textstr,transform=ax.transAxes, bbox=props)
 _ = ax.legend(loc='upper left')
 plt.show()
 

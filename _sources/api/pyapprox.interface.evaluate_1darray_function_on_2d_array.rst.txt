@@ -1,0 +1,6 @@
+evaluate_1darray_function_on_2d_array
+=====================================
+
+.. currentmodule:: pyapprox.interface
+
+.. autofunction:: evaluate_1darray_function_on_2d_array

@@ -1,0 +1,6 @@
+get_gauss_quadrature_rule_from_marginal
+=======================================
+
+.. currentmodule:: pyapprox.surrogates
+
+.. autofunction:: get_gauss_quadrature_rule_from_marginal

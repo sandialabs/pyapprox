@@ -1,0 +1,6 @@
+plot_main_effects
+=================
+
+.. currentmodule:: pyapprox.analysis
+
+.. autofunction:: plot_main_effects

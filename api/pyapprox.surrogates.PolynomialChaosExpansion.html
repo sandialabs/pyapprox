@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PolynomialChaosExpansion &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="APC" href="pyapprox.surrogates.APC.html" />
+    <link rel="prev" title="adaptive_approximate" href="pyapprox.surrogates.adaptive_approximate.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> PyApprox
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.analysis">pyapprox.analysis Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.bayes">pyapprox.bayes Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.benchmarks">pyapprox.benchmarks Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.expdesign">pyapprox.expdesign Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.interface">pyapprox.interface Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.multifidelity">pyapprox.multifidelity Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.optimization">pyapprox.optimization Package</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.surrogates">pyapprox.surrogates Package</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../user_reference_guide.html#id10">Functions</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="../user_reference_guide.html#id11">Classes</a><ul class="current">
+<li class="toctree-l4 current"><a class="current reference internal" href="#">PolynomialChaosExpansion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.surrogates.APC.html">APC</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.surrogates.AdaptiveInducedPCE.html">AdaptiveInducedPCE</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.surrogates.AdaptiveLejaPCE.html">AdaptiveLejaPCE</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.surrogates.CombinationSparseGrid.html">CombinationSparseGrid</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.surrogates.GaussianProcess.html">GaussianProcess</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.util">pyapprox.util Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.variables">pyapprox.variables Package</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
+      <li>PolynomialChaosExpansion</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/pyapprox.surrogates.PolynomialChaosExpansion.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="polynomialchaosexpansion">
+<h1>PolynomialChaosExpansion<a class="headerlink" href="#polynomialchaosexpansion" title="Permalink to this headline"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyapprox.surrogates.</span></span><span class="sig-name descname"><span class="pre">PolynomialChaosExpansion</span></span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A polynomial chaos expansion for independent random variables.</p>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.__call__" title="pyapprox.surrogates.PolynomialChaosExpansion.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(samples)</p></td>
+<td><p>Call self as a function.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.basis_matrix" title="pyapprox.surrogates.PolynomialChaosExpansion.basis_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">basis_matrix</span></code></a>(samples[, opts])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.canonical_basis_matrix" title="pyapprox.surrogates.PolynomialChaosExpansion.canonical_basis_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">canonical_basis_matrix</span></code></a>(canonical_samples[, opts])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.configure" title="pyapprox.surrogates.PolynomialChaosExpansion.configure"><code class="xref py py-obj docutils literal notranslate"><span class="pre">configure</span></code></a>(opts)</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.covariance" title="pyapprox.surrogates.PolynomialChaosExpansion.covariance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">covariance</span></code></a>()</p></td>
+<td><p>Compute the covariance between each quantity of interest of the polynomial chaos expansion</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.get_coefficients" title="pyapprox.surrogates.PolynomialChaosExpansion.get_coefficients"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_coefficients</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.get_indices" title="pyapprox.surrogates.PolynomialChaosExpansion.get_indices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_indices</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.jacobian" title="pyapprox.surrogates.PolynomialChaosExpansion.jacobian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">jacobian</span></code></a>(sample)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.mean" title="pyapprox.surrogates.PolynomialChaosExpansion.mean"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mean</span></code></a>()</p></td>
+<td><p>Compute the mean of the polynomial chaos expansion</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.num_terms" title="pyapprox.surrogates.PolynomialChaosExpansion.num_terms"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_terms</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.num_vars" title="pyapprox.surrogates.PolynomialChaosExpansion.num_vars"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_vars</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.set_coefficients" title="pyapprox.surrogates.PolynomialChaosExpansion.set_coefficients"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_coefficients</span></code></a>(coefficients)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.set_indices" title="pyapprox.surrogates.PolynomialChaosExpansion.set_indices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_indices</span></code></a>(indices)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.update_recursion_coefficients" title="pyapprox.surrogates.PolynomialChaosExpansion.update_recursion_coefficients"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_recursion_coefficients</span></code></a>(num_coefs_per_var)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.value" title="pyapprox.surrogates.PolynomialChaosExpansion.value"><code class="xref py py-obj docutils literal notranslate"><span class="pre">value</span></code></a>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.surrogates.PolynomialChaosExpansion.variance" title="pyapprox.surrogates.PolynomialChaosExpansion.variance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">variance</span></code></a>()</p></td>
+<td><p>Compute the variance of the polynomial chaos expansion</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.__call__">
+<span class="sig-name descname"><span class="pre">__call__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.__call__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.__call__" title="Permalink to this definition"></a></dt>
+<dd><p>Call self as a function.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.basis_matrix">
+<span class="sig-name descname"><span class="pre">basis_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.basis_matrix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.basis_matrix" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.canonical_basis_matrix">
+<span class="sig-name descname"><span class="pre">canonical_basis_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">canonical_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.canonical_basis_matrix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.canonical_basis_matrix" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.configure">
+<span class="sig-name descname"><span class="pre">configure</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">opts</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.configure"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.configure" title="Permalink to this definition"></a></dt>
+<dd><dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>var_trans</strong><span class="classifier"><a class="reference internal" href="pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform" title="pyapprox.variables.transforms.AffineTransform"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.variables.transforms.AffineTransform</span></code></a></span></dt><dd><p>Variable transformation mapping user samples into the canonical
+domain of the polynomial basis</p>
+</dd>
+<dt><strong>opts</strong><span class="classifier">dictionary</span></dt><dd><p>Options defining the configuration of the polynomial
+chaos expansion basis with the following attributes</p>
+</dd>
+<dt><strong>poly_opts</strong><span class="classifier">dictionary</span></dt><dd><p>Options to configure each unique univariate polynomial basis
+with attibutes</p>
+</dd>
+<dt><strong>var_nums</strong><span class="classifier">iterable</span></dt><dd><p>List of variables dimension which use the ith unique basis</p>
+</dd>
+<dt><strong>The remaining options are specific to a given basis type. See</strong></dt><dd><ul class="simple">
+<li><p><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.surrogates.orthopoly.quadrature.get_recursion_coefficients_from_variable()</span></code></p></li>
+</ul>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.covariance">
+<span class="sig-name descname"><span class="pre">covariance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.covariance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.covariance" title="Permalink to this definition"></a></dt>
+<dd><p>Compute the covariance between each quantity of interest of the
+polynomial chaos expansion</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>covar</strong><span class="classifier">np.ndarray (nqoi)</span></dt><dd><p>The covariance between each quantitity of interest</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.get_coefficients">
+<span class="sig-name descname"><span class="pre">get_coefficients</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.get_coefficients"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.get_coefficients" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.get_indices">
+<span class="sig-name descname"><span class="pre">get_indices</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.get_indices"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.get_indices" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.jacobian">
+<span class="sig-name descname"><span class="pre">jacobian</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sample</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.jacobian"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.jacobian" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.mean">
+<span class="sig-name descname"><span class="pre">mean</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.mean"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.mean" title="Permalink to this definition"></a></dt>
+<dd><p>Compute the mean of the polynomial chaos expansion</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>mean</strong><span class="classifier">np.ndarray (nqoi)</span></dt><dd><p>The mean of each quantitity of interest</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.num_terms">
+<span class="sig-name descname"><span class="pre">num_terms</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.num_terms"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.num_terms" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.num_vars">
+<span class="sig-name descname"><span class="pre">num_vars</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.num_vars"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.num_vars" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.set_coefficients">
+<span class="sig-name descname"><span class="pre">set_coefficients</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coefficients</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.set_coefficients"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.set_coefficients" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.set_indices">
+<span class="sig-name descname"><span class="pre">set_indices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">indices</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.set_indices"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.set_indices" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.update_recursion_coefficients">
+<span class="sig-name descname"><span class="pre">update_recursion_coefficients</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_coefs_per_var</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.update_recursion_coefficients"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.update_recursion_coefficients" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.value">
+<span class="sig-name descname"><span class="pre">value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.value"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.value" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.PolynomialChaosExpansion.variance">
+<span class="sig-name descname"><span class="pre">variance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/polychaos/gpc.html#PolynomialChaosExpansion.variance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.PolynomialChaosExpansion.variance" title="Permalink to this definition"></a></dt>
+<dd><p>Compute the variance of the polynomial chaos expansion</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>var</strong><span class="classifier">np.ndarray (nqoi)</span></dt><dd><p>The variance of each quantitity of interest</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pyapprox.surrogates.adaptive_approximate.html" class="btn btn-neutral float-left" title="adaptive_approximate" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pyapprox.surrogates.APC.html" class="btn btn-neutral float-right" title="APC" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,6 @@
+approximate
+===========
+
+.. currentmodule:: pyapprox.surrogates
+
+.. autofunction:: approximate

@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.optimization.cvar_regression &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.optimization.cvar_regression</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.optimization.cvar_regression</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">sparse</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.variables.risk</span> <span class="kn">import</span> <span class="n">value_at_risk</span>
+<span class="kn">from</span> <span class="nn">pyapprox.optimization.first_order_stochastic_dominance</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">smooth_max_function_log</span><span class="p">,</span> <span class="n">smooth_max_function_first_derivative_log</span><span class="p">,</span>
+    <span class="n">smooth_max_function_second_derivative_log</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">conditional_value_at_risk_subgradient</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">samples_sorted</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+    <span class="n">num_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">weights</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">num_samples</span><span class="p">)</span><span class="o">/</span><span class="n">num_samples</span>
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">weights</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">weights</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">weights</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">samples_sorted</span><span class="p">:</span>
+        <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+        <span class="n">xx</span><span class="p">,</span> <span class="n">ww</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[</span><span class="n">II</span><span class="p">],</span> <span class="n">weights</span><span class="p">[</span><span class="n">II</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">xx</span><span class="p">,</span> <span class="n">ww</span> <span class="o">=</span> <span class="n">samples</span><span class="p">,</span> <span class="n">weights</span>
+    <span class="n">VaR</span><span class="p">,</span> <span class="n">index</span> <span class="o">=</span> <span class="n">value_at_risk</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">ww</span><span class="p">,</span> <span class="n">samples_sorted</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">grad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">num_samples</span><span class="p">)</span>
+    <span class="n">grad</span><span class="p">[:</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">grad</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">weights</span><span class="p">[:</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span>
+    <span class="n">grad</span><span class="p">[</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span><span class="o">*</span><span class="n">weights</span><span class="p">[</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">samples_sorted</span><span class="p">:</span>
+        <span class="c1"># grad is for sorted samples so revert to original ordering</span>
+        <span class="n">grad</span> <span class="o">=</span> <span class="n">grad</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">II</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="n">grad</span>
+
+
+<span class="k">def</span> <span class="nf">smooth_max_function</span><span class="p">(</span><span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">smoother_type</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">smooth_max_function_log</span><span class="p">(</span><span class="n">eps</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">smoother_type</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">eps</span><span class="p">))</span>  <span class="c1"># [0]</span>
+        <span class="n">vals</span><span class="p">[</span><span class="n">II</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">II</span><span class="p">]</span><span class="o">**</span><span class="mi">3</span><span class="o">/</span><span class="n">eps</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">x</span><span class="p">[</span><span class="n">II</span><span class="p">]</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">eps</span><span class="p">))</span>
+        <span class="n">J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x</span> <span class="o">&gt;=</span> <span class="n">eps</span><span class="p">)</span>  <span class="c1"># [0]</span>
+        <span class="n">vals</span><span class="p">[</span><span class="n">J</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">J</span><span class="p">]</span><span class="o">-</span><span class="n">eps</span><span class="o">/</span><span class="mi">2</span>
+        <span class="k">return</span> <span class="n">vals</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;incorrect smoother_type&quot;</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">smooth_max_function_first_derivative</span><span class="p">(</span><span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">smoother_type</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">smooth_max_function_first_derivative_log</span><span class="p">(</span><span class="n">eps</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">smoother_type</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">eps</span><span class="p">))</span>  <span class="c1"># [0]</span>
+        <span class="n">vals</span><span class="p">[</span><span class="n">II</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="n">II</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">eps</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">[</span><span class="n">II</span><span class="p">]))</span><span class="o">/</span><span class="n">eps</span><span class="o">**</span><span class="mi">3</span>
+        <span class="n">J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x</span> <span class="o">&gt;=</span> <span class="n">eps</span><span class="p">)</span>  <span class="c1"># [0]</span>
+        <span class="n">vals</span><span class="p">[</span><span class="n">J</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">vals</span><span class="o">.</span><span class="n">T</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;incorrect smoother_type&quot;</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">smooth_max_function_second_derivative</span><span class="p">(</span><span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">smoother_type</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">smooth_max_function_second_derivative_log</span><span class="p">(</span><span class="n">eps</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">smoother_type</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">eps</span><span class="p">))</span>  <span class="c1"># [0]</span>
+        <span class="n">vals</span><span class="p">[</span><span class="n">II</span><span class="p">]</span> <span class="o">=</span> <span class="mi">6</span><span class="o">*</span><span class="n">x</span><span class="p">[</span><span class="n">II</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">eps</span><span class="o">-</span><span class="n">x</span><span class="p">[</span><span class="n">II</span><span class="p">])</span><span class="o">/</span><span class="n">eps</span><span class="o">**</span><span class="mi">3</span>
+        <span class="k">return</span> <span class="n">vals</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;incorrect smoother_type&quot;</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">smooth_conditional_value_at_risk</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    used for solving</span>
+
+<span class="sd">    min_{x,t} t+1/(1-\alpha)E([x-t]^+)</span>
+<span class="sd">    We need to minimize both t and x because t is a function of X</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">smooth_conditional_value_at_risk_split</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">x</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">weights</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">smooth_conditional_value_at_risk_split</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">weights</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">t</span><span class="o">+</span><span class="n">smooth_max_function</span><span class="p">(</span>
+            <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">x</span><span class="o">-</span><span class="n">t</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">weights</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">weights</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">t</span><span class="o">+</span><span class="n">smooth_max_function</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">x</span><span class="o">-</span><span class="n">t</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">weights</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">smooth_conditional_value_at_risk_gradient</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">smooth_conditional_value_at_risk_gradient_split</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">x</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">weights</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">smooth_conditional_value_at_risk_gradient_split</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">weights</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">weights</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">weights</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="c1"># nsamples = x.shape[0]-1</span>
+    <span class="n">grad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">grad</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="o">-</span><span class="n">smooth_max_function_first_derivative</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">x</span><span class="o">-</span><span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">weights</span><span class="p">)</span><span class="o">/</span><span class="p">((</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">))</span>
+    <span class="n">grad</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">smooth_max_function_first_derivative</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">x</span><span class="o">-</span><span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span><span class="o">*</span><span class="n">weights</span>
+    <span class="k">return</span> <span class="n">grad</span>
+
+
+<span class="k">def</span> <span class="nf">smooth_conditional_value_at_risk_composition</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">jac</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    fun : callable</span>
+<span class="sd">         A function with signature</span>
+
+<span class="sd">         ``fun(x)-&gt;ndarray (nsamples,1)``</span>
+
+<span class="sd">        The output values used to compute CVAR.</span>
+
+<span class="sd">    jac : callable</span>
+<span class="sd">        The jacobian of ``fun`` (with resepct to the variables ``z`` )</span>
+<span class="sd">        with signature</span>
+
+<span class="sd">        ``jac(x) -&gt; np.ndarray (nsamples,nvars)``</span>
+
+<span class="sd">        where nsamples is the number of values used to compute</span>
+<span class="sd">        CVAR. Typically this function will be a loop evaluating</span>
+<span class="sd">        the gradient of a function (with resepct to x) ``fun(x,z)`` at</span>
+<span class="sd">        realizations of random variables ``z``</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">smooth_conditional_value_at_risk_composition_split</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">jac</span><span class="p">,</span> <span class="n">x</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">weights</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">smooth_conditional_value_at_risk_composition_split</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">jac</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">fun_vals</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">fun_vals</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">fun_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">fun_vals</span> <span class="o">=</span> <span class="n">fun_vals</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">nsamples</span> <span class="o">=</span> <span class="n">fun_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">weights</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">nsamples</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">nsamples</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">weights</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">weights</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">nsamples</span>
+    <span class="n">obj_val</span> <span class="o">=</span> <span class="n">t</span><span class="o">+</span><span class="n">smooth_max_function</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">fun_vals</span><span class="o">-</span><span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">weights</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span>
+
+    <span class="n">grad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">grad</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="o">-</span><span class="n">smooth_max_function_first_derivative</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">fun_vals</span><span class="o">-</span><span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">weights</span><span class="p">)</span><span class="o">/</span><span class="p">((</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">))</span>
+    <span class="n">jac_vals</span> <span class="o">=</span> <span class="n">jac</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">jac_vals</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="n">nsamples</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">grad</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">smooth_max_function_first_derivative</span><span class="p">(</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">fun_vals</span><span class="o">-</span><span class="n">t</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">jac_vals</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">))</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">weights</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">obj_val</span><span class="p">,</span> <span class="n">grad</span>
+
+
+<span class="k">def</span> <span class="nf">cvar_regression_quadrature</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">nquad_intervals</span><span class="p">,</span>
+                               <span class="n">verbosity</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">trapezoid_rule</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                               <span class="n">solver_name</span><span class="o">=</span><span class="s1">&#39;cvxopt&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    solver_name = &#39;cvxopt&#39;</span>
+<span class="sd">    solver_name=&#39;glpk&#39;</span>
+
+<span class="sd">    trapezoid works but default option is better.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">cvxopt</span> <span class="kn">import</span> <span class="n">matrix</span><span class="p">,</span> <span class="n">solvers</span><span class="p">,</span> <span class="n">spmatrix</span>
+    <span class="k">assert</span> <span class="n">alpha</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">alpha</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">basis_matrix</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span>
+    <span class="k">assert</span> <span class="n">basis_matrix</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">nsamples</span><span class="p">,</span> <span class="n">nbasis</span> <span class="o">=</span> <span class="n">basis_matrix</span><span class="o">.</span><span class="n">shape</span>
+    <span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">nsamples</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">trapezoid_rule</span><span class="p">:</span>
+        <span class="c1"># left-hand piecewise constant quadrature rule</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">alpha</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nquad_intervals</span> <span class="o">+</span>
+                           <span class="mi">2</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># quadrature points</span>
+        <span class="n">dx</span> <span class="o">=</span> <span class="n">beta</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">beta</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">dx</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">beta</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">nuvars</span> <span class="o">=</span> <span class="n">weights</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">nvconstraints</span> <span class="o">=</span> <span class="n">nsamples</span><span class="o">*</span><span class="n">nuvars</span>
+        <span class="n">num_opt_vars</span> <span class="o">=</span> <span class="n">nbasis</span> <span class="o">+</span> <span class="n">nuvars</span> <span class="o">+</span> <span class="n">nvconstraints</span>
+        <span class="n">num_constraints</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">nsamples</span><span class="o">*</span><span class="n">nuvars</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">alpha</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nquad_intervals</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># quadrature points</span>
+        <span class="n">dx</span> <span class="o">=</span> <span class="n">beta</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">beta</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">dx</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">beta</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">weights</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/=</span> <span class="mi">2</span>
+        <span class="n">weights</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">/=</span> <span class="mi">2</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">weights</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># ignore left hand side</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">beta</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">nuvars</span> <span class="o">=</span> <span class="n">weights</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">nvconstraints</span> <span class="o">=</span> <span class="n">nsamples</span><span class="o">*</span><span class="n">nuvars</span>
+        <span class="n">num_opt_vars</span> <span class="o">=</span> <span class="n">nbasis</span> <span class="o">+</span> <span class="n">nuvars</span> <span class="o">+</span> <span class="n">nvconstraints</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">num_constraints</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">nsamples</span><span class="o">*</span><span class="n">nuvars</span><span class="o">+</span><span class="n">nsamples</span>
+
+    <span class="n">v_coef</span> <span class="o">=</span> <span class="n">weights</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">beta</span><span class="p">)</span><span class="o">*</span><span class="mf">1.</span><span class="o">/</span><span class="n">nsamples</span><span class="o">*</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span>
+
+    <span class="n">Iquad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">nuvars</span><span class="p">)</span>
+    <span class="n">Iv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">nvconstraints</span><span class="p">)</span>
+
+    <span class="c1"># num_quad_point = mu</span>
+    <span class="c1"># nsamples = nu</span>
+    <span class="c1"># nbasis = m</span>
+
+    <span class="c1"># design vars [c_1,...,c_m,u_1,...,u_{mu+1},v_1,...,v_{mu+1}nu]</span>
+    <span class="c1"># v_ij variables ordering: loop through j fastest, e.g. v_11,v_{12} etc</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">trapezoid_rule</span><span class="p">:</span>
+        <span class="n">c_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+            <span class="n">basis_matrix</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">/</span><span class="n">nsamples</span><span class="p">,</span>
+            <span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span><span class="o">*</span><span class="n">weights</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">v_coef</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">)))</span>
+
+        <span class="c1"># # v_ij+h&#39;c+u_i &lt;=y_j</span>
+        <span class="c1"># constraints_1 = np.hstack((</span>
+        <span class="c1">#     -np.tile(basis_matrix,(nuvars,1)),</span>
+        <span class="c1">#     -np.repeat(Iquad,nsamples,axis=0),-Iv))</span>
+        <span class="c1"># # v_ij &gt;=0</span>
+        <span class="c1"># constraints_3 = np.hstack((</span>
+        <span class="c1">#    np.zeros((nvconstraints,nbasis+nuvars)),-Iv))</span>
+
+        <span class="c1"># G_arr = np.vstack((constraints_1,constraints_3))</span>
+        <span class="c1"># assert G_arr.shape[0]==num_constraints</span>
+        <span class="c1"># assert G_arr.shape[1]==num_opt_vars</span>
+        <span class="c1"># assert c_arr.shape[0]==num_opt_vars</span>
+        <span class="c1"># I,J,data = sparse.find(G_arr)</span>
+        <span class="c1"># G = spmatrix(data,I,J,size=G_arr.shape)</span>
+
+        <span class="c1"># v_ij+h&#39;c+u_i &lt;=y_j</span>
+        <span class="n">constraints_1_shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">nvconstraints</span><span class="p">,</span> <span class="n">num_opt_vars</span><span class="p">)</span>
+        <span class="n">constraints_1a_I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nvconstraints</span><span class="p">),</span> <span class="n">nbasis</span><span class="p">)</span>
+        <span class="n">constraints_1a_J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nbasis</span><span class="p">),</span> <span class="n">nvconstraints</span><span class="p">)</span>
+        <span class="n">constraints_1a_data</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="p">(</span><span class="n">nquad_intervals</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+
+        <span class="n">constraints_1b_I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nvconstraints</span><span class="p">)</span>
+        <span class="n">constraints_1b_J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nquad_intervals</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span> <span class="n">nsamples</span><span class="p">)</span><span class="o">+</span><span class="n">nbasis</span>
+        <span class="n">constraints_1b_data</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">nquad_intervals</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span> <span class="n">nsamples</span><span class="p">)</span>
+
+        <span class="n">ii</span> <span class="o">=</span> <span class="n">nbasis</span><span class="o">+</span><span class="n">nquad_intervals</span><span class="o">+</span><span class="mi">1</span>
+        <span class="n">jj</span> <span class="o">=</span> <span class="n">ii</span><span class="o">+</span><span class="n">nvconstraints</span>
+        <span class="n">constraints_1c_I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nvconstraints</span><span class="p">)</span>
+        <span class="n">constraints_1c_J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">)</span>
+        <span class="n">constraints_1c_data</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nquad_intervals</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">nsamples</span><span class="p">)</span>
+
+        <span class="n">constraints_1_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+            <span class="n">constraints_1a_data</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">constraints_1b_data</span><span class="p">,</span>
+            <span class="n">constraints_1c_data</span><span class="p">))</span>
+        <span class="n">constraints_1_I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">constraints_1a_I</span><span class="p">,</span> <span class="n">constraints_1b_I</span><span class="p">,</span> <span class="n">constraints_1c_I</span><span class="p">))</span>
+        <span class="n">constraints_1_J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">constraints_1a_J</span><span class="p">,</span> <span class="n">constraints_1b_J</span><span class="p">,</span> <span class="n">constraints_1c_J</span><span class="p">))</span>
+
+        <span class="c1"># v_ij &gt;=0</span>
+        <span class="n">constraints_3_I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+            <span class="n">constraints_1_shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">constraints_1_shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">nvconstraints</span><span class="p">)</span>
+        <span class="n">constraints_3_J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+            <span class="n">nbasis</span><span class="o">+</span><span class="n">nquad_intervals</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">nbasis</span><span class="o">+</span><span class="n">nquad_intervals</span><span class="o">+</span><span class="mi">1</span><span class="o">+</span><span class="n">nvconstraints</span><span class="p">)</span>
+        <span class="n">constraints_3_data</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">nvconstraints</span><span class="p">)</span>
+
+        <span class="n">constraints_shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">num_constraints</span><span class="p">,</span> <span class="n">num_opt_vars</span><span class="p">)</span>
+        <span class="n">constraints_I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">constraints_1_I</span><span class="p">,</span> <span class="n">constraints_3_I</span><span class="p">))</span>
+        <span class="n">constraints_J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">constraints_1_J</span><span class="p">,</span> <span class="n">constraints_3_J</span><span class="p">))</span>
+        <span class="n">constraints_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">constraints_1_data</span><span class="p">,</span> <span class="n">constraints_3_data</span><span class="p">))</span>
+        <span class="n">G</span> <span class="o">=</span> <span class="n">spmatrix</span><span class="p">(</span>
+            <span class="n">constraints_data</span><span class="p">,</span> <span class="n">constraints_I</span><span class="p">,</span> <span class="n">constraints_J</span><span class="p">,</span>
+            <span class="n">size</span><span class="o">=</span><span class="n">constraints_shape</span><span class="p">)</span>
+        <span class="c1"># assert np.allclose(np.asarray(matrix(G)),G_arr)</span>
+
+        <span class="n">h_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+            <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">nuvars</span><span class="p">),</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nvconstraints</span><span class="p">)))</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">c_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+            <span class="n">basis_matrix</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">/</span><span class="n">nsamples</span><span class="p">,</span>
+            <span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span><span class="o">*</span><span class="n">weights</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">v_coef</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">),</span>
+            <span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="n">nsamples</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">))</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">)))</span>
+
+        <span class="c1"># v_ij+h&#39;c+u_i &lt;=y_j</span>
+        <span class="n">constraints_1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+            <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="p">(</span><span class="n">nquad_intervals</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span>
+            <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">Iquad</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+            <span class="o">-</span><span class="n">Iv</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nvconstraints</span><span class="p">,</span> <span class="mi">1</span><span class="p">))))</span>
+
+        <span class="c1"># W+h&#39;c&lt;=y_j</span>
+        <span class="n">constraints_2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+            <span class="o">-</span><span class="n">basis_matrix</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nsamples</span><span class="p">,</span> <span class="n">nuvars</span><span class="p">)),</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nsamples</span><span class="p">,</span> <span class="n">nvconstraints</span><span class="p">)),</span>
+            <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nsamples</span><span class="p">,</span> <span class="mi">1</span><span class="p">))))</span>
+
+        <span class="c1"># v_ij &gt;=0</span>
+        <span class="n">constraints_3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nvconstraints</span><span class="p">,</span> <span class="n">nbasis</span><span class="o">+</span><span class="n">nquad_intervals</span><span class="p">)),</span> <span class="o">-</span><span class="n">Iv</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nvconstraints</span><span class="p">,</span> <span class="mi">1</span><span class="p">))))</span>
+
+        <span class="n">G_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">constraints_1</span><span class="p">,</span> <span class="n">constraints_2</span><span class="p">,</span> <span class="n">constraints_3</span><span class="p">))</span>
+
+        <span class="n">h_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+            <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">nuvars</span><span class="p">),</span>
+            <span class="o">-</span><span class="n">values</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nvconstraints</span><span class="p">)))</span>
+
+        <span class="k">assert</span> <span class="n">G_arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">num_constraints</span>
+        <span class="k">assert</span> <span class="n">G_arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">num_opt_vars</span>
+        <span class="k">assert</span> <span class="n">c_arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">num_opt_vars</span>
+        <span class="n">I</span><span class="p">,</span> <span class="n">J</span><span class="p">,</span> <span class="n">data</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">G_arr</span><span class="p">)</span>
+        <span class="n">G</span> <span class="o">=</span> <span class="n">spmatrix</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">I</span><span class="p">,</span> <span class="n">J</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">G_arr</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="n">c</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">c_arr</span><span class="p">)</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">h_arr</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">solvers</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;show_progress&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">solvers</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;show_progress&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># solvers.options[&#39;abstol&#39;] = 1e-10</span>
+    <span class="c1"># solvers.options[&#39;reltol&#39;] = 1e-10</span>
+    <span class="c1"># solvers.options[&#39;feastol&#39;] = 1e-10</span>
+
+    <span class="n">sol</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+        <span class="n">solvers</span><span class="o">.</span><span class="n">lp</span><span class="p">(</span><span class="n">c</span><span class="o">=</span><span class="n">c</span><span class="p">,</span> <span class="n">G</span><span class="o">=</span><span class="n">G</span><span class="p">,</span> <span class="n">h</span><span class="o">=</span><span class="n">h</span><span class="p">,</span> <span class="n">solver</span><span class="o">=</span><span class="n">solver_name</span><span class="p">)[</span><span class="s1">&#39;x&#39;</span><span class="p">])[:</span><span class="n">nbasis</span><span class="p">]</span>
+    <span class="n">residuals</span> <span class="o">=</span> <span class="n">values</span><span class="o">-</span><span class="n">basis_matrix</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">sol</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">coef</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">conditional_value_at_risk</span><span class="p">(</span><span class="n">residuals</span><span class="p">,</span> <span class="n">alpha</span><span class="p">),</span> <span class="n">sol</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">coef</span>
+
+
+<div class="viewcode-block" id="cvar_regression"><a class="viewcode-back" href="../../../api/pyapprox.optimization.cvar_regression.html#pyapprox.optimization.cvar_regression">[docs]</a><span class="k">def</span> <span class="nf">cvar_regression</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Solve conditional value at risk (CVaR) regression problems.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    basis_matrix : np.ndarray (nsamples, nbasis)</span>
+<span class="sd">        A basis evaluated at the set of training samples</span>
+
+
+<span class="sd">    values : np.ndarray (nsamples, 1)</span>
+<span class="sd">        The function values at the set of training samples</span>
+
+<span class="sd">    alpha : float</span>
+<span class="sd">        The quantile in [0, 1) defining CVaR</span>
+
+<span class="sd">    verbosity : integer</span>
+<span class="sd">        The verbosity level</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">cvxopt</span> <span class="kn">import</span> <span class="n">matrix</span><span class="p">,</span> <span class="n">solvers</span><span class="p">,</span> <span class="n">spmatrix</span>
+    <span class="c1"># do not include constant basis in optimization</span>
+    <span class="k">assert</span> <span class="n">alpha</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">alpha</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">basis_matrix</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span>
+    <span class="k">assert</span> <span class="n">basis_matrix</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">nsamples</span><span class="p">,</span> <span class="n">nbasis</span> <span class="o">=</span> <span class="n">basis_matrix</span><span class="o">.</span><span class="n">shape</span>
+    <span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">nsamples</span>
+
+    <span class="n">active_index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">alpha</span><span class="o">*</span><span class="n">nsamples</span><span class="p">))</span> <span class="o">-</span> \
+        <span class="mi">1</span>  <span class="c1"># 0 based index 0,...,nsamples-1</span>
+    <span class="n">nactive_samples</span> <span class="o">=</span> <span class="n">nsamples</span><span class="o">-</span><span class="p">(</span><span class="n">active_index</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">nactive_samples</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;no samples in alpha quantile&#39;</span><span class="p">)</span>
+    <span class="n">beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nsamples</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">/</span><span class="n">nsamples</span>
+    <span class="n">beta</span><span class="p">[</span><span class="n">active_index</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">alpha</span>
+
+
+    <span class="n">beta_diff</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">beta</span><span class="p">[</span><span class="n">active_index</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="c1"># print (beta_diff</span>
+    <span class="k">assert</span> <span class="n">beta_diff</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">nactive_samples</span>
+    <span class="n">v_coef</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">beta</span><span class="p">[</span><span class="n">active_index</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">])</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span>
+        <span class="mi">1</span> <span class="o">-</span> <span class="n">beta</span><span class="p">[</span><span class="n">active_index</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">v_coef</span> <span class="o">/=</span> <span class="n">nsamples</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span>
+
+    <span class="n">nvconstraints</span> <span class="o">=</span> <span class="n">nsamples</span><span class="o">*</span><span class="n">nactive_samples</span>
+    <span class="n">Iv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">nvconstraints</span><span class="p">)</span>
+    <span class="n">Isamp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">nsamples</span><span class="p">)</span>
+    <span class="n">Iactsamp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">nactive_samples</span><span class="p">)</span>
+
+    <span class="c1"># nactive_samples = p</span>
+    <span class="c1"># nsamples = m</span>
+    <span class="c1"># nbasis = n</span>
+
+    <span class="c1"># design vars [c_1,...,c_n,u1,...,u_{m-p},v_1,...,v_{m-p}m,w]</span>
+
+    <span class="n">c_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+        <span class="n">basis_matrix</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">/</span><span class="n">nsamples</span><span class="p">,</span>
+        <span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span><span class="o">*</span><span class="n">beta_diff</span><span class="p">,</span>
+        <span class="c1"># np.tile(v_coef,nsamples),  # tile([1,2],2)   = [1,2,1,2]</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">v_coef</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">),</span>  <span class="c1"># repeat([1,2],2) = [1,1,2,2]</span>
+        <span class="mf">1.</span><span class="o">/</span><span class="p">(</span><span class="n">nsamples</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">alpha</span><span class="p">))</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">)))</span>
+
+    <span class="n">num_opt_vars</span> <span class="o">=</span> <span class="n">nbasis</span> <span class="o">+</span> <span class="n">nactive_samples</span> <span class="o">+</span> <span class="n">nvconstraints</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="c1"># v_ij variables ordering: loop through j fastest, e.g. v_11,v_{12} etc</span>
+
+    <span class="c1"># v_ij+h&#39;c+u_i &lt;=y_j</span>
+    <span class="n">constraints_1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+        <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="p">(</span><span class="n">nactive_samples</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span>
+        <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">Iactsamp</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+        <span class="o">-</span><span class="n">Iv</span><span class="p">,</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nvconstraints</span><span class="p">,</span> <span class="mi">1</span><span class="p">))))</span>
+
+    <span class="c1"># W+h&#39;c&lt;=y_j</span>
+    <span class="n">constraints_2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+        <span class="o">-</span><span class="n">basis_matrix</span><span class="p">,</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nsamples</span><span class="p">,</span> <span class="n">nactive_samples</span><span class="p">)),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nsamples</span><span class="p">,</span> <span class="n">nvconstraints</span><span class="p">)),</span>
+        <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nsamples</span><span class="p">,</span> <span class="mi">1</span><span class="p">))))</span>
+
+    <span class="c1"># v_ij &gt;=0</span>
+    <span class="n">constraints_3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nvconstraints</span><span class="p">,</span> <span class="n">nbasis</span><span class="o">+</span><span class="n">nactive_samples</span><span class="p">)),</span>
+        <span class="o">-</span><span class="n">Iv</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nvconstraints</span><span class="p">,</span> <span class="mi">1</span><span class="p">))))</span>
+
+    <span class="c1"># print ((constraints_1.shape, constraints_2.shape, constraints_3.shape)</span>
+    <span class="n">G_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">constraints_1</span><span class="p">,</span> <span class="n">constraints_2</span><span class="p">,</span> <span class="n">constraints_3</span><span class="p">))</span>
+
+    <span class="n">h_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
+        <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">nactive_samples</span><span class="p">),</span>
+        <span class="o">-</span><span class="n">values</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nvconstraints</span><span class="p">)))</span>
+
+    <span class="k">assert</span> <span class="n">G_arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">num_opt_vars</span>
+    <span class="k">assert</span> <span class="n">G_arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">h_arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">c_arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">num_opt_vars</span>
+
+    <span class="n">c</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">c_arr</span><span class="p">)</span>
+    <span class="c1">#G = matrix(G_arr)</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">h_arr</span><span class="p">)</span>
+
+    <span class="n">I</span><span class="p">,</span> <span class="n">J</span><span class="p">,</span> <span class="n">data</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">G_arr</span><span class="p">)</span>
+    <span class="n">G</span> <span class="o">=</span> <span class="n">spmatrix</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">I</span><span class="p">,</span> <span class="n">J</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">G_arr</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">solvers</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;show_progress&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">solvers</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;show_progress&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># solvers.options[&#39;abstol&#39;] = 1e-10</span>
+    <span class="c1"># solvers.options[&#39;reltol&#39;] = 1e-10</span>
+    <span class="c1"># solvers.options[&#39;feastol&#39;] = 1e-10</span>
+
+    <span class="n">sol</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">solvers</span><span class="o">.</span><span class="n">lp</span><span class="p">(</span><span class="n">c</span><span class="o">=</span><span class="n">c</span><span class="p">,</span> <span class="n">G</span><span class="o">=</span><span class="n">G</span><span class="p">,</span> <span class="n">h</span><span class="o">=</span><span class="n">h</span><span class="p">)[</span><span class="s1">&#39;x&#39;</span><span class="p">])[:</span><span class="n">nbasis</span><span class="p">]</span>
+    <span class="n">residuals</span> <span class="o">=</span> <span class="n">values</span><span class="o">-</span><span class="n">basis_matrix</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">sol</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">coef</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">conditional_value_at_risk</span><span class="p">(</span><span class="n">residuals</span><span class="p">,</span> <span class="n">alpha</span><span class="p">),</span> <span class="n">sol</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">coef</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

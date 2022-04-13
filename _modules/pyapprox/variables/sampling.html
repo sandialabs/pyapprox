@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.variables.sampling &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.variables.sampling</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.variables.sampling</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.variables.joint</span> <span class="kn">import</span> <span class="n">IndependentMarginalsVariable</span>
+
+
+<div class="viewcode-block" id="print_statistics"><a class="viewcode-back" href="../../../api/pyapprox.variables.print_statistics.html#pyapprox.variables.print_statistics">[docs]</a><span class="k">def</span> <span class="nf">print_statistics</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">sample_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">value_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Print statistics about a set of samples and associated values</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    samples : np.ndarray (num_vars,num_samples)</span>
+<span class="sd">        Random samples</span>
+
+<span class="sd">    values : np.ndarray (num_samples,num_qoi)</span>
+<span class="sd">       Function values at samples</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; num_vars=2</span>
+<span class="sd">    &gt;&gt;&gt; np.random.seed(1)</span>
+<span class="sd">    &gt;&gt;&gt; samples = np.random.normal(0,1,(num_vars,100))</span>
+<span class="sd">    &gt;&gt;&gt; values = np.array([np.sum(samples**2,axis=0),2*np.sum(samples**2,axis=0)]).T</span>
+<span class="sd">    &gt;&gt;&gt; print_statistics(samples,values)</span>
+<span class="sd">               z0         z1         y0         y1    </span>
+<span class="sd">    count  100.000000 100.000000 100.000000 100.000000</span>
+<span class="sd">    mean     0.060583   0.152795   1.679132   3.358265</span>
+<span class="sd">    std      0.885156   0.931995   1.705877   3.411753</span>
+<span class="sd">    min     -2.301539  -2.434838   0.031229   0.062458</span>
+<span class="sd">    max      2.185575   2.528326   9.575905  19.151810</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="n">values</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="n">num_vars</span><span class="p">,</span> <span class="n">nsamples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">num_qoi</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">nsamples</span> <span class="o">==</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">sample_labels</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">sample_labels</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;z</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">ii</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_vars</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="n">value_labels</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">value_labels</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;y</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">ii</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_qoi</span><span class="p">)]</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">[(</span><span class="n">label</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">sample_labels</span><span class="p">)]</span>
+    <span class="n">data</span> <span class="o">+=</span> <span class="p">[(</span><span class="n">label</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">value_labels</span><span class="p">)]</span>
+
+    <span class="c1"># data = [(label, s) for s, label in zip(samples, sample_labels)]</span>
+    <span class="c1"># data += [(label, s) for s, label in zip(values.T, value_labels)]</span>
+    <span class="c1"># data = dict(data)</span>
+    <span class="c1"># df = DataFrame(index=np.arange(nsamples), data=data)</span>
+    <span class="c1"># print(df.describe())</span>
+
+    <span class="n">str_format</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;</span><span class="si">{:&lt;6}</span><span class="s2">&quot;</span><span class="p">]</span><span class="o">+</span><span class="p">[</span><span class="s2">&quot;</span><span class="si">{:^10}</span><span class="s2">&quot;</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">str_format</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">*</span><span class="p">([</span><span class="s2">&quot; &quot;</span><span class="p">]</span><span class="o">+</span><span class="p">[</span><span class="n">dat</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">dat</span> <span class="ow">in</span> <span class="n">data</span><span class="p">])))</span>
+    <span class="n">stat_funs</span> <span class="o">=</span> <span class="p">[</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">std</span><span class="p">(),</span>
+                 <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">max</span><span class="p">()]</span>
+    <span class="n">stat_labels</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;count&quot;</span><span class="p">,</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span>
+    <span class="n">str_format</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;</span><span class="si">{:&lt;6}</span><span class="s2">&quot;</span><span class="p">]</span><span class="o">+</span><span class="p">[</span><span class="s2">&quot;</span><span class="si">{:10.6f}</span><span class="s2">&quot;</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)))</span>
+    <span class="k">for</span> <span class="n">stat_fun</span><span class="p">,</span> <span class="n">stat_label</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">stat_funs</span><span class="p">,</span> <span class="n">stat_labels</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">str_format</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="o">*</span><span class="p">([</span><span class="n">stat_label</span><span class="p">]</span><span class="o">+</span><span class="p">[</span><span class="n">stat_fun</span><span class="p">(</span><span class="n">dat</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">dat</span> <span class="ow">in</span> <span class="n">data</span><span class="p">])))</span></div>
+
+
+<span class="k">def</span> <span class="nf">generate_independent_random_samples</span><span class="p">(</span><span class="n">variable</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span>
+                                        <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generate samples from a tensor-product probability measure. This function</span>
+<span class="sd">    still exists to maintain backwards compatability. Please use</span>
+<span class="sd">    variable.rvs() instead</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    num_samples : integer</span>
+<span class="sd">        The number of samples to generate</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    samples : np.ndarray (num_vars, num_samples)</span>
+<span class="sd">        Independent samples from the target distribution</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span> <span class="o">==</span> <span class="n">IndependentMarginalsVariable</span><span class="p">,</span> \
+        <span class="s2">&quot;`variable` must be of IndependentMarginalsVariable type&quot;</span>
+    <span class="k">return</span> <span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">num_samples</span><span class="p">,</span> <span class="n">random_state</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">rejection_sampling</span><span class="p">(</span><span class="n">target_density</span><span class="p">,</span> <span class="n">proposal_density</span><span class="p">,</span>
+                       <span class="n">generate_proposal_samples</span><span class="p">,</span> <span class="n">envelope_factor</span><span class="p">,</span>
+                       <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                       <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Obtain samples from a density f(x) using samples from a proposal</span>
+<span class="sd">    distribution g(x).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    target_density : callable vals = target_density(samples)</span>
+<span class="sd">        The target density f(x)</span>
+
+<span class="sd">    proposal_density : callable vals = proposal_density(samples)</span>
+<span class="sd">        The proposal density g(x)</span>
+
+<span class="sd">    generate_proposal_samples : callable samples = generate_samples(num_samples)</span>
+<span class="sd">        Generate samples from the proposal density</span>
+
+<span class="sd">    envelope_factor : double</span>
+<span class="sd">        Factor M that satifies f(x)&lt;=Mg(x). Set M such that inequality is as</span>
+<span class="sd">        close to equality as possible</span>
+
+<span class="sd">    num_vars : integer</span>
+<span class="sd">        The number of variables</span>
+
+<span class="sd">    num_samples : integer</span>
+<span class="sd">        The number of samples required</span>
+
+<span class="sd">    verbose : boolean</span>
+<span class="sd">        Flag specifying whether to print diagnostic information</span>
+
+<span class="sd">    batch_size : integer</span>
+<span class="sd">        The number of evaluations of each density to be performed in a batch.</span>
+<span class="sd">        Almost always we should set batch_size=num_samples</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    samples : np.ndarray (num_vars, num_samples)</span>
+<span class="sd">        Independent samples from the target distribution</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">batch_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">batch_size</span> <span class="o">=</span> <span class="n">num_samples</span>
+
+    <span class="n">cntr</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">num_proposal_samples</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="k">while</span> <span class="n">cntr</span> <span class="o">&lt;</span> <span class="n">num_samples</span><span class="p">:</span>
+        <span class="n">proposal_samples</span> <span class="o">=</span> <span class="n">generate_proposal_samples</span><span class="p">(</span><span class="n">batch_size</span><span class="p">)</span>
+        <span class="n">target_density_vals</span> <span class="o">=</span> <span class="n">target_density</span><span class="p">(</span><span class="n">proposal_samples</span><span class="p">)</span>
+        <span class="n">proposal_density_vals</span> <span class="o">=</span> <span class="n">proposal_density</span><span class="p">(</span><span class="n">proposal_samples</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">target_density_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">batch_size</span>
+        <span class="k">assert</span> <span class="n">proposal_density_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">batch_size</span>
+        <span class="n">urand</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="p">(</span><span class="n">batch_size</span><span class="p">))</span>
+
+        <span class="c1"># ensure envelop_factor is large enough</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">target_density_vals</span> <span class="o">&gt;</span> <span class="p">(</span><span class="n">envelope_factor</span><span class="o">*</span><span class="n">proposal_density_vals</span><span class="p">)):</span>
+            <span class="n">I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span>
+                <span class="n">target_density_vals</span><span class="o">/</span><span class="p">(</span><span class="n">envelope_factor</span><span class="o">*</span><span class="n">proposal_density_vals</span><span class="p">))</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;proposal_density*envelop factor does not bound target &#39;</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;density: </span><span class="si">%f</span><span class="s1">,</span><span class="si">%f</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                <span class="n">target_density_vals</span><span class="p">[</span><span class="n">I</span><span class="p">],</span>
+                <span class="p">(</span><span class="n">envelope_factor</span><span class="o">*</span><span class="n">proposal_density_vals</span><span class="p">)[</span><span class="n">I</span><span class="p">])</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="n">I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="n">urand</span> <span class="o">&lt;</span> <span class="n">target_density_vals</span><span class="o">/</span><span class="p">(</span><span class="n">envelope_factor</span><span class="o">*</span><span class="n">proposal_density_vals</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">num_batch_samples_accepted</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">I</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">num_samples</span><span class="o">-</span><span class="n">cntr</span><span class="p">)</span>
+        <span class="n">I</span> <span class="o">=</span> <span class="n">I</span><span class="p">[:</span><span class="n">num_batch_samples_accepted</span><span class="p">]</span>
+        <span class="n">samples</span><span class="p">[:,</span> <span class="n">cntr</span><span class="p">:</span><span class="n">cntr</span><span class="o">+</span><span class="n">num_batch_samples_accepted</span><span class="p">]</span> <span class="o">=</span> <span class="n">proposal_samples</span><span class="p">[:,</span> <span class="n">I</span><span class="p">]</span>
+        <span class="n">cntr</span> <span class="o">+=</span> <span class="n">num_batch_samples_accepted</span>
+        <span class="n">num_proposal_samples</span> <span class="o">+=</span> <span class="n">batch_size</span>
+
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">((</span><span class="s1">&#39;num accepted&#39;</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">((</span><span class="s1">&#39;num rejected&#39;</span><span class="p">,</span> <span class="n">num_proposal_samples</span><span class="o">-</span><span class="n">num_samples</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">((</span><span class="s1">&#39;inverse envelope factor&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="n">envelope_factor</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">((</span><span class="s1">&#39;acceptance probability&#39;</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span>
+            <span class="n">num_samples</span><span class="p">)</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">num_proposal_samples</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="n">samples</span>
+
+
+<span class="k">def</span> <span class="nf">discrete_sampling</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">probs</span><span class="p">,</span> <span class="n">states</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    discrete_sampling -- samples iid from a discrete probability measure</span>
+
+<span class="sd">    x = discrete_sampling(N, prob, states)</span>
+
+<span class="sd">    Generates N iid samples from a random variable X whose probability mass</span>
+<span class="sd">    function is</span>
+
+<span class="sd">    prob(X = states[j]) = prob[j],    1 &lt;= j &lt;= length(prob).</span>
+
+<span class="sd">    If states is not given, the states are gives by 1 &lt;= state &lt;= length(prob)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">p</span> <span class="o">=</span> <span class="n">probs</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">probs</span><span class="p">)</span>
+
+    <span class="n">bins</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">digitize</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">p</span><span class="p">))))</span><span class="o">-</span><span class="mi">1</span>
+
+    <span class="k">if</span> <span class="n">states</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">bins</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span><span class="p">(</span><span class="n">states</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">probs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">states</span><span class="p">[</span><span class="n">bins</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

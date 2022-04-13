@@ -1,0 +1,6 @@
+get_tensor_product_piecewise_polynomial_quadrature_rule
+=======================================================
+
+.. currentmodule:: pyapprox.surrogates
+
+.. autofunction:: get_tensor_product_piecewise_polynomial_quadrature_rule

@@ -1,0 +1,6 @@
+estimate_model_ensemble_covariance
+==================================
+
+.. currentmodule:: pyapprox.multifidelity
+
+.. autofunction:: estimate_model_ensemble_covariance

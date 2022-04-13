@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Convergence studies &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Sparse Grid Interpolation" href="plot_sparse_grid_uq.html" />
+    <link rel="prev" title="Multivariate Piecewise Polynomial Interpolation" href="plot_multivariate_piecewise_polynomial_interpolation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> PyApprox
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="plot_variables.html">Random Variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_interface.html">Model interfacing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_parameter_sweeps.html">Parameter Sweeps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_low_discrepancy_quadrature.html">Low-discrepancy quadrature</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_gaussian_quadrature.html">Univariate Gaussian Quadrature</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_barycentric_interpolation.html">Multivariate Lagrange Interpolation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_multivariate_piecewise_polynomial_interpolation.html">Multivariate Piecewise Polynomial Interpolation</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Convergence studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_sparse_grid_uq.html">Sparse Grid Interpolation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="index.html">Software Tutorials</a> &raquo;</li>
+      <li>Convergence studies</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/auto_examples/plot_pde_convergence.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-examples-plot-pde-convergence-py"><span class="std std-ref">here</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="convergence-studies">
+<span id="sphx-glr-auto-examples-plot-pde-convergence-py"></span><h1>Convergence studies<a class="headerlink" href="#convergence-studies" title="Permalink to this headline"></a></h1>
+<p>This tutorial demonstrates how to investigate the convergence of parameterized numerical approximations, for example tensor product quadrature or numerical models used to solve partial differential equations with unknown inputs.</p>
+<p>First lets define a Integrator class which can be used to integrate multivariate functions with tensor product quadrature, that is compute</p>
+<div class="math notranslate nohighlight">
+\[I(\rv) = \int_D f(x, \rv)dx\]</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">pyapprox.analysis.convergence_studies</span> <span class="kn">import</span> \
+    <span class="n">run_convergence_study</span><span class="p">,</span> <span class="n">plot_convergence_data</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.configure_plots</span> <span class="kn">import</span> <span class="n">plt</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_tensor_product_piecewise_polynomial_quadrature_rule</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.interface</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">evaluate_1darray_function_on_2d_array</span><span class="p">,</span> <span class="n">WorkTrackingModel</span><span class="p">,</span>
+    <span class="n">TimerModel</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">IndependentMarginalsVariable</span><span class="p">,</span> <span class="n">ConfigureVariableTransformation</span>
+<span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">Integrator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">integrand</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">integrand</span> <span class="o">=</span> <span class="n">integrand</span>
+
+    <span class="k">def</span> <span class="nf">set_quad_rule</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nsamples_1d</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">xquad</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">wquad</span> <span class="o">=</span> \
+            <span class="n">get_tensor_product_piecewise_polynomial_quadrature_rule</span><span class="p">(</span>
+                <span class="n">nsamples_1d</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">degree</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">integrate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sample</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_quad_rule</span><span class="p">(</span><span class="n">sample</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">))</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">integrand</span><span class="p">(</span><span class="n">sample</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">xquad</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wquad</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">val</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">evaluate_1darray_function_on_2d_array</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">integrate</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">get_num_degrees_of_freedom</span><span class="p">(</span><span class="n">config_sample</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">config_sample</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>To assess convergence we will use the function <cite>run_convergence_study</cite>. This routine requires a function that takes samples that consist of realizations of the random variables concatenated with any configuration variables which define the numerical resolution of the quadrature rule, in this case the number of quadrature points used in the first and second dimension.</p>
+<p>To demonstrate its usage lets integrate the function</p>
+<div class="math notranslate nohighlight">
+\[f(x, \rv)=\rv_1(x_1^2+x_2^2)\]</div>
+<p>were <span class="math notranslate nohighlight">\(z\)</span> is a uniform variable on <span class="math notranslate nohighlight">\([0, 1]\)</span>.
+Now define this integrand and the true value as a function of the random samples.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">([</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)])</span>
+
+
+<span class="k">def</span> <span class="nf">integrand</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sample</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">true_value</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mi">2</span><span class="o">/</span><span class="mi">3</span><span class="o">*</span><span class="n">samples</span><span class="o">.</span><span class="n">T</span>
+</pre></div>
+</div>
+<p>We must also define the permissible values of the configuration variables that define the number of points <span class="math notranslate nohighlight">\(n_1, n_2\)</span> in the quadrature rule. Here set <span class="math notranslate nohighlight">\(n_1=2^{j+1}+1\)</span> and <span class="math notranslate nohighlight">\(n_2=2^{k+1}+1\)</span> where <span class="math notranslate nohighlight">\(j,k=0\ldots,9\)</span>. Now construct a <cite>ConfigureVariableTransformation</cite> that can map <span class="math notranslate nohighlight">\(j,k\)</span> to  <span class="math notranslate nohighlight">\(n_1, n_2\)</span> and back.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">config_values</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="o">**</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">11</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="o">**</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">11</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">config_var_trans</span> <span class="o">=</span> <span class="n">ConfigureVariableTransformation</span><span class="p">(</span><span class="n">config_values</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We can then define the values of j and k we wish to use to assess convergence. <cite>validation_levels</cite> <span class="math notranslate nohighlight">\(v_1,v_2\)</span> specifies the values used to compute a reference solution if an exact solution is not known. <cite>coarsest_levels</cite> specifies the mininimum values <span class="math notranslate nohighlight">\(c_1,c_2\)</span> of j, k to be used to integrate. Integrator will be used to integrate the integrand for all combinatinos of j,k in the tensor product of <span class="math notranslate nohighlight">\(\{c_1,\ldots v_1-1\},\)</span> and <span class="math notranslate nohighlight">\(\{c_2,\ldots v_2-1\}\)</span>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">validation_levels</span> <span class="o">=</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">]</span>
+<span class="n">coarsest_levels</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Convergence can be assessed with respect to the CPU time used to compute the integral. To return the time taken we must wrap <cite>Integrator</cite> in a WorkTrackingModel.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model</span> <span class="o">=</span> <span class="n">Integrator</span><span class="p">(</span><span class="n">integrand</span><span class="p">)</span>
+<span class="n">timer_model</span> <span class="o">=</span> <span class="n">TimerModel</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span>
+<span class="n">work_model</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span><span class="n">timer_model</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span>
+                               <span class="n">config_var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">())</span>
+</pre></div>
+</div>
+<p>The routine <cite>run_convergence_study</cite> also requires a function <cite>get_num_degrees_of_freedom</cite> which returns the number of degrees of freedom (DoF) for each realization of the configuration variables. In this case the number of DoF is <span class="math notranslate nohighlight">\(n_1n_2\)</span>. Finally we must specify the number of samples of <span class="math notranslate nohighlight">\(z\)</span> used to evaluate the integral. Errors are reported as the average error over these samples.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">convergence_data</span> <span class="o">=</span> <span class="n">run_convergence_study</span><span class="p">(</span>
+    <span class="n">work_model</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">validation_levels</span><span class="p">,</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">get_num_degrees_of_freedom</span><span class="p">,</span> <span class="n">config_var_trans</span><span class="p">,</span>
+    <span class="n">num_samples</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">coarsest_levels</span><span class="o">=</span><span class="n">coarsest_levels</span><span class="p">,</span>
+    <span class="n">reference_model</span><span class="o">=</span><span class="n">true_value</span><span class="p">)</span>
+<span class="n">plot_convergence_data</span><span class="p">(</span><span class="n">convergence_data</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../_images/sphx_glr_plot_pde_convergence_001.png" srcset="../_images/sphx_glr_plot_pde_convergence_001.png" alt="plot pde convergence" class = "sphx-glr-single-img"/><p>The left plots depicts the convergence of the estimated integral as <span class="math notranslate nohighlight">\(n_1\)</span> is increased for varying values of <span class="math notranslate nohighlight">\(n_1\)</span> and vice-versa for the right plot. These plots confirm that the Integrator converges as the expected linear rate. Until the error introduced by fixing the other configuration variables dominates.</p>
+<p>We can also generate similar plots for methods used to solve parameterized partial differential equations. I the following we will assess convergence of a spectral collocation method used to solve the transient advection diffusion equation on a rectangle.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">final_time</span> <span class="o">=</span> <span class="mf">.01</span>
+<span class="c1"># final_time = None</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span>
+    <span class="s2">&quot;multi_index_advection_diffusion&quot;</span><span class="p">,</span> <span class="n">nvars</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">corr_len</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">final_time</span><span class="o">=</span><span class="n">final_time</span><span class="p">)</span>
+<span class="n">N</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="n">validation_levels</span> <span class="o">=</span> <span class="p">[</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">]</span>
+<span class="n">coarsest_levels</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+<span class="k">if</span> <span class="n">final_time</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">validation_levels</span> <span class="o">=</span> <span class="n">validation_levels</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">coarsest_levels</span> <span class="o">=</span> <span class="n">coarsest_levels</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+<span class="n">convergence_data</span> <span class="o">=</span> <span class="n">run_convergence_study</span><span class="p">(</span>
+    <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">validation_levels</span><span class="p">,</span>
+    <span class="n">benchmark</span><span class="o">.</span><span class="n">get_num_degrees_of_freedom</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">config_var_trans</span><span class="p">,</span>
+    <span class="n">num_samples</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">coarsest_levels</span><span class="o">=</span><span class="n">coarsest_levels</span><span class="p">)</span>
+<span class="n">plot_convergence_data</span><span class="p">(</span><span class="n">convergence_data</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../_images/sphx_glr_plot_pde_convergence_002.png" srcset="../_images/sphx_glr_plot_pde_convergence_002.png" alt="plot pde convergence" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Evaluating all 10 samples took 0.35254812240600586 seconds
+Evaluating all 10 samples took 0.3919870853424072 seconds
+Evaluating all 1250 samples took 6.070962905883789 seconds
+</pre></div>
+</div>
+<p>Note when because the benchmark fun is run using multiprocessing.Pool
+The .py script of this tutorial cannot be run with max_eval_concurrency &gt; 1
+via the shell command using python plot_pde_convergence.py because Pool
+must be called inside</p>
+<p><a href="#id1"><span class="problematic" id="id2">`</span></a>if __name__ == “__main__”:</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  7.514 seconds)</p>
+<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-pde-convergence-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/21ce9dbc867b1de2b77eedf7a0f6529e/plot_pde_convergence.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_pde_convergence.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/26bd89e7818c367724be50f9314b78d6/plot_pde_convergence.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_pde_convergence.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="plot_multivariate_piecewise_polynomial_interpolation.html" class="btn btn-neutral float-left" title="Multivariate Piecewise Polynomial Interpolation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_sparse_grid_uq.html" class="btn btn-neutral float-right" title="Sparse Grid Interpolation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.surrogates.interp.barycentric_interpolation &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+        <script src="../../../../_static/jquery.js"></script>
+        <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/doctools.js"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.surrogates.interp.barycentric_interpolation</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.surrogates.interp.barycentric_interpolation</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy.special</span> <span class="kn">import</span> <span class="n">comb</span> <span class="k">as</span> <span class="n">nchoosek</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">cartesian_product</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.pya_numba</span> <span class="kn">import</span> <span class="n">njit</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.sys_utilities</span> <span class="kn">import</span> <span class="n">trace_error_with_msg</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.visualization</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_meshgrid_function_data</span><span class="p">,</span> <span class="n">create_3d_axis</span><span class="p">,</span> <span class="n">mpl</span><span class="p">,</span> <span class="n">plot_surface</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">compute_barycentric_weights_1d</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">interval_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                   <span class="n">return_sequence</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                                   <span class="n">normalize_weights</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return barycentric weights for a sequence of samples. e.g. of sequence</span>
+<span class="sd">    x0,x1,x2 where order represents the order in which the samples are added</span>
+<span class="sd">    to the interpolant.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    return_sequence : boolean</span>
+<span class="sd">        True - return [1],[1/(x0-x1),1/(x1-x0)],</span>
+<span class="sd">                      [1/((x0-x2)(x0-x1)),1/((x1-x2)(x1-x0)),1/((x2-x1)(x2-x0))]</span>
+<span class="sd">        False- return [1/((x0-x2)(x0-x1)),1/((x1-x2)(x1-x0)),1/((x2-x1)(x2-x0))]</span>
+
+<span class="sd">    Note</span>
+<span class="sd">    ----</span>
+<span class="sd">    If length of interval [a,b]=4C then weights will grow or decay</span>
+<span class="sd">    exponentially at C^{-n} where n is number of points causing overflow</span>
+<span class="sd">    or underflow.</span>
+
+<span class="sd">    To minimize this effect multiply each x_j-x_k by C^{-1}. This has effect</span>
+<span class="sd">    of rescaling all weights by C^n. In rare situations where n is so large</span>
+<span class="sd">    randomize or use Leja ordering of the samples before computing weights.</span>
+<span class="sd">    See Barycentric Lagrange Interpolation by</span>
+<span class="sd">    Jean-Paul Berrut and Lloyd N. Trefethen 2004</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">interval_length</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">scaling_factor</span> <span class="o">=</span> <span class="mf">1.</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">scaling_factor</span> <span class="o">=</span> <span class="n">interval_length</span><span class="o">/</span><span class="mf">4.</span>
+
+    <span class="n">C_inv</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="n">scaling_factor</span>
+    <span class="n">num_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">pyapprox.cython.barycentric_interpolation</span> <span class="kn">import</span> \
+            <span class="n">compute_barycentric_weights_1d_pyx</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">compute_barycentric_weights_1d_pyx</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">C_inv</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">ModuleNotFoundError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;compute_barycentric_weights_1d extension failed&#39;</span>
+        <span class="n">trace_error_with_msg</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+
+    <span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_samples</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">weights</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span>
+    <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">):</span>
+        <span class="n">weights</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="p">:</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">C_inv</span> <span class="o">*</span> \
+            <span class="p">(</span><span class="n">samples</span><span class="p">[:</span><span class="n">jj</span><span class="p">]</span><span class="o">-</span><span class="n">samples</span><span class="p">[</span><span class="n">jj</span><span class="p">])</span><span class="o">*</span><span class="n">weights</span><span class="p">[</span><span class="n">jj</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="n">jj</span><span class="p">]</span>
+        <span class="n">weights</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">C_inv</span><span class="o">*</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span><span class="o">-</span><span class="n">samples</span><span class="p">[:</span><span class="n">jj</span><span class="p">]))</span>
+        <span class="n">weights</span><span class="p">[</span><span class="n">jj</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span><span class="o">/</span><span class="n">weights</span><span class="p">[</span><span class="n">jj</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="n">jj</span><span class="p">]</span>
+
+    <span class="n">weights</span><span class="p">[</span><span class="n">num_samples</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="n">num_samples</span><span class="p">]</span> <span class="o">=</span>\
+        <span class="mf">1.</span><span class="o">/</span><span class="n">weights</span><span class="p">[</span><span class="n">num_samples</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="n">num_samples</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">return_sequence</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">weights</span><span class="p">[</span><span class="n">num_samples</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="c1"># make sure magintude of weights is approximately O(1)</span>
+        <span class="c1"># useful to sample sets like leja for gaussian variables</span>
+        <span class="c1"># where interval [a,b] is not very useful</span>
+        <span class="c1"># print(&#39;max_weights&#39;,result.min(),result.max())</span>
+        <span class="k">if</span> <span class="n">normalize_weights</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;I do not think I want to support this option&#39;</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="n">result</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+            <span class="c1"># result[I]=result</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">weights</span>
+
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">result</span><span class="p">)),</span> <span class="p">(</span><span class="n">num_samples</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span> <span class="nf">barycentric_lagrange_interpolation_precompute</span><span class="p">(</span>
+        <span class="n">num_act_dims</span><span class="p">,</span> <span class="n">abscissa_1d</span><span class="p">,</span> <span class="n">barycentric_weights_1d</span><span class="p">,</span>
+        <span class="n">active_abscissa_indices_1d_list</span><span class="p">):</span>
+    <span class="n">num_abscissa_1d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_act_dims</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="n">num_active_abscissa_1d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_act_dims</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="n">shifts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_act_dims</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+
+    <span class="n">shifts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">num_abscissa_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">abscissa_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">num_active_abscissa_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">active_abscissa_indices_1d_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">max_num_abscissa_1d</span> <span class="o">=</span> <span class="n">num_abscissa_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">act_dim_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_act_dims</span><span class="p">):</span>
+        <span class="n">num_abscissa_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">abscissa_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">num_active_abscissa_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span> <span class="o">=</span> \
+            <span class="n">active_abscissa_indices_1d_list</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="c1"># multi-index needs only be defined over active_abscissa_1d</span>
+        <span class="n">shifts</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span> <span class="o">=</span> \
+            <span class="n">shifts</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">num_active_abscissa_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">max_num_abscissa_1d</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span>
+            <span class="n">max_num_abscissa_1d</span><span class="p">,</span> <span class="n">num_abscissa_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">])</span>
+
+    <span class="n">max_num_active_abscissa_1d</span> <span class="o">=</span> <span class="n">num_active_abscissa_1d</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+    <span class="n">active_abscissa_indices_1d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">num_act_dims</span><span class="p">,</span> <span class="n">max_num_active_abscissa_1d</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_act_dims</span><span class="p">):</span>
+        <span class="n">active_abscissa_indices_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:</span><span class="n">num_active_abscissa_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">]]</span> <span class="o">=</span> \
+            <span class="n">active_abscissa_indices_1d_list</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span>
+
+    <span class="c1"># Create locality of data for increased preformance</span>
+    <span class="n">abscissa_and_weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
+        <span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">max_num_abscissa_1d</span><span class="p">,</span> <span class="n">num_act_dims</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_act_dims</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_abscissa_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">]):</span>
+            <span class="n">abscissa_and_weights</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="p">,</span> <span class="n">dd</span><span class="p">]</span> <span class="o">=</span> <span class="n">abscissa_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">][</span><span class="n">ii</span><span class="p">]</span>
+            <span class="n">abscissa_and_weights</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">dd</span><span class="p">]</span> <span class="o">=</span> <span class="n">barycentric_weights_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">][</span><span class="n">ii</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="n">num_abscissa_1d</span><span class="p">,</span> <span class="n">num_active_abscissa_1d</span><span class="p">,</span> <span class="n">shifts</span><span class="p">,</span>
+            <span class="n">abscissa_and_weights</span><span class="p">,</span> <span class="n">active_abscissa_indices_1d</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">multivariate_hierarchical_barycentric_lagrange_interpolation</span><span class="p">(</span>
+        <span class="n">x</span><span class="p">,</span>
+        <span class="n">abscissa_1d</span><span class="p">,</span>
+        <span class="n">barycentric_weights_1d</span><span class="p">,</span>
+        <span class="n">fn_vals</span><span class="p">,</span>
+        <span class="n">active_dims</span><span class="p">,</span>
+        <span class="n">active_abscissa_indices_1d</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : np.ndarray (num_vars, num_samples)</span>
+<span class="sd">        The samples at which to evaluate the interpolant</span>
+
+<span class="sd">    abscissa_1d : [np.ndarray]</span>
+<span class="sd">        List of interpolation nodes in each active dimension. Each array</span>
+<span class="sd">        has ndim==1</span>
+
+<span class="sd">    barycentric_weights_1d : [np.ndarray]</span>
+<span class="sd">        List of barycentric weights in each active dimension, corresponding to</span>
+<span class="sd">        each of the interpolation nodes. Each array has ndim==1</span>
+
+<span class="sd">    fn_vals : np.ndarray (num_samples, num_qoi)</span>
+<span class="sd">        The function values at each of the interpolation nodes</span>
+<span class="sd">        Each column is a flattened array that assumes the nodes</span>
+<span class="sd">        were created with the same ordering as generated by</span>
+<span class="sd">        the function cartesian_product.</span>
+
+<span class="sd">        if active_abscissa_1d is not None the fn_vals must be same size as</span>
+<span class="sd">        the tensor product of the active_abscissa_1d.</span>
+
+<span class="sd">        Warning: Python code takes fn_vals as num_samples x num_qoi</span>
+<span class="sd">        but c++ code takes num_qoi x num_samples. Todo change c++ code</span>
+<span class="sd">        also look at c++ code to compute barycentric weights. min() on line 154</span>
+<span class="sd">        seems to have no effect.</span>
+
+<span class="sd">    active_dims : np.ndarray (num_active_dims)</span>
+<span class="sd">        The dimensions which have more than one interpolation node. TODO</span>
+<span class="sd">        check if this can be simply extracted in this function by looking</span>
+<span class="sd">        at abscissa_1d.</span>
+
+<span class="sd">    active_abscissa_indices_1d : [np.ndarray]</span>
+<span class="sd">        The list (over each dimension) of indices for which we will compute</span>
+<span class="sd">        barycentric basis functions. This is useful when used with</span>
+<span class="sd">        heirarchical interpolation where the function values will be zero</span>
+<span class="sd">        at some nodes and thus there is no need to compute associated basis</span>
+<span class="sd">        functions</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    result : np.ndarray (num_samples,num_qoi)</span>
+<span class="sd">        The values of the interpolant at the samples x</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">num_act_dims</span> <span class="o">=</span> <span class="n">active_dims</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="p">(</span><span class="n">num_abscissa_1d</span><span class="p">,</span> <span class="n">num_active_abscissa_1d</span><span class="p">,</span> <span class="n">shifts</span><span class="p">,</span> <span class="n">abscissa_and_weights</span><span class="p">,</span>
+     <span class="n">active_abscissa_indices_1d</span><span class="p">)</span> <span class="o">=</span> \
+         <span class="n">barycentric_lagrange_interpolation_precompute</span><span class="p">(</span>
+             <span class="n">num_act_dims</span><span class="p">,</span> <span class="n">abscissa_1d</span><span class="p">,</span> <span class="n">barycentric_weights_1d</span><span class="p">,</span>
+             <span class="n">active_abscissa_indices_1d</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">num_active_abscissa_1d</span><span class="p">)</span> <span class="o">!=</span> <span class="n">fn_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">num_active_abscissa_1d</span><span class="p">),</span> <span class="n">fn_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+              <span class="n">num_active_abscissa_1d</span><span class="p">)</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;The shapes of fn_vals and abscissa_1d are inconsistent&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">pyapprox.cython.barycentric_interpolation</span> <span class="kn">import</span> \
+            <span class="n">multivariate_hierarchical_barycentric_lagrange_interpolation_pyx</span>
+
+        <span class="n">result</span> <span class="o">=</span> \
+            <span class="n">multivariate_hierarchical_barycentric_lagrange_interpolation_pyx</span><span class="p">(</span>
+                <span class="n">x</span><span class="p">,</span> <span class="n">fn_vals</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">,</span>
+                <span class="n">active_abscissa_indices_1d</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span>
+                <span class="n">num_abscissa_1d</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span>
+                <span class="n">num_active_abscissa_1d</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span>
+                <span class="n">shifts</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span> <span class="n">abscissa_and_weights</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">result</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Error values not finite&#39;</span><span class="p">)</span>
+
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">ModuleNotFoundError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;multivariate_hierarchical_barycentric_lagrange_interpolation&quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot; extension failed&quot;</span>
+        <span class="n">trace_error_with_msg</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+
+        <span class="n">result</span> <span class="o">=</span> \
+            <span class="n">__multivariate_hierarchical_barycentric_lagrange_interpolation</span><span class="p">(</span>
+                <span class="n">x</span><span class="p">,</span> <span class="n">abscissa_1d</span><span class="p">,</span> <span class="n">fn_vals</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">,</span>
+                <span class="n">active_abscissa_indices_1d</span><span class="p">,</span> <span class="n">num_abscissa_1d</span><span class="p">,</span>
+                <span class="n">num_active_abscissa_1d</span><span class="p">,</span> <span class="n">shifts</span><span class="p">,</span> <span class="n">abscissa_and_weights</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="nd">@njit</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">__multivariate_hierarchical_barycentric_lagrange_interpolation</span><span class="p">(</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">abscissa_1d</span><span class="p">,</span> <span class="n">fn_vals</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">,</span> <span class="n">active_abscissa_indices_1d</span><span class="p">,</span>
+        <span class="n">num_abscissa_1d</span><span class="p">,</span> <span class="n">num_active_abscissa_1d</span><span class="p">,</span> <span class="n">shifts</span><span class="p">,</span>
+        <span class="n">abscissa_and_weights</span><span class="p">):</span>
+
+    <span class="n">eps</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span>
+    <span class="n">num_pts</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">num_act_dims</span> <span class="o">=</span> <span class="n">active_dims</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="n">max_num_abscissa_1d</span> <span class="o">=</span> <span class="n">abscissa_and_weights</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">//</span><span class="mi">2</span>
+    <span class="n">multi_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_act_dims</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+
+    <span class="n">num_qoi</span> <span class="o">=</span> <span class="n">fn_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_pts</span><span class="p">,</span> <span class="n">num_qoi</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+    <span class="c1"># Allocate persistent memory. Each point will fill in a varying amount</span>
+    <span class="c1"># of entries. We use a view of this memory to stop reallocation for each</span>
+    <span class="c1"># data point</span>
+    <span class="n">act_dims_pt_persistent</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_act_dims</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="n">act_dim_indices_pt_persistent</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_act_dims</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="n">c_persistent</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_qoi</span><span class="p">,</span> <span class="n">num_act_dims</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+    <span class="n">bases</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">max_num_abscissa_1d</span><span class="p">,</span> <span class="n">num_act_dims</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">kk</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_pts</span><span class="p">):</span>
+        <span class="c1"># compute the active dimension of the kth point in x and the</span>
+        <span class="c1"># set multi_index accordingly</span>
+        <span class="n">multi_index</span><span class="p">[:]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">num_act_dims_pt</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">has_inactive_abscissa</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">for</span> <span class="n">act_dim_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_act_dims</span><span class="p">):</span>
+            <span class="n">cnt</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">is_active_dim</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">dim</span> <span class="o">=</span> <span class="n">active_dims</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span>
+            <span class="n">num_abscissa</span> <span class="o">=</span> <span class="n">num_abscissa_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span>
+            <span class="n">x_dim_k</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">dim</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_abscissa</span><span class="p">):</span>
+                <span class="k">if</span> <span class="p">((</span><span class="n">cnt</span> <span class="o">&lt;</span> <span class="n">num_active_abscissa_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">])</span> <span class="ow">and</span>
+                        <span class="p">(</span><span class="n">ii</span> <span class="o">==</span> <span class="n">active_abscissa_indices_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">][</span><span class="n">cnt</span><span class="p">])):</span>
+                    <span class="n">cnt</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">x_dim_k</span> <span class="o">-</span> <span class="n">abscissa_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">][</span><span class="n">ii</span><span class="p">])</span> <span class="o">&lt;</span> <span class="n">eps</span><span class="p">):</span>
+                    <span class="n">is_active_dim</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="k">if</span> <span class="p">((</span><span class="n">cnt</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span>
+                            <span class="p">(</span><span class="n">active_abscissa_indices_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">][</span><span class="n">cnt</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">ii</span><span class="p">)):</span>
+                        <span class="n">multi_index</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">cnt</span><span class="o">-</span><span class="mi">1</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">has_inactive_abscissa</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">break</span>
+
+            <span class="k">if</span> <span class="p">(</span><span class="n">is_active_dim</span><span class="p">):</span>
+                <span class="n">act_dims_pt_persistent</span><span class="p">[</span><span class="n">num_act_dims_pt</span><span class="p">]</span> <span class="o">=</span> <span class="n">dim</span>
+                <span class="n">act_dim_indices_pt_persistent</span><span class="p">[</span><span class="n">num_act_dims_pt</span><span class="p">]</span> <span class="o">=</span> <span class="n">act_dim_idx</span>
+                <span class="n">num_act_dims_pt</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c1"># end for act_dim_idx in range(num_act_dims):</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">has_inactive_abscissa</span><span class="p">):</span>
+            <span class="n">result</span><span class="p">[</span><span class="n">kk</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># compute barycentric basis functions</span>
+            <span class="n">denom</span> <span class="o">=</span> <span class="mf">1.</span>
+            <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_act_dims_pt</span><span class="p">):</span>
+                <span class="n">dim</span> <span class="o">=</span> <span class="n">act_dims_pt_persistent</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span>
+                <span class="n">act_dim_idx</span> <span class="o">=</span> <span class="n">act_dim_indices_pt_persistent</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span>
+                <span class="n">num_abscissa</span> <span class="o">=</span> <span class="n">num_abscissa_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span>
+                <span class="n">x_dim_k</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">dim</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span>
+                <span class="n">bases</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">dd</span><span class="p">]</span> <span class="o">=</span> <span class="n">abscissa_and_weights</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">act_dim_idx</span><span class="p">]</span> <span class="o">/</span>\
+                    <span class="p">(</span><span class="n">x_dim_k</span> <span class="o">-</span> <span class="n">abscissa_and_weights</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">act_dim_idx</span><span class="p">])</span>
+                <span class="n">denom_d</span> <span class="o">=</span> <span class="n">bases</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">dd</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_abscissa</span><span class="p">):</span>
+                    <span class="n">basis</span> <span class="o">=</span> <span class="n">abscissa_and_weights</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">act_dim_idx</span><span class="p">]</span> <span class="o">/</span>\
+                        <span class="p">(</span><span class="n">x_dim_k</span> <span class="o">-</span> <span class="n">abscissa_and_weights</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="p">,</span> <span class="n">act_dim_idx</span><span class="p">])</span>
+                    <span class="n">bases</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">dd</span><span class="p">]</span> <span class="o">=</span> <span class="n">basis</span>
+                    <span class="n">denom_d</span> <span class="o">+=</span> <span class="n">basis</span>
+
+                <span class="n">denom</span> <span class="o">*=</span> <span class="n">denom_d</span>
+
+            <span class="k">if</span> <span class="p">(</span><span class="n">num_act_dims_pt</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="c1"># if point is an abscissa return the fn value at that point</span>
+                <span class="n">fn_val_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">multi_index</span><span class="o">*</span><span class="n">shifts</span><span class="p">)</span>
+                <span class="n">result</span><span class="p">[</span><span class="n">kk</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">fn_vals</span><span class="p">[</span><span class="n">fn_val_index</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># compute interpolant</span>
+                <span class="n">c_persistent</span><span class="p">[:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.</span>
+                <span class="n">done</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">num_act_dims_pt</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">):</span>
+                    <span class="n">done</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="n">fn_val_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">multi_index</span><span class="o">*</span><span class="n">shifts</span><span class="p">)</span>
+                <span class="k">while</span> <span class="p">(</span><span class="kc">True</span><span class="p">):</span>
+                    <span class="n">act_dim_idx</span> <span class="o">=</span> <span class="n">act_dim_indices_pt_persistent</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_active_abscissa_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]):</span>
+                        <span class="n">fn_val_index</span> <span class="o">+=</span> <span class="n">shifts</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span> <span class="o">*</span> \
+                            <span class="p">(</span><span class="n">ii</span><span class="o">-</span><span class="n">multi_index</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">])</span>
+                        <span class="n">multi_index</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">ii</span>
+                        <span class="n">basis</span> <span class="o">=</span> <span class="n">bases</span><span class="p">[</span><span class="n">active_abscissa_indices_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">][</span><span class="n">ii</span><span class="p">],</span> <span class="mi">0</span><span class="p">]</span>
+                        <span class="n">c_persistent</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">basis</span> <span class="o">*</span> <span class="n">fn_vals</span><span class="p">[</span><span class="n">fn_val_index</span><span class="p">,</span> <span class="p">:]</span>
+
+                    <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_act_dims_pt</span><span class="p">):</span>
+                        <span class="n">act_dim_idx</span> <span class="o">=</span> <span class="n">act_dim_indices_pt_persistent</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span>
+                        <span class="n">basis</span> <span class="o">=</span> <span class="n">bases</span><span class="p">[</span><span class="n">active_abscissa_indices_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span>
+                                      <span class="p">[</span><span class="n">multi_index</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]],</span> <span class="n">dd</span><span class="p">]</span>
+                        <span class="n">c_persistent</span><span class="p">[:,</span> <span class="n">dd</span><span class="p">]</span> <span class="o">+=</span> <span class="n">basis</span> <span class="o">*</span> <span class="n">c_persistent</span><span class="p">[:,</span> <span class="n">dd</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                        <span class="n">c_persistent</span><span class="p">[:,</span> <span class="n">dd</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="n">multi_index</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span> <span class="o">&lt;</span>
+                                <span class="n">num_active_abscissa_1d</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                            <span class="n">fn_val_index</span> <span class="o">+=</span> <span class="n">shifts</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span>
+                            <span class="n">multi_index</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+                            <span class="k">break</span>
+                        <span class="k">elif</span> <span class="p">(</span><span class="n">dd</span> <span class="o">&lt;</span> <span class="n">num_act_dims_pt</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+                            <span class="n">fn_val_index</span> <span class="o">-=</span> <span class="n">shifts</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span> <span class="o">*</span> \
+                                <span class="n">multi_index</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span>
+                            <span class="n">multi_index</span><span class="p">[</span><span class="n">act_dim_idx</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">done</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">done</span><span class="p">):</span>
+                        <span class="k">break</span>
+                <span class="n">result</span><span class="p">[</span><span class="n">kk</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">c_persistent</span><span class="p">[:,</span> <span class="n">num_act_dims_pt</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">denom</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="n">kk</span><span class="p">,</span> <span class="p">:])):</span>
+                    <span class="c1"># print (c_persistent [:,num_act_dims_pt-1])</span>
+                    <span class="c1"># print (denom)</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Error values not finite&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span> <span class="nf">multivariate_barycentric_lagrange_interpolation</span><span class="p">(</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">abscissa_1d</span><span class="p">,</span> <span class="n">barycentric_weights_1d</span><span class="p">,</span> <span class="n">fn_vals</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">):</span>
+
+    <span class="n">num_active_dims</span> <span class="o">=</span> <span class="n">active_dims</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">active_abscissa_indices_1d</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">active_index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_active_dims</span><span class="p">):</span>
+        <span class="n">active_abscissa_indices_1d</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+            <span class="n">abscissa_1d</span><span class="p">[</span><span class="n">active_index</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+    <span class="k">return</span> <span class="n">multivariate_hierarchical_barycentric_lagrange_interpolation</span><span class="p">(</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">abscissa_1d</span><span class="p">,</span> <span class="n">barycentric_weights_1d</span><span class="p">,</span> <span class="n">fn_vals</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">,</span>
+        <span class="n">active_abscissa_indices_1d</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">clenshaw_curtis_barycentric_weights</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">level</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">],</span> <span class="nb">float</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">mi</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="p">(</span><span class="n">level</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">mi</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+        <span class="n">w</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span>
+        <span class="n">w</span><span class="p">[</span><span class="n">mi</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span>
+        <span class="n">w</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.</span>
+        <span class="k">return</span> <span class="n">w</span>
+
+
+<span class="k">def</span> <span class="nf">equidistant_barycentric_weights</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+        <span class="n">w</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">*</span> <span class="n">nchoosek</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+        <span class="n">w</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.</span> <span class="o">*</span> <span class="n">nchoosek</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">n</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">w</span><span class="p">[</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span>
+    <span class="k">return</span> <span class="n">w</span>
+
+
+<span class="nd">@njit</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">univariate_lagrange_polynomial</span><span class="p">(</span><span class="n">abscissa</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">abscissa</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">nabscissa</span> <span class="o">=</span> <span class="n">abscissa</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">nabscissa</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nabscissa</span><span class="p">):</span>
+        <span class="n">x_ii</span> <span class="o">=</span> <span class="n">abscissa</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nabscissa</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">ii</span> <span class="o">==</span> <span class="n">jj</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">values</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">*=</span> <span class="p">(</span><span class="n">samples</span> <span class="o">-</span> <span class="n">abscissa</span><span class="p">[</span><span class="n">jj</span><span class="p">])</span><span class="o">/</span><span class="p">(</span><span class="n">x_ii</span><span class="o">-</span><span class="n">abscissa</span><span class="p">[</span><span class="n">jj</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">values</span>
+
+
+<span class="k">def</span> <span class="nf">precompute_tensor_product_lagrange_polynomial_basis</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">abscissa_1d</span><span class="p">,</span> <span class="n">active_vars</span><span class="p">):</span>
+
+    <span class="n">nvars</span><span class="p">,</span> <span class="n">nsamples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">nactive_vars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">active_vars</span><span class="p">)</span>
+    <span class="n">nabscissa</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">nactive_vars</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nactive_vars</span><span class="p">):</span>
+        <span class="n">nabscissa</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span> <span class="o">=</span> <span class="n">abscissa_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">max_nabscissa</span> <span class="o">=</span> <span class="n">nabscissa</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+    <span class="n">basis_vals_1d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">nactive_vars</span><span class="p">,</span> <span class="n">max_nabscissa</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nactive_vars</span><span class="p">):</span>
+        <span class="n">basis_vals_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:</span><span class="n">nabscissa</span><span class="p">[</span><span class="n">dd</span><span class="p">],</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">univariate_lagrange_polynomial</span><span class="p">(</span>
+            <span class="n">abscissa_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">],</span> <span class="n">samples</span><span class="p">[</span><span class="n">active_vars</span><span class="p">[</span><span class="n">dd</span><span class="p">]])</span><span class="o">.</span><span class="n">T</span>
+    <span class="k">return</span> <span class="n">basis_vals_1d</span>
+
+
+<span class="k">def</span> <span class="nf">__tensor_product_lagrange_polynomial_basis</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">basis_vals_1d</span><span class="p">,</span> <span class="n">active_vars</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">active_indices</span><span class="p">):</span>
+
+    <span class="c1">#try:</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.cython.barycentric_interpolation</span> <span class="kn">import</span> \
+        <span class="n">tensor_product_lagrange_interpolation_pyx</span>
+    <span class="n">approx_values</span> <span class="o">=</span> <span class="n">tensor_product_lagrange_interpolation_pyx</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">basis_vals_1d</span><span class="p">,</span> <span class="n">active_indices</span><span class="p">,</span> <span class="n">active_vars</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">approx_values</span>
+
+    <span class="c1"># nvars, nsamples = samples.shape</span>
+    <span class="c1"># nactive_vars = len(active_vars)</span>
+
+    <span class="c1"># nindices = active_indices.shape[1]</span>
+    <span class="c1"># temp1 = basis_vals_1d.reshape(</span>
+    <span class="c1">#     (nactive_vars*basis_vals_1d.shape[1], nsamples))</span>
+    <span class="c1"># temp2 = temp1[active_indices.ravel()+np.repeat(</span>
+    <span class="c1">#     np.arange(nactive_vars)*basis_vals_1d.shape[1], nindices), :].reshape(</span>
+    <span class="c1">#         nactive_vars, nindices, nsamples)</span>
+    <span class="c1"># basis_matrix = np.prod(temp2, axis=0).T</span>
+    <span class="c1"># approx_values = basis_matrix.dot(values)</span>
+
+    <span class="c1"># prod with axis argument does not work with njit</span>
+    <span class="c1"># approx_values = np.zeros((nsamples, values.shape[1]), dtype=np.double)</span>
+    <span class="c1"># for jj in range(nindices):</span>
+    <span class="c1">#     basis_vals = 1</span>
+    <span class="c1">#     for dd in range(nactive_vars):</span>
+    <span class="c1">#         basis_vals *= basis_vals_1d[dd, active_indices[dd, jj], :]</span>
+    <span class="c1">#     approx_values += basis_vals[:, None]*values[jj, :]</span>
+    <span class="k">return</span> <span class="n">approx_values</span>
+
+
+<span class="k">def</span> <span class="nf">tensor_product_lagrange_interpolation</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">abscissa_1d</span><span class="p">,</span> <span class="n">active_vars</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">abscissa_1d</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">active_vars</span><span class="p">)</span>
+    <span class="n">active_indices</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">abscissa_1d</span><span class="p">])</span>
+    <span class="n">basis_vals_1d</span> <span class="o">=</span> <span class="n">precompute_tensor_product_lagrange_polynomial_basis</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">abscissa_1d</span><span class="p">,</span> <span class="n">active_vars</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">__tensor_product_lagrange_polynomial_basis</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">basis_vals_1d</span><span class="p">,</span> <span class="n">active_vars</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">active_indices</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="tensor_product_barycentric_lagrange_interpolation"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.tensor_product_barycentric_lagrange_interpolation.html#pyapprox.surrogates.tensor_product_barycentric_lagrange_interpolation">[docs]</a><span class="k">def</span> <span class="nf">tensor_product_barycentric_lagrange_interpolation</span><span class="p">(</span>
+        <span class="n">grid_samples_1d</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_all</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Use tensor-product Barycentric Lagrange interpolation to approximate a</span>
+<span class="sd">    function.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    grid_samples_1d : list (nvars)</span>
+<span class="sd">        List containing 1D grid points defining the tensor product grid</span>
+<span class="sd">        The ith entry is a np.ndarray (nsamples_ii)</span>
+
+<span class="sd">    fun : callable</span>
+<span class="sd">        Function with the signature</span>
+
+<span class="sd">        `fun(samples) -&gt; np.ndarray (nx, nqoi)`</span>
+
+<span class="sd">        where samples is np.ndarray (nvars, nx)</span>
+
+<span class="sd">    samples : np.ndarray (nvars, nsamples)</span>
+<span class="sd">        The samples at which to evaluate the basis functions</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    interp_vals : np.ndarray (nsamples, nqoi)</span>
+<span class="sd">        Evaluations of the interpolant at the samples</span>
+
+<span class="sd">    grid_samples : np.ndarray (nvars, ngrid_samples)</span>
+<span class="sd">        if return_all: The samples used to consruct the basis functions where</span>
+<span class="sd">        ngrid_samples = prod([len(s) for s in grid_samples_1d])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">barycentric_weights_1d</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">compute_barycentric_weights_1d</span><span class="p">(</span><span class="n">ss</span><span class="p">)</span> <span class="k">for</span> <span class="n">ss</span> <span class="ow">in</span> <span class="n">grid_samples_1d</span><span class="p">]</span>
+
+    <span class="n">grid_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">grid_samples_1d</span><span class="p">)</span>
+    <span class="n">fn_vals</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">grid_samples</span><span class="p">)</span>
+    <span class="n">interp_vals</span> <span class="o">=</span> <span class="n">multivariate_barycentric_lagrange_interpolation</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">grid_samples_1d</span><span class="p">,</span> <span class="n">barycentric_weights_1d</span><span class="p">,</span> <span class="n">fn_vals</span><span class="p">,</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">return_all</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">interp_vals</span>
+    <span class="k">return</span> <span class="n">interp_vals</span><span class="p">,</span> <span class="n">grid_samples</span></div>
+
+
+<span class="k">def</span> <span class="nf">plot_tensor_product_lagrange_basis_2d</span><span class="p">(</span>
+        <span class="n">univariate_quad_rule</span><span class="p">,</span> <span class="n">npts</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">abscissa</span> <span class="o">=</span> <span class="n">univariate_quad_rule</span><span class="p">(</span><span class="n">npts</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">abscissa_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">abscissa</span><span class="p">,</span> <span class="n">abscissa</span><span class="p">]</span>
+    <span class="n">barycentric_weights_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">compute_barycentric_weights_1d</span><span class="p">(</span><span class="n">abscissa_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                              <span class="n">compute_barycentric_weights_1d</span><span class="p">(</span><span class="n">abscissa_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">])]</span>
+    <span class="n">training_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">abscissa_1d</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">fn_vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">training_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">jj</span><span class="o">*</span><span class="n">abscissa_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">ii</span>
+    <span class="n">fn_vals</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span>
+
+    <span class="k">def</span> <span class="nf">f</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span> <span class="k">return</span> <span class="n">multivariate_barycentric_lagrange_interpolation</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">abscissa_1d</span><span class="p">,</span> <span class="n">barycentric_weights_1d</span><span class="p">,</span> <span class="n">fn_vals</span><span class="p">,</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]))</span>
+
+    <span class="n">plot_limits</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">num_pts_1d</span> <span class="o">=</span> <span class="mi">101</span>
+    <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span> <span class="o">=</span> <span class="n">get_meshgrid_function_data</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">plot_limits</span><span class="p">,</span> <span class="n">num_pts_1d</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">create_3d_axis</span><span class="p">()</span>
+    <span class="n">cmap</span> <span class="o">=</span> <span class="n">mpl</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">coolwarm</span>
+
+    <span class="n">plot_surface</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">axis_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">limit_state</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">alpha</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">mpl</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">coolwarm</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">plot_axes</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">num_contour_levels</span> <span class="o">=</span> <span class="mi">30</span>
+    <span class="n">offset</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">-</span><span class="n">Z</span><span class="o">.</span><span class="n">min</span><span class="p">())</span><span class="o">/</span><span class="mi">2</span>
+    <span class="n">cmap</span> <span class="o">=</span> <span class="n">mpl</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">gray</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span>
+        <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">zdir</span><span class="o">=</span><span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span>
+        <span class="n">levels</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">Z</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="n">num_contour_levels</span><span class="p">),</span>
+        <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">training_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">training_samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span>
+            <span class="n">offset</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">training_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span>
+            <span class="n">zorder</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;b&#39;</span><span class="p">)</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">training_samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">idx</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">x</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:],</span> <span class="n">y</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:])))[:,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">Y</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span> <span class="n">z</span><span class="p">,</span> <span class="s1">&#39;-r&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">abscissa_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Y</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">abscissa_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">abscissa_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="s1">&#39;or&#39;</span><span class="p">)</span>
+
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">training_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">idx</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">x</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:],</span> <span class="n">y</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:])))[:,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="s1">&#39;-r&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">abscissa_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span> <span class="n">abscissa_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">abscissa_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="s1">&#39;or&#39;</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

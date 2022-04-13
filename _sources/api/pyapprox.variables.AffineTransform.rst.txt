@@ -1,0 +1,35 @@
+AffineTransform
+===============
+
+.. currentmodule:: pyapprox.variables
+
+.. autoclass:: AffineTransform
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~AffineTransform.get_ranges
+      ~AffineTransform.map_derivatives_from_canonical_space
+      ~AffineTransform.map_derivatives_to_canonical_space
+      ~AffineTransform.map_from_canonical
+      ~AffineTransform.map_from_canonical_1d
+      ~AffineTransform.map_to_canonical
+      ~AffineTransform.map_to_canonical_1d
+      ~AffineTransform.num_vars
+      ~AffineTransform.samples_of_bounded_variables_inside_domain
+      ~AffineTransform.set_identity_maps
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: get_ranges
+   .. automethod:: map_derivatives_from_canonical_space
+   .. automethod:: map_derivatives_to_canonical_space
+   .. automethod:: map_from_canonical
+   .. automethod:: map_from_canonical_1d
+   .. automethod:: map_to_canonical
+   .. automethod:: map_to_canonical_1d
+   .. automethod:: num_vars
+   .. automethod:: samples_of_bounded_variables_inside_domain
+   .. automethod:: set_identity_maps

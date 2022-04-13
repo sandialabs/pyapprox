@@ -1,0 +1,21 @@
+NatafTransform
+==============
+
+.. currentmodule:: pyapprox.variables
+
+.. autoclass:: NatafTransform
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~NatafTransform.map_from_canonical
+      ~NatafTransform.map_to_canonical
+      ~NatafTransform.num_vars
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: map_from_canonical
+   .. automethod:: map_to_canonical
+   .. automethod:: num_vars

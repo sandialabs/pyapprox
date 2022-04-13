@@ -1,0 +1,39 @@
+AdaptiveInducedPCE
+==================
+
+.. currentmodule:: pyapprox.surrogates
+
+.. autoclass:: AdaptiveInducedPCE
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~AdaptiveInducedPCE.__call__
+      ~AdaptiveInducedPCE.add_new_subspaces
+      ~AdaptiveInducedPCE.allocate_initial_samples
+      ~AdaptiveInducedPCE.build
+      ~AdaptiveInducedPCE.create_new_subspaces_data
+      ~AdaptiveInducedPCE.fit
+      ~AdaptiveInducedPCE.get_active_unique_poly_indices
+      ~AdaptiveInducedPCE.increment_samples
+      ~AdaptiveInducedPCE.num_training_samples
+      ~AdaptiveInducedPCE.set_function
+      ~AdaptiveInducedPCE.set_polynomial_chaos_expansion
+      ~AdaptiveInducedPCE.set_preconditioning_function
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: add_new_subspaces
+   .. automethod:: allocate_initial_samples
+   .. automethod:: build
+   .. automethod:: create_new_subspaces_data
+   .. automethod:: fit
+   .. automethod:: get_active_unique_poly_indices
+   .. automethod:: increment_samples
+   .. automethod:: num_training_samples
+   .. automethod:: set_function
+   .. automethod:: set_polynomial_chaos_expansion
+   .. automethod:: set_preconditioning_function

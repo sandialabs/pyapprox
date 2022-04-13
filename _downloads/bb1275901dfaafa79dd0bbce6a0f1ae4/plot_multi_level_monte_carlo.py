@@ -1,7 +1,7 @@
 r"""
 Multi-level Monte Carlo
 =======================
-This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and describes how the pioneering work of Multi-level Monte Carlo [CGSTCVS2011]_, [GOR2008]_ can be used to estimate the mean of a high-fidelity model using multiple low fidelity models. 
+This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and describes how the pioneering work of Multi-level Monte Carlo [CGSTCVS2011]_, [GOR2008]_ can be used to estimate the mean of a high-fidelity model using multiple low fidelity models.
 
 Two Model MLMC
 --------------
@@ -19,7 +19,7 @@ To simplify notation let
 
 .. math:: Y_{\alpha,\mathcal{Z}_{\alpha-1}}=-N_{\alpha}^{-1}\sum_{i=1}^{N_{\alpha}} \left(f_{\alpha+1,\mathcal{Z}_{\alpha}}^{(i)}-f_{\alpha,\mathcal{Z}_{\alpha}}^{(i)}\right)
 
-so we can write 
+so we can write
 
 .. math:: Q_{0,\mathcal{Z}}^\mathrm{ML}=Y_{0,\mathcal{Z}_0}+Y_{1,\mathcal{Z}_1}
 
@@ -27,7 +27,7 @@ where :math:`f_{2}=0`.
 The variance of this estimator is given by
 
 .. math:: \var{Q_{0,\mathcal{Z}}^\mathrm{ML}}=\var{Y_{0,\mathcal{Z}_0}+Y_{1,\mathcal{Z}_1}}=N_0^{-1}\var{Y_{0,\mathcal{Z}_0}}+N_1^{-1}\var{Y_{1,\mathcal{Z}_1}}
-  
+
 since :math:`\mathcal{Z}_0\bigcap\mathcal{Z}_1=\emptyset.`
 
 From the previous equation we can see that MLMC works well if the variance of the difference between models is smaller than the variance of either model. Although the variance of the low-fidelity model is likely high, we can set :math:`N_0` to be large because the cost of evaluating the low-fidelity model is low. If the variance of the discrepancy is smaller we only need a smaller number of samples so that the two sources of error (the two terms on the RHS of the previous equation) are balanced.
@@ -39,7 +39,7 @@ Many Model MLMC
 
 MLMC can easily be extended to estimator based on :math:`M+1` models. Letting :math:`f_0,\ldots,f_M` be an ensemble of :math:`M+1` models ordered by decreasing fidelity and cost (note typically MLMC literature reverses this order),  we simply introduce estimates of the differences between the remaining models. That is
 
-.. math :: 
+.. math ::
    :label: eq:ml-estimator
 
    Q_{0,\mathcal{Z}}^\mathrm{ML} = \sum_{\alpha=0}^M Y_{\alpha,\mathcal{Z}_\alpha}, \quad f_{M+1}=0
@@ -56,7 +56,7 @@ The sampling strategy used for MLMC is shown in figure :ref:`mlmc-sample-allocat
 
 .. list-table::
 
-   * - 
+   * -
        .. _mlmc-sample-allocation:
 
        .. figure:: ../../figures/mlmc.png
@@ -83,47 +83,40 @@ using the following ensemble of models, taken from [PWGSIAM2016]_, which simulat
 
 where :math:`z = (b,h,P,M,Y)^T`
 """
-import pyapprox as pya
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.tests.test_control_variate_monte_carlo import \
-    TunableModelEnsemble, ShortColumnModelEnsemble, PolynomialModelEnsemble 
-from scipy.stats import uniform
-from functools import partial
-from scipy.stats import uniform,norm,lognorm
+from pyapprox.benchmarks import setup_benchmark
+from pyapprox import interface
+from pyapprox import multifidelity
+
 np.random.seed(1)
+benchmark = setup_benchmark("short_column_ensemble")
+short_column_model = benchmark.fun
+model_costs = np.asarray([100, 50, 5, 1, 0.2])
 
-short_column_model = ShortColumnModelEnsemble()
-model_ensemble = pya.ModelEnsemble(
-    [short_column_model.m0,short_column_model.m1,short_column_model.m2])
-
-costs = np.asarray([100, 50, 5])
 target_cost = int(1e4)
-idx = [0,1,2]
-cov = short_column_model.get_covariance_matrix()[np.ix_(idx,idx)]
+idx = [0, 1]
+cov = short_column_model.get_covariance_matrix()[np.ix_(idx, idx)]
+model_ensemble = interface.ModelEnsemble(
+    [short_column_model.models[ii] for ii in idx])
+costs = model_costs[idx]
 # generate pilot samples to estimate correlation
 # npilot_samples = int(1e4)
 # cov = pya.estimate_model_ensemble_covariance(
 #    npilot_samples,short_column_model.generate_samples,model_ensemble)[0]
 
 # define the sample allocation
-nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
-    cov, costs, target_cost)[:2]
-# generate sample sets
-samples,values =pya.generate_samples_and_values_mlmc(
-    nhf_samples,nsample_ratios,model_ensemble,
-    short_column_model.generate_samples)
-# compute mean using only hf data
-hf_mean = values[0][0].mean()
-# compute mlmc control variate weights
-eta = pya.get_mlmc_control_variate_weights(cov.shape[0])
-# compute MLMC mean
-mlmc_mean = pya.compute_approximate_control_variate_mean_estimate(eta,values)
+est = multifidelity.get_estimator("mlmc", cov, costs, benchmark.variable)
+nsample_ratios, variance, rounded_target_cost = est.allocate_samples(
+    target_cost)
+acv_samples, acv_values = est.generate_data(model_ensemble)
+mlmc_mean = est(acv_values)
+hf_mean = acv_values[0][1].mean()
 
 # get the true mean of the high-fidelity model
 true_mean = short_column_model.get_means()[0]
-print('MLMC error',abs(mlmc_mean-true_mean))
-print('MC error',abs(hf_mean-true_mean))
+print('MC error', abs(hf_mean-true_mean))
+print('MLMC error', abs(mlmc_mean-true_mean))
 
 
 #%%
@@ -134,40 +127,46 @@ print('MC error',abs(hf_mean-true_mean))
 #.. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1} - \eta_M^2 \frac{\tau_{M}}{\hat{r}_{M}} - \sum_{i=2}^M \frac{1}{\hat{r}_{i-1}}\left( \eta_i^2 \tau_{i}^2 + \tau_{i-1}^2 \tau_{i-1}^2 - 2 \eta_i \eta_{i-1} \rho_{i,i-1} \tau_{i} \tau_{i-1} \right),
 #   :label: mlmc-variance-reduction
 #
-#where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1}{2}}`. Recall that and :math:`\hat{r}_\alpha=\lvert\mathcal{Z}_{\alpha,2}\rvert/N` is the ratio of the cardinality of the sets :math:`\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{0,2}`. 
+#where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1}{2}}`. Recall that and :math:`\hat{r}_\alpha=\lvert\mathcal{Z}_{\alpha,2}\rvert/N` is the ratio of the cardinality of the sets :math:`\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{0,2}`.
 #
 #The following code computes the variance reduction of the MLMC estimator, using the 2 models :math:`f_0,f_1`. The variance reduction is estimated numerically by  running MLMC repeatedly with different realizations of the sample sets. The function ``get_rsquared_mlmc`` is used to return the theoretical variance reduction.
-ntrials=1e1
-get_cv_weights_mlmc = pya.get_mlmc_control_variate_weights_pool_wrapper
-means1, numerical_var_reduction1, true_var_reduction1 = \
-    pya.estimate_variance_reduction(
-        model_ensemble, cov[:2,:2], short_column_model.generate_samples,
-        pya.allocate_samples_mlmc,
-        pya.generate_samples_and_values_mlmc, get_cv_weights_mlmc,
-        pya.get_rsquared_mlmc,ntrials=ntrials,max_eval_concurrency=1,
-        costs=costs[:2],target_cost=target_cost)
-print("Theoretical 2 model MLMC variance reduction",true_var_reduction1)
-print("Achieved 2 model MLMC variance reduction",numerical_var_reduction1)
+ntrials = 1e3
+means, numerical_var, true_var = \
+    multifidelity.estimate_variance(
+        model_ensemble, est, target_cost, ntrials)
+print("Theoretical 2 model MLMC variance", true_var)
+print("Achieved 2 model MLMC variance", numerical_var)
 
 
 #%%
 # The numerical estimate of the variance reduction is consistent with the theory.
 # Now let us compute the theoretical variance reduction using 3 models
 
-true_var_reduction2 = 1-pya.get_rsquared_mlmc(cov,nsample_ratios)
-print("Theoretical 3 model MLMC variance reduction",true_var_reduction2)
+idx = [0, 1, 2]
+cov = short_column_model.get_covariance_matrix()[np.ix_(idx, idx)]
+model_ensemble = interface.ModelEnsemble(
+    [short_column_model.models[ii] for ii in idx])
+costs = model_costs[idx]
+est = multifidelity.get_estimator("mlmc", cov, costs, benchmark.variable)
+est.allocate_samples(target_cost)
+true_var = est.get_variance(est.rounded_target_cost, est.nsample_ratios)
+print("Theoretical 3 model MLMC variance reduction", true_var)
 
 #%%
 #The variance reduction obtained using three models is only slightly better than when using two models. The difference in variance reduction is dependent on the correlations between the models and the number of samples assigned to each model.
 #
-#MLMC works extremely well when the variance between the model discrepancies decays with increaseing fidelity. However one needs to be careful that the variance between discrepancies does indeed decay. Sometimes when the models correspond to different mesh discretizations. Increasing the mesh resolution does not always produce a smaller discrepancy. The following example shows that, for this example, adding a third model actually increases the variance of the MLMC estimator. 
+#MLMC works extremely well when the variance between the model discrepancies decays with increaseing fidelity. However one needs to be careful that the variance between discrepancies does indeed decay. Sometimes when the models correspond to different mesh discretizations. Increasing the mesh resolution does not always produce a smaller discrepancy. The following example shows that, for this example, adding a third model actually increases the variance of the MLMC estimator.
 
-model_ensemble = pya.ModelEnsemble(
-    [short_column_model.m0,short_column_model.m3,short_column_model.m4])
-idx = [0,3,4]
-cov3 = short_column_model.get_covariance_matrix()[np.ix_(idx,idx)]
-true_var_reduction3 = 1-pya.get_rsquared_mlmc(cov3,nsample_ratios)
-print("Theoretical 3 model MLMC variance reduction for a pathalogical example",true_var_reduction3)
+model_ensemble = interface.ModelEnsemble(
+    [short_column_model.m0, short_column_model.m3, short_column_model.m4])
+idx = [0, 3, 4]
+cov = short_column_model.get_covariance_matrix()[np.ix_(idx, idx)]
+costs = model_costs[idx]
+est = multifidelity.get_estimator("mlmc", cov, costs, benchmark.variable)
+est.allocate_samples(target_cost)
+true_var = est.get_variance(est.rounded_target_cost, est.nsample_ratios)
+print("Theoretical 3 model MLMC variance reduction for a pathalogical example",
+      true_var)
 
 #%%
 #Using MLMC for this ensemble of models creates an estimate with a variance orders of magnitude larger than just using the high-fidelity model. When using models that do not admit a hierarchical structure, alternative approaches are needed. We will introduce such estimators in future tutorials.
@@ -183,7 +182,7 @@ print("Theoretical 3 model MLMC variance reduction for a pathalogical example",t
 #.. math::
 #
 #   C_{\mathrm{tot}}=\sum_{l=0}^M C_\alpha N_\alpha
-#  
+#
 #Now recall that the variance of the estimator is
 #
 #.. math:: \var{Q_0^\mathrm{ML}}=\sum_{\alpha=0}^M \var{Y_\alpha}N_\alpha,
@@ -197,7 +196,7 @@ print("Theoretical 3 model MLMC variance reduction for a pathalogical example",t
 #
 #or alternatively by introducing the lagrange multiplier :math:`\lambda^2` we can minimize
 #
-#.. math:: 
+#.. math::
 #
 #   \mathcal{J}(N_0,\ldots,N_M,\lambda)&=\sum_{\alpha=0}^M\left(N_\alpha C_\alpha\right)+\lambda^2\left(\sum_{\alpha=0}^M\left(N_\alpha^{-1}\var{Y_\alpha}\right)-\epsilon^2\right)\\
 #   &=\sum_{\alpha=0}^M\left(N_\alpha C_\alpha+\lambda^2N_\alpha^{-1}\var{Y_\alpha}\right)-\lambda^2\epsilon^2
@@ -210,7 +209,7 @@ print("Theoretical 3 model MLMC variance reduction for a pathalogical example",t
 #  \implies C_\alpha&=\lambda^2N_\alpha^{-2}\var{Y_\alpha}\\
 #  \implies N_\alpha&=\lambda\sqrt{\var{Y_\alpha}C_\alpha^{-1}}
 #
-#The constraint is satisifed by noting 
+#The constraint is satisifed by noting
 #
 #.. math:: \frac{\partial \mathcal{J}}{\lambda^2}=\sum_{\alpha=0}^M N_\alpha^{-1}\var{Y_\alpha}-\epsilon^2=0
 #
@@ -230,7 +229,7 @@ print("Theoretical 3 model MLMC variance reduction for a pathalogical example",t
 #  N_\alpha C_\alpha&=\lambda\sqrt{\var{Y_\alpha}C_\alpha^{-1}}C_\alpha\\
 #  &=\lambda\sqrt{\var{Y_\alpha}C_\alpha}\\
 #  &=\epsilon^{-2}\left(\sum_{\alpha=0}^M\sqrt{\var{Y_\alpha}C_\alpha}\right)\sqrt{\var{Y_\alpha}C_\alpha}
-#  
+#
 #allows us to determine the smallest total cost that generates and estimator with the desired variance.
 #
 #.. math::
@@ -245,71 +244,36 @@ print("Theoretical 3 model MLMC variance reduction for a pathalogical example",t
 #
 #where each model is the function of a single uniform random variable defined on the unit interval :math:`[0,1]`. The following code computes the variance of the MLMC estimator for different target costs using the optimal sample allocation using an exact estimate of the covariance between models and an approximation.
 
-
-import numpy as np
-import pyapprox as pya
-import matplotlib.pyplot as plt
-from pyapprox.tests.test_control_variate_monte_carlo import \
-    PolynomialModelEnsemble
 np.random.seed(1)
-
-poly_model = PolynomialModelEnsemble()
-model_ensemble = pya.ModelEnsemble(poly_model.models)
+benchmark = setup_benchmark("polynomial_ensemble")
+poly_model = benchmark.fun
+model_ensemble = interface.ModelEnsemble(poly_model.models)
 cov = poly_model.get_covariance_matrix()
-target_costs = np.array([1e1,1e2,1e3,1e4],dtype=int)
+target_costs = np.array([1e1, 1e2, 1e3, 1e4], dtype=int)
 costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
-model_labels=[r'$f_0$',r'$f_1$',r'$f_2$',r'$f_3$',r'$f_4$']
+model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
+npilot_samples = 10
+cov_mc = multifidelity.estimate_model_ensemble_covariance(
+    npilot_samples, benchmark.variable.rvs, model_ensemble)[0]
 
-def plot_mlmc_error():
-    """
-    Define function to create plot so we can create it later and add
-    other estimator error curves.
+from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
+estimators = [
+    multifidelity.get_estimator("mlmc", cov, costs, poly_model.variable),
+    multifidelity.get_estimator("mlmc", cov_mc, costs, poly_model.variable),
+    multifidelity.get_estimator("mc", cov, costs, poly_model.variable)]
+est_labels = mathrm_labels(["MLMC", r"MLMC^\dagger", "MC"])
+optimized_estimators = multifidelity.compare_estimator_variances(
+    target_costs, estimators)
 
-    Note this is only necessary for sphinx-gallery docs. If just using the 
-    jupyter notebooks they create then we do not need this function definition 
-    and simply need to call fig at end of next cell to regenerate plot.
-    """
-    variances, nsamples_history = [],[]
-    npilot_samples = 5
-    estimator = pya.MLMC
-    for target_cost in target_costs:
-        # compute variance  using exact covariance for sample allocation
-        est = estimator(cov,costs)
-        nhf_samples,nsample_ratios = est.allocate_samples(target_cost)[:2]
-        variances.append(est.get_variance(nhf_samples,nsample_ratios))
-        nsamples_history.append(est.get_nsamples(nhf_samples,nsample_ratios))
-        # compute single fidelity Monte Carlo variance
-        total_cost = nsamples_history[-1].dot(costs)
-        variances.append(cov[0,0]/int(total_cost/costs[0]))
-        nsamples_history.append(int(total_cost/costs[0]))
-        # compute variance using approx covariance for sample allocation
-        # use nhf_samples from previous target_cost as npilot_samples.
-        # This way the pilot samples are only an additional cost at the first
-        # step. This code does not do this though for simplicity
-        cov_approx = pya.estimate_model_ensemble_covariance(
-            npilot_samples,poly_model.generate_samples,model_ensemble)[0]
-        est = estimator(cov_approx,costs)
-        nhf_samples,nsample_ratios = est.allocate_samples(target_cost)[:2]
-        variances.append(est.get_variance(nhf_samples,nsample_ratios))
-        nsamples_history.append(est.get_nsamples(nhf_samples,nsample_ratios))
-        npilot_samples = nhf_samples
-
-    fig,axs=plt.subplots(1,2,figsize=(2*8,6))
-    pya.plot_acv_sample_allocation(nsamples_history[::3],costs,model_labels,axs[1])
-    total_costs = np.array(nsamples_history[::3]).dot(costs)
-    axs[0].loglog(total_costs,variances[::3],label=r'$\mathrm{MLMC}$')
-    mc_line = axs[0].loglog(total_costs,variances[1::3],label=r'$\mathrm{MC}$')
-    total_costs = np.array(nsamples_history[2::3]).dot(costs)
-    axs[0].loglog(total_costs,variances[2::3],'--',
-                  label=r'$\mathrm{MLMC^\dagger}$')
-    axs[0].set_xlabel(r'$\mathrm{Total}\;\mathrm{Cost}$')
-    axs[0].set_ylabel(r'$\mathrm{Variance}$')
-    _ = axs[0].legend()
-    return fig,axs
-
-fig,axs = plot_mlmc_error()
+fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
+multifidelity.plot_estimator_variances(
+    optimized_estimators, est_labels, axs[0],
+    ylabel=mathrm_label("Relative Estimator Variance"))
+axs[0].set_xlim(target_costs.min(), target_costs.max())
+multifidelity.plot_acv_sample_allocation_comparison(
+    optimized_estimators[0], model_labels, axs[1])
 plt.show()
-    
+
 #%%
 #The left plot shows that the variance of the MLMC estimator is over and order of magnitude smaller than the variance of the single fidelity MC estimator for a fixed cost. The impact of using the approximate covariance is more significant for small samples sizes.
 #

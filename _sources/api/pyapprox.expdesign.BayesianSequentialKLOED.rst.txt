@@ -1,0 +1,17 @@
+BayesianSequentialKLOED
+=======================
+
+.. currentmodule:: pyapprox.expdesign
+
+.. autoclass:: BayesianSequentialKLOED
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~BayesianSequentialKLOED.compute_expected_utility
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: compute_expected_utility

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Monte Carlo Quadrature &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Control Variate Monte Carlo" href="plot_control_variate_monte_carlo.html" />
+    <link rel="prev" title="Gaussian Networks" href="../inference/plot_bayesian_networks.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Monte Carlo Quadrature</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_gaussian_mfnets.html">MFNets: Multi-fidelity networks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Theoretical Tutorials</a> &raquo;</li>
+      <li>Monte Carlo Quadrature</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/auto_tutorials/multi_fidelity/plot_monte_carlo.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-monte-carlo-py"><span class="std std-ref">here</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="monte-carlo-quadrature">
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-monte-carlo-py"></span><h1>Monte Carlo Quadrature<a class="headerlink" href="#monte-carlo-quadrature" title="Permalink to this headline"></a></h1>
+<p>This tutorial describes how to use Monte Carlo sampling to compute the expectations of the output of an model. Specifically, given a function <span class="math notranslate nohighlight">\(f_\alpha(\rv):\reals^{d}\to\reals\)</span> parameterized by a set of variables <span class="math notranslate nohighlight">\(\rv=[\rv_1,\ldots,\rv_d]^T\)</span> with joint density given by <span class="math notranslate nohighlight">\(\rho(\rv):\reals^{d}\to\reals\)</span>, our goal is to approximate the integral</p>
+<div class="math notranslate nohighlight">
+\[Q_\alpha=\int_\rvdom f_\alpha(\rv)\pdf(\rv)\dx{\rv}\]</div>
+<p>We can approximate the integral <span class="math notranslate nohighlight">\(Q_\alpha\)</span> using Monte Carlo quadrature by drawing <span class="math notranslate nohighlight">\(N\)</span> random samples of <span class="math notranslate nohighlight">\(\rv\)</span> from <span class="math notranslate nohighlight">\(\pdf\)</span> and evaluating the function at each of these samples to obtain the data pairs <span class="math notranslate nohighlight">\(\{(\rv^{(n)},f^{(n)}_\alpha)\}_{n=1}^N\)</span>, where <span class="math notranslate nohighlight">\(f^{(n)}_\alpha=f_\alpha(\rv^{(n)})\)</span> and computing</p>
+<div class="math notranslate nohighlight">
+\[Q_{\alpha,N}=N^{-1}\sum_{n=1}^N f^{(n)}_\alpha\]</div>
+<p>The mean squared error (MSE) of this estimator can be expressed as</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mean{\left(Q_{\alpha,N}-\mean{Q}\right)^2}&amp;=\mean{\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}+\mean{Q_{\alpha,N}}-\mean{Q}\right)^2}\\
+&amp;=\mean{\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)^2}+\mean{\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)^2}\\
+&amp;\qquad\qquad+\mean{2\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)}\\
+&amp;=\var{Q_{\alpha,N}}+\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)^2\end{split}\]</div>
+<p>Here we used that <span class="math notranslate nohighlight">\(Q_{\alpha,N}\)</span> is an unbiased estimator, i.e. <span class="math notranslate nohighlight">\(\mean{Q_{\alpha,N}}=\mean{Q}\)</span> so the third term on the second line is zero. Now using</p>
+<div class="math notranslate nohighlight">
+\[\var{Q_{\alpha,N}}=\var{N^{-1}\sum_{n=1}^N f^{(n)}_\alpha}=N^{-1}\sum_{n=1}^N \var{f^{(n)}_\alpha}=N^{-1}\var{Q_\alpha}\]</div>
+<p>yields</p>
+<div class="math notranslate nohighlight">
+\[\mean{\left(Q_{\alpha}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{Q_\alpha}}_{I}+\underbrace{\left(\mean{Q_{\alpha}}-\mean{Q}\right)^2}_{II}\]</div>
+<p>From this expression we can see that the MSE can be decomposed into two terms;
+a so called stochastic error (I) and a deterministic bias (II). The first term is the variance of the Monte Carlo estimator which comes from using a finite number of samples. The second term is due to using an approximation of <span class="math notranslate nohighlight">\(f\)</span>. These two errors should be balanced, however in the vast majority of all MC analyses a single model <span class="math notranslate nohighlight">\(f_\alpha\)</span> is used and the choice of <span class="math notranslate nohighlight">\(\alpha\)</span>, e.g. mesh resolution, is made a priori without much concern for the balancing bias and variance.</p>
+<p>Given a fixed <span class="math notranslate nohighlight">\(\alpha\)</span> the modelers only recourse to reducing the MSE is to reduce the variance of the estimator. In the following we plot the variance of the MC estimate of a simple algebraic function <span class="math notranslate nohighlight">\(f_1\)</span> which belongs to an ensemble of models</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}f_0(\rv) &amp;= A_0 \left(\rv_1^5\cos\theta_0 +\rv_2^5\sin\theta_0\right), \\
+f_1(\rv) &amp;= A_1 \left(\rv_1^3\cos\theta_1 +\rv_2^3\sin\theta_1\right)+s_1,\\
+f_2(\rv) &amp;= A_2 \left(\rv_1  \cos\theta_2 +\rv_2  \sin\theta_2\right)+s_2\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\rv_1,\rv_2\sim\mathcal{U}(-1,1)\)</span> and all <span class="math notranslate nohighlight">\(A\)</span> and <span class="math notranslate nohighlight">\(\theta\)</span> coefficients are real. We choose to set <span class="math notranslate nohighlight">\(A=\sqrt{11}\)</span>, <span class="math notranslate nohighlight">\(A_1=\sqrt{7}\)</span> and <span class="math notranslate nohighlight">\(A_2=\sqrt{3}\)</span> to obtain unitary variance for each model. The parameters <span class="math notranslate nohighlight">\(s_1,s_2\)</span> control the bias between the models. Here we set <span class="math notranslate nohighlight">\(s_1=1/10,s_2=1/5\)</span>. Similarly we can change the correlation between the models in a systematic way (by varying <span class="math notranslate nohighlight">\(\theta_1\)</span>. We will levarage this later in the tutorial.</p>
+<p>Lets setup the problem</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">sympy</span> <span class="k">as</span> <span class="nn">sp</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">variables</span>
+<span class="kn">from</span> <span class="nn">pyapprox.analysis</span> <span class="kn">import</span> <span class="n">visualize</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">shifts</span> <span class="o">=</span> <span class="p">[</span><span class="mf">.1</span><span class="p">,</span> <span class="mf">.2</span><span class="p">]</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span>
+    <span class="s2">&quot;tunable_model_ensemble&quot;</span><span class="p">,</span> <span class="n">theta1</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">2</span><span class="o">*</span><span class="mf">.95</span><span class="p">,</span> <span class="n">shifts</span><span class="o">=</span><span class="n">shifts</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Independent Marginal Variable
+Number of variables: 2
+Unique variables and global id:
+    uniform(loc=-1,scale=2): z0, z1
+</pre></div>
+</div>
+<p>Now let us compute the mean of <span class="math notranslate nohighlight">\(f_1\)</span> using Monte Carlo</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nsamples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">1e3</span><span class="p">)</span>
+<span class="n">samples</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">nsamples</span><span class="p">)</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">m1</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+<span class="n">variables</span><span class="o">.</span><span class="n">print_statistics</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>           z0         z1         y0
+count  1000.000000 1000.000000 1000.000000
+mean     0.001209   0.036225   0.159514
+std      0.576713   0.586495   1.026089
+min     -0.999771  -0.998471  -2.522199
+max      0.994646   0.997041   2.854412
+</pre></div>
+</div>
+<p>We can compute the exact mean using sympy and compute the MC MSE</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">z1</span><span class="p">,</span> <span class="n">z2</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;z1&#39;</span><span class="p">),</span> <span class="n">sp</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;z2&#39;</span><span class="p">)</span>
+<span class="n">ranges</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+<span class="n">exact_integral_f1</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">means</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;MC difference squared =&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">-</span><span class="n">exact_integral_f1</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>MC difference squared = 0.003541926877288237
+</pre></div>
+</div>
+<p id="estimator-histogram">Now let us compute the MSE for different sample sets of the same size for <span class="math notranslate nohighlight">\(N=100,1000\)</span> and plot the distribution of the MC estimator <span class="math notranslate nohighlight">\(Q_{\alpha,N}\)</span></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ntrials</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="n">means</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">ntrials</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ntrials</span><span class="p">):</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">nsamples</span><span class="p">)</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">m1</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+    <span class="n">means</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span><span class="p">[:</span><span class="mi">100</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span> <span class="n">values</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+<span class="n">textstr</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+    <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_{1,100}]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
+     <span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{V}</span><span class="s1">[Q_{1,100}]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">var</span><span class="p">(),</span>
+     <span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_{1,1000}]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">means</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
+     <span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{V}</span><span class="s1">[Q_{1,1000}]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">means</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">var</span><span class="p">()])</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="n">ntrials</span><span class="o">//</span><span class="mi">100</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">means</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="n">ntrials</span><span class="o">//</span><span class="mi">100</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">shifts</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_1]$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_0]$&#39;</span><span class="p">)</span>
+<span class="n">props</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;boxstyle&#39;</span><span class="p">:</span> <span class="s1">&#39;round&#39;</span><span class="p">,</span> <span class="s1">&#39;facecolor&#39;</span><span class="p">:</span> <span class="s1">&#39;white&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">0.65</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">,</span> <span class="n">textstr</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">props</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_N]$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{P}</span><span class="s1">(\mathbb</span><span class="si">{E}</span><span class="s1">[Q_N])$&#39;</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;upper left&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_monte_carlo_001.png" srcset="../../_images/sphx_glr_plot_monte_carlo_001.png" alt="plot monte carlo" class = "sphx-glr-single-img"/><p>The numerical results match our theory. Specifically the estimator is unbiased( i.e. mean zero, and the variance of the estimator is <span class="math notranslate nohighlight">\(\var{Q_{0,N}}=\var{Q_{0}}/N=1/N\)</span>.</p>
+<p>The variance of the estimator can be driven to zero by increasing the number of samples <span class="math notranslate nohighlight">\(N\)</span>. However when the variance becomes less than the bias, i.e. <span class="math notranslate nohighlight">\(\left(\mean{Q_{\alpha}-Q}\right)^2&gt;\var{Q_{\alpha}}/N\)</span>, then the MSE will not decrease and any further samples used to reduce the variance are wasted.</p>
+<p>Let our true model be <span class="math notranslate nohighlight">\(f_0\)</span> above. The following code compues the bias induced by using <span class="math notranslate nohighlight">\(f_\alpha=f_1\)</span> and also plots the contours of <span class="math notranslate nohighlight">\(f_0(\rv)-f_1(\rv)\)</span>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">integrand_f0</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">A0</span><span class="o">*</span><span class="p">(</span><span class="n">sp</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">theta0</span><span class="p">)</span><span class="o">*</span><span class="n">z1</span><span class="o">**</span><span class="mi">5</span> <span class="o">+</span>
+                         <span class="n">sp</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">theta0</span><span class="p">)</span><span class="o">*</span><span class="n">z2</span><span class="o">**</span><span class="mi">5</span><span class="p">)</span><span class="o">*</span><span class="mf">0.25</span>
+<span class="n">exact_integral_f0</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span>
+    <span class="n">sp</span><span class="o">.</span><span class="n">integrate</span><span class="p">(</span><span class="n">integrand_f0</span><span class="p">,</span> <span class="p">(</span><span class="n">z1</span><span class="p">,</span> <span class="n">ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ranges</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="p">(</span><span class="n">z2</span><span class="p">,</span> <span class="n">ranges</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">ranges</span><span class="p">[</span><span class="mi">3</span><span class="p">])))</span>
+<span class="n">bias</span> <span class="o">=</span> <span class="p">(</span><span class="n">exact_integral_f0</span><span class="o">-</span><span class="n">exact_integral_f1</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;MC f1 bias =&#39;</span><span class="p">,</span> <span class="n">bias</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;MC f1 variance =&#39;</span><span class="p">,</span> <span class="n">means</span><span class="o">.</span><span class="n">var</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;MC f1 MSE =&#39;</span><span class="p">,</span> <span class="n">bias</span><span class="o">+</span><span class="n">means</span><span class="o">.</span><span class="n">var</span><span class="p">())</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+<span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span> <span class="o">=</span> <span class="n">visualize</span><span class="o">.</span><span class="n">get_meshgrid_function_data_from_variable</span><span class="p">(</span>
+    <span class="k">lambda</span> <span class="n">z</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">m0</span><span class="p">(</span><span class="n">z</span><span class="p">)</span><span class="o">-</span><span class="n">model</span><span class="o">.</span><span class="n">m1</span><span class="p">(</span><span class="n">z</span><span class="p">),</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+<span class="n">cset</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">Z</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="mi">20</span><span class="p">))</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">cset</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+<span class="c1"># plt.show()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_monte_carlo_002.png" srcset="../../_images/sphx_glr_plot_monte_carlo_002.png" alt="plot monte carlo" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>MC f1 bias = 0.010000000000000002
+MC f1 variance = 0.005522183703329499
+MC f1 MSE = 0.0155221837033295
+</pre></div>
+</div>
+<p>As <span class="math notranslate nohighlight">\(N\to\infty\)</span> the MSE will only converge to the bias (<span class="math notranslate nohighlight">\(s_1\)</span>). Try this by increasing <span class="math notranslate nohighlight">\(\texttt{nsamples}\)</span>.</p>
+<p>We can produced unbiased estimators using the high fidelity model. However if this high-fidelity model is more expensive then this comes at the cost of the estimator having larger variance. To see this the following plots the distribution of the MC estimators using 100 samples of the <span class="math notranslate nohighlight">\(f_1\)</span> and 10 samples of <span class="math notranslate nohighlight">\(f_0\)</span>. The cost of constructing these estimators would be equivalent if the high-fidelity model is 10 times more expensive than the low-fidelity model.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ntrials</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="n">m0_means</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">ntrials</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+<span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ntrials</span><span class="p">):</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">nsamples</span><span class="p">)</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">m0</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+    <span class="n">m0_means</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span><span class="p">[:</span><span class="mi">10</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+<span class="n">textstr</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+    <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_{1,100}]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
+     <span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{V}</span><span class="s1">[Q_{1,100}]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">var</span><span class="p">(),</span>
+     <span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_{0,10}]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">m0_means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
+     <span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{V}</span><span class="s1">[Q_{0,10}]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">m0_means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">var</span><span class="p">()])</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="n">ntrials</span><span class="o">//</span><span class="mi">100</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">m0_means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="n">ntrials</span><span class="o">//</span><span class="mi">100</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">shifts</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_1]$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_0]$&#39;</span><span class="p">)</span>
+<span class="n">props</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;boxstyle&#39;</span><span class="p">:</span> <span class="s1">&#39;round&#39;</span><span class="p">,</span> <span class="s1">&#39;facecolor&#39;</span><span class="p">:</span> <span class="s1">&#39;white&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">0.65</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">,</span> <span class="n">textstr</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">props</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_N]$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{P}</span><span class="s1">(\mathbb</span><span class="si">{E}</span><span class="s1">[Q_N])$&#39;</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;upper left&#39;</span><span class="p">)</span>
+<span class="c1"># plt.show()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_monte_carlo_003.png" srcset="../../_images/sphx_glr_plot_monte_carlo_003.png" alt="plot monte carlo" class = "sphx-glr-single-img"/><p>In a series of tutorials starting with <a class="reference internal" href="plot_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-control-variate-monte-carlo-py"><span class="std std-ref">Control Variate Monte Carlo</span></a> we show how to produce an unbiased estimator with small variance using both these models.</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.669 seconds)</p>
+<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-monte-carlo-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/30eb96755241ed28302cd3119dee8cce/plot_monte_carlo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_monte_carlo.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/ebc97cde520953924e8000cb9708579d/plot_monte_carlo.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_monte_carlo.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../inference/plot_bayesian_networks.html" class="btn btn-neutral float-left" title="Gaussian Networks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_control_variate_monte_carlo.html" class="btn btn-neutral float-right" title="Control Variate Monte Carlo" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

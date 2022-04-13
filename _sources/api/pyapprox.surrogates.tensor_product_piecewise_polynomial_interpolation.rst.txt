@@ -1,0 +1,6 @@
+tensor_product_piecewise_polynomial_interpolation
+=================================================
+
+.. currentmodule:: pyapprox.surrogates
+
+.. autofunction:: tensor_product_piecewise_polynomial_interpolation

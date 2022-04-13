@@ -1,0 +1,21 @@
+ModelEnsemble
+=============
+
+.. currentmodule:: pyapprox.interface
+
+.. autoclass:: ModelEnsemble
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ModelEnsemble.__call__
+      ~ModelEnsemble.evaluate_at_separated_samples
+      ~ModelEnsemble.evaluate_models
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: evaluate_at_separated_samples
+   .. automethod:: evaluate_models

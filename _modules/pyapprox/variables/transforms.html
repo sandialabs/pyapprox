@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.variables.transforms &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.variables.transforms</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.variables.transforms</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.variables.marginals</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">is_bounded_continuous_variable</span><span class="p">,</span> <span class="n">transform_scale_parameters</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.rosenblatt</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">rosenblatt_transformation</span><span class="p">,</span> <span class="n">inverse_rosenblatt_transformation</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.nataf</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">covariance_to_correlation</span><span class="p">,</span> <span class="n">trans_x_to_u</span><span class="p">,</span> <span class="n">trans_u_to_x</span><span class="p">,</span>
+    <span class="n">transform_correlations</span><span class="p">,</span> <span class="n">scipy_gauss_hermite_pts_wts_1D</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.joint</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">define_iid_random_variable</span><span class="p">,</span> <span class="n">IndependentMarginalsVariable</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">map_hypercube_samples</span><span class="p">(</span><span class="n">current_samples</span><span class="p">,</span> <span class="n">current_ranges</span><span class="p">,</span> <span class="n">new_ranges</span><span class="p">,</span>
+                          <span class="n">active_vars</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Transform samples from one hypercube to another hypercube with different</span>
+<span class="sd">    bounds.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    current_samples : np.ndarray (num_vars, num_samples)</span>
+<span class="sd">        The samples to be transformed</span>
+
+<span class="sd">    current_ranges : np.ndarray (2*num_vars)</span>
+<span class="sd">        The lower and upper bound of each variable of the current samples</span>
+<span class="sd">        [lb_1,ub_1,...,lb_d,ub_d]</span>
+
+<span class="sd">    new_ranges : np.ndarray (2*num_vars)</span>
+<span class="sd">        The desired lower and upper bound of each variable</span>
+<span class="sd">        [lb_1,ub_1,...,lb_d,ub_d]</span>
+
+<span class="sd">    active_vars : np.ndarray (num_active_vars)</span>
+<span class="sd">        The active vars to which the variable transformation should be applied</span>
+<span class="sd">        The inactive vars have the identity applied, i.e. they remain</span>
+<span class="sd">        unchanged.</span>
+
+<span class="sd">    tol : float</span>
+<span class="sd">        Some functions such as optimizers will create points very close</span>
+<span class="sd">         but outside current bounds. In this case allow small error</span>
+<span class="sd">         and move these points to boundary</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    new_samples : np.ndarray (num_vars, num_samples)</span>
+<span class="sd">        The transformed samples</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">new_ranges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">new_ranges</span><span class="p">)</span>
+    <span class="n">current_ranges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">current_ranges</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">new_ranges</span><span class="p">,</span> <span class="n">current_ranges</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">current_samples</span>
+    <span class="n">new_samples</span> <span class="o">=</span> <span class="n">current_samples</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="n">current_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">num_vars</span> <span class="o">==</span> <span class="n">new_ranges</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">//</span><span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">num_vars</span> <span class="o">==</span> <span class="n">current_ranges</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">//</span><span class="mi">2</span>
+    <span class="k">if</span> <span class="n">active_vars</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">active_vars</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_vars</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="n">active_vars</span><span class="p">:</span>
+        <span class="n">lb</span> <span class="o">=</span> <span class="n">current_ranges</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">dd</span><span class="p">]</span>
+        <span class="n">ub</span> <span class="o">=</span> <span class="n">current_ranges</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">dd</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># print (lb,current_samples[dd,:].min())</span>
+        <span class="c1"># print (ub,current_samples[dd,:].max(),tol)</span>
+        <span class="k">assert</span> <span class="n">current_samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="n">lb</span><span class="o">-</span><span class="n">tol</span>
+        <span class="k">assert</span> <span class="n">current_samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="n">ub</span><span class="o">+</span><span class="n">tol</span>
+        <span class="k">if</span> <span class="n">tol</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">current_samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:]</span> <span class="o">&lt;</span> <span class="n">lb</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">II</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;c&#39;</span><span class="p">,</span> <span class="n">current_samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="n">II</span><span class="p">])</span>
+            <span class="n">current_samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="n">II</span><span class="p">]</span> <span class="o">=</span> <span class="n">lb</span>
+            <span class="n">J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">current_samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:]</span> <span class="o">&gt;</span> <span class="n">ub</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">current_samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="n">J</span><span class="p">]</span> <span class="o">=</span> <span class="n">ub</span>
+        <span class="k">assert</span> <span class="n">ub</span><span class="o">-</span><span class="n">lb</span> <span class="o">&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="o">*</span><span class="mi">2</span>
+        <span class="n">new_samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="p">(</span><span class="n">current_samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">-</span><span class="n">lb</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">ub</span><span class="o">-</span><span class="n">lb</span><span class="p">)</span>
+        <span class="n">lb</span> <span class="o">=</span> <span class="n">new_ranges</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">dd</span><span class="p">]</span>
+        <span class="n">ub</span> <span class="o">=</span> <span class="n">new_ranges</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">dd</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">assert</span> <span class="n">ub</span><span class="o">-</span><span class="n">lb</span> <span class="o">&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="o">*</span><span class="mi">2</span>
+        <span class="n">new_samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">new_samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:]</span><span class="o">*</span><span class="p">(</span><span class="n">ub</span><span class="o">-</span><span class="n">lb</span><span class="p">)</span><span class="o">+</span><span class="n">lb</span>
+    <span class="k">return</span> <span class="n">new_samples</span>
+
+
+<span class="k">class</span> <span class="nc">IdentityTransformation</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span> <span class="o">=</span> <span class="n">num_vars</span>
+
+    <span class="k">def</span> <span class="nf">map_from_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">samples</span>
+
+    <span class="k">def</span> <span class="nf">map_to_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">samples</span>
+
+    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span>
+
+    <span class="k">def</span> <span class="nf">map_derivatives_from_canonical_space</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">derivatives</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">derivatives</span>
+
+
+<span class="k">class</span> <span class="nc">AffineBoundedVariableTransformation</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_ranges</span><span class="p">,</span> <span class="n">user_ranges</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">user_ranges</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">canonical_ranges</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canonical_ranges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">canonical_ranges</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_ranges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">user_ranges</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">user_ranges</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">map_from_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">map_hypercube_samples</span><span class="p">(</span>
+            <span class="n">canonical_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">canonical_ranges</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_ranges</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">map_to_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_samples</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">map_hypercube_samples</span><span class="p">(</span>
+            <span class="n">user_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_ranges</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">canonical_ranges</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span>
+
+
+<div class="viewcode-block" id="AffineTransform"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform">[docs]</a><span class="k">class</span> <span class="nc">AffineTransform</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Apply an affine transformation to a</span>
+<span class="sd">    :py:class:`pyapprox.variables.IndependentMarginalsVariable`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">enforce_bounds</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Variable uniquness dependes on both the type of random variable</span>
+<span class="sd">        e.g. beta, gaussian, etc. and the parameters of that distribution</span>
+<span class="sd">        e.g. loc and scale parameters as well as any additional parameters</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span> <span class="o">!=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">):</span>
+            <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">variable</span> <span class="o">=</span> <span class="n">variable</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">enforce_bounds</span> <span class="o">=</span> <span class="n">enforce_bounds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">identity_map_indices</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale_parameters</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">nunique_vars</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">nunique_vars</span><span class="p">):</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variables</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="c1"># name, scale_dict, __ = get_distribution_info(var)</span>
+            <span class="c1"># copy is essential here because code below modifies scale</span>
+            <span class="c1"># loc, scale = scale_dict[&#39;loc&#39;].copy(), scale_dict[&#39;scale&#39;].copy()</span>
+            <span class="c1"># if (is_bounded_continuous_variable(var) or</span>
+            <span class="c1">#     (type(var.dist) == float_rv_discrete and</span>
+            <span class="c1">#      var.dist.name != &#39;discrete_chebyshev&#39;)):</span>
+            <span class="c1">#     lb, ub = -1, 1</span>
+            <span class="c1">#     scale /= (ub-lb)</span>
+            <span class="c1">#     loc = loc-scale*lb</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scale_parameters</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">transform_scale_parameters</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AffineTransform.set_identity_maps"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.set_identity_maps">[docs]</a>    <span class="k">def</span> <span class="nf">set_identity_maps</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">identity_map_indices</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the dimensions we do not want to map to and from</span>
+<span class="sd">        canonical space</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        identity_map_indices : iterable</span>
+<span class="sd">            The dimensions we do not want to map to and from</span>
+<span class="sd">            canonical space</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">identity_map_indices</span> <span class="o">=</span> <span class="n">identity_map_indices</span></div>
+
+<div class="viewcode-block" id="AffineTransform.map_to_canonical"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.map_to_canonical">[docs]</a>    <span class="k">def</span> <span class="nf">map_to_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_samples</span><span class="p">):</span>
+        <span class="n">canonical_samples</span> <span class="o">=</span> <span class="n">user_samples</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">nunique_vars</span><span class="p">):</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variable_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="n">loc</span><span class="p">,</span> <span class="n">scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_parameters</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span>
+
+            <span class="n">bounds</span> <span class="o">=</span> <span class="p">[</span><span class="n">loc</span><span class="o">-</span><span class="n">scale</span><span class="p">,</span> <span class="n">loc</span><span class="o">+</span><span class="n">scale</span><span class="p">]</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variables</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">identity_map_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">active_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">setdiff1d</span><span class="p">(</span>
+                    <span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">identity_map_indices</span><span class="p">,</span> <span class="n">assume_unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">active_indices</span> <span class="o">=</span> <span class="n">indices</span>
+            <span class="k">if</span> <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">enforce_bounds</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="p">(</span><span class="n">is_bounded_continuous_variable</span><span class="p">(</span><span class="n">var</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">user_samples</span><span class="p">[</span><span class="n">active_indices</span><span class="p">,</span> <span class="p">:]</span> <span class="o">&lt;</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="ow">or</span>
+                 <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">user_samples</span><span class="p">[</span><span class="n">active_indices</span><span class="p">,</span> <span class="p">:]</span> <span class="o">&gt;</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">])))):</span>
+                <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">user_samples</span><span class="p">[</span><span class="n">active_indices</span><span class="p">,</span> <span class="p">:]</span> <span class="o">&lt;</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">|</span>
+                              <span class="p">(</span><span class="n">user_samples</span><span class="p">[</span><span class="n">active_indices</span><span class="p">,</span> <span class="p">:]</span> <span class="o">&gt;</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">]))[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">user_samples</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ix_</span><span class="p">(</span><span class="n">active_indices</span><span class="p">,</span> <span class="n">II</span><span class="p">)],</span> <span class="n">bounds</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Sample outside the bounds </span><span class="si">{</span><span class="n">bounds</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+            <span class="n">canonical_samples</span><span class="p">[</span><span class="n">active_indices</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">user_samples</span><span class="p">[</span><span class="n">active_indices</span><span class="p">,</span> <span class="p">:]</span><span class="o">-</span><span class="n">loc</span><span class="p">)</span><span class="o">/</span><span class="n">scale</span>
+
+        <span class="k">return</span> <span class="n">canonical_samples</span></div>
+
+<div class="viewcode-block" id="AffineTransform.map_from_canonical"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.map_from_canonical">[docs]</a>    <span class="k">def</span> <span class="nf">map_from_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">):</span>
+        <span class="n">user_samples</span> <span class="o">=</span> <span class="n">canonical_samples</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">nunique_vars</span><span class="p">):</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variable_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="n">loc</span><span class="p">,</span> <span class="n">scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_parameters</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">identity_map_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">active_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">setdiff1d</span><span class="p">(</span>
+                    <span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">identity_map_indices</span><span class="p">,</span> <span class="n">assume_unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">active_indices</span> <span class="o">=</span> <span class="n">indices</span>
+            <span class="n">user_samples</span><span class="p">[</span><span class="n">active_indices</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> \
+                <span class="n">canonical_samples</span><span class="p">[</span><span class="n">active_indices</span><span class="p">,</span> <span class="p">:]</span><span class="o">*</span><span class="n">scale</span><span class="o">+</span><span class="n">loc</span>
+
+        <span class="k">return</span> <span class="n">user_samples</span></div>
+
+<div class="viewcode-block" id="AffineTransform.map_to_canonical_1d"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.map_to_canonical_1d">[docs]</a>    <span class="k">def</span> <span class="nf">map_to_canonical_1d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">ii</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">nunique_vars</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">ii</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variable_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">]:</span>
+                <span class="n">loc</span><span class="p">,</span> <span class="n">scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_parameters</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="p">:]</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">identity_map_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="p">(</span><span class="n">samples</span><span class="o">-</span><span class="n">loc</span><span class="p">)</span><span class="o">/</span><span class="n">scale</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">samples</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="AffineTransform.map_from_canonical_1d"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.map_from_canonical_1d">[docs]</a>    <span class="k">def</span> <span class="nf">map_from_canonical_1d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">,</span> <span class="n">ii</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">nunique_vars</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">ii</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variable_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">]:</span>
+                <span class="n">loc</span><span class="p">,</span> <span class="n">scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_parameters</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="p">:]</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">identity_map_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">canonical_samples</span><span class="o">*</span><span class="n">scale</span><span class="o">+</span><span class="n">loc</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">canonical_samples</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="AffineTransform.map_derivatives_from_canonical_space"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.map_derivatives_from_canonical_space">[docs]</a>    <span class="k">def</span> <span class="nf">map_derivatives_from_canonical_space</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">derivatives</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        derivatives : np.ndarray (nvars*nsamples, nqoi)</span>
+<span class="sd">            Derivatives of each qoi. The ith column consists of the derivatives</span>
+<span class="sd">            [d/dx_1 f(x^{(1)}), ..., f(x^{(M)}),</span>
+<span class="sd">            d/dx_2 f(x^{(1)}), ..., f(x^{(M)})</span>
+<span class="sd">            ...,</span>
+<span class="sd">            d/dx_D f(x^{(1)}), ..., f(x^{(M)})]</span>
+<span class="sd">            where M is the number of samples and D=nvars</span>
+
+<span class="sd">            Derivatives can also be (nvars, nsamples) - transpose of Jacobian -</span>
+<span class="sd">            Here each sample is considered a different QoI</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">derivatives</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="n">num_samples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">derivatives</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">())</span>
+        <span class="n">mapped_derivatives</span> <span class="o">=</span> <span class="n">derivatives</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">nunique_vars</span><span class="p">):</span>
+            <span class="n">var_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variable_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">var_indices</span><span class="o">*</span><span class="n">num_samples</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">)</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_samples</span><span class="p">),</span> <span class="n">var_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">loc</span><span class="p">,</span> <span class="n">scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_parameters</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="n">mapped_derivatives</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="p">:]</span> <span class="o">/=</span> <span class="n">scale</span>
+        <span class="k">return</span> <span class="n">mapped_derivatives</span></div>
+
+<div class="viewcode-block" id="AffineTransform.map_derivatives_to_canonical_space"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.map_derivatives_to_canonical_space">[docs]</a>    <span class="k">def</span> <span class="nf">map_derivatives_to_canonical_space</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_derivatives</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        derivatives : np.ndarray (nvars*nsamples, nqoi)</span>
+<span class="sd">            Derivatives of each qoi. The ith column consists of the derivatives</span>
+<span class="sd">            [d/dx_1 f(x^{(1)}), ..., f(x^{(M)}),</span>
+<span class="sd">             d/dx_2 f(x^{(1)}), ..., f(x^{(M)})</span>
+<span class="sd">             ...,</span>
+<span class="sd">             d/dx_D f(x^{(1)}), ..., f(x^{(M)})]</span>
+<span class="sd">            where M is the number of samples and D=nvars</span>
+
+<span class="sd">            Derivatives can also be (nvars, nsamples) - transpose of Jacobian -</span>
+<span class="sd">            Here each sample is considered a different QoI</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">canonical_derivatives</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="n">num_samples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">canonical_derivatives</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">())</span>
+        <span class="n">derivatives</span> <span class="o">=</span> <span class="n">canonical_derivatives</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">nunique_vars</span><span class="p">):</span>
+            <span class="n">var_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variable_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">var_indices</span><span class="o">*</span><span class="n">num_samples</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">)</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_samples</span><span class="p">),</span> <span class="n">var_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">loc</span><span class="p">,</span> <span class="n">scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_parameters</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="n">derivatives</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*=</span> <span class="n">scale</span>
+        <span class="k">return</span> <span class="n">derivatives</span></div>
+
+<div class="viewcode-block" id="AffineTransform.num_vars"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.num_vars">[docs]</a>    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="AffineTransform.samples_of_bounded_variables_inside_domain"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.samples_of_bounded_variables_inside_domain">[docs]</a>    <span class="k">def</span> <span class="nf">samples_of_bounded_variables_inside_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">nunique_vars</span><span class="p">):</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variables</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="n">lb</span><span class="p">,</span> <span class="n">ub</span> <span class="o">=</span> <span class="n">var</span><span class="o">.</span><span class="n">interval</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variable_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="n">indices</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">&gt;</span> <span class="n">ub</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="n">indices</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="n">ub</span><span class="p">,</span> <span class="s1">&#39;ub violated&#39;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="n">samples</span><span class="p">[</span><span class="n">indices</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">lb</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="n">indices</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">lb</span><span class="p">,</span> <span class="s1">&#39;lb violated&#39;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="AffineTransform.get_ranges"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.get_ranges">[docs]</a>    <span class="k">def</span> <span class="nf">get_ranges</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ranges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">nunique_vars</span><span class="p">):</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variables</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="n">lb</span><span class="p">,</span> <span class="n">ub</span> <span class="o">=</span> <span class="n">var</span><span class="o">.</span><span class="n">interval</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variable_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="n">ranges</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">indices</span><span class="p">],</span> <span class="n">ranges</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">indices</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">lb</span><span class="p">,</span> <span class="n">ub</span>
+        <span class="k">return</span> <span class="n">ranges</span></div></div>
+
+
+<span class="k">def</span> <span class="nf">define_iid_random_variable_transformation</span><span class="p">(</span><span class="n">variable_1d</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">):</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">define_iid_random_variable</span><span class="p">(</span><span class="n">variable_1d</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">)</span>
+    <span class="n">var_trans</span> <span class="o">=</span> <span class="n">AffineTransform</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">var_trans</span>
+
+
+<div class="viewcode-block" id="RosenblattTransform"><a class="viewcode-back" href="../../../api/pyapprox.variables.RosenblattTransform.html#pyapprox.variables.RosenblattTransform">[docs]</a><span class="k">class</span> <span class="nc">RosenblattTransform</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Apply the Rosenblatt transformation to an arbitraty multivariate</span>
+<span class="sd">    random variable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">joint_density</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">opts</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">joint_density</span> <span class="o">=</span> <span class="n">joint_density</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">limits</span> <span class="o">=</span> <span class="n">opts</span><span class="p">[</span><span class="s1">&#39;limits&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_quad_samples_1d</span> <span class="o">=</span> <span class="n">opts</span><span class="p">[</span><span class="s1">&#39;num_quad_samples_1d&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tol</span> <span class="o">=</span> <span class="n">opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;tol&#39;</span><span class="p">,</span> <span class="mf">1e-12</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_bins</span> <span class="o">=</span> <span class="n">opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;num_bins&#39;</span><span class="p">,</span> <span class="mi">101</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span> <span class="o">=</span> <span class="n">num_vars</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canonical_variable_types</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;uniform&#39;</span><span class="p">]</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+
+<div class="viewcode-block" id="RosenblattTransform.map_from_canonical"><a class="viewcode-back" href="../../../api/pyapprox.variables.RosenblattTransform.html#pyapprox.variables.RosenblattTransform.map_from_canonical">[docs]</a>    <span class="k">def</span> <span class="nf">map_from_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">):</span>
+        <span class="n">user_samples</span> <span class="o">=</span> <span class="n">inverse_rosenblatt_transformation</span><span class="p">(</span>
+            <span class="n">canonical_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">joint_density</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_quad_samples_1d</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tol</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bins</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">user_samples</span></div>
+
+<div class="viewcode-block" id="RosenblattTransform.map_to_canonical"><a class="viewcode-back" href="../../../api/pyapprox.variables.RosenblattTransform.html#pyapprox.variables.RosenblattTransform.map_to_canonical">[docs]</a>    <span class="k">def</span> <span class="nf">map_to_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_samples</span><span class="p">):</span>
+        <span class="n">canonical_samples</span> <span class="o">=</span> <span class="n">rosenblatt_transformation</span><span class="p">(</span>
+            <span class="n">user_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">joint_density</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_quad_samples_1d</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">canonical_samples</span></div>
+
+<div class="viewcode-block" id="RosenblattTransform.num_vars"><a class="viewcode-back" href="../../../api/pyapprox.variables.RosenblattTransform.html#pyapprox.variables.RosenblattTransform.num_vars">[docs]</a>    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">UniformMarginalTransformation</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Transform variables to have uniform marginals on [0,1]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_marginal_cdfs</span><span class="p">,</span> <span class="n">x_marginal_inv_cdfs</span><span class="p">,</span>
+                 <span class="n">enforce_open_bounds</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        enforce_open_bounds: boolean</span>
+<span class="sd">            If True  - enforce that canonical samples are in (0,1)</span>
+<span class="sd">            If False - enforce that canonical samples are in [0,1]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x_marginal_cdfs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_cdfs</span> <span class="o">=</span> <span class="n">x_marginal_cdfs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_inv_cdfs</span> <span class="o">=</span> <span class="n">x_marginal_inv_cdfs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">enforce_open_bounds</span> <span class="o">=</span> <span class="n">enforce_open_bounds</span>
+
+    <span class="k">def</span> <span class="nf">map_from_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">):</span>
+        <span class="c1"># there is a singularity at the boundary of the unit hypercube when</span>
+        <span class="c1"># mapping to the (semi) unbounded distributions</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">enforce_open_bounds</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">canonical_samples</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">canonical_samples</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mi">1</span>
+        <span class="n">user_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">canonical_samples</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">):</span>
+            <span class="n">user_samples</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_inv_cdfs</span><span class="p">[</span><span class="n">ii</span><span class="p">](</span>
+                <span class="n">canonical_samples</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:])</span>
+        <span class="k">return</span> <span class="n">user_samples</span>
+
+    <span class="k">def</span> <span class="nf">map_to_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_samples</span><span class="p">):</span>
+        <span class="n">canonical_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">user_samples</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">):</span>
+            <span class="n">canonical_samples</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_cdfs</span><span class="p">[</span><span class="n">ii</span><span class="p">](</span>
+                <span class="n">user_samples</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:])</span>
+        <span class="k">return</span> <span class="n">canonical_samples</span>
+
+    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span>
+
+
+<div class="viewcode-block" id="NatafTransform"><a class="viewcode-back" href="../../../api/pyapprox.variables.NatafTransform.html#pyapprox.variables.NatafTransform">[docs]</a><span class="k">class</span> <span class="nc">NatafTransform</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Apply the Nataf transformation to an arbitraty multivariate</span>
+<span class="sd">    random variable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_marginal_cdfs</span><span class="p">,</span> <span class="n">x_marginal_inv_cdfs</span><span class="p">,</span>
+                 <span class="n">x_marginal_pdfs</span><span class="p">,</span> <span class="n">x_covariance</span><span class="p">,</span> <span class="n">x_marginal_means</span><span class="p">,</span>
+                 <span class="n">bisection_opts</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x_marginal_cdfs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_cdfs</span> <span class="o">=</span> <span class="n">x_marginal_cdfs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_inv_cdfs</span> <span class="o">=</span> <span class="n">x_marginal_inv_cdfs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_pdfs</span> <span class="o">=</span> <span class="n">x_marginal_pdfs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_means</span> <span class="o">=</span> <span class="n">x_marginal_means</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_correlation</span> <span class="o">=</span> <span class="n">covariance_to_correlation</span><span class="p">(</span><span class="n">x_covariance</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_stdevs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">x_covariance</span><span class="p">))</span>
+
+        <span class="n">quad_rule</span> <span class="o">=</span> <span class="n">scipy_gauss_hermite_pts_wts_1D</span><span class="p">(</span><span class="mi">11</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">z_correlation</span> <span class="o">=</span> <span class="n">transform_correlations</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">x_correlation</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_inv_cdfs</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_means</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_stdevs</span><span class="p">,</span> <span class="n">quad_rule</span><span class="p">,</span>
+            <span class="n">bisection_opts</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">z_correlation_cholesky_factor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">z_correlation</span><span class="p">)</span>
+
+<div class="viewcode-block" id="NatafTransform.map_from_canonical"><a class="viewcode-back" href="../../../api/pyapprox.variables.NatafTransform.html#pyapprox.variables.NatafTransform.map_from_canonical">[docs]</a>    <span class="k">def</span> <span class="nf">map_from_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">trans_u_to_x</span><span class="p">(</span>
+            <span class="n">canonical_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_inv_cdfs</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">z_correlation_cholesky_factor</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NatafTransform.map_to_canonical"><a class="viewcode-back" href="../../../api/pyapprox.variables.NatafTransform.html#pyapprox.variables.NatafTransform.map_to_canonical">[docs]</a>    <span class="k">def</span> <span class="nf">map_to_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_samples</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">trans_x_to_u</span><span class="p">(</span>
+            <span class="n">user_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_marginal_cdfs</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">z_correlation_cholesky_factor</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NatafTransform.num_vars"><a class="viewcode-back" href="../../../api/pyapprox.variables.NatafTransform.html#pyapprox.variables.NatafTransform.num_vars">[docs]</a>    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">ComposeTransforms</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Apply a composition of transformation to an multivariate</span>
+<span class="sd">    random variable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transformations</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        transformations : list of transformation objects</span>
+<span class="sd">            The transformations are applied first to last for</span>
+<span class="sd">            map_to_canonical and in reverse order for</span>
+<span class="sd">            map_from_canonical</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">transformations</span> <span class="o">=</span> <span class="n">transformations</span>
+
+    <span class="k">def</span> <span class="nf">map_from_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">):</span>
+        <span class="n">user_samples</span> <span class="o">=</span> <span class="n">canonical_samples</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transformations</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">user_samples</span> <span class="o">=</span> \
+                <span class="bp">self</span><span class="o">.</span><span class="n">transformations</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">map_from_canonical</span><span class="p">(</span><span class="n">user_samples</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">user_samples</span>
+
+    <span class="k">def</span> <span class="nf">map_to_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_samples</span><span class="p">):</span>
+        <span class="n">canonical_samples</span> <span class="o">=</span> <span class="n">user_samples</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transformations</span><span class="p">)):</span>
+            <span class="n">canonical_samples</span> <span class="o">=</span> \
+                <span class="bp">self</span><span class="o">.</span><span class="n">transformations</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">map_to_canonical</span><span class="p">(</span>
+                    <span class="n">canonical_samples</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">canonical_samples</span>
+
+    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">transformations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="ConfigureVariableTransformation"><a class="viewcode-back" href="../../../api/pyapprox.variables.ConfigureVariableTransformation.html#pyapprox.variables.ConfigureVariableTransformation">[docs]</a><span class="k">class</span> <span class="nc">ConfigureVariableTransformation</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class which maps one-to-one configure indices in [0, 1, 2, 3,...]</span>
+<span class="sd">    to a set of configure values accepted by a function</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_values</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        nvars : integer</span>
+<span class="sd">            The number of configure variables</span>
+
+<span class="sd">        config_values : list</span>
+<span class="sd">            The list of configure values for each configure variable.</span>
+<span class="sd">            Each entry in the list is a 1D np.ndarray with potentiallly</span>
+<span class="sd">            different sizes</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">config_values</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">config_values</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="nb">list</span> <span class="ow">or</span>
+                <span class="nb">type</span><span class="p">(</span><span class="n">config_values</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config_values</span> <span class="o">=</span> <span class="n">config_values</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">variable_labels</span> <span class="o">=</span> <span class="n">labels</span>
+
+<div class="viewcode-block" id="ConfigureVariableTransformation.map_from_canonical"><a class="viewcode-back" href="../../../api/pyapprox.variables.ConfigureVariableTransformation.html#pyapprox.variables.ConfigureVariableTransformation.map_from_canonical">[docs]</a>    <span class="k">def</span> <span class="nf">map_from_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Map a configure multi-dimensional index to the corresponding</span>
+<span class="sd">        configure values</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">canonical_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">canonical_samples</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">):</span>
+                <span class="n">kk</span> <span class="o">=</span> <span class="n">canonical_samples</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span>
+                <span class="n">samples</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_values</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="nb">int</span><span class="p">(</span><span class="n">kk</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="n">samples</span></div>
+
+<div class="viewcode-block" id="ConfigureVariableTransformation.map_to_canonical"><a class="viewcode-back" href="../../../api/pyapprox.variables.ConfigureVariableTransformation.html#pyapprox.variables.ConfigureVariableTransformation.map_to_canonical">[docs]</a>    <span class="k">def</span> <span class="nf">map_to_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This is the naive slow implementation that searches through all</span>
+<span class="sd">        canonical samples to find one that matches each sample provided</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span>
+        <span class="n">canonical_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">):</span>
+                <span class="n">found</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">for</span> <span class="n">kk</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config_values</span><span class="p">[</span><span class="n">jj</span><span class="p">])):</span>
+                    <span class="k">if</span> <span class="n">samples</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_values</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="nb">int</span><span class="p">(</span><span class="n">kk</span><span class="p">)]:</span>
+                        <span class="n">found</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="k">break</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">found</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Configure value not found&quot;</span><span class="p">)</span>
+                <span class="n">canonical_samples</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">kk</span>
+        <span class="k">return</span> <span class="n">canonical_samples</span></div>
+
+<div class="viewcode-block" id="ConfigureVariableTransformation.num_vars"><a class="viewcode-back" href="../../../api/pyapprox.variables.ConfigureVariableTransformation.html#pyapprox.variables.ConfigureVariableTransformation.num_vars">[docs]</a>    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the number of configure variables.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        The number of configure variables</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

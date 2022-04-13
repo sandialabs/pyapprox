@@ -1,0 +1,25 @@
+GaussianNetwork
+===============
+
+.. currentmodule:: pyapprox.bayes
+
+.. autoclass:: GaussianNetwork
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~GaussianNetwork.add_data_to_network
+      ~GaussianNetwork.assemble_evidence
+      ~GaussianNetwork.construct_dataless_network
+      ~GaussianNetwork.convert_to_compact_factors
+      ~GaussianNetwork.num_vars
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: add_data_to_network
+   .. automethod:: assemble_evidence
+   .. automethod:: construct_dataless_network
+   .. automethod:: convert_to_compact_factors
+   .. automethod:: num_vars

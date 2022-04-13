@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gaussian processes &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Benchmarks" href="../../benchmarks.html" />
+    <link rel="prev" title="Adaptive Leja Sequences" href="plot_adaptive_leja_interpolation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#surrogates">Surrogates</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_tensor_product_interpolation.html">Tensor-product Barycentric Interpolation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_adaptive_leja_interpolation.html">Adaptive Leja Sequences</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Gaussian processes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#supervised-learning">Supervised Learning</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#experimental-design">Experimental design</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Theoretical Tutorials</a> &raquo;</li>
+      <li>Gaussian processes</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/auto_tutorials/surrogates/plot_gaussian_processes.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-surrogates-plot-gaussian-processes-py"><span class="std std-ref">here</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="gaussian-processes">
+<span id="sphx-glr-auto-tutorials-surrogates-plot-gaussian-processes-py"></span><h1>Gaussian processes<a class="headerlink" href="#gaussian-processes" title="Permalink to this headline"></a></h1>
+<p>Gaussian processes (GPs) are an extremely popular tool for approximating multivariate functions from limited data. A GP is a distribution over a set of functions. Given a prior distribution on the class of admissible functions an approximation of a deterministic function is obtained by conditioning the GP on available observations of the function.</p>
+<p>Constructing a GP requires specifying a prior mean <span class="math notranslate nohighlight">\(m(\rv)\)</span> and covariance kernel <span class="math notranslate nohighlight">\(C(\rv, \rv^\star)\)</span>. The GP leverages the correlation between training samples to approximate the residuals between the training data and the mean function. In the following we set the mean to zero. The covariance kernel should be tailored to the smoothness of the class of functions under consideration.</p>
+<div class="math notranslate nohighlight">
+\[C(\rv, \rv^\star; \ell)=\sigma^2 \frac{2^{1-\nu}}{\mathsf{\Gamma}(\nu)}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right)^{\nu}K_{\nu}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right).\]</div>
+<p>Here <span class="math notranslate nohighlight">\(d(\rv,\rv^\star; \ell)\)</span> is the weighted Euclidean distance between two points parameterized by the  vector hyper-parameters <span class="math notranslate nohighlight">\(\ell=[\ell_1,\ldots,\ell_d]^\top\)</span> is. The variance of the kernel is determined by :mathL`sigma^2` and we define <span class="math notranslate nohighlight">\(K_{\nu}\)</span> as the modified Bessel function of the second
+kind of order <span class="math notranslate nohighlight">\(\nu\)</span> and <span class="math notranslate nohighlight">\(\mathsf{\Gamma}\)</span> as the gamma function.
+Note that the parameter <span class="math notranslate nohighlight">\(\nu\)</span> dictates for the smoothness of the
+kernel function. The analytic squared-exponential kernel can be obtained as
+<span class="math notranslate nohighlight">\(\nu\to\infty\)</span>.</p>
+<p>Given a kernel and mean function, a Gaussian process approximation assumes that the joint prior distribution of <span class="math notranslate nohighlight">\(f\)</span>, conditional on kernel hyper-parameters <span class="math notranslate nohighlight">\(\theta=[\sigma^2,\ell^\top]^\top\)</span>,  is multivariate normal such that</p>
+<div class="math notranslate nohighlight">
+\[f(\cdot) \mid \theta \sim \mathcal{N}\left(m(\cdot),C(\cdot,\cdot;\theta)+\epsilon^2I\right)\]</div>
+<p>where <span class="math notranslate nohighlight">\(\epsilon^2\)</span> is the variance of the mean zero white noise in the observations.
+Given a set of training samples <span class="math notranslate nohighlight">\(\mathcal{Z}=\{\rv^{(m)}\}_{m=1}^M\)</span> and associated values <span class="math notranslate nohighlight">\(y=[y^{(1)}, \ldots, y^{(M)}]^\top\)</span> the posterior distribution of the GP is</p>
+<div class="math notranslate nohighlight">
+\[f(\cdot) \mid \theta,y \sim \mathcal{N}\left(m^\star(\cdot),C^\star(\cdot,\cdot;\theta)+\epsilon^2I\right)\]</div>
+<p>where</p>
+<div class="math notranslate nohighlight">
+\[m^\star(\rv)=t(\rv)^TA^{-1}y \quad\quad C^\star(\rv,\rv^\prime)=C(\rv,\rv^\prime)-t(\rv)^TA^{-1}t(\rv^\prime)\]</div>
+<p>with</p>
+<div class="math notranslate nohighlight">
+\[t(\rv)=[C(\rv,\rv^{(1)}),\ldots,C(\rv,\rv^{(N)})]^T\]</div>
+<p>and <span class="math notranslate nohighlight">\(A\)</span> is a matrix with with elements <span class="math notranslate nohighlight">\(A_{ij}=C(\rv^{(i)},\rv^{(j)})\)</span> for <span class="math notranslate nohighlight">\(i,j=1,\ldots,M\)</span>. Here we dropped the dependence on the hyper-parameters <span class="math notranslate nohighlight">\(\theta\)</span> for convenience.</p>
+<section id="supervised-learning">
+<h2>Supervised Learning<a class="headerlink" href="#supervised-learning" title="Permalink to this headline"></a></h2>
+<p>Consider the univariate Runge function</p>
+<div class="math notranslate nohighlight">
+\[f(\rv) = \frac{1}{1+25\rv^2}, \quad \rv\in[-1,1]\]</div>
+<p>Lets construct a GP with a fixed set of training samples and associated values we can train the Gaussian process. But first lets plot the true function and prior GP mean and plus/minus 2 standard deviations using the prior covariance</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates</span> <span class="kn">import</span> <span class="n">gaussianprocess</span> <span class="k">as</span> <span class="n">gp</span>
+
+<span class="n">lb</span><span class="p">,</span> <span class="n">ub</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span>
+
+<span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="mi">25</span><span class="o">*</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span><span class="o">**</span><span class="mi">2</span><span class="p">)[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+<span class="n">kernel</span> <span class="o">=</span> <span class="n">gp</span><span class="o">.</span><span class="n">Matern</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">length_scale_bounds</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-1</span><span class="p">,</span> <span class="mf">1e1</span><span class="p">),</span> <span class="n">nu</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span>
+<span class="n">gp</span> <span class="o">=</span> <span class="n">gp</span><span class="o">.</span><span class="n">GaussianProcess</span><span class="p">(</span><span class="n">kernel</span><span class="p">)</span>
+
+<span class="n">validation_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span> <span class="n">ub</span><span class="p">,</span> <span class="mi">101</span><span class="p">)[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+<span class="n">validation_values</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">validation_values</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;r-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Exact&#39;</span><span class="p">)</span>
+<span class="n">gp_vals</span><span class="p">,</span> <span class="n">gp_std</span> <span class="o">=</span> <span class="n">gp</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">,</span> <span class="n">return_std</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">gp_vals</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;b-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;GP prior mean&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">gp_vals</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">gp_std</span><span class="p">,</span>
+                 <span class="n">gp_vals</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="mi">2</span><span class="o">*</span><span class="n">gp_std</span><span class="p">,</span>
+                 <span class="n">alpha</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;GP prior uncertainty&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_gaussian_processes_001.png" srcset="../../_images/sphx_glr_plot_gaussian_processes_001.png" alt="plot gaussian processes" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.collections.PolyCollection object at 0x127306fa0&gt;
+</pre></div>
+</div>
+<p>the posterior mean and variance.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ntrain_samples</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="n">train_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span> <span class="n">ub</span><span class="p">,</span> <span class="n">ntrain_samples</span><span class="p">)[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+<span class="n">train_values</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
+<span class="n">gp</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train_samples</span><span class="p">,</span> <span class="n">train_values</span><span class="p">)</span>
+<span class="n">gp_vals</span><span class="p">,</span> <span class="n">gp_std</span> <span class="o">=</span> <span class="n">gp</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">,</span> <span class="n">return_std</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">validation_values</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;r-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Exact&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">train_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">train_values</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;or&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">gp_vals</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;-k&#39;</span><span class="p">,</span>
+         <span class="n">label</span><span class="o">=</span><span class="s1">&#39;GP posterior mean&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">gp_vals</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">gp_std</span><span class="p">,</span>
+                 <span class="n">gp_vals</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="mi">2</span><span class="o">*</span><span class="n">gp_std</span><span class="p">,</span>
+                 <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;gray&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;GP posterior uncertainty&#39;</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_gaussian_processes_002.png" srcset="../../_images/sphx_glr_plot_gaussian_processes_002.png" alt="plot gaussian processes" class = "sphx-glr-single-img"/></section>
+<section id="experimental-design">
+<h2>Experimental design<a class="headerlink" href="#experimental-design" title="Permalink to this headline"></a></h2>
+<p>The nature of the training samples significantly impacts the accuracy of a Gaussian process. Noting that the variance of a GP reflects the accuracy of a Gaussian process <a class="reference internal" href="#swmw1989" id="id1"><span>[SWMW1989]</span></a> developed an experimental design procedure which minimizes the average variance with respect to a specified measure. This measure is typically the probability measure <span class="math notranslate nohighlight">\(\pdf(\rv)\)</span> of the random variables <span class="math notranslate nohighlight">\(\rv\)</span>. Integrated variance designs, as they are often called, find a set of samples <span class="math notranslate nohighlight">\(\mathcal{Z}\subset\Omega\subset\rvdom\)</span> from a set of candidate samples <span class="math notranslate nohighlight">\(\Omega\)</span> by solving the minimization problem</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{Z}^\dagger=\argmin_{\mathcal{Z}\subset\Omega\subset\rvdom, \lvert\mathcal{Z}\rvert=M} \int_{\rvdom} C^\star(\rv, \rv\mid \mathcal{Z})\pdf(\rv)d\rv\]</div>
+<p>where we have made explicit the posterior variance dependence on <span class="math notranslate nohighlight">\(\mathcal{Z}\)</span>.</p>
+<p>The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples. The IVAR criterion - also called active learning Cohn (ALC) - can be minimized over discrete <a class="reference internal" href="#hjz2021" id="id2"><span>[HJZ2021]</span></a> or continuous <a class="reference internal" href="#gm2016" id="id3"><span>[GM2016]</span></a> design spaces <span class="math notranslate nohighlight">\(\Omega\)</span>. When employing a discrete design space, greedy methods <a class="reference internal" href="#c2006" id="id4"><span>[C2006]</span></a> are used to sample one at a time from a finite set of candidate samples to minimize the learning objective.  This approach requires a representative candidate set which, we have found, can be generated with low-discrepancy sequences, e.g. Sobol sequences. The continuous optimization optimization is non-convex and thus requires a good initial guess to start the gradient based optimization. Greedy methods can be used to produce the initial guess, however we found that optimizing from this design resulted in minimal improvement.</p>
+<p>Talk a bit more how adaptive designs work e,g. start with initial set then select points one at a time.???</p>
+<p>Computing IVAR designs can be computationally expensive. An alternative cheaper algorithm called active learning Mckay (ALM) greedily chooses samples that minimizes the maximum variance of the Gaussian process. That is, given M training samples the next sample is chosen via</p>
+<div class="math notranslate nohighlight">
+\[\rv^{(n+1)}=\argmax_{\mathcal{Z}\subset\Omega\subset\rvdom} C^\star(\rv, \rv\mid \mathcal{Z}_M)\]</div>
+<p>Although more computationally efficient than ALC, empirical studies suggest that ALM tends to produce GPs with worse predictive performance <a class="reference internal" href="#gl2009" id="id5"><span>[GL2009]</span></a>.</p>
+<p>Accurately evaluating the ALC and ALM criterion is often challenging because inverting the covariance matrix <span class="math notranslate nohighlight">\(C(\mathcal{Z}_M\cup \rv)\)</span> is poorly conditioned when <span class="math notranslate nohighlight">\(\rv\)</span> is ‘close’ to a point in <span class="math notranslate nohighlight">\(\mathcal{Z}_M\)</span>. Consequently a small constant (nugget) is often added to the diagonal of <span class="math notranslate nohighlight">\(C(\mathcal{Z}_M\cup \rv)\)</span> to improve numerical stability <a class="reference internal" href="#pw2014" id="id6"><span>[PW2014]</span></a>.</p>
+<p>Experimental design strategies similar to ALM and ALC have been developed for radial basis functions (RBFs). The strong connections between radial basis function and Gaussian process approximation mean that the RBF algorithms can often be used for constructing GPs. A popular RBF design strategy minimizes the worst case error function (power function) of kernel based approximations <a class="reference internal" href="#sw2006" id="id7"><span>[SW2006]</span></a>. The minimization of the power function is equivalent to minimizing the ALM criteria <a class="reference internal" href="#hjz2021" id="id8"><span>[HJZ2021]</span></a>. As with ALM and ALC, evaluation of the power function is unstable <a class="reference internal" href="#sw2006" id="id9"><span>[SW2006]</span></a>. However the authors of <a class="reference internal" href="#ps2011" id="id10"><span>[PS2011]</span></a> established that stability can be improved by greedily minimizing the power function using pivoted Cholesky factorization <a class="reference internal" href="#ps2011" id="id11"><span>[PS2011]</span></a>. Specifically, the first <span class="math notranslate nohighlight">\(M\)</span> pivots of the pivoted Cholesky factorization of a kernel (covariance matrix), evaluated a large set of candidate sample, define the <span class="math notranslate nohighlight">\(M\)</span> samples which greedily minimize the power function (ALM criteria). Minimizing the power function does not take into account any available distribution information about the inputs <span class="math notranslate nohighlight">\(\rv\)</span>. In <a class="reference internal" href="#hjz2021" id="id12"><span>[HJZ2021]</span></a> this information was incorporated by weighting the power function by the density <span class="math notranslate nohighlight">\(\pdf(\rv)\)</span> of the input variables. This procedure attempts to greedily minimizes the <span class="math notranslate nohighlight">\(\pdf\)</span>-weighted <span class="math notranslate nohighlight">\(L^2\)</span> error and produces GPs with predictive performance comparable to those based upon ALC designs while being much more computationally efficient because of its use of pivoted Cholesky factorization.</p>
+<p>Finally we remark that while ALM and ALC are the most popular experimental design strategies for GPs, alternative methods have been proposed. Of note are those methods which approximately minimize the mutual information between the Gaussian process evaluated at the training data and the Gaussian process evaluated at the remaining candidate samples <a class="reference internal" href="#ksg2008" id="id13"><span>[KSG2008]</span></a>, <a class="reference internal" href="#bg2016" id="id14"><span>[BG2016]</span></a>. We do not consider these methods in our numerical comparisons.</p>
+<dl class="simple">
+<dt>ACTIVE LEARNING</dt><dd><p>guillas jakeman, gramacy adaptive</p>
+</dd>
+</dl>
+<p>Compare designs with fixed hyper-parameters with those that are learnt as data is added. Show can drastically improve efficiency in anisotrioic functions</p>
+<section id="references">
+<h3>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h3>
+<dl class="citation">
+<dt class="label" id="rw2006"><span class="brackets">RW2006</span></dt>
+<dd><p><a class="reference external" href="http://www.gaussianprocess.org/gpml/">C.E. Rasmussen and C. WIlliams. Gaussian Processes for Machine Learning. MIT Press (2006)</a></p>
+</dd>
+<dt class="label" id="swmw1989"><span class="brackets"><a class="fn-backref" href="#id1">SWMW1989</a></span></dt>
+<dd><p><a class="reference external" href="http://www.jstor.org/stable/2245858">J. Sacks, W.J. Welch, T.J.Mitchell, H.P. Wynn Designs and analysis of computer experiments (with discussion). Statistical Science, 4:409-435 (1989)</a></p>
+</dd>
+<dt class="label" id="hjz2021"><span class="brackets">HJZ2021</span><span class="fn-backref">(<a href="#id2">1</a>,<a href="#id8">2</a>,<a href="#id12">3</a>)</span></dt>
+<dd><p><a class="reference external" href="https://edoc.unibas.ch/79042/">H. Harbrecht, J.D. Jakeman, P. Zaspel. Cholesky-based experimental design for Gaussian process and kernel-based emulation and calibration . Communications in Computational Physics (2021) In press</a></p>
+</dd>
+<dt class="label" id="sgfsj2020"><span class="brackets">SGFSJ2020</span></dt>
+<dd><p><a class="reference external" href="http://www.dl.begellhouse.com/journals/558048804a15188a,2cbcbe11139f18e5,0776649265326db4.html">L.P. Swiler, M. Gulian, A. Frankel, C. Safta, J.D. Jakeman. A Survey of Constrained Gaussian Process Regression: Approaches and Implementation Challenges. Journal of Machine Learning for Modeling and Computing (2020)</a></p>
+</dd>
+<dt class="label" id="gm2016"><span class="brackets"><a class="fn-backref" href="#id3">GM2016</a></span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1137/15M1017119">A. Gorodetsky, Y. Marzouk. Mercer kernels and integrated variance experimental design. Connec- tions between Gaussian process regression and polynomial approximation. SIAM/ASA J. Uncertain. Quantif., 4(1):796–828 (2016)</a></p>
+</dd>
+<dt class="label" id="c2006"><span class="brackets"><a class="fn-backref" href="#id4">C2006</a></span></dt>
+<dd><p><a class="reference external" href="https://proceedings.neurips.cc/paper/1993/file/d840cc5d906c3e9c84374c8919d2074e-Paper.pdf">D. Cohn Neural network exploration using optimal experiment design, Neural Netw., 9 (1996), pp. 1071–1083.</a></p>
+</dd>
+<dt class="label" id="ksg2008"><span class="brackets"><a class="fn-backref" href="#id13">KSG2008</a></span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1002/env.769">A. Krause, A. Singh, C. Guestrin, Near-optimal sensor placements in Gaussian processes: Theory, efficient algorithms and empirical studies, J. Mach. Learn. Res., 9 (2008), pp. 235–284.</a></p>
+</dd>
+<dt class="label" id="pw2014"><span class="brackets"><a class="fn-backref" href="#id6">PW2014</a></span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1080/10618600.2012.738961">C.Y. Peng, J. Wu, On the choice of nugget in kriging modeling for deterministic computer experiments, J. Comput. Graph. Statist., 23 (2014), pp. 151–168.</a></p>
+</dd>
+<dt class="label" id="bg2016"><span class="brackets"><a class="fn-backref" href="#id14">BG2016</a></span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1137/140989613">J. Beck, S. Guillas, Sequential Design with Mutual Information for Computer Experiments (MICE): Emulation of a Tsunami Model, SIAM/ASA J. UNCERTAINTY QUANTIFICATION Vol. 4, pp. 739–766 (2016)</a></p>
+</dd>
+<dt class="label" id="gl2009"><span class="brackets"><a class="fn-backref" href="#id5">GL2009</a></span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1198/TECH.2009.0015">R.B. Gramacy, H.K.H. Lee, Adaptive design and analysis of supercomputer experiments, Technometrics, 51 (2009), pp. 130–145.</a></p>
+</dd>
+<dt class="label" id="sw2006"><span class="brackets">SW2006</span><span class="fn-backref">(<a href="#id7">1</a>,<a href="#id9">2</a>)</span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1017/S0962492906270016">R. Schaback and H. Wendland. Kernel techniques: From machine learning to meshless methods. Acta Numer., 15:543–639 (2006).</a></p>
+</dd>
+<dt class="label" id="ps2011"><span class="brackets">PS2011</span><span class="fn-backref">(<a href="#id10">1</a>,<a href="#id11">2</a>)</span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1016/j.cam.2011.05.021">M. Pazouki and R. Schaback. Bases for kernel-based spaces. J. Comput. Appl. Math., 236:575–588 (2011).</a></p>
+</dd>
+</dl>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.073 seconds)</p>
+<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-surrogates-plot-gaussian-processes-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/c6ebc6c0c54620076e8ff48cb4cca67e/plot_gaussian_processes.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_gaussian_processes.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/b0f16b91bac718d4762ca8aa28e51b6b/plot_gaussian_processes.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_gaussian_processes.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="plot_adaptive_leja_interpolation.html" class="btn btn-neutral float-left" title="Adaptive Leja Sequences" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../benchmarks.html" class="btn btn-neutral float-right" title="Benchmarks" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.util.visualization &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.util.visualization</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.util.visualization</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">from</span> <span class="nn">scipy.spatial</span> <span class="kn">import</span> <span class="n">ConvexHull</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.util.configure_plots</span> <span class="kn">import</span> <span class="n">plt</span><span class="p">,</span> <span class="n">mpl</span>
+
+
+<span class="k">def</span> <span class="nf">convert_plot_to_tikz</span><span class="p">(</span><span class="n">tikz_file</span><span class="p">,</span> <span class="n">tikz_dir</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                         <span class="n">remove_all_files</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a standalone PDF from a tikz enviornment</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">matplotlib2tikz</span> <span class="k">as</span> <span class="nn">pylab2tikz</span>
+
+    <span class="n">pylab2tikz</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">tikz_file</span><span class="p">,</span> <span class="n">show_info</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">tikz_file</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">tikz_string</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+    <span class="c1"># create a latex wrapper for the tikz</span>
+    <span class="n">wrapper</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;&#39;&#39;\documentclass</span><span class="si">{standalone}</span><span class="s1"></span>
+<span class="s1">    \usepackage[utf8]</span><span class="si">{inputenc}</span><span class="s1"></span>
+<span class="s1">    \usepackage</span><span class="si">{pgfplots}</span><span class="s1"></span>
+<span class="s1">    \usepackage{amsmath,amssymb,amsfonts}</span>
+<span class="s1">    \usepgfplotslibrary</span><span class="si">{groupplots}</span><span class="s1"></span>
+<span class="s1">    \pgfplotsset{compat=newest}</span>
+<span class="s1">    \begin</span><span class="si">{document}</span><span class="s1"></span>
+<span class="s1">    </span><span class="si">%s</span><span class="s1"></span>
+<span class="s1">    \end</span><span class="si">{document}</span><span class="s1">&#39;&#39;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tikz_string</span><span class="p">)</span>
+
+    <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">tikz_file</span><span class="p">)</span>
+    <span class="n">compile_tikz_figure</span><span class="p">(</span><span class="n">wrapper</span><span class="p">,</span> <span class="n">tikz_file</span><span class="p">,</span> <span class="n">tikz_dir</span><span class="p">,</span> <span class="n">show</span><span class="p">,</span> <span class="n">remove_all_files</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">show_pdf</span><span class="p">(</span><span class="n">pdf_file</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Call PDF viewer to display a PDF.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    pdf_file : string</span>
+<span class="sd">        The name of the PDF.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># check_call will raise an error if the command is not found</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">(</span><span class="s1">&#39;okular </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">pdf_file</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># if using aliases the bashrc or bash_profile is not loaded</span>
+            <span class="c1"># by subprocess.call unless the following modification is made.</span>
+            <span class="c1"># skim is primarily used with os x</span>
+            <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">(</span>
+                <span class="p">[</span><span class="s1">&#39;/bin/bash&#39;</span><span class="p">,</span> <span class="s1">&#39;-i&#39;</span><span class="p">,</span> <span class="s1">&#39;-c&#39;</span><span class="p">,</span> <span class="s1">&#39;skim </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">pdf_file</span><span class="p">])</span>
+            <span class="c1"># skim has to be manually quit, not just close specific file</span>
+            <span class="c1"># before the code will proceed from here</span>
+        <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No pdf reader could be found. plot cannot be shown&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">compile_tikz_figure</span><span class="p">(</span><span class="n">file_string</span><span class="p">,</span> <span class="n">filename_out</span><span class="p">,</span> <span class="n">tikz_dir</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">remove_all_files</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compile a latex file using pdflatex.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    file_string : string</span>
+<span class="sd">        The latex commands including headers and everything inside</span>
+<span class="sd">        \begin{document} and \end{document}</span>
+
+<span class="sd">    filename_out : string</span>
+<span class="sd">        The latex filename produced. must end with &quot;.tex&quot;</span>
+
+<span class="sd">    tikz_dir : string</span>
+<span class="sd">        Directory to store the generated files. Directory must already exist</span>
+
+<span class="sd">    remove_all_files : boolean</span>
+<span class="sd">        True - remove all generated files including .tex and .pdf files.</span>
+<span class="sd">               This is useful when show=True</span>
+<span class="sd">        False - all generated files will be removed except .tex. and .pdf</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># write the new tex file to a specified directory</span>
+    <span class="n">cur_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">curdir</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">tikz_dir</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename_out</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">file_string</span><span class="p">)</span>
+
+    <span class="c1"># compile tex</span>
+    <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span>
+        <span class="p">[</span><span class="s1">&#39;pdflatex&#39;</span><span class="p">,</span> <span class="s1">&#39;--interaction=nonstopmode&#39;</span><span class="p">,</span> <span class="n">filename_out</span><span class="p">],</span>
+        <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">STDOUT</span><span class="p">)</span>
+
+    <span class="n">pdf_file</span> <span class="o">=</span> <span class="n">filename_out</span><span class="p">[:</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;.pdf&#39;</span>
+    <span class="c1"># remove the latex generated files except the pdf and tex file</span>
+
+    <span class="c1"># show plot with a pdf reader</span>
+    <span class="k">if</span> <span class="n">show</span><span class="p">:</span>
+        <span class="n">show_pdf</span><span class="p">(</span><span class="n">pdf_file</span><span class="p">)</span>
+
+    <span class="kn">import</span> <span class="nn">glob</span>
+    <span class="n">filenames</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">filename_out</span><span class="p">[:</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;*&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">remove_all_files</span><span class="p">:</span>
+        <span class="n">filenames</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">pdf_file</span><span class="p">)</span>
+        <span class="n">filenames</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">filename_out</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">filenames</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+
+    <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">cur_dir</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">plot_3d_indices_latex</span><span class="p">(</span>
+        <span class="n">indices</span><span class="p">,</span> <span class="n">filename_out</span><span class="p">,</span> <span class="n">coeff</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tikz_dir</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">,</span>
+        <span class="n">tol</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">,</span> <span class="n">remove_all_files</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">label_indices</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot a set of three dimensional multivariate indices using latex.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    indices : np.ndarray (num_vars,num_indices)</span>
+<span class="sd">        The indices to plot</span>
+
+<span class="sd">    filename_out : string</span>
+<span class="sd">        The latex filename produced. must end with &quot;.tex&quot;</span>
+
+<span class="sd">    tikz_dir : string</span>
+<span class="sd">        Directory to store the generated files. Directory must already exist</span>
+
+<span class="sd">    remove_all_files : boolean</span>
+<span class="sd">        True - remove all generated files including .tex and .pdf files.</span>
+<span class="sd">               This is useful when show=True</span>
+<span class="sd">        False - all generated files will be removed except .tex. and .pdf files</span>
+
+<span class="sd">    show : boolean</span>
+<span class="sd">        Call PDF viewer to display generated PDF</span>
+
+<span class="sd">    tol : float</span>
+<span class="sd">        Plot only indices with coefficients whose magnitude exceeds this</span>
+<span class="sd">        threshold. If coeff is None this argument is ignored</span>
+
+<span class="sd">    coeff : np.ndarray(num_indices,1)</span>
+<span class="sd">        The coefficients associated with each index</span>
+
+<span class="sd">    label_indices : boolean</span>
+<span class="sd">        Print the entries of each index on each 3d index cube.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">assert</span> <span class="n">filename_out</span><span class="p">[</span><span class="o">-</span><span class="mi">4</span><span class="p">:]</span> <span class="o">==</span> <span class="s1">&#39;.tex&#39;</span>
+    <span class="k">if</span> <span class="n">coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">coeff</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1"># load in a template file</span>
+    <span class="n">dir_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+    <span class="n">template_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dir_path</span><span class="p">,</span> <span class="s1">&#39;3d-indices.tex&#39;</span><span class="p">)</span>
+    <span class="n">string</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">template_filename</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+    <span class="c1"># determine the maximum degree and use this to set limits of plot axes</span>
+    <span class="n">max_degree</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="c1"># +1 to have write coordinates for latex file</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span>
+        <span class="n">max_degree</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">max_degree</span><span class="p">,</span> <span class="n">index</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
+
+    <span class="c1"># for clear plotting need to order indices</span>
+    <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">lexsort</span><span class="p">((</span><span class="n">indices</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="p">:],</span> <span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]))</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[:,</span> <span class="n">II</span><span class="p">]</span>
+
+    <span class="c1"># determine all non-zero indices</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="k">if</span> <span class="n">coeff</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">abs</span><span class="p">(</span><span class="n">coeff</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">&gt;</span> <span class="n">tol</span><span class="p">:</span>
+            <span class="c1"># +1 to have write coordinates for latex file</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span>  <span class="c1"># +1</span>
+            <span class="c1"># Last three arguments to latex function \cube are color</span>
+            <span class="c1"># percentages. I could not get latex to do the math I needed here.</span>
+            <span class="k">if</span> <span class="n">label_indices</span><span class="p">:</span>
+                <span class="n">tmp</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;\cube{</span><span class="si">%d</span><span class="s1">}{</span><span class="si">%d</span><span class="s1">}{</span><span class="si">%d</span><span class="s1">}{(</span><span class="si">%d</span><span class="s1">,</span><span class="si">%d</span><span class="s1">,</span><span class="si">%d</span><span class="s1">)}{</span><span class="si">%d</span><span class="s1">}{</span><span class="si">%d</span><span class="s1">}{</span><span class="si">%d</span><span class="s1">}&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">index</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">index</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">index</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">index</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+                    <span class="nb">float</span><span class="p">(</span><span class="n">max_degree</span><span class="o">-</span><span class="n">index</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span><span class="o">/</span><span class="n">max_degree</span><span class="o">*</span><span class="mi">80</span><span class="p">,</span>
+                    <span class="nb">float</span><span class="p">(</span><span class="n">max_degree</span><span class="o">-</span><span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="n">max_degree</span><span class="o">*</span><span class="mi">80</span><span class="p">,</span>
+                    <span class="nb">float</span><span class="p">(</span><span class="n">max_degree</span><span class="o">-</span><span class="n">index</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">/</span><span class="n">max_degree</span><span class="o">*</span><span class="mi">80</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">tmp</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;\cube{</span><span class="si">%d</span><span class="s1">}{</span><span class="si">%d</span><span class="s1">}{</span><span class="si">%d</span><span class="s1">}</span><span class="si">{}</span><span class="s1">{</span><span class="si">%d</span><span class="s1">}{</span><span class="si">%d</span><span class="s1">}{</span><span class="si">%d</span><span class="s1">}&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">index</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">index</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+                    <span class="mi">64</span><span class="p">,</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">64</span><span class="p">)</span>
+                <span class="c1"># float(max_degree-index[2])/max_degree*80,</span>
+                <span class="c1"># float(max_degree-index[0])/max_degree*80,</span>
+                <span class="c1"># float(max_degree-index[1])/max_degree*80)</span>
+            <span class="n">string</span> <span class="o">+=</span> <span class="n">tmp</span>
+
+    <span class="c1"># modify the template file to plot the cubes. All template file does</span>
+    <span class="c1"># before modification is plot the axes with a default size</span>
+    <span class="n">file_string</span> <span class="o">=</span> <span class="n">lines</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+        <span class="sa">r</span><span class="s1">&#39;\end</span><span class="si">{tikzpicture}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">string</span><span class="o">+</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">+</span><span class="sa">r</span><span class="s1">&#39;\end</span><span class="si">{tikzpicture}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="n">file_string</span> <span class="o">=</span> <span class="n">file_string</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+        <span class="sa">r</span><span class="s1">&#39;\sdef\myscale</span><span class="si">{6}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;\def\myscale{</span><span class="si">%d</span><span class="s1">}&#39;</span> <span class="o">%</span> <span class="n">max_degree</span><span class="p">)</span>
+
+    <span class="n">compile_tikz_figure</span><span class="p">(</span><span class="n">file_string</span><span class="p">,</span> <span class="n">filename_out</span><span class="p">,</span>
+                        <span class="n">tikz_dir</span><span class="p">,</span> <span class="n">show</span><span class="p">,</span> <span class="n">remove_all_files</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_meshgrid_samples</span><span class="p">(</span><span class="n">plot_limits</span><span class="p">,</span> <span class="n">num_pts_1d</span><span class="p">,</span> <span class="n">logspace</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generate meshgrid samples.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">logspace</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">plot_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">plot_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">num_pts_1d</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">plot_limits</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">plot_limits</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">num_pts_1d</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logspace</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">plot_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">plot_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">num_pts_1d</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logspace</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">plot_limits</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">plot_limits</span><span class="p">[</span><span class="mi">3</span><span class="p">]),</span> <span class="n">num_pts_1d</span><span class="p">)</span>
+
+    <span class="n">X</span><span class="p">,</span> <span class="n">Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+    <span class="n">pts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">X</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])),</span>
+                     <span class="n">Y</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="n">Y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">Y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))))</span>
+    <span class="k">return</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">pts</span>
+
+
+<span class="k">def</span> <span class="nf">get_meshgrid_function_data</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">plot_limits</span><span class="p">,</span> <span class="n">num_pts_1d</span><span class="p">,</span> <span class="n">qoi</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                               <span class="n">logspace</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generate data from a function in the format needed for plotting.</span>
+<span class="sd">    Samples are generated between specified lower and upper bounds</span>
+<span class="sd">    and the function is evaluated on the tensor product of the 1d samples.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    function : callable function</span>
+<span class="sd">        The function must accept an np.ndarray of size (2, num_pts_1d**2)</span>
+<span class="sd">        and return a np.ndarray of size (num_pts_1d,num_qoi)</span>
+
+<span class="sd">    plot_limits : np.ndarray or list</span>
+<span class="sd">        The lower and upper bounds used to sample the function</span>
+<span class="sd">        [lb1,ub1,lb1,lb2]</span>
+
+<span class="sd">    num_pts_1d : integer</span>
+<span class="sd">        The number of samples in each dimension. The function is evaluated</span>
+<span class="sd">        on the tensor product of the 1d samples</span>
+
+<span class="sd">    qoi : integer</span>
+<span class="sd">        function returns a np.ndarray of size (num_pts_1d,num_qoi) qoi</span>
+<span class="sd">        specifies which column of the array to access.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    X : np.ndarray of size (num_pts_1d,num_pts_1d)</span>
+<span class="sd">        The 1st coordinate of the samples</span>
+
+<span class="sd">    Y : np.ndarray of size (num_pts_1d,num_pts_1d)</span>
+<span class="sd">        The 2nd coordinate of the samples</span>
+
+<span class="sd">    Z : np.ndarray of size (num_pts_1d,num_pts_1d)</span>
+<span class="sd">        The function values at each sample</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">pts</span> <span class="o">=</span> <span class="n">get_meshgrid_samples</span><span class="p">(</span><span class="n">plot_limits</span><span class="p">,</span> <span class="n">num_pts_1d</span><span class="p">,</span> <span class="n">logspace</span><span class="p">)</span>
+    <span class="n">Z</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">pts</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">):</span>
+        <span class="n">Z</span> <span class="o">=</span> <span class="n">Z</span><span class="p">[:,</span> <span class="n">qoi</span><span class="p">]</span>
+    <span class="n">Z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span> <span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span>
+
+
+<span class="k">def</span> <span class="nf">plot_contours</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">num_contour_levels</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                  <span class="n">cmap</span><span class="o">=</span><span class="n">mpl</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">coolwarm</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot the contours of a two-dimensional function using matplotlib.contourf.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    num_contour_levels : boolean (default=10)</span>
+<span class="sd">       Plot the contours of the function to plot beneath the 3d surface.</span>
+
+<span class="sd">    offset : boolean (default=0)</span>
+<span class="sd">       Plot the contours offset from z=0 plane</span>
+
+<span class="sd">    X,Y,Z: see documentation of Return of function get_meshgrid_function_data</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    cset : a QuadContourSet object.</span>
+<span class="sd">       Handle useful for modifying contours after this function has been called</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Plot contours of functions underneath surface</span>
+    <span class="k">if</span> <span class="n">num_contour_levels</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">cset</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span>
+            <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">zdir</span><span class="o">=</span><span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span>
+            <span class="n">levels</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">Z</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="n">num_contour_levels</span><span class="p">),</span>
+            <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="n">zorder</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">cset</span>
+
+
+<span class="k">def</span> <span class="nf">create_3d_axis</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a 3D axis for plotting surfaces</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">gca</span><span class="p">(</span><span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="c1"># Add following import to avoid error Unknown projection &#39;3d&#39;</span>
+        <span class="c1"># when using ax = fig.gca(projection=&#39;3d&#39;)</span>
+        <span class="kn">from</span> <span class="nn">mpl_toolkits.mplot3d</span> <span class="kn">import</span> <span class="n">Axes3D</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">Axes3D</span><span class="p">(</span><span class="n">fig</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ax</span>
+
+
+<span class="k">def</span> <span class="nf">plot_surface</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">limit_state</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">num_contour_levels</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">plot_axes</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">mpl</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">coolwarm</span><span class="p">,</span>
+                 <span class="n">axis_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">antialiased</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot the three-dimensional surface of a two-dimensional function using</span>
+<span class="sd">    matplotlib.plot_surface</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    samples : np.ndarray (num_vars+1 x num_samples)</span>
+<span class="sd">        The x,y,z coordinates of samples to plot</span>
+
+<span class="sd">    limit_state : callable_function</span>
+<span class="sd">        Function must take samples np.ndarray (num_vars x num_samples)</span>
+<span class="sd">        and values np.ndarray (num_samples), and return the indices</span>
+<span class="sd">        a set of indices which correspond to samples within the limit state</span>
+<span class="sd">        and the valuethat should be assigned to each of those samples , e.g.</span>
+<span class="sd">        e.g. I, default_value = limit_state(samples,values)</span>
+
+<span class="sd">    plot_axes : boolean (default=True)</span>
+<span class="sd">       Plot the 3 coordinate axes and ticks</span>
+
+<span class="sd">    angle : integer (default=None)</span>
+<span class="sd">       The angle at which the plot is viewed. If None matplotlib will</span>
+<span class="sd">       use its default angle</span>
+
+<span class="sd">    axis_labels : list of strings size (3)</span>
+<span class="sd">       Labels of the x, y, and z axes</span>
+
+<span class="sd">    alpha : double</span>
+<span class="sd">       Transperancy of plot</span>
+
+<span class="sd">    zorder : the priority of the plot on the axes. A zorder=2 places plot</span>
+<span class="sd">    above all plots with zorder=1</span>
+
+<span class="sd">    X,Y,Z: see documentation of Return of function get_meshgrid_function_data</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Define transperancy of plot</span>
+    <span class="k">if</span> <span class="n">samples</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">scatter3D</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">samples</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="p">:],</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;o&#39;</span><span class="p">,</span>
+                     <span class="n">s</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">limit_state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">pts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">X</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])),</span>
+                         <span class="n">Y</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="n">Y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">Y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))))</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="n">Z</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="n">I</span><span class="p">,</span> <span class="n">default_value</span> <span class="o">=</span> <span class="n">limit_state</span><span class="p">(</span><span class="n">pts</span><span class="p">,</span> <span class="n">vals</span><span class="p">)</span>
+        <span class="n">vals</span><span class="p">[</span><span class="n">I</span><span class="p">]</span> <span class="o">=</span> <span class="n">default_value</span>
+        <span class="n">Z_tmp</span> <span class="o">=</span> <span class="n">vals</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">Z_tmp</span> <span class="o">=</span> <span class="n">Z</span>
+
+    <span class="c1"># Plot surface</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot_surface</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z_tmp</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span> <span class="n">antialiased</span><span class="o">=</span><span class="n">antialiased</span><span class="p">,</span>
+                    <span class="n">cstride</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">rstride</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">,</span>
+                    <span class="n">zorder</span><span class="o">=</span><span class="n">zorder</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">plot_axes</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">([])</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_yticks</span><span class="p">([])</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_zticks</span><span class="p">([])</span>
+        <span class="c1"># Get rid of the panes</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">w_xaxis</span><span class="o">.</span><span class="n">set_pane_color</span><span class="p">((</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">w_yaxis</span><span class="o">.</span><span class="n">set_pane_color</span><span class="p">((</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">w_zaxis</span><span class="o">.</span><span class="n">set_pane_color</span><span class="p">((</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+
+        <span class="c1"># Get rid of the spines</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">w_xaxis</span><span class="o">.</span><span class="n">line</span><span class="o">.</span><span class="n">set_color</span><span class="p">((</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">w_yaxis</span><span class="o">.</span><span class="n">line</span><span class="o">.</span><span class="n">set_color</span><span class="p">((</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">w_zaxis</span><span class="o">.</span><span class="n">line</span><span class="o">.</span><span class="n">set_color</span><span class="p">((</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">axis_labels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="n">axis_labels</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="n">axis_labels</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_zlabel</span><span class="p">(</span><span class="n">axis_labels</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+    <span class="c1"># Set the angle of the plot (how it is viewed)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">angle</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">view_init</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">elev</span><span class="p">,</span> <span class="n">angle</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">remove_nonfinite_meshgrid_data</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Replace nonfinite values obtained on a meshgrid.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">shape</span> <span class="o">=</span> <span class="n">Z</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">Z</span> <span class="o">=</span> <span class="n">Z</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+    <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+    <span class="n">mask</span><span class="p">[</span><span class="n">II</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">Z</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+    <span class="n">Z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span> <span class="n">shape</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Z</span>
+
+
+<span class="k">def</span> <span class="nf">plot_2d_indices</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">other_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot a set of 2D multi-indices.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">indices</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">if</span> <span class="n">coeffs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">coeffs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">other_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">other_indices</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="c1"># code below assumes other indices is a list of other indices</span>
+        <span class="c1"># e.g. that might correspond to n different index sets</span>
+        <span class="n">other_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">other_indices</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span>
+
+    <span class="n">xMax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:])</span>
+    <span class="n">yMax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:])</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="n">box</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+                        <span class="p">[</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">],</span> <span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+                        <span class="p">[</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">],</span> <span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">ii</span><span class="p">]],</span>
+                        <span class="p">[</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">ii</span><span class="p">]],</span>
+                        <span class="p">[</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span><span class="o">.</span><span class="n">T</span> <span class="o">+</span> <span class="mf">0.5</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s1">&#39;-k&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;gray&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">edgecolor</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">coeffs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">],</span> <span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">ii</span><span class="p">],</span> <span class="s1">&#39;$</span><span class="si">%1.0f</span><span class="s1">$&#39;</span> <span class="o">%</span> <span class="n">coeffs</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+                    <span class="n">fontsize</span><span class="o">=</span><span class="n">mpl</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;xtick.labelsize&#39;</span><span class="p">],</span>
+                    <span class="n">verticalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
+
+    <span class="n">colors</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="s1">&#39;b&#39;</span><span class="p">]</span>
+    <span class="n">alphas</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">]</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">other_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">other_indices</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+                <span class="n">box</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="mi">1</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+                                <span class="p">[</span><span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">],</span>
+                                    <span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="mi">1</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+                                <span class="p">[</span><span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">],</span>
+                                    <span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="mi">1</span><span class="p">,</span> <span class="n">ii</span><span class="p">]],</span>
+                                <span class="p">[</span><span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+                                    <span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="mi">1</span><span class="p">,</span> <span class="n">ii</span><span class="p">]],</span>
+                                <span class="p">[</span><span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="mi">1</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span><span class="o">.</span><span class="n">T</span> <span class="o">+</span> <span class="mf">0.5</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="n">jj</span><span class="p">],</span> <span class="n">lw</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="n">jj</span><span class="p">],</span>
+                        <span class="n">alpha</span><span class="o">=</span><span class="n">alphas</span><span class="p">[</span><span class="n">jj</span><span class="p">],</span> <span class="n">edgecolor</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="n">jj</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">xMaxNew</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="p">:])</span>
+                <span class="n">xMax</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">xMax</span><span class="p">,</span> <span class="n">xMaxNew</span><span class="p">)</span>
+                <span class="n">yMaxNew</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">other_indices</span><span class="p">[</span><span class="n">jj</span><span class="p">][</span><span class="mi">1</span><span class="p">,</span> <span class="p">:])</span>
+                <span class="n">yMax</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">yMax</span><span class="p">,</span> <span class="n">yMaxNew</span><span class="p">)</span>
+
+    <span class="n">lim</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">xMax</span><span class="p">,</span> <span class="n">yMax</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ax</span> <span class="o">==</span> <span class="n">plt</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">lim</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">yticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">lim</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">xlim</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">lim</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">lim</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">lim</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_yticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">lim</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">lim</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">lim</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># set maximum number of ticks so labels do not overlap</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">locator_params</span><span class="p">(</span><span class="n">nbins</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">plot_2d_polygon</span><span class="p">(</span><span class="n">vertices</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">plt</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot a polygon.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">convhull</span> <span class="o">=</span> <span class="n">ConvexHull</span><span class="p">(</span><span class="n">vertices</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">vertices</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">vertices</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s1">&#39;ko&#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">simplex</span> <span class="ow">in</span> <span class="n">convhull</span><span class="o">.</span><span class="n">simplices</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">vertices</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">simplex</span><span class="p">],</span> <span class="n">vertices</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">simplex</span><span class="p">],</span> <span class="s1">&#39;k-&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">plot_multiple_2d_gaussian_slices</span><span class="p">(</span><span class="n">means</span><span class="p">,</span> <span class="n">variances</span><span class="p">,</span> <span class="n">texfilename</span><span class="p">,</span>
+                                     <span class="n">reference_gaussian_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                     <span class="n">domain</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">num_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot 2D slices of a multivariate Gaussian variable</span>
+
+<span class="sd">    If there are wiggles in plot near zero of Gaussians then increase num_samples</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">means</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">variances</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">domain</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">domain</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span>
+        <span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">norm</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">variances</span><span class="p">)):</span>
+            <span class="n">lb</span><span class="p">,</span> <span class="n">ub</span> <span class="o">=</span> <span class="n">norm</span><span class="o">.</span><span class="n">ppf</span><span class="p">([</span><span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.999</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">variances</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+            <span class="n">domain</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">means</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">+</span><span class="n">lb</span><span class="p">,</span> <span class="n">domain</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">domain</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">means</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">+</span><span class="n">ub</span><span class="p">,</span> <span class="n">domain</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="n">lb</span><span class="p">,</span> <span class="n">ub</span> <span class="o">=</span> <span class="n">norm</span><span class="o">.</span><span class="n">ppf</span><span class="p">([</span><span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.999</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+            <span class="n">reference_gaussian_data</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="n">domain</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">reference_gaussian_data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">lb</span><span class="p">,</span> <span class="n">domain</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">domain</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">reference_gaussian_data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">ub</span><span class="p">,</span> <span class="n">domain</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">domain</span><span class="p">)</span>
+
+    <span class="n">file_string</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">\documentclass[border=10pt]</span><span class="si">{standalone}</span><span class="s1"></span>
+<span class="s1">\usepackage</span><span class="si">{tikz}</span><span class="s1">\usepackage</span><span class="si">{pgfplots}</span><span class="s1"></span>
+<span class="s1">\pgfplotsset{width=7cm}</span>
+<span class="s1">\usepackage</span><span class="si">{pgfplotstable}</span><span class="s1"></span>
+<span class="s1">\begin</span><span class="si">{document}</span><span class="s1"></span>
+<span class="s1">\begin</span><span class="si">{tikzpicture}</span><span class="s1">[</span>
+<span class="s1">declare function={normal(\m,\s)=1/(2*\s*sqrt(pi))*exp(-(x-\m)^2/(2*\s^2));}</span>
+<span class="s1">]&#39;&#39;&#39;</span>
+    <span class="n">file_string</span> <span class="o">+=</span> <span class="sa">r</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">\begin</span><span class="si">{axis}</span><span class="s1">[</span>
+<span class="s1">samples=</span><span class="si">%d</span><span class="s1">,domain=</span><span class="si">%1.3f</span><span class="s1">:</span><span class="si">%1.3f</span><span class="s1">,samples y=0,tick style={draw=none},yticklabels=</span><span class="si">{}</span><span class="s1">,zmin=0,area plot/.style={fill opacity=0.75,draw=blue!80!black,fill=blue!70,mark=none,smooth},plot box ratio = 1 3 1,view=</span><span class="si">{20}{30}</span><span class="s1">,axis background/.style={ shade,top color=gray,bottom color=white}</span>
+<span class="s1">]&#39;&#39;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">num_samples</span><span class="p">,</span> <span class="n">domain</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">domain</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="n">num_gaussians</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">means</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">reference_gaussian_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">reference_gaussian_data</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="n">num_gaussians</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="c1"># going to 3 makes y-axis 3 times longer than others</span>
+    <span class="n">ylocations</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">num_gaussians</span><span class="p">)</span>
+
+    <span class="c1"># plot backwards so that first gaussian is plotted on top of</span>
+    <span class="c1"># all others</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">reference_gaussian_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">file_string</span> <span class="o">+=</span> <span class="sa">r</span><span class="s1">&#39;\addplot3 [area plot,draw=red!80!black,fill=red!70,mark=none,smooth] (x,</span><span class="si">%1.3f</span><span class="s1">,{normal(</span><span class="si">%1.3f</span><span class="s1">,</span><span class="si">%1.3f</span><span class="s1">)}) -- (axis cs:</span><span class="si">%1.3f</span><span class="s1">,</span><span class="si">%1.3f</span><span class="s1">,0);&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="n">ylocations</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">reference_gaussian_data</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">reference_gaussian_data</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">domain</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ylocations</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">+</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="n">idx</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_gaussians</span><span class="o">-</span><span class="n">idx</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">file_string</span> <span class="o">+=</span> <span class="sa">r</span><span class="s1">&#39;\addplot3 [area plot] (x,</span><span class="si">%1.3f</span><span class="s1">,{normal(</span><span class="si">%1.3f</span><span class="s1">,</span><span class="si">%1.3f</span><span class="s1">)}) -- (axis cs:</span><span class="si">%1.3f</span><span class="s1">,</span><span class="si">%1.3f</span><span class="s1">,0);&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="n">ylocations</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">means</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">variances</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span> <span class="n">domain</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ylocations</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="o">+</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span>
+
+    <span class="n">file_string</span> <span class="o">+=</span> <span class="sa">r</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">\end</span><span class="si">{axis}</span><span class="s1">\end</span><span class="si">{tikzpicture}</span><span class="s1"></span>
+<span class="s1">\end</span><span class="si">{document}</span><span class="s1">&#39;&#39;&#39;</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">texfilename</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">text_file</span><span class="p">:</span>
+        <span class="n">text_file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">file_string</span><span class="p">)</span>
+
+    <span class="n">tex_out</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span>
+        <span class="c1"># use pdflatex for now until travis features a more modern lualatex</span>
+        <span class="p">[</span><span class="s1">&#39;pdflatex&#39;</span><span class="p">,</span> <span class="s1">&#39;--interaction=nonstopmode&#39;</span><span class="p">,</span> <span class="n">texfilename</span><span class="p">],</span>
+        <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">STDOUT</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">show</span><span class="p">:</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">call</span><span class="p">([</span><span class="s2">&quot;okular&quot;</span><span class="p">,</span> <span class="n">texfilename</span><span class="p">[:</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;.pdf&#39;</span><span class="p">])</span>
+
+
+<span class="k">def</span> <span class="nf">plot_voxels</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]):</span>
+    <span class="sd">&quot;&quot;&quot;Plot voxels of `data`.</span>
+<span class="sd">        Args:</span>
+<span class="sd">            data - n-dimensional np.array</span>
+<span class="sd">            color - [r,g,b,alpha]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># ax.patch.set_alpha(0.5)  # Set semi-opacity</span>
+    <span class="n">colors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="mi">4</span><span class="p">))</span>
+    <span class="n">colors</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">data</span><span class="p">)]</span> <span class="o">=</span> <span class="n">color</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">voxels</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">facecolors</span><span class="o">=</span><span class="n">colors</span><span class="p">,</span> <span class="n">edgecolor</span><span class="o">=</span><span class="s1">&#39;gray&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">plot_3d_indices</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">other_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot a set of 3D multi-indices.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">shape</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span>
+    <span class="k">if</span> <span class="n">other_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">other_indices</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span><span class="o">+</span><span class="mi">1</span>
+
+    <span class="n">filled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">kk</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[:,</span> <span class="n">nn</span><span class="p">]</span>
+        <span class="n">filled</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="n">plot_voxels</span><span class="p">(</span><span class="n">filled</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mf">.9</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">other_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">filled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">other_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">kk</span> <span class="o">=</span> <span class="n">other_indices</span><span class="p">[:,</span> <span class="n">nn</span><span class="p">]</span>
+            <span class="n">filled</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">kk</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">plot_voxels</span><span class="p">(</span><span class="n">filled</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+
+    <span class="n">angle</span> <span class="o">=</span> <span class="mi">45</span>
+    <span class="c1"># angle=60</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">view_init</span><span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="n">angle</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_axis_off</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">pya_colorbar</span><span class="p">(</span><span class="n">mappable</span><span class="p">,</span> <span class="n">ax_in</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create custom colorbar.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">mpl_toolkits.axes_grid1</span> <span class="kn">import</span> <span class="n">make_axes_locatable</span>
+    <span class="k">if</span> <span class="n">ax_in</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">last_axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">gca</span><span class="p">()</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">mappable</span><span class="o">.</span><span class="n">axes</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">ax_in</span>
+    <span class="n">fig</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">figure</span>
+    <span class="n">divider</span> <span class="o">=</span> <span class="n">make_axes_locatable</span><span class="p">(</span><span class="n">ax</span><span class="p">)</span>
+    <span class="n">cax</span> <span class="o">=</span> <span class="n">divider</span><span class="o">.</span><span class="n">append_axes</span><span class="p">(</span><span class="s2">&quot;right&quot;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="s2">&quot;5%&quot;</span><span class="p">,</span> <span class="n">pad</span><span class="o">=</span><span class="mf">0.05</span><span class="p">)</span>
+    <span class="n">cbar</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">mappable</span><span class="p">,</span> <span class="n">cax</span><span class="o">=</span><span class="n">cax</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ax_in</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">sca</span><span class="p">(</span><span class="n">last_axes</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">cbar</span>
+
+
+<span class="k">def</span> <span class="nf">annotate_heatmap</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">valfmt</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{x:.2f}</span><span class="s2">&quot;</span><span class="p">,</span>
+                     <span class="n">textcolors</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;black&quot;</span><span class="p">,</span> <span class="s2">&quot;white&quot;</span><span class="p">],</span>
+                     <span class="n">threshold</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">textkw</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A function to annotate a heatmap.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    im</span>
+<span class="sd">        The AxesImage to be labeled.</span>
+<span class="sd">    data</span>
+<span class="sd">        Data used to annotate.  If None, the image&#39;s data is used.  Optional.</span>
+<span class="sd">    valfmt</span>
+<span class="sd">        The format of the annotations inside the heatmap.  This should either</span>
+<span class="sd">        use the string format method, e.g. &quot;$ {x:.2f}&quot;, or be a</span>
+<span class="sd">        `matplotlib.ticker.Formatter`.  Optional.</span>
+<span class="sd">    textcolors</span>
+<span class="sd">        A list or array of two color specifications.  The first is used for</span>
+<span class="sd">        values below a threshold, the second for those above.  Optional.</span>
+<span class="sd">    threshold</span>
+<span class="sd">        Value in data units according to which the colors from textcolors are</span>
+<span class="sd">        applied.  If None (the default) uses the middle of the colormap as</span>
+<span class="sd">        separation.  Optional.</span>
+<span class="sd">    **kwargs</span>
+<span class="sd">        All other arguments are forwarded to each call to `text` used to create</span>
+<span class="sd">        the text labels.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">im</span><span class="o">.</span><span class="n">get_array</span><span class="p">()</span>
+
+    <span class="c1"># Normalize the threshold to the images color range.</span>
+    <span class="k">if</span> <span class="n">threshold</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">threshold</span> <span class="o">=</span> <span class="n">im</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">threshold</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">threshold</span> <span class="o">=</span> <span class="n">im</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">max</span><span class="p">())</span><span class="o">/</span><span class="mf">2.</span>
+
+    <span class="c1"># Set default alignment to center, but allow it to be</span>
+    <span class="c1"># overwritten by textkw.</span>
+    <span class="n">kw</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">horizontalalignment</span><span class="o">=</span><span class="s2">&quot;center&quot;</span><span class="p">,</span>
+              <span class="n">verticalalignment</span><span class="o">=</span><span class="s2">&quot;center&quot;</span><span class="p">)</span>
+    <span class="n">kw</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">textkw</span><span class="p">)</span>
+
+    <span class="c1"># Get the formatter in case a string is supplied</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">valfmt</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">valfmt</span> <span class="o">=</span> <span class="n">mpl</span><span class="o">.</span><span class="n">ticker</span><span class="o">.</span><span class="n">StrMethodFormatter</span><span class="p">(</span><span class="n">valfmt</span><span class="p">)</span>
+
+    <span class="c1"># Loop over the data and create a `Text` for each &quot;pixel&quot;.</span>
+    <span class="c1"># Change the text&#39;s color depending on the data.</span>
+    <span class="n">texts</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">ranges</span> <span class="o">=</span> <span class="n">im</span><span class="o">.</span><span class="n">get_extent</span><span class="p">()</span>
+    <span class="n">xlocs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ranges</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">xlocs</span> <span class="o">+=</span> <span class="p">(</span><span class="n">xlocs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">xlocs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span>
+    <span class="n">ylocs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">ranges</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">ranges</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">ylocs</span> <span class="o">+=</span> <span class="p">(</span><span class="n">ylocs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">ylocs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="n">kw</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">color</span><span class="o">=</span><span class="n">textcolors</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">im</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])</span> <span class="o">&gt;</span> <span class="n">threshold</span><span class="p">)])</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">im</span><span class="o">.</span><span class="n">axes</span><span class="o">.</span><span class="n">text</span><span class="p">(</span>
+                <span class="n">xlocs</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">ylocs</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">valfmt</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">],</span> <span class="kc">None</span><span class="p">),</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+            <span class="n">texts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">texts</span>
+
+
+<div class="viewcode-block" id="plot_2d_samples"><a class="viewcode-back" href="../../../api/pyapprox.util.plot_2d_samples.html#pyapprox.util.plot_2d_samples">[docs]</a><span class="k">def</span> <span class="nf">plot_2d_samples</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot 2D samples</span>
+
+<span class="sd">    samples : np.ndarray (2, nsamples)</span>
+<span class="sd">        The coordinates of the samples to plot</span>
+
+<span class="sd">    ax : :class:`pyplot.axes`</span>
+<span class="sd">        Use the axes object if provided</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ax</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

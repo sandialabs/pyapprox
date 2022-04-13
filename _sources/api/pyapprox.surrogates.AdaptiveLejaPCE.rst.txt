@@ -1,0 +1,33 @@
+AdaptiveLejaPCE
+===============
+
+.. currentmodule:: pyapprox.surrogates
+
+.. autoclass:: AdaptiveLejaPCE
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~AdaptiveLejaPCE.__call__
+      ~AdaptiveLejaPCE.add_new_subspaces
+      ~AdaptiveLejaPCE.condition_number
+      ~AdaptiveLejaPCE.create_new_subspaces_data
+      ~AdaptiveLejaPCE.get_active_unique_poly_indices
+      ~AdaptiveLejaPCE.get_num_new_subspace_samples
+      ~AdaptiveLejaPCE.precond_canonical_basis_matrix
+      ~AdaptiveLejaPCE.update_leja_sequence_fast
+      ~AdaptiveLejaPCE.update_leja_sequence_slow
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: add_new_subspaces
+   .. automethod:: condition_number
+   .. automethod:: create_new_subspaces_data
+   .. automethod:: get_active_unique_poly_indices
+   .. automethod:: get_num_new_subspace_samples
+   .. automethod:: precond_canonical_basis_matrix
+   .. automethod:: update_leja_sequence_fast
+   .. automethod:: update_leja_sequence_slow

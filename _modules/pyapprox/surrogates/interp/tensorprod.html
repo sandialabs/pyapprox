@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.surrogates.interp.tensorprod &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+        <script src="../../../../_static/jquery.js"></script>
+        <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/doctools.js"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.surrogates.interp.tensorprod</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.surrogates.interp.tensorprod</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.util.pya_numba</span> <span class="kn">import</span> <span class="n">njit</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">cartesian_product</span><span class="p">,</span> <span class="n">get_tensor_product_quadrature_rule</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">piecewise_quadratic_interpolation</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">mesh_vals</span><span class="p">,</span> <span class="n">ranges</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">mesh</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">mesh_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="p">(</span><span class="n">samples</span><span class="o">-</span><span class="n">ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="p">(</span><span class="n">ranges</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+        <span class="n">xl</span> <span class="o">=</span> <span class="n">mesh</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+        <span class="n">xr</span> <span class="o">=</span> <span class="n">mesh</span><span class="p">[</span><span class="n">ii</span><span class="o">+</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="p">(</span><span class="n">samples</span><span class="o">-</span><span class="n">xl</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">xr</span><span class="o">-</span><span class="n">xl</span><span class="p">)</span>
+        <span class="n">interval_vals</span> <span class="o">=</span> <span class="n">canonical_piecewise_quadratic_interpolation</span><span class="p">(</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">mesh_vals</span><span class="p">[</span><span class="n">ii</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">3</span><span class="p">])</span>
+        <span class="c1"># to avoid double counting we set left boundary of each interval to</span>
+        <span class="c1"># zero except for first interval</span>
+        <span class="k">if</span> <span class="n">ii</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">interval_vals</span><span class="p">[(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="mf">0.</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">interval_vals</span><span class="p">[(</span><span class="n">x</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="mf">0.</span>
+        <span class="n">vals</span> <span class="o">+=</span> <span class="n">interval_vals</span>
+    <span class="k">return</span> <span class="n">vals</span>
+
+
+<span class="k">def</span> <span class="nf">canonical_piecewise_quadratic_interpolation</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">nodal_vals</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Piecewise quadratic interpolation of nodes at [0,0.5,1]</span>
+<span class="sd">    Assumes all values are in [0,1].</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">nodal_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="n">vals</span> <span class="o">=</span> <span class="n">nodal_vals</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="mf">1.0</span><span class="o">-</span><span class="mf">3.0</span><span class="o">*</span><span class="n">x</span><span class="o">+</span><span class="mf">2.0</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">+</span><span class="n">nodal_vals</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="mf">4.0</span><span class="o">*</span><span class="n">x</span><span class="o">-</span><span class="mf">4.0</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span>\
+        <span class="n">nodal_vals</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="o">+</span><span class="mf">2.0</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">vals</span>
+
+
+<span class="k">def</span> <span class="nf">gradient_of_tensor_product_function</span><span class="p">(</span><span class="n">univariate_functions</span><span class="p">,</span>
+                                        <span class="n">univariate_derivatives</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+    <span class="n">num_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">univariate_functions</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">univariate_derivatives</span><span class="p">)</span> <span class="o">==</span> <span class="n">num_vars</span>
+    <span class="n">gradient</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">))</span>
+    <span class="c1"># precompute data which is reused multiple times</span>
+    <span class="n">function_values</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_vars</span><span class="p">):</span>
+        <span class="n">function_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">univariate_functions</span><span class="p">[</span><span class="n">ii</span><span class="p">](</span><span class="n">samples</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]))</span>
+
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_vars</span><span class="p">):</span>
+        <span class="n">gradient</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">univariate_derivatives</span><span class="p">[</span><span class="n">ii</span><span class="p">](</span><span class="n">samples</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:])</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ii</span><span class="p">):</span>
+            <span class="n">gradient</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*=</span> <span class="n">function_values</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">):</span>
+            <span class="n">gradient</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*=</span> <span class="n">function_values</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">gradient</span>
+
+
+<span class="k">def</span> <span class="nf">evaluate_tensor_product_function</span><span class="p">(</span><span class="n">univariate_functions</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+    <span class="n">num_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">univariate_functions</span><span class="p">)</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">num_samples</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_vars</span><span class="p">):</span>
+        <span class="n">values</span> <span class="o">*=</span> <span class="n">univariate_functions</span><span class="p">[</span><span class="n">ii</span><span class="p">](</span><span class="n">samples</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:])</span>
+    <span class="k">return</span> <span class="n">values</span>
+
+
+<span class="k">def</span> <span class="nf">piecewise_univariate_linear_quad_rule</span><span class="p">(</span><span class="n">range_1d</span><span class="p">,</span> <span class="n">npoints</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the points and weights of a piecewise-linear quadrature</span>
+<span class="sd">    rule that can be used to compute a definite integral</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    range_1d : iterable (2)</span>
+<span class="sd">       The lower and upper bound of the definite integral</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    xx : np.ndarray (npoints)</span>
+<span class="sd">        The points of the quadrature rule</span>
+
+<span class="sd">    ww : np.ndarray (npoints)</span>
+<span class="sd">        The weights of the quadrature rule</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">xx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">npoints</span><span class="p">)</span>
+    <span class="n">ww</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">npoints</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="n">npoints</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">ww</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*=</span> <span class="mf">0.5</span>
+    <span class="n">ww</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*=</span> <span class="mf">0.5</span>
+    <span class="k">return</span> <span class="n">xx</span><span class="p">,</span> <span class="n">ww</span>
+
+
+<span class="k">def</span> <span class="nf">piecewise_univariate_quadratic_quad_rule</span><span class="p">(</span><span class="n">range_1d</span><span class="p">,</span> <span class="n">npoints</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the points and weights of a piecewise-quadratic quadrature</span>
+<span class="sd">    rule that can be used to compute a definite integral</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    range_1d : iterable (2)</span>
+<span class="sd">       The lower and upper bound of the definite integral</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    xx : np.ndarray (npoints)</span>
+<span class="sd">        The points of the quadrature rule</span>
+
+<span class="sd">    ww : np.ndarray (npoints)</span>
+<span class="sd">        The weights of the quadrature rule</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">xx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">npoints</span><span class="p">)</span>
+    <span class="n">dx</span> <span class="o">=</span> <span class="mi">4</span><span class="o">/</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="p">(</span><span class="n">npoints</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">ww</span> <span class="o">=</span> <span class="n">dx</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">npoints</span><span class="p">))</span><span class="o">*</span><span class="p">(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">ww</span><span class="p">[</span><span class="mi">0</span><span class="p">::</span><span class="mi">2</span><span class="p">]</span> <span class="o">*=</span> <span class="mf">0.5</span>
+    <span class="n">ww</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*=</span> <span class="mf">0.5</span>
+    <span class="n">ww</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*=</span> <span class="mf">0.5</span>
+    <span class="k">return</span> <span class="n">xx</span><span class="p">,</span> <span class="n">ww</span>
+
+
+<div class="viewcode-block" id="get_tensor_product_piecewise_polynomial_quadrature_rule"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.get_tensor_product_piecewise_polynomial_quadrature_rule.html#pyapprox.surrogates.get_tensor_product_piecewise_polynomial_quadrature_rule">[docs]</a><span class="k">def</span> <span class="nf">get_tensor_product_piecewise_polynomial_quadrature_rule</span><span class="p">(</span>
+        <span class="n">nsamples_1d</span><span class="p">,</span> <span class="n">ranges</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the nodes and weights needed to integrate a 2D function using</span>
+<span class="sd">    piecewise linear interpolation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nrandom_vars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ranges</span><span class="p">)</span><span class="o">//</span><span class="mi">2</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">nsamples_1d</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="n">nsamples_1d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">nsamples_1d</span><span class="p">]</span><span class="o">*</span><span class="n">nrandom_vars</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">nrandom_vars</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">nsamples_1d</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">degree</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">piecewise_univariate_quad_rule</span> <span class="o">=</span> <span class="n">piecewise_univariate_linear_quad_rule</span>
+    <span class="k">elif</span> <span class="n">degree</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">piecewise_univariate_quad_rule</span> <span class="o">=</span> \
+            <span class="n">piecewise_univariate_quadratic_quad_rule</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;degree must be 1 or 2&quot;</span><span class="p">)</span>
+
+    <span class="n">univariate_quad_rules</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">partial</span><span class="p">(</span><span class="n">piecewise_univariate_quad_rule</span><span class="p">,</span> <span class="n">ranges</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="p">:</span><span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="o">+</span><span class="mi">2</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nrandom_vars</span><span class="p">)]</span>
+    <span class="n">x_quad</span><span class="p">,</span> <span class="n">w_quad</span> <span class="o">=</span> <span class="n">get_tensor_product_quadrature_rule</span><span class="p">(</span>
+        <span class="n">nsamples_1d</span><span class="p">,</span> <span class="n">nrandom_vars</span><span class="p">,</span>
+        <span class="n">univariate_quad_rules</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">x_quad</span><span class="p">,</span> <span class="n">w_quad</span></div>
+
+
+<span class="nd">@njit</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">piecewise_quadratic_basis</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="n">xx</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Evaluate each piecewise quadratic basis on a dydatic grid of a specified</span>
+<span class="sd">    level.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">        The level of the dydadic grid. The number of points in the grid is</span>
+<span class="sd">        nbasis=2**level+1, except at level 0 when nbasis=1</span>
+
+<span class="sd">    xx : np.ndarary (nsamples)</span>
+<span class="sd">        The samples at which to evaluate the basis functions</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    vals : np.ndarary (nsamples, nbasis)</span>
+<span class="sd">        Evaluations of each basis function</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">level</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">level</span><span class="p">)</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">level</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span>
+    <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">xx</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">N</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
+        <span class="n">xl</span> <span class="o">=</span> <span class="p">(</span><span class="n">ii</span><span class="o">-</span><span class="mf">1.0</span><span class="p">)</span><span class="o">*</span><span class="n">h</span>
+        <span class="n">xr</span> <span class="o">=</span> <span class="n">xl</span><span class="o">+</span><span class="mf">2.0</span><span class="o">*</span><span class="n">h</span>
+        <span class="k">if</span> <span class="n">ii</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">vals</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">xx</span><span class="o">-</span><span class="n">xl</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">xx</span><span class="o">-</span><span class="n">xr</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">h</span><span class="o">*</span><span class="n">h</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">xx</span> <span class="o">&gt;</span> <span class="n">xl</span><span class="o">-</span><span class="n">h</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">xx</span> <span class="o">&lt;</span> <span class="n">xl</span><span class="o">+</span><span class="n">h</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">xx_II</span> <span class="o">=</span> <span class="n">xx</span><span class="p">[</span><span class="n">II</span><span class="p">]</span>
+        <span class="n">vals</span><span class="p">[</span><span class="n">II</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">xx_II</span><span class="o">**</span><span class="mi">2</span><span class="o">-</span><span class="n">h</span><span class="o">*</span><span class="n">xx_II</span><span class="o">*</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="o">-</span><span class="mi">3</span><span class="p">)</span><span class="o">+</span><span class="n">h</span><span class="o">*</span><span class="n">h</span><span class="o">*</span><span class="p">(</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">ii</span><span class="o">-</span><span class="mi">2</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="mf">2.</span><span class="o">*</span><span class="n">h</span><span class="o">*</span><span class="n">h</span><span class="p">)</span>
+        <span class="n">JJ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">xx</span> <span class="o">&gt;=</span> <span class="n">xl</span><span class="o">+</span><span class="n">h</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">xx</span> <span class="o">&lt;</span> <span class="n">xr</span><span class="o">+</span><span class="n">h</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">xx_JJ</span> <span class="o">=</span> <span class="n">xx</span><span class="p">[</span><span class="n">JJ</span><span class="p">]</span>
+        <span class="n">vals</span><span class="p">[</span><span class="n">JJ</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">xx_JJ</span><span class="o">**</span><span class="mi">2</span><span class="o">-</span><span class="n">h</span><span class="o">*</span><span class="n">xx_JJ</span><span class="o">*</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="o">+</span><span class="mi">3</span><span class="p">)</span><span class="o">+</span><span class="n">h</span><span class="o">*</span><span class="n">h</span><span class="o">*</span><span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">2</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="mf">2.</span><span class="o">*</span><span class="n">h</span><span class="o">*</span><span class="n">h</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">vals</span>
+
+
+<span class="k">def</span> <span class="nf">piecewise_linear_basis</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="n">xx</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Evaluate each piecewise linear basis on a dydatic grid of a specified</span>
+<span class="sd">    level.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">        The level of the dydadic grid. The number of points in the grid is</span>
+<span class="sd">        nbasis=2**level+1, except at level 0 when nbasis=1</span>
+
+<span class="sd">    xx : np.ndarary (nsamples)</span>
+<span class="sd">        The samples at which to evaluate the basis functions</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    vals : np.ndarary (nsamples, nbasis)</span>
+<span class="sd">        Evaluations of each basis function</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">level</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">level</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span>
+    <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span>
+        <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">((</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">level</span><span class="p">)</span><span class="o">*</span><span class="n">xx</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="p">)[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]))</span>
+    <span class="k">return</span> <span class="n">vals</span>
+
+
+<span class="k">def</span> <span class="nf">nsamples_dydactic_grid_1d</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The number of points in a dydactic grid.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">        The level of the dydadic grid.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    nsamples : integer</span>
+<span class="sd">        The number of points in the grid</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">level</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span>
+
+
+<span class="k">def</span> <span class="nf">dydactic_grid_1d</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The points in a dydactic grid.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">        The level of the dydadic grid.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    samples : np.ndarray(nbasis)</span>
+<span class="sd">        The points in the grid</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nsamples_dydactic_grid_1d</span><span class="p">(</span><span class="n">level</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">tensor_product_piecewise_polynomial_basis</span><span class="p">(</span>
+        <span class="n">levels</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="s2">&quot;linear&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Evaluate each piecewise polynomial basis on a tensor product dydactic grid</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    levels : array_like (nvars)</span>
+<span class="sd">        The levels of each 1D dydadic grid.</span>
+
+<span class="sd">    samples : np.ndarray (nvars, nsamples)</span>
+<span class="sd">        The samples at which to evaluate the basis functions</span>
+
+<span class="sd">    basis_type : string</span>
+<span class="sd">        The type of piecewise polynomial basis, i.e. &#39;linear&#39; or &#39;quadratic&#39;</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    basis_vals : np.ndarray(nsamples, nbasis)</span>
+<span class="sd">        Evaluations of each basis function</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nvars</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">levels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">levels</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">levels</span><span class="p">)</span> <span class="o">!=</span> <span class="n">nvars</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;levels and samples are inconsistent&quot;</span><span class="p">)</span>
+
+    <span class="n">basis_fun</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;linear&quot;</span><span class="p">:</span> <span class="n">piecewise_linear_basis</span><span class="p">,</span>
+                 <span class="s2">&quot;quadratic&quot;</span><span class="p">:</span> <span class="n">piecewise_quadratic_basis</span><span class="p">}[</span><span class="n">basis_type</span><span class="p">]</span>
+
+    <span class="n">active_vars</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nvars</span><span class="p">)[</span><span class="n">levels</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">nactive_vars</span> <span class="o">=</span> <span class="n">active_vars</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">nsamples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">N_active</span> <span class="o">=</span> <span class="p">[</span><span class="n">nsamples_dydactic_grid_1d</span><span class="p">(</span><span class="n">ll</span><span class="p">)</span> <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="n">levels</span><span class="p">[</span><span class="n">active_vars</span><span class="p">]]</span>
+    <span class="n">N_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">N_active</span><span class="p">)</span>
+    <span class="n">basis_vals_1d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nactive_vars</span><span class="p">,</span> <span class="n">N_max</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">),</span>
+                             <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nactive_vars</span><span class="p">):</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">active_vars</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span>
+        <span class="n">basis_vals_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:</span><span class="n">N_active</span><span class="p">[</span><span class="n">dd</span><span class="p">],</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">basis_fun</span><span class="p">(</span>
+            <span class="n">levels</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="n">samples</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="p">:])</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">temp1</span> <span class="o">=</span> <span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">nactive_vars</span><span class="o">*</span><span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">nsamples</span><span class="p">))</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="k">for</span> <span class="n">N</span> <span class="ow">in</span> <span class="n">N_active</span><span class="p">])</span>
+    <span class="n">nindices</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">temp2</span> <span class="o">=</span> <span class="n">temp1</span><span class="p">[</span><span class="n">indices</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nactive_vars</span><span class="p">)</span><span class="o">*</span><span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">nindices</span><span class="p">),</span> <span class="p">:]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+            <span class="n">nactive_vars</span><span class="p">,</span> <span class="n">nindices</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">)</span>
+    <span class="n">basis_vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">temp2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+    <span class="k">return</span> <span class="n">basis_vals</span>
+
+
+<span class="k">def</span> <span class="nf">tensor_product_piecewise_polynomial_interpolation_with_values</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">fn_vals</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="s2">&quot;linear&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Use a piecewise polynomial basis to interpolate a function from values</span>
+<span class="sd">    defined on a tensor product dydactic grid.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    samples : np.ndarray (nvars, nsamples)</span>
+<span class="sd">        The samples at which to evaluate the basis functions</span>
+
+<span class="sd">    fn_vals : np.ndarary (nbasis, nqoi)</span>
+<span class="sd">        The values of the function on the dydactic grid</span>
+
+<span class="sd">    levels : array_like (nvars)</span>
+<span class="sd">        The levels of each 1D dydadic grid.</span>
+
+<span class="sd">    basis_type : string</span>
+<span class="sd">        The type of piecewise polynomial basis, i.e. &#39;linear&#39; or &#39;quadratic&#39;</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    basis_vals : np.ndarray(nsamples, nqoi)</span>
+<span class="sd">        Evaluations of the interpolant at the samples</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">basis_vals</span> <span class="o">=</span> <span class="n">tensor_product_piecewise_polynomial_basis</span><span class="p">(</span>
+        <span class="n">levels</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">basis_type</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">fn_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">basis_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The size of fn_vals is inconsistent with levels&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">basis_vals</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">fn_vals</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="tensor_product_piecewise_polynomial_interpolation"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.tensor_product_piecewise_polynomial_interpolation.html#pyapprox.surrogates.tensor_product_piecewise_polynomial_interpolation">[docs]</a><span class="k">def</span> <span class="nf">tensor_product_piecewise_polynomial_interpolation</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="s2">&quot;linear&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Use tensor-product piecewise polynomial basis to interpolate a function.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    samples : np.ndarray (nvars, nsamples)</span>
+<span class="sd">        The samples at which to evaluate the basis functions</span>
+
+<span class="sd">    levels : array_like (nvars)</span>
+<span class="sd">        The levels of each 1D dydadic grid.</span>
+
+<span class="sd">    fun : callable</span>
+<span class="sd">        Function with the signature</span>
+
+<span class="sd">        `fun(samples) -&gt; np.ndarray (nx, nqoi)`</span>
+
+<span class="sd">        where samples is np.ndarray (nvars, nx)</span>
+
+<span class="sd">    basis_type : string</span>
+<span class="sd">        The type of piecewise polynomial basis, i.e. &#39;linear&#39; or &#39;quadratic&#39;</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    basis_vals : np.ndarray(nsamples, nqoi)</span>
+<span class="sd">        Evaluations of the interpolant at the samples</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">samples_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">dydactic_grid_1d</span><span class="p">(</span><span class="n">ll</span><span class="p">)</span> <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="n">levels</span><span class="p">]</span>
+    <span class="n">grid_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">samples_1d</span><span class="p">)</span>
+    <span class="n">fn_vals</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">grid_samples</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">tensor_product_piecewise_polynomial_interpolation_with_values</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">fn_vals</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">basis_type</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

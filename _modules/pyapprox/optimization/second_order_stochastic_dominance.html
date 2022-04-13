@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.optimization.second_order_stochastic_dominance &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.optimization.second_order_stochastic_dominance</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.optimization.second_order_stochastic_dominance</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.variables.risk</span> <span class="kn">import</span> <span class="n">compute_conditional_expectations</span>
+<span class="kn">from</span> <span class="nn">pyapprox.optimization.first_order_stochastic_dominance</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">FSDOptProblem</span><span class="p">,</span> <span class="n">smooth_max_function_log</span><span class="p">,</span>
+    <span class="n">smooth_max_function_first_derivative_log</span><span class="p">,</span>
+    <span class="n">smooth_max_function_second_derivative_log</span><span class="p">,</span> <span class="n">linear_model_fun</span><span class="p">,</span>
+    <span class="n">linear_model_jac</span>
+<span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">SSDOptProblem</span><span class="p">(</span><span class="n">FSDOptProblem</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Solve disutility stochastic dominance</span>
+
+<span class="sd">    -Y \ge -Y^\prime</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">set_smoother</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">smoother_type</span> <span class="o">=</span> <span class="n">smoother_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eps</span> <span class="o">=</span> <span class="n">eps</span>
+
+        <span class="n">smoothers</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">smoothers</span><span class="p">[</span><span class="s1">&#39;log&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">smooth_max_function_log</span><span class="p">,</span>
+            <span class="n">smooth_max_function_first_derivative_log</span><span class="p">,</span>
+            <span class="n">smooth_max_function_second_derivative_log</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">smoother_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">smoothers</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Smoother </span><span class="si">{</span><span class="n">smoother_type</span><span class="si">}</span><span class="s1"> not found&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">smooth_fun</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">smooth_jac</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">smooth_hess</span> <span class="o">=</span> \
+            <span class="p">[</span><span class="n">partial</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">eps</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">smoothers</span><span class="p">[</span><span class="n">smoother_type</span><span class="p">]]</span>
+
+    <span class="k">def</span> <span class="nf">constraint_fun</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the constraints. The nth row of the Jacobian is</span>
+<span class="sd">        the derivative of the nth constraint :math:`c_n(x)`.</span>
+<span class="sd">        Let :math:`h(z)` be the smooth max function and :math:`f(x)` the</span>
+<span class="sd">        function approximation evaluated</span>
+<span class="sd">        at the training samples and coeficients :math:`x`, then</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">           c_n(x) =</span>
+<span class="sd">           \sum_{m=1}^M h(f(x_m)-f(x_n))- h(y_m-f(x_n))\ge 0</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : np.ndarray (ncoef)</span>
+<span class="sd">            The unknowns</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        jac : np.ndarray(nconstraints, ncoef)</span>
+<span class="sd">            The Jacobian of the constraints</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># We can use the same function but smoothers and bounds</span>
+        <span class="c1"># are different. FSD bounds are (-oo, 0) and SSD are (0, oo)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">constraint_fun</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_constraint_bounds</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">nconstraints</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">lb</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nconstraints</span><span class="p">)</span>
+        <span class="n">ub</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">nconstraints</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">lb</span><span class="p">,</span> <span class="n">ub</span>
+
+    <span class="k">def</span> <span class="nf">debug_plot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">pce_vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">pce_econds</span> <span class="o">=</span> <span class="n">compute_conditional_expectations</span><span class="p">(</span><span class="n">pce_vals</span><span class="p">,</span> <span class="n">pce_vals</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">train_econds</span> <span class="o">=</span> <span class="n">compute_conditional_expectations</span><span class="p">(</span>
+            <span class="n">pce_vals</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">pce_vals</span><span class="p">,</span> <span class="n">pce_econds</span><span class="p">,</span> <span class="s1">&#39;o-k&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$\mathrm</span><span class="si">{Approx}</span><span class="s1">$&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">pce_vals</span><span class="p">,</span> <span class="n">train_econds</span><span class="p">,</span> <span class="s1">&#39;s-r&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$\mathrm</span><span class="si">{Train}</span><span class="s1">$&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="solve_SSD_constrained_least_squares_smooth"><a class="viewcode-back" href="../../../api/pyapprox.optimization.solve_SSD_constrained_least_squares_smooth.html#pyapprox.optimization.solve_SSD_constrained_least_squares_smooth">[docs]</a><span class="k">def</span> <span class="nf">solve_SSD_constrained_least_squares_smooth</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">eval_basis_matrix</span><span class="p">,</span> <span class="n">eta_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">probabilities</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-1</span><span class="p">,</span> <span class="n">optim_options</span><span class="o">=</span><span class="p">{},</span> <span class="n">return_full</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">method</span><span class="o">=</span><span class="s1">&#39;trust-constr&#39;</span><span class="p">,</span> <span class="n">smoother_type</span><span class="o">=</span><span class="s1">&#39;log&#39;</span><span class="p">,</span> <span class="n">scale_data</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Solve second order stochastic dominance (SSD) constrained least squares</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    samples : np.ndarary (nvars, nsamples)</span>
+<span class="sd">        The training samples</span>
+
+<span class="sd">    values : np.ndarary (nsamples, 1)</span>
+<span class="sd">        The function values at the training samples</span>
+
+<span class="sd">    eval_basis_matrix : callable</span>
+<span class="sd">        A function returning the basis evaluated at the set of samples</span>
+<span class="sd">        with signature</span>
+<span class="sd">        ``eval_basis_matrix(samples) -&gt; np.ndarray (nsamples, nbasis)``</span>
+
+<span class="sd">    eta_indices : np.ndarray (nconstraint_samples)</span>
+<span class="sd">        Indices of the training data at which constraints are enforced</span>
+<span class="sd">        `neta &lt;= nsamples`</span>
+
+<span class="sd">    probabilities : np.ndarray(nvalues)</span>
+<span class="sd">        The probability weight assigned to each training data. When</span>
+<span class="sd">        sampling randomly from a probability measure the probabilities</span>
+<span class="sd">        are all 1/nsamples</span>
+
+<span class="sd">    eps : float</span>
+<span class="sd">        A parameter which controls the amount that the heaviside function</span>
+<span class="sd">        is smoothed. As eps decreases the smooth approximation converges to</span>
+<span class="sd">        the heaviside function but the derivatives of the approximation</span>
+<span class="sd">        become more difficult to compute</span>
+
+<span class="sd">    optim_options : dict</span>
+<span class="sd">        The keyword arguments passed to the non-linear optimization used</span>
+<span class="sd">        to solve the regression problem</span>
+
+<span class="sd">    smoother_type : string</span>
+<span class="sd">        The name of the function used to smooth the heaviside function</span>
+<span class="sd">        Supported types are `[quartic, quintic, log]`</span>
+
+<span class="sd">    return_full : boolean</span>
+<span class="sd">        False - return regression solution</span>
+<span class="sd">        True - return regression solution and regression optimizer object</span>
+
+<span class="sd">    method : string</span>
+<span class="sd">        The name of the non-linear solver used to solve the regresion problem</span>
+
+<span class="sd">    scale_data : boolean</span>
+<span class="sd">        False - use raw training values</span>
+<span class="sd">        True - scale training values to have unit standard deviation</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    coef : np.narray (nbasis, 1)</span>
+<span class="sd">        The solution to the regression problem</span>
+
+<span class="sd">    opt_problem : :py:class:`SSDOptProblem`</span>
+<span class="sd">        The object used to solve the regression problem</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">num_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">probabilities</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">probabilities</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">num_samples</span><span class="p">))</span><span class="o">/</span><span class="n">num_samples</span>
+
+    <span class="k">if</span> <span class="n">eta_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">eta_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_samples</span><span class="p">)</span>
+
+    <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">eval_basis_matrix</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+
+    <span class="n">fun</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">linear_model_fun</span><span class="p">,</span> <span class="n">basis_matrix</span><span class="p">)</span>
+    <span class="n">jac</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">linear_model_jac</span><span class="p">,</span> <span class="n">basis_matrix</span><span class="p">)</span>
+    <span class="n">probabilities</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">num_samples</span><span class="p">))</span><span class="o">/</span><span class="n">num_samples</span>
+    <span class="n">ncoef</span> <span class="o">=</span> <span class="n">basis_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">scale_data</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">values_std</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">std</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">values_std</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">scaled_values</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">/</span><span class="n">values_std</span>
+
+    <span class="n">x0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">scaled_values</span><span class="p">,</span> <span class="n">rcond</span><span class="o">=</span><span class="kc">None</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">residual</span> <span class="o">=</span> <span class="n">scaled_values</span><span class="o">-</span><span class="n">basis_matrix</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>
+    <span class="n">x0</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">residual</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">+</span><span class="n">eps</span><span class="p">)</span>
+
+    <span class="n">ssd_opt_problem</span> <span class="o">=</span> <span class="n">SSDOptProblem</span><span class="p">(</span>
+        <span class="n">scaled_values</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">jac</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">eta_indices</span><span class="p">,</span> <span class="n">probabilities</span><span class="p">,</span>
+        <span class="n">smoother_type</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">ncoef</span><span class="p">)</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="n">ssd_opt_problem</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">x0</span><span class="p">,</span> <span class="n">optim_options</span><span class="p">,</span> <span class="n">method</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span> <span class="ow">is</span> <span class="kc">True</span>
+    <span class="n">coef</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">x</span><span class="o">*</span><span class="n">values_std</span>
+    <span class="c1"># ssd_opt_problem.debug_plot(coef)</span>
+
+    <span class="k">if</span> <span class="n">return_full</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">coef</span><span class="p">,</span> <span class="n">ssd_opt_problem</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">coef</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

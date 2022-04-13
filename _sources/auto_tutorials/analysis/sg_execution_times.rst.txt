@@ -1,0 +1,12 @@
+
+:orphan:
+
+.. _sphx_glr_auto_tutorials_analysis_sg_execution_times:
+
+Computation times
+=================
+**00:00.925** total execution time for **auto_tutorials_analysis** files:
+
++---------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_analysis_plot_sensitivity_analysis.py` (``plot_sensitivity_analysis.py``) | 00:00.925 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------+-----------+--------+

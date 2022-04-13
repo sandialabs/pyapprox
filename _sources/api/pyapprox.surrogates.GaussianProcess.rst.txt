@@ -1,0 +1,33 @@
+GaussianProcess
+===============
+
+.. currentmodule:: pyapprox.surrogates
+
+.. autoclass:: GaussianProcess
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~GaussianProcess.__call__
+      ~GaussianProcess.condition_number
+      ~GaussianProcess.fit
+      ~GaussianProcess.get_training_samples
+      ~GaussianProcess.map_from_canonical
+      ~GaussianProcess.map_to_canonical
+      ~GaussianProcess.num_training_samples
+      ~GaussianProcess.predict_random_realization
+      ~GaussianProcess.set_variable_transformation
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: condition_number
+   .. automethod:: fit
+   .. automethod:: get_training_samples
+   .. automethod:: map_from_canonical
+   .. automethod:: map_to_canonical
+   .. automethod:: num_training_samples
+   .. automethod:: predict_random_realization
+   .. automethod:: set_variable_transformation

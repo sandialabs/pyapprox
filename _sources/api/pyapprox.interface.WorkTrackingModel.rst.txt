@@ -1,0 +1,19 @@
+WorkTrackingModel
+=================
+
+.. currentmodule:: pyapprox.interface
+
+.. autoclass:: WorkTrackingModel
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~WorkTrackingModel.__call__
+      ~WorkTrackingModel.cost_function
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: cost_function

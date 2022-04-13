@@ -4,38 +4,46 @@
 
 .. _sphx_glr_auto_examples:
 
-PyApprox Tutorials
+Software Tutorials
 ==================
 
-Below is a gallery of tutorials providing detailed mathematical background on the methods in Pyapprox.
+Below is a gallery of examples showing how to use different methods in PyApprox with the least amount of code.
 
-This tutorials provide more detail than the set of examples found here which simply show how to use different methods with the least amount of code.
-
-
-.. raw:: html
-
-    <div class="sphx-glr-clear"></div>
-
-
-
-.. _sphx_glr_auto_examples_foundations:
-
-Foundations
------------
-Below is a gallery of foundational tutorials on model and data analysis.
+These examples provide less mathematical background than the set of tutorials found here.
 
 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="We start by defining a function of two random variables. We will use the Rosenbrock becnhmark. ...">
+    <div class="sphx-glr-thumbcontainer" tooltip="PyApprox supports multivariate random variables comprised of independent univariate variables. ...">
 
 .. only:: html
 
- .. figure:: /auto_examples/foundations/images/thumb/sphx_glr_plot_setup_model_thumb.png
+ .. figure:: /auto_examples/images/thumb/sphx_glr_plot_variables_thumb.png
+     :alt: Random Variables
+
+     :ref:`sphx_glr_auto_examples_plot_variables.py`
+
+.. raw:: html
+
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   /auto_examples/plot_variables
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="We start by defining a function of two random variables. We will use the Rosenbrock benchmark. ...">
+
+.. only:: html
+
+ .. figure:: /auto_examples/images/thumb/sphx_glr_plot_setup_model_thumb.png
      :alt: Model Definition
 
-     :ref:`sphx_glr_auto_examples_foundations_plot_setup_model.py`
+     :ref:`sphx_glr_auto_examples_plot_setup_model.py`
 
 .. raw:: html
 
@@ -45,18 +53,18 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. toctree::
    :hidden:
 
-   /auto_examples/foundations/plot_setup_model
+   /auto_examples/plot_setup_model
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Partial Differential Equations ------------------------------ We seek to quantify uncertainty i...">
+    <div class="sphx-glr-thumbcontainer" tooltip="Model interfacing">
 
 .. only:: html
 
- .. figure:: /auto_examples/foundations/images/thumb/sphx_glr_plot_advection_diffusion_model_thumb.png
-     :alt: Numerical Approximations of Governing Equations
+ .. figure:: /auto_examples/images/thumb/sphx_glr_plot_interface_thumb.png
+     :alt: Model interfacing
 
-     :ref:`sphx_glr_auto_examples_foundations_plot_advection_diffusion_model.py`
+     :ref:`sphx_glr_auto_examples_plot_interface.py`
 
 .. raw:: html
 
@@ -66,18 +74,18 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. toctree::
    :hidden:
 
-   /auto_examples/foundations/plot_advection_diffusion_model
+   /auto_examples/plot_interface
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="We can approximate th integral Q_\alpha using Monte Carlo quadrature by drawing N random sample...">
+    <div class="sphx-glr-thumbcontainer" tooltip="Lets first generate parameter sweeps for the oakley benchmark. Each sweep will  be a random dir...">
 
 .. only:: html
 
- .. figure:: /auto_examples/foundations/images/thumb/sphx_glr_plot_monte_carlo_thumb.png
-     :alt: Monte Carlo Quadrature
+ .. figure:: /auto_examples/images/thumb/sphx_glr_plot_parameter_sweeps_thumb.png
+     :alt: Parameter Sweeps
 
-     :ref:`sphx_glr_auto_examples_foundations_plot_monte_carlo.py`
+     :ref:`sphx_glr_auto_examples_plot_parameter_sweeps.py`
 
 .. raw:: html
 
@@ -87,18 +95,18 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. toctree::
    :hidden:
 
-   /auto_examples/foundations/plot_monte_carlo
+   /auto_examples/plot_parameter_sweeps
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Background ---------- When observational data are available, that data should be used to inform...">
+    <div class="sphx-glr-thumbcontainer" tooltip="Low-discrepancy quadrature">
 
 .. only:: html
 
- .. figure:: /auto_examples/foundations/images/thumb/sphx_glr_plot_bayesian_inference_thumb.png
-     :alt: Bayesian Inference
+ .. figure:: /auto_examples/images/thumb/sphx_glr_plot_low_discrepancy_quadrature_thumb.png
+     :alt: Low-discrepancy quadrature
 
-     :ref:`sphx_glr_auto_examples_foundations_plot_bayesian_inference.py`
+     :ref:`sphx_glr_auto_examples_plot_low_discrepancy_quadrature.py`
 
 .. raw:: html
 
@@ -108,18 +116,18 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. toctree::
    :hidden:
 
-   /auto_examples/foundations/plot_bayesian_inference
+   /auto_examples/plot_low_discrepancy_quadrature
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="PFI solves the inverse problem of inferring parameters \rv of a deterministic model f(\rv) from...">
+    <div class="sphx-glr-thumbcontainer" tooltip="To generate a univariate quadrature rule for uniform random variables">
 
 .. only:: html
 
- .. figure:: /auto_examples/foundations/images/thumb/sphx_glr_plot_push_forward_based_inference_thumb.png
-     :alt: Push Forward Based Inference
+ .. figure:: /auto_examples/images/thumb/sphx_glr_plot_gaussian_quadrature_thumb.png
+     :alt: Univariate Gaussian Quadrature
 
-     :ref:`sphx_glr_auto_examples_foundations_plot_push_forward_based_inference.py`
+     :ref:`sphx_glr_auto_examples_plot_gaussian_quadrature.py`
 
 .. raw:: html
 
@@ -129,18 +137,18 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. toctree::
    :hidden:
 
-   /auto_examples/foundations/plot_push_forward_based_inference
+   /auto_examples/plot_gaussian_quadrature
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Generally speaking surrogates are built using a ``small&#x27;&#x27; number of model simulations and are t...">
+    <div class="sphx-glr-thumbcontainer" tooltip="We must define the univariate grids that we will use to construct the tensor product grid. Whil...">
 
 .. only:: html
 
- .. figure:: /auto_examples/foundations/images/thumb/sphx_glr_plot_tensor_product_interpolation_thumb.png
-     :alt: Surrogate Modeling
+ .. figure:: /auto_examples/images/thumb/sphx_glr_plot_barycentric_interpolation_thumb.png
+     :alt: Multivariate Lagrange Interpolation
 
-     :ref:`sphx_glr_auto_examples_foundations_plot_tensor_product_interpolation.py`
+     :ref:`sphx_glr_auto_examples_plot_barycentric_interpolation.py`
 
 .. raw:: html
 
@@ -150,18 +158,18 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. toctree::
    :hidden:
 
-   /auto_examples/foundations/plot_tensor_product_interpolation
+   /auto_examples/plot_barycentric_interpolation
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Sobol Indices ------------- Any function f with finite variance parameterized by a set of indep...">
+    <div class="sphx-glr-thumbcontainer" tooltip="Multivariate Piecewise Polynomial Interpolation">
 
 .. only:: html
 
- .. figure:: /auto_examples/foundations/images/thumb/sphx_glr_plot_sensitivity_analysis_thumb.png
-     :alt: Sensitivity Analysis
+ .. figure:: /auto_examples/images/thumb/sphx_glr_plot_multivariate_piecewise_polynomial_interpolation_thumb.png
+     :alt: Multivariate Piecewise Polynomial Interpolation
 
-     :ref:`sphx_glr_auto_examples_foundations_plot_sensitivity_analysis.py`
+     :ref:`sphx_glr_auto_examples_plot_multivariate_piecewise_polynomial_interpolation.py`
 
 .. raw:: html
 
@@ -171,18 +179,18 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. toctree::
    :hidden:
 
-   /auto_examples/foundations/plot_sensitivity_analysis
+   /auto_examples/plot_multivariate_piecewise_polynomial_interpolation
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Directed Acyclic Graphs ----------------------- A Bayesian network (BN) structure is a directed...">
+    <div class="sphx-glr-thumbcontainer" tooltip="First lets define a Integrator class which can be used to integrate multivariate functions with...">
 
 .. only:: html
 
- .. figure:: /auto_examples/foundations/images/thumb/sphx_glr_plot_bayesian_networks_thumb.png
-     :alt: Gaussian Networks
+ .. figure:: /auto_examples/images/thumb/sphx_glr_plot_pde_convergence_thumb.png
+     :alt: Convergence studies
 
-     :ref:`sphx_glr_auto_examples_foundations_plot_bayesian_networks.py`
+     :ref:`sphx_glr_auto_examples_plot_pde_convergence.py`
 
 .. raw:: html
 
@@ -192,63 +200,18 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. toctree::
    :hidden:
 
-   /auto_examples/foundations/plot_bayesian_networks
-.. raw:: html
-
-    <div class="sphx-glr-clear"></div>
-
-
-
-.. _sphx_glr_auto_examples_multi_fidelity:
-
-Multi-Fidelity Methods
-----------------------
-
-Multi-fidelity methods utilize an ensemble of models, enriching a small number of high-fidelity simulations with larger numbers of simulations from models of varying prediction accuracy and reduced cost, to enable greater exploration and resolution of uncertainty while maintaining deterministic prediction accuracy. The effectiveness of multi-fidelity approaches depends on the ability to identify and exploit relationships among models within the ensemble.
-
-The relationships among models within a model ensemble vary greatly, and most existing approaches focus on exploiting a specific type of structure for a presumed model sequence. For example, [KOB2000]_, [LGIJUQ2014]_, [NGXSISC2014]_ build approximations that leverage a hierarchy of models of increasing fidelity, with varying physics and/or numerical discretizations. Multi-level [GOR2008]_, [TJWGSIAMUQ2015]_ and multi-index [HNTTCMAME2016]_ also leverage a set of models of increasing fidelity, with the additional assumption that a model sequence forms a convergent hierarchy.
-
-This gallery of tutorials discusses the most popular multi-fidelity methods for quantifying uncertainty in complex models.
-
-.. [NGXSISC2014] `Narayan, A. and Gittelson, C. and Xiu, D. A Stochastic Collocation Algorithm with Multifidelity Models. SIAM Journal on Scientific Computing 36(2), A495-A521, 2014. <https://doi.org/10.1137/130929461>`_
-		 
-.. [LGIJUQ2014]	`L. Le Gratiet and J. Garnier Recursive co-kriging model for design of computer experiments with multiple levels of fidelity. International Journal for Uncertainty Quantification, 4(5), 365--386, 2014 <http://dx.doi.org/10.1615/Int.J.UncertaintyQuantification.2014006914>`_
-		
-.. [KOB2000] `M. C. Kennedy and A. O'Hagan. Predicting the Output from a Complex Computer Code When Fast Approximations Are Available. Biometrika, 87(1), 1-13, 2000. <http://www.jstor.org/stable/2673557>`_
-
-
+   /auto_examples/plot_pde_convergence
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Let us introduce a model Q_\V{\kappa} with known mean \mu_{\V{\kappa}}. We can use this model t...">
+    <div class="sphx-glr-thumbcontainer" tooltip="We will use the Cantilever Beam benchmark to illustrate how to use a sparse grid as a surrogate...">
 
 .. only:: html
 
- .. figure:: /auto_examples/multi_fidelity/images/thumb/sphx_glr_plot_control_variate_monte_carlo_thumb.png
-     :alt: Control Variate Monte Carlo
+ .. figure:: /auto_examples/images/thumb/sphx_glr_plot_sparse_grid_uq_thumb.png
+     :alt: Sparse Grid Interpolation
 
-     :ref:`sphx_glr_auto_examples_multi_fidelity_plot_control_variate_monte_carlo.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_examples/multi_fidelity/plot_control_variate_monte_carlo
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="CVMC is often not useful for practical analysis of numerical models because typically the mean ...">
-
-.. only:: html
-
- .. figure:: /auto_examples/multi_fidelity/images/thumb/sphx_glr_plot_approximate_control_variate_monte_carlo_thumb.png
-     :alt: Approximate Control Variate Monte Carlo
-
-     :ref:`sphx_glr_auto_examples_multi_fidelity_plot_approximate_control_variate_monte_carlo.py`
+     :ref:`sphx_glr_auto_examples_plot_sparse_grid_uq.py`
 
 .. raw:: html
 
@@ -258,145 +221,7 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 .. toctree::
    :hidden:
 
-   /auto_examples/multi_fidelity/plot_approximate_control_variate_monte_carlo
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="Two Model MLMC -------------- The two model MLMC estimator is very similar to the CVMC estimato...">
-
-.. only:: html
-
- .. figure:: /auto_examples/multi_fidelity/images/thumb/sphx_glr_plot_multi_level_monte_carlo_thumb.png
-     :alt: Multi-level Monte Carlo
-
-     :ref:`sphx_glr_auto_examples_multi_fidelity_plot_multi_level_monte_carlo.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_examples/multi_fidelity/plot_multi_level_monte_carlo
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="Many Model MFMC ---------------">
-
-.. only:: html
-
- .. figure:: /auto_examples/multi_fidelity/images/thumb/sphx_glr_plot_multi_fidelity_monte_carlo_thumb.png
-     :alt: Multi-fidelity Monte Carlo
-
-     :ref:`sphx_glr_auto_examples_multi_fidelity_plot_multi_fidelity_monte_carlo.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_examples/multi_fidelity/plot_multi_fidelity_monte_carlo
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="Control variate Monte Carlo can be easily extended and applied to more than two models. Conside...">
-
-.. only:: html
-
- .. figure:: /auto_examples/multi_fidelity/images/thumb/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_thumb.png
-     :alt: Generalized Approximate Control Variate Monte Carlo
-
-     :ref:`sphx_glr_auto_examples_multi_fidelity_plot_many_model_approximate_control_variate_monte_carlo.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_examples/multi_fidelity/plot_many_model_approximate_control_variate_monte_carlo
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="Despite the improved efficiency of surrogate methods relative to MC sampling, building a surrog...">
-
-.. only:: html
-
- .. figure:: /auto_examples/multi_fidelity/images/thumb/sphx_glr_plot_multi_index_collocation_thumb.png
-     :alt: Multi-index Stochastic Collocation
-
-     :ref:`sphx_glr_auto_examples_multi_fidelity_plot_multi_index_collocation.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_examples/multi_fidelity/plot_multi_index_collocation
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="In the sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py tutorial we showe...">
-
-.. only:: html
-
- .. figure:: /auto_examples/multi_fidelity/images/thumb/sphx_glr_plot_gaussian_mfnets_thumb.png
-     :alt: MFNets: Multi-fidelity networks
-
-     :ref:`sphx_glr_auto_examples_multi_fidelity_plot_gaussian_mfnets.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_examples/multi_fidelity/plot_gaussian_mfnets
-.. raw:: html
-
-    <div class="sphx-glr-clear"></div>
-
-
-
-.. _sphx_glr_auto_examples_polynomial_chaos:
-
-Polynomial Chaos Expansions
----------------------------
-
-
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="This tutorial describes how to construct a polynomial chaos expansion (PCE) of a function with ...">
-
-.. only:: html
-
- .. figure:: /auto_examples/polynomial_chaos/images/thumb/sphx_glr_plot_adaptive_leja_interpolation_thumb.png
-     :alt: Adaptive Leja Sequences
-
-     :ref:`sphx_glr_auto_examples_polynomial_chaos_plot_adaptive_leja_interpolation.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
-   /auto_examples/polynomial_chaos/plot_adaptive_leja_interpolation
+   /auto_examples/plot_sparse_grid_uq
 .. raw:: html
 
     <div class="sphx-glr-clear"></div>
@@ -411,13 +236,13 @@ Polynomial Chaos Expansions
 
   .. container:: sphx-glr-download sphx-glr-download-python
 
-    :download:`Download all examples in Python source code: auto_examples_python.zip <//Users/jdjakem/software/pyapprox/docs/source/auto_examples/auto_examples_python.zip>`
+    :download:`Download all examples in Python source code: auto_examples_python.zip </auto_examples/auto_examples_python.zip>`
 
 
 
   .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-    :download:`Download all examples in Jupyter notebooks: auto_examples_jupyter.zip <//Users/jdjakem/software/pyapprox/docs/source/auto_examples/auto_examples_jupyter.zip>`
+    :download:`Download all examples in Jupyter notebooks: auto_examples_jupyter.zip </auto_examples/auto_examples_jupyter.zip>`
 
 
 .. only:: html

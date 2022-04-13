@@ -1,0 +1,6 @@
+cartesian_product
+=================
+
+.. currentmodule:: pyapprox.util
+
+.. autofunction:: cartesian_product

@@ -1,0 +1,6 @@
+laplace_posterior_approximation_for_linear_models
+=================================================
+
+.. currentmodule:: pyapprox.bayes
+
+.. autofunction:: laplace_posterior_approximation_for_linear_models

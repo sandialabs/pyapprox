@@ -1,0 +1,25 @@
+GaussCopulaVariable
+===================
+
+.. currentmodule:: pyapprox.variables
+
+.. autoclass:: GaussCopulaVariable
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~GaussCopulaVariable.marginals
+      ~GaussCopulaVariable.num_vars
+      ~GaussCopulaVariable.pdf
+      ~GaussCopulaVariable.rvs
+      ~GaussCopulaVariable.z_joint_density
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: marginals
+   .. automethod:: num_vars
+   .. automethod:: pdf
+   .. automethod:: rvs
+   .. automethod:: z_joint_density

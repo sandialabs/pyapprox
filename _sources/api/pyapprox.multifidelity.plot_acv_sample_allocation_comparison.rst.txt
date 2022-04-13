@@ -1,0 +1,6 @@
+plot_acv_sample_allocation_comparison
+=====================================
+
+.. currentmodule:: pyapprox.multifidelity
+
+.. autofunction:: plot_acv_sample_allocation_comparison

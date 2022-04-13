@@ -1,75 +1,38 @@
-
-
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8">
-  
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>pyapprox.benchmarks.benchmarks &mdash; PyApprox 1.0.0 documentation</title>
-  
-
-  
-  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
-  <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
-  <link rel="stylesheet" href="../../../_static/gallery-binder.css" type="text/css" />
-  <link rel="stylesheet" href="../../../_static/gallery-dataframe.css" type="text/css" />
-
-  
-  
-  
-  
-
-  
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-rendered-html.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
         <script src="../../../_static/doctools.js"></script>
-        <script src="../../../_static/language_data.js"></script>
-        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
-    
-    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
-
-    
+    <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" /> 
 </head>
 
-<body class="wy-body-for-nav">
-
-   
+<body class="wy-body-for-nav"> 
   <div class="wy-grid-for-nav">
-    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-          
-
-          
-            <a href="../../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
-          
-
-          
-            
+            <a href="../../../index.html" class="icon icon-home"> PyApprox
             <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
-          
           </a>
-
-          
-            
-            
-          
-
-          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
@@ -77,127 +40,109 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-
-          
-        </div>
-
-        
-        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-          
-            
-            
-              
-            
-            
-              <p class="caption"><span class="caption-text">Getting Started</span></p>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Tutorials</span></p>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
 </ul>
-<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Developer Reference Guide</a></li>
-</ul>
 
-            
-          
         </div>
-        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-
-      
-      <nav class="wy-nav-top" aria-label="top navigation">
-        
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="../../../index.html">PyApprox</a>
-        
       </nav>
 
-
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
-          
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<div role="navigation" aria-label="breadcrumbs navigation">
-
+          <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-    
       <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
-        
           <li><a href="../../index.html">Module code</a> &raquo;</li>
-        
       <li>pyapprox.benchmarks.benchmarks</li>
-    
-    
       <li class="wy-breadcrumbs-aside">
-        
       </li>
-    
   </ul>
-
-  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-            
+             
   <h1>Source code for pyapprox.benchmarks.benchmarks</h1><div class="highlight"><pre>
-<span></span><span class="ch">#!/usr/bin/env python</span>
+<span></span><span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
 <span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
-<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
-
-<span class="kn">import</span> <span class="nn">pyapprox</span> <span class="k">as</span> <span class="nn">pya</span>
-<span class="kn">from</span> <span class="nn">pyapprox.benchmarks.sensitivity_benchmarks</span> <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span> <span class="nn">pyapprox.benchmarks.surrogate_benchmarks</span> <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span> <span class="nn">pyapprox.models.genz</span> <span class="kn">import</span> <span class="n">GenzFunction</span>
-
 <span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="kn">import</span> <span class="n">OptimizeResult</span>
-<div class="viewcode-block" id="Benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.benchmarks.Benchmark.html#pyapprox.benchmarks.benchmarks.Benchmark">[docs]</a><span class="k">class</span> <span class="nc">Benchmark</span><span class="p">(</span><span class="n">OptimizeResult</span><span class="p">):</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">PYA_DEV_AVAILABLE</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks.sensitivity_benchmarks</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_sobol_g_function_statistics</span><span class="p">,</span> <span class="n">get_ishigami_funciton_statistics</span><span class="p">,</span>
+    <span class="n">oakley_function</span><span class="p">,</span> <span class="n">oakley_function_statistics</span><span class="p">,</span> <span class="n">sobol_g_function</span><span class="p">,</span>
+    <span class="n">ishigami_function</span><span class="p">,</span> <span class="n">ishigami_function_jacobian</span><span class="p">,</span> <span class="n">ishigami_function_hessian</span>
+    <span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks.surrogate_benchmarks</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">rosenbrock_function</span><span class="p">,</span>
+    <span class="n">rosenbrock_function_jacobian</span><span class="p">,</span> <span class="n">rosenbrock_function_hessian_prod</span><span class="p">,</span>
+    <span class="n">rosenbrock_function_mean</span><span class="p">,</span> <span class="n">cantilever_beam_constraints_jacobian</span><span class="p">,</span>
+    <span class="n">cantilever_beam_constraints</span><span class="p">,</span> <span class="n">cantilever_beam_objective</span><span class="p">,</span>
+    <span class="n">cantilever_beam_objective_grad</span><span class="p">,</span> <span class="n">define_beam_random_variables</span><span class="p">,</span>
+    <span class="n">define_piston_random_variables</span><span class="p">,</span> <span class="n">piston_function</span><span class="p">,</span>
+    <span class="n">define_wing_weight_random_variables</span><span class="p">,</span> <span class="n">wing_weight_function</span><span class="p">,</span>
+    <span class="n">wing_weight_gradient</span><span class="p">,</span> <span class="n">define_chemical_reaction_random_variables</span><span class="p">,</span>
+    <span class="n">ChemicalReactionModel</span><span class="p">,</span> <span class="n">define_random_oscillator_random_variables</span><span class="p">,</span>
+    <span class="n">RandomOscillator</span><span class="p">,</span> <span class="n">piston_function_gradient</span><span class="p">,</span> <span class="n">CoupledSprings</span><span class="p">,</span>
+    <span class="n">define_coupled_springs_random_variables</span><span class="p">,</span> <span class="n">HastingsEcology</span><span class="p">,</span>
+    <span class="n">define_nondim_hastings_ecology_random_variables</span><span class="p">,</span> <span class="n">NobileBenchmarkFunctions</span><span class="p">,</span>
+    <span class="n">SpectralPDEMultiIndexWrapper</span><span class="p">,</span> <span class="n">ParameterizedNonlinearModel</span>
+    <span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks.genz</span> <span class="kn">import</span> <span class="n">GenzFunction</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks.multifidelity_benchmarks</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PolynomialModelEnsemble</span><span class="p">,</span> <span class="n">TunableModelEnsemble</span><span class="p">,</span> <span class="n">ShortColumnModelEnsemble</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.joint</span> <span class="kn">import</span> <span class="n">IndependentMarginalsVariable</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.transforms</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ConfigureVariableTransformation</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.interface.wrappers</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">TimerModel</span><span class="p">,</span> <span class="n">PoolModel</span><span class="p">,</span> <span class="n">WorkTrackingModel</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.pde.spectral_diffusion</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">TransientAdvectionDiffusion</span><span class="p">,</span> <span class="n">SteadyStateAdvectionDiffusion</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="Benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark">[docs]</a><span class="k">class</span> <span class="nc">Benchmark</span><span class="p">(</span><span class="n">OptimizeResult</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Contains functions and results needed to implement known</span>
 <span class="sd">    benchmarks.</span>
 
-<span class="sd">    The quantities</span>
+<span class="sd">    A benchmark can be created with any attribute.</span>
+<span class="sd">    Only fun and variable are required. Below are these two required attributes</span>
+<span class="sd">    and other optional attributes used in different PyApprox Benchmarks</span>
 
 <span class="sd">    Attributes</span>
 <span class="sd">    ----------</span>
 <span class="sd">    fun : callable</span>
 <span class="sd">        The function being analyzed</span>
 
-<span class="sd">    variable : pya.variable</span>
+<span class="sd">    variable : :py:class:`pyapprox.variables.JointVariable`</span>
 <span class="sd">        Class containing information about each of the nvars inputs to fun</span>
 
 <span class="sd">    jac : callable</span>
@@ -207,7 +152,7 @@
 <span class="sd">        The Hessian of fun. (optional)</span>
 
 <span class="sd">    hessp : callable</span>
-<span class="sd">        Function implementing the hessian of fun multiplied by a vector. </span>
+<span class="sd">        Function implementing the hessian of fun multiplied by a vector.</span>
 <span class="sd">        (optional)</span>
 
 <span class="sd">    mean: np.ndarray (nvars)</span>
@@ -227,18 +172,18 @@
 
 <span class="sd">    Notes</span>
 <span class="sd">    -----</span>
-<span class="sd">    Use the `keys()` method to see a list of the available </span>
+<span class="sd">    Use the `keys()` method to see a list of the available</span>
 <span class="sd">    attributes for a specific benchmark</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">pass</span></div>
+<span class="sd">    &quot;&quot;&quot;</span></div>
 
-<div class="viewcode-block" id="setup_sobol_g_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.benchmarks.setup_sobol_g_function.html#pyapprox.benchmarks.benchmarks.setup_sobol_g_function">[docs]</a><span class="k">def</span> <span class="nf">setup_sobol_g_function</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
+
+<div class="viewcode-block" id="setup_sobol_g_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_sobol_g_function.html#pyapprox.benchmarks.setup_sobol_g_function">[docs]</a><span class="k">def</span> <span class="nf">setup_sobol_g_function</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Setup the Sobol-G function benchmark </span>
+<span class="sd">    Setup the Sobol-G function benchmark</span>
 
 <span class="sd">    .. math:: f(z) = \prod_{i=1}^d\frac{\lvert 4z_i-2\rvert+a_i}{1+a_i}, \quad a_i=\frac{i-2}{2}</span>
 
-<span class="sd">    using </span>
+<span class="sd">    using</span>
 
 <span class="sd">    &gt;&gt;&gt; from pyapprox.benchmarks.benchmarks import setup_benchmark</span>
 <span class="sd">    &gt;&gt;&gt; benchmark=setup_benchmark(&#39;sobol_g&#39;,nvars=2)</span>
@@ -252,30 +197,50 @@
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    benchmark : pya.Benchmark</span>
+<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
 <span class="sd">       Object containing the benchmark attributes</span>
+
+<span class="sd">    fun : callable</span>
+<span class="sd">        The function being analyzed</span>
+
+<span class="sd">    variable : :py:class:`pyapprox.variables.JointVariable`</span>
+<span class="sd">        Class containing information about each of the nvars inputs to fun</span>
+
+<span class="sd">    mean: np.ndarray (nvars)</span>
+<span class="sd">        The mean of the function with respect to the PDF of var</span>
+
+<span class="sd">    variance: np.ndarray (nvars)</span>
+<span class="sd">        The variance of the function with respect to the PDF of var</span>
+
+<span class="sd">    main_effects : np.ndarray (nvars)</span>
+<span class="sd">        The variance based main effect sensitivity indices</span>
+
+<span class="sd">    total_effects : np.ndarray (nvars)</span>
+<span class="sd">        The variance based total effect sensitivity indices</span>
 
 <span class="sd">    References</span>
 <span class="sd">    ----------</span>
 <span class="sd">    .. [Saltelli1995] `Saltelli, A., &amp; Sobol, I. M. About the use of rank transformation in sensitivity analysis of model output. Reliability Engineering &amp; System Safety, 50(3), 225-239, 1995. &lt;https://doi.org/10.1016/0951-8320(95)00099-2&gt;`_</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    
-    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">)]</span><span class="o">*</span><span class="n">nvars</span>
-    <span class="n">variable</span><span class="o">=</span><span class="n">pya</span><span class="o">.</span><span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
-    <span class="n">a</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="n">nvars</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">-</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span>
-    <span class="n">mean</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">main_effects</span><span class="p">,</span> <span class="n">total_effects</span> <span class="o">=</span> \
-        <span class="n">get_sobol_g_function_statistics</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">({</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span><span class="n">partial</span><span class="p">(</span><span class="n">sobol_g_function</span><span class="p">,</span><span class="n">a</span><span class="p">),</span>
-            <span class="s1">&#39;mean&#39;</span><span class="p">:</span><span class="n">mean</span><span class="p">,</span><span class="s1">&#39;variance&#39;</span><span class="p">:</span><span class="n">variance</span><span class="p">,</span><span class="s1">&#39;main_effects&#39;</span><span class="p">:</span><span class="n">main_effects</span><span class="p">,</span>
-            <span class="s1">&#39;total_effects&#39;</span><span class="p">:</span><span class="n">total_effects</span><span class="p">,</span><span class="s1">&#39;variable&#39;</span><span class="p">:</span><span class="n">variable</span><span class="p">})</span></div>
 
-<div class="viewcode-block" id="setup_ishigami_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.benchmarks.setup_ishigami_function.html#pyapprox.benchmarks.benchmarks.setup_ishigami_function">[docs]</a><span class="k">def</span> <span class="nf">setup_ishigami_function</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">):</span>
+    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span><span class="o">*</span><span class="n">nvars</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
+    <span class="n">a_param</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nvars</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">-</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span>
+    <span class="n">mean</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">main_effects</span><span class="p">,</span> <span class="n">total_effects</span> <span class="o">=</span> \
+        <span class="n">get_sobol_g_function_statistics</span><span class="p">(</span><span class="n">a_param</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">({</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">sobol_g_function</span><span class="p">,</span> <span class="n">a_param</span><span class="p">),</span>
+                      <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">mean</span><span class="p">,</span> <span class="s1">&#39;variance&#39;</span><span class="p">:</span> <span class="n">variance</span><span class="p">,</span>
+                      <span class="s1">&#39;main_effects&#39;</span><span class="p">:</span> <span class="n">main_effects</span><span class="p">,</span>
+                      <span class="s1">&#39;total_effects&#39;</span><span class="p">:</span> <span class="n">total_effects</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">})</span></div>
+
+
+<div class="viewcode-block" id="setup_ishigami_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_ishigami_function.html#pyapprox.benchmarks.setup_ishigami_function">[docs]</a><span class="k">def</span> <span class="nf">setup_ishigami_function</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Setup the Ishigami function benchmark </span>
+<span class="sd">    Setup the Ishigami function benchmark</span>
 
 <span class="sd">    .. math:: f(z) = \sin(z_1)+a\sin^2(z_2) + bz_3^4\sin(z_0)</span>
 
-<span class="sd">    using </span>
+<span class="sd">    using</span>
 
 <span class="sd">    &gt;&gt;&gt; from pyapprox.benchmarks.benchmarks import setup_benchmark</span>
 <span class="sd">    &gt;&gt;&gt; benchmark=setup_benchmark(&#39;ishigami&#39;,a=7,b=0.1)</span>
@@ -292,29 +257,65 @@
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    benchmark : pya.Benchmark</span>
+<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
 <span class="sd">       Object containing the benchmark attributes</span>
+
+<span class="sd">    fun : callable</span>
+<span class="sd">        The function being analyzed</span>
+
+<span class="sd">    variable : :py:class:`pyapprox.variables.JointVariable`</span>
+<span class="sd">        Class containing information about each of the nvars inputs to fun</span>
+
+<span class="sd">    jac : callable</span>
+<span class="sd">        The jacobian of fun. (optional)</span>
+
+<span class="sd">    hess : callable</span>
+<span class="sd">        The Hessian of fun. (optional)</span>
+
+<span class="sd">    hessp : callable</span>
+<span class="sd">        Function implementing the hessian of fun multiplied by a vector.</span>
+<span class="sd">        (optional)</span>
+
+<span class="sd">    mean: np.ndarray (nvars)</span>
+<span class="sd">        The mean of the function with respect to the PDF of var</span>
+
+<span class="sd">    variance: np.ndarray (nvars)</span>
+<span class="sd">        The variance of the function with respect to the PDF of var</span>
+
+<span class="sd">    main_effects : np.ndarray (nvars)</span>
+<span class="sd">        The variance based main effect sensitivity indices</span>
+
+<span class="sd">    total_effects : np.ndarray (nvars)</span>
+<span class="sd">        The variance based total effect sensitivity indices</span>
+
+<span class="sd">    sobol_indices : np.ndarray (nsobol_indices)</span>
+<span class="sd">        The variance based Sobol sensitivity indices</span>
+
+<span class="sd">    sobol_interaction_indices : np.ndarray(nsobol_indices)</span>
+<span class="sd">        The indices of the acitive variable dimensions involved in each</span>
+<span class="sd">        sobol index</span>
 
 <span class="sd">    References</span>
 <span class="sd">    ----------</span>
 <span class="sd">    .. [Ishigami1990] `T. Ishigami and T. Homma, &quot;An importance quantification technique in uncertainty analysis for computer models,&quot; [1990] Proceedings. First International Symposium on Uncertainty Modeling and Analysis, College Park, MD, USA, 1990, pp. 398-403 &lt;https://doi.org/10.1109/ISUMA.1990.151285&gt;`_</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)]</span><span class="o">*</span><span class="mi">3</span>
-    <span class="n">variable</span><span class="o">=</span><span class="n">pya</span><span class="o">.</span><span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
+    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)]</span><span class="o">*</span><span class="mi">3</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
     <span class="n">mean</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">main_effects</span><span class="p">,</span> <span class="n">total_effects</span><span class="p">,</span> <span class="n">sobol_indices</span><span class="p">,</span> \
         <span class="n">sobol_interaction_indices</span> <span class="o">=</span> <span class="n">get_ishigami_funciton_statistics</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span>
-        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span><span class="n">partial</span><span class="p">(</span><span class="n">ishigami_function</span><span class="p">,</span><span class="n">a</span><span class="o">=</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="o">=</span><span class="n">b</span><span class="p">),</span>
-         <span class="s1">&#39;jac&#39;</span><span class="p">:</span><span class="n">partial</span><span class="p">(</span><span class="n">ishigami_function_jacobian</span><span class="p">,</span><span class="n">a</span><span class="o">=</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="o">=</span><span class="n">b</span><span class="p">),</span>
-         <span class="s1">&#39;hess&#39;</span><span class="p">:</span><span class="n">partial</span><span class="p">(</span><span class="n">ishigami_function_hessian</span><span class="p">,</span><span class="n">a</span><span class="o">=</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="o">=</span><span class="n">b</span><span class="p">),</span>
-         <span class="s1">&#39;variable&#39;</span><span class="p">:</span><span class="n">variable</span><span class="p">,</span><span class="s1">&#39;mean&#39;</span><span class="p">:</span><span class="n">mean</span><span class="p">,</span><span class="s1">&#39;variance&#39;</span><span class="p">:</span><span class="n">variance</span><span class="p">,</span>
-         <span class="s1">&#39;main_effects&#39;</span><span class="p">:</span><span class="n">main_effects</span><span class="p">,</span><span class="s1">&#39;total_effects&#39;</span><span class="p">:</span><span class="n">total_effects</span><span class="p">,</span>
-         <span class="s1">&#39;sobol_indices&#39;</span><span class="p">:</span><span class="n">sobol_indices</span><span class="p">,</span>
-         <span class="s1">&#39;sobol_interaction_indices&#39;</span><span class="p">:</span><span class="n">sobol_interaction_indices</span><span class="p">})</span></div>
+        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">ishigami_function</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="n">b</span><span class="p">),</span>
+         <span class="s1">&#39;jac&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">ishigami_function_jacobian</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="n">b</span><span class="p">),</span>
+         <span class="s1">&#39;hess&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">ishigami_function_hessian</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="n">b</span><span class="p">),</span>
+         <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">,</span> <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">mean</span><span class="p">,</span> <span class="s1">&#39;variance&#39;</span><span class="p">:</span> <span class="n">variance</span><span class="p">,</span>
+         <span class="s1">&#39;main_effects&#39;</span><span class="p">:</span> <span class="n">main_effects</span><span class="p">,</span> <span class="s1">&#39;total_effects&#39;</span><span class="p">:</span> <span class="n">total_effects</span><span class="p">,</span>
+         <span class="s1">&#39;sobol_indices&#39;</span><span class="p">:</span> <span class="n">sobol_indices</span><span class="p">,</span>
+         <span class="s1">&#39;sobol_interaction_indices&#39;</span><span class="p">:</span> <span class="n">sobol_interaction_indices</span><span class="p">})</span></div>
 
-<div class="viewcode-block" id="setup_oakley_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.benchmarks.setup_oakley_function.html#pyapprox.benchmarks.benchmarks.setup_oakley_function">[docs]</a><span class="k">def</span> <span class="nf">setup_oakley_function</span><span class="p">():</span>
+
+<div class="viewcode-block" id="setup_oakley_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_oakley_function.html#pyapprox.benchmarks.setup_oakley_function">[docs]</a><span class="k">def</span> <span class="nf">setup_oakley_function</span><span class="p">():</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Setup the Oakely function benchmark </span>
+<span class="sd">    Setup the Oakely function benchmark</span>
 
 <span class="sd">    .. math:: f(z) = a_1^Tz + a_2^T\sin(z) + a_3^T\cos(z) + z^TMz</span>
 
@@ -327,40 +328,56 @@
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    benchmark : pya.Benchmark</span>
+<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
 <span class="sd">       Object containing the benchmark attributes</span>
+
+<span class="sd">    fun : callable</span>
+<span class="sd">        The function being analyzed</span>
+
+<span class="sd">    variable : :py:class:`pyapprox.variables.JointVariable`</span>
+<span class="sd">        Class containing information about each of the nvars inputs to fun</span>
+
+<span class="sd">    mean: np.ndarray (nvars)</span>
+<span class="sd">        The mean of the function with respect to the PDF of var</span>
+
+<span class="sd">    variance: np.ndarray (nvars)</span>
+<span class="sd">        The variance of the function with respect to the PDF of var</span>
+
+<span class="sd">    main_effects : np.ndarray (nvars)</span>
+<span class="sd">        The variance based main effect sensitivity indices</span>
 
 <span class="sd">    References</span>
 <span class="sd">    ----------</span>
 <span class="sd">    .. [OakelyOJRSB2004] `Oakley, J.E. and O&#39;Hagan, A. (2004), Probabilistic sensitivity analysis of complex models: a Bayesian approach. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 66: 751-769. &lt;https://doi.org/10.1111/j.1467-9868.2004.05304.x&gt;`_</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">norm</span><span class="p">()]</span><span class="o">*</span><span class="mi">15</span>
-    <span class="n">variable</span><span class="o">=</span><span class="n">pya</span><span class="o">.</span><span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
     <span class="n">mean</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">main_effects</span> <span class="o">=</span> <span class="n">oakley_function_statistics</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span>
-        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span><span class="n">oakley_function</span><span class="p">,</span>
-         <span class="s1">&#39;variable&#39;</span><span class="p">:</span><span class="n">variable</span><span class="p">,</span><span class="s1">&#39;mean&#39;</span><span class="p">:</span><span class="n">mean</span><span class="p">,</span><span class="s1">&#39;variance&#39;</span><span class="p">:</span><span class="n">variance</span><span class="p">,</span>
-         <span class="s1">&#39;main_effects&#39;</span><span class="p">:</span><span class="n">main_effects</span><span class="p">})</span></div>
+        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">oakley_function</span><span class="p">,</span>
+         <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">,</span> <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">mean</span><span class="p">,</span> <span class="s1">&#39;variance&#39;</span><span class="p">:</span> <span class="n">variance</span><span class="p">,</span>
+         <span class="s1">&#39;main_effects&#39;</span><span class="p">:</span> <span class="n">main_effects</span><span class="p">})</span></div>
 
-<div class="viewcode-block" id="setup_rosenbrock_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.benchmarks.setup_rosenbrock_function.html#pyapprox.benchmarks.benchmarks.setup_rosenbrock_function">[docs]</a><span class="k">def</span> <span class="nf">setup_rosenbrock_function</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
+
+<div class="viewcode-block" id="setup_rosenbrock_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_rosenbrock_function.html#pyapprox.benchmarks.setup_rosenbrock_function">[docs]</a><span class="k">def</span> <span class="nf">setup_rosenbrock_function</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Setup the Rosenbrock function benchmark </span>
+<span class="sd">    Setup the Rosenbrock function benchmark</span>
 
 <span class="sd">    .. math:: f(z) = \sum_{i=1}^{d/2}\left[100(z_{2i-1}^{2}-z_{2i})^{2}+(z_{2i-1}-1)^{2}\right]</span>
 
-<span class="sd">    This benchmark can also be used to test Bayesian inference methods. </span>
+<span class="sd">    This benchmark can also be used to test Bayesian inference methods.</span>
 <span class="sd">    Specifically this benchmarks returns the log likelihood</span>
-<span class="sd">    </span>
+
 <span class="sd">    .. math:: l(z) = -f(z)</span>
 
 <span class="sd">    which can be used to compute the posterior distribution</span>
-<span class="sd">    </span>
+
 <span class="sd">    .. math:: \pi_{\text{post}}(\rv)=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom} \pi(\V{y}|\rv)\pi(\rv)d\rv}</span>
 
-<span class="sd">    where the prior is the tensor product of :math:`d` independent and </span>
-<span class="sd">    identically distributed uniform variables on :math:`[-2,2]`, i.e. </span>
+<span class="sd">    where the prior is the tensor product of :math:`d` independent and</span>
+<span class="sd">    identically distributed uniform variables on :math:`[-2,2]`, i.e.</span>
 <span class="sd">    :math:`\pi(\rv)=\frac{1}{4^d}`, and the likelihood is given by</span>
-<span class="sd">    </span>
+
 <span class="sd">    .. math:: \pi(\V{y}|\rv)=\exp\left(l(\rv)\right)</span>
 
 <span class="sd">    Parameters</span>
@@ -370,12 +387,12 @@
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    benchmark : pya.Benchmark</span>
+<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
 <span class="sd">       Object containing the benchmark attributes documented below</span>
 
 <span class="sd">    fun : callable</span>
 
-<span class="sd">        The rosenbrock with signature</span>
+<span class="sd">        The rosenbrock function with signature</span>
 
 <span class="sd">        ``fun(z) -&gt; np.ndarray``</span>
 
@@ -392,24 +409,25 @@
 
 <span class="sd">    hessp : callable</span>
 <span class="sd">        Hessian of  ``fun`` times an arbitrary vector p with signature</span>
-<span class="sd">    </span>
+
 <span class="sd">        ``hessp(z, p) -&gt;  ndarray shape (nvars,1)``</span>
 
-<span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and p is an </span>
+<span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and p is an</span>
 <span class="sd">        arbitraty vector with shape (nvars,1)</span>
 
-<span class="sd">    variable : pya.IndependentMultivariateRandomVariable</span>
+<span class="sd">    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`</span>
 <span class="sd">        Object containing information of the joint density of the inputs z</span>
-<span class="sd">        which is the tensor product of independent and identically distributed </span>
+<span class="sd">        which is the tensor product of independent and identically distributed</span>
 <span class="sd">        uniform variables on :math:`[-2,2]`.</span>
 
 <span class="sd">    mean : float</span>
-<span class="sd">        The mean of the rosenbrock function with respect to the pdf of variable.</span>
+<span class="sd">        The mean of the rosenbrock function with respect to the pdf of</span>
+<span class="sd">        variable.</span>
 
 <span class="sd">    loglike : callable</span>
 <span class="sd">        The log likelihood of the Bayesian inference problem for inferring z</span>
-<span class="sd">        given the uniform prior specified by variable and the negative </span>
-<span class="sd">        log likelihood given by the Rosenbrock function. loglike has the </span>
+<span class="sd">        given the uniform prior specified by variable and the negative</span>
+<span class="sd">        log likelihood given by the Rosenbrock function. loglike has the</span>
 <span class="sd">        signature</span>
 
 <span class="sd">        ``loglike(z) -&gt; np.ndarray``</span>
@@ -436,24 +454,25 @@
 <span class="sd">    &gt;&gt;&gt; print(benchmark.keys())</span>
 <span class="sd">    dict_keys([&#39;fun&#39;, &#39;jac&#39;, &#39;hessp&#39;, &#39;variable&#39;, &#39;mean&#39;, &#39;loglike&#39;, &#39;loglike_grad&#39;])</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="mi">4</span><span class="p">)]</span><span class="o">*</span><span class="n">nvars</span>
-    <span class="n">variable</span><span class="o">=</span><span class="n">pya</span><span class="o">.</span><span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
+    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">)]</span><span class="o">*</span><span class="n">nvars</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
 
     <span class="n">benchmark</span> <span class="o">=</span> <span class="n">Benchmark</span><span class="p">(</span>
-        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span><span class="n">rosenbrock_function</span><span class="p">,</span><span class="s1">&#39;jac&#39;</span><span class="p">:</span><span class="n">rosenbrock_function_jacobian</span><span class="p">,</span>
-         <span class="s1">&#39;hessp&#39;</span><span class="p">:</span><span class="n">rosenbrock_function_hessian_prod</span><span class="p">,</span><span class="s1">&#39;variable&#39;</span><span class="p">:</span><span class="n">variable</span><span class="p">,</span>
-         <span class="s1">&#39;mean&#39;</span><span class="p">:</span><span class="n">rosenbrock_function_mean</span><span class="p">(</span><span class="n">nvars</span><span class="p">)})</span>
-    <span class="n">benchmark</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;loglike&#39;</span><span class="p">:</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="o">-</span><span class="n">benchmark</span><span class="p">[</span><span class="s1">&#39;fun&#39;</span><span class="p">](</span><span class="n">x</span><span class="p">),</span>
-                      <span class="s1">&#39;loglike_grad&#39;</span><span class="p">:</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="o">-</span><span class="n">benchmark</span><span class="p">[</span><span class="s1">&#39;jac&#39;</span><span class="p">](</span><span class="n">x</span><span class="p">)})</span>
+        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">rosenbrock_function</span><span class="p">,</span> <span class="s1">&#39;jac&#39;</span><span class="p">:</span> <span class="n">rosenbrock_function_jacobian</span><span class="p">,</span>
+         <span class="s1">&#39;hessp&#39;</span><span class="p">:</span> <span class="n">rosenbrock_function_hessian_prod</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">,</span>
+         <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">rosenbrock_function_mean</span><span class="p">(</span><span class="n">nvars</span><span class="p">)})</span>
+    <span class="n">benchmark</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;loglike&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="o">-</span><span class="n">benchmark</span><span class="p">[</span><span class="s1">&#39;fun&#39;</span><span class="p">](</span><span class="n">x</span><span class="p">),</span>
+                      <span class="s1">&#39;loglike_grad&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="o">-</span><span class="n">benchmark</span><span class="p">[</span><span class="s1">&#39;jac&#39;</span><span class="p">](</span><span class="n">x</span><span class="p">)})</span>
     <span class="k">return</span> <span class="n">benchmark</span></div>
 
-<div class="viewcode-block" id="setup_genz_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.benchmarks.setup_genz_function.html#pyapprox.benchmarks.benchmarks.setup_genz_function">[docs]</a><span class="k">def</span> <span class="nf">setup_genz_function</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span><span class="n">test_name</span><span class="p">,</span><span class="n">coefficients</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+<div class="viewcode-block" id="setup_genz_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_genz_function.html#pyapprox.benchmarks.setup_genz_function">[docs]</a><span class="k">def</span> <span class="nf">setup_genz_function</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">test_name</span><span class="p">,</span> <span class="n">coefficients</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Setup the Genz Benchmarks.</span>
-<span class="sd">    </span>
-<span class="sd">    For example, the two-dimensional oscillatory Genz problem can be defined </span>
+
+<span class="sd">    For example, the two-dimensional oscillatory Genz problem can be defined</span>
 <span class="sd">    using</span>
-<span class="sd">    </span>
+
 <span class="sd">    &gt;&gt;&gt; from pyapprox.benchmarks.benchmarks import setup_benchmark</span>
 <span class="sd">    &gt;&gt;&gt; benchmark=setup_benchmark(&#39;genz&#39;,nvars=2,test_name=&#39;oscillatory&#39;)</span>
 <span class="sd">    &gt;&gt;&gt; print(benchmark.keys())</span>
@@ -463,7 +482,7 @@
 <span class="sd">    ----------</span>
 <span class="sd">    nvars : integer</span>
 <span class="sd">        The number of variables of the Genz function</span>
-<span class="sd">    </span>
+
 <span class="sd">    test_name : string</span>
 <span class="sd">        The test_name of the specific Genz function. See notes</span>
 <span class="sd">        for options the string needed is given in brackets</span>
@@ -471,14 +490,23 @@
 
 <span class="sd">    coefficients : tuple (ndarray (nvars), ndarray (nvars))</span>
 <span class="sd">        The coefficients :math:`c_i` and :math:`w_i`</span>
-<span class="sd">        If None (default) then </span>
-<span class="sd">        :math:`c_j = \hat{c}_j\left(\sum_{i=1}^d \hat{c}_i\right)^{-1}` where </span>
+<span class="sd">        If None (default) then</span>
+<span class="sd">        :math:`c_j = \hat{c}_j\left(\sum_{i=1}^d \hat{c}_i\right)^{-1}` where</span>
 <span class="sd">        :math:`\hat{c}_i=(10^{-15\left(\frac{i}{d}\right)^2)})`</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    benchmark : pya.Benchmark</span>
+<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
 <span class="sd">       Object containing the benchmark attributes</span>
+
+<span class="sd">    fun : callable</span>
+<span class="sd">        The function being analyzed</span>
+
+<span class="sd">    variable : :py:class:`pyapprox.variables.JointVariable`</span>
+<span class="sd">        Class containing information about each of the nvars inputs to fun</span>
+
+<span class="sd">    mean: np.ndarray (nvars)</span>
+<span class="sd">        The mean of the function with respect to the PDF of var</span>
 
 <span class="sd">    References</span>
 <span class="sd">    ----------</span>
@@ -493,7 +521,7 @@
 
 <span class="sd">    Oscillatory (&#39;oscillatory&#39;)</span>
 
-<span class="sd">    .. math:: f(z) = \cos\left(2\pi w_1 + \sum_{i=1}^d c_iz_i\right) </span>
+<span class="sd">    .. math:: f(z) = \cos\left(2\pi w_1 + \sum_{i=1}^d c_iz_i\right)</span>
 
 <span class="sd">    Gaussian Peak (&#39;gaussian-peak&#39;)</span>
 
@@ -502,7 +530,7 @@
 <span class="sd">    Continuous (&#39;continuous&#39;)</span>
 
 <span class="sd">    .. math:: f(z) = \exp\left( -\sum_{i=1}^d c_i\lvert z_i-w_i\rvert\right)</span>
-<span class="sd">    </span>
+
 <span class="sd">    Product Peak (&#39;product-peak&#39;)</span>
 
 <span class="sd">    .. math:: f(z) = \prod_{i=1}^d \left(c_i^{-2}+(z_i-w_i)^2\right)^{-1}</span>
@@ -510,116 +538,466 @@
 <span class="sd">    Discontinuous (&#39;discontinuous&#39;)</span>
 
 <span class="sd">    .. math:: f(z) = \begin{cases}0 &amp; x_1&gt;u_1 \;\mathrm{or}\; x_2&gt;u_2\\\exp\left(\sum_{i=1}^d c_iz_i\right) &amp; \mathrm{otherwise}\end{cases}</span>
-<span class="sd">    </span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">genz</span> <span class="o">=</span> <span class="n">GenzFunction</span><span class="p">(</span><span class="n">test_name</span><span class="p">,</span><span class="n">nvars</span><span class="p">)</span>
-    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">)]</span><span class="o">*</span><span class="n">nvars</span>
-    <span class="n">variable</span><span class="o">=</span><span class="n">pya</span><span class="o">.</span><span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
+    <span class="n">genz</span> <span class="o">=</span> <span class="n">GenzFunction</span><span class="p">(</span><span class="n">test_name</span><span class="p">,</span> <span class="n">nvars</span><span class="p">)</span>
+    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span><span class="o">*</span><span class="n">nvars</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">coefficients</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">genz</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="s1">&#39;squared-exponential-decay&#39;</span><span class="p">,</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">genz</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;squared-exponential-decay&#39;</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">genz</span><span class="o">.</span><span class="n">c</span><span class="p">,</span><span class="n">genz</span><span class="o">.</span><span class="n">w</span> <span class="o">=</span> <span class="n">coefficients</span>
-    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span><span class="n">genz</span><span class="p">,</span><span class="s1">&#39;mean&#39;</span><span class="p">:</span><span class="n">genz</span><span class="o">.</span><span class="n">integrate</span><span class="p">(),</span><span class="s1">&#39;variable&#39;</span><span class="p">:</span><span class="n">variable</span><span class="p">}</span>
-    <span class="k">if</span> <span class="n">test_name</span><span class="o">==</span><span class="s1">&#39;corner-peak&#39;</span><span class="p">:</span>
-        <span class="n">attributes</span><span class="p">[</span><span class="s1">&#39;variance&#39;</span><span class="p">]</span><span class="o">=</span><span class="n">genz</span><span class="o">.</span><span class="n">variance</span><span class="p">()</span>
-        <span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="kn">import</span> <span class="n">OptimizeResult</span>
+        <span class="n">genz</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="n">genz</span><span class="o">.</span><span class="n">w</span> <span class="o">=</span> <span class="n">coefficients</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">genz</span><span class="p">,</span> <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">genz</span><span class="o">.</span><span class="n">integrate</span><span class="p">(),</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">test_name</span> <span class="o">==</span> <span class="s1">&#39;corner-peak&#39;</span><span class="p">:</span>
+        <span class="n">attributes</span><span class="p">[</span><span class="s1">&#39;variance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">genz</span><span class="o">.</span><span class="n">variance</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span></div>
 
-<span class="k">try</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">pyapprox.fenics_models.advection_diffusion_wrappers</span> <span class="kn">import</span> \
+
+<span class="k">if</span> <span class="n">PYA_DEV_AVAILABLE</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">pyapprox_dev.fenics_models.advection_diffusion_wrappers</span> <span class="kn">import</span> \
         <span class="n">setup_advection_diffusion_benchmark</span><span class="p">,</span>\
         <span class="n">setup_advection_diffusion_source_inversion_benchmark</span><span class="p">,</span>\
         <span class="n">setup_multi_level_advection_diffusion_benchmark</span>
-    <span class="kn">from</span> <span class="nn">pyapprox.fenics_models.helmholtz_benchmarks</span> <span class="kn">import</span> \
+    <span class="kn">from</span> <span class="nn">pyapprox_dev.fenics_models.helmholtz_benchmarks</span> <span class="kn">import</span> \
         <span class="n">setup_mfnets_helmholtz_benchmark</span>
-<span class="k">except</span><span class="p">:</span>
-    <span class="k">pass</span>
 
-<div class="viewcode-block" id="setup_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.benchmarks.setup_benchmark.html#pyapprox.benchmarks.benchmarks.setup_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_benchmark</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="n">benchmarks</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;sobol_g&#39;</span><span class="p">:</span><span class="n">setup_sobol_g_function</span><span class="p">,</span>
-                  <span class="s1">&#39;ishigami&#39;</span><span class="p">:</span><span class="n">setup_ishigami_function</span><span class="p">,</span>
-                  <span class="s1">&#39;oakley&#39;</span><span class="p">:</span><span class="n">setup_oakley_function</span><span class="p">,</span>
-                  <span class="s1">&#39;rosenbrock&#39;</span><span class="p">:</span><span class="n">setup_rosenbrock_function</span><span class="p">,</span>
-                  <span class="s1">&#39;genz&#39;</span><span class="p">:</span><span class="n">setup_genz_function</span><span class="p">,</span>
-                  <span class="s1">&#39;cantilever_beam&#39;</span><span class="p">:</span><span class="n">setup_cantilever_beam_benchmark</span><span class="p">}</span>
-    <span class="k">try</span><span class="p">:</span>
+
+<div class="viewcode-block" id="setup_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_benchmark.html#pyapprox.benchmarks.setup_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_benchmark</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Setup a PyApprox benchmark.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name : string</span>
+<span class="sd">        The name of the benchmark</span>
+
+<span class="sd">    kwargs: kwargs</span>
+<span class="sd">     optional keyword arguments</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
+<span class="sd">       Object containing the benchmark attributes</span>
+
+<span class="sd">    The benchmark object must contain at least the following two attributes</span>
+
+<span class="sd">    fun : callable</span>
+<span class="sd">        A function with signature</span>
+
+<span class="sd">        fun(samples) -&gt; np.ndarray(nsamples, nqoi)</span>
+
+<span class="sd">        where samples : np.ndarray(nvars, nsamples)</span>
+
+<span class="sd">    variable : :py:class:`pyapprox.variables.JointVariable`</span>
+<span class="sd">        Class containing information about each of the nvars inputs to fun</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">benchmarks</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;sobol_g&#39;</span><span class="p">:</span> <span class="n">setup_sobol_g_function</span><span class="p">,</span>
+        <span class="s1">&#39;ishigami&#39;</span><span class="p">:</span> <span class="n">setup_ishigami_function</span><span class="p">,</span>
+        <span class="s1">&#39;oakley&#39;</span><span class="p">:</span> <span class="n">setup_oakley_function</span><span class="p">,</span>
+        <span class="s1">&#39;rosenbrock&#39;</span><span class="p">:</span> <span class="n">setup_rosenbrock_function</span><span class="p">,</span>
+        <span class="s1">&#39;genz&#39;</span><span class="p">:</span> <span class="n">setup_genz_function</span><span class="p">,</span>
+        <span class="s1">&#39;cantilever_beam&#39;</span><span class="p">:</span> <span class="n">setup_cantilever_beam_benchmark</span><span class="p">,</span>
+        <span class="s1">&#39;wing_weight&#39;</span><span class="p">:</span> <span class="n">setup_wing_weight_benchmark</span><span class="p">,</span>
+        <span class="s1">&#39;piston&#39;</span><span class="p">:</span> <span class="n">setup_piston_benchmark</span><span class="p">,</span>
+        <span class="s1">&#39;chemical_reaction&#39;</span><span class="p">:</span> <span class="n">setup_chemical_reaction_benchmark</span><span class="p">,</span>
+        <span class="s1">&#39;random_oscillator&#39;</span><span class="p">:</span> <span class="n">setup_random_oscillator_benchmark</span><span class="p">,</span>
+        <span class="s1">&#39;coupled_springs&#39;</span><span class="p">:</span> <span class="n">setup_coupled_springs_benchmark</span><span class="p">,</span>
+        <span class="s1">&#39;hastings_ecology&#39;</span><span class="p">:</span> <span class="n">setup_hastings_ecology_benchmark</span><span class="p">,</span>
+        <span class="s1">&#39;multi_index_advection_diffusion&#39;</span><span class="p">:</span>
+        <span class="n">setup_multi_index_advection_diffusion_benchmark</span><span class="p">,</span>
+        <span class="s1">&#39;polynomial_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_polynomial_ensemble</span><span class="p">,</span>
+        <span class="s1">&#39;tunable_model_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_tunable_model_ensemble</span><span class="p">,</span>
+        <span class="s1">&#39;short_column_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_short_column_ensemble</span><span class="p">,</span>
+        <span class="s2">&quot;parameterized_nonlinear_model&quot;</span><span class="p">:</span> <span class="n">setup_parameterized_nonlinear_model</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">PYA_DEV_AVAILABLE</span><span class="p">:</span>
         <span class="c1"># will fail if fenics is not installed and the import of the fenics</span>
         <span class="c1"># benchmarks fail</span>
-        <span class="n">fenics_benchmarks</span><span class="o">=</span><span class="p">{</span>
-            <span class="s1">&#39;multi_index_advection_diffusion&#39;</span><span class="p">:</span><span class="n">setup_advection_diffusion_benchmark</span><span class="p">,</span>
-            <span class="s1">&#39;multi_index_advection_diffusion_source_inversion&#39;</span><span class="p">:</span><span class="n">setup_advection_diffusion_source_inversion_benchmark</span><span class="p">,</span>
-            <span class="s1">&#39;multi_level_advection_diffusion&#39;</span><span class="p">:</span><span class="n">setup_multi_level_advection_diffusion_benchmark</span><span class="p">,</span>
-            <span class="s1">&#39;mfnets_helmholtz&#39;</span><span class="p">:</span><span class="n">setup_mfnets_helmholtz_benchmark</span><span class="p">}</span>
+        <span class="n">fenics_benchmarks</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;multi_index_advection_diffusion&#39;</span><span class="p">:</span>
+            <span class="n">setup_advection_diffusion_benchmark</span><span class="p">,</span>
+            <span class="s1">&#39;multi_index_advection_diffusion_source_inversion&#39;</span><span class="p">:</span>
+            <span class="n">setup_advection_diffusion_source_inversion_benchmark</span><span class="p">,</span>
+            <span class="s1">&#39;multi_level_advection_diffusion&#39;</span><span class="p">:</span>
+            <span class="n">setup_multi_level_advection_diffusion_benchmark</span><span class="p">,</span>
+            <span class="s1">&#39;mfnets_helmholtz&#39;</span><span class="p">:</span> <span class="n">setup_mfnets_helmholtz_benchmark</span><span class="p">}</span>
         <span class="n">benchmarks</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">fenics_benchmarks</span><span class="p">)</span>
-    <span class="k">except</span><span class="p">:</span>
-        <span class="k">pass</span>
-
 
     <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">benchmarks</span><span class="p">:</span>
-        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Benchmark &quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">&quot; not found.</span><span class="se">\n</span><span class="s1"> Avaialble benchmarks are:</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Benchmark &quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">&quot; not found.</span><span class="se">\n</span><span class="s1"> Available benchmarks are:</span><span class="se">\n</span><span class="s1">&#39;</span>
         <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">benchmarks</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
             <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
         <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">benchmarks</span><span class="p">[</span><span class="n">name</span><span class="p">](</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
-    
 
-<div class="viewcode-block" id="setup_cantilever_beam_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.benchmarks.setup_cantilever_beam_benchmark.html#pyapprox.benchmarks.benchmarks.setup_cantilever_beam_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_cantilever_beam_benchmark</span><span class="p">():</span>
+
+<span class="k">def</span> <span class="nf">setup_cantilever_beam_benchmark</span><span class="p">():</span>
     <span class="n">variable</span><span class="p">,</span> <span class="n">design_variable</span> <span class="o">=</span> <span class="n">define_beam_random_variables</span><span class="p">()</span>
-    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span><span class="n">cantilever_beam_objective</span><span class="p">,</span>
-                  <span class="s1">&#39;jac&#39;</span><span class="p">:</span><span class="n">cantilever_beam_objective_grad</span><span class="p">,</span>
-                  <span class="s1">&#39;constraint_fun&#39;</span><span class="p">:</span><span class="n">cantilever_beam_constraints</span><span class="p">,</span>
-                  <span class="s1">&#39;constraint_jac&#39;</span><span class="p">:</span><span class="n">cantilever_beam_constraints_jacobian</span><span class="p">,</span>
-                  <span class="s1">&#39;variable&#39;</span><span class="p">:</span><span class="n">variable</span><span class="p">,</span>
-                  <span class="s1">&#39;design_variable&#39;</span><span class="p">:</span><span class="n">design_variable</span><span class="p">,</span>
-                  <span class="s1">&#39;design_var_indices&#39;</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">])}</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">cantilever_beam_objective</span><span class="p">,</span>
+                  <span class="s1">&#39;jac&#39;</span><span class="p">:</span> <span class="n">cantilever_beam_objective_grad</span><span class="p">,</span>
+                  <span class="s1">&#39;constraint_fun&#39;</span><span class="p">:</span> <span class="n">cantilever_beam_constraints</span><span class="p">,</span>
+                  <span class="s1">&#39;constraint_jac&#39;</span><span class="p">:</span> <span class="n">cantilever_beam_constraints_jacobian</span><span class="p">,</span>
+                  <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">,</span>
+                  <span class="s1">&#39;design_variable&#39;</span><span class="p">:</span> <span class="n">design_variable</span><span class="p">,</span>
+                  <span class="s1">&#39;design_var_indices&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">])}</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="setup_piston_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_piston_benchmark.html#pyapprox.benchmarks.setup_piston_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_piston_benchmark</span><span class="p">():</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
+<span class="sd">       Object containing the benchmark attributes documented below</span>
+
+<span class="sd">    fun : callable</span>
+
+<span class="sd">        The piston model with signature</span>
+
+<span class="sd">        ``fun(z) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shape (nsamples,1)</span>
+
+<span class="sd">    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`</span>
+<span class="sd">        Object containing information of the joint density of the inputs z</span>
+<span class="sd">        which is the tensor product of independent and identically distributed</span>
+<span class="sd">        uniform variables`.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [Moon2010] `Design and Analysis of Computer Experiments for Screening Input Variables (Doctoral dissertation, Ohio State University) &lt;http://rave.ohiolink.edu/etdc/view?acc_num=osu1275422248&gt;`_</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">define_piston_random_variables</span><span class="p">()</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">piston_function</span><span class="p">,</span>
+                  <span class="s2">&quot;jac&quot;</span><span class="p">:</span> <span class="n">piston_function_gradient</span><span class="p">,</span>
+                  <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">}</span>
     <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="setup_wing_weight_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_wing_weight_benchmark.html#pyapprox.benchmarks.setup_wing_weight_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_wing_weight_benchmark</span><span class="p">():</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Setup the wing weight model benchmark.</span>
+
+<span class="sd">    The model is given by</span>
+
+
+<span class="sd">    ::math f(x) = 0.036\; S_w^{0.758}W_{fw}^{0.0035}\left(\frac{A}{\cos^2(\Lambda)}\right)^{0.6}q^{0.006}\lambda^{0.04}\left(\frac{100t_c}{\cos(\Lambda)}\right)^{-0.3}(N_zW_{dg})^{0.49}+S_wW_p,</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
+<span class="sd">       Object containing the benchmark attributes documented below</span>
+
+<span class="sd">    fun : callable</span>
+
+<span class="sd">        The wing weight model with signature</span>
+
+<span class="sd">        ``fun(z) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shape (nsamples,1)</span>
+
+<span class="sd">    jac : callable</span>
+<span class="sd">        The jacobian of ``fun`` with signature</span>
+
+<span class="sd">        ``jac(z) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shape (nvars,1)</span>
+
+<span class="sd">    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`</span>
+<span class="sd">        Object containing information of the joint density of the inputs z</span>
+<span class="sd">        which is the tensor product of independent and identically distributed</span>
+<span class="sd">        uniform variables`.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [Moon2012] `Moon, H., Dean, A. M., &amp; Santner, T. J. (2012). Two-stage sensitivity-based group screening in computer experiments. Technometrics, 54(4), 376-387. &lt;https://doi.org/10.1080/00401706.2012.725994&gt;`_</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">define_wing_weight_random_variables</span><span class="p">()</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">wing_weight_function</span><span class="p">,</span>
+                  <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">,</span>
+                  <span class="s1">&#39;jac&#39;</span><span class="p">:</span>  <span class="n">wing_weight_gradient</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">setup_chemical_reaction_benchmark</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Setup the chemical reaction model benchmark</span>
+
+<span class="sd">    Model of species absorbing onto a surface out of gas phase</span>
+<span class="sd">    u = y[0] = monomer species</span>
+<span class="sd">    v = y[1] = dimer species</span>
+<span class="sd">    w = y[2] = inert species</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
+<span class="sd">       Object containing the benchmark attributes documented below</span>
+
+<span class="sd">    fun : callable</span>
+
+<span class="sd">        The piston model with signature</span>
+
+<span class="sd">        ``fun(z) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shape (nsamples,1)</span>
+
+<span class="sd">    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`</span>
+<span class="sd">        Object containing information of the joint density of the inputs z</span>
+<span class="sd">        which is the tensor product of independent and identically distributed</span>
+<span class="sd">        uniform variables`.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    Vigil et al., Phys. Rev. E., 1996; Makeev et al., J. Chem. Phys., 2002</span>
+<span class="sd">    Bert Debuschere used this example 2014 talk</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">define_chemical_reaction_random_variables</span><span class="p">()</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">ChemicalReactionModel</span><span class="p">()</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span>
+                  <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">setup_random_oscillator_benchmark</span><span class="p">():</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">define_random_oscillator_random_variables</span><span class="p">()</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">RandomOscillator</span><span class="p">()</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span>
+                  <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">setup_coupled_springs_benchmark</span><span class="p">():</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">define_coupled_springs_random_variables</span><span class="p">()</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">CoupledSprings</span><span class="p">()</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span>
+                  <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">setup_hastings_ecology_benchmark</span><span class="p">(</span><span class="n">qoi_functional</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">define_nondim_hastings_ecology_random_variables</span><span class="p">()</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">HastingsEcology</span><span class="p">(</span><span class="n">qoi_functional</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="n">time</span><span class="p">)</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span>
+                  <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">setup_multi_index_advection_diffusion_benchmark</span><span class="p">(</span>
+        <span class="n">nvars</span><span class="p">,</span> <span class="n">corr_len</span><span class="p">,</span> <span class="n">degree</span><span class="p">,</span> <span class="n">final_time</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">time_step_size</span><span class="o">=</span><span class="mf">1e-2</span><span class="p">,</span>
+        <span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &amp;=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\</span>
+<span class="sd">       \mathcal{B}(x,t,\rv)&amp;=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\</span>
+<span class="sd">       u(x,t,\rv)&amp;=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom</span>
+
+<span class="sd">    Following [NTWSIAMNA2008]_, [JEGGIJNME2020]_ we set</span>
+
+<span class="sd">    .. math:: g(x,t)=(1.5+\cos(2\pi t))\cos(x_1),</span>
+
+<span class="sd">    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero dirichlet boundary conditions.</span>
+
+<span class="sd">    and we model the diffusivity :math:`k` as a random field represented by the</span>
+<span class="sd">    Karhunen-Loeve (like) expansion (KLE)</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       \log(k(x,\rv)-0.5)=1+\rv_1\left(\frac{\sqrt{\pi L}}{2}\right)^{1/2}+\sum_{k=2}^d \lambda_k\phi(x)\rv_k,</span>
+
+<span class="sd">    with</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k&gt;1,  \qquad\qquad  \phi(x)=</span>
+<span class="sd">       \begin{cases}</span>
+<span class="sd">       \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) &amp; k \text{ even}\,,\\</span>
+<span class="sd">       \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) &amp; k \text{ odd}\,.</span>
+<span class="sd">       \end{cases}</span>
+
+<span class="sd">    where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}`.</span>
+
+<span class="sd">    The quantity of interest :math:`f(z)` is the measurement of the solution at a location :math:`x_k` at the final time :math:`T=1` obtained via the linear functional</span>
+
+<span class="sd">    .. math:: f(z)=\int_D u(x,T,z)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x_k \rVert^2_2}{\sigma^2}\right) dx</span>
+
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    nvars : integer</span>
+<span class="sd">        The number of variables of the KLE</span>
+
+<span class="sd">    corr_len : float</span>
+<span class="sd">        The correlation length :math:`L_c` of the covariance kernel</span>
+
+<span class="sd">    max_eval_concurrency : integer</span>
+<span class="sd">        The maximum number of simulations that can be run in parallel. Should be         no more than the maximum number of cores on the computer being used</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
+<span class="sd">       Object containing the benchmark attributes documented below</span>
+
+<span class="sd">    fun : callable</span>
+
+<span class="sd">        The quantity of interest :math:`f(w)` with signature</span>
+
+<span class="sd">        ``fun(w) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars``</span>
+<span class="sd">        rows of ``w`` are realizations of the random variables. The last 3 rows</span>
+<span class="sd">        are configuration variables specifying the numerical discretization of</span>
+<span class="sd">        the PDE model. Specifically the first and second configuration variables</span>
+<span class="sd">        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate</span>
+<span class="sd">        the resolution of the FEM mesh in the directions :math:`{x_1}` and</span>
+<span class="sd">        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}`</span>
+<span class="sd">        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration</span>
+<span class="sd">        variable specifies the level :math:`l_t` of the temporal discretization.</span>
+<span class="sd">        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep</span>
+<span class="sd">        size is and :math:`T/2^{l_{t}+2}`.</span>
+
+<span class="sd">    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`</span>
+<span class="sd">        Object containing information of the joint density of the inputs z</span>
+<span class="sd">        which is the tensor product of independent and identically distributed</span>
+<span class="sd">        uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from pyapprox_dev.benchmarks.benchmarks import setup_benchmark</span>
+<span class="sd">    &gt;&gt;&gt; benchmark = setup_benchmark(&#39;advection-diffusion&#39;, nvars=2)</span>
+<span class="sd">    &gt;&gt;&gt; print(benchmark.keys())</span>
+<span class="sd">    dict_keys([&#39;fun&#39;, &#39;variable&#39;])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">3</span><span class="p">))]</span><span class="o">*</span><span class="n">nvars</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
+    <span class="n">pde_funs</span> <span class="o">=</span> <span class="n">NobileBenchmarkFunctions</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">corr_len</span><span class="p">)</span>
+    <span class="n">config_values</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">11</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">11</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">final_time</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">base_model</span> <span class="o">=</span> <span class="n">TransientAdvectionDiffusion</span><span class="p">()</span>
+        <span class="n">base_model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span>
+            <span class="n">pde_funs</span><span class="o">.</span><span class="n">bndry_conds</span><span class="p">,</span> <span class="n">pde_funs</span><span class="o">.</span><span class="n">diffusivity_fun</span><span class="p">,</span>
+            <span class="n">pde_funs</span><span class="o">.</span><span class="n">time_dependent_forcing_fun</span><span class="p">,</span> <span class="n">pde_funs</span><span class="o">.</span><span class="n">velocity_fun</span><span class="p">,</span>
+            <span class="n">degree</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">final_time</span><span class="p">,</span> <span class="n">time_step_size</span><span class="p">,</span>
+            <span class="n">pde_funs</span><span class="o">.</span><span class="n">initial_condition_fun</span><span class="p">)</span>
+        <span class="n">config_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">final_time</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">11</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">base_model</span> <span class="o">=</span> <span class="n">SteadyStateAdvectionDiffusion</span><span class="p">()</span>
+        <span class="n">base_model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">pde_funs</span><span class="o">.</span><span class="n">bndry_conds</span><span class="p">,</span> <span class="n">pde_funs</span><span class="o">.</span><span class="n">diffusivity_fun</span><span class="p">,</span>
+                              <span class="n">pde_funs</span><span class="o">.</span><span class="n">forcing_fun</span><span class="p">,</span> <span class="n">pde_funs</span><span class="o">.</span><span class="n">velocity_fun</span><span class="p">,</span>
+                              <span class="n">degree</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+    <span class="n">multi_index_model</span> <span class="o">=</span> <span class="n">SpectralPDEMultiIndexWrapper</span><span class="p">(</span>
+        <span class="n">base_model</span><span class="p">,</span> <span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">())</span>
+    <span class="n">config_var_trans</span> <span class="o">=</span> <span class="n">ConfigureVariableTransformation</span><span class="p">(</span><span class="n">config_values</span><span class="p">)</span>
+
+    <span class="c1"># add wrapper to allow execution times to be captured</span>
+    <span class="n">timer_model</span> <span class="o">=</span> <span class="n">TimerModel</span><span class="p">(</span><span class="n">multi_index_model</span><span class="p">,</span> <span class="n">multi_index_model</span><span class="p">)</span>
+    <span class="n">pool_model</span> <span class="o">=</span> <span class="n">PoolModel</span><span class="p">(</span>
+       <span class="n">timer_model</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">,</span> <span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span><span class="p">)</span>
+    <span class="c1"># pool_model = timer_model</span>
+
+    <span class="c1"># add wrapper that tracks execution times.</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span><span class="n">pool_model</span><span class="p">,</span> <span class="n">multi_index_model</span><span class="p">,</span>
+                              <span class="n">multi_index_model</span><span class="o">.</span><span class="n">num_config_vars</span><span class="p">)</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">,</span>
+        <span class="s2">&quot;get_num_degrees_of_freedom&quot;</span><span class="p">:</span> <span class="n">base_model</span><span class="o">.</span><span class="n">get_num_degrees_of_freedom</span><span class="p">,</span>
+        <span class="s2">&quot;config_var_trans&quot;</span><span class="p">:</span> <span class="n">config_var_trans</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="setup_polynomial_ensemble"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_polynomial_ensemble.html#pyapprox.benchmarks.setup_polynomial_ensemble">[docs]</a><span class="k">def</span> <span class="nf">setup_polynomial_ensemble</span><span class="p">():</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return an ensemble of 5 univariate models of the form</span>
+<span class="sd"> </span>
+<span class="sd">    .. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4</span>
+
+<span class="sd">    where :mat:`z\sim\mathcal{U}[0, 1]`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
+<span class="sd">       Object containing the benchmark attributes</span>
+
+<span class="sd">    fun : callable</span>
+<span class="sd">        The function being analyzed</span>
+
+<span class="sd">    variable : :py:class:`pyapprox.variables.JointVariable`</span>
+<span class="sd">        Class containing information about each of the nvars inputs to fun</span>
+
+<span class="sd">    means : np.ndarray (nmodels)</span>
+<span class="sd">        The mean of each model fidelity</span>
+
+<span class="sd">    model_covariance : np.ndarray (nmodels)</span>
+<span class="sd">        The covariance between the outputs of each model fidelity</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020. &lt;https://doi.org/10.1016/j.jcp.2020.109257&gt;`_</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">PolynomialModelEnsemble</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span>
+        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="s2">&quot;means&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_means</span><span class="p">(),</span>
+         <span class="s2">&quot;model_covariance&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">()})</span></div>
+
+
+<span class="k">def</span> <span class="nf">setup_tunable_model_ensemble</span><span class="p">(</span><span class="n">theta1</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">2</span><span class="o">*</span><span class="mf">0.95</span><span class="p">,</span> <span class="n">shifts</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">TunableModelEnsemble</span><span class="p">(</span><span class="n">theta1</span><span class="p">,</span> <span class="n">shifts</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span>
+        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="s2">&quot;means&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_means</span><span class="p">(),</span>
+         <span class="s2">&quot;model_covariance&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">()})</span>
+
+
+<span class="k">def</span> <span class="nf">setup_short_column_ensemble</span><span class="p">():</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">ShortColumnModelEnsemble</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span>
+        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="s2">&quot;means&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_means</span><span class="p">(),</span>
+         <span class="s2">&quot;model_covariance&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">()})</span>
+
+
+<span class="k">def</span> <span class="nf">setup_parameterized_nonlinear_model</span><span class="p">():</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">ParameterizedNonlinearModel</span><span class="p">()</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">qoi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">marginals</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span> <span class="n">ub</span><span class="o">-</span><span class="n">lb</span><span class="p">)</span>
+                 <span class="k">for</span> <span class="n">lb</span><span class="p">,</span> <span class="n">ub</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">ranges</span><span class="p">[::</span><span class="mi">2</span><span class="p">],</span> <span class="n">model</span><span class="o">.</span><span class="n">ranges</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">])]</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">marginals</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span>
+        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">})</span>
 </pre></div>
 
            </div>
-           
           </div>
           <footer>
-  
 
   <hr/>
 
   <div role="contentinfo">
-    <p>
-        
-        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
-
-    </p>
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
   </div>
-    
-    
-    
-    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
-    
-    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
-    
-    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
 
 </footer>
-
         </div>
       </div>
-
     </section>
-
   </div>
-  
-
-  <script type="text/javascript">
+  <script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script>
-
-  
-  
-    
-   
+  </script> 
 
 </body>
 </html>

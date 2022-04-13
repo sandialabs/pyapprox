@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.surrogates.polychaos.gpc &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+        <script src="../../../../_static/jquery.js"></script>
+        <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/doctools.js"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.surrogates.polychaos.gpc</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.surrogates.polychaos.gpc</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.variables.transforms</span> <span class="kn">import</span> <span class="n">AffineTransform</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.joint</span> <span class="kn">import</span> <span class="n">IndependentMarginalsVariable</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">cartesian_product</span><span class="p">,</span> <span class="n">outer_product</span><span class="p">,</span> <span class="n">hash_array</span><span class="p">,</span> <span class="n">nchoosek</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">get_tensor_product_quadrature_rule</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.recursion_factory</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_recursion_coefficients_from_variable</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.orthonormal_polynomials</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">evaluate_orthonormal_polynomial_deriv_1d</span><span class="p">,</span>
+    <span class="n">evaluate_orthonormal_polynomial_1d</span><span class="p">,</span> <span class="n">gauss_quadrature</span><span class="p">,</span>
+    <span class="n">define_orthopoly_options_from_marginal</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.quadrature</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_gauss_quadrature_rule_from_marginal</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.monomial</span> <span class="kn">import</span> <span class="n">monomial_basis_matrix</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.linalg</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">flattened_rectangular_lower_triangular_matrix_index</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.manipulate_polynomials</span> <span class="kn">import</span> <span class="n">add_polynomials</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.indexing</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">compute_hyperbolic_level_indices</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">make_2D_array</span><span class="p">(</span><span class="n">lis</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Funciton to get 2D array from a list of lists</span>
+
+<span class="sd">    numba does not support lists of lists so need to compute lists to 2D array</span>
+<span class="sd">    and store different lengths</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">lis</span><span class="p">)</span>
+    <span class="n">lengths</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">lis</span><span class="p">])</span>
+    <span class="n">max_len</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">lengths</span><span class="p">)</span>
+    <span class="n">arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n</span><span class="p">,</span> <span class="n">max_len</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="n">arr</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:</span><span class="n">lengths</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">=</span> <span class="n">lis</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">arr</span><span class="p">,</span> <span class="n">lengths</span>
+
+
+<span class="k">def</span> <span class="nf">precompute_multivariate_orthonormal_polynomial_univariate_values</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">recursion_coeffs</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">basis_type_index_map</span><span class="p">):</span>
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="c1"># axis keyword is not supported when usingnumba</span>
+    <span class="c1"># max_level_1d = indices.max(axis=1)</span>
+    <span class="c1"># so replace with</span>
+    <span class="n">max_level_1d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_vars</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_vars</span><span class="p">):</span>
+        <span class="n">max_level_1d</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">basis_type_index_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># numba requires np.int_ not int or np.int</span>
+        <span class="n">basis_type_index_map</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_vars</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">)</span>
+        <span class="n">recursion_coeffs</span> <span class="o">=</span> <span class="p">[</span><span class="n">recursion_coeffs</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_vars</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">recursion_coeffs</span><span class="p">[</span><span class="n">basis_type_index_map</span><span class="p">[</span><span class="n">dd</span><span class="p">]]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span>
+                <span class="n">max_level_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">]):</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;max_level_1d for dimension </span><span class="si">{</span><span class="n">dd</span><span class="si">}</span><span class="s1"> exceeds number of &#39;</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;precomputed recusion coefficients&#39;</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="n">basis_vals_1d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">num_vars</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">deriv_order</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">max_level_1d</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+        <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="c1"># WARNING some entries of basis_vals_1d will remain uninitialized</span>
+    <span class="c1"># when max_level_1d[dd]=max_level_1d.max() for directions dd</span>
+    <span class="c1"># storing arrays of equal size allows fast vectorization based manipulation</span>
+    <span class="c1"># in downstream functions</span>
+    <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_vars</span><span class="p">):</span>
+        <span class="n">basis_vals_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:(</span><span class="n">deriv_order</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">max_level_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span> <span class="p">:]</span> <span class="o">=</span> \
+            <span class="n">evaluate_orthonormal_polynomial_deriv_1d</span><span class="p">(</span>
+                <span class="n">samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:],</span> <span class="n">max_level_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">],</span>
+                <span class="n">recursion_coeffs</span><span class="p">[</span><span class="n">basis_type_index_map</span><span class="p">[</span><span class="n">dd</span><span class="p">]],</span> <span class="n">deriv_order</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+    <span class="k">return</span> <span class="n">basis_vals_1d</span>
+
+
+<span class="k">def</span> <span class="nf">evaluate_multivariate_orthonormal_polynomial_values</span><span class="p">(</span>
+        <span class="n">indices</span><span class="p">,</span> <span class="n">basis_vals_1d</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">):</span>
+    <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_indices</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">temp1</span> <span class="o">=</span> <span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">num_vars</span><span class="o">*</span><span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">num_samples</span><span class="p">))</span>
+    <span class="n">temp2</span> <span class="o">=</span> <span class="n">temp1</span><span class="p">[</span><span class="n">indices</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_vars</span><span class="p">)</span><span class="o">*</span><span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">num_indices</span><span class="p">),</span> <span class="p">:]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+            <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_indices</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">)</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">temp2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+    <span class="k">return</span> <span class="n">values</span>
+
+
+<span class="k">def</span> <span class="nf">evaluate_multivariate_orthonormal_polynomial_derivs</span><span class="p">(</span>
+        <span class="n">indices</span><span class="p">,</span> <span class="n">max_level_1d</span><span class="p">,</span> <span class="n">basis_vals_1d</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">):</span>
+    <span class="c1"># TODO Consider combining</span>
+    <span class="c1"># evaluate_multivariate_orthonormal_polynomial_values and derivs and</span>
+    <span class="c1"># evaluate_multivariate_orthonormal_polynomial_derivs because they both</span>
+    <span class="c1"># compute temp2</span>
+
+    <span class="k">assert</span> <span class="n">deriv_order</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_indices</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="c1"># extract derivatives</span>
+    <span class="n">temp1</span> <span class="o">=</span> <span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">num_vars</span><span class="o">*</span><span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">num_samples</span><span class="p">))</span>
+    <span class="n">temp2</span> <span class="o">=</span> <span class="n">temp1</span><span class="p">[</span><span class="n">indices</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_vars</span><span class="p">)</span><span class="o">*</span><span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">num_indices</span><span class="p">),</span> <span class="p">:]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+            <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_indices</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">)</span>
+    <span class="c1"># values = np.prod(temp2, axis=0).T</span>
+    <span class="c1"># derivs are stored immeadiately after values in basis_vals_1d</span>
+    <span class="c1"># if max_level_1d[dd]!=max_level_1d.max() then there will be some</span>
+    <span class="c1"># uninitialized values at the end of the array but these are never accessed</span>
+    <span class="n">temp3</span> <span class="o">=</span> <span class="n">temp1</span><span class="p">[</span><span class="n">indices</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span>
+        <span class="n">max_level_1d</span><span class="o">+</span><span class="mi">1</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_vars</span><span class="p">)</span><span class="o">*</span><span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+        <span class="n">num_indices</span><span class="p">),</span> <span class="p">:]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">num_indices</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">)</span>
+
+    <span class="n">derivs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_samples</span><span class="o">*</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">num_indices</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_vars</span><span class="p">):</span>
+        <span class="n">derivs</span><span class="p">[(</span><span class="n">jj</span><span class="p">)</span><span class="o">*</span><span class="n">num_samples</span><span class="p">:(</span><span class="n">jj</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">num_samples</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">temp2</span><span class="p">[:</span><span class="n">jj</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span>
+                <span class="n">temp2</span><span class="p">[</span><span class="n">jj</span><span class="o">+</span><span class="mi">1</span><span class="p">:],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">*</span><span class="n">temp3</span><span class="p">[</span><span class="n">jj</span><span class="p">])</span><span class="o">.</span><span class="n">T</span>
+
+    <span class="k">return</span> <span class="n">derivs</span>
+
+
+<span class="k">def</span> <span class="nf">evaluate_multivariate_orthonormal_polynomial</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">recursion_coeffs</span><span class="p">,</span> <span class="n">deriv_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">basis_type_index_map</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Evaluate a multivaiate orthonormal polynomial and its s-derivatives</span>
+<span class="sd">    (s=1,...,num_derivs) using a three-term recurrence coefficients.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    samples : np.ndarray (num_vars, num_samples)</span>
+<span class="sd">        Samples at which to evaluate the polynomial</span>
+
+<span class="sd">    indices : np.ndarray (num_vars, num_indices)</span>
+<span class="sd">        The exponents of each polynomial term</span>
+
+<span class="sd">    recursion_coeffs : list of np.ndarray (num_indices,2)</span>
+<span class="sd">        The recursion coefficients for each unique polynomial</span>
+
+<span class="sd">    deriv_order : integer in [0,1]</span>
+<span class="sd">       The maximum order of the derivatives to evaluate.</span>
+
+<span class="sd">    basis_type_index_map : list</span>
+<span class="sd">        The index into recursion coeffs that points to the unique recursion</span>
+<span class="sd">        coefficients associated with each dimension</span>
+
+<span class="sd">    Return</span>
+<span class="sd">    ------</span>
+<span class="sd">    values : np.ndarray (1+deriv_order*num_samples,num_indices)</span>
+<span class="sd">        The values of the polynomials at the samples</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_indices</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span>
+    <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">num_vars</span>
+    <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="c1"># assert recursion_coeffs.shape[0]&gt;indices.max()</span>
+    <span class="n">max_level_1d</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">deriv_order</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">deriv_order</span> <span class="o">&lt;=</span> <span class="mi">1</span>
+
+    <span class="c1"># My cython implementaion is currently slower than pure python found here</span>
+    <span class="c1"># try:</span>
+    <span class="c1">#     from pyapprox.cython.multivariate_polynomials import \</span>
+    <span class="c1">#         evaluate_multivariate_orthonormal_polynomial_pyx</span>
+    <span class="c1">#     return evaluate_multivariate_orthonormal_polynomial_pyx(</span>
+    <span class="c1">#         samples,indices,recursion_coeffs,deriv_order)</span>
+    <span class="c1"># except:</span>
+    <span class="c1">#     print(&#39;evaluate_multivariate_orthonormal_polynomial extension failed&#39;)</span>
+
+    <span class="c1"># precompute 1D basis functions for faster evaluation of</span>
+    <span class="c1"># multivariate terms</span>
+
+    <span class="n">precompute_values</span> <span class="o">=</span> \
+        <span class="n">precompute_multivariate_orthonormal_polynomial_univariate_values</span>
+    <span class="n">compute_values</span> <span class="o">=</span> <span class="n">evaluate_multivariate_orthonormal_polynomial_values</span>
+    <span class="n">compute_derivs</span> <span class="o">=</span> <span class="n">evaluate_multivariate_orthonormal_polynomial_derivs</span>
+
+    <span class="n">basis_vals_1d</span> <span class="o">=</span> <span class="n">precompute_values</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">recursion_coeffs</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">basis_type_index_map</span><span class="p">)</span>
+
+    <span class="n">num_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">compute_values</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">basis_vals_1d</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">deriv_order</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">values</span>
+
+    <span class="n">derivs</span> <span class="o">=</span> <span class="n">compute_derivs</span><span class="p">(</span>
+        <span class="n">indices</span><span class="p">,</span> <span class="n">max_level_1d</span><span class="p">,</span> <span class="n">basis_vals_1d</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">)</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">values</span><span class="p">,</span> <span class="n">derivs</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">values</span>
+
+
+<div class="viewcode-block" id="PolynomialChaosExpansion"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion">[docs]</a><span class="k">class</span> <span class="nc">PolynomialChaosExpansion</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A polynomial chaos expansion for independent random variables.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Constructor. &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recursion_coeffs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">basis_type_index_map</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">basis_type_var_indices</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="fm">__mul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">other</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">poly1</span> <span class="o">=</span> <span class="bp">self</span>
+            <span class="n">poly2</span> <span class="o">=</span> <span class="n">other</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">poly1</span> <span class="o">=</span> <span class="n">other</span>
+            <span class="n">poly2</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="n">poly1</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">poly1</span><span class="p">)</span>
+        <span class="n">poly2</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">poly2</span><span class="p">)</span>
+        <span class="n">max_degrees1</span> <span class="o">=</span> <span class="n">poly1</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">max_degrees2</span> <span class="o">=</span> <span class="n">poly2</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># print(&#39;###&#39;)</span>
+        <span class="c1"># print(max_degrees1,max_degrees2)</span>
+        <span class="n">product_coefs_1d</span> <span class="o">=</span> <span class="n">compute_product_coeffs_1d_for_each_variable</span><span class="p">(</span>
+            <span class="n">poly1</span><span class="p">,</span> <span class="n">max_degrees1</span><span class="p">,</span> <span class="n">max_degrees2</span><span class="p">)</span>
+        <span class="c1"># print(product_coefs_1d)</span>
+
+        <span class="n">indices</span><span class="p">,</span> <span class="n">coefs</span> <span class="o">=</span> \
+            <span class="n">multiply_multivariate_orthonormal_polynomial_expansions</span><span class="p">(</span>
+                <span class="n">product_coefs_1d</span><span class="p">,</span> <span class="n">poly1</span><span class="o">.</span><span class="n">get_indices</span><span class="p">(),</span>
+                <span class="n">poly1</span><span class="o">.</span><span class="n">get_coefficients</span><span class="p">(),</span>
+                <span class="n">poly2</span><span class="o">.</span><span class="n">get_indices</span><span class="p">(),</span> <span class="n">poly2</span><span class="o">.</span><span class="n">get_coefficients</span><span class="p">())</span>
+        <span class="c1"># get_polynomial_from_variable(self.var_trans.variable)</span>
+        <span class="n">poly</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">poly</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+        <span class="n">poly</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">coefs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">poly</span>
+
+    <span class="k">def</span> <span class="fm">__add__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="n">indices_list</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">indices</span><span class="p">]</span>
+        <span class="n">coefs_list</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">coefficients</span><span class="p">]</span>
+        <span class="n">indices</span><span class="p">,</span> <span class="n">coefs</span> <span class="o">=</span> <span class="n">add_polynomials</span><span class="p">(</span><span class="n">indices_list</span><span class="p">,</span> <span class="n">coefs_list</span><span class="p">)</span>
+        <span class="n">poly</span> <span class="o">=</span> <span class="n">get_polynomial_from_variable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
+        <span class="n">poly</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+        <span class="n">poly</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">coefs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">poly</span>
+
+    <span class="k">def</span> <span class="fm">__sub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="n">indices_list</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">indices</span><span class="p">]</span>
+        <span class="n">coefs_list</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">,</span> <span class="o">-</span><span class="n">other</span><span class="o">.</span><span class="n">coefficients</span><span class="p">]</span>
+        <span class="n">indices</span><span class="p">,</span> <span class="n">coefs</span> <span class="o">=</span> <span class="n">add_polynomials</span><span class="p">(</span><span class="n">indices_list</span><span class="p">,</span> <span class="n">coefs_list</span><span class="p">)</span>
+        <span class="n">poly</span> <span class="o">=</span> <span class="n">get_polynomial_from_variable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
+        <span class="n">poly</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+        <span class="n">poly</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">coefs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">poly</span>
+
+    <span class="k">def</span> <span class="fm">__pow__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
+        <span class="n">poly</span> <span class="o">=</span> <span class="n">get_polynomial_from_variable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">order</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">poly</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span> <span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">))</span>
+            <span class="n">poly</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]]))</span>
+            <span class="k">return</span> <span class="n">poly</span>
+
+        <span class="n">poly</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">order</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">poly</span> <span class="o">=</span> <span class="n">poly</span><span class="o">*</span><span class="bp">self</span>
+        <span class="k">return</span> <span class="n">poly</span>
+
+    <span class="c1"># def substitute(self, other):</span>
+    <span class="c1">#     &quot;&quot;&quot;</span>
+    <span class="c1">#     Final polynomial will use orthonormal basis of other for any variable</span>
+    <span class="c1">#     in other. E.g. if other is denoted z = p(x,y) and we are computing</span>
+    <span class="c1">#     f(z)</span>
+    <span class="c1">#     then f(z) = f(x,y) where we use basis associated with x and y and not</span>
+    <span class="c1">#     with z.</span>
+
+    <span class="c1">#     I have code to do this but it requires a transformation from an</span>
+    <span class="c1">#     orthogonal basis into the monomial basis then into another orthogonal</span>
+    <span class="c1">#     basis and this transformation can be ill-conditioned.</span>
+    <span class="c1">#     &quot;&quot;&quot;</span>
+    <span class="c1">#     raise Exception(Not implemented)</span>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.configure"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.configure">[docs]</a>    <span class="k">def</span> <span class="nf">configure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">opts</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        var_trans : :class:`pyapprox.variables.transforms.AffineTransform`</span>
+<span class="sd">            Variable transformation mapping user samples into the canonical</span>
+<span class="sd">            domain of the polynomial basis</span>
+
+<span class="sd">        opts : dictionary</span>
+<span class="sd">            Options defining the configuration of the polynomial</span>
+<span class="sd">            chaos expansion basis with the following attributes</span>
+
+<span class="sd">        poly_opts : dictionary</span>
+<span class="sd">            Options to configure each unique univariate polynomial basis</span>
+<span class="sd">            with attibutes</span>
+
+<span class="sd">        var_nums : iterable</span>
+<span class="sd">            List of variables dimension which use the ith unique basis</span>
+
+<span class="sd">        The remaining options are specific to a given basis type. See</span>
+<span class="sd">             - :func:`pyapprox.surrogates.orthopoly.quadrature.get_recursion_coefficients_from_variable`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span> <span class="o">=</span> <span class="n">opts</span><span class="p">[</span><span class="s2">&quot;var_trans&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config_opts</span> <span class="o">=</span> <span class="n">opts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_degree</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.update_recursion_coefficients"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.update_recursion_coefficients">[docs]</a>    <span class="k">def</span> <span class="nf">update_recursion_coefficients</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_coefs_per_var</span><span class="p">):</span>
+        <span class="n">num_coefs_per_var</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">num_coefs_per_var</span><span class="p">)</span>
+        <span class="n">initializing</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">basis_type_index_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">initializing</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">basis_type_index_map</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">ii</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">poly_opts</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_opts</span><span class="p">[</span><span class="s1">&#39;poly_types&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">initializing</span> <span class="ow">or</span> <span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">num_coefs_per_var</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">basis_type_var_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span> <span class="o">&gt;</span>
+                       <span class="bp">self</span><span class="o">.</span><span class="n">max_degree</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">basis_type_var_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span><span class="o">+</span><span class="mi">1</span><span class="p">))):</span>
+                <span class="k">if</span> <span class="n">initializing</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">basis_type_var_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">poly_opts</span><span class="p">[</span><span class="s1">&#39;var_nums&#39;</span><span class="p">])</span>
+                <span class="n">num_coefs</span> <span class="o">=</span> <span class="n">num_coefs_per_var</span><span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">basis_type_var_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+                <span class="n">recursion_coeffs_ii</span> <span class="o">=</span> <span class="n">get_recursion_coefficients_from_variable</span><span class="p">(</span>
+                    <span class="n">poly_opts</span><span class="p">[</span><span class="s2">&quot;var&quot;</span><span class="p">],</span> <span class="n">num_coefs</span><span class="p">,</span> <span class="n">poly_opts</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">recursion_coeffs_ii</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="c1"># recursion coefficients will be None is returned if</span>
+                    <span class="c1"># monomial basis is specified. Only allow monomials to</span>
+                    <span class="c1"># be used if all variables use monomial basis</span>
+                    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config_opts</span><span class="p">[</span><span class="s1">&#39;poly_types&#39;</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">initializing</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">recursion_coeffs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">recursion_coeffs_ii</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">recursion_coeffs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">recursion_coeffs_ii</span>
+
+            <span class="c1"># extract variables indices for which basis is to be used</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">basis_type_index_map</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">basis_type_var_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span> <span class="o">=</span> <span class="n">ii</span>
+            <span class="n">ii</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">basis_type_var_indices</span><span class="p">))</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()):</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;poly_opts does not specify a basis for each input &#39;</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;variable&#39;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.set_indices"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.set_indices">[docs]</a>    <span class="k">def</span> <span class="nf">set_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">):</span>
+        <span class="c1"># assert indices.dtype==int</span>
+        <span class="k">if</span> <span class="n">indices</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="n">indices</span>
+        <span class="k">assert</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+        <span class="n">max_degree</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_degree</span> <span class="o">&lt;</span> <span class="n">max_degree</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">update_recursion_coefficients</span><span class="p">(</span><span class="n">max_degree</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">max_degree</span> <span class="o">=</span> <span class="n">max_degree</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.basis_matrix"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.basis_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">basis_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">opts</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
+        <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+        <span class="n">canonical_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">map_to_canonical</span><span class="p">(</span>
+            <span class="n">samples</span><span class="p">)</span>
+        <span class="n">basis_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">canonical_basis_matrix</span><span class="p">(</span><span class="n">canonical_samples</span><span class="p">,</span> <span class="n">opts</span><span class="p">)</span>
+        <span class="n">deriv_order</span> <span class="o">=</span> <span class="n">opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;deriv_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">deriv_order</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">basis_matrix</span><span class="p">[</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:,</span> <span class="p">:]</span> <span class="o">=</span>\
+                <span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">map_derivatives_from_canonical_space</span><span class="p">(</span>
+                <span class="n">basis_matrix</span><span class="p">[</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:,</span> <span class="p">:])</span>
+        <span class="k">return</span> <span class="n">basis_matrix</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.canonical_basis_matrix"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.canonical_basis_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">canonical_basis_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">,</span> <span class="n">opts</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
+        <span class="n">deriv_order</span> <span class="o">=</span> <span class="n">opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;deriv_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">recursion_coeffs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">evaluate_multivariate_orthonormal_polynomial</span><span class="p">(</span>
+                <span class="n">canonical_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">recursion_coeffs</span><span class="p">,</span>
+                <span class="n">deriv_order</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">basis_type_index_map</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">monomial_basis_matrix</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">basis_matrix</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.jacobian"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.jacobian">[docs]</a>    <span class="k">def</span> <span class="nf">jacobian</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sample</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">sample</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+        <span class="n">derivative_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">(</span>
+            <span class="n">sample</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;deriv_order&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="n">jac</span> <span class="o">=</span> <span class="n">derivative_matrix</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+        <span class="k">return</span> <span class="n">jac</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.set_coefficients"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.set_coefficients">[docs]</a>    <span class="k">def</span> <span class="nf">set_coefficients</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">coefficients</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">coefficients</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="k">assert</span> <span class="n">coefficients</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_terms</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span> <span class="o">=</span> <span class="n">coefficients</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.get_coefficients"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.get_coefficients">[docs]</a>    <span class="k">def</span> <span class="nf">get_coefficients</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.get_indices"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.get_indices">[docs]</a>    <span class="k">def</span> <span class="nf">get_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.value"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.value">[docs]</a>    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="n">basis_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.num_vars"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.num_vars">[docs]</a>    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.mean"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.mean">[docs]</a>    <span class="k">def</span> <span class="nf">mean</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the mean of the polynomial chaos expansion</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        mean : np.ndarray (nqoi)</span>
+<span class="sd">            The mean of each quantitity of interest</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.variance"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.variance">[docs]</a>    <span class="k">def</span> <span class="nf">variance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the variance of the polynomial chaos expansion</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        var : np.ndarray (nqoi)</span>
+<span class="sd">            The variance of each quantitity of interest</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">var</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">var</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.covariance"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.covariance">[docs]</a>    <span class="k">def</span> <span class="nf">covariance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the covariance between each quantity of interest of the</span>
+<span class="sd">        polynomial chaos expansion</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        covar : np.ndarray (nqoi)</span>
+<span class="sd">            The covariance between each quantitity of interest</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># nqoi = self.coefficients.shape[1]</span>
+        <span class="n">covar</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="p">:])</span>
+        <span class="k">return</span> <span class="n">covar</span></div>
+
+<div class="viewcode-block" id="PolynomialChaosExpansion.num_terms"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.num_terms">[docs]</a>    <span class="k">def</span> <span class="nf">num_terms</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># truncated svd creates basis with num_terms &lt;= num_indices</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span></div></div>
+
+
+<span class="k">def</span> <span class="nf">get_univariate_quadrature_rules_from_pce</span><span class="p">(</span><span class="n">pce</span><span class="p">,</span> <span class="n">degrees</span><span class="p">):</span>
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+    <span class="n">degrees</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">degrees</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">degrees</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">num_vars</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">degrees</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">degrees</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">*</span><span class="n">num_vars</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">pce</span><span class="o">.</span><span class="n">max_degree</span> <span class="o">&lt;</span> <span class="n">degrees</span><span class="p">):</span>
+        <span class="n">pce</span><span class="o">.</span><span class="n">update_recursion_coefficients</span><span class="p">(</span><span class="n">degrees</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pce</span><span class="o">.</span><span class="n">recursion_coeffs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># update_recursion_coefficients may not return coefficients</span>
+        <span class="c1"># up to degree specified if using recursion for polynomial</span>
+        <span class="c1"># orthogonal to a discrete variable with finite non-zero</span>
+        <span class="c1"># probability measures</span>
+        <span class="k">assert</span> <span class="n">pce</span><span class="o">.</span><span class="n">recursion_coeffs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">degrees</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">+</span><span class="mi">1</span>
+        <span class="n">univariate_quadrature_rules</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">partial</span><span class="p">(</span><span class="n">gauss_quadrature</span><span class="p">,</span> <span class="n">pce</span><span class="o">.</span><span class="n">recursion_coeffs</span><span class="p">[</span><span class="mi">0</span><span class="p">])]</span><span class="o">*</span><span class="n">num_vars</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">univariate_quadrature_rules</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_vars</span><span class="p">):</span>
+            <span class="c1"># update_recursion_coefficients may not return coefficients</span>
+            <span class="c1"># up to degree specified if using recursion for polynomial</span>
+            <span class="c1"># orthogonal to a discrete variable with finite non-zero</span>
+            <span class="c1"># probability measures</span>
+            <span class="k">assert</span> <span class="p">(</span>
+                <span class="n">pce</span><span class="o">.</span><span class="n">recursion_coeffs</span><span class="p">[</span><span class="n">pce</span><span class="o">.</span><span class="n">basis_type_index_map</span><span class="p">[</span><span class="n">dd</span><span class="p">]]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span>
+                <span class="n">degrees</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">univariate_quadrature_rules</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">partial</span><span class="p">(</span><span class="n">gauss_quadrature</span><span class="p">,</span>
+                        <span class="n">pce</span><span class="o">.</span><span class="n">recursion_coeffs</span><span class="p">[</span><span class="n">pce</span><span class="o">.</span><span class="n">basis_type_index_map</span><span class="p">[</span><span class="n">dd</span><span class="p">]]))</span>
+    <span class="k">return</span> <span class="n">univariate_quadrature_rules</span>
+
+
+<span class="k">def</span> <span class="nf">get_tensor_product_quadrature_rule_from_pce</span><span class="p">(</span><span class="n">pce</span><span class="p">,</span> <span class="n">degrees</span><span class="p">):</span>
+    <span class="n">univariate_quadrature_rules</span> <span class="o">=</span> <span class="n">get_univariate_quadrature_rules_from_pce</span><span class="p">(</span>
+        <span class="n">pce</span><span class="p">,</span> <span class="n">degrees</span><span class="p">)</span>
+    <span class="n">canonical_samples</span><span class="p">,</span> <span class="n">weights</span> <span class="o">=</span> \
+        <span class="n">get_tensor_product_quadrature_rule</span><span class="p">(</span>
+            <span class="n">degrees</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">pce</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span> <span class="n">univariate_quadrature_rules</span><span class="p">)</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">map_from_canonical</span><span class="p">(</span>
+        <span class="n">canonical_samples</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">samples</span><span class="p">,</span> <span class="n">weights</span>
+
+
+<span class="k">def</span> <span class="nf">define_poly_options_from_variable</span><span class="p">(</span><span class="n">variable</span><span class="p">):</span>
+    <span class="n">basis_opts</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">variable</span><span class="o">.</span><span class="n">unique_variables</span><span class="p">)):</span>
+        <span class="n">var</span> <span class="o">=</span> <span class="n">variable</span><span class="o">.</span><span class="n">unique_variables</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+        <span class="n">opts</span> <span class="o">=</span> <span class="n">define_orthopoly_options_from_marginal</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+        <span class="n">opts</span><span class="p">[</span><span class="s1">&#39;var_nums&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">variable</span><span class="o">.</span><span class="n">unique_variable_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+        <span class="n">basis_opts</span><span class="p">[</span><span class="s1">&#39;basis</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">opts</span>
+    <span class="k">return</span> <span class="n">basis_opts</span>
+
+
+<span class="k">def</span> <span class="nf">define_poly_options_from_variable_transformation</span><span class="p">(</span><span class="n">var_trans</span><span class="p">):</span>
+    <span class="n">pce_opts</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;var_trans&#39;</span><span class="p">:</span> <span class="n">var_trans</span><span class="p">}</span>
+    <span class="n">basis_opts</span> <span class="o">=</span> <span class="n">define_poly_options_from_variable</span><span class="p">(</span><span class="n">var_trans</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
+    <span class="n">pce_opts</span><span class="p">[</span><span class="s1">&#39;poly_types&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">basis_opts</span>
+    <span class="k">return</span> <span class="n">pce_opts</span>
+
+
+<span class="k">def</span> <span class="nf">conditional_moments_of_polynomial_chaos_expansion</span><span class="p">(</span>
+        <span class="n">poly</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">inactive_idx</span><span class="p">,</span> <span class="n">return_variance</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return mean and variance of polynomial chaos expansion with some variables</span>
+<span class="sd">    fixed at specified values.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    poly: PolynomialChaosExpansion</span>
+<span class="sd">        The polynomial used to compute moments</span>
+
+<span class="sd">    inactive_idx : np.ndarray (ninactive_vars)</span>
+<span class="sd">        The indices of the fixed variables</span>
+
+<span class="sd">    samples : np.ndarray (ninactive_vars)</span>
+<span class="sd">        The samples of the inacive dimensions fixed when computing moments</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    mean : np.ndarray</span>
+<span class="sd">       The conditional mean (num_qoi)</span>
+
+<span class="sd">    variance : np.ndarray</span>
+<span class="sd">       The conditional variance (num_qoi). Only returned if</span>
+<span class="sd">       return_variance=True. Computing variance is significantly slower than</span>
+<span class="sd">       computing mean. TODO check it is indeed slower</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">inactive_idx</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">poly</span><span class="o">.</span><span class="n">coefficients</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="n">coef</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">get_coefficients</span><span class="p">()</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">get_indices</span><span class="p">()</span>
+
+    <span class="c1"># precompute 1D basis functions for faster evaluation of</span>
+    <span class="c1"># multivariate terms</span>
+    <span class="n">basis_vals_1d</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">inactive_idx</span><span class="p">)):</span>
+        <span class="n">basis_vals_1d_dd</span> <span class="o">=</span> <span class="n">evaluate_orthonormal_polynomial_1d</span><span class="p">(</span>
+            <span class="n">samples</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:],</span> <span class="n">indices</span><span class="p">[</span><span class="n">inactive_idx</span><span class="p">[</span><span class="n">dd</span><span class="p">],</span> <span class="p">:]</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+            <span class="n">poly</span><span class="o">.</span><span class="n">recursion_coeffs</span><span class="p">[</span><span class="n">poly</span><span class="o">.</span><span class="n">basis_type_index_map</span><span class="p">[</span><span class="n">inactive_idx</span><span class="p">[</span><span class="n">dd</span><span class="p">]]])</span>
+        <span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basis_vals_1d_dd</span><span class="p">)</span>
+
+    <span class="n">active_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">setdiff1d</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()),</span> <span class="n">inactive_idx</span><span class="p">)</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">coef</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">]</span>
+        <span class="n">coef_ii</span> <span class="o">=</span> <span class="n">coef</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>  <span class="c1"># this intentionally updates the coef matrix</span>
+        <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">inactive_idx</span><span class="p">)):</span>
+            <span class="n">coef_ii</span> <span class="o">*=</span> <span class="n">basis_vals_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="n">index</span><span class="p">[</span><span class="n">inactive_idx</span><span class="p">[</span><span class="n">dd</span><span class="p">]]]</span>
+        <span class="k">if</span> <span class="n">index</span><span class="p">[</span><span class="n">active_idx</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">mean</span> <span class="o">+=</span> <span class="n">coef_ii</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">return_variance</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">mean</span>
+
+    <span class="n">unique_indices</span><span class="p">,</span> <span class="n">repeated_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span>
+        <span class="n">indices</span><span class="p">[</span><span class="n">active_idx</span><span class="p">,</span> <span class="p">:],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">return_inverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">new_coef</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">unique_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">coef</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">repeated_idx</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="n">new_coef</span><span class="p">[</span><span class="n">repeated_idx</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span> <span class="o">+=</span> <span class="n">coef</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+    <span class="n">variance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">new_coef</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">-</span><span class="n">mean</span><span class="o">**</span><span class="mi">2</span>
+    <span class="k">return</span> <span class="n">mean</span><span class="p">,</span> <span class="n">variance</span>
+
+
+<span class="k">def</span> <span class="nf">marginalize_polynomial_chaos_expansion</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">inactive_idx</span><span class="p">,</span> <span class="n">center</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This function is not optimal. It will recreate the options</span>
+<span class="sd">    used to configure the polynomial. Any recursion coefficients</span>
+<span class="sd">    calculated which are still relevant will need to be computed.</span>
+<span class="sd">    This is probably not a large overhead though</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">marginalized_pce</span> <span class="o">=</span> <span class="n">PolynomialChaosExpansion</span><span class="p">()</span>
+    <span class="c1"># poly.config_opts.copy will not work</span>
+    <span class="n">opts</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">config_opts</span><span class="p">)</span>
+    <span class="n">all_variables</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">marginals</span><span class="p">()</span>
+    <span class="n">active_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">setdiff1d</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()),</span> <span class="n">inactive_idx</span><span class="p">)</span>
+    <span class="n">active_variables</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">all_variables</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">active_idx</span><span class="p">])</span>
+    <span class="n">opts</span><span class="p">[</span><span class="s1">&#39;var_trans&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AffineTransform</span><span class="p">(</span><span class="n">active_variables</span><span class="p">)</span>
+
+    <span class="n">marginalized_var_nums</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">num_vars</span><span class="p">())</span>
+    <span class="n">marginalized_var_nums</span><span class="p">[</span><span class="n">active_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">active_idx</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">keys_to_delete</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">poly_opts</span> <span class="ow">in</span> <span class="n">opts</span><span class="p">[</span><span class="s1">&#39;poly_types&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">var_nums</span> <span class="o">=</span> <span class="n">poly_opts</span><span class="p">[</span><span class="s1">&#39;var_nums&#39;</span><span class="p">]</span>
+        <span class="n">poly_opts</span><span class="p">[</span><span class="s1">&#39;var_nums&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">marginalized_var_nums</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">var_nums</span>
+             <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">active_idx</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">poly_opts</span><span class="p">[</span><span class="s1">&#39;var_nums&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">keys_to_delete</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys_to_delete</span><span class="p">:</span>
+        <span class="k">del</span> <span class="n">opts</span><span class="p">[</span><span class="s1">&#39;poly_types&#39;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span>
+
+    <span class="n">marginalized_pce</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">opts</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">marginalized_array_indices</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ii</span><span class="p">,</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">T</span><span class="p">):</span>
+            <span class="k">if</span> <span class="p">((</span><span class="n">index</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">center</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">index</span><span class="p">[</span><span class="n">active_idx</span><span class="p">])</span> <span class="ow">and</span>
+                    <span class="p">(</span><span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">index</span><span class="p">[</span><span class="n">inactive_idx</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">))):</span>
+                <span class="n">marginalized_array_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span>
+        <span class="n">marginalized_pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span>
+            <span class="n">poly</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">ix_</span><span class="p">(</span><span class="n">active_idx</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">marginalized_array_indices</span><span class="p">))])</span>
+        <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">coefficients</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">marginalized_pce</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span>
+                <span class="n">poly</span><span class="o">.</span><span class="n">coefficients</span><span class="p">[</span><span class="n">marginalized_array_indices</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">copy</span><span class="p">())</span>
+    <span class="k">return</span> <span class="n">marginalized_pce</span>
+
+
+<span class="k">def</span> <span class="nf">get_polynomial_from_variable</span><span class="p">(</span><span class="n">variable</span><span class="p">):</span>
+    <span class="n">var_trans</span> <span class="o">=</span> <span class="n">AffineTransform</span><span class="p">(</span>
+        <span class="n">variable</span><span class="p">)</span>
+    <span class="n">poly</span> <span class="o">=</span> <span class="n">PolynomialChaosExpansion</span><span class="p">()</span>
+    <span class="n">poly_opts</span> <span class="o">=</span> <span class="n">define_poly_options_from_variable_transformation</span><span class="p">(</span><span class="n">var_trans</span><span class="p">)</span>
+    <span class="n">poly</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">poly_opts</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">poly</span>
+
+
+<span class="k">def</span> <span class="nf">compute_univariate_orthonormal_basis_products</span><span class="p">(</span><span class="n">get_recursion_coefficients</span><span class="p">,</span>
+                                                  <span class="n">max_degree1</span><span class="p">,</span> <span class="n">max_degree2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute all the products of univariate orthonormal bases and re-express</span>
+<span class="sd">    them as expansions using the orthnormal basis.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">max_degree1</span> <span class="o">&gt;=</span> <span class="n">max_degree2</span>
+    <span class="n">max_degree</span> <span class="o">=</span> <span class="n">max_degree1</span><span class="o">+</span><span class="n">max_degree2</span>
+    <span class="n">num_quad_points</span> <span class="o">=</span> <span class="n">max_degree</span><span class="o">+</span><span class="mi">1</span>
+
+    <span class="n">recursion_coefs</span> <span class="o">=</span> <span class="n">get_recursion_coefficients</span><span class="p">(</span><span class="n">num_quad_points</span><span class="p">)</span>
+    <span class="n">x_quad</span><span class="p">,</span> <span class="n">w_quad</span> <span class="o">=</span> <span class="n">gauss_quadrature</span><span class="p">(</span><span class="n">recursion_coefs</span><span class="p">,</span> <span class="n">num_quad_points</span><span class="p">)</span>
+    <span class="n">w_quad</span> <span class="o">=</span> <span class="n">w_quad</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+    <span class="c1"># evaluate the orthonormal basis at the quadrature points. This can</span>
+    <span class="c1"># be computed once for all degrees up to the maximum degree</span>
+    <span class="n">ortho_basis_matrix</span> <span class="o">=</span> <span class="n">evaluate_orthonormal_polynomial_1d</span><span class="p">(</span>
+        <span class="n">x_quad</span><span class="p">,</span> <span class="n">max_degree</span><span class="p">,</span> <span class="n">recursion_coefs</span><span class="p">)</span>
+
+    <span class="c1"># compute coefficients of orthonormal basis using pseudo</span>
+    <span class="c1"># spectral projection</span>
+    <span class="n">product_coefs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">d1</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_degree1</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">d2</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">d1</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_degree2</span><span class="o">+</span><span class="mi">1</span><span class="p">)):</span>
+            <span class="n">product_vals</span> <span class="o">=</span> <span class="n">ortho_basis_matrix</span><span class="p">[:,</span> <span class="n">d1</span><span class="p">]</span><span class="o">*</span><span class="n">ortho_basis_matrix</span><span class="p">[:,</span> <span class="n">d2</span><span class="p">]</span>
+            <span class="n">coefs</span> <span class="o">=</span> <span class="n">w_quad</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
+                <span class="n">product_vals</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">*</span><span class="n">ortho_basis_matrix</span><span class="p">[:,</span> <span class="p">:</span><span class="n">d1</span><span class="o">+</span><span class="n">d2</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">T</span>
+            <span class="n">product_coefs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coefs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">product_coefs</span>
+
+
+<span class="k">def</span> <span class="nf">compute_product_coeffs_1d_for_each_variable</span><span class="p">(</span>
+        <span class="n">poly</span><span class="p">,</span> <span class="n">max_degrees1</span><span class="p">,</span> <span class="n">max_degrees2</span><span class="p">):</span>
+    <span class="c1"># must ensure that poly1 and poly2 have the same basis types</span>
+    <span class="c1"># in each dimension</span>
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get_recursion_coefficients</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">dd</span><span class="p">):</span>
+        <span class="n">poly</span><span class="o">.</span><span class="n">update_recursion_coefficients</span><span class="p">([</span><span class="n">N</span><span class="p">]</span><span class="o">*</span><span class="n">num_vars</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">poly</span><span class="o">.</span><span class="n">recursion_coeffs</span><span class="p">[</span><span class="n">poly</span><span class="o">.</span><span class="n">basis_type_index_map</span><span class="p">[</span><span class="n">dd</span><span class="p">]]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="c1"># change this to only compute this for unique 1d polys</span>
+    <span class="n">product_coefs_1d</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">compute_univariate_orthonormal_basis_products</span><span class="p">(</span>
+            <span class="n">partial</span><span class="p">(</span><span class="n">get_recursion_coefficients</span><span class="p">,</span> <span class="n">dd</span><span class="o">=</span><span class="n">dd</span><span class="p">),</span>
+            <span class="n">max_degrees1</span><span class="p">[</span><span class="n">dd</span><span class="p">],</span> <span class="n">max_degrees2</span><span class="p">[</span><span class="n">dd</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_vars</span><span class="p">)]</span>
+
+    <span class="k">return</span> <span class="n">product_coefs_1d</span>
+
+
+<span class="k">def</span> <span class="nf">compute_multivariate_orthonormal_basis_product</span><span class="p">(</span>
+        <span class="n">product_coefs_1d</span><span class="p">,</span> <span class="n">poly_index_ii</span><span class="p">,</span> <span class="n">poly_index_jj</span><span class="p">,</span> <span class="n">max_degrees1</span><span class="p">,</span>
+        <span class="n">max_degrees2</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the product of two multivariate orthonormal bases and re-express</span>
+<span class="sd">    as an expansion using the orthnormal basis.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="n">poly_index_ii</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">poly_index</span> <span class="o">=</span> <span class="n">poly_index_ii</span><span class="o">+</span><span class="n">poly_index_jj</span>
+    <span class="n">active_vars</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">poly_index</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">active_vars</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">coefs_1d</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="n">active_vars</span><span class="p">:</span>
+            <span class="n">pii</span><span class="p">,</span> <span class="n">pjj</span> <span class="o">=</span> <span class="n">poly_index_ii</span><span class="p">[</span><span class="n">dd</span><span class="p">],</span> <span class="n">poly_index_jj</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">pii</span> <span class="o">&lt;</span> <span class="n">pjj</span><span class="p">:</span>
+                <span class="n">tmp</span> <span class="o">=</span> <span class="n">pjj</span>
+                <span class="n">pjj</span> <span class="o">=</span> <span class="n">pii</span>
+                <span class="n">pii</span> <span class="o">=</span> <span class="n">tmp</span>
+            <span class="n">kk</span> <span class="o">=</span> <span class="n">flattened_rectangular_lower_triangular_matrix_index</span><span class="p">(</span>
+                <span class="n">pii</span><span class="p">,</span> <span class="n">pjj</span><span class="p">,</span> <span class="n">max_degrees1</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_degrees2</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">coefs_1d</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">product_coefs_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">][</span><span class="n">kk</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">])</span>
+        <span class="n">indices_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">poly_index</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+                      <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="n">active_vars</span><span class="p">]</span>
+        <span class="n">product_coefs</span> <span class="o">=</span> <span class="n">outer_product</span><span class="p">(</span><span class="n">coefs_1d</span><span class="p">)[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+        <span class="n">active_product_indices</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">indices_1d</span><span class="p">)</span>
+        <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">(</span><span class="n">product_coefs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">tol</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">active_product_indices</span> <span class="o">=</span> <span class="n">active_product_indices</span><span class="p">[:,</span> <span class="n">II</span><span class="p">]</span>
+        <span class="n">product_coefs</span> <span class="o">=</span> <span class="n">product_coefs</span><span class="p">[</span><span class="n">II</span><span class="p">]</span>
+        <span class="n">product_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">active_product_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">product_indices</span><span class="p">[</span><span class="n">active_vars</span><span class="p">]</span> <span class="o">=</span> <span class="n">active_product_indices</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">product_coefs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">product_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="n">num_vars</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">product_indices</span><span class="p">,</span> <span class="n">product_coefs</span>
+
+
+<span class="k">def</span> <span class="nf">multiply_multivariate_orthonormal_polynomial_expansions</span><span class="p">(</span>
+        <span class="n">product_coefs_1d</span><span class="p">,</span> <span class="n">poly_indices1</span><span class="p">,</span> <span class="n">poly_coefficients1</span><span class="p">,</span> <span class="n">poly_indices2</span><span class="p">,</span>
+        <span class="n">poly_coefficients2</span><span class="p">):</span>
+    <span class="n">num_indices1</span> <span class="o">=</span> <span class="n">poly_indices1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">num_indices2</span> <span class="o">=</span> <span class="n">poly_indices2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">num_indices2</span> <span class="o">&lt;=</span> <span class="n">num_indices1</span>
+    <span class="k">assert</span> <span class="n">poly_coefficients1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">num_indices1</span>
+    <span class="k">assert</span> <span class="n">poly_coefficients2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">num_indices2</span>
+
+    <span class="c1"># following assumes the max degrees were used to create product_coefs_1d</span>
+    <span class="n">max_degrees1</span> <span class="o">=</span> <span class="n">poly_indices1</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">max_degrees2</span> <span class="o">=</span> <span class="n">poly_indices2</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">basis_coefs</span><span class="p">,</span> <span class="n">basis_indices</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_indices1</span><span class="p">):</span>
+        <span class="n">poly_index_ii</span> <span class="o">=</span> <span class="n">poly_indices1</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_indices2</span><span class="p">):</span>
+            <span class="n">poly_index_jj</span> <span class="o">=</span> <span class="n">poly_indices2</span><span class="p">[:,</span> <span class="n">jj</span><span class="p">]</span>
+            <span class="n">product_indices</span><span class="p">,</span> <span class="n">product_coefs</span> <span class="o">=</span> \
+                <span class="n">compute_multivariate_orthonormal_basis_product</span><span class="p">(</span>
+                    <span class="n">product_coefs_1d</span><span class="p">,</span> <span class="n">poly_index_ii</span><span class="p">,</span> <span class="n">poly_index_jj</span><span class="p">,</span>
+                    <span class="n">max_degrees1</span><span class="p">,</span> <span class="n">max_degrees2</span><span class="p">)</span>
+            <span class="c1"># print(ii,jj,product_coefs,poly_index_ii,poly_index_jj)</span>
+            <span class="c1"># TODO for unique polynomials the product_coefs and indices</span>
+            <span class="c1"># of [0,1,2] is the same as [2,1,0] so perhaps store</span>
+            <span class="c1"># sorted active indices and look up to reuse computations</span>
+            <span class="n">product_coefs_iijj</span> <span class="o">=</span> <span class="n">product_coefs</span><span class="o">*</span><span class="n">poly_coefficients1</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*</span>\
+                <span class="n">poly_coefficients2</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="n">basis_coefs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">product_coefs_iijj</span><span class="p">)</span>
+            <span class="n">basis_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">product_indices</span><span class="p">)</span>
+
+            <span class="k">assert</span> <span class="n">basis_coefs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">basis_indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">indices</span><span class="p">,</span> <span class="n">coefs</span> <span class="o">=</span> <span class="n">add_polynomials</span><span class="p">(</span><span class="n">basis_indices</span><span class="p">,</span> <span class="n">basis_coefs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">indices</span><span class="p">,</span> <span class="n">coefs</span>
+
+
+<span class="k">def</span> <span class="nf">get_univariate_quadrature_rules_from_variable</span><span class="p">(</span>
+        <span class="n">variable</span><span class="p">,</span> <span class="n">max_nsamples</span><span class="p">,</span> <span class="n">canonical</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="n">max_nsamples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">max_nsamples</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">max_nsamples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">max_nsamples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span><span class="o">*</span><span class="n">max_nsamples</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">max_nsamples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;max_nsamples must be an integer or specfied for each marginal&quot;</span><span class="p">)</span>
+    <span class="n">univariate_quad_rules</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ii</span><span class="p">,</span> <span class="n">marginal</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">variable</span><span class="o">.</span><span class="n">marginals</span><span class="p">()):</span>
+        <span class="n">quad_rule</span> <span class="o">=</span> <span class="n">get_gauss_quadrature_rule_from_marginal</span><span class="p">(</span>
+            <span class="n">marginal</span><span class="p">,</span> <span class="n">max_nsamples</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">canonical</span><span class="o">=</span><span class="n">canonical</span><span class="p">)</span>
+        <span class="n">univariate_quad_rules</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">quad_rule</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">univariate_quad_rules</span>
+
+
+<span class="k">def</span> <span class="nf">get_coefficients_for_plotting</span><span class="p">(</span><span class="n">pce</span><span class="p">,</span> <span class="n">qoi_idx</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">   Get the coefficients of a</span>
+<span class="sd">    :class:`pyapprox.polynomial_chaos.multivariate_polynomials.PolynomialChaosExpansion`</span>
+<span class="sd">&quot;&quot;&quot;</span>
+    <span class="n">coeff</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">get_coefficients</span><span class="p">()[:,</span> <span class="n">qoi_idx</span><span class="p">]</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">coeff</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+    <span class="n">degree</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="n">indices_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">max_degree</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">indices</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">])</span>
+        <span class="n">indices_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">ii</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">degree_breaks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">coeff_sorted</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">degree_indices_set</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_vars</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">degree</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_degree</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">nterms</span> <span class="o">=</span> <span class="n">nchoosek</span><span class="p">(</span><span class="n">num_vars</span><span class="o">+</span><span class="n">degree</span><span class="p">,</span> <span class="n">degree</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">nterms</span> <span class="o">&lt;</span> <span class="mf">1e6</span><span class="p">:</span>
+            <span class="n">degree_indices</span> <span class="o">=</span> <span class="n">compute_hyperbolic_level_indices</span><span class="p">(</span>
+                <span class="n">num_vars</span><span class="p">,</span> <span class="n">degree</span><span class="p">,</span> <span class="mf">1.</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="s1">&#39;Could not plot coefficients of terms with degree &gt;= </span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">degree</span>
+            <span class="k">break</span>
+        <span class="n">degree_indices_set</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">degree_indices_set</span><span class="p">,</span> <span class="n">indices</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">degree_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="n">degree_indices</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">]</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">indices_dict</span><span class="p">:</span>
+                <span class="n">coeff_sorted</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coeff</span><span class="p">[</span><span class="n">indices_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">coeff_sorted</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">degree_breaks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">coeff_sorted</span><span class="p">),</span> <span class="n">degree_indices_set</span><span class="p">,</span> <span class="n">degree_breaks</span>
+
+
+<span class="k">def</span> <span class="nf">plot_unsorted_pce_coefficients</span><span class="p">(</span><span class="n">coeffs</span><span class="p">,</span>
+                                   <span class="n">indices</span><span class="p">,</span>
+                                   <span class="n">ax</span><span class="p">,</span>
+                                   <span class="n">degree_breaks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                   <span class="n">axislabels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                   <span class="n">legendlabels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                   <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                   <span class="n">cutoffs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                   <span class="n">ylim</span><span class="o">=</span><span class="p">[</span><span class="mf">1e-6</span><span class="p">,</span> <span class="mf">1.</span><span class="p">]):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot the coefficients of linear (in parameters) approximation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">np</span><span class="o">.</span><span class="n">set_printoptions</span><span class="p">(</span><span class="n">precision</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
+
+    <span class="n">colors</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="s1">&#39;b&#39;</span><span class="p">,</span> <span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="s1">&#39;m&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;c&#39;</span><span class="p">]</span>
+    <span class="n">markers</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">,</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="s1">&#39;d&#39;</span><span class="p">,</span> <span class="p">]</span>
+    <span class="n">fill_style</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="s1">&#39;full&#39;</span><span class="p">]</span>
+    <span class="c1"># fill_style = [&#39;full&#39;,&#39;full&#39;]</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="n">coeffs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">coeffs</span><span class="p">)):</span>
+        <span class="n">coeffs_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">(</span><span class="n">coeffs</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="k">assert</span> <span class="n">coeffs_i</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
+        <span class="n">mfc</span> <span class="o">=</span> <span class="n">colors</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">fs</span> <span class="o">=</span> <span class="n">fill_style</span><span class="p">[</span><span class="nb">min</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">fs</span> <span class="o">==</span> <span class="s1">&#39;none&#39;</span><span class="p">):</span>
+            <span class="n">mfc</span> <span class="o">=</span> <span class="s1">&#39;none&#39;</span>
+        <span class="n">ms</span> <span class="o">=</span> <span class="mf">10.</span><span class="o">-</span><span class="mf">2.</span><span class="o">*</span><span class="n">i</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">coeffs_i</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)),</span> <span class="n">coeffs_i</span><span class="p">,</span>
+                <span class="n">marker</span><span class="o">=</span><span class="n">markers</span><span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="mi">3</span><span class="p">],</span>
+                <span class="n">fillstyle</span><span class="o">=</span><span class="n">fs</span><span class="p">,</span>
+                <span class="n">markeredgecolor</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">markerfacecolor</span><span class="o">=</span><span class="n">mfc</span><span class="p">,</span>
+                <span class="n">markersize</span><span class="o">=</span><span class="n">ms</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">degree_breaks</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">degree_breaks</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">cutoffs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">for</span> <span class="n">cutoff</span> <span class="ow">in</span> <span class="n">cutoffs</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">cutoff</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xscale</span><span class="p">(</span><span class="s1">&#39;log&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_yscale</span><span class="p">(</span><span class="s1">&#39;log&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">axislabels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="n">axislabels</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="n">axislabels</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">rotation</span><span class="o">=</span><span class="s1">&#39;horizontal&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">title</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">title</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">legendlabels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Must provide a legend label for each filename&quot;</span>
+        <span class="k">assert</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">legendlabels</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">coeffs</span><span class="p">)),</span> <span class="n">msg</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">legendlabels</span><span class="p">,</span> <span class="n">numpoints</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">ylim</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">plot_pce_coefficients</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">pces</span><span class="p">,</span> <span class="n">ylim</span><span class="o">=</span><span class="p">[</span><span class="mf">1e-6</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">qoi_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot the coefficients of multiple</span>
+<span class="sd">    :class:`pyapprox.polynomial_chaos.multivariate_polynomials.PolynomialChaosExpansion`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">coeffs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">breaks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">indices_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">max_num_indices</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">pce</span> <span class="ow">in</span> <span class="n">pces</span><span class="p">:</span>
+        <span class="c1"># only plot coeff that will fit inside axis limits</span>
+        <span class="n">coeff</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">degree_breaks</span> <span class="o">=</span> <span class="n">get_coefficients_for_plotting</span><span class="p">(</span>
+            <span class="n">pce</span><span class="p">,</span> <span class="n">qoi_idx</span><span class="p">)</span>
+        <span class="n">coeffs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coeff</span><span class="p">)</span>
+        <span class="n">indices_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+        <span class="n">breaks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">degree_breaks</span><span class="p">)</span>
+        <span class="n">max_num_indices</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">max_num_indices</span><span class="p">,</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">)):</span>
+        <span class="n">nn</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">nn</span> <span class="o">&lt;</span> <span class="n">max_num_indices</span><span class="p">):</span>
+            <span class="n">indices_list</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">+=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">max_num_indices</span><span class="o">-</span><span class="n">nn</span><span class="p">)</span>
+            <span class="n">coeffs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span><span class="n">coeffs</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">max_num_indices</span><span class="p">)</span>
+            <span class="n">coeffs</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="n">nn</span><span class="p">:]</span> <span class="o">=</span> <span class="mf">0.</span>
+
+    <span class="n">plot_unsorted_pce_coefficients</span><span class="p">(</span>
+        <span class="n">coeffs</span><span class="p">,</span> <span class="n">indices_list</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">degree_breaks</span><span class="o">=</span><span class="n">breaks</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ylim</span><span class="o">=</span><span class="n">ylim</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

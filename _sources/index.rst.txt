@@ -14,6 +14,8 @@ The following links document the functionality of the PyApprox module.
    :maxdepth: 2
    :caption: Tutorials
 
+   auto_examples/index  
+	     
    auto_tutorials/index
 
 .. toctree::
@@ -22,25 +24,22 @@ The following links document the functionality of the PyApprox module.
 	     
    benchmarks
 
+..
+   .. toctree::
+      :maxdepth: 2
+      :caption: Tutorials (extended)
+
+      auto_dev_tutorials/index
+
 .. toctree::
    :maxdepth: 2
    :caption: User Reference Guide
 	     
    user_reference_guide
 
-.. toctree::
+..
+   .. toctree::
    :maxdepth: 1
    :caption: Developer Reference Guide
 	      
    modules
-
-
-..
-   Currently no example are implemented so comment out
-   
-   auto_examples/index
-   examples
-
-..
-   The following is commented out for now to save time during compile
-   

@@ -1,0 +1,6 @@
+tensor_product_barycentric_lagrange_interpolation
+=================================================
+
+.. currentmodule:: pyapprox.surrogates
+
+.. autofunction:: tensor_product_barycentric_lagrange_interpolation

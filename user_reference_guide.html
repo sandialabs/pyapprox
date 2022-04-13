@@ -1,77 +1,41 @@
-
-
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8">
-  
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>User Reference Guide &mdash; PyApprox 1.0.0 documentation</title>
-  
-
-  
-  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
-  <link rel="stylesheet" href="_static/gallery.css" type="text/css" />
-  <link rel="stylesheet" href="_static/gallery-binder.css" type="text/css" />
-  <link rel="stylesheet" href="_static/gallery-dataframe.css" type="text/css" />
-
-  
-  
-  
-  
-
-  
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="_static/sg_gallery-rendered-html.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
         <script src="_static/doctools.js"></script>
-        <script src="_static/language_data.js"></script>
-        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
-    
-    <script type="text/javascript" src="_static/js/theme.js"></script>
-
-    
+    <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Developer Reference Guide" href="modules.html" />
+    <link rel="next" title="generate_parameter_sweeps_and_plot_from_variable" href="api/pyapprox.analysis.generate_parameter_sweeps_and_plot_from_variable.html" />
     <link rel="prev" title="Benchmarks" href="benchmarks.html" /> 
 </head>
 
-<body class="wy-body-for-nav">
-
-   
+<body class="wy-body-for-nav"> 
   <div class="wy-grid-for-nav">
-    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-          
-
-          
-            <a href="index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
-          
-
-          
-            
+            <a href="index.html" class="icon icon-home"> PyApprox
             <img src="_static/pyapprox-logo.png" class="logo" alt="Logo"/>
-          
           </a>
-
-          
-            
-            
-          
-
-          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
@@ -79,255 +43,693 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-
-          
-        </div>
-
-        
-        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-          
-            
-            
-              
-            
-            
-              <p class="caption"><span class="caption-text">Getting Started</span></p>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="intro.html">About</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Tutorials</span></p>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="auto_tutorials/index.html">PyApprox Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
 </ul>
-<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">User Reference Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#surrogate-modeling">Surrogate modeling</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#supervised-learning">Supervised learning</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#supervised-active-learning">Supervised active learning</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#sensitivity-analysis">Sensitivity analysis</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#surrogate-based-global-sensitivity-analysis">Surrogate based global sensitivity analysis</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#local-sensitivity-analysis">Local sensitivity analysis</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#multivariate-quadrature">Multivariate Quadrature</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#surrogate-based-quadrature">Surrogate based quadrature</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#inference">Inference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#optimal-experimental-design">Optimal experimental design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.analysis">pyapprox.analysis Package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#functions">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.analysis.generate_parameter_sweeps_and_plot_from_variable.html">generate_parameter_sweeps_and_plot_from_variable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.analysis.gpc_sobol_sensitivities.html">gpc_sobol_sensitivities</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.analysis.sparse_grid_sobol_sensitivities.html">sparse_grid_sobol_sensitivities</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.analysis.morris_sensitivities.html">morris_sensitivities</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.analysis.plot_main_effects.html">plot_main_effects</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.analysis.plot_total_effects.html">plot_total_effects</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.analysis.plot_interaction_values.html">plot_interaction_values</a></li>
 </ul>
 </li>
 </ul>
-<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="modules.html">Developer Reference Guide</a></li>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.bayes">pyapprox.bayes Package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id1">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.bayes.laplace_posterior_approximation_for_linear_models.html">laplace_posterior_approximation_for_linear_models</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#classes">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.bayes.GaussianNetwork.html">GaussianNetwork</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.benchmarks">pyapprox.benchmarks Package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id2">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_ishigami_function.html">setup_ishigami_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_sobol_g_function.html">setup_sobol_g_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_oakley_function.html">setup_oakley_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_genz_function.html">setup_genz_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_rosenbrock_function.html">setup_rosenbrock_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_benchmark.html">setup_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_piston_benchmark.html">setup_piston_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_wing_weight_benchmark.html">setup_wing_weight_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_polynomial_ensemble.html">setup_polynomial_ensemble</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id3">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.Benchmark.html">Benchmark</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.expdesign">pyapprox.expdesign Package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id4">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.expdesign.sobol_sequence.html">sobol_sequence</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.expdesign.halton_sequence.html">halton_sequence</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.expdesign.optimal_experimental_design.html">optimal_experimental_design</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.expdesign.get_bayesian_oed_optimizer.html">get_bayesian_oed_optimizer</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id5">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.expdesign.AlphabetOptimalDesign.html">AlphabetOptimalDesign</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.expdesign.NonLinearAlphabetOptimalDesign.html">NonLinearAlphabetOptimalDesign</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.expdesign.BayesianBatchKLOED.html">BayesianBatchKLOED</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.expdesign.BayesianBatchDeviationOED.html">BayesianBatchDeviationOED</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.expdesign.BayesianSequentialOED.html">BayesianSequentialOED</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.expdesign.BayesianSequentialKLOED.html">BayesianSequentialKLOED</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.expdesign.BayesianSequentialDeviationOED.html">BayesianSequentialDeviationOED</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.expdesign.AbstractBayesianOED.html">AbstractBayesianOED</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.interface">pyapprox.interface Package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id6">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.interface.evaluate_1darray_function_on_2d_array.html">evaluate_1darray_function_on_2d_array</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id7">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.interface.WorkTrackingModel.html">WorkTrackingModel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.interface.TimerModel.html">TimerModel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.interface.ModelEnsemble.html">ModelEnsemble</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.interface.PoolModel.html">PoolModel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.interface.AynchModel.html">AynchModel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.interface.FileIOModel.html">FileIOModel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.interface.DataFunctionModel.html">DataFunctionModel</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.multifidelity">pyapprox.multifidelity Package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id8">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.get_estimator.html">get_estimator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.estimate_variance.html">estimate_variance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.compare_estimator_variances.html">compare_estimator_variances</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.plot_estimator_variances.html">plot_estimator_variances</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.plot_acv_sample_allocation_comparison.html">plot_acv_sample_allocation_comparison</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.estimate_model_ensemble_covariance.html">estimate_model_ensemble_covariance</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.optimization">pyapprox.optimization Package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id9">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimization.solve_FSD_constrained_least_squares_smooth.html">solve_FSD_constrained_least_squares_smooth</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimization.solve_SSD_constrained_least_squares_smooth.html">solve_SSD_constrained_least_squares_smooth</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimization.cvar_regression.html">cvar_regression</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimization.solve_quantile_regression.html">solve_quantile_regression</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimization.solve_least_squares_regression.html">solve_least_squares_regression</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.surrogates">pyapprox.surrogates Package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id10">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.surrogates.get_gauss_quadrature_rule_from_marginal.html">get_gauss_quadrature_rule_from_marginal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.surrogates.tensor_product_barycentric_lagrange_interpolation.html">tensor_product_barycentric_lagrange_interpolation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.surrogates.tensor_product_piecewise_polynomial_interpolation.html">tensor_product_piecewise_polynomial_interpolation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.surrogates.get_tensor_product_piecewise_polynomial_quadrature_rule.html">get_tensor_product_piecewise_polynomial_quadrature_rule</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.surrogates.approximate.html">approximate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.surrogates.adaptive_approximate.html">adaptive_approximate</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id11">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.surrogates.PolynomialChaosExpansion.html">PolynomialChaosExpansion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.surrogates.APC.html">APC</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.surrogates.AdaptiveInducedPCE.html">AdaptiveInducedPCE</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.surrogates.AdaptiveLejaPCE.html">AdaptiveLejaPCE</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.surrogates.CombinationSparseGrid.html">CombinationSparseGrid</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.surrogates.GaussianProcess.html">GaussianProcess</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.util">pyapprox.util Package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id12">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.util.cartesian_product.html">cartesian_product</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.util.outer_product.html">outer_product</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.util.check_gradients.html">check_gradients</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.util.plot_2d_samples.html">plot_2d_samples</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.variables">pyapprox.variables Package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id13">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.variables.print_statistics.html">print_statistics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.variables.combine_uncertain_and_bounded_design_variables.html">combine_uncertain_and_bounded_design_variables</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id14">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.variables.IndependentMarginalsVariable.html">IndependentMarginalsVariable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.variables.GaussCopulaVariable.html">GaussCopulaVariable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.variables.JointVariable.html">JointVariable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.variables.AffineTransform.html">AffineTransform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.variables.NatafTransform.html">NatafTransform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.variables.RosenblattTransform.html">RosenblattTransform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.variables.ConfigureVariableTransformation.html">ConfigureVariableTransformation</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 
-            
-          
         </div>
-        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-
-      
-      <nav class="wy-nav-top" aria-label="top navigation">
-        
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="index.html">PyApprox</a>
-        
       </nav>
 
-
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
-          
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<div role="navigation" aria-label="breadcrumbs navigation">
-
+          <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-    
       <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
-        
       <li>User Reference Guide</li>
-    
-    
       <li class="wy-breadcrumbs-aside">
-        
-            
             <a href="_sources/user_reference_guide.rst.txt" rel="nofollow"> View page source</a>
-          
-        
       </li>
-    
   </ul>
-
-  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-            
-  <div class="section" id="user-reference-guide">
-<h1>User Reference Guide<a class="headerlink" href="#user-reference-guide" title="Permalink to this headline">¶</a></h1>
-<p><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox</span></code> provides functions for surrogate modeling, sensitivity analysis, quadrature, inference, optimal experimental design and multi-fidelity modeling</p>
-<div class="section" id="surrogate-modeling">
-<h2>Surrogate modeling<a class="headerlink" href="#surrogate-modeling" title="Permalink to this headline">¶</a></h2>
-<div class="section" id="supervised-learning">
-<h3>Supervised learning<a class="headerlink" href="#supervised-learning" title="Permalink to this headline">¶</a></h3>
-<p>The <a class="reference internal" href="api/pyapprox.approximate.approximate.html#pyapprox.approximate.approximate" title="pyapprox.approximate.approximate"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.approximate.approximate()</span></code></a> function produces
-response surface approximations from training data.</p>
-<p>The <cite>approximate</cite> function supports the following methods</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>‘polynomial_chaos’ See <a class="reference internal" href="api/pyapprox.approximate.approximate_polynomial_chaos.html#pyapprox.approximate.approximate_polynomial_chaos" title="pyapprox.approximate.approximate_polynomial_chaos"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.approximate.approximate_polynomial_chaos()</span></code></a></p></li>
-<li><p>‘gaussian_process’ See <a class="reference internal" href="api/pyapprox.approximate.approximate_gaussian_process.html#pyapprox.approximate.approximate_gaussian_process" title="pyapprox.approximate.approximate_gaussian_process"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.approximate.approximate_gaussian_process()</span></code></a></p></li>
-</ul>
-</div></blockquote>
-</div>
-<div class="section" id="supervised-active-learning">
-<h3>Supervised active learning<a class="headerlink" href="#supervised-active-learning" title="Permalink to this headline">¶</a></h3>
-<p>The <a class="reference internal" href="api/pyapprox.approximate.adaptive_approximate.html#pyapprox.approximate.adaptive_approximate" title="pyapprox.approximate.adaptive_approximate"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.approximate.adaptive_approximate()</span></code></a> function produces adaptive
-response surface approximations of a function <code class="docutils literal notranslate"><span class="pre">fun</span></code>, As the approximation is built the function being approximated is sampled at locations that greedily minimize an estimate of error.</p>
-<p>The <cite>adaptive_approximate</cite> function supports the following methods</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>‘sparse_grid’ See <a class="reference internal" href="api/pyapprox.approximate.adaptive_approximate_sparse_grid.html#pyapprox.approximate.adaptive_approximate_sparse_grid" title="pyapprox.approximate.adaptive_approximate_sparse_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.approximate.adaptive_approximate_sparse_grid()</span></code></a></p></li>
-<li><p>‘polynomial_chaos’ See <a class="reference internal" href="api/pyapprox.approximate.adaptive_approximate_polynomial_chaos.html#pyapprox.approximate.adaptive_approximate_polynomial_chaos" title="pyapprox.approximate.adaptive_approximate_polynomial_chaos"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.approximate.adaptive_approximate_polynomial_chaos()</span></code></a></p></li>
-</ul>
-</div></blockquote>
-</div>
-</div>
-<div class="section" id="sensitivity-analysis">
-<h2>Sensitivity analysis<a class="headerlink" href="#sensitivity-analysis" title="Permalink to this headline">¶</a></h2>
-<div class="section" id="surrogate-based-global-sensitivity-analysis">
-<h3>Surrogate based global sensitivity analysis<a class="headerlink" href="#surrogate-based-global-sensitivity-analysis" title="Permalink to this headline">¶</a></h3>
-<p>The following functions can be used to extract sensitivity metrics analytically from a surrogate.</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>‘sparse_grid’  See <a class="reference internal" href="api/pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid.html#pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid" title="pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid()</span></code></a></p></li>
-<li><p>‘polynomial_chaos’  See <a class="reference internal" href="api/pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos.html#pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos" title="pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos()</span></code></a></p></li>
-</ul>
-</div></blockquote>
-<p>The following functions can be used to visualize variance based sensitivity measures</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.plot_main_effects.html#pyapprox.sensitivity_analysis.plot_main_effects" title="pyapprox.sensitivity_analysis.plot_main_effects"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.sensitivity_analysis.plot_main_effects()</span></code></a></p></li>
-<li><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.plot_total_effects.html#pyapprox.sensitivity_analysis.plot_total_effects" title="pyapprox.sensitivity_analysis.plot_total_effects"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.sensitivity_analysis.plot_total_effects()</span></code></a></p></li>
-<li><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.plot_interaction_values.html#pyapprox.sensitivity_analysis.plot_interaction_values" title="pyapprox.sensitivity_analysis.plot_interaction_values"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.sensitivity_analysis.plot_interaction_values()</span></code></a></p></li>
-</ul>
-</div></blockquote>
-</div>
-<div class="section" id="local-sensitivity-analysis">
-<h3>Local sensitivity analysis<a class="headerlink" href="#local-sensitivity-analysis" title="Permalink to this headline">¶</a></h3>
-<p>The <a class="reference internal" href="api/pyapprox.sensitivity_analysis.analyze_sensitivity_morris.html#pyapprox.sensitivity_analysis.analyze_sensitivity_morris" title="pyapprox.sensitivity_analysis.analyze_sensitivity_morris"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.sensitivity_analysis.analyze_sensitivity_morris()</span></code></a> computes
-morris sensitivity indices.</p>
-</div>
-</div>
-<div class="section" id="multivariate-quadrature">
-<h2>Multivariate Quadrature<a class="headerlink" href="#multivariate-quadrature" title="Permalink to this headline">¶</a></h2>
-<div class="section" id="surrogate-based-quadrature">
-<h3>Surrogate based quadrature<a class="headerlink" href="#surrogate-based-quadrature" title="Permalink to this headline">¶</a></h3>
-<p>The following functions can be used to compute the mean and variance analytically from a surrogate.</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>‘sparse_grid’  See <a class="reference internal" href="api/pyapprox.quadrature.compute_mean_and_variance_sparse_grid.html#pyapprox.quadrature.compute_mean_and_variance_sparse_grid" title="pyapprox.quadrature.compute_mean_and_variance_sparse_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.quadrature.compute_mean_and_variance_sparse_grid()</span></code></a></p></li>
-<li><p>‘polynomial_chaos’ See <a class="reference internal" href="api/pyapprox.multivariate_polynomials.PolynomialChaosExpansion.html#pyapprox.multivariate_polynomials.PolynomialChaosExpansion.mean" title="pyapprox.multivariate_polynomials.PolynomialChaosExpansion.mean"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.multivariate_polynomials.PolynomialChaosExpansion.mean()</span></code></a> and <a class="reference internal" href="api/pyapprox.multivariate_polynomials.PolynomialChaosExpansion.html#pyapprox.multivariate_polynomials.PolynomialChaosExpansion.variance" title="pyapprox.multivariate_polynomials.PolynomialChaosExpansion.variance"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.multivariate_polynomials.PolynomialChaosExpansion.variance()</span></code></a></p></li>
-</ul>
-</div></blockquote>
-</div>
-</div>
-<div class="section" id="inference">
-<h2>Inference<a class="headerlink" href="#inference" title="Permalink to this headline">¶</a></h2>
-<p>The function <a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model" title="pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model()</span></code></a> can be used to draw samples from the posterior distribution of variables of a model conditioned on a set of observations with Gaussian noise.</p>
-</div>
-<div class="section" id="optimal-experimental-design">
-<h2>Optimal experimental design<a class="headerlink" href="#optimal-experimental-design" title="Permalink to this headline">¶</a></h2>
-<p>Optimal experimental designs for m-estimators such as least squares and quantile regression can be computed with</p>
-<p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.optimal_experimental_design.html#pyapprox.optimal_experimental_design.optimal_experimental_design" title="pyapprox.optimal_experimental_design.optimal_experimental_design"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.optimal_experimental_design.optimal_experimental_design()</span></code></a></p>
-</div>
-</div>
+             
+  <section id="user-reference-guide">
+<h1>User Reference Guide<a class="headerlink" href="#user-reference-guide" title="Permalink to this headline"></a></h1>
+<p>The following documents the high-level functions that a typical user will may want to use. Note there are many more lower-level functions that may be of interest to advanced users. See the function doc-strings within submodule files for documentation of such functions.</p>
+<section id="module-pyapprox.analysis">
+<span id="pyapprox-analysis-package"></span><h2>pyapprox.analysis Package<a class="headerlink" href="#module-pyapprox.analysis" title="Permalink to this headline"></a></h2>
+<p>The <a class="reference internal" href="#module-pyapprox.analysis" title="pyapprox.analysis"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.analysis</span></code></a> module implements a number of popular tools for
+model analysis.</p>
+<section id="functions">
+<h3>Functions<a class="headerlink" href="#functions" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.analysis.generate_parameter_sweeps_and_plot_from_variable.html#pyapprox.analysis.generate_parameter_sweeps_and_plot_from_variable" title="pyapprox.analysis.generate_parameter_sweeps_and_plot_from_variable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_parameter_sweeps_and_plot_from_variable</span></code></a>(...)</p></td>
+<td><p>Plot parameter sweeps of a function.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.analysis.gpc_sobol_sensitivities.html#pyapprox.analysis.gpc_sobol_sensitivities" title="pyapprox.analysis.gpc_sobol_sensitivities"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpc_sobol_sensitivities</span></code></a>(pce[, max_order])</p></td>
+<td><p>Compute variance based sensitivity metrics from a polynomial chaos expansion</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.analysis.sparse_grid_sobol_sensitivities.html#pyapprox.analysis.sparse_grid_sobol_sensitivities" title="pyapprox.analysis.sparse_grid_sobol_sensitivities"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sparse_grid_sobol_sensitivities</span></code></a>(sparse_grid)</p></td>
+<td><p>Compute sensitivity indices from a sparse grid by converting it to a polynomial chaos expansion</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.analysis.morris_sensitivities.html#pyapprox.analysis.morris_sensitivities" title="pyapprox.analysis.morris_sensitivities"><code class="xref py py-obj docutils literal notranslate"><span class="pre">morris_sensitivities</span></code></a>(fun, ...[, nlevels])</p></td>
+<td><p>Compute sensitivity indices by constructing an adaptive polynomial chaos expansion.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.analysis.plot_main_effects.html#pyapprox.analysis.plot_main_effects" title="pyapprox.analysis.plot_main_effects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_main_effects</span></code></a>(main_effects, ax[, ...])</p></td>
+<td><p>Plot the main effects in a pie chart showing relative size.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.analysis.plot_total_effects.html#pyapprox.analysis.plot_total_effects" title="pyapprox.analysis.plot_total_effects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_total_effects</span></code></a>(total_effects, ax[, ...])</p></td>
+<td><p>Plot the total effects in a pie chart showing relative size.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.analysis.plot_interaction_values.html#pyapprox.analysis.plot_interaction_values" title="pyapprox.analysis.plot_interaction_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_interaction_values</span></code></a>(interaction_values, ...)</p></td>
+<td><p>Plot sobol indices in a pie chart showing relative size.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-pyapprox.bayes">
+<span id="pyapprox-bayes-package"></span><h2>pyapprox.bayes Package<a class="headerlink" href="#module-pyapprox.bayes" title="Permalink to this headline"></a></h2>
+<p>The <a class="reference internal" href="#module-pyapprox.bayes" title="pyapprox.bayes"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.bayes</span></code></a> module implements a number of popular tools for
+Bayesian Inference.</p>
+<section id="id1">
+<h3>Functions<a class="headerlink" href="#id1" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.bayes.laplace_posterior_approximation_for_linear_models.html#pyapprox.bayes.laplace_posterior_approximation_for_linear_models" title="pyapprox.bayes.laplace_posterior_approximation_for_linear_models"><code class="xref py py-obj docutils literal notranslate"><span class="pre">laplace_posterior_approximation_for_linear_models</span></code></a>(...)</p></td>
+<td><p>Compute the mean and covariance of the Laplace posterior of a linear model with a Gaussian prior</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="classes">
+<h3>Classes<a class="headerlink" href="#classes" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.bayes.GaussianNetwork.html#pyapprox.bayes.GaussianNetwork" title="pyapprox.bayes.GaussianNetwork"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GaussianNetwork</span></code></a>(graph)</p></td>
+<td><p>A Bayesian network of linear Gaussian models.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-pyapprox.benchmarks">
+<span id="pyapprox-benchmarks-package"></span><h2>pyapprox.benchmarks Package<a class="headerlink" href="#module-pyapprox.benchmarks" title="Permalink to this headline"></a></h2>
+<p>The <a class="reference internal" href="#module-pyapprox.benchmarks" title="pyapprox.benchmarks"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.benchmarks</span></code></a> module implements numerous benchmarks from
+the modeling literature.</p>
+<section id="id2">
+<h3>Functions<a class="headerlink" href="#id2" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_ishigami_function.html#pyapprox.benchmarks.setup_ishigami_function" title="pyapprox.benchmarks.setup_ishigami_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_ishigami_function</span></code></a>(a, b)</p></td>
+<td><p>Setup the Ishigami function benchmark</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_sobol_g_function.html#pyapprox.benchmarks.setup_sobol_g_function" title="pyapprox.benchmarks.setup_sobol_g_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_sobol_g_function</span></code></a>(nvars)</p></td>
+<td><p>Setup the Sobol-G function benchmark</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_oakley_function.html#pyapprox.benchmarks.setup_oakley_function" title="pyapprox.benchmarks.setup_oakley_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_oakley_function</span></code></a>()</p></td>
+<td><p>Setup the Oakely function benchmark</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_genz_function.html#pyapprox.benchmarks.setup_genz_function" title="pyapprox.benchmarks.setup_genz_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_genz_function</span></code></a>(nvars, test_name[, ...])</p></td>
+<td><p>Setup the Genz Benchmarks.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_rosenbrock_function.html#pyapprox.benchmarks.setup_rosenbrock_function" title="pyapprox.benchmarks.setup_rosenbrock_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_rosenbrock_function</span></code></a>(nvars)</p></td>
+<td><p>Setup the Rosenbrock function benchmark</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_benchmark.html#pyapprox.benchmarks.setup_benchmark" title="pyapprox.benchmarks.setup_benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_benchmark</span></code></a>(name, **kwargs)</p></td>
+<td><p>Setup a PyApprox benchmark.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_piston_benchmark.html#pyapprox.benchmarks.setup_piston_benchmark" title="pyapprox.benchmarks.setup_piston_benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_piston_benchmark</span></code></a>()</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_wing_weight_benchmark.html#pyapprox.benchmarks.setup_wing_weight_benchmark" title="pyapprox.benchmarks.setup_wing_weight_benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_wing_weight_benchmark</span></code></a>()</p></td>
+<td><p>Setup the wing weight model benchmark.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_polynomial_ensemble.html#pyapprox.benchmarks.setup_polynomial_ensemble" title="pyapprox.benchmarks.setup_polynomial_ensemble"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_polynomial_ensemble</span></code></a>()</p></td>
+<td><p>Return an ensemble of 5 univariate models of the form</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id3">
+<h3>Classes<a class="headerlink" href="#id3" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark" title="pyapprox.benchmarks.Benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Benchmark</span></code></a></p></td>
+<td><p>Contains functions and results needed to implement known benchmarks.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-pyapprox.expdesign">
+<span id="pyapprox-expdesign-package"></span><h2>pyapprox.expdesign Package<a class="headerlink" href="#module-pyapprox.expdesign" title="Permalink to this headline"></a></h2>
+<p>The <a class="reference internal" href="#module-pyapprox.expdesign" title="pyapprox.expdesign"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.expdesign</span></code></a> module implements a number of popular tools
+for designing experiments</p>
+<section id="id4">
+<h3>Functions<a class="headerlink" href="#id4" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.expdesign.sobol_sequence.html#pyapprox.expdesign.sobol_sequence" title="pyapprox.expdesign.sobol_sequence"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sobol_sequence</span></code></a>(nvars, nsamples[, ...])</p></td>
+<td><p>Generate a multivariate Sobol sequence</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.expdesign.halton_sequence.html#pyapprox.expdesign.halton_sequence" title="pyapprox.expdesign.halton_sequence"><code class="xref py py-obj docutils literal notranslate"><span class="pre">halton_sequence</span></code></a>(num_vars, nsamples[, ...])</p></td>
+<td><p>Generate a multivariate Halton sequence</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.expdesign.optimal_experimental_design.html#pyapprox.expdesign.optimal_experimental_design" title="pyapprox.expdesign.optimal_experimental_design"><code class="xref py py-obj docutils literal notranslate"><span class="pre">optimal_experimental_design</span></code></a>(design_pts, fun, ...)</p></td>
+<td><p>Compute optimal experimental designs for models of the form</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.expdesign.get_bayesian_oed_optimizer.html#pyapprox.expdesign.get_bayesian_oed_optimizer" title="pyapprox.expdesign.get_bayesian_oed_optimizer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_bayesian_oed_optimizer</span></code></a>(short_oed_type, ...)</p></td>
+<td><p>Initialize a Bayesian OED optimizer.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id5">
+<h3>Classes<a class="headerlink" href="#id5" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.expdesign.AlphabetOptimalDesign.html#pyapprox.expdesign.AlphabetOptimalDesign" title="pyapprox.expdesign.AlphabetOptimalDesign"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AlphabetOptimalDesign</span></code></a>(criteria, design_factors)</p></td>
+<td><p>Construct optimal experimental designs using functions of the fisher information matrix</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.expdesign.NonLinearAlphabetOptimalDesign.html#pyapprox.expdesign.NonLinearAlphabetOptimalDesign" title="pyapprox.expdesign.NonLinearAlphabetOptimalDesign"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NonLinearAlphabetOptimalDesign</span></code></a>(criteria, ...)</p></td>
+<td><p>Construct minimax optimal experimental designs of non-linear models by sampling fisher information matrix at multiple uncertain parameter realizations.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.expdesign.BayesianBatchKLOED.html#pyapprox.expdesign.BayesianBatchKLOED" title="pyapprox.expdesign.BayesianBatchKLOED"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BayesianBatchKLOED</span></code></a>(design_candidates, ...[, ...])</p></td>
+<td><p>Compute open-loop OED my maximizing KL divergence between the prior and posterior.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.expdesign.BayesianBatchDeviationOED.html#pyapprox.expdesign.BayesianBatchDeviationOED" title="pyapprox.expdesign.BayesianBatchDeviationOED"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BayesianBatchDeviationOED</span></code></a>(design_candidates, ...)</p></td>
+<td><p>Compute open-loop OED by minimizing the deviation on the push forward of the posterior through a QoI model.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.expdesign.BayesianSequentialOED.html#pyapprox.expdesign.BayesianSequentialOED" title="pyapprox.expdesign.BayesianSequentialOED"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BayesianSequentialOED</span></code></a>(obs_process)</p></td>
+<td><p>Compute sequential optimal experimental designs that collect data and use this to inform the choice of subsequent design locations.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.expdesign.BayesianSequentialKLOED.html#pyapprox.expdesign.BayesianSequentialKLOED" title="pyapprox.expdesign.BayesianSequentialKLOED"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BayesianSequentialKLOED</span></code></a>(design_candidates, ...)</p></td>
+<td><p>Compute closed-loop OED my maximizing KL divergence between the prior and posterior.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.expdesign.BayesianSequentialDeviationOED.html#pyapprox.expdesign.BayesianSequentialDeviationOED" title="pyapprox.expdesign.BayesianSequentialDeviationOED"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BayesianSequentialDeviationOED</span></code></a>(...[, ...])</p></td>
+<td><p>Compute closed-loop OED by minimizing the deviation on the push forward of the posterior through a QoI model.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.expdesign.AbstractBayesianOED.html#pyapprox.expdesign.AbstractBayesianOED" title="pyapprox.expdesign.AbstractBayesianOED"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AbstractBayesianOED</span></code></a>(design_candidates, ...)</p></td>
+<td><p>Base Bayesian OED class</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-pyapprox.interface">
+<span id="pyapprox-interface-package"></span><h2>pyapprox.interface Package<a class="headerlink" href="#module-pyapprox.interface" title="Permalink to this headline"></a></h2>
+<p>The <a class="reference internal" href="#module-pyapprox.interface" title="pyapprox.interface"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.interface</span></code></a> module implements a number of tools for
+interfacing with numerical models</p>
+<section id="id6">
+<h3>Functions<a class="headerlink" href="#id6" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.interface.evaluate_1darray_function_on_2d_array.html#pyapprox.interface.evaluate_1darray_function_on_2d_array" title="pyapprox.interface.evaluate_1darray_function_on_2d_array"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate_1darray_function_on_2d_array</span></code></a>(...[, ...])</p></td>
+<td><p>Evaluate a function at a set of samples using a function that only takes one sample at a time</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id7">
+<h3>Classes<a class="headerlink" href="#id7" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.interface.WorkTrackingModel.html#pyapprox.interface.WorkTrackingModel" title="pyapprox.interface.WorkTrackingModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WorkTrackingModel</span></code></a>(function[, base_model, ...])</p></td>
+<td><p>Keep track of the wall time needed to evaluate a function.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.interface.TimerModel.html#pyapprox.interface.TimerModel" title="pyapprox.interface.TimerModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TimerModel</span></code></a>(function[, base_model])</p></td>
+<td><p>Return the wall-time needed to evaluate a function at each sample as an additional quantity of interest.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.interface.ModelEnsemble.html#pyapprox.interface.ModelEnsemble" title="pyapprox.interface.ModelEnsemble"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ModelEnsemble</span></code></a>(functions[, names])</p></td>
+<td><p>Wrapper class to allow easy one-dimensional indexing of models in an ensemble.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.interface.PoolModel.html#pyapprox.interface.PoolModel" title="pyapprox.interface.PoolModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PoolModel</span></code></a>(function, max_eval_concurrency[, ...])</p></td>
+<td><p>Evaluate a function at multiple samples in parallel using multiprocessing.Pool</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.interface.AynchModel.html#pyapprox.interface.AynchModel" title="pyapprox.interface.AynchModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AynchModel</span></code></a>(shell_command[, ...])</p></td>
+<td><p>Evaluate a model in parallel when model instances are invoked by a shell script.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.interface.FileIOModel.html#pyapprox.interface.FileIOModel" title="pyapprox.interface.FileIOModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FileIOModel</span></code></a>(shell_command[, ...])</p></td>
+<td><p>Evaluate a model by writing parameters to file, running a shell script and reading the results from the file created by the shell script.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.interface.DataFunctionModel.html#pyapprox.interface.DataFunctionModel" title="pyapprox.interface.DataFunctionModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataFunctionModel</span></code></a>(function[, data, ...])</p></td>
+<td><p>Create a queriable function that stores samples and associated function values and returns stored values for samples in the database or otherwise evaluate the function.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-pyapprox.multifidelity">
+<span id="pyapprox-multifidelity-package"></span><h2>pyapprox.multifidelity Package<a class="headerlink" href="#module-pyapprox.multifidelity" title="Permalink to this headline"></a></h2>
+<p>The <a class="reference internal" href="#module-pyapprox.multifidelity" title="pyapprox.multifidelity"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.multifidelity</span></code></a> module implements numerous multi-fidelity
+algorithms for quantifying uncertainty and building surrgates from multiple
+models of varying cost and fidelity.</p>
+<section id="id8">
+<h3>Functions<a class="headerlink" href="#id8" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.get_estimator.html#pyapprox.multifidelity.get_estimator" title="pyapprox.multifidelity.get_estimator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_estimator</span></code></a>(estimator_type, cov, costs, ...)</p></td>
+<td><p>Initialize an monte-carlo estimator.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.estimate_variance.html#pyapprox.multifidelity.estimate_variance" title="pyapprox.multifidelity.estimate_variance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">estimate_variance</span></code></a>(model_ensemble, estimator, ...)</p></td>
+<td><p>Numerically estimate the variance of an approximate control variate estimator.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.compare_estimator_variances.html#pyapprox.multifidelity.compare_estimator_variances" title="pyapprox.multifidelity.compare_estimator_variances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compare_estimator_variances</span></code></a>(target_costs, ...)</p></td>
+<td><p>Compute the variances of different Monte-Carlo like estimators.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_estimator_variances.html#pyapprox.multifidelity.plot_estimator_variances" title="pyapprox.multifidelity.plot_estimator_variances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_estimator_variances</span></code></a>(...[, ylabel])</p></td>
+<td><p>Plot variance as a function of the total cost for a set of estimators.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_acv_sample_allocation_comparison.html#pyapprox.multifidelity.plot_acv_sample_allocation_comparison" title="pyapprox.multifidelity.plot_acv_sample_allocation_comparison"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_acv_sample_allocation_comparison</span></code></a>(...)</p></td>
+<td><p>Plot the number of samples allocated to each model for a set of estimators</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.estimate_model_ensemble_covariance.html#pyapprox.multifidelity.estimate_model_ensemble_covariance" title="pyapprox.multifidelity.estimate_model_ensemble_covariance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">estimate_model_ensemble_covariance</span></code></a>(...)</p></td>
+<td><p>Estimate the covariance of a model ensemble from a set of pilot samples</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-pyapprox.optimization">
+<span id="pyapprox-optimization-package"></span><h2>pyapprox.optimization Package<a class="headerlink" href="#module-pyapprox.optimization" title="Permalink to this headline"></a></h2>
+<p>The <a class="reference internal" href="#module-pyapprox.optimization" title="pyapprox.optimization"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.optimization</span></code></a> module implements a number of popular tools for risk-averse regression and design.</p>
+<section id="id9">
+<h3>Functions<a class="headerlink" href="#id9" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimization.solve_FSD_constrained_least_squares_smooth.html#pyapprox.optimization.solve_FSD_constrained_least_squares_smooth" title="pyapprox.optimization.solve_FSD_constrained_least_squares_smooth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">solve_FSD_constrained_least_squares_smooth</span></code></a>(...)</p></td>
+<td><p>Solve first order stochastic dominance (FSD) constrained least squares</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimization.solve_SSD_constrained_least_squares_smooth.html#pyapprox.optimization.solve_SSD_constrained_least_squares_smooth" title="pyapprox.optimization.solve_SSD_constrained_least_squares_smooth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">solve_SSD_constrained_least_squares_smooth</span></code></a>(...)</p></td>
+<td><p>Solve second order stochastic dominance (SSD) constrained least squares</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimization.cvar_regression.html#pyapprox.optimization.cvar_regression" title="pyapprox.optimization.cvar_regression"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cvar_regression</span></code></a>(basis_matrix, values, alpha)</p></td>
+<td><p>Solve conditional value at risk (CVaR) regression problems.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimization.solve_quantile_regression.html#pyapprox.optimization.solve_quantile_regression" title="pyapprox.optimization.solve_quantile_regression"><code class="xref py py-obj docutils literal notranslate"><span class="pre">solve_quantile_regression</span></code></a>(tau, samples, ...)</p></td>
+<td><p>Solve quantile regression problems.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimization.solve_least_squares_regression.html#pyapprox.optimization.solve_least_squares_regression" title="pyapprox.optimization.solve_least_squares_regression"><code class="xref py py-obj docutils literal notranslate"><span class="pre">solve_least_squares_regression</span></code></a>(samples, ...)</p></td>
+<td><p>Solve the safety margins least squares regression problem.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-pyapprox.surrogates">
+<span id="pyapprox-surrogates-package"></span><h2>pyapprox.surrogates Package<a class="headerlink" href="#module-pyapprox.surrogates" title="Permalink to this headline"></a></h2>
+<p>The <a class="reference internal" href="#module-pyapprox.surrogates" title="pyapprox.surrogates"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.surrogates</span></code></a> module implements numerous algorithms for
+constructing surrogates.</p>
+<section id="id10">
+<h3>Functions<a class="headerlink" href="#id10" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.surrogates.get_gauss_quadrature_rule_from_marginal.html#pyapprox.surrogates.get_gauss_quadrature_rule_from_marginal" title="pyapprox.surrogates.get_gauss_quadrature_rule_from_marginal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_gauss_quadrature_rule_from_marginal</span></code></a>(...)</p></td>
+<td><p>Return the quadrature rule associated with the marginal.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.surrogates.tensor_product_barycentric_lagrange_interpolation.html#pyapprox.surrogates.tensor_product_barycentric_lagrange_interpolation" title="pyapprox.surrogates.tensor_product_barycentric_lagrange_interpolation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tensor_product_barycentric_lagrange_interpolation</span></code></a>(...)</p></td>
+<td><p>Use tensor-product Barycentric Lagrange interpolation to approximate a function.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.surrogates.tensor_product_piecewise_polynomial_interpolation.html#pyapprox.surrogates.tensor_product_piecewise_polynomial_interpolation" title="pyapprox.surrogates.tensor_product_piecewise_polynomial_interpolation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tensor_product_piecewise_polynomial_interpolation</span></code></a>(...)</p></td>
+<td><p>Use tensor-product piecewise polynomial basis to interpolate a function.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.surrogates.get_tensor_product_piecewise_polynomial_quadrature_rule.html#pyapprox.surrogates.get_tensor_product_piecewise_polynomial_quadrature_rule" title="pyapprox.surrogates.get_tensor_product_piecewise_polynomial_quadrature_rule"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_tensor_product_piecewise_polynomial_quadrature_rule</span></code></a>(...)</p></td>
+<td><p>Compute the nodes and weights needed to integrate a 2D function using piecewise linear interpolation</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.surrogates.approximate.html#pyapprox.surrogates.approximate" title="pyapprox.surrogates.approximate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">approximate</span></code></a>(train_samples, train_vals, method)</p></td>
+<td><p>Approximate a scalar or vector-valued function of one or more variables from a set of points provided by the user</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.surrogates.adaptive_approximate.html#pyapprox.surrogates.adaptive_approximate" title="pyapprox.surrogates.adaptive_approximate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">adaptive_approximate</span></code></a>(fun, variable, method)</p></td>
+<td><p>Adaptive approximation of a scalar or vector-valued function of one or more variables.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id11">
+<h3>Classes<a class="headerlink" href="#id11" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion" title="pyapprox.surrogates.PolynomialChaosExpansion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PolynomialChaosExpansion</span></code></a>()</p></td>
+<td><p>A polynomial chaos expansion for independent random variables.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.surrogates.APC.html#pyapprox.surrogates.APC" title="pyapprox.surrogates.APC"><code class="xref py py-obj docutils literal notranslate"><span class="pre">APC</span></code></a>([compute_moment_matrix_function, ...])</p></td>
+<td><p>A polynomial chaos expansion for dependent random variables.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE" title="pyapprox.surrogates.AdaptiveInducedPCE"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdaptiveInducedPCE</span></code></a>(num_vars[, cond_tol, ...])</p></td>
+<td><p>An adaptive PCE built using induced sampling and generalized sparse grid like refinement.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE" title="pyapprox.surrogates.AdaptiveLejaPCE"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdaptiveLejaPCE</span></code></a>(num_vars, candidate_samples)</p></td>
+<td><p>An adaptive PCE built using multivariate Leja sequences and  generalized sparse grid like refinement.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.surrogates.CombinationSparseGrid.html#pyapprox.surrogates.CombinationSparseGrid" title="pyapprox.surrogates.CombinationSparseGrid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">CombinationSparseGrid</span></code></a>(num_vars)</p></td>
+<td><p>Adaptive sparse grid that uses the combination technique.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.surrogates.GaussianProcess.html#pyapprox.surrogates.GaussianProcess" title="pyapprox.surrogates.GaussianProcess"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GaussianProcess</span></code></a>([kernel, alpha, optimizer, ...])</p></td>
+<td><p>A Gaussian process.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-pyapprox.util">
+<span id="pyapprox-util-package"></span><h2>pyapprox.util Package<a class="headerlink" href="#module-pyapprox.util" title="Permalink to this headline"></a></h2>
+<p>The <a class="reference internal" href="#module-pyapprox.util" title="pyapprox.util"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.util</span></code></a> module implements numerous foundational utilities.</p>
+<section id="id12">
+<h3>Functions<a class="headerlink" href="#id12" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.util.cartesian_product.html#pyapprox.util.cartesian_product" title="pyapprox.util.cartesian_product"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cartesian_product</span></code></a>(input_sets[, elem_size])</p></td>
+<td><p>Compute the cartesian product of an arbitray number of sets.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.util.outer_product.html#pyapprox.util.outer_product" title="pyapprox.util.outer_product"><code class="xref py py-obj docutils literal notranslate"><span class="pre">outer_product</span></code></a>(input_sets[, axis])</p></td>
+<td><p>Construct the outer product of an arbitary number of sets.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.util.check_gradients.html#pyapprox.util.check_gradients" title="pyapprox.util.check_gradients"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_gradients</span></code></a>(fun, jac, zz[, plot, disp, ...])</p></td>
+<td><p>Compare a user specified jacobian with the jacobian computed with finite difference with multiple step sizes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.util.plot_2d_samples.html#pyapprox.util.plot_2d_samples" title="pyapprox.util.plot_2d_samples"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_2d_samples</span></code></a>(samples[, ax])</p></td>
+<td><p>Plot 2D samples</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-pyapprox.variables">
+<span id="pyapprox-variables-package"></span><h2>pyapprox.variables Package<a class="headerlink" href="#module-pyapprox.variables" title="Permalink to this headline"></a></h2>
+<p>The <a class="reference internal" href="#module-pyapprox.variables" title="pyapprox.variables"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.variables</span></code></a> module provides tools for creating and
+transforming multivariate random variables.</p>
+<section id="id13">
+<h3>Functions<a class="headerlink" href="#id13" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.variables.print_statistics.html#pyapprox.variables.print_statistics" title="pyapprox.variables.print_statistics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">print_statistics</span></code></a>(samples, values[, ...])</p></td>
+<td><p>Print statistics about a set of samples and associated values</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.variables.combine_uncertain_and_bounded_design_variables.html#pyapprox.variables.combine_uncertain_and_bounded_design_variables" title="pyapprox.variables.combine_uncertain_and_bounded_design_variables"><code class="xref py py-obj docutils literal notranslate"><span class="pre">combine_uncertain_and_bounded_design_variables</span></code></a>(...)</p></td>
+<td><p>Convert design variables to random variables defined over them optimization bounds.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id14">
+<h3>Classes<a class="headerlink" href="#id14" title="Permalink to this headline"></a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable" title="pyapprox.variables.IndependentMarginalsVariable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">IndependentMarginalsVariable</span></code></a>(unique_variables)</p></td>
+<td><p>Class representing independent random variables</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.variables.GaussCopulaVariable.html#pyapprox.variables.GaussCopulaVariable" title="pyapprox.variables.GaussCopulaVariable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GaussCopulaVariable</span></code></a>(marginals, x_correlation)</p></td>
+<td><p>Multivariate random variable with Gaussian correlation and arbitrary marginals</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.variables.JointVariable.html#pyapprox.variables.JointVariable" title="pyapprox.variables.JointVariable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">JointVariable</span></code></a>()</p></td>
+<td><p>Base class for multivariate variables.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform" title="pyapprox.variables.AffineTransform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AffineTransform</span></code></a>(variable[, enforce_bounds])</p></td>
+<td><p>Apply an affine transformation to a <a class="reference internal" href="api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable" title="pyapprox.variables.IndependentMarginalsVariable"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.variables.IndependentMarginalsVariable</span></code></a></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.variables.NatafTransform.html#pyapprox.variables.NatafTransform" title="pyapprox.variables.NatafTransform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NatafTransform</span></code></a>(x_marginal_cdfs, ...[, ...])</p></td>
+<td><p>Apply the Nataf transformation to an arbitraty multivariate random variable.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.variables.RosenblattTransform.html#pyapprox.variables.RosenblattTransform" title="pyapprox.variables.RosenblattTransform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RosenblattTransform</span></code></a>(joint_density, num_vars, ...)</p></td>
+<td><p>Apply the Rosenblatt transformation to an arbitraty multivariate random variable.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.variables.ConfigureVariableTransformation.html#pyapprox.variables.ConfigureVariableTransformation" title="pyapprox.variables.ConfigureVariableTransformation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ConfigureVariableTransformation</span></code></a>(config_values)</p></td>
+<td><p>Class which maps one-to-one configure indices in [0, 1, 2, 3,...] to a set of configure values accepted by a function</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</section>
 
 
            </div>
-           
           </div>
-          <footer>
-  
-    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-      
-        <a href="modules.html" class="btn btn-neutral float-right" title="Developer Reference Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
-      
-      
-        <a href="benchmarks.html" class="btn btn-neutral float-left" title="Benchmarks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
-      
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="benchmarks.html" class="btn btn-neutral float-left" title="Benchmarks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="api/pyapprox.analysis.generate_parameter_sweeps_and_plot_from_variable.html" class="btn btn-neutral float-right" title="generate_parameter_sweeps_and_plot_from_variable" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
-  
 
   <hr/>
 
   <div role="contentinfo">
-    <p>
-        
-        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
-
-    </p>
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
   </div>
-    
-    
-    
-    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
-    
-    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
-    
-    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
 
 </footer>
-
         </div>
       </div>
-
     </section>
-
   </div>
-  
-
-  <script type="text/javascript">
+  <script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script>
-
-  
-  
-    
-   
+  </script> 
 
 </body>
 </html>

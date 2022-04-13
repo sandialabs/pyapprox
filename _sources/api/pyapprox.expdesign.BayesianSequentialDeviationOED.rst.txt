@@ -1,0 +1,17 @@
+BayesianSequentialDeviationOED
+==============================
+
+.. currentmodule:: pyapprox.expdesign
+
+.. autoclass:: BayesianSequentialDeviationOED
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~BayesianSequentialDeviationOED.compute_expected_utility
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: compute_expected_utility

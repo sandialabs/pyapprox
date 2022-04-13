@@ -1,0 +1,6 @@
+get_estimator
+=============
+
+.. currentmodule:: pyapprox.multifidelity
+
+.. autofunction:: get_estimator

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AffineTransform &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="NatafTransform" href="pyapprox.variables.NatafTransform.html" />
+    <link rel="prev" title="JointVariable" href="pyapprox.variables.JointVariable.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> PyApprox
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.analysis">pyapprox.analysis Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.bayes">pyapprox.bayes Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.benchmarks">pyapprox.benchmarks Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.expdesign">pyapprox.expdesign Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.interface">pyapprox.interface Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.multifidelity">pyapprox.multifidelity Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.optimization">pyapprox.optimization Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.surrogates">pyapprox.surrogates Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.util">pyapprox.util Package</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.variables">pyapprox.variables Package</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../user_reference_guide.html#id13">Functions</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="../user_reference_guide.html#id14">Classes</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.variables.IndependentMarginalsVariable.html">IndependentMarginalsVariable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.variables.GaussCopulaVariable.html">GaussCopulaVariable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.variables.JointVariable.html">JointVariable</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">AffineTransform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.variables.NatafTransform.html">NatafTransform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.variables.RosenblattTransform.html">RosenblattTransform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.variables.ConfigureVariableTransformation.html">ConfigureVariableTransformation</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
+      <li>AffineTransform</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/pyapprox.variables.AffineTransform.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="affinetransform">
+<h1>AffineTransform<a class="headerlink" href="#affinetransform" title="Permalink to this headline"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyapprox.variables.AffineTransform">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyapprox.variables.</span></span><span class="sig-name descname"><span class="pre">AffineTransform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">variable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enforce_bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Apply an affine transformation to a
+<a class="reference internal" href="pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable" title="pyapprox.variables.IndependentMarginalsVariable"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.variables.IndependentMarginalsVariable</span></code></a></p>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.variables.AffineTransform.get_ranges" title="pyapprox.variables.AffineTransform.get_ranges"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_ranges</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.variables.AffineTransform.map_derivatives_from_canonical_space" title="pyapprox.variables.AffineTransform.map_derivatives_from_canonical_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">map_derivatives_from_canonical_space</span></code></a>(derivatives)</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.variables.AffineTransform.map_derivatives_to_canonical_space" title="pyapprox.variables.AffineTransform.map_derivatives_to_canonical_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">map_derivatives_to_canonical_space</span></code></a>(...)</p></td>
+<td><p>derivatives : np.ndarray (nvars*nsamples, nqoi)</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.variables.AffineTransform.map_from_canonical" title="pyapprox.variables.AffineTransform.map_from_canonical"><code class="xref py py-obj docutils literal notranslate"><span class="pre">map_from_canonical</span></code></a>(canonical_samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.variables.AffineTransform.map_from_canonical_1d" title="pyapprox.variables.AffineTransform.map_from_canonical_1d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">map_from_canonical_1d</span></code></a>(canonical_samples, ii)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.variables.AffineTransform.map_to_canonical" title="pyapprox.variables.AffineTransform.map_to_canonical"><code class="xref py py-obj docutils literal notranslate"><span class="pre">map_to_canonical</span></code></a>(user_samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.variables.AffineTransform.map_to_canonical_1d" title="pyapprox.variables.AffineTransform.map_to_canonical_1d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">map_to_canonical_1d</span></code></a>(samples, ii)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.variables.AffineTransform.num_vars" title="pyapprox.variables.AffineTransform.num_vars"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_vars</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.variables.AffineTransform.samples_of_bounded_variables_inside_domain" title="pyapprox.variables.AffineTransform.samples_of_bounded_variables_inside_domain"><code class="xref py py-obj docutils literal notranslate"><span class="pre">samples_of_bounded_variables_inside_domain</span></code></a>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.variables.AffineTransform.set_identity_maps" title="pyapprox.variables.AffineTransform.set_identity_maps"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_identity_maps</span></code></a>(identity_map_indices)</p></td>
+<td><p>Set the dimensions we do not want to map to and from canonical space</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.AffineTransform.get_ranges">
+<span class="sig-name descname"><span class="pre">get_ranges</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform.get_ranges"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform.get_ranges" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.AffineTransform.map_derivatives_from_canonical_space">
+<span class="sig-name descname"><span class="pre">map_derivatives_from_canonical_space</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">derivatives</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform.map_derivatives_from_canonical_space"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform.map_derivatives_from_canonical_space" title="Permalink to this definition"></a></dt>
+<dd><dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>derivatives</strong><span class="classifier">np.ndarray (nvars*nsamples, nqoi)</span></dt><dd><p>Derivatives of each qoi. The ith column consists of the derivatives
+[d/dx_1 f(x^{(1)}), …, f(x^{(M)}),
+d/dx_2 f(x^{(1)}), …, f(x^{(M)})
+…,
+d/dx_D f(x^{(1)}), …, f(x^{(M)})]
+where M is the number of samples and D=nvars</p>
+<p>Derivatives can also be (nvars, nsamples) - transpose of Jacobian -
+Here each sample is considered a different QoI</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.AffineTransform.map_derivatives_to_canonical_space">
+<span class="sig-name descname"><span class="pre">map_derivatives_to_canonical_space</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">canonical_derivatives</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform.map_derivatives_to_canonical_space"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform.map_derivatives_to_canonical_space" title="Permalink to this definition"></a></dt>
+<dd><dl>
+<dt>derivatives<span class="classifier">np.ndarray (nvars*nsamples, nqoi)</span></dt><dd><p>Derivatives of each qoi. The ith column consists of the derivatives
+[d/dx_1 f(x^{(1)}), …, f(x^{(M)}),</p>
+<blockquote>
+<div><p>d/dx_2 f(x^{(1)}), …, f(x^{(M)})
+…,
+d/dx_D f(x^{(1)}), …, f(x^{(M)})]</p>
+</div></blockquote>
+<p>where M is the number of samples and D=nvars</p>
+<p>Derivatives can also be (nvars, nsamples) - transpose of Jacobian -
+Here each sample is considered a different QoI</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.AffineTransform.map_from_canonical">
+<span class="sig-name descname"><span class="pre">map_from_canonical</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">canonical_samples</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform.map_from_canonical"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform.map_from_canonical" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.AffineTransform.map_from_canonical_1d">
+<span class="sig-name descname"><span class="pre">map_from_canonical_1d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">canonical_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ii</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform.map_from_canonical_1d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform.map_from_canonical_1d" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.AffineTransform.map_to_canonical">
+<span class="sig-name descname"><span class="pre">map_to_canonical</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">user_samples</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform.map_to_canonical"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform.map_to_canonical" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.AffineTransform.map_to_canonical_1d">
+<span class="sig-name descname"><span class="pre">map_to_canonical_1d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ii</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform.map_to_canonical_1d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform.map_to_canonical_1d" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.AffineTransform.num_vars">
+<span class="sig-name descname"><span class="pre">num_vars</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform.num_vars"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform.num_vars" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.AffineTransform.samples_of_bounded_variables_inside_domain">
+<span class="sig-name descname"><span class="pre">samples_of_bounded_variables_inside_domain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform.samples_of_bounded_variables_inside_domain"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform.samples_of_bounded_variables_inside_domain" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.AffineTransform.set_identity_maps">
+<span class="sig-name descname"><span class="pre">set_identity_maps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">identity_map_indices</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform.set_identity_maps"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform.set_identity_maps" title="Permalink to this definition"></a></dt>
+<dd><p>Set the dimensions we do not want to map to and from
+canonical space</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>identity_map_indices</strong><span class="classifier">iterable</span></dt><dd><p>The dimensions we do not want to map to and from
+canonical space</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pyapprox.variables.JointVariable.html" class="btn btn-neutral float-left" title="JointVariable" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pyapprox.variables.NatafTransform.html" class="btn btn-neutral float-right" title="NatafTransform" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

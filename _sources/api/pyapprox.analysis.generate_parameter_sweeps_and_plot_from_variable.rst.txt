@@ -1,0 +1,6 @@
+generate_parameter_sweeps_and_plot_from_variable
+================================================
+
+.. currentmodule:: pyapprox.analysis
+
+.. autofunction:: generate_parameter_sweeps_and_plot_from_variable

@@ -1,0 +1,6 @@
+plot_2d_samples
+===============
+
+.. currentmodule:: pyapprox.util
+
+.. autofunction:: plot_2d_samples

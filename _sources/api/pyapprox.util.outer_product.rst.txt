@@ -1,0 +1,6 @@
+outer_product
+=============
+
+.. currentmodule:: pyapprox.util
+
+.. autofunction:: outer_product

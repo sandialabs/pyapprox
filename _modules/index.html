@@ -1,75 +1,38 @@
-
-
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8">
-  
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Overview: module code &mdash; PyApprox 1.0.0 documentation</title>
-  
-
-  
-  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/gallery.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/gallery-binder.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/gallery-dataframe.css" type="text/css" />
-
-  
-  
-  
-  
-
-  
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-rendered-html.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
         <script src="../_static/doctools.js"></script>
-        <script src="../_static/language_data.js"></script>
-        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
-    
-    <script type="text/javascript" src="../_static/js/theme.js"></script>
-
-    
+    <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" /> 
 </head>
 
-<body class="wy-body-for-nav">
-
-   
+<body class="wy-body-for-nav"> 
   <div class="wy-grid-for-nav">
-    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-          
-
-          
-            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
-          
-
-          
-            
+            <a href="../index.html" class="icon icon-home"> PyApprox
             <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
-          
           </a>
-
-          
-            
-            
-          
-
-          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
@@ -77,159 +40,108 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-
-          
-        </div>
-
-        
-        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-          
-            
-            
-              
-            
-            
-              <p class="caption"><span class="caption-text">Getting Started</span></p>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Tutorials</span></p>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
 </ul>
-<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../modules.html">Developer Reference Guide</a></li>
-</ul>
 
-            
-          
         </div>
-        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-
-      
-      <nav class="wy-nav-top" aria-label="top navigation">
-        
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="../index.html">PyApprox</a>
-        
       </nav>
 
-
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
-          
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<div role="navigation" aria-label="breadcrumbs navigation">
-
+          <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-    
       <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-        
       <li>Overview: module code</li>
-    
-    
       <li class="wy-breadcrumbs-aside">
-        
       </li>
-    
   </ul>
-
-  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-            
+             
   <h1>All modules for which code is available</h1>
-<ul><li><a href="pyapprox/approximate.html">pyapprox.approximate</a></li>
-<li><a href="pyapprox/bayesian_inference/markov_chain_monte_carlo.html">pyapprox.bayesian_inference.markov_chain_monte_carlo</a></li>
+<ul><li><a href="pyapprox/analysis/parameter_sweeps.html">pyapprox.analysis.parameter_sweeps</a></li>
+<li><a href="pyapprox/analysis/sensitivity_analysis.html">pyapprox.analysis.sensitivity_analysis</a></li>
+<li><a href="pyapprox/bayes/gaussian_network.html">pyapprox.bayes.gaussian_network</a></li>
+<li><a href="pyapprox/bayes/laplace.html">pyapprox.bayes.laplace</a></li>
 <li><a href="pyapprox/benchmarks/benchmarks.html">pyapprox.benchmarks.benchmarks</a></li>
-<li><a href="pyapprox/benchmarks/sensitivity_benchmarks.html">pyapprox.benchmarks.sensitivity_benchmarks</a></li>
-<li><a href="pyapprox/control_variate_monte_carlo.html">pyapprox.control_variate_monte_carlo</a></li>
-<li><a href="pyapprox/fenics_models/advection_diffusion_wrappers.html">pyapprox.fenics_models.advection_diffusion_wrappers</a></li>
-<li><a href="pyapprox/fenics_models/helmholtz_benchmarks.html">pyapprox.fenics_models.helmholtz_benchmarks</a></li>
-<li><a href="pyapprox/models/async_model.html">pyapprox.models.async_model</a></li>
-<li><a href="pyapprox/models/wrappers.html">pyapprox.models.wrappers</a></li>
-<li><a href="pyapprox/multivariate_polynomials.html">pyapprox.multivariate_polynomials</a></li>
-<li><a href="pyapprox/optimal_experimental_design.html">pyapprox.optimal_experimental_design</a></li>
-<li><a href="pyapprox/quadrature.html">pyapprox.quadrature</a></li>
-<li><a href="pyapprox/sensitivity_analysis.html">pyapprox.sensitivity_analysis</a></li>
+<li><a href="pyapprox/expdesign/bayesian_oed.html">pyapprox.expdesign.bayesian_oed</a></li>
+<li><a href="pyapprox/expdesign/linear_oed.html">pyapprox.expdesign.linear_oed</a></li>
+<li><a href="pyapprox/expdesign/low_discrepancy_sequences.html">pyapprox.expdesign.low_discrepancy_sequences</a></li>
+<li><a href="pyapprox/interface/async_model.html">pyapprox.interface.async_model</a></li>
+<li><a href="pyapprox/interface/file_io_model.html">pyapprox.interface.file_io_model</a></li>
+<li><a href="pyapprox/interface/wrappers.html">pyapprox.interface.wrappers</a></li>
+<li><a href="pyapprox/multifidelity/control_variate_monte_carlo.html">pyapprox.multifidelity.control_variate_monte_carlo</a></li>
+<li><a href="pyapprox/multifidelity/monte_carlo_estimators.html">pyapprox.multifidelity.monte_carlo_estimators</a></li>
+<li><a href="pyapprox/optimization/cvar_regression.html">pyapprox.optimization.cvar_regression</a></li>
+<li><a href="pyapprox/optimization/first_order_stochastic_dominance.html">pyapprox.optimization.first_order_stochastic_dominance</a></li>
+<li><a href="pyapprox/optimization/quantile_regression.html">pyapprox.optimization.quantile_regression</a></li>
+<li><a href="pyapprox/optimization/second_order_stochastic_dominance.html">pyapprox.optimization.second_order_stochastic_dominance</a></li>
+<li><a href="pyapprox/surrogates/approximate.html">pyapprox.surrogates.approximate</a></li>
+<li><a href="pyapprox/surrogates/gaussianprocess/gaussian_process.html">pyapprox.surrogates.gaussianprocess.gaussian_process</a></li>
+<li><a href="pyapprox/surrogates/interp/adaptive_sparse_grid.html">pyapprox.surrogates.interp.adaptive_sparse_grid</a></li>
+<li><a href="pyapprox/surrogates/interp/barycentric_interpolation.html">pyapprox.surrogates.interp.barycentric_interpolation</a></li>
+<li><a href="pyapprox/surrogates/interp/tensorprod.html">pyapprox.surrogates.interp.tensorprod</a></li>
+<li><a href="pyapprox/surrogates/orthopoly/quadrature.html">pyapprox.surrogates.orthopoly.quadrature</a></li>
+<li><a href="pyapprox/surrogates/polychaos/adaptive_polynomial_chaos.html">pyapprox.surrogates.polychaos.adaptive_polynomial_chaos</a></li>
+<li><a href="pyapprox/surrogates/polychaos/arbitrary_polynomial_chaos.html">pyapprox.surrogates.polychaos.arbitrary_polynomial_chaos</a></li>
+<li><a href="pyapprox/surrogates/polychaos/gpc.html">pyapprox.surrogates.polychaos.gpc</a></li>
+<li><a href="pyapprox/util/utilities.html">pyapprox.util.utilities</a></li>
+<li><a href="pyapprox/util/visualization.html">pyapprox.util.visualization</a></li>
+<li><a href="pyapprox/variables/joint.html">pyapprox.variables.joint</a></li>
+<li><a href="pyapprox/variables/sampling.html">pyapprox.variables.sampling</a></li>
+<li><a href="pyapprox/variables/transforms.html">pyapprox.variables.transforms</a></li>
 </ul>
 
            </div>
-           
           </div>
           <footer>
-  
 
   <hr/>
 
   <div role="contentinfo">
-    <p>
-        
-        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
-
-    </p>
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
   </div>
-    
-    
-    
-    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
-    
-    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
-    
-    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
 
 </footer>
-
         </div>
       </div>
-
     </section>
-
   </div>
-  
-
-  <script type="text/javascript">
+  <script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script>
-
-  
-  
-    
-   
+  </script> 
 
 </body>
 </html>

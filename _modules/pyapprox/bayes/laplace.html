@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.bayes.laplace &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.bayes.laplace</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.bayes.laplace</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.randomized_svd</span> <span class="kn">import</span> <span class="n">randomized_svd</span>
+<span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="kn">import</span> <span class="n">eigh</span> <span class="k">as</span> <span class="n">generalized_eigevalue_decomp</span>
+
+
+<span class="k">class</span> <span class="nc">PriorConditionedHessianMatVecOperator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the action of prior conditioned misfit Hessian on a vector.</span>
+
+<span class="sd">    E.g. for a arbitrary vector w, the Cholesky factor L of the prior</span>
+<span class="sd">    and the misfit Hessian H compute</span>
+<span class="sd">        L*H*L&#39;*w</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prior_covariance_sqrt_operator</span><span class="p">,</span>
+                 <span class="n">misfit_hessian_operator</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_covariance_sqrt_operator</span> <span class="o">=</span> <span class="n">prior_covariance_sqrt_operator</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">misfit_hessian_operator</span> <span class="o">=</span> <span class="n">misfit_hessian_operator</span>
+
+    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vectors</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute L&#39;*H*L*w.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        vectors : (num_dims,num_vectors) matrix</span>
+<span class="sd">            A set or arbitrary vectors w.</span>
+
+<span class="sd">        transpose : boolean (default=True)</span>
+<span class="sd">            The prior-conditioned Hessian is Symmetric so transpose does</span>
+<span class="sd">            not matter. But randomized svd  assumes operator has a function</span>
+<span class="sd">            apply(x, transpose)</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        z : (num_dims,num_vectors) matrix</span>
+<span class="sd">            The matrix vector products: L&#39;*H*L*w</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_covariance_sqrt_operator</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">vectors</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">vectors</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> \
+            <span class="s1">&#39;prior_covariance_sqrt_operator is returning incorrect values&#39;</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">misfit_hessian_operator</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;misfit_hessian_operator is returning incorrect values&#39;</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_covariance_sqrt_operator</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">z</span>
+
+    <span class="k">def</span> <span class="nf">num_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_covariance_sqrt_operator</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">num_cols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_covariance_sqrt_operator</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+
+
+<span class="k">class</span> <span class="nc">LaplaceSqrtMatVecOperator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the action of the sqrt of the covariance of a Laplace</span>
+<span class="sd">    approximation of the posterior on a vector.</span>
+
+<span class="sd">    E.g. for a arbtirary vector w, the Cholesky factor L of the prior,</span>
+<span class="sd">    the low rank eigenvalues e_r and eigenvectors V_r of the misfit hessian,</span>
+<span class="sd">    and the misfit Hessian H compute</span>
+<span class="sd">        L*(V*D*V&#39;+I)*w</span>
+<span class="sd">    where D = diag(np.sqrt(1./(e_r+1.))-1)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prior_covariance_sqrt_operator</span><span class="p">,</span> <span class="n">e_r</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">V_r</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">M</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        e_r : (rank,1) vector</span>
+<span class="sd">            The r largest eigenvalues of the prior conditioned misfit hessian</span>
+
+<span class="sd">        V_r : (num_dims,rank) matrix</span>
+<span class="sd">            The eigenvectors corresponding to the r-largest eigenvalues</span>
+
+<span class="sd">        M : (num_dims) vector (default=None)</span>
+<span class="sd">            Weights defineing a weighted inner product</span>
+
+<span class="sd">        filename : string</span>
+<span class="sd">            The name of the file that contains data to initialize object.</span>
+<span class="sd">            e_r, V_r, and M will be ignored.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_covariance_sqrt_operator</span> <span class="o">=</span> <span class="n">prior_covariance_sqrt_operator</span>
+        <span class="k">if</span> <span class="n">filename</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">V_r</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">e_r</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">M</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">V_r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">e_r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">V_r</span> <span class="o">=</span> <span class="n">V_r</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">=</span> <span class="n">M</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">set_eigenvalues</span><span class="p">(</span><span class="n">e_r</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_covariance_sqrt_operator</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">set_eigenvalues</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">e_r</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">diagonal</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="p">(</span><span class="n">e_r</span><span class="o">+</span><span class="mf">1.</span><span class="p">))</span><span class="o">-</span><span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">e_r</span> <span class="o">=</span> <span class="n">e_r</span>
+
+    <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">savez</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">e_r</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">e_r</span><span class="p">,</span> <span class="n">V_r</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">V_r</span><span class="p">,</span> <span class="n">M</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">M</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># savez cannot save python None</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">savez</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">e_r</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">e_r</span><span class="p">,</span> <span class="n">V_r</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">V_r</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;file </span><span class="si">%s</span><span class="s1"> does not exist&#39;</span> <span class="o">%</span> <span class="n">filename</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">V_r</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;V_r&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s1">&#39;M&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;M&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_eigenvalues</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;e_r&#39;</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">apply_mass_weighted_eigvec_adjoint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vectors</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply the mass weighted adjoint of the eigenvectors V_r to a set</span>
+<span class="sd">        of vectors w. I.e. compute</span>
+<span class="sd">           x = V_r^T*M*w</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        vectors : (num_dims,num_vectors) matrix</span>
+<span class="sd">            A set or arbitrary vectors w.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        x : (rank,num_vectors) matrix</span>
+<span class="sd">            The matrix vector products: V&#39;M*w</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">M</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">M</span><span class="p">)))</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">M</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">M</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">vectors</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">vectors</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                <span class="n">vectors</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">M</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="c1"># else: M is the identity so do nothing</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">V_r</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">vectors</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vectors</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute L*(V*D*V&#39;+I)*w = L(V*D*V&#39;*w+w)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        vectors : (num_dims,num_vectors) matrix</span>
+<span class="sd">            A set or arbitrary vectors w.</span>
+
+<span class="sd">        transpose : boolean</span>
+<span class="sd">            True - apply L.T</span>
+<span class="sd">            False - apply L</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        z : (num_dims,num_vectors) matrix</span>
+<span class="sd">            The matrix vector products: L*(V*D*V&#39;+I)*w</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">transpose</span><span class="p">:</span>
+            <span class="n">vectors</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_covariance_sqrt_operator</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+                <span class="n">vectors</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># x = V&#39;*vectors</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apply_mass_weighted_eigvec_adjoint</span><span class="p">(</span><span class="n">vectors</span><span class="p">)</span>
+        <span class="c1"># y = D*x</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">x</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">diagonal</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+        <span class="c1"># z = V*y</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">V_r</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">z</span> <span class="o">+=</span> <span class="n">vectors</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">transpose</span><span class="p">:</span>
+            <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_covariance_sqrt_operator</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">z</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vectors</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">vectors</span><span class="p">,</span> <span class="n">transpose</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_laplace_covariance_sqrt_operator</span><span class="p">(</span>
+        <span class="n">prior_covariance_sqrt_operator</span><span class="p">,</span> <span class="n">misfit_hessian_operator</span><span class="p">,</span> <span class="n">svd_opts</span><span class="p">,</span>
+        <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">min_singular_value</span><span class="o">=</span><span class="mf">0.1</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the operator representing the action of the cholesky factorization</span>
+<span class="sd">    of the Laplace posterior approximation on a vector.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    prior_covariance_sqrt_operator : Matrix vector multiplication operator</span>
+<span class="sd">        The operator representing the action of the sqrt of the prior</span>
+<span class="sd">        covariance on a vector. This is often but not always the cholesky</span>
+<span class="sd">        factorization oft the prior covariance.</span>
+
+<span class="sd">    misfit_hessian_operator : Matrix vector multiplication operator</span>
+<span class="sd">        The operator representing the action of the misfit hessian on a vector</span>
+
+<span class="sd">    svd_opts : dictionary</span>
+<span class="sd">       The options to the SVD algorithm. See documentation of randomized_svd().</span>
+
+<span class="sd">    weights : (num_dims) vector (default=None)</span>
+<span class="sd">        Weights defineing a weighted inner product</span>
+
+<span class="sd">    min_singular_value : double (default=0.1)</span>
+<span class="sd">       The minimum singular value to retain in SVD. Note</span>
+<span class="sd">       This can be different from the entry &#39;min_singular_value&#39; in svd_opts</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    covariance_sqrt_operator :  Matrix vector multiplication operator</span>
+<span class="sd">        The action of the sqrt of the covariance on a vector</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">e_r</span><span class="p">,</span> <span class="n">V_r</span> <span class="o">=</span> <span class="n">get_low_rank_prior_conditioned_misfit_hessian</span><span class="p">(</span>
+        <span class="n">prior_covariance_sqrt_operator</span><span class="p">,</span> <span class="n">misfit_hessian_operator</span><span class="p">,</span> <span class="n">svd_opts</span><span class="p">,</span>
+        <span class="n">min_singular_value</span><span class="p">)</span>
+
+    <span class="n">operator</span> <span class="o">=</span> <span class="n">LaplaceSqrtMatVecOperator</span><span class="p">(</span>
+        <span class="n">prior_covariance_sqrt_operator</span><span class="p">,</span> <span class="n">e_r</span><span class="p">,</span> <span class="n">V_r</span><span class="p">,</span> <span class="n">weights</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">operator</span>
+
+
+<span class="k">def</span> <span class="nf">get_low_rank_prior_conditioned_misfit_hessian</span><span class="p">(</span>
+        <span class="n">prior_covariance_sqrt_operator</span><span class="p">,</span> <span class="n">misfit_hessian_operator</span><span class="p">,</span> <span class="n">svd_opts</span><span class="p">,</span>
+        <span class="n">min_singular_value</span><span class="o">=</span><span class="mf">0.1</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the low rank approximation of the prior conditioned misfit hessian</span>
+<span class="sd">    using only matrix vector multiplication operators.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    prior_covariance_sqrt_operator : Matrix vector multiplication operator</span>
+<span class="sd">        The operator representing the action of the sqrt of the prior</span>
+<span class="sd">        covariance on a vector. This is often but not always the cholesky</span>
+<span class="sd">        factorization oft the prior covariance.</span>
+
+<span class="sd">    misfit_hessian_operator : Matrix vector multiplication operator</span>
+<span class="sd">        The operator representing the action of the misfit hessian on a vector</span>
+
+<span class="sd">    min_singular_value : double (default=0.1)</span>
+<span class="sd">       The minimum singular value to retain in SVD. Note</span>
+<span class="sd">       This can be different from the entry &#39;min_singular_value&#39; in svd_opts</span>
+
+<span class="sd">    svd_opts : dictionary</span>
+<span class="sd">       The options to the SVD algorithm. See documentation of randomized_svd().</span>
+
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    e_r : (rank,1) vector</span>
+<span class="sd">        The r largest eigenvalues of the prior conditioned misfit hessian</span>
+<span class="sd">    V_r : (num_dims,rank) matrix</span>
+<span class="sd">        The eigenvectors corresponding to the r-largest eigenvalues</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">operator</span> <span class="o">=</span> <span class="n">PriorConditionedHessianMatVecOperator</span><span class="p">(</span>
+        <span class="n">prior_covariance_sqrt_operator</span><span class="p">,</span> <span class="n">misfit_hessian_operator</span><span class="p">)</span>
+
+    <span class="n">svd_opts</span><span class="p">[</span><span class="s1">&#39;single_pass&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">U</span><span class="p">,</span> <span class="n">S</span><span class="p">,</span> <span class="n">V</span> <span class="o">=</span> <span class="n">randomized_svd</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">svd_opts</span><span class="p">)</span>
+    <span class="n">I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">S</span> <span class="o">&gt;=</span> <span class="n">min_singular_value</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">e_r</span> <span class="o">=</span> <span class="n">S</span><span class="p">[</span><span class="n">I</span><span class="p">]</span>
+    <span class="n">V_r</span> <span class="o">=</span> <span class="n">U</span><span class="p">[:,</span> <span class="n">I</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">e_r</span><span class="p">,</span> <span class="n">V_r</span>
+
+
+<span class="k">def</span> <span class="nf">find_map_point</span><span class="p">(</span><span class="n">objective</span><span class="p">,</span> <span class="n">initial_guess</span><span class="p">,</span> <span class="n">opts</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Find the maximum of the log posterior of Bayes rule.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    objective : Model object</span>
+<span class="sd">        The log of the posterior using Bayes rule. Does not need to be</span>
+<span class="sd">        normalized e.g, can simply be</span>
+<span class="sd">           misfit(x) + log(prior(x)),</span>
+<span class="sd">        Objective must implement with .evaluate()</span>
+<span class="sd">        and .gradient() functions</span>
+
+<span class="sd">    initial guess : (num_dims,1) vector</span>
+<span class="sd">        The initial point to start the local optimization</span>
+
+<span class="sd">    opts : dictionary (default=None)</span>
+<span class="sd">        Options for the optimizer</span>
+<span class="sd">        If None opts is set to opts = {&#39;maxiter&#39;:1000,&#39;gtol&#39;:1e-10}</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    map_point : (num_dims,1) vector</span>
+<span class="sd">        The coordinates of the maximum of the log posterior</span>
+
+<span class="sd">    obj_max : float</span>
+<span class="sd">        The maximum of the log posterior</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">opts</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">opts</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;maxiter&#39;</span><span class="p">:</span> <span class="mi">1000</span><span class="p">,</span> <span class="s1">&#39;gtol&#39;</span><span class="p">:</span> <span class="mf">1e-10</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">obj_func</span><span class="p">(</span><span class="n">x</span><span class="p">):</span> <span class="k">return</span> <span class="o">-</span> \
+        <span class="n">objective</span><span class="p">(</span><span class="n">x</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="p">{</span><span class="s1">&#39;eval_type&#39;</span><span class="p">:</span> <span class="s1">&#39;value&#39;</span><span class="p">})[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+
+    <span class="k">def</span> <span class="nf">obj_grad</span><span class="p">(</span><span class="n">x</span><span class="p">):</span> <span class="k">return</span> <span class="o">-</span> \
+        <span class="n">objective</span><span class="p">(</span><span class="n">x</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="p">{</span><span class="s1">&#39;eval_type&#39;</span><span class="p">:</span> <span class="s1">&#39;grad&#39;</span><span class="p">})[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="kn">import</span> <span class="n">fmin_bfgs</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">fmin_bfgs</span><span class="p">(</span><span class="n">obj_func</span><span class="p">,</span> <span class="n">fprime</span><span class="o">=</span><span class="n">obj_grad</span><span class="p">,</span>
+                    <span class="n">x0</span><span class="o">=</span><span class="n">initial_guess</span><span class="p">,</span> <span class="n">gtol</span><span class="o">=</span><span class="n">opts</span><span class="p">[</span><span class="s1">&#39;gtol&#39;</span><span class="p">],</span>
+                    <span class="n">maxiter</span><span class="o">=</span><span class="n">opts</span><span class="p">[</span><span class="s1">&#39;maxiter&#39;</span><span class="p">],</span> <span class="n">disp</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">full_output</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">map_point</span> <span class="o">=</span> <span class="n">out</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">obj_max</span> <span class="o">=</span> <span class="n">out</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">map_point</span><span class="p">,</span> <span class="n">obj_max</span>
+
+
+<div class="viewcode-block" id="laplace_posterior_approximation_for_linear_models"><a class="viewcode-back" href="../../../api/pyapprox.bayes.laplace_posterior_approximation_for_linear_models.html#pyapprox.bayes.laplace_posterior_approximation_for_linear_models">[docs]</a><span class="k">def</span> <span class="nf">laplace_posterior_approximation_for_linear_models</span><span class="p">(</span>
+        <span class="n">linear_matrix</span><span class="p">,</span> <span class="n">prior_mean</span><span class="p">,</span> <span class="n">prior_hessian</span><span class="p">,</span> <span class="n">noise_covariance_inv</span><span class="p">,</span> <span class="n">obs</span><span class="p">,</span>
+        <span class="n">bvec</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the mean and covariance of the Laplace posterior of a linear model</span>
+<span class="sd">    with a Gaussian prior</span>
+
+<span class="sd">    Given some data d and a linear forward model, A(x) = Ax+b,</span>
+<span class="sd">    and a Gaussian likelihood and a Gaussian prior, the resulting posterior</span>
+<span class="sd">    is always Gaussian.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    linear_matrix : (num_qoi, num_dims) matrix</span>
+<span class="sd">        The matrix reprsenting the linear forward model.</span>
+
+<span class="sd">    prior_mean : (num_dims, 1) vector</span>
+<span class="sd">        The mean of the Gaussian prior</span>
+
+<span class="sd">    prior_hessian: (num_dims, num_dims) matrix</span>
+<span class="sd">        The Hessian (inverse of the covariance) of the Gaussian prior</span>
+
+<span class="sd">    noise_covariance_inv : (num_qoi, num_qoi) matrix</span>
+<span class="sd">        The inverse of the covariance of the osbervational noise</span>
+
+<span class="sd">    obs : (num_qoi, 1) vector</span>
+<span class="sd">        The observations</span>
+
+<span class="sd">    bvec : np.ndarray(num_qoi)</span>
+<span class="sd">        The deterministic shift of the linear model</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    posterior_mean : (num_dims, 1) vector</span>
+<span class="sd">        The mean of the Gaussian posterior</span>
+
+<span class="sd">    posterior_covariance: (num_dims, num_dims) matrix</span>
+<span class="sd">        The covariance of the Gaussian posterior</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">prior_mean</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">prior_mean</span> <span class="o">=</span> <span class="n">prior_mean</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">obs</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">obs</span> <span class="o">=</span> <span class="n">obs</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">prior_mean</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">prior_mean</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">obs</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">linear_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">noise_covariance_inv</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">misfit_hessian</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">linear_matrix</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">noise_covariance_inv</span><span class="p">),</span> <span class="n">linear_matrix</span><span class="p">)</span>
+    <span class="n">posterior_covariance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">misfit_hessian</span> <span class="o">+</span> <span class="n">prior_hessian</span><span class="p">)</span>
+    <span class="n">residual</span> <span class="o">=</span> <span class="n">obs</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">linear_matrix</span><span class="p">,</span> <span class="n">prior_mean</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">bvec</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">residual</span> <span class="o">-=</span> <span class="n">bvec</span>
+    <span class="n">temp</span> <span class="o">=</span> <span class="n">linear_matrix</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">noise_covariance_inv</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">residual</span><span class="p">))</span>
+    <span class="n">posterior_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">posterior_covariance</span><span class="p">,</span> <span class="n">temp</span><span class="p">)</span><span class="o">+</span><span class="n">prior_mean</span>
+    <span class="k">return</span> <span class="n">posterior_mean</span><span class="p">,</span> <span class="n">posterior_covariance</span></div>
+
+
+<span class="k">def</span> <span class="nf">push_forward_gaussian_though_linear_model</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">mean</span><span class="p">,</span> <span class="n">covariance</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Find the mean and covariance of a gaussian distribution when it</span>
+<span class="sd">    is push forward through a linear model. A linear transformation</span>
+<span class="sd">    applied to a Gaussian is still a Gaussian.</span>
+
+<span class="sd">    Original Gaussian with mean x and covariance \Sigma</span>
+<span class="sd">    z~N(x,\Sigma)</span>
+
+<span class="sd">    Transformation with b is a constant vector, e.g has no variance</span>
+<span class="sd">    y = Az + b</span>
+
+<span class="sd">    Distribution of resulting gaussian</span>
+<span class="sd">    y~N(Ax+b,A\Sigma A^T)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">y_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">mean</span><span class="p">)</span><span class="o">+</span><span class="n">b</span>
+    <span class="n">y_covariance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">covariance</span><span class="p">),</span> <span class="n">A</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">y_mean</span><span class="p">,</span> <span class="n">y_covariance</span>
+
+
+<span class="k">class</span> <span class="nc">MisfitHessianVecOperator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operator which computes the Hessian vector product. The Hessian</span>
+<span class="sd">    is the Hessian of a misfit function and if not available</span>
+<span class="sd">    the action of the Hessian is computed using finite differences of</span>
+<span class="sd">    gradients of the misfit of from function evaluations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">map_point</span><span class="p">,</span>
+                 <span class="n">fd_eps</span><span class="o">=</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the MisfitHessianVecOperator</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        model : Model object</span>
+<span class="sd">            A model which must allow model.gradient_set()</span>
+<span class="sd">            and possess model.rv_trans object</span>
+
+<span class="sd">        map_point : (num_dims) vector</span>
+<span class="sd">           The point x that maximizes likelihood(x)*prior(x)</span>
+
+<span class="sd">        fd_eps : float (default=2*mach_eps)</span>
+<span class="sd">            The finite difference step size. If not None</span>
+<span class="sd">            Then action of hessian will be computed with finite</span>
+<span class="sd">            difference even if model has a hessian attribute</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">map_point</span> <span class="o">=</span> <span class="n">map_point</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fd_eps</span> <span class="o">=</span> <span class="n">fd_eps</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">map_point_misfit_gradient</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="s1">&#39;hessian&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">fd_eps</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">fd_eps</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">assert</span> <span class="n">fd_eps</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="s1">&#39;gradient_set&#39;</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">map_point_misfit_gradient</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">gradient_set</span><span class="p">(</span>
+                    <span class="n">map_point</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">])[:,</span> <span class="mi">0</span><span class="p">]</span>
+                <span class="k">assert</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">map_point_misfit_gradient</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">map_point</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;model does not have member function called gradient&#39;</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">num_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">map_point</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">num_cols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_rows</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vectors</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute action of hessian on a vector</span>
+
+<span class="sd">        If self.model has no function hessian() then</span>
+<span class="sd">        use first-order finite difference of gradient to compute action</span>
+<span class="sd">        of Hessian on a vector, e.g</span>
+
+<span class="sd">        H(x)v = (g(x+v*h)-g(x))/h</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Laplace posterior is only defined for Gaussian prior</span>
+<span class="sd">        so we do not have to worry about exceeding bounds</span>
+<span class="sd">        with finite difference, so always use forward finite difference.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        vectors : (num_dimx,num_vectors) matrix</span>
+<span class="sd">            Vectors to which the action of the Hessian will be applied</span>
+
+<span class="sd">        transpose : boolean</span>
+<span class="sd">            Hessian is symmetric so transpose is a needless parameter</span>
+<span class="sd">            But randomized svd  assumes operator has a function</span>
+<span class="sd">            apply(x, transpose)</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        hessian_vector_products : (num_dims,num_vectors) matrix</span>
+<span class="sd">            The Hessian vector products</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="s1">&#39;hessian&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">fd_eps</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;TODO replace by opearator hess_vec_prod = model.hess.apply(map_point,vectors). first arg says where to evaluate hessian opearator&#39;</span><span class="p">)</span>
+            <span class="n">H</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">hessian</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">map_point</span><span class="p">)</span>
+            <span class="n">hessian_vector_products</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">H</span><span class="p">,</span> <span class="n">vectors</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="s1">&#39;gradient_set&#39;</span><span class="p">):</span>
+            <span class="k">def</span> <span class="nf">grad_func</span><span class="p">(</span><span class="n">x</span><span class="p">):</span> <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">gradient_set</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+            <span class="c1"># function passed to directional_derivatives function must return</span>
+            <span class="c1"># np.ndarray with shape (num_samples,num_vars)</span>
+            <span class="c1"># each gradient entry is considered a qoi of a function</span>
+            <span class="c1"># directional_derivatives function also returns np.ndarray of shape</span>
+            <span class="c1"># (num_vectors,num_dims) so must transpose result</span>
+            <span class="n">hessian_vector_products</span> <span class="o">=</span> <span class="n">directional_derivatives</span><span class="p">(</span>
+                <span class="n">grad_func</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">map_point</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">map_point_misfit_gradient</span><span class="p">,</span> <span class="n">vectors</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fd_eps</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;To implement action of hessian you need to specify hessian function or gradient_set function&#39;</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">hessian_vector_products</span>
+
+
+<span class="k">def</span> <span class="nf">directional_derivatives</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">sample</span><span class="p">,</span> <span class="n">value_at_sample</span><span class="p">,</span> <span class="n">vectors</span><span class="p">,</span> <span class="n">fd_eps</span><span class="p">,</span>
+                            <span class="n">normalize_vectors</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                            <span class="n">use_central_finite_difference</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the first-order forward difference directional derivative of a</span>
+<span class="sd">    vector valued function.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    function : callable_function</span>
+<span class="sd">        Vector valued function of interest. If function returns a gradient.</span>
+<span class="sd">        then function must return matrix (num_samples, num_dims)</span>
+
+<span class="sd">    sample : (num_dims,1) vector</span>
+<span class="sd">        The sample at which the directional derivative needs to be computed</span>
+
+<span class="sd">    value_at_sample : (1,num_qoi) vector</span>
+<span class="sd">        The function value(s) at sample</span>
+
+<span class="sd">    vectors : (num_dims,num_vectors) matrix</span>
+<span class="sd">        The direction vectors of the directional finite differences</span>
+
+<span class="sd">    fd_eps : float</span>
+<span class="sd">        The finite difference step size</span>
+
+<span class="sd">    normalize_vectors : bool</span>
+<span class="sd">        Normalize the directional derivatives by the l2 norms of the</span>
+<span class="sd">        direction vectors</span>
+
+<span class="sd">    use_central_finite_difference : bool</span>
+<span class="sd">        True: use central finite difference (value_at_sample is ignored)</span>
+<span class="sd">        False: use forward finite difference (using value_at_sample)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    directional_derivatives : (num_dims,num_vectors) matrix</span>
+<span class="sd">        The directional derivatives in the direction of the vectors</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">sample</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">sample</span> <span class="o">=</span> <span class="n">sample</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">sample</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">vectors</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">use_central_finite_difference</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">value_at_sample</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">value_at_sample</span> <span class="o">=</span> <span class="n">value_at_sample</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">value_at_sample</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+        <span class="n">num_perturbed_samples</span> <span class="o">=</span> <span class="n">vectors</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">perturbed_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span>
+            <span class="n">sample</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_perturbed_samples</span><span class="p">))</span>
+        <span class="n">perturbed_samples</span> <span class="o">+=</span> <span class="n">fd_eps</span><span class="o">*</span><span class="n">vectors</span>
+        <span class="n">perturbed_values</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">perturbed_samples</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">perturbed_values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">vectors</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">directional_derivatives</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">perturbed_values</span><span class="o">-</span><span class="n">value_at_sample</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">fd_eps</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">directional_derivatives</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">value_at_sample</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">num_perturbed_samples</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">vectors</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">perturbed_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span>
+            <span class="n">sample</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_perturbed_samples</span><span class="p">))</span>
+        <span class="n">perturbed_samples</span><span class="p">[:,</span> <span class="p">:</span><span class="n">num_perturbed_samples</span><span class="o">/</span><span class="mi">2</span><span class="p">]</span> <span class="o">+=</span> <span class="n">fd_eps</span><span class="o">*</span><span class="n">vectors</span>
+        <span class="n">perturbed_samples</span><span class="p">[:,</span> <span class="n">num_perturbed_samples</span><span class="o">/</span><span class="mi">2</span><span class="p">:]</span> <span class="o">-=</span> <span class="n">fd_eps</span><span class="o">*</span><span class="n">vectors</span>
+        <span class="n">perturbed_values</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">perturbed_samples</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">perturbed_values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="o">*</span><span class="n">vectors</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">directional_derivatives</span> <span class="o">=</span> <span class="p">(</span><span class="n">perturbed_values</span><span class="p">[:</span><span class="n">num_perturbed_samples</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="p">:]</span> <span class="o">-</span>
+                                   <span class="n">perturbed_values</span><span class="p">[</span><span class="n">num_perturbed_samples</span><span class="o">/</span><span class="mi">2</span><span class="p">:,</span> <span class="p">:])</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">fd_eps</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">normalize_vectors</span><span class="p">:</span>
+        <span class="n">directional_derivatives</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">vectors</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">directional_derivatives</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">vectors</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">directional_derivatives</span>
+
+
+<span class="k">def</span> <span class="nf">sample_from_laplace_posterior</span><span class="p">(</span><span class="n">laplace_mean</span><span class="p">,</span> <span class="n">laplace_covariance_sqrt</span><span class="p">,</span>
+                                  <span class="n">num_dims</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    -------</span>
+<span class="sd">    laplace_mean : vector (num_dims)</span>
+<span class="sd">        The mean of the Laplace posterior distribution</span>
+
+<span class="sd">    laplace_covariance_sqrt :  Matrix vector multiplication operator</span>
+<span class="sd">        The action of the sqrt of the covariance on a vector</span>
+
+<span class="sd">    num_dims : integer</span>
+<span class="sd">       The number of random variables</span>
+
+<span class="sd">    num_samples : integer</span>
+<span class="sd">       The desired number of posterior samples</span>
+
+<span class="sd">    weights : vector (num_dims) (default=None)</span>
+<span class="sd">       weights defining a weighted inner product</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    posterior_samples : matrix (num_dims,num_samples)</span>
+<span class="sd">        Samples from the posterior</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">laplace_mean</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">laplace_mean</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">std_normal_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="p">(</span><span class="n">num_dims</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">weights</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">weights</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">weights</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">num_dims</span>
+        <span class="n">std_normal_samples</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">weights</span><span class="p">)</span>
+
+    <span class="n">posterior_samples</span> <span class="o">=</span> \
+        <span class="n">laplace_covariance_sqrt</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">std_normal_samples</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">+</span>\
+        <span class="n">laplace_mean</span>
+    <span class="k">return</span> <span class="n">posterior_samples</span>
+
+
+<span class="k">def</span> <span class="nf">get_pointwise_laplace_variance</span><span class="p">(</span><span class="n">prior</span><span class="p">,</span> <span class="n">laplace_covariance_sqrt</span><span class="p">):</span>
+    <span class="n">prior_pointwise_variance</span> <span class="o">=</span> <span class="n">prior</span><span class="o">.</span><span class="n">pointwise_variance</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">get_pointwise_laplace_variance_using_prior_variance</span><span class="p">(</span>
+        <span class="n">prior</span><span class="p">,</span> <span class="n">laplace_covariance_sqrt</span><span class="p">,</span> <span class="n">prior_pointwise_variance</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_pointwise_laplace_variance_using_prior_variance</span><span class="p">(</span>
+        <span class="n">prior</span><span class="p">,</span> <span class="n">laplace_covariance_sqrt</span><span class="p">,</span> <span class="n">prior_pointwise_variance</span><span class="p">):</span>
+    <span class="c1"># compute L*V_r</span>
+    <span class="n">tmp1</span> <span class="o">=</span> <span class="n">prior</span><span class="o">.</span><span class="n">apply_covariance_sqrt</span><span class="p">(</span><span class="n">laplace_covariance_sqrt</span><span class="o">.</span><span class="n">V_r</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="c1"># compute D*(L*V_r)**2</span>
+    <span class="n">tmp2</span> <span class="o">=</span> <span class="n">laplace_covariance_sqrt</span><span class="o">.</span><span class="n">e_r</span><span class="o">/</span><span class="p">(</span><span class="mf">1.</span><span class="o">+</span><span class="n">laplace_covariance_sqrt</span><span class="o">.</span><span class="n">e_r</span><span class="p">)</span>
+    <span class="n">tmp3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">tmp1</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">tmp2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">prior_pointwise_variance</span><span class="o">-</span><span class="n">tmp3</span><span class="p">,</span> <span class="n">prior_pointwise_variance</span>
+
+
+<span class="k">def</span> <span class="nf">generate_and_save_laplace_posterior</span><span class="p">(</span>
+        <span class="n">prior</span><span class="p">,</span> <span class="n">misfit_model</span><span class="p">,</span> <span class="n">num_singular_values</span><span class="p">,</span>
+        <span class="n">svd_history_filename</span><span class="o">=</span><span class="s1">&#39;svd-history.npz&#39;</span><span class="p">,</span>
+        <span class="n">Lpost_op_filename</span><span class="o">=</span><span class="s1">&#39;laplace_sqrt_operator.npz&#39;</span><span class="p">,</span>
+        <span class="n">num_extra_svd_samples</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+        <span class="n">fd_eps</span><span class="o">=</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)):</span>
+
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">svd_history_filename</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
+            <span class="s1">&#39;File </span><span class="si">%s</span><span class="s1"> already exists. Exiting so as not to overwrite&#39;</span> <span class="o">%</span>
+            <span class="n">svd_history_filename</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">Lpost_op_filename</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
+            <span class="s1">&#39;File </span><span class="si">%s</span><span class="s1"> already exists. Exiting so as not to overwrite&#39;</span> <span class="o">%</span>
+            <span class="n">Lpost_op_filename</span><span class="p">)</span>
+
+    <span class="n">sample</span> <span class="o">=</span> <span class="n">misfit_model</span><span class="o">.</span><span class="n">map_point</span><span class="p">()</span>
+    <span class="n">misfit_hessian_operator</span> <span class="o">=</span> <span class="n">MisfitHessianVecOperator</span><span class="p">(</span>
+        <span class="n">misfit_model</span><span class="p">,</span> <span class="n">sample</span><span class="p">,</span> <span class="n">fd_eps</span><span class="o">=</span><span class="n">fd_eps</span><span class="p">)</span>
+    <span class="n">standard_svd_opts</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;num_singular_values&#39;</span><span class="p">:</span> <span class="n">num_singular_values</span><span class="p">,</span>
+        <span class="s1">&#39;num_extra_samples&#39;</span><span class="p">:</span> <span class="n">num_extra_svd_samples</span><span class="p">}</span>
+    <span class="n">svd_opts</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;single_pass&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;standard_opts&#39;</span><span class="p">:</span> <span class="n">standard_svd_opts</span><span class="p">,</span>
+                <span class="s1">&#39;history_filename&#39;</span><span class="p">:</span> <span class="n">svd_history_filename</span><span class="p">}</span>
+    <span class="n">L_post_op</span> <span class="o">=</span> <span class="n">get_laplace_covariance_sqrt_operator</span><span class="p">(</span>
+        <span class="n">prior</span><span class="o">.</span><span class="n">sqrt_covariance_operator</span><span class="p">,</span> <span class="n">misfit_hessian_operator</span><span class="p">,</span>
+        <span class="n">svd_opts</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">min_singular_value</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+
+    <span class="n">L_post_op</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">Lpost_op_filename</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">L_post_op</span>
+
+
+<span class="k">def</span> <span class="nf">generate_and_save_pointwise_variance</span><span class="p">(</span>
+        <span class="n">prior</span><span class="p">,</span> <span class="n">L_post_op</span><span class="p">,</span>
+        <span class="n">prior_variance_filename</span><span class="o">=</span><span class="s1">&#39;prior_pointwise-variance.npz&#39;</span><span class="p">,</span>
+        <span class="n">posterior_variance_filename</span><span class="o">=</span><span class="s1">&#39;posterior_pointwise-variance.npz&#39;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">prior_variance_filename</span><span class="p">):</span>
+        <span class="n">posterior_pointwise_variance</span><span class="p">,</span> <span class="n">prior_pointwise_variance</span> <span class="o">=</span>\
+            <span class="n">get_pointwise_laplace_variance</span><span class="p">(</span><span class="n">prior</span><span class="p">,</span> <span class="n">L_post_op</span><span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">savez</span><span class="p">(</span>
+            <span class="n">prior_variance_filename</span><span class="p">,</span> <span class="n">prior_pointwise_variance</span><span class="o">=</span><span class="n">prior_pointwise_variance</span><span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">savez</span><span class="p">(</span><span class="n">posterior_variance_filename</span><span class="p">,</span>
+                 <span class="n">posterior_pointwise_variance</span><span class="o">=</span><span class="n">posterior_pointwise_variance</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">((</span><span class="s1">&#39;File </span><span class="si">%s</span><span class="s1"> already exists. Loading data&#39;</span> <span class="o">%</span> <span class="n">prior_variance_filename</span><span class="p">))</span>
+        <span class="n">prior_pointwise_variance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">prior_variance_filename</span><span class="p">)[</span>
+            <span class="s1">&#39;prior_pointwise_variance&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">posterior_variance_filename</span><span class="p">):</span>
+            <span class="n">posterior_pointwise_variance</span><span class="p">,</span> <span class="n">prior_pointwise_variance</span> <span class="o">=</span> \
+                <span class="n">get_pointwise_laplace_variance_using_prior_variance</span><span class="p">(</span>
+                    <span class="n">prior</span><span class="p">,</span> <span class="n">L_post_op</span><span class="p">,</span> <span class="n">prior_pointwise_variance</span><span class="p">)</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">savez</span><span class="p">(</span><span class="n">posterior_variance_filename</span><span class="p">,</span>
+                     <span class="n">posterior_pointwise_variance</span><span class="o">=</span><span class="n">posterior_pointwise_variance</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">posterior_pointwise_variance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">posterior_variance_filename</span><span class="p">)[</span>
+                <span class="s1">&#39;posterior_pointwise_variance&#39;</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">prior_pointwise_variance</span><span class="p">,</span> <span class="n">posterior_pointwise_variance</span>
+
+
+<span class="k">def</span> <span class="nf">compute_posterior_mean_covar_optimal_for_prediction</span><span class="p">(</span>
+        <span class="n">obs</span><span class="p">,</span> <span class="n">obs_matrix</span><span class="p">,</span> <span class="n">prior_mean</span><span class="p">,</span> <span class="n">prior_covar</span><span class="p">,</span> <span class="n">obs_noise_covar</span><span class="p">,</span>
+        <span class="n">pred_matrix</span><span class="p">,</span> <span class="n">economical</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+
+    <span class="k">assert</span> <span class="n">pred_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">prior_mean</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># step 1</span>
+    <span class="n">OP</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">pred_matrix</span><span class="p">,</span> <span class="n">prior_covar</span><span class="p">)</span>
+    <span class="c1"># step 2</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="n">obs_matrix</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="c1"># step 3</span>
+    <span class="n">Pz</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="n">pred_matrix</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="c1"># step 4</span>
+    <span class="n">Pz_inv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">Pz</span><span class="p">)</span>
+    <span class="c1"># step 5</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">C</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">Pz_inv</span><span class="p">,</span> <span class="n">C</span><span class="p">))</span>
+    <span class="c1"># step 6</span>
+    <span class="n">data_covar</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">obs_matrix</span><span class="p">,</span> <span class="n">prior_covar</span><span class="p">),</span> <span class="n">obs_matrix</span><span class="o">.</span><span class="n">T</span><span class="p">)</span> <span class="o">+</span>\
+        <span class="n">obs_noise_covar</span>
+    <span class="c1"># step 7</span>
+    <span class="c1"># print &#39;TODO replace generalized_eigevalue_decomp by my subspace iteration&#39;</span>
+    <span class="n">evals</span><span class="p">,</span> <span class="n">evecs</span> <span class="o">=</span> <span class="n">generalized_eigevalue_decomp</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">data_covar</span><span class="p">)</span>
+    <span class="n">evecs</span> <span class="o">=</span> <span class="n">evecs</span><span class="p">[:,</span> <span class="p">::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">evals</span> <span class="o">=</span> <span class="n">evals</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">rank</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">pred_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">obs_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">evecs</span> <span class="o">=</span> <span class="n">evecs</span><span class="p">[:,</span> <span class="p">:</span><span class="n">rank</span><span class="p">]</span>
+    <span class="n">evals</span> <span class="o">=</span> <span class="n">evals</span><span class="p">[:</span><span class="n">rank</span><span class="p">]</span>
+    <span class="c1"># step 8</span>
+    <span class="n">ppf_covar_evecs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">C</span><span class="p">,</span> <span class="n">evecs</span><span class="p">)</span>
+
+    <span class="n">residual</span> <span class="o">=</span> <span class="n">obs</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">obs_matrix</span><span class="p">,</span> <span class="n">prior_mean</span><span class="p">)</span>
+    <span class="n">opt_pf_covar</span> <span class="o">=</span> <span class="n">Pz</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">ppf_covar_evecs</span><span class="p">,</span> <span class="n">ppf_covar_evecs</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="n">opt_pf_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">ppf_covar_evecs</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">evecs</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">residual</span><span class="p">))</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
+        <span class="n">pred_matrix</span><span class="p">,</span> <span class="n">prior_mean</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">economical</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">opt_pf_mean</span><span class="p">,</span> <span class="n">opt_pf_covar</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">posterior_evec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">OP</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">Pz_inv</span><span class="p">),</span> <span class="n">ppf_covar_evecs</span><span class="p">)</span>
+        <span class="n">posterior_covar</span> <span class="o">=</span> <span class="n">prior_covar</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">posterior_evec</span><span class="p">,</span> <span class="n">posterior_evec</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+        <span class="n">posterior_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">posterior_evec</span><span class="p">,</span> <span class="n">evecs</span><span class="o">.</span><span class="n">T</span><span class="p">),</span> <span class="n">residual</span><span class="p">)</span> <span class="o">+</span>\
+            <span class="n">prior_mean</span>
+
+        <span class="k">return</span> <span class="n">opt_pf_mean</span><span class="p">,</span> <span class="n">opt_pf_covar</span><span class="p">,</span> <span class="n">posterior_mean</span><span class="p">,</span> <span class="n">posterior_covar</span>
+
+
+<span class="k">def</span> <span class="nf">laplace_evidence</span><span class="p">(</span><span class="n">likelihood_fun</span><span class="p">,</span> <span class="n">prior_pdf</span><span class="p">,</span> <span class="n">post_covariance</span><span class="p">,</span> <span class="n">map_point</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    Ryan, K. (2003). Estimating Expected Information Gains for Experimental</span>
+<span class="sd">    Designs with Application to the Random Fatigue-Limit Model. Journal of</span>
+<span class="sd">    Computational and Graphical Statistics, 12(3), 585-603.</span>
+<span class="sd">    http://www.jstor.org/stable/1391040</span>
+
+<span class="sd">    Friel, N. and Wyse, J. (2012), Estimating the evidence – a review.</span>
+<span class="sd">    Statistica Neerlandica, 66: 288-308.</span>
+<span class="sd">    https://doi.org/10.1111/j.1467-9574.2011.00515.x</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">map_point</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="n">nvars</span> <span class="o">=</span> <span class="n">post_covariance</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">lval</span> <span class="o">=</span> <span class="n">likelihood_fun</span><span class="p">(</span><span class="n">map_point</span><span class="p">)</span>
+    <span class="n">prior_val</span> <span class="o">=</span> <span class="n">prior_pdf</span><span class="p">(</span><span class="n">map_point</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lval</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">prior_val</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="n">evidence</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="n">nvars</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">det</span><span class="p">(</span><span class="n">post_covariance</span><span class="p">))</span>
+    <span class="n">evidence</span> <span class="o">*=</span> <span class="n">lval</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">prior_val</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">evidence</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

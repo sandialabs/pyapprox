@@ -1,0 +1,6 @@
+solve_SSD_constrained_least_squares_smooth
+==========================================
+
+.. currentmodule:: pyapprox.optimization
+
+.. autofunction:: solve_SSD_constrained_least_squares_smooth

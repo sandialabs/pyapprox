@@ -1,0 +1,25 @@
+NonLinearAlphabetOptimalDesign
+==============================
+
+.. currentmodule:: pyapprox.expdesign
+
+.. autoclass:: NonLinearAlphabetOptimalDesign
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~NonLinearAlphabetOptimalDesign.bayesian_objective_jacobian_components
+      ~NonLinearAlphabetOptimalDesign.setup_minimax_nonlinear_constraints
+      ~NonLinearAlphabetOptimalDesign.setup_objective
+      ~NonLinearAlphabetOptimalDesign.solve_nonlinear_bayesian
+      ~NonLinearAlphabetOptimalDesign.solve_nonlinear_minimax
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: bayesian_objective_jacobian_components
+   .. automethod:: setup_minimax_nonlinear_constraints
+   .. automethod:: setup_objective
+   .. automethod:: solve_nonlinear_bayesian
+   .. automethod:: solve_nonlinear_minimax

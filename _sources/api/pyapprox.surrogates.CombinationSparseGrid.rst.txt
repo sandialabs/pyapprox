@@ -1,0 +1,41 @@
+CombinationSparseGrid
+=====================
+
+.. currentmodule:: pyapprox.surrogates
+
+.. autoclass:: CombinationSparseGrid
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~CombinationSparseGrid.__call__
+      ~CombinationSparseGrid.add_new_subspaces
+      ~CombinationSparseGrid.evaluate_at_interrogation_samples
+      ~CombinationSparseGrid.evaluate_using_all_data
+      ~CombinationSparseGrid.get_samples
+      ~CombinationSparseGrid.get_subspace_samples
+      ~CombinationSparseGrid.moments
+      ~CombinationSparseGrid.moments_
+      ~CombinationSparseGrid.refine_and_add_new_subspaces
+      ~CombinationSparseGrid.save
+      ~CombinationSparseGrid.set_interrogation_samples
+      ~CombinationSparseGrid.set_univariate_rules
+      ~CombinationSparseGrid.setup
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: add_new_subspaces
+   .. automethod:: evaluate_at_interrogation_samples
+   .. automethod:: evaluate_using_all_data
+   .. automethod:: get_samples
+   .. automethod:: get_subspace_samples
+   .. automethod:: moments
+   .. automethod:: moments_
+   .. automethod:: refine_and_add_new_subspaces
+   .. automethod:: save
+   .. automethod:: set_interrogation_samples
+   .. automethod:: set_univariate_rules
+   .. automethod:: setup

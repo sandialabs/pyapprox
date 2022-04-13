@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.surrogates.polychaos.adaptive_polynomial_chaos &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+        <script src="../../../../_static/jquery.js"></script>
+        <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/doctools.js"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.surrogates.polychaos.adaptive_polynomial_chaos</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.surrogates.polychaos.adaptive_polynomial_chaos</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="kn">import</span> <span class="n">solve_triangular</span>
+<span class="kn">from</span> <span class="nn">sklearn.linear_model</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">OrthogonalMatchingPursuit</span><span class="p">,</span>
+    <span class="n">OrthogonalMatchingPursuitCV</span>
+<span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.leja_sequences</span> <span class="kn">import</span> <span class="n">christoffel_weights</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.polychaos.gpc</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PolynomialChaosExpansion</span><span class="p">,</span>
+    <span class="n">define_poly_options_from_variable_transformation</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.polychaos.induced_sampling</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">increment_induced_samples_migliorati</span><span class="p">,</span>
+    <span class="n">generate_induced_samples_migliorati_tolerance</span><span class="p">,</span>
+    <span class="n">compute_preconditioned_canonical_basis_matrix_condition_number</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">hash_array</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.linalg</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">add_columns_to_pivoted_lu_factorization</span><span class="p">,</span>
+    <span class="n">continue_pivoted_lu_factorization</span><span class="p">,</span>
+    <span class="n">get_final_pivots_from_sequential_pivots</span><span class="p">,</span>
+    <span class="n">split_lu_factorization_matrix</span><span class="p">,</span>
+    <span class="n">pivot_rows</span><span class="p">,</span>
+    <span class="n">truncated_pivoted_lu_factorization</span><span class="p">,</span> <span class="n">unprecondition_LU_factor</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.adaptive_sparse_grid</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">SubSpaceRefinementManager</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.sampling</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">generate_independent_random_samples</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_subspace_active_poly_array_indices</span><span class="p">(</span><span class="n">adaptive_pce</span><span class="p">,</span> <span class="n">ii</span><span class="p">):</span>
+    <span class="n">idx1</span> <span class="o">=</span> <span class="n">adaptive_pce</span><span class="o">.</span><span class="n">unique_poly_indices_idx</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">ii</span> <span class="o">&lt;</span> <span class="n">adaptive_pce</span><span class="o">.</span><span class="n">unique_poly_indices_idx</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+        <span class="n">idx2</span> <span class="o">=</span> <span class="n">adaptive_pce</span><span class="o">.</span><span class="n">unique_poly_indices_idx</span><span class="p">[</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">idx2</span> <span class="o">=</span> <span class="n">adaptive_pce</span><span class="o">.</span><span class="n">poly_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">idx1</span><span class="p">,</span> <span class="n">idx2</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_active_poly_array_indices</span><span class="p">(</span><span class="n">adaptive_pce</span><span class="p">):</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">0</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">adaptive_pce</span><span class="o">.</span><span class="n">active_subspace_indices_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">subspace_array_indices</span> <span class="o">=</span> <span class="n">get_subspace_active_poly_array_indices</span><span class="p">(</span>
+            <span class="n">adaptive_pce</span><span class="p">,</span> <span class="n">ii</span><span class="p">)</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">indices</span><span class="p">,</span> <span class="n">subspace_array_indices</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="k">def</span> <span class="nf">variance_pce_refinement_indicator</span><span class="p">(</span>
+        <span class="n">subspace_index</span><span class="p">,</span> <span class="n">num_new_subspace_samples</span><span class="p">,</span> <span class="n">adaptive_pce</span><span class="p">,</span>
+        <span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">mean_only</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Set pce coefficients of new subspace poly indices to zero to compute</span>
+<span class="sd">    previous mean then set them to be non-zero</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">subspace_index</span><span class="p">)</span>
+    <span class="n">ii</span> <span class="o">=</span> <span class="n">adaptive_pce</span><span class="o">.</span><span class="n">active_subspace_indices_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+    <span class="n">II</span> <span class="o">=</span> <span class="n">get_subspace_active_poly_array_indices</span><span class="p">(</span><span class="n">adaptive_pce</span><span class="p">,</span> <span class="n">ii</span><span class="p">)</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">adaptive_pce</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">coefficients</span><span class="p">[</span><span class="n">II</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">indicator</span> <span class="o">=</span> <span class="n">error</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">normalize</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;Attempted normalization of variance with values at first grid point close to 0.</span>
+<span class="s2">        Possible options are:</span>
+<span class="s2">        - Use a different sample or sampling sequence</span>
+<span class="s2">          (if random sampling, try a different seed value)</span>
+<span class="s2">        - Set the `normalize` option to False (see docs for: `variance_pce_refinement_indicator()`)</span>
+<span class="s2">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">(</span><span class="n">adaptive_pce</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:])</span> <span class="o">&gt;</span> <span class="mf">1e-6</span><span class="p">),</span> <span class="n">msg</span>
+        <span class="n">indicator</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">(</span><span class="n">adaptive_pce</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:])</span><span class="o">**</span><span class="mi">2</span>
+
+    <span class="n">qoi_chosen</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">indicator</span><span class="p">)</span>
+    <span class="n">indicator</span> <span class="o">=</span> <span class="n">indicator</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+    <span class="n">cost_per_sample</span> <span class="o">=</span> <span class="n">adaptive_pce</span><span class="o">.</span><span class="n">eval_cost_function</span><span class="p">(</span>
+        <span class="n">subspace_index</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">])</span>
+    <span class="n">cost</span> <span class="o">=</span> <span class="n">cost_per_sample</span><span class="o">*</span><span class="n">num_new_subspace_samples</span>
+
+    <span class="c1"># compute marginal benefit</span>
+    <span class="n">indicator</span> <span class="o">/=</span> <span class="n">cost</span>
+
+    <span class="k">return</span> <span class="o">-</span><span class="n">indicator</span><span class="p">,</span> <span class="n">error</span><span class="p">[</span><span class="n">qoi_chosen</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">solve_preconditioned_least_squares</span><span class="p">(</span><span class="n">basis_matrix_func</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span>
+                                       <span class="n">precond_func</span><span class="p">):</span>
+    <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">basis_matrix_func</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+    <span class="n">weights</span> <span class="o">=</span> <span class="n">precond_func</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
+    <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">basis_matrix</span><span class="o">*</span><span class="n">weights</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="n">rhs</span> <span class="o">=</span> <span class="n">values</span><span class="o">*</span><span class="n">weights</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="n">coef</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="n">rcond</span><span class="o">=</span><span class="kc">None</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">coef</span>
+
+
+<span class="k">def</span> <span class="nf">solve_preconditioned_orthogonal_matching_pursuit</span><span class="p">(</span><span class="n">basis_matrix_func</span><span class="p">,</span>
+                                                     <span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span>
+                                                     <span class="n">precond_func</span><span class="p">,</span>
+                                                     <span class="n">tol</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">):</span>
+    <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">basis_matrix_func</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+    <span class="n">weights</span> <span class="o">=</span> <span class="n">precond_func</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
+    <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">basis_matrix</span><span class="o">*</span><span class="n">weights</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="n">rhs</span> <span class="o">=</span> <span class="n">values</span><span class="o">*</span><span class="n">weights</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">basis_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">tol</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">omp</span> <span class="o">=</span> <span class="n">OrthogonalMatchingPursuit</span><span class="p">(</span><span class="n">tol</span><span class="o">=</span><span class="n">tol</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">omp</span> <span class="o">=</span> <span class="n">OrthogonalMatchingPursuitCV</span><span class="p">(</span><span class="n">cv</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mi">10</span><span class="p">))</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">omp</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+    <span class="n">coef</span> <span class="o">=</span> <span class="n">omp</span><span class="o">.</span><span class="n">coef_</span>
+    <span class="n">coef</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">res</span><span class="o">.</span><span class="n">intercept_</span>
+    <span class="k">return</span> <span class="n">coef</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">christoffel_preconditioning_function</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+    <span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">basis_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">christoffel_weights</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">weights</span>
+
+
+<span class="k">def</span> <span class="nf">generate_probability_samples_tolerance</span><span class="p">(</span>
+        <span class="n">pce</span><span class="p">,</span> <span class="n">nindices</span><span class="p">,</span> <span class="n">cond_tol</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Add samples in integer increments of nindices.</span>
+<span class="sd">    E.g. if try nsamples = nindices, 2*nindices, 3*nindices</span>
+<span class="sd">    until condition number is less than tolerance.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    samples : np.ndarray</span>
+<span class="sd">        samples in the canonical domain of the polynomial</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    new_samples : np.ndarray(nvars, nnew_samples)</span>
+<span class="sd">        New samples appended to samples. must be in canonical space</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">variable</span>
+    <span class="k">if</span> <span class="n">samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">new_samples</span> <span class="o">=</span> <span class="n">generate_independent_random_samples</span><span class="p">(</span>
+            <span class="n">variable</span><span class="p">,</span> <span class="n">nindices</span><span class="p">)</span>
+        <span class="n">new_samples</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">map_to_canonical</span><span class="p">(</span><span class="n">new_samples</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">new_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">cond</span> <span class="o">=</span> <span class="n">compute_preconditioned_canonical_basis_matrix_condition_number</span><span class="p">(</span>
+        <span class="n">pce</span><span class="p">,</span> <span class="n">new_samples</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\t</span><span class="s1">Cond No.&#39;</span><span class="p">,</span> <span class="n">cond</span><span class="p">,</span> <span class="s1">&#39;No. samples&#39;</span><span class="p">,</span> <span class="n">new_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+              <span class="s1">&#39;cond tol&#39;</span><span class="p">,</span> <span class="n">cond_tol</span><span class="p">)</span>
+    <span class="n">cnt</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">max_nsamples</span> <span class="o">=</span> <span class="mi">1000</span><span class="o">*</span><span class="n">pce</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">while</span> <span class="n">cond</span> <span class="o">&gt;</span> <span class="n">cond_tol</span><span class="p">:</span>
+        <span class="n">tmp</span> <span class="o">=</span> <span class="n">generate_independent_random_samples</span><span class="p">(</span><span class="n">variable</span><span class="p">,</span> <span class="n">cnt</span><span class="o">*</span><span class="n">nindices</span><span class="p">)</span>
+        <span class="n">tmp</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">map_to_canonical</span><span class="p">(</span><span class="n">tmp</span><span class="p">)</span>
+        <span class="n">new_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">new_samples</span><span class="p">,</span> <span class="n">tmp</span><span class="p">))</span>
+        <span class="n">cond</span> <span class="o">=</span> <span class="n">compute_preconditioned_canonical_basis_matrix_condition_number</span><span class="p">(</span>
+            <span class="n">pce</span><span class="p">,</span> <span class="n">new_samples</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\t</span><span class="s1">Cond No.&#39;</span><span class="p">,</span> <span class="n">cond</span><span class="p">,</span> <span class="s1">&#39;No. samples&#39;</span><span class="p">,</span> <span class="n">new_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                  <span class="s1">&#39;cond tol&#39;</span><span class="p">,</span> <span class="n">cond_tol</span><span class="p">)</span>
+        <span class="c1"># double number of samples added so loop does not take to long</span>
+        <span class="n">cnt</span> <span class="o">*=</span> <span class="mi">2</span>
+        <span class="k">if</span> <span class="n">new_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">max_nsamples</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Basis and sample combination is ill conditioned&quot;</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">new_samples</span>
+
+
+<span class="k">def</span> <span class="nf">increment_probability_samples</span><span class="p">(</span><span class="n">pce</span><span class="p">,</span> <span class="n">cond_tol</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span>
+                                  <span class="n">new_indices</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    samples : np.ndarray</span>
+<span class="sd">        samples in the canonical domain of the polynomial</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    new_samples : np.ndarray(nvars, nnew_samples)</span>
+<span class="sd">        New samples appended to samples. must be in canonical space</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># allocate at one sample for every new basis</span>
+    <span class="n">tmp</span> <span class="o">=</span> <span class="n">generate_independent_random_samples</span><span class="p">(</span>
+        <span class="n">pce</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">new_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">tmp</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">map_to_canonical</span><span class="p">(</span><span class="n">tmp</span><span class="p">)</span>
+    <span class="n">new_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">samples</span><span class="p">,</span> <span class="n">tmp</span><span class="p">))</span>
+    <span class="c1"># keep sampling until condition number is below cond_tol</span>
+    <span class="n">new_samples</span> <span class="o">=</span> <span class="n">generate_probability_samples_tolerance</span><span class="p">(</span>
+        <span class="n">pce</span><span class="p">,</span> <span class="n">new_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">cond_tol</span><span class="p">,</span> <span class="n">new_samples</span><span class="p">,</span> <span class="n">verbosity</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No. samples&#39;</span><span class="p">,</span> <span class="n">new_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No. initial samples&#39;</span><span class="p">,</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No. indices&#39;</span><span class="p">,</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">pce</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No. new indices&#39;</span><span class="p">,</span> <span class="n">new_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No. new samples&#39;</span><span class="p">,</span>
+              <span class="n">new_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">new_samples</span>
+
+
+<div class="viewcode-block" id="AdaptiveInducedPCE"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE">[docs]</a><span class="k">class</span> <span class="nc">AdaptiveInducedPCE</span><span class="p">(</span><span class="n">SubSpaceRefinementManager</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An adaptive PCE built using induced sampling and generalized sparse grid</span>
+<span class="sd">    like refinement.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">cond_tol</span><span class="o">=</span><span class="mf">1e2</span><span class="p">,</span> <span class="n">induced_sampling</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                 <span class="n">fit_opts</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;omp_tol&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        num_vars : integer</span>
+<span class="sd">            The number of random variables</span>
+
+<span class="sd">        cond_tol : float</span>
+<span class="sd">            The target condition number of the basis matrix used for regression</span>
+
+<span class="sd">        induced_sampling : boolean</span>
+<span class="sd">            True - use induced sampling</span>
+<span class="sd">            False - use random sampling</span>
+
+<span class="sd">        fit_opts : dict</span>
+<span class="sd">            Options used to solve the regression problem at each step of the</span>
+<span class="sd">            adaptive algorithm</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">AdaptiveInducedPCE</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">num_vars</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cond_tol</span> <span class="o">=</span> <span class="n">cond_tol</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_opts</span> <span class="o">=</span> <span class="n">fit_opts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_preconditioning_function</span><span class="p">(</span><span class="n">christoffel_preconditioning_function</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">induced_sampling</span> <span class="o">=</span> <span class="n">induced_sampling</span>
+        <span class="k">assert</span> <span class="nb">abs</span><span class="p">(</span><span class="n">cond_tol</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">induced_sampling</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">set_preconditioning_function</span><span class="p">(</span>
+                <span class="n">precond_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">m</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">moments</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="AdaptiveInducedPCE.set_function"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.set_function">[docs]</a>    <span class="k">def</span> <span class="nf">set_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">var_trans</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pce</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">AdaptiveInducedPCE</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">set_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">var_trans</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_polynomial_chaos_expansion</span><span class="p">(</span><span class="n">pce</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AdaptiveInducedPCE.set_polynomial_chaos_expansion"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.set_polynomial_chaos_expansion">[docs]</a>    <span class="k">def</span> <span class="nf">set_polynomial_chaos_expansion</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pce</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">pce</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">poly_opts</span> <span class="o">=</span> <span class="n">define_poly_options_from_variable_transformation</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pce</span> <span class="o">=</span> <span class="n">PolynomialChaosExpansion</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">poly_opts</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pce</span> <span class="o">=</span> <span class="n">pce</span></div>
+
+<div class="viewcode-block" id="AdaptiveInducedPCE.increment_samples"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.increment_samples">[docs]</a>    <span class="k">def</span> <span class="nf">increment_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">current_poly_indices</span><span class="p">,</span> <span class="n">unique_poly_indices</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">induced_sampling</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">increment_induced_samples_migliorati</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cond_tol</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span>
+                <span class="n">current_poly_indices</span><span class="p">,</span> <span class="n">unique_poly_indices</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cond_tol</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">sample_ratio</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">cond_tol</span>
+            <span class="n">samples</span> <span class="o">=</span> <span class="n">generate_independent_random_samples</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span>
+                <span class="n">sample_ratio</span><span class="o">*</span><span class="n">unique_poly_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">map_to_canonical</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+            <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span> <span class="n">samples</span><span class="p">])</span>
+            <span class="k">return</span> <span class="n">samples</span>
+
+        <span class="k">return</span> <span class="n">increment_probability_samples</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cond_tol</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span>
+                <span class="n">current_poly_indices</span><span class="p">,</span> <span class="n">unique_poly_indices</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AdaptiveInducedPCE.allocate_initial_samples"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.allocate_initial_samples">[docs]</a>    <span class="k">def</span> <span class="nf">allocate_initial_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">induced_sampling</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">generate_induced_samples_migliorati_tolerance</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cond_tol</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cond_tol</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">sample_ratio</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">cond_tol</span>
+            <span class="k">return</span> <span class="n">generate_independent_random_samples</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span>
+                <span class="n">sample_ratio</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">num_terms</span><span class="p">())</span>
+
+        <span class="k">return</span> <span class="n">generate_probability_samples_tolerance</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">num_terms</span><span class="p">(),</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cond_tol</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AdaptiveInducedPCE.create_new_subspaces_data"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.create_new_subspaces_data">[docs]</a>    <span class="k">def</span> <span class="nf">create_new_subspaces_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_subspace_indices</span><span class="p">):</span>
+        <span class="n">num_current_subspaces</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">subspace_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">initialize_subspaces</span><span class="p">(</span><span class="n">new_subspace_indices</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">unique_subspace_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">allocate_initial_samples</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">unique_subspace_samples</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">unique_subspace_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+
+        <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_new_subspaces</span> <span class="o">=</span> <span class="n">new_subspace_indices</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">unique_poly_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_vars</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_new_subspaces</span><span class="p">):</span>
+            <span class="n">II</span> <span class="o">=</span> <span class="n">get_subspace_active_poly_array_indices</span><span class="p">(</span>
+                <span class="bp">self</span><span class="p">,</span> <span class="n">num_current_subspaces</span><span class="o">+</span><span class="n">ii</span><span class="p">)</span>
+            <span class="n">unique_poly_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">unique_poly_indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="p">[:,</span> <span class="n">II</span><span class="p">]])</span>
+
+        <span class="c1"># Current_poly_indices will include active indices not added</span>
+        <span class="c1"># during this call, i.e. in new_subspace_indices.</span>
+        <span class="c1"># thus cannot use</span>
+        <span class="c1"># II = get_active_poly_array_indices(self)</span>
+        <span class="c1"># unique_poly_indices = self.poly_indices[:,II]</span>
+        <span class="c1"># to replace above loop</span>
+        <span class="n">current_poly_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="p">[</span>
+            <span class="p">:,</span> <span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">unique_poly_indices_idx</span><span class="p">[</span><span class="n">num_current_subspaces</span><span class="p">]]</span>
+        <span class="n">num_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">increment_samples</span><span class="p">(</span>
+            <span class="n">current_poly_indices</span><span class="p">,</span> <span class="n">unique_poly_indices</span><span class="p">)</span>
+        <span class="n">unique_subspace_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[:,</span> <span class="n">num_samples</span><span class="p">:]</span>
+
+        <span class="c1"># warning num_new_subspace_samples does not really make sense for</span>
+        <span class="c1"># induced sampling as new samples are not directly tied to newly</span>
+        <span class="c1"># added basis</span>
+        <span class="n">num_new_subspace_samples</span> <span class="o">=</span> <span class="n">unique_subspace_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span>
+            <span class="n">new_subspace_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">//</span><span class="n">new_subspace_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">unique_subspace_samples</span><span class="p">,</span> <span class="n">num_new_subspace_samples</span></div>
+
+    <span class="k">def</span> <span class="nf">_fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pce</span><span class="p">,</span> <span class="n">canonical_basis_matrix</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span>
+             <span class="n">precond_func</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">omp_tol</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="c1"># do to, just add columns to stored basis matrix</span>
+        <span class="c1"># store qr factorization of basis_matrix and update the factorization</span>
+        <span class="c1"># self.samples are in canonical domain</span>
+        <span class="k">if</span> <span class="n">omp_tol</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">coef</span> <span class="o">=</span> <span class="n">solve_preconditioned_least_squares</span><span class="p">(</span>
+                <span class="n">canonical_basis_matrix</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">precond_func</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">coef</span> <span class="o">=</span> <span class="n">solve_preconditioned_orthogonal_matching_pursuit</span><span class="p">(</span>
+                <span class="n">canonical_basis_matrix</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">precond_func</span><span class="p">,</span> <span class="n">omp_tol</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">coef</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AdaptiveInducedPCE.fit"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.fit">[docs]</a>    <span class="k">def</span> <span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">fit_function</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">canonical_basis_matrix</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">fit_opts</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AdaptiveInducedPCE.add_new_subspaces"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.add_new_subspaces">[docs]</a>    <span class="k">def</span> <span class="nf">add_new_subspaces</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_subspace_indices</span><span class="p">):</span>
+        <span class="n">num_new_subspace_samples</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span>
+            <span class="n">AdaptiveInducedPCE</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">add_new_subspaces</span><span class="p">(</span><span class="n">new_subspace_indices</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">num_new_subspace_samples</span></div>
+
+<div class="viewcode-block" id="AdaptiveInducedPCE.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AdaptiveInducedPCE.get_active_unique_poly_indices"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.get_active_unique_poly_indices">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_unique_poly_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">II</span> <span class="o">=</span> <span class="n">get_active_poly_array_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="p">[:,</span> <span class="n">II</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="AdaptiveInducedPCE.set_preconditioning_function"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.set_preconditioning_function">[docs]</a>    <span class="k">def</span> <span class="nf">set_preconditioning_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">precond_func</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        precond_func : callable</span>
+<span class="sd">            Callable function with signature precond_func(basis_matrix,samples)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">precond_func</span> <span class="o">=</span> <span class="n">precond_func</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_opts</span><span class="p">[</span><span class="s1">&#39;precond_func&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">precond_func</span></div>
+
+<div class="viewcode-block" id="AdaptiveInducedPCE.num_training_samples"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.num_training_samples">[docs]</a>    <span class="k">def</span> <span class="nf">num_training_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="AdaptiveInducedPCE.build"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.build">[docs]</a>    <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">while</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_subspace_queue</span><span class="o">.</span><span class="n">empty</span><span class="p">()</span> <span class="ow">or</span>
+               <span class="bp">self</span><span class="o">.</span><span class="n">subspace_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">refine</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">recompute_active_subspace_priorities</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">callback</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">callback</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="AdaptiveLejaPCE"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE">[docs]</a><span class="k">class</span> <span class="nc">AdaptiveLejaPCE</span><span class="p">(</span><span class="n">AdaptiveInducedPCE</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An adaptive PCE built using multivariate Leja sequences and </span>
+<span class="sd">    generalized sparse grid like refinement.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">candidate_samples</span><span class="p">,</span> <span class="n">factorization_type</span><span class="o">=</span><span class="s1">&#39;fast&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        num_vars : integer</span>
+<span class="sd">            The number of random variables</span>
+
+<span class="sd">        candidate_samples : np.ndarray (num_vars, ncandidate_samples)</span>
+<span class="sd">            The candidate samples from which the leja sequence is selected</span>
+
+<span class="sd">        factorization_type : string</span>
+<span class="sd">            fast - update LU factorization at each step</span>
+<span class="sd">            slow - recompute LU factorization at each step</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">AdaptiveLejaPCE</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">num_vars</span><span class="p">,</span> <span class="mf">1e6</span><span class="p">)</span>
+
+        <span class="c1"># Make sure correct preconditioning function is used.</span>
+        <span class="c1"># AdaptiveInducedPCE has some internal logic that can overide default</span>
+        <span class="c1"># we want</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_preconditioning_function</span><span class="p">(</span><span class="n">christoffel_preconditioning_function</span><span class="p">)</span>
+
+        <span class="c1"># Must be in canonical space</span>
+        <span class="c1"># TODO: generate candidate samples at each iteration from induced</span>
+        <span class="c1"># distribution using current self.poly_indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">candidate_samples</span> <span class="o">=</span> <span class="n">candidate_samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">factorization_type</span> <span class="o">=</span> <span class="n">factorization_type</span>
+
+<div class="viewcode-block" id="AdaptiveLejaPCE.precond_canonical_basis_matrix"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.precond_canonical_basis_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">precond_canonical_basis_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="n">basis_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">canonical_basis_matrix</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+        <span class="n">precond_weights</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">precond_func</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
+        <span class="n">precond_basis_matrix</span> <span class="o">=</span> <span class="n">basis_matrix</span><span class="o">*</span><span class="n">precond_weights</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">precond_basis_matrix</span><span class="p">,</span> <span class="n">precond_weights</span></div>
+
+<div class="viewcode-block" id="AdaptiveLejaPCE.get_num_new_subspace_samples"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.get_num_new_subspace_samples">[docs]</a>    <span class="k">def</span> <span class="nf">get_num_new_subspace_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_subspace_indices</span><span class="p">,</span>
+                                     <span class="n">num_current_subspaces</span><span class="p">):</span>
+        <span class="n">num_current_subspaces</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">subspace_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_new_subspaces</span> <span class="o">=</span> <span class="n">new_subspace_indices</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="n">num_new_subspace_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_new_subspaces</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_new_subspaces</span><span class="p">):</span>
+            <span class="n">II</span> <span class="o">=</span> <span class="n">get_subspace_active_poly_array_indices</span><span class="p">(</span>
+                <span class="bp">self</span><span class="p">,</span> <span class="n">num_current_subspaces</span><span class="o">+</span><span class="n">ii</span><span class="p">)</span>
+            <span class="n">num_new_subspace_samples</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">II</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">num_new_subspace_samples</span></div>
+
+<div class="viewcode-block" id="AdaptiveLejaPCE.condition_number"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.condition_number">[docs]</a>    <span class="k">def</span> <span class="nf">condition_number</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">factorization_type</span> <span class="o">==</span> <span class="s1">&#39;slow&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cond</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">L_factor</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">U_factor</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">L</span><span class="p">,</span> <span class="n">U</span> <span class="o">=</span> <span class="n">split_lu_factorization_matrix</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">LU_factor</span><span class="p">,</span> <span class="n">num_pivots</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cond</span><span class="p">(</span><span class="n">L</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">U</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="AdaptiveLejaPCE.update_leja_sequence_slow"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.update_leja_sequence_slow">[docs]</a>    <span class="k">def</span> <span class="nf">update_leja_sequence_slow</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_subspace_indices</span><span class="p">):</span>
+        <span class="n">num_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># There will be two copies of self.samples in candidate_samples</span>
+        <span class="c1"># but pivoting will only choose these samples once when number of</span>
+        <span class="c1"># desired samples is smaller than</span>
+        <span class="c1"># self.candidate_samples.shape[0]-self.samples.shape[1]</span>
+        <span class="n">candidate_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">candidate_samples</span><span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="p">)</span>
+        <span class="n">precond_basis_matrix</span><span class="p">,</span> <span class="n">precond_weights</span> <span class="o">=</span> \
+            <span class="bp">self</span><span class="o">.</span><span class="n">precond_canonical_basis_matrix</span><span class="p">(</span><span class="n">candidate_samples</span><span class="p">)</span>
+
+        <span class="c1"># TODO: update LU factorization using new candidate points, This</span>
+        <span class="c1"># requires writing a function that updates not just new columns of</span>
+        <span class="c1"># L and U factor but also allows new rows to be added.</span>
+        <span class="n">max_iters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">num_initial_rows</span> <span class="o">=</span> <span class="n">num_samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">L_factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">U_factor</span><span class="p">,</span> <span class="n">pivots</span> <span class="o">=</span>\
+            <span class="n">truncated_pivoted_lu_factorization</span><span class="p">(</span>
+                <span class="n">precond_basis_matrix</span><span class="p">,</span> <span class="n">max_iters</span><span class="p">,</span>
+                <span class="n">num_initial_rows</span><span class="o">=</span><span class="n">num_initial_rows</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pivots</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_samples</span><span class="p">)[</span><span class="n">pivots</span><span class="p">[:</span><span class="n">num_initial_rows</span><span class="p">]]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pivots</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+            <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">pivots</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_initial_rows</span><span class="p">,</span> <span class="n">pivots</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">precond_weights</span> <span class="o">=</span> <span class="n">precond_weights</span><span class="p">[</span><span class="n">pivots</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">candidate_samples</span><span class="p">[:,</span> <span class="n">pivots</span><span class="p">[</span><span class="n">num_samples</span><span class="p">:]]</span></div>
+
+<div class="viewcode-block" id="AdaptiveLejaPCE.update_leja_sequence_fast"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.update_leja_sequence_fast">[docs]</a>    <span class="k">def</span> <span class="nf">update_leja_sequence_fast</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_subspace_indices</span><span class="p">,</span>
+                                  <span class="n">num_current_subspaces</span><span class="p">):</span>
+        <span class="n">num_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">num_samples</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="p">)</span>
+            <span class="n">max_iters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="c1"># Keep unconditioned</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">basis_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">precond_canonical_basis_matrix</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">candidate_samples</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">LU_factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">seq_pivots</span> <span class="o">=</span> \
+                <span class="n">truncated_pivoted_lu_factorization</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">max_iters</span><span class="p">,</span> <span class="n">truncate_L_factor</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pivots</span> <span class="o">=</span> <span class="n">get_final_pivots_from_sequential_pivots</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">seq_pivots</span><span class="o">.</span><span class="n">copy</span><span class="p">())[:</span><span class="n">max_iters</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">precond_weights</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">precond_func</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">candidate_samples</span><span class="p">)[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">candidate_samples</span><span class="p">[</span>
+                <span class="p">:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pivots</span><span class="p">[</span><span class="n">num_samples</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]]]</span>
+
+        <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_new_subspaces</span> <span class="o">=</span> <span class="n">new_subspace_indices</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">unique_poly_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_vars</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_new_subspaces</span><span class="p">):</span>
+            <span class="n">II</span> <span class="o">=</span> <span class="n">get_subspace_active_poly_array_indices</span><span class="p">(</span>
+                <span class="bp">self</span><span class="p">,</span> <span class="n">num_current_subspaces</span><span class="o">+</span><span class="n">ii</span><span class="p">)</span>
+            <span class="n">unique_poly_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">unique_poly_indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="p">[:,</span> <span class="n">II</span><span class="p">]])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">unique_poly_indices</span><span class="p">)</span>
+
+        <span class="n">precond_weights_prev</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">precond_weights</span>
+        <span class="n">pivoted_precond_weights_prev</span> <span class="o">=</span> <span class="n">pivot_rows</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">seq_pivots</span><span class="p">,</span> <span class="n">precond_weights_prev</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+        <span class="n">new_cols</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">canonical_basis_matrix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">candidate_samples</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">new_cols</span><span class="p">)])</span>
+        <span class="n">new_cols</span> <span class="o">*=</span> <span class="n">precond_weights_prev</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">LU_factor</span> <span class="o">=</span> <span class="n">add_columns_to_pivoted_lu_factorization</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">LU_factor</span><span class="p">),</span> <span class="n">new_cols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">seq_pivots</span><span class="p">[:</span><span class="n">num_samples</span><span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">precond_weights</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">precond_func</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">candidate_samples</span><span class="p">)[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+        <span class="n">pivoted_precond_weights</span> <span class="o">=</span> <span class="n">pivot_rows</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">seq_pivots</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">precond_weights</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">LU_factor</span> <span class="o">=</span> <span class="n">unprecondition_LU_factor</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">LU_factor</span><span class="p">,</span>
+            <span class="n">pivoted_precond_weights_prev</span><span class="o">/</span><span class="n">pivoted_precond_weights</span><span class="p">,</span>
+            <span class="n">num_samples</span><span class="p">)</span>
+
+        <span class="n">max_iters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">LU_factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">seq_pivots</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">continue_pivoted_lu_factorization</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">LU_factor</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">seq_pivots</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">max_iters</span><span class="p">,</span> <span class="n">num_initial_rows</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pivots</span> <span class="o">=</span> <span class="n">get_final_pivots_from_sequential_pivots</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">seq_pivots</span><span class="o">.</span><span class="n">copy</span><span class="p">())[:</span><span class="n">max_iters</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">candidate_samples</span><span class="p">[</span>
+            <span class="p">:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pivots</span><span class="p">[</span><span class="n">num_samples</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]]]</span></div>
+
+<div class="viewcode-block" id="AdaptiveLejaPCE.create_new_subspaces_data"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.create_new_subspaces_data">[docs]</a>    <span class="k">def</span> <span class="nf">create_new_subspaces_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_subspace_indices</span><span class="p">):</span>
+        <span class="n">num_current_subspaces</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">subspace_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">initialize_subspaces</span><span class="p">(</span><span class="n">new_subspace_indices</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">factorization_type</span> <span class="o">==</span> <span class="s1">&#39;fast&#39;</span><span class="p">:</span>
+            <span class="n">unique_subspace_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_leja_sequence_fast</span><span class="p">(</span>
+                <span class="n">new_subspace_indices</span><span class="p">,</span> <span class="n">num_current_subspaces</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">unique_subspace_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_leja_sequence_slow</span><span class="p">(</span>
+                <span class="n">new_subspace_indices</span><span class="p">)</span>
+
+        <span class="n">num_new_subspace_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_num_new_subspace_samples</span><span class="p">(</span>
+            <span class="n">new_subspace_indices</span><span class="p">,</span> <span class="n">num_current_subspaces</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">unique_subspace_samples</span><span class="p">,</span> <span class="n">num_new_subspace_samples</span></div>
+
+<div class="viewcode-block" id="AdaptiveLejaPCE.add_new_subspaces"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.add_new_subspaces">[docs]</a>    <span class="k">def</span> <span class="nf">add_new_subspaces</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_subspace_indices</span><span class="p">):</span>
+        <span class="n">num_new_subspace_samples</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span>
+            <span class="n">AdaptiveInducedPCE</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">add_new_subspaces</span><span class="p">(</span><span class="n">new_subspace_indices</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">factorization_type</span> <span class="o">==</span> <span class="s1">&#39;fast&#39;</span><span class="p">:</span>
+            <span class="n">it</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="n">solve_triangular</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">LU_factor</span><span class="p">[:</span><span class="n">it</span><span class="p">,</span> <span class="p">:</span><span class="n">it</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">precond_weights</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">pivots</span><span class="p">],</span>
+                <span class="n">lower</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">unit_diagonal</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">a_f</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">LU_factor</span><span class="p">[:</span><span class="n">it</span><span class="p">,</span> <span class="p">:</span><span class="n">it</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="n">solve_triangular</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">L_factor</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">pivots</span><span class="p">]</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">precond_weights</span><span class="p">,</span>
+                <span class="n">lower</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">a_f</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">U_factor</span>
+
+        <span class="n">coef</span> <span class="o">=</span> <span class="n">solve_triangular</span><span class="p">(</span><span class="n">a_f</span><span class="p">,</span> <span class="n">temp</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">coef</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">num_new_subspace_samples</span></div>
+
+<div class="viewcode-block" id="AdaptiveLejaPCE.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AdaptiveLejaPCE.get_active_unique_poly_indices"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.get_active_unique_poly_indices">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_unique_poly_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">II</span> <span class="o">=</span> <span class="n">get_active_poly_array_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="p">[:,</span> <span class="n">II</span><span class="p">]</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

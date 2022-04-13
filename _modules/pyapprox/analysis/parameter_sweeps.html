@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.analysis.parameter_sweeps &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.analysis.parameter_sweeps</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.analysis.parameter_sweeps</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.variables.joint</span> <span class="kn">import</span> <span class="n">get_truncated_ranges</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.transforms</span> <span class="kn">import</span> <span class="n">map_hypercube_samples</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.density</span> <span class="kn">import</span> <span class="n">map_from_canonical_gaussian</span>
+
+
+<span class="k">def</span> <span class="nf">get_parameter_sweeps_samples_using_rotation</span><span class="p">(</span>
+        <span class="n">rotation_matrix</span><span class="p">,</span> <span class="n">get_sweep_bounds</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+        <span class="n">random_samples</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the samples of parameter sweeps through  directions</span>
+<span class="sd">    d-dimensional hypercube on [a_0,b_0] x ... x [a_d,b_d]. Directions are</span>
+<span class="sd">    specified by the rows of rotation matrix</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    rotation_matrix : np.ndarray (num_vars,num_sweeps)</span>
+<span class="sd">        Each row contains the rotation vector of each sweep.</span>
+
+<span class="sd">    get_sweep_bounds : callable</span>
+<span class="sd">        lb,ub = get_sweep_uppper_and_lower_bounds(W)</span>
+<span class="sd">        Function to compute the upper and lower bounds of the parameter sweep</span>
+
+<span class="sd">    num_samples_per_sweep : integer</span>
+<span class="sd">        The number of samples in each of the parameter sweeps</span>
+
+<span class="sd">    random_samples : boolean</span>
+<span class="sd">        True  - generate uniform random samples within bounds of sweep</span>
+<span class="sd">        False - generate equidistant samples within bounds of sweep</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    samples : np.ndarray (num_vars, num_samples_per_sweep*num_sweeps)</span>
+<span class="sd">        The samples in the d-dimensional space. Each sweep is listed</span>
+<span class="sd">        consecutivelty. That is num_samples_per_sweep for first sweep</span>
+<span class="sd">        are the first rows, then the second sweep are the next set of</span>
+<span class="sd">        num_samples_per_sweep rows, and so on.</span>
+
+<span class="sd">    active_samples : np.ndarray (num_sweeps, num_samples_per_sweep)</span>
+<span class="sd">        The univariate samples of the parameter sweeps. These samples are</span>
+<span class="sd">        for normalized hypercubes [-1,1]^d.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># num_sweeps, num_vars = rotation_matrix.shape</span>
+    <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_sweeps</span> <span class="o">=</span> <span class="n">rotation_matrix</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="o">*</span><span class="n">num_sweeps</span><span class="p">))</span>
+    <span class="n">active_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_sweeps</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_sweeps</span><span class="p">):</span>
+        <span class="n">W</span> <span class="o">=</span> <span class="n">rotation_matrix</span><span class="p">[:,</span> <span class="n">i</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># find approximate upper and lower bounds for active variable</span>
+        <span class="n">y_lb</span><span class="p">,</span> <span class="n">y_ub</span> <span class="o">=</span> <span class="n">get_sweep_bounds</span><span class="p">(</span><span class="n">W</span><span class="p">)</span>
+        <span class="c1"># define samples in sweep inside approximate upper and lower bounds</span>
+        <span class="k">if</span> <span class="n">num_samples_per_sweep</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([[(</span><span class="n">y_lb</span><span class="o">+</span><span class="n">y_ub</span><span class="p">)</span><span class="o">/</span><span class="mf">2.</span><span class="p">]])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">random_samples</span><span class="p">:</span>
+                <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">y_lb</span><span class="p">,</span> <span class="n">y_ub</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+                    <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">y_lb</span><span class="p">,</span> <span class="n">y_ub</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">)])</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">W</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">active_samples</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">samples</span><span class="p">[:,</span> <span class="n">i</span><span class="o">*</span><span class="n">num_samples_per_sweep</span><span class="p">:(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">num_samples_per_sweep</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span>
+
+    <span class="k">return</span> <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span>
+
+
+<span class="k">def</span> <span class="nf">get_parameter_sweeps_samples</span><span class="p">(</span>
+        <span class="n">num_vars</span><span class="p">,</span> <span class="n">get_sweep_bounds</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">random_samples</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">sweep_rotation_matrix</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the samples of parameter sweeps through random directions of a</span>
+<span class="sd">    d-dimensional hypercube on [a_0,b_0] x ... x [a_d,b_d]</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    num_vars : integer</span>
+<span class="sd">        The number of variables d</span>
+
+<span class="sd">    get_sweep_bounds : callable</span>
+<span class="sd">        lb,ub = get_sweep_uppper_and_lower_bounds(W)</span>
+<span class="sd">        Function to compute the upper and lower bounds of the parameter sweep</span>
+
+<span class="sd">    num_samples_per_sweep : integer</span>
+<span class="sd">        The number of samples in each of the parameter sweeps</span>
+
+<span class="sd">    num_sweeps : integer</span>
+<span class="sd">        The number of sweeps</span>
+
+<span class="sd">    random_samples : boolean</span>
+<span class="sd">        True  - return random samples along sweep</span>
+<span class="sd">        False - return equidistanly spaced samples</span>
+
+<span class="sd">    sweep_rotation_matrix : np.ndarray (num_vars, num_sweeps)</span>
+<span class="sd">        Precomputed directions along which to compute the parameter sweeps.</span>
+<span class="sd">        If matrices is zeros except a value of one in each column</span>
+<span class="sd">        the parameter sweeps will be along the axial directions</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    samples : np.ndarray (num_vars, num_samples_per_sweep*num_sweeps)</span>
+<span class="sd">        The samples in the d-dimensional space. Each sweep is listed</span>
+<span class="sd">        consecutivelty. That is num_samples_per_sweep for first sweep</span>
+<span class="sd">        are the first rows, then the second sweep are the next set of</span>
+<span class="sd">        num_samples_per_sweep rows, and so on.</span>
+
+<span class="sd">    active_samples : np.ndarray (num_sweeps, num_samples_per_sweep)</span>
+<span class="sd">        The univariate samples of the parameter sweeps. These samples are</span>
+<span class="sd">        for normalized hypercubes [-1,1]^d.</span>
+
+<span class="sd">    rotation_matrix : np.ndarray (num_sweeps, num_vars)</span>
+<span class="sd">        Each row contains the rotation vector of each sweep.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="o">*</span><span class="n">num_sweeps</span><span class="p">))</span>
+    <span class="n">active_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_sweeps</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">sweep_rotation_matrix</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">num_vars</span> <span class="o">==</span> <span class="n">sweep_rotation_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">assert</span> <span class="n">num_sweeps</span> <span class="o">==</span> <span class="n">sweep_rotation_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span> <span class="o">=</span> <span class="n">get_parameter_sweeps_samples_using_rotation</span><span class="p">(</span>
+            <span class="n">sweep_rotation_matrix</span><span class="p">,</span> <span class="n">get_sweep_bounds</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">,</span>
+            <span class="n">random_samples</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">sweep_rotation_matrix</span>
+
+    <span class="c1"># can only generate a maximum of num_var sweeps for each rotation matrix</span>
+    <span class="c1"># to generate more create different rotation matrices until enough</span>
+    <span class="c1"># sweeps are generated</span>
+    <span class="n">ii</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">rot_mats</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">while</span> <span class="n">ii</span><span class="o">*</span><span class="n">num_vars</span> <span class="o">&lt;</span> <span class="n">num_sweeps</span><span class="p">:</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="p">))</span>
+        <span class="n">Q</span><span class="p">,</span> <span class="n">R</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">qr</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+        <span class="n">sweep_rotation_matrix_ii</span> <span class="o">=</span> <span class="n">Q</span><span class="p">[:,</span> <span class="p">:</span><span class="nb">min</span><span class="p">(</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="o">-</span><span class="n">ii</span><span class="o">*</span><span class="n">num_vars</span><span class="p">)]</span>
+
+        <span class="n">samples_ii</span><span class="p">,</span> <span class="n">active_samples_ii</span> <span class="o">=</span> \
+            <span class="n">get_parameter_sweeps_samples_using_rotation</span><span class="p">(</span>
+                <span class="n">sweep_rotation_matrix_ii</span><span class="p">,</span> <span class="n">get_sweep_bounds</span><span class="p">,</span>
+                <span class="n">num_samples_per_sweep</span><span class="p">,</span> <span class="n">random_samples</span><span class="p">)</span>
+        <span class="n">samples</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">samples_ii</span><span class="p">)</span>
+        <span class="n">active_samples</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">active_samples_ii</span><span class="p">)</span>
+        <span class="n">rot_mats</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sweep_rotation_matrix_ii</span><span class="p">)</span>
+        <span class="n">ii</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="n">samples</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">active_samples</span><span class="p">),</span> <span class="n">rot_mats</span>
+
+
+<span class="k">def</span> <span class="nf">get_hypercube_sweep_bounds</span><span class="p">(</span><span class="n">W</span><span class="p">):</span>
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="n">W</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">maxdist</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">num_vars</span><span class="o">*</span><span class="mi">4</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="n">maxdist</span><span class="o">/</span><span class="mf">2.</span><span class="p">,</span> <span class="n">maxdist</span><span class="o">/</span><span class="mf">2.</span><span class="p">,</span> <span class="mi">1000</span><span class="p">)])</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">W</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+    <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">x</span> <span class="o">&gt;=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">x</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">y_lb</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">II</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+    <span class="n">y_ub</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">II</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+    <span class="k">return</span> <span class="n">y_lb</span><span class="p">,</span> <span class="n">y_ub</span>
+
+
+<span class="k">def</span> <span class="nf">get_hypercube_parameter_sweeps_samples</span><span class="p">(</span>
+        <span class="n">ranges</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">sweep_rotation_matrix</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the samples of parameter sweeps through random directions of a</span>
+<span class="sd">    d-dimensional hypercube on [a_0,b_0] x ... x [a_d,b_d]</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ranges : np.ndarray (2*num_vars)</span>
+<span class="sd">        lower and upper bounds for each of the d random variables</span>
+<span class="sd">        [lb_1,ub_1,...,lb_d,ub_d]</span>
+
+<span class="sd">    num_samples_per_sweep : integer</span>
+<span class="sd">        The number of samples in each of the parameter sweeps</span>
+
+<span class="sd">    num_sweeps : integer</span>
+<span class="sd">        The number of sweeps</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    samples : np.ndarray (num_vars, num_samples_per_sweep*num_sweeps)</span>
+<span class="sd">        The samples in the d-dimensional space. Each sweep is listed</span>
+<span class="sd">        consecutivelty. That is num_samples_per_sweep for first sweep</span>
+<span class="sd">        are the first rows, then the second sweep are the next set of</span>
+<span class="sd">        num_samples_per_sweep rows, and so on.</span>
+
+<span class="sd">    active_samples : np.ndarray (num_sweeps, num_samples_per_sweep)</span>
+<span class="sd">        The univariate samples of the parameter sweeps. These samples are</span>
+<span class="sd">        for normalized hypercubes [-1,1]^d.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="n">ranges</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">//</span><span class="mi">2</span>
+
+    <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">W</span> <span class="o">=</span> <span class="n">get_parameter_sweeps_samples</span><span class="p">(</span>
+        <span class="n">num_vars</span><span class="p">,</span> <span class="n">get_hypercube_sweep_bounds</span><span class="p">,</span>
+        <span class="n">num_samples_per_sweep</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="p">,</span>
+        <span class="n">sweep_rotation_matrix</span><span class="o">=</span><span class="n">sweep_rotation_matrix</span><span class="p">)</span>
+
+    <span class="n">canonical_ranges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">num_vars</span><span class="o">*</span><span class="mi">2</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">canonical_ranges</span><span class="p">[::</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">map_hypercube_samples</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">canonical_ranges</span><span class="p">,</span> <span class="n">ranges</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">W</span>
+
+
+<span class="k">def</span> <span class="nf">get_gaussian_parameter_sweeps_samples</span><span class="p">(</span>
+        <span class="n">mean</span><span class="p">,</span> <span class="n">covariance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">covariance_sqrt</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">sweep_radius</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">sweep_rotation_matrix</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the samples of parameter sweeps through random directions of a</span>
+<span class="sd">    zero-mean multivariate Gaussian</span>
+
+<span class="sd">    One and only one of covariance and covariance_sqrt must be</span>
+<span class="sd">    not None.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    mean : np.ndarray (num_vars)</span>
+<span class="sd">        The mean of the multivariate Gaussian</span>
+
+<span class="sd">    covariance : np.ndarray (num_vars, num_vars)</span>
+<span class="sd">        The covariance of the multivariate Gaussian</span>
+
+<span class="sd">    covariance_sqrt : callable</span>
+<span class="sd">        correlated_samples = covariance_sqrt(stdnormal_samples)</span>
+<span class="sd">        An operator that applies the sqrt of the Gaussian covariance to a set</span>
+<span class="sd">        of vectors. Useful for large scale applications.</span>
+
+<span class="sd">    sweep_radius : float</span>
+<span class="sd">        The radius of the parameter sweep as a multiple of</span>
+<span class="sd">        one standard deviation of the standard normal</span>
+
+<span class="sd">    num_samples_per_sweep : integer</span>
+<span class="sd">        The number of samples in each of the parameter sweeps</span>
+
+<span class="sd">    num_sweeps : integer</span>
+<span class="sd">        The number of sweeps</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    samples : np.ndarray (num_vars, num_samples_per_sweep*num_sweeps)</span>
+<span class="sd">        The samples in the d-dimensional space. Each sweep is listed</span>
+<span class="sd">        consecutivelty. That is num_samples_per_sweep for first sweep</span>
+<span class="sd">        are the first rows, then the second sweep are the next set of</span>
+<span class="sd">        num_samples_per_sweep rows, and so on.</span>
+
+<span class="sd">    active_samples : np.ndarray (num_sweeps, num_samples_per_sweep)</span>
+<span class="sd">        The univariate samples of the parameter sweeps. These samples are</span>
+<span class="sd">        for normalized hypercubes [-1,1]^d.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">get_gaussian_sweep_bounds</span><span class="p">(</span><span class="n">W</span><span class="p">):</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">sweep_radius</span>  <span class="c1"># number of standard deviations</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="o">-</span><span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">])</span>
+
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="n">mean</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">W</span> <span class="o">=</span> <span class="n">get_parameter_sweeps_samples</span><span class="p">(</span>
+        <span class="n">num_vars</span><span class="p">,</span> <span class="n">get_gaussian_sweep_bounds</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="p">,</span>
+        <span class="n">random_samples</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">sweep_rotation_matrix</span><span class="o">=</span><span class="n">sweep_rotation_matrix</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">covariance</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">covariance_sqrt</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="n">covariance_chol_factor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">covariance</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">covariance_chol_factor</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">map_from_canonical_gaussian</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">mean</span><span class="p">,</span> <span class="n">covariance_chol_factor</span><span class="o">=</span><span class="n">covariance_chol_factor</span><span class="p">,</span>
+        <span class="n">covariance_sqrt</span><span class="o">=</span><span class="n">covariance_sqrt</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">W</span>
+
+
+<span class="k">def</span> <span class="nf">plot_parameter_sweep_single_qoi</span><span class="p">(</span><span class="n">active_samples</span><span class="p">,</span> <span class="n">vals</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="p">,</span>
+                                    <span class="n">num_samples_per_sweep</span><span class="p">,</span> <span class="n">label_opts</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span>
+                                    <span class="n">axs</span><span class="o">=</span><span class="n">plt</span><span class="p">,</span> <span class="n">markers</span><span class="o">=</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                    <span class="n">alpha</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">markers</span><span class="p">)</span> <span class="o">==</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="n">markers</span> <span class="o">=</span> <span class="p">[</span><span class="n">markers</span><span class="p">]</span><span class="o">*</span><span class="n">num_sweeps</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">markers</span><span class="p">)</span> <span class="o">==</span> <span class="n">num_sweeps</span>
+
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">colors</span><span class="p">)</span> <span class="o">==</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">colors</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">colors</span> <span class="o">=</span> <span class="p">[</span><span class="n">colors</span><span class="p">]</span><span class="o">*</span><span class="n">num_sweeps</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">colors</span><span class="p">)</span> <span class="o">==</span> <span class="n">num_sweeps</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_sweeps</span><span class="p">):</span>
+        <span class="c1"># scale y to [-1,1]</span>
+        <span class="n">lb</span> <span class="o">=</span> <span class="n">active_samples</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+        <span class="n">ub</span> <span class="o">=</span> <span class="n">active_samples</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="p">(</span><span class="n">active_samples</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span><span class="o">-</span><span class="n">lb</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">ub</span><span class="o">-</span><span class="n">lb</span><span class="p">)</span><span class="o">*</span><span class="mi">2</span><span class="o">-</span><span class="mf">1.</span>
+        <span class="n">sweep_label</span> <span class="o">=</span> <span class="n">label_opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;sweep_label&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$\mathrm</span><span class="si">{Sweep}</span><span class="s1">$&#39;</span><span class="p">)</span>
+        <span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">vals</span><span class="p">[</span><span class="n">i</span><span class="o">*</span><span class="n">num_samples_per_sweep</span><span class="p">:(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">num_samples_per_sweep</span><span class="p">],</span>
+                 <span class="n">markers</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">sweep_label</span><span class="o">+</span><span class="sa">r</span><span class="s1">&#39; $</span><span class="si">%d</span><span class="s1">$&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">,</span>
+                 <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">&#39;title&#39;</span> <span class="ow">in</span> <span class="n">label_opts</span><span class="p">:</span>
+            <span class="n">axs</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="n">label_opts</span><span class="p">[</span><span class="s1">&#39;title&#39;</span><span class="p">])</span>
+        <span class="n">xlabel</span> <span class="o">=</span> <span class="n">label_opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;xlabel&#39;</span><span class="p">,</span>  <span class="sa">r</span><span class="s2">&quot;$\mathrm{Sweep\;variable}$&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">xlabel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">axs</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="n">xlabel</span><span class="p">)</span>
+        <span class="n">axs</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="n">label_opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ylabel&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;$\mathrm{Function\;value}$&quot;</span><span class="p">))</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="c1"># needed if axs is of type  subplot</span>
+        <span class="k">if</span> <span class="s1">&#39;title&#39;</span> <span class="ow">in</span> <span class="n">label_opts</span><span class="p">:</span>
+            <span class="n">axs</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">label_opts</span><span class="p">[</span><span class="s1">&#39;title&#39;</span><span class="p">])</span>
+        <span class="n">xlabel</span> <span class="o">=</span> <span class="n">label_opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;xlabel&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;$\mathrm{Sweep\;variable}$&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">xlabel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">axs</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="n">xlabel</span><span class="p">)</span>
+        <span class="n">axs</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="n">label_opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ylabel&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;$\mathrm{Function\;value}$&quot;</span><span class="p">))</span>
+    <span class="n">axs</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">numpoints</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">plot_parameter_sweeps</span><span class="p">(</span><span class="n">active_samples</span><span class="p">,</span> <span class="n">vals</span><span class="p">,</span> <span class="n">fig_basename</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                          <span class="n">qoi_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">axs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                          <span class="n">axes_label_opts</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">markers</span><span class="o">=</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                          <span class="n">alpha</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="n">num_sweeps</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span> <span class="o">=</span> <span class="n">active_samples</span><span class="o">.</span><span class="n">shape</span>
+    <span class="k">assert</span> <span class="n">vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">num_sweeps</span><span class="o">*</span><span class="n">num_samples_per_sweep</span>
+    <span class="k">if</span> <span class="n">qoi_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">qoi_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">qoi_indices</span> <span class="o">&lt;</span> <span class="n">vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">axs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">qoi_indices</span><span class="p">),</span>
+                                <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">qoi_indices</span><span class="p">),</span> <span class="mi">6</span><span class="p">),</span> <span class="n">sharey</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">qoi_indices</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">axs</span> <span class="o">=</span> <span class="p">[</span><span class="n">axs</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">axes_label_opts</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">axes_label_opts</span> <span class="o">=</span> <span class="p">[</span><span class="nb">dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">qoi_indices</span><span class="p">))]</span>
+
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">axes_label_opts</span><span class="p">)</span> <span class="o">==</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="n">axes_label_opts</span> <span class="o">=</span> <span class="p">[</span><span class="n">axes_label_opts</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">qoi_indices</span><span class="p">))]</span>
+
+    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">qoi_indices</span><span class="p">)):</span>
+        <span class="n">label_opts</span> <span class="o">=</span> <span class="n">axes_label_opts</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s1">&#39;title&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">label_opts</span><span class="p">:</span>
+            <span class="n">label_opts</span><span class="p">[</span><span class="s1">&#39;title&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;$\mathrm{QoI\;</span><span class="si">%d</span><span class="s2">}$&quot;</span> <span class="o">%</span> <span class="n">qoi_indices</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+        <span class="n">plot_parameter_sweep_single_qoi</span><span class="p">(</span>
+            <span class="n">active_samples</span><span class="p">,</span> <span class="n">vals</span><span class="p">[:,</span> <span class="n">j</span><span class="p">],</span> <span class="n">num_sweeps</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">,</span>
+            <span class="n">label_opts</span><span class="p">,</span> <span class="n">axs</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">markers</span><span class="p">,</span> <span class="n">colors</span><span class="p">,</span> <span class="n">alpha</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">fig_basename</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">fig_basename</span><span class="o">+</span><span class="s1">&#39;.pdf&#39;</span><span class="p">,</span> <span class="n">bbox_inches</span><span class="o">=</span><span class="s1">&#39;tight&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">show</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">fig</span><span class="p">,</span> <span class="n">axs</span>
+
+
+<span class="k">def</span> <span class="nf">generate_parameter_sweeps_samples</span><span class="p">(</span><span class="n">opts</span><span class="p">,</span> <span class="n">sweep_type</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">,</span>
+                                      <span class="n">num_sweeps</span><span class="p">,</span> <span class="n">sweep_rotation_matrix</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">sweep_type</span> <span class="o">==</span> <span class="s1">&#39;hypercube&#39;</span><span class="p">:</span>
+        <span class="n">ranges</span> <span class="o">=</span> <span class="n">opts</span><span class="p">[</span><span class="s1">&#39;ranges&#39;</span><span class="p">]</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">W</span> <span class="o">=</span> \
+            <span class="n">get_hypercube_parameter_sweeps_samples</span><span class="p">(</span>
+                <span class="n">ranges</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="p">,</span>
+                <span class="n">sweep_rotation_matrix</span><span class="p">)</span>
+        <span class="c1"># print(samples.T)</span>
+    <span class="k">elif</span> <span class="n">sweep_type</span> <span class="o">==</span> <span class="s1">&#39;gaussian&#39;</span><span class="p">:</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="n">opts</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span>
+        <span class="n">covariance</span> <span class="o">=</span> <span class="n">opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;covariance&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">covariance_sqrt</span> <span class="o">=</span> <span class="n">opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;covariance_sqrt&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">sweep_radius</span> <span class="o">=</span> <span class="n">opts</span><span class="p">[</span><span class="s1">&#39;sweep_radius&#39;</span><span class="p">]</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">W</span> <span class="o">=</span> <span class="n">get_gaussian_parameter_sweeps_samples</span><span class="p">(</span>
+            <span class="n">mean</span><span class="p">,</span> <span class="n">covariance</span><span class="o">=</span><span class="n">covariance</span><span class="p">,</span> <span class="n">covariance_sqrt</span><span class="o">=</span><span class="n">covariance_sqrt</span><span class="p">,</span>
+            <span class="n">sweep_radius</span><span class="o">=</span><span class="n">sweep_radius</span><span class="p">,</span>
+            <span class="n">num_samples_per_sweep</span><span class="o">=</span><span class="n">num_samples_per_sweep</span><span class="p">,</span>
+            <span class="n">num_sweeps</span><span class="o">=</span><span class="n">num_sweeps</span><span class="p">,</span>
+            <span class="n">sweep_rotation_matrix</span><span class="o">=</span><span class="n">sweep_rotation_matrix</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;incorrect sweep_type : </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">sweep_type</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">W</span>
+
+
+<span class="k">def</span> <span class="nf">generate_parameter_sweeps</span><span class="p">(</span><span class="n">opts</span><span class="p">,</span> <span class="n">sweep_type</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">,</span>
+                              <span class="n">num_sweeps</span><span class="p">,</span> <span class="n">sweep_rotation_matrix</span><span class="p">,</span> <span class="n">model</span><span class="p">):</span>
+    <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">W</span> <span class="o">=</span> <span class="n">generate_parameter_sweeps_samples</span><span class="p">(</span>
+        <span class="n">opts</span><span class="p">,</span> <span class="n">sweep_type</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="p">,</span>
+        <span class="n">sweep_rotation_matrix</span><span class="p">)</span>
+    <span class="n">vals</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">vals</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">vals</span>
+
+
+<span class="k">def</span> <span class="nf">generate_parameter_sweeps_and_plot</span><span class="p">(</span>
+        <span class="n">model</span><span class="p">,</span> <span class="n">opts</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">sweep_type</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+        <span class="n">num_sweeps</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">qoi_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">sweep_rotation_matrix</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">axes_label_opts</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">axs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+    <span class="k">if</span> <span class="n">filename</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">vals</span> <span class="o">=</span> <span class="n">generate_parameter_sweeps</span><span class="p">(</span>
+            <span class="n">opts</span><span class="p">,</span> <span class="n">sweep_type</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="p">,</span>
+            <span class="n">sweep_rotation_matrix</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">filename</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">filename</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">savez</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="n">samples</span><span class="p">,</span> <span class="n">vals</span><span class="o">=</span><span class="n">vals</span><span class="p">,</span>
+                     <span class="n">active_samples</span><span class="o">=</span><span class="n">active_samples</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;samples&#39;</span><span class="p">]</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;vals&#39;</span><span class="p">]</span>
+        <span class="n">active_samples</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;active_samples&#39;</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">filename</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">filename</span><span class="p">[</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;.&#39;</span><span class="p">:</span>
+            <span class="n">figbasename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">[:</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">figbasename</span> <span class="o">=</span> <span class="n">filename</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">figbasename</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">return</span> <span class="n">plot_parameter_sweeps</span><span class="p">(</span>
+        <span class="n">active_samples</span><span class="p">,</span> <span class="n">vals</span><span class="p">,</span> <span class="n">figbasename</span><span class="p">,</span> <span class="n">qoi_indices</span><span class="p">,</span>
+        <span class="n">show</span><span class="p">,</span> <span class="n">axes_label_opts</span><span class="o">=</span><span class="n">axes_label_opts</span><span class="p">,</span> <span class="n">axs</span><span class="o">=</span><span class="n">axs</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="generate_parameter_sweeps_and_plot_from_variable"><a class="viewcode-back" href="../../../api/pyapprox.analysis.generate_parameter_sweeps_and_plot_from_variable.html#pyapprox.analysis.generate_parameter_sweeps_and_plot_from_variable">[docs]</a><span class="k">def</span> <span class="nf">generate_parameter_sweeps_and_plot_from_variable</span><span class="p">(</span>
+        <span class="n">model</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+        <span class="n">num_sweeps</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">qoi_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">axes_label_opts</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">axs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot parameter sweeps of a function.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : callable</span>
+<span class="sd">        Function with the signature</span>
+<span class="sd">       </span>
+<span class="sd">        `model(samples) -&gt; np.ndarray(nsamples, nqoi)`</span>
+
+<span class="sd">        where samples : np.ndarray (nvars, nsamples)</span>
+
+<span class="sd">    variable : :class:`pyapprox.variables.IndependentMarginalsVariable`</span>
+<span class="sd">        Random variable</span>
+
+<span class="sd">    filename : string</span>
+<span class="sd">        Name of file to store parameter sweeps. If None no file is written</span>
+
+<span class="sd">    num_samples_per_sweep : interger</span>
+<span class="sd">        The number of samples in a parameter sweep</span>
+
+<span class="sd">    num_samples : integer</span>
+<span class="sd">        The number of parameter sweeps</span>
+
+<span class="sd">    qoi_indices : iterable</span>
+<span class="sd">        The column indices in the values outputed by model which will be</span>
+<span class="sd">        plotted. A separate subplot will be used for each QoI</span>
+
+<span class="sd">    show : boolean</span>
+<span class="sd">        True - plt.show() is called</span>
+
+<span class="sd">    axes_label_opts : list of dict</span>
+<span class="sd">        Dictionary specifying plt kwargs for each axes</span>
+
+<span class="sd">    axs : list of :class:`matplotlib.pyplot.axes`</span>
+<span class="sd">        If provided will be used to plot each QoI</span>
+<span class="sd">        Otherwise axes will be created</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">opts</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;ranges&quot;</span><span class="p">:</span> <span class="n">get_truncated_ranges</span><span class="p">(</span><span class="n">variable</span><span class="p">)}</span>
+    <span class="k">return</span> <span class="n">generate_parameter_sweeps_and_plot</span><span class="p">(</span>
+        <span class="n">model</span><span class="p">,</span> <span class="n">opts</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;hypercube&quot;</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="p">,</span>
+        <span class="n">num_sweeps</span><span class="p">,</span> <span class="n">qoi_indices</span><span class="p">,</span> <span class="n">show</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">axes_label_opts</span><span class="p">,</span> <span class="n">axs</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

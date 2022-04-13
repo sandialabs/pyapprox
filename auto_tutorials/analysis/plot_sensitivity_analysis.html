@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sensitivity Analysis &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Push Forward Based Inference" href="../inference/plot_push_forward_based_inference.html" />
+    <link rel="prev" title="Theoretical Tutorials" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Sensitivity Analysis</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sobol-indices">Sobol Indices</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Theoretical Tutorials</a> &raquo;</li>
+      <li>Sensitivity Analysis</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/auto_tutorials/analysis/plot_sensitivity_analysis.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-analysis-plot-sensitivity-analysis-py"><span class="std std-ref">here</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="sensitivity-analysis">
+<span id="sphx-glr-auto-tutorials-analysis-plot-sensitivity-analysis-py"></span><h1>Sensitivity Analysis<a class="headerlink" href="#sensitivity-analysis" title="Permalink to this headline"></a></h1>
+<p>Quantifying the sensitivity of a model output <span class="math notranslate nohighlight">\(f\)</span> to the model parameters <span class="math notranslate nohighlight">\(\rv\)</span> can be an important component of any modeling exercise. This section demonstrates how to use popular local and global sensitivity analysis.</p>
+<section id="sobol-indices">
+<h2>Sobol Indices<a class="headerlink" href="#sobol-indices" title="Permalink to this headline"></a></h2>
+<p>Any function <span class="math notranslate nohighlight">\(f\)</span> with finite variance parameterized by a set of independent variables <span class="math notranslate nohighlight">\(\rv\)</span> with <span class="math notranslate nohighlight">\(\pdf(\rv)=\prod_{j=1}^d\pdf(\rv_j)\)</span> and support <span class="math notranslate nohighlight">\(\rvdom=\bigotimes_{j=1}^d\rvdom_j\)</span> can be decomposed into a finite sum, referred to as the ANOVA decomposition,</p>
+<div class="math notranslate nohighlight">
+\[f(\rv) = \hat{f}_0 + \sum_{i=1}^d \hat{f}_i(\rv_i)+ \sum_{i,j=1}^d \hat{f}_{i,j}(\rv_i,\rv_j) + \cdots + \hat{f}_{1,\ldots,d}(\rv_1,\ldots,\rv_d)\]</div>
+<p>or more compactly</p>
+<div class="math notranslate nohighlight">
+\[f(\rv)=\sum_{\V{u}\subseteq\mathcal{D}}\hat{f}_{\V{u}}(\rv_{\V{u}})\]</div>
+<p>where <span class="math notranslate nohighlight">\(\hat{f}_\V{u}\)</span> quantifies the dependence of the function <span class="math notranslate nohighlight">\(f\)</span> on the variable dimensions <span class="math notranslate nohighlight">\(i\in\V{u}\)</span> and <span class="math notranslate nohighlight">\(\V{u}=(u_1,\ldots,u_s)\subseteq\mathcal{D}=\{1,\ldots,d\}\)</span>.</p>
+<p>The functions <span class="math notranslate nohighlight">\(\hat{f}_\V{u}\)</span> can be obtained by integration, specifically</p>
+<div class="math notranslate nohighlight">
+\[\hat{f}_\V{u}(\rv_\V{u}) = \int_{\rvdom_{\mathcal{D}\setminus\V{u}}}f(\rv)\dx{\pdf_{\mathcal{D} \setminus \V{u}}(\rv)}-\sum_{\V{v}\subset\V{u}}\hat{f}_\V{v}(\rv_\V{v}),\]</div>
+<p>where <span class="math notranslate nohighlight">\(\dx{\pdf_{\mathcal{D} \setminus \V{u}}(\rv)}=\prod_{j\notin\V{u}}\dx{\pdf_j(\rv)}\)</span> and <span class="math notranslate nohighlight">\(\rvdom_{\mathcal{D} \setminus \V{u}}=\bigotimes_{j\notin\V{u}}\rvdom_j\)</span>.</p>
+<p>The first-order terms <span class="math notranslate nohighlight">\(\hat{f}_{\V{u}}(\rv_i)\)</span>, <span class="math notranslate nohighlight">\(\lVert \V{u}\rVert_{0}=1\)</span> represent the effect of a single variable acting independently of all others. Similarly, the second-order terms <span class="math notranslate nohighlight">\(\lVert\V{u}\rVert_{0}=2\)</span> represent the contributions of two variables acting together, and so on.</p>
+<blockquote>
+<div><p>The terms of the ANOVA expansion are orthogonal, i.e. the weighted <span class="math notranslate nohighlight">\(L^2\)</span> inner product <span class="math notranslate nohighlight">\((\hat{f}_\V{u},\hat{f}_\V{v})_{L^2_\pdf}=0\)</span>, for <span class="math notranslate nohighlight">\(\V{u}\neq\V{v}\)</span>. This orthogonality facilitates the following decomposition of the variance of the function <span class="math notranslate nohighlight">\(f\)</span></p>
+</div></blockquote>
+<div class="math notranslate nohighlight">
+\[\var{f}=\sum_{\V{u}\subseteq\mathcal{D}}\var{\hat{f}_\V{u}}, \qquad \var{\hat{f}_\V{u}} = \int_{\rvdom_{\V{u}}} f^2_{\V{u}} \dx{\pdf_\V{u}},\]</div>
+<p>where <span class="math notranslate nohighlight">\(\dx{\pdf_{\V{u}}(\rv)}=\prod_{j\in\V{u}}\dx{\pdf_j(\rv)}\)</span>.</p>
+<p>The quantities <span class="math notranslate nohighlight">\(\var{\hat{f}_\V{u}}/ \var{f}\)</span> are referred to as Sobol indices <a class="reference internal" href="#smcs2001" id="id1"><span>[SMCS2001]</span></a> and are frequently used to estimate the sensitivity of <span class="math notranslate nohighlight">\(f\)</span> to single, or combinations of input parameters. Note that this is a <em>global</em> sensitivity, reflecting a variance attribution over the range of the input parameters, as opposed to the local sensitivity reflected by a derivative. Two popular measures of sensitivity are the main effect and total effect indices given respectively by</p>
+<div class="math notranslate nohighlight">
+\[S_{i} = \frac{\var{\hat{f}_{\V{e}_i}}}{\var{f}}, \qquad S^T_{i} = \frac{\sum_{\V{u}\in\mathcal{J}}\var{\hat{f}_{\V{u}}}}{\var{f}}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\V{e}_i\)</span> is the unit vector, with only one non-zero entry located at the <span class="math notranslate nohighlight">\(i\)</span>-th element, and <span class="math notranslate nohighlight">\(\mathcal{J} = \{\V{u}:i\in\V{u}\}\)</span>.</p>
+<p>Sobol indices can be computed different ways. In the following we will use polynomial chaos expansions, as in <a class="reference internal" href="#sress2008" id="id2"><span>[SRESS2008]</span></a>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates</span> <span class="kn">import</span> <span class="n">approximate</span>
+<span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">analysis</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;ishigami&quot;</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+
+<span class="n">num_samples</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="n">train_samples</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">num_samples</span><span class="p">)</span>
+<span class="n">train_vals</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
+
+<span class="n">approx_res</span> <span class="o">=</span> <span class="n">approximate</span><span class="p">(</span>
+    <span class="n">train_samples</span><span class="p">,</span> <span class="n">train_vals</span><span class="p">,</span> <span class="s1">&#39;polynomial_chaos&#39;</span><span class="p">,</span>
+    <span class="p">{</span><span class="s1">&#39;basis_type&#39;</span><span class="p">:</span> <span class="s1">&#39;hyperbolic_cross&#39;</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span>
+     <span class="s1">&#39;options&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;max_degree&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">}})</span>
+<span class="n">pce</span> <span class="o">=</span> <span class="n">approx_res</span><span class="o">.</span><span class="n">approx</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">gpc_sobol_sensitivities</span><span class="p">(</span><span class="n">pce</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now lets compare the estimated values with the exact value</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">main_effects</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">main_effects</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[3.13745022e-01 4.42700090e-01 3.79118390e-07]
+[0.31390519 0.44241114 0.        ]
+</pre></div>
+</div>
+<p>We can visualize the sensitivity indices using the following</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">analysis</span><span class="o">.</span><span class="n">plot_main_effects</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">main_effects</span><span class="p">,</span> <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">analysis</span><span class="o">.</span><span class="n">plot_total_effects</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">total_effects</span><span class="p">,</span> <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">analysis</span><span class="o">.</span><span class="n">plot_interaction_values</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">sobol_indices</span><span class="p">,</span>
+                                 <span class="n">benchmark</span><span class="o">.</span><span class="n">sobol_interaction_indices</span><span class="p">,</span> <span class="n">axs</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\mathrm{Main\;Effects}$&#39;</span><span class="p">)</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\mathrm{Total\;Effects}$&#39;</span><span class="p">)</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\mathrm{Sobol\;Indices}$&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_sensitivity_analysis_001.png" srcset="../../_images/sphx_glr_plot_sensitivity_analysis_001.png" alt="$\mathrm{Main\;Effects}$, $\mathrm{Total\;Effects}$, $\mathrm{Sobol\;Indices}$" class = "sphx-glr-single-img"/><section id="references">
+<h3>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h3>
+<dl class="citation">
+<dt class="label" id="smcs2001"><span class="brackets"><a class="fn-backref" href="#id1">SMCS2001</a></span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1016/S0378-4754(00)00270-6">I.M. Sobol. Global sensitivity indices for nonlinear mathematical models and their Monte Carlo estimates. Mathematics and Computers in Simulation, 55(3): 271-280, 2001.</a></p>
+</dd>
+<dt class="label" id="sress2008"><span class="brackets"><a class="fn-backref" href="#id2">SRESS2008</a></span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1016/j.ress.2007.04.002">B. Sudret. Global sensitivity analysis using polynomial chaos expansions. Reliability Engineering &amp; System Safety, 93(7): 964-979, 2008.</a></p>
+</dd>
+</dl>
+<dl class="citation">
+<dt class="label" id="mt1991"><span class="brackets">MT1991</span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1080/00401706.1991.10484804">M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991</a></p>
+</dd>
+</dl>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.925 seconds)</p>
+<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-analysis-plot-sensitivity-analysis-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/721a21f1cd1e267ca0bb95e75a2842b8/plot_sensitivity_analysis.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_sensitivity_analysis.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/283463928722484a0d2d473cb76c19c3/plot_sensitivity_analysis.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_sensitivity_analysis.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="Theoretical Tutorials" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../inference/plot_push_forward_based_inference.html" class="btn btn-neutral float-right" title="Push Forward Based Inference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

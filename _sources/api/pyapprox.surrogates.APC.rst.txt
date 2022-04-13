@@ -1,0 +1,27 @@
+APC
+===
+
+.. currentmodule:: pyapprox.surrogates
+
+.. autoclass:: APC
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~APC.basis_matrix
+      ~APC.canonical_basis_matrix
+      ~APC.compute_rotation
+      ~APC.set_indices
+      ~APC.unrotated_basis_matrix
+      ~APC.unrotated_canonical_basis_matrix
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: basis_matrix
+   .. automethod:: canonical_basis_matrix
+   .. automethod:: compute_rotation
+   .. automethod:: set_indices
+   .. automethod:: unrotated_basis_matrix
+   .. automethod:: unrotated_canonical_basis_matrix

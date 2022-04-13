@@ -1,0 +1,6 @@
+setup_wing_weight_benchmark
+===========================
+
+.. currentmodule:: pyapprox.benchmarks
+
+.. autofunction:: setup_wing_weight_benchmark

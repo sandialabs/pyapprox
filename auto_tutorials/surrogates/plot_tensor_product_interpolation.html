@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tensor-product Barycentric Interpolation &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Adaptive Leja Sequences" href="plot_adaptive_leja_interpolation.html" />
+    <link rel="prev" title="MFNets: Multi-fidelity networks" href="../multi_fidelity/plot_gaussian_mfnets.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#surrogates">Surrogates</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Tensor-product Barycentric Interpolation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#construction">Construction</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#post-processing">Post-processing</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="plot_adaptive_leja_interpolation.html">Adaptive Leja Sequences</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_gaussian_processes.html">Gaussian processes</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Theoretical Tutorials</a> &raquo;</li>
+      <li>Tensor-product Barycentric Interpolation</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/auto_tutorials/surrogates/plot_tensor_product_interpolation.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"><span class="std std-ref">here</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="tensor-product-barycentric-interpolation">
+<span id="sphx-glr-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"></span><h1>Tensor-product Barycentric Interpolation<a class="headerlink" href="#tensor-product-barycentric-interpolation" title="Permalink to this headline"></a></h1>
+<p>Many simulation models are extremely computationally expensive such that adequately understanding their behaviour and quantifying uncertainty can be computationally intractable for any of the aforementioned techniques. Various methods have been developed to produce surrogates of the model response to uncertain parameters, the most efficient are goal-oriented in nature and target very specific uncertainty measures.</p>
+<p>Generally speaking surrogates are built using a “small” number of model simulations and are then substituted in place of the expensive simulation models in future analysis. Some of the most popular surrogate types include polynomial chaos expansions (PCE) <a class="reference internal" href="#xksisc2002" id="id1"><span>[XKSISC2002]</span></a>, Gaussian processes (GP) <a class="reference internal" href="#rwmit2006" id="id2"><span>[RWMIT2006]</span></a>, and sparse grids (SG) <a class="reference internal" href="#bgan2004" id="id3"><span>[BGAN2004]</span></a>.</p>
+<p>Reduced order models (e.g. <a class="reference internal" href="#sfijnme2017" id="id4"><span>[SFIJNME2017]</span></a>) can also be used to construct surrogates and have been applied successfully for UQ on many applications. These methods do not construct response surface approximations, but rather solve the governing equations on a reduced basis. PyApprox does not currently implement reduced order modeling, however the modeling analyis tools found in PyApprox can easily be applied to assess or design systems based on reduced order models.</p>
+<p>The use of surrogates for model analysis consists of two phases: (1) construction; and (2) post-processing.</p>
+<section id="construction">
+<h2>Construction<a class="headerlink" href="#construction" title="Permalink to this headline"></a></h2>
+<p>In this section we show how to construct a surrogate using tensor-product Lagrange interpolation.</p>
+<section id="tensor-product-lagrange-interpolation">
+<h3>Tensor-product Lagrange interpolation<a class="headerlink" href="#tensor-product-lagrange-interpolation" title="Permalink to this headline"></a></h3>
+<p>Let <span class="math notranslate nohighlight">\(\hat{f}_{\boldsymbol{\alpha},\boldsymbol{\beta}}(\mathbf{z})\)</span> be an M-point tensor-product interpolant of the function <span class="math notranslate nohighlight">\(\hat{f}_{\boldsymbol{\alpha}}\)</span>. This interpolant is a weighted linear combination of tensor-product of univariate Lagrange polynomials</p>
+<div class="math notranslate nohighlight">
+\[\phi_{i,j}(z_i) = \prod_{k=1,k\neq j}^{m_{\beta_i}}\frac{z_i-z_i^{(k)}}{z_i^{(j)}-z_i^{(k)}}, \quad i\in[d],\]</div>
+<p>defined on a set of univariate points <span class="math notranslate nohighlight">\(z_{i}^{(j)},j\in[m_{\beta_i}]\)</span>  Specifically the multivariate interpolant is given by</p>
+<div class="math notranslate nohighlight">
+\[\hat{f}_{\boldsymbol{\alpha},\boldsymbol{\beta}}(\mathbf{z}) = \sum_{\boldsymbol{j}\le\boldsymbol{\beta}} \hat{f}_{\boldsymbol{\alpha}}(\mathbf{z}^{(\boldsymbol{j})})\prod_{i\in[d]}\phi_{i,j_i}(z_i).\]</div>
+<p>The partial ordering <span class="math notranslate nohighlight">\(\boldsymbol{j}\le\boldsymbol{\beta}\)</span> is true if all the component wise conditions are true.</p>
+<p>Constructing the interpolant requires evaluating the function <span class="math notranslate nohighlight">\(\hat{f}_{\boldsymbol{\alpha}}\)</span> on the grid of points</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{Z}_{\boldsymbol{\beta}} = \bigotimes_{i=1}^d \mathcal{Z}_{\beta_i}^i=\begin{bmatrix}\mathbf{z}^{(1)} &amp; \cdots&amp;\mathbf{z}^{(M_{\boldsymbol{\beta}})}\end{bmatrix}\in\mathbb{R}^{d\times M_{\boldsymbol{\beta}}}\]</div>
+<p>We denote the resulting function evaluations by</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{F}_{\boldsymbol{\alpha},\boldsymbol{\beta}}=\hat{f}_{\boldsymbol{\alpha}}(\mathcal{Z}_{\boldsymbol{\beta}})=\begin{bmatrix}\hat{f}_{\boldsymbol{\alpha}}(\mathbf{z}^{(1)}) \quad \cdots\quad \hat{f}_{\boldsymbol{\alpha}}(\mathbf{z}^{(M_{\boldsymbol{\beta}})})\end{bmatrix}^T\in\mathbb{R}^{M_{\boldsymbol{\beta}}\times q},\]</div>
+<p>where the number of points in the grid is <span class="math notranslate nohighlight">\(M_{\boldsymbol{\beta}}=\prod_{i\in[d]} m_{\beta_i}\)</span></p>
+<p>It is often reasonable to assume that, for any <span class="math notranslate nohighlight">\(\mathbf{z}\)</span>, the cost of each simulation is constant for a given <span class="math notranslate nohighlight">\(\boldsymbol{\alpha}\)</span>. So letting <span class="math notranslate nohighlight">\(W_{\boldsymbol{\alpha}}\)</span> denote the cost of a single simulation, we can write the total cost of evaluating the interpolant <span class="math notranslate nohighlight">\(W_{\boldsymbol{\alpha},\boldsymbol{\beta}}=W_{\boldsymbol{\alpha}} M_{\boldsymbol{\beta}}\)</span>. Here we have assumed that the computational effort to compute the interpolant once data has been obtained is negligible, which is true for sufficiently expensive models <span class="math notranslate nohighlight">\(\hat{f}_{\boldsymbol{\alpha}}\)</span>.
+Here we will use the nested Clenshaw-Curtis points</p>
+<div class="math notranslate nohighlight">
+\[z_{i}^{(j)}=\cos\left(\frac{(j-1)\pi}{m_{\beta_i}}\right),\qquad j=1,\ldots,m_{\beta_i}\]</div>
+<p>to define the univariate Lagrange polynomials. The number of points <span class="math notranslate nohighlight">\(m(l)\)</span> of this rule grows exponentially with the level <span class="math notranslate nohighlight">\(l\)</span>, specifically
+<span class="math notranslate nohighlight">\(m(0)=1\)</span> and <span class="math notranslate nohighlight">\(m(l)=2^{l}+1\)</span> for <span class="math notranslate nohighlight">\(l\geq1\)</span>. The univariate Clenshaw-Curtis points, the tensor-product grid <span class="math notranslate nohighlight">\(\mathcal{Z}_{\boldsymbol{\beta}}\)</span>, and two multivariate Lagrange polynomials with their corresponding univariate Lagrange polynomials are shown below for <span class="math notranslate nohighlight">\(\boldsymbol{\beta}=(2,2)\)</span>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">cartesian_product</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.visualization</span> <span class="kn">import</span> <span class="n">get_meshgrid_function_data</span><span class="p">,</span> <span class="n">plt</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.barycentric_interpolation</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">plot_tensor_product_lagrange_basis_2d</span><span class="p">,</span>
+    <span class="n">tensor_product_barycentric_lagrange_interpolation</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">get_tensor_product_quadrature_rule</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.quadrature</span> <span class="kn">import</span> <span class="n">clenshaw_curtis_pts_wts_1D</span>
+
+<span class="n">quad_rule</span> <span class="o">=</span> <span class="n">clenshaw_curtis_pts_wts_1D</span>
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
+<span class="n">level</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">ii</span><span class="p">,</span> <span class="n">jj</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span>
+<span class="n">plot_tensor_product_lagrange_basis_2d</span><span class="p">(</span><span class="n">quad_rule</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
+<span class="n">level</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">ii</span><span class="p">,</span> <span class="n">jj</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span>
+<span class="n">ii</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">plot_tensor_product_lagrange_basis_2d</span><span class="p">(</span><span class="n">quad_rule</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_001.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_001.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>To construct a surrogate using tensor product interpolation we simply multiply all such basis functions by the value of the function <span class="math notranslate nohighlight">\(f_\ai\)</span> evaluated at the corresponding interpolation point. The following uses tensor product interpolation to approximate the simple function</p>
+<div class="math notranslate nohighlight">
+\[f_\ai(\rv) = \cos(2\pi\rv_1)\cos(2\pi\rv_2), \qquad \rv\in\rvdom=[-1,1]^2\]</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">f</span><span class="p">(</span><span class="n">z</span><span class="p">):</span> <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">z</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:])</span> <span class="o">*</span>
+                  <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">z</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]))[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+
+<span class="n">levels</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+<span class="n">grid_samples_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">clenshaw_curtis_pts_wts_1D</span><span class="p">(</span><span class="n">ll</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="n">levels</span><span class="p">]</span>
+<span class="n">grid_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">grid_samples_1d</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">interp</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">tensor_product_barycentric_lagrange_interpolation</span><span class="p">(</span>
+        <span class="n">grid_samples_1d</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
+
+
+<span class="n">marker_color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span>
+<span class="n">alpha</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">grid_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">grid_samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span>
+         <span class="n">color</span><span class="o">=</span><span class="n">marker_color</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">)</span>
+
+<span class="n">plot_limits</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+<span class="n">num_pts_1d</span> <span class="o">=</span> <span class="mi">101</span>
+<span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span> <span class="o">=</span> <span class="n">get_meshgrid_function_data</span><span class="p">(</span>
+    <span class="n">interp</span><span class="p">,</span> <span class="n">plot_limits</span><span class="p">,</span> <span class="n">num_pts_1d</span><span class="p">)</span>
+
+<span class="n">num_contour_levels</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">levels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">Z</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="n">num_contour_levels</span><span class="p">)</span>
+<span class="n">cset</span> <span class="o">=</span> <span class="n">axs</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span>
+    <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">levels</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;coolwarm&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_002.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_002.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>The error in the tensor product interpolant is given by</p>
+<div class="math notranslate nohighlight">
+\[\lVert f_\ai-f_{\ai,\bi}\rVert_{L^\infty(\rvdom)} \le C_{d,r} N_{\bi}^{-s/d}\]</div>
+</section>
+</section>
+<section id="post-processing">
+<h2>Post-processing<a class="headerlink" href="#post-processing" title="Permalink to this headline"></a></h2>
+<p>Once a surrogate has been constructed it can be used for many different purposes. For example one can use it to estimate moments, perform sensitivity analysis, or simply approximate the evaluation of the expensive model at new locations where expensive simulation model data is not available.</p>
+<p>To use the surrogate for computing moments we simply draw realizations of the input random variables <span class="math notranslate nohighlight">\(\rv\)</span> and evaluate the surrogate at those samples. We can approximate the mean of the expensive simluation model as the average of the surrogate values at the random samples.</p>
+<p>We know from <span class="xref std std-ref">sphx_glr_auto_tutorials_foundations_plot_monte_carlo.py</span> that the error in the Monte carlo estimate of the mean using the surrogate is</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mean{\left(Q_{\alpha}-\mean{Q}\right)^2}&amp;=N^{-1}\var{Q_\alpha}+\left(\mean{Q_{\alpha}}-\mean{Q}\right)^2\\
+&amp;\le N^{-1}\var{Q_\alpha}+C_{d,r} N_{\bi}^{-s/d}\end{split}\]</div>
+<p>Because a surrogate is inexpensive to evaluate the first term can be driven to zero so that only the bias remains. Thus the error in the Monte Carlo estimate of the mean using the surrogate is dominated by the error in the surrogate. If this error can be reduced more quickly than frac{N^{-1}} (as is the case for low-dimensional tensor-product interpolation) then using surrogates for computing moments is very effective.</p>
+<p>Note that moments can be estimated without using Monte-Carlo sampling by levaraging properties of the univariate interpolation rules used to build the multi-variate interpolant. Specifically, the expectation of a tensor product interpolant can be computed without explicitly forming the interpolant and is given by</p>
+<div class="math notranslate nohighlight">
+\[\mu_{\bi}=\int_{\rvdom} \sum_{\V{j}\le\bi}f_\ai(\rv^{(\V{j})})\prod_{i=1}^d\phi_{i,j_i}(\rv_i) w(\rv)\,d\rv=\sum_{\V{j}\le\bi} f_\ai(\rv^{(\V{j})}) v_{\V{j}}.\]</div>
+<p>The expectation is simply the weighted sum of the Cartesian-product of the univariate quadrature weights</p>
+<div class="math notranslate nohighlight">
+\[v_{\V{j}}=\prod_{i=1}^d\int_{\rvdom_i}{\phi_{i,j_i}(\rv_i)}\,dw(\rv_i),\]</div>
+<p>which can be computed analytically.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">x</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">get_tensor_product_quadrature_rule</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">clenshaw_curtis_pts_wts_1D</span><span class="p">)</span>
+<span class="n">surrogate_mean</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Quadrature mean&#39;</span><span class="p">,</span> <span class="n">surrogate_mean</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Quadrature mean 0.10540659444426355
+</pre></div>
+</div>
+<p>Here we have recomptued the values of <span class="math notranslate nohighlight">\(f\)</span> at the interpolation samples, but in practice we sould just re-use the values collected when building the interpolant.</p>
+<p>Now let us compare the quadrature mean with the MC mean computed using the surrogate</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">num_samples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">1e6</span><span class="p">)</span>
+<span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">))</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">interp</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+<span class="n">mc_mean</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Monte Carlo surrogate mean&#39;</span><span class="p">,</span> <span class="n">mc_mean</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Monte Carlo surrogate mean 0.0012580992717837053
+</pre></div>
+</div>
+<section id="references">
+<h3>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h3>
+<dl class="citation">
+<dt class="label" id="xksisc2002"><span class="brackets"><a class="fn-backref" href="#id1">XKSISC2002</a></span></dt>
+<dd><p><a class="reference external" href="http://dx.doi.org/10.1137/S1064827501387826">D. Xiu and G.E. Karniadakis. The Wiener-Askey Polynomial Chaos for stochastic differential equations. SIAM J. Sci. Comput., 24(2), 619-644, 2002.</a></p>
+</dd>
+<dt class="label" id="rwmit2006"><span class="brackets"><a class="fn-backref" href="#id2">RWMIT2006</a></span></dt>
+<dd><p><a class="reference external" href="http://www.gaussianprocess.org/gpml/chapters/">C.E Rasmussen and C. Williams. Gaussian Processes for Machine Learning. MIT Press, 2006.</a></p>
+</dd>
+<dt class="label" id="bgan2004"><span class="brackets"><a class="fn-backref" href="#id3">BGAN2004</a></span></dt>
+<dd><p><a class="reference external" href="http://dx.doi.org/10.1017/S0962492904000182">H. Bungartz and M. Griebel. Sparse Grids. Acta Numerica, 13, 147-269, 2004.</a></p>
+</dd>
+<dt class="label" id="sfijnme2017"><span class="brackets"><a class="fn-backref" href="#id4">SFIJNME2017</a></span></dt>
+<dd><p><a class="reference external" href="https://onlinelibrary.wiley.com/doi/abs/10.1002/nme.5312">C Soize and C. Farhat. A nonparametric probabilistic approach for quantifying uncertainties in low-dimensional and high-dimensional nonlinear models. International Journal for Numerical Methods in Engineering, 109(6), 837-888, 2017.</a></p>
+</dd>
+</dl>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.623 seconds)</p>
+<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-surrogates-plot-tensor-product-interpolation-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/6adbd4b57861b4fd460bd3079ed801ef/plot_tensor_product_interpolation.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_tensor_product_interpolation.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/1b238a5bf7e1c67b7eaa1d584e91785b/plot_tensor_product_interpolation.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_tensor_product_interpolation.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../multi_fidelity/plot_gaussian_mfnets.html" class="btn btn-neutral float-left" title="MFNets: Multi-fidelity networks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_adaptive_leja_interpolation.html" class="btn btn-neutral float-right" title="Adaptive Leja Sequences" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

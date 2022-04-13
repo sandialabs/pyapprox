@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.bayes.gaussian_network &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      <li>pyapprox.bayes.gaussian_network</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.bayes.gaussian_network</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">networkx</span> <span class="k">as</span> <span class="nn">nx</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.polychaos.gpc</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PolynomialChaosExpansion</span><span class="p">,</span> <span class="n">define_poly_options_from_variable_transformation</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.indexing</span> <span class="kn">import</span> <span class="n">compute_hyperbolic_indices</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.transforms</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AffineTransform</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.gaussian</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">convert_conditional_probability_density_to_canonical_form</span><span class="p">,</span> <span class="n">GaussianFactor</span><span class="p">,</span>
+    <span class="n">compute_gaussian_pdf_canonical_form_normalization</span><span class="p">,</span>
+    <span class="n">convert_gaussian_from_canonical_form</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_var_ids_to_eliminate_from_node_query</span><span class="p">(</span>
+        <span class="n">network_node_var_ids</span><span class="p">,</span> <span class="n">network_labels</span><span class="p">,</span> <span class="n">query_labels</span><span class="p">,</span>
+        <span class="n">evidence_node_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the ids of all variables in a network not associated with nodes being</span>
+<span class="sd">    queried. A given node can consist of multiple variables.</span>
+<span class="sd">    This function will always exclude from elimination any ids which are in</span>
+<span class="sd">    evidence_ids.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    network_node_var_ids: list</span>
+<span class="sd">        List with entries containing  containing the integer ids</span>
+<span class="sd">        np.ndarray (nnetwork_vars) of all variables of a node.</span>
+
+<span class="sd">    network_labels: list (nnodes)</span>
+<span class="sd">       A list of strings containing the names of each node in the network.</span>
+<span class="sd">       ith network labels must be associated with the ith node in the network</span>
+<span class="sd">       ordering matters.</span>
+
+<span class="sd">    query_labels : list (nqueries)</span>
+<span class="sd">        A list of strings containing the node labels which must remain</span>
+<span class="sd">        after elimination. nqueries&lt;=nnodes. The network labels not in this</span>
+<span class="sd">        list will be identified for elimination from the scope of the network.</span>
+<span class="sd">        This list must not contain nodes associated with data.</span>
+
+<span class="sd">    evidence_node_ids : np.ndarray (ndata)</span>
+<span class="sd">       The node ids of the data nodes in the network.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    eliminate_var_ids : list</span>
+<span class="sd">       A list of labels of variables to be eliminated. Labels associated with</span>
+<span class="sd">       evidence (data) will not be eliminated. Variables associated with data</span>
+<span class="sd">       will never be identified for elimination</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">network_node_var_ids</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">network_labels</span><span class="p">)</span>
+    <span class="n">nvars_to_query</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">query_labels</span><span class="p">)</span>
+    <span class="n">query_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">nvars_to_query</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nvars_to_query</span><span class="p">):</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">label</span> <span class="o">=</span> <span class="n">query_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">network_labels</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">label</span> <span class="o">==</span> <span class="n">network_labels</span><span class="p">[</span><span class="n">jj</span><span class="p">]:</span>
+                <span class="n">query_ids</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">jj</span>
+                <span class="n">found</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">break</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">found</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;query label </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s1"> was not found in network_labels &#39;</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">network_labels</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">evidence_node_ids</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">intersect1d</span><span class="p">(</span><span class="n">query_ids</span><span class="p">,</span> <span class="n">evidence_node_ids</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="n">query_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">query_ids</span><span class="p">,</span> <span class="n">evidence_node_ids</span><span class="p">))</span>
+
+    <span class="n">eliminate_node_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">setdiff1d</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">network_labels</span><span class="p">)),</span> <span class="n">query_ids</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">eliminate_node_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">eliminate_var_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">network_node_var_ids</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">eliminate_node_ids</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">eliminate_var_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">eliminate_var_ids</span>
+
+
+<span class="k">def</span> <span class="nf">get_var_ids_to_eliminate</span><span class="p">(</span><span class="n">network_ids</span><span class="p">,</span> <span class="n">network_labels</span><span class="p">,</span> <span class="n">query_labels</span><span class="p">,</span>
+                             <span class="n">evidence_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the ids of variables in a network which are not being queried.</span>
+<span class="sd">    This function will always exclude from elimination any ids which are in</span>
+<span class="sd">    evidence_ids.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    network_ids : np.ndarray (nnodes)</span>
+<span class="sd">        The integer ids of each nodes in the network.</span>
+
+<span class="sd">    network_labels: list (nnodes)</span>
+<span class="sd">       A list of strings containing the names of each node in the network</span>
+
+<span class="sd">    query_labels : list (nqueries)</span>
+<span class="sd">        A list of strings containing the variable labels which must remain</span>
+<span class="sd">        after elimination. nqueries&lt;=nnodes. The network labels not in this</span>
+<span class="sd">        list will be identified for elimination from the scope of the network.</span>
+<span class="sd">        This list must not contain nodes associated with data.</span>
+
+<span class="sd">    evidence_ids : np.ndarray (ndata)</span>
+<span class="sd">       The variable ids of the data in the network. Note the variable ids</span>
+<span class="sd">       are not the same as the node ids. Each node can have multiple variables.</span>
+
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    eliminate_ids : list</span>
+<span class="sd">       A list of labels of variables to be eliminated. Labels associated with</span>
+<span class="sd">       evidence (data) will not be eliminated. Variables associated with data</span>
+<span class="sd">       will never be identified for elimination</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">network_ids</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">network_labels</span><span class="p">)</span>
+    <span class="n">nvars_to_query</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">query_labels</span><span class="p">)</span>
+    <span class="n">query_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">nvars_to_query</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nvars_to_query</span><span class="p">):</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">label</span> <span class="o">=</span> <span class="n">query_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">network_labels</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">label</span> <span class="o">==</span> <span class="n">network_labels</span><span class="p">[</span><span class="n">jj</span><span class="p">]:</span>
+                <span class="n">query_ids</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">network_ids</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span>
+                <span class="n">found</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">break</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">found</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;query label </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s1"> was not found in network_labels &#39;</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">network_labels</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">evidence_ids</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">intersect1d</span><span class="p">(</span><span class="n">query_ids</span><span class="p">,</span> <span class="n">evidence_ids</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="n">query_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">query_ids</span><span class="p">,</span> <span class="n">evidence_ids</span><span class="p">))</span>
+
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">network_ids</span><span class="p">,</span> <span class="n">query_ids</span><span class="p">)</span>
+    <span class="n">eliminate_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">network_ids</span><span class="p">)[</span><span class="o">~</span><span class="n">mask</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">eliminate_ids</span>
+
+
+<span class="k">def</span> <span class="nf">get_nparams_of_nodes</span><span class="p">(</span><span class="n">vands</span><span class="p">):</span>
+    <span class="n">num_nodes</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">vands</span><span class="p">)</span>
+    <span class="n">nparams</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">vands</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_nodes</span><span class="p">)])</span>
+    <span class="k">return</span> <span class="n">nparams</span>
+
+
+<span class="k">def</span> <span class="nf">basis_matrix_cols</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">degree</span><span class="p">):</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">total_degree_space_dimension</span>
+    <span class="n">ncols</span> <span class="o">=</span> <span class="n">total_degree_space_dimension</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">degree</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ncols</span>
+
+
+<span class="k">def</span> <span class="nf">get_cpd_block_diagonal_linear_matrix</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">node_index</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the mathrix :math:`A` from the conditional probability density</span>
+
+<span class="sd">    .. math:: \mathbb{P}(\theta_i\mid \mathrm{pa}(theta_i))\sim\mathcal{A\theta+b,\Sigma_v}</span>
+
+<span class="sd">    The graph must have edges with the attribute ``cpd_scale`` which is</span>
+<span class="sd">    either a constant or a np.ndarray (nparams) or a</span>
+<span class="sd">    np.ndarray(nparams,nchild_params)</span>
+
+<span class="sd">    if ``cpd_scale`` is a constant or 1D array</span>
+<span class="sd">    ``A=cpd_scale*np.eye(nparams,nchild_params)`` otherwise ``A=cpd_scale``</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    graph : nx.DiGraph</span>
+<span class="sd">        A networkx directed acyclic graph</span>
+
+<span class="sd">    node_index : integer</span>
+<span class="sd">        The index of the node in the graph corresponding to the variable</span>
+<span class="sd">        :math:`\theta_i`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Amat : np.ndarray (nparams,nchild_params)</span>
+<span class="sd">        A matrix relating the</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">nx</span><span class="o">.</span><span class="n">get_edge_attributes</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="s1">&#39;cpd_scale&#39;</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="n">child_indices</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">predecessors</span><span class="p">(</span><span class="n">node_index</span><span class="p">))</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">child_indices</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">Amat_blocks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">node_nparams</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_index</span><span class="p">][</span><span class="s2">&quot;nparams&quot;</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">child_indices</span><span class="p">:</span>
+        <span class="n">cpd_scale</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">edges</span><span class="p">[</span><span class="n">child</span><span class="p">,</span> <span class="n">node_index</span><span class="p">][</span><span class="s1">&#39;cpd_scale&#39;</span><span class="p">]</span>
+        <span class="n">child_nparams</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">child</span><span class="p">][</span><span class="s2">&quot;nparams&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">cpd_scale</span><span class="p">)</span> <span class="ow">or</span> <span class="n">cpd_scale</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">Amat_blocks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">cpd_scale</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">node_nparams</span><span class="p">,</span> <span class="n">child_nparams</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">cpd_scale</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="n">node_nparams</span><span class="p">,</span> <span class="n">child_nparams</span><span class="p">)</span>
+            <span class="n">Amat_blocks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cpd_scale</span><span class="p">)</span>
+
+    <span class="n">Amat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="n">Amat_blocks</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Amat</span>
+
+
+<span class="k">def</span> <span class="nf">get_cpd_linear_matrix</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">node_index</span><span class="p">):</span>
+    <span class="n">child_indices</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">predecessors</span><span class="p">(</span><span class="n">node_index</span><span class="p">))</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">child_indices</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="n">Amat_blocks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">node_nparams</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_index</span><span class="p">][</span><span class="s2">&quot;nparams&quot;</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">child_indices</span><span class="p">:</span>
+        <span class="n">cpd_scale</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">edges</span><span class="p">[</span><span class="n">child</span><span class="p">,</span> <span class="n">node_index</span><span class="p">][</span><span class="s1">&#39;cpd_scale&#39;</span><span class="p">]</span>
+        <span class="n">child_nparams</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">child</span><span class="p">][</span><span class="s2">&quot;nparams&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">cpd_scale</span><span class="p">)</span> <span class="ow">or</span> <span class="n">cpd_scale</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">Amat_blocks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">cpd_scale</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">node_nparams</span><span class="p">,</span> <span class="n">child_nparams</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">cpd_scale</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="n">node_nparams</span><span class="p">,</span> <span class="n">child_nparams</span><span class="p">)</span>
+            <span class="n">Amat_blocks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cpd_scale</span><span class="p">)</span>
+
+    <span class="n">Amat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="n">Amat_blocks</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Amat</span><span class="p">,</span> <span class="n">child_indices</span>
+
+
+<span class="k">def</span> <span class="nf">get_cpd_prior_covariance</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">node_index</span><span class="p">):</span>
+    <span class="n">prior_scale</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_index</span><span class="p">][</span><span class="s2">&quot;prior_scale&quot;</span><span class="p">]</span>
+    <span class="n">nparams</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_index</span><span class="p">][</span><span class="s2">&quot;nparams&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">prior_scale</span><span class="p">)</span> <span class="ow">or</span> <span class="n">prior_scale</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">prior_cov</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">)</span><span class="o">*</span><span class="n">prior_scale</span><span class="o">**</span><span class="mi">2</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">prior_scale</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="n">nparams</span><span class="p">,</span> <span class="n">nparams</span><span class="p">)</span>
+        <span class="n">prior_cov</span> <span class="o">=</span> <span class="n">prior_scale</span>
+    <span class="k">return</span> <span class="n">prior_cov</span>
+
+
+<span class="k">def</span> <span class="nf">get_gaussian_factor_in_canonical_form</span><span class="p">(</span><span class="n">Amat</span><span class="p">,</span> <span class="n">bvec</span><span class="p">,</span> <span class="n">cov2g1</span><span class="p">,</span>
+                                          <span class="n">var1_ids</span><span class="p">,</span> <span class="n">nvars_per_var1</span><span class="p">,</span>
+                                          <span class="n">var2_ids</span><span class="p">,</span> <span class="n">nvars_per_var2</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Todo consider massing inv(cov2g1) to function so can leverage structure</span>
+<span class="sd">    in matrix and not to inversion inside convert_conditional function</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">bvec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">bvec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">Amat</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">precision_matrix</span><span class="p">,</span> <span class="n">shift</span><span class="p">,</span> <span class="n">normalization</span><span class="p">,</span> <span class="n">var_ids</span><span class="p">,</span> <span class="n">nvars_per_var</span> <span class="o">=</span> \
+        <span class="n">convert_conditional_probability_density_to_canonical_form</span><span class="p">(</span>
+            <span class="n">Amat</span><span class="p">,</span> <span class="n">bvec</span><span class="p">,</span> <span class="n">cov2g1</span><span class="p">,</span> <span class="n">var1_ids</span><span class="p">,</span> <span class="n">nvars_per_var1</span><span class="p">,</span>
+            <span class="n">var2_ids</span><span class="p">,</span> <span class="n">nvars_per_var2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">GaussianFactor</span><span class="p">(</span>
+        <span class="n">precision_matrix</span><span class="p">,</span> <span class="n">shift</span><span class="p">,</span> <span class="n">normalization</span><span class="p">,</span> <span class="n">var_ids</span><span class="p">,</span> <span class="n">nvars_per_var</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">build_hierarchical_polynomial_network</span><span class="p">(</span>
+        <span class="n">prior_covs</span><span class="p">,</span> <span class="n">cpd_scales</span><span class="p">,</span> <span class="n">basis_matrix_funcs</span><span class="p">,</span>
+        <span class="n">nparams</span><span class="p">,</span> <span class="n">model_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    prior_scales : list</span>
+<span class="sd">        List of diagonal matrices (represented by either a scalar for a</span>
+<span class="sd">        constant diagonal or a vector)</span>
+
+<span class="sd">    cpd_scales : list</span>
+<span class="sd">        List of diagonal matrices (represented by either a scalar for a</span>
+<span class="sd">        constant diagonal or a vector)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nmodels</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nparams</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">basis_matrix_funcs</span><span class="p">)</span> <span class="o">==</span> <span class="n">nmodels</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">prior_covs</span><span class="p">)</span> <span class="o">==</span> <span class="n">nmodels</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">cpd_scales</span><span class="p">)</span> <span class="o">==</span> <span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span>
+
+    <span class="k">if</span> <span class="n">model_labels</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">model_labels</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;M_</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">ii</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
+    <span class="n">ii</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span>
+        <span class="n">ii</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">model_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">prior_scale</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]),</span>
+        <span class="n">nparams</span><span class="o">=</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+        <span class="n">basis_matrix_func</span><span class="o">=</span><span class="n">basis_matrix_funcs</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+    <span class="c1"># todo pass in list of nparams</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nmodels</span><span class="p">):</span>
+        <span class="n">prior_scale</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+            <span class="nb">max</span><span class="p">(</span><span class="mf">1e-8</span><span class="p">,</span> <span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">-</span> <span class="n">cpd_scales</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span>
+            <span class="n">ii</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">model_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">prior_scale</span><span class="o">=</span><span class="n">prior_scale</span><span class="p">,</span>
+            <span class="n">nparams</span><span class="o">=</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">basis_matrix_func</span><span class="o">=</span><span class="n">basis_matrix_funcs</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_edges_from</span><span class="p">(</span>
+        <span class="p">[(</span><span class="n">ii</span><span class="p">,</span> <span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;cpd_scale&#39;</span><span class="p">:</span> <span class="n">cpd_scales</span><span class="p">[</span><span class="n">ii</span><span class="p">]})</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)])</span>
+
+    <span class="n">network</span> <span class="o">=</span> <span class="n">GaussianNetwork</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">network</span>
+
+
+<div class="viewcode-block" id="GaussianNetwork"><a class="viewcode-back" href="../../../api/pyapprox.bayes.GaussianNetwork.html#pyapprox.bayes.GaussianNetwork">[docs]</a><span class="k">class</span> <span class="nc">GaussianNetwork</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A Bayesian network of linear Gaussian models.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Note</span>
+    <span class="c1"># Currently only entire (dataless) nodes can be marginalized.</span>
+    <span class="c1"># self.evidence_ids is defined to be [k-1,k-1+ndata] where k is the number</span>
+    <span class="c1"># of nodes (variable indexing starts at 0). k&lt;= number of vars associated</span>
+    <span class="c1"># with dataless nodes. For example if k=2 and each node has two</span>
+    <span class="c1"># vars number of dataless variables is 4, yet self.evidence_ids starts at 2.</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Constructor.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        graph : py:class:`networkx.DiGraph`</span>
+<span class="sd">            A directed acyclic graph</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">construct_dataless_network</span><span class="p">()</span>
+
+<div class="viewcode-block" id="GaussianNetwork.construct_dataless_network"><a class="viewcode-back" href="../../../api/pyapprox.bayes.GaussianNetwork.html#pyapprox.bayes.GaussianNetwork.construct_dataless_network">[docs]</a>    <span class="k">def</span> <span class="nf">construct_dataless_network</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">nnodes</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span> <span class="o">==</span> <span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span> <span class="ow">and</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">bvecs</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">nnodes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Amats</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpd_covs</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">nnodes</span><span class="p">,</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">nnodes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">node_childs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_nvars</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">nnodes</span><span class="p">,</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">nnodes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">node_labels</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_ids</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">nnodes</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nnodes</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">node_var_ids</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nnetwork_vars</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="c1"># Extract node information from graph</span>
+            <span class="c1"># nparams = self.graph.nodes[ii][&#39;nparams&#39;]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">Amats</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;cpd_mat&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bvecs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;cpd_mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">node_childs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">predecessors</span><span class="p">(</span><span class="n">ii</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cpd_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;cpd_cov&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">node_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;label&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">node_nvars</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpd_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">node_var_ids</span> <span class="o">+=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span>
+                <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nnetwork_vars</span><span class="p">,</span>
+                      <span class="bp">self</span><span class="o">.</span><span class="n">nnetwork_vars</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">node_nvars</span><span class="p">[</span><span class="n">ii</span><span class="p">]))]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">nnetwork_vars</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_nvars</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+
+            <span class="c1"># check the validity of the graph</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_childs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_childs</span><span class="p">[</span><span class="n">ii</span><span class="p">]:</span>
+                    <span class="k">assert</span> <span class="n">child</span> <span class="o">&lt;</span> <span class="n">ii</span></div>
+
+<div class="viewcode-block" id="GaussianNetwork.num_vars"><a class="viewcode-back" href="../../../api/pyapprox.bayes.GaussianNetwork.html#pyapprox.bayes.GaussianNetwork.num_vars">[docs]</a>    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return number of uncertain variables in the network</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        nnetwork_vars : integer</span>
+<span class="sd">            The number of uncertain variables in the network</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nnetwork_vars</span></div>
+
+<div class="viewcode-block" id="GaussianNetwork.convert_to_compact_factors"><a class="viewcode-back" href="../../../api/pyapprox.bayes.GaussianNetwork.html#pyapprox.bayes.GaussianNetwork.convert_to_compact_factors">[docs]</a>    <span class="k">def</span> <span class="nf">convert_to_compact_factors</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the factors of the network</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">factors</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">node_childs</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">var_ids1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+                    <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">node_var_ids</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_childs</span><span class="p">[</span><span class="n">ii</span><span class="p">]])</span>
+                <span class="n">nvars_per_var1</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span> <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">var_ids1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])]</span>
+                <span class="n">nvars_per_var2</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span> <span class="k">for</span> <span class="n">kk</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">node_nvars</span><span class="p">[</span><span class="n">ii</span><span class="p">])]</span>
+                <span class="n">cpd</span> <span class="o">=</span> <span class="n">get_gaussian_factor_in_canonical_form</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">Amats</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">bvecs</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpd_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+                    <span class="n">var_ids1</span><span class="p">,</span> <span class="n">nvars_per_var1</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">node_var_ids</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">nvars_per_var2</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cpd</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Leaf nodes - no children (predecessors in networkx)</span>
+                <span class="c1"># TODO: replace inverse by method that takes advantage of matrix</span>
+                <span class="c1"># structure, e.g. diagonal, constant diagonal</span>
+                <span class="n">precision_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cpd_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+                <span class="n">mean</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bvecs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+                <span class="n">shift</span> <span class="o">=</span> <span class="n">precision_matrix</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">mean</span><span class="p">)</span>
+                <span class="n">normalization</span> <span class="o">=</span> \
+                    <span class="n">compute_gaussian_pdf_canonical_form_normalization</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">bvecs</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">shift</span><span class="p">,</span> <span class="n">precision_matrix</span><span class="p">)</span>
+                <span class="n">nvars_per_var</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span> <span class="k">for</span> <span class="n">kk</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">node_nvars</span><span class="p">[</span><span class="n">ii</span><span class="p">])]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">GaussianFactor</span><span class="p">(</span>
+                    <span class="n">precision_matrix</span><span class="p">,</span> <span class="n">shift</span><span class="p">,</span> <span class="n">normalization</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">node_var_ids</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">nvars_per_var</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="GaussianNetwork.add_data_to_network"><a class="viewcode-back" href="../../../api/pyapprox.bayes.GaussianNetwork.html#pyapprox.bayes.GaussianNetwork.add_data_to_network">[docs]</a>    <span class="k">def</span> <span class="nf">add_data_to_network</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data_cpd_mats</span><span class="p">,</span> <span class="n">data_cpd_vecs</span><span class="p">,</span>
+                            <span class="n">noise_covariances</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Todo pass in argument containing nodes which have data for situations</span>
+<span class="sd">        when not all nodes have data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">nnodes</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">data_cpd_mats</span><span class="p">)</span> <span class="o">==</span> <span class="n">nnodes</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">noise_covariances</span><span class="p">)</span> <span class="o">==</span> <span class="n">nnodes</span>
+        <span class="c1"># self.build_matrix_functions = build_matrix_functions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ndata</span> <span class="o">=</span> <span class="p">[</span><span class="n">data_cpd_mats</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+
+        <span class="c1"># retain copy of old dataless graph</span>
+        <span class="n">dataless_graph</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">)</span>
+        <span class="n">kk</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span>
+        <span class="n">dataless_nodes_nvars</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">node_nvars</span><span class="p">)</span>
+        <span class="n">jj</span> <span class="o">=</span> <span class="n">dataless_nodes_nvars</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">dataless_graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="c1"># Note: this assumes that every node has data. This can be relaxed</span>
+            <span class="k">assert</span> <span class="n">data_cpd_mats</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> \
+                <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;nparams&#39;</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="n">data_cpd_vecs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndata</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="n">noise_covariances</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndata</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">node_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">kk</span><span class="p">)</span>
+            <span class="n">label</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;label&#39;</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;_data&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">kk</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">ii</span><span class="p">,</span> <span class="n">kk</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">Amats</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data_cpd_mats</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bvecs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data_cpd_vecs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">squeeze</span><span class="p">())</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">node_childs</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">ii</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cpd_covs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">noise_covariances</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">node_labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">node_nvars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndata</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">node_var_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">jj</span><span class="p">,</span> <span class="n">jj</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">ndata</span><span class="p">[</span><span class="n">ii</span><span class="p">]))</span>
+            <span class="n">jj</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndata</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="n">kk</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">evidence_var_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">dataless_nodes_nvars</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">evidence_node_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+            <span class="nb">len</span><span class="p">(</span><span class="n">dataless_graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">),</span> <span class="n">kk</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="GaussianNetwork.assemble_evidence"><a class="viewcode-back" href="../../../api/pyapprox.bayes.GaussianNetwork.html#pyapprox.bayes.GaussianNetwork.assemble_evidence">[docs]</a>    <span class="k">def</span> <span class="nf">assemble_evidence</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Assemble the evidence in the form needed to condition the network</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        evidence : np.ndarray (nevidence)</span>
+<span class="sd">            The data used to condition the network</span>
+
+<span class="sd">        evidence_var_ids : np.ndarray (nevidence)</span>
+<span class="sd">            The variable ids containing each data</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Relies on order vandermondes are added in network.add_data_to_network</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndata</span><span class="p">)</span>
+        <span class="n">nevidence</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">([</span><span class="n">d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">])</span>
+        <span class="k">assert</span> <span class="n">nevidence</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">evidence_var_ids</span><span class="p">)</span>
+        <span class="n">evidence</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nevidence</span><span class="p">))</span>
+        <span class="n">kk</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)):</span>
+            <span class="k">assert</span> <span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span>
+                <span class="n">ii</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                <span class="n">evidence</span><span class="p">[</span><span class="n">kk</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="n">jj</span><span class="p">]</span>
+                <span class="n">kk</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">evidence</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">evidence_var_ids</span></div></div>
+
+
+<span class="k">def</span> <span class="nf">sum_product_eliminate_variable</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">var_id_to_eliminate</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Marginalize out a variable from a multivariate Gaussian defined by</span>
+<span class="sd">    the product of the gaussian variables in factors.</span>
+
+<span class="sd">    Algorithm 9.1 in Koller</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    factors : list (num_factors)</span>
+<span class="sd">        List of gaussian variables in CanonicalForm</span>
+
+<span class="sd">    var_id_to_eliminate : integer</span>
+<span class="sd">        The variable to eliminate from each of the factors</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    fpp_tau : list</span>
+<span class="sd">        List of gaussian variables in CanonicalForm. The first entries are</span>
+<span class="sd">        all the factors that did not contain the variable_to_eliminate on</span>
+<span class="sd">        entry to this function. The last entry is the multivariate gaussian</span>
+<span class="sd">        which is based upon the product of all factors that did contain the</span>
+<span class="sd">        elimination variable for which the elimination var is then marginalized</span>
+<span class="sd">        out</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Get list of factors which contain the variable to eliminate</span>
+    <span class="n">fp</span><span class="p">,</span> <span class="n">fpp</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">factor</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">var_id_to_eliminate</span> <span class="ow">in</span> <span class="n">factor</span><span class="o">.</span><span class="n">var_ids</span><span class="p">:</span>
+            <span class="n">fp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">factor</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fpp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">factor</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">fpp</span>
+
+    <span class="c1"># Of the factors which contain the variable to eliminate marginalize</span>
+    <span class="c1"># out that variable from a multivariate Gaussian of all factors</span>
+    <span class="c1"># containing that variable</span>
+
+    <span class="c1"># construct multivariate Gaussian distribution in canonical form</span>
+    <span class="n">psi</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">fp</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">fp</span><span class="p">)):</span>
+        <span class="n">psi</span> <span class="o">*=</span> <span class="n">fp</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span>
+
+    <span class="c1"># marginalize out all data associated with var_to_eliminate</span>
+    <span class="n">tau</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">psi</span><span class="p">)</span>
+    <span class="n">tau</span><span class="o">.</span><span class="n">marginalize</span><span class="p">([</span><span class="n">var_id_to_eliminate</span><span class="p">])</span>
+    <span class="c1"># tau = tau.reorder(ordering)</span>
+
+    <span class="c1"># Combine the marginalized factors and the factors which did</span>
+    <span class="c1"># not originally contain the variable to eliminate</span>
+    <span class="k">return</span> <span class="n">fpp</span><span class="o">+</span><span class="p">[</span><span class="n">tau</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">sum_product_variable_elimination</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">var_ids_to_eliminate</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Marginalize out a list of variables from the multivariate Gaussian variable</span>
+<span class="sd">    which is the product of all factors.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># nvars_to_eliminate = len(var_ids_to_eliminate)</span>
+
+    <span class="n">fup</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">factors</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">var_id</span> <span class="ow">in</span> <span class="n">var_ids_to_eliminate</span><span class="p">:</span>
+        <span class="n">fup</span> <span class="o">=</span> <span class="n">sum_product_eliminate_variable</span><span class="p">(</span><span class="n">fup</span><span class="p">,</span> <span class="n">var_id</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">fup</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;no factors left after elimination&quot;</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">fup</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">var_ids</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;factor k = </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">fup</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">precision_matrix</span><span class="p">)</span>
+
+    <span class="n">factor_ret</span> <span class="o">=</span> <span class="n">fup</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">fup</span><span class="p">)):</span>
+        <span class="n">factor_ret</span> <span class="o">*=</span> <span class="n">fup</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">factor_ret</span>
+
+
+<span class="k">def</span> <span class="nf">cond_prob_variable_elimination</span><span class="p">(</span><span class="n">network</span><span class="p">,</span> <span class="n">query_labels</span><span class="p">,</span> <span class="n">evidence_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                   <span class="n">evidence</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Marginalize out variables not in query labels.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">eliminate_ids</span> <span class="o">=</span> <span class="n">get_var_ids_to_eliminate_from_node_query</span><span class="p">(</span>
+        <span class="n">network</span><span class="o">.</span><span class="n">node_var_ids</span><span class="p">,</span> <span class="n">network</span><span class="o">.</span><span class="n">node_labels</span><span class="p">,</span> <span class="n">query_labels</span><span class="p">,</span> <span class="n">evidence_ids</span><span class="p">)</span>
+
+    <span class="n">factors</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">factors</span><span class="p">)</span>
+
+    <span class="c1"># Condition each node on available data</span>
+    <span class="k">if</span> <span class="n">evidence</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">factor</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">:</span>
+            <span class="n">factor</span><span class="o">.</span><span class="n">condition</span><span class="p">(</span><span class="n">evidence_ids</span><span class="p">,</span> <span class="n">evidence</span><span class="p">)</span>
+
+    <span class="c1"># Marginalize out all unrequested variables</span>
+    <span class="n">factor_ret</span> <span class="o">=</span> <span class="n">sum_product_variable_elimination</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">eliminate_ids</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">factor_ret</span>
+
+
+<span class="k">def</span> <span class="nf">build_peer_polynomial_network</span><span class="p">(</span><span class="n">prior_covs</span><span class="p">,</span> <span class="n">cpd_scales</span><span class="p">,</span> <span class="n">basis_matrix_funcs</span><span class="p">,</span>
+                                  <span class="n">nparams</span><span class="p">,</span> <span class="n">model_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    All list arguments must contain high-fidelity info in last entry</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
+    <span class="n">nnodes</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">prior_covs</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">model_labels</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">model_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s1">&#39;M</span><span class="si">{</span><span class="n">ii</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">model_labels</span><span class="p">)</span> <span class="o">==</span> <span class="n">nnodes</span>
+    <span class="n">cpd_mats</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">+</span><span class="p">[</span>
+        <span class="n">cpd_scales</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
+    <span class="n">prior_means</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span>
+            <span class="n">ii</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">model_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+            <span class="n">cpd_cov</span><span class="o">=</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">]),</span>
+            <span class="n">nparams</span><span class="o">=</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">cpd_mat</span><span class="o">=</span><span class="n">cpd_mats</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+            <span class="n">cpd_mean</span><span class="o">=</span><span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="mi">1</span><span class="p">)))</span>
+
+    <span class="n">ii</span> <span class="o">=</span> <span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span>
+    <span class="n">cov</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span><span class="o">*</span><span class="nb">max</span><span class="p">(</span><span class="mf">1e-8</span><span class="p">,</span> <span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">cpd_scales</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">prior_covs</span><span class="p">[:</span><span class="n">ii</span><span class="p">]))</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span>
+        <span class="n">ii</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">model_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">cpd_cov</span><span class="o">=</span><span class="n">cov</span><span class="p">,</span> <span class="n">nparams</span><span class="o">=</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+        <span class="n">cpd_mat</span><span class="o">=</span><span class="n">cpd_mats</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+        <span class="n">cpd_mean</span><span class="o">=</span><span class="p">(</span><span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">cpd_scales</span><span class="p">[:</span><span class="n">ii</span><span class="p">],</span> <span class="n">prior_means</span><span class="p">[:</span><span class="n">ii</span><span class="p">]))</span> <span class="o">*</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="mi">1</span><span class="p">)))</span>
+
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_edges_from</span><span class="p">(</span>
+        <span class="p">[(</span><span class="n">ii</span><span class="p">,</span> <span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;cpd_cov&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span><span class="o">*</span><span class="n">cpd_scales</span><span class="p">[</span><span class="n">ii</span><span class="p">]})</span>
+         <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">)])</span>
+
+    <span class="n">network</span> <span class="o">=</span> <span class="n">GaussianNetwork</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">network</span>
+
+
+<span class="k">def</span> <span class="nf">nonlinear_constraint_peer</span><span class="p">(</span><span class="n">covs</span><span class="p">,</span> <span class="n">scales</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    All list arguments must contain high-fidelity info in last entry</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cpd_cov</span> <span class="o">=</span> <span class="p">[</span><span class="n">covs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">scales</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">covs</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">-</span><span class="mf">1e-7</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">cpd_cov</span>  <span class="c1"># must be &gt; 0 to ensure cpd_cov is positive</span>
+
+
+<span class="k">def</span> <span class="nf">nonlinear_constraint_hierarchical</span><span class="p">(</span><span class="n">covs</span><span class="p">,</span> <span class="n">scales</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    All list arguments must contain model info ordered lowest-highest fidelity</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cpd_cov</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">scales</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">scales</span><span class="p">)):</span>
+        <span class="n">cpd_cov</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span> <span class="o">=</span> <span class="n">covs</span><span class="p">[</span><span class="n">dim</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">scales</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">covs</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span> <span class="o">-</span> <span class="mf">1e-8</span>
+    <span class="k">return</span> <span class="n">cpd_cov</span>  <span class="c1"># must be &gt; 0 to ensure cpd_cov is positive</span>
+
+
+<span class="k">def</span> <span class="nf">infer</span><span class="p">(</span><span class="n">build_network</span><span class="p">,</span> <span class="n">scales</span><span class="p">,</span> <span class="n">samples_train</span><span class="p">,</span> <span class="n">data_train</span><span class="p">,</span> <span class="n">noise_std</span><span class="p">):</span>
+
+    <span class="n">network</span> <span class="o">=</span> <span class="n">build_network</span><span class="p">(</span><span class="n">scales</span><span class="p">)</span>
+    <span class="n">network</span><span class="o">.</span><span class="n">add_data_to_network</span><span class="p">(</span><span class="n">samples_train</span><span class="p">,</span> <span class="n">noise_std</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">network</span><span class="o">.</span><span class="n">convert_to_compact_factors</span><span class="p">()</span>
+    <span class="n">evidence</span><span class="p">,</span> <span class="n">evidence_ids</span> <span class="o">=</span> <span class="n">network</span><span class="o">.</span><span class="n">assemble_evidence</span><span class="p">(</span><span class="n">data_train</span><span class="p">)</span>
+
+    <span class="c1"># high fidelity model is always last label of models. It will not</span>
+    <span class="c1"># be last lable in graph. These will be data</span>
+    <span class="n">hf_label</span> <span class="o">=</span> <span class="n">network</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">samples_train</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;label&#39;</span><span class="p">]</span>
+
+    <span class="n">factor_post</span> <span class="o">=</span> <span class="n">cond_prob_variable_elimination</span><span class="p">(</span>
+        <span class="n">network</span><span class="p">,</span> <span class="p">[</span><span class="n">hf_label</span><span class="p">],</span> <span class="n">evidence_ids</span><span class="o">=</span><span class="n">evidence_ids</span><span class="p">,</span> <span class="n">evidence</span><span class="o">=</span><span class="n">evidence</span><span class="p">)</span>
+    <span class="n">gauss_post</span> <span class="o">=</span> <span class="n">convert_gaussian_from_canonical_form</span><span class="p">(</span>
+        <span class="n">factor_post</span><span class="o">.</span><span class="n">precision_matrix</span><span class="p">,</span> <span class="n">factor_post</span><span class="o">.</span><span class="n">shift</span><span class="p">)</span>
+
+    <span class="n">factor_prior</span> <span class="o">=</span> <span class="n">cond_prob_variable_elimination</span><span class="p">(</span><span class="n">network</span><span class="p">,</span> <span class="p">[</span><span class="n">hf_label</span><span class="p">],</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">gauss_prior</span> <span class="o">=</span> <span class="n">convert_gaussian_from_canonical_form</span><span class="p">(</span>
+        <span class="n">factor_prior</span><span class="o">.</span><span class="n">precision_matrix</span><span class="p">,</span> <span class="n">factor_prior</span><span class="o">.</span><span class="n">shift</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">gauss_post</span><span class="p">,</span> <span class="n">gauss_prior</span><span class="p">,</span> <span class="n">network</span>
+
+
+<span class="k">def</span> <span class="nf">get_heterogeneous_data</span><span class="p">(</span><span class="n">ndata</span><span class="p">,</span> <span class="n">noise_std</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">f1</span><span class="p">(</span><span class="n">x</span><span class="p">):</span> <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span><span class="o">+</span><span class="mf">0.1</span><span class="o">*</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:])[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="k">def</span> <span class="nf">f2</span><span class="p">(</span><span class="n">x</span><span class="p">):</span> <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="mf">.5</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mf">0.5</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+    <span class="k">def</span> <span class="nf">f3</span><span class="p">(</span><span class="n">x</span><span class="p">):</span> <span class="k">return</span> <span class="p">(</span><span class="n">f2</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">T</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">x</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">XX</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">ndata</span><span class="p">[</span><span class="mi">0</span><span class="p">]))]</span><span class="o">+</span><span class="p">[</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">ndata</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]</span>
+
+    <span class="n">funcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">f1</span><span class="p">,</span> <span class="n">f2</span><span class="p">,</span> <span class="n">f3</span><span class="p">]</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span> <span class="o">+</span> <span class="n">e</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">xx</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">funcs</span><span class="p">,</span> <span class="n">XX</span><span class="p">,</span> <span class="n">ndata</span><span class="p">,</span> <span class="n">noise_std</span><span class="p">)]</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">XX</span><span class="p">]</span>
+
+    <span class="n">validation_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10001</span><span class="p">)</span>
+    <span class="n">validation_data</span> <span class="o">=</span> <span class="n">funcs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">](</span><span class="n">validation_samples</span><span class="p">)</span>
+
+    <span class="n">ranges</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span>
+
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span>
+            <span class="n">ndata</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">ii</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">ndata</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">samples</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">validation_samples</span><span class="p">,</span> <span class="n">validation_data</span><span class="p">,</span> <span class="n">ranges</span>
+
+
+<span class="k">def</span> <span class="nf">get_total_degree_polynomials</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">,</span> <span class="n">degrees</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="nb">list</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">degrees</span><span class="p">)</span>
+    <span class="n">polys</span><span class="p">,</span> <span class="n">nparams</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">degrees</span><span class="p">)):</span>
+        <span class="n">poly</span> <span class="o">=</span> <span class="n">PolynomialChaosExpansion</span><span class="p">()</span>
+        <span class="n">var_trans</span> <span class="o">=</span> <span class="n">AffineTransform</span><span class="p">(</span>
+            <span class="n">univariate_variables</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+        <span class="n">poly_opts</span> <span class="o">=</span> <span class="n">define_poly_options_from_variable_transformation</span><span class="p">(</span><span class="n">var_trans</span><span class="p">)</span>
+        <span class="n">poly</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">poly_opts</span><span class="p">)</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">compute_hyperbolic_indices</span><span class="p">(</span>
+            <span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span> <span class="n">degrees</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="n">poly</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+        <span class="n">polys</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span>
+        <span class="n">nparams</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">polys</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">nparams</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">plot_1d_lvn_approx</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">nmodels</span><span class="p">,</span> <span class="n">hf_vandermonde</span><span class="p">,</span> <span class="n">gauss_post</span><span class="p">,</span> <span class="n">gauss_prior</span><span class="p">,</span>
+                       <span class="n">axs</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">ranges</span><span class="p">,</span> <span class="n">hf_data_mean</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                       <span class="n">colors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mean_label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$\mathrm</span><span class="si">{MFNet}</span><span class="s1">$&#39;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">samples</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">samples</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Cannot plot num_vars&gt;1&#39;</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="n">xx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">101</span><span class="p">)</span>
+    <span class="n">xx</span> <span class="o">=</span> <span class="p">(</span><span class="n">ranges</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">*</span><span class="n">xx</span><span class="o">+</span><span class="n">ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">hf_vandermonde</span><span class="p">(</span><span class="n">xx</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:])</span>
+    <span class="n">approx_post_covariance</span> <span class="o">=</span> <span class="n">basis_matrix</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
+        <span class="n">gauss_post</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">basis_matrix</span><span class="o">.</span><span class="n">T</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">approx_post_covariance</span><span class="p">)</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&gt;</span>
+            <span class="mi">0</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">approx_post_covariance</span><span class="p">)</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+    <span class="n">approx_prior_covariance</span> <span class="o">=</span> <span class="n">basis_matrix</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
+        <span class="n">gauss_prior</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">basis_matrix</span><span class="o">.</span><span class="n">T</span><span class="p">))</span>
+    <span class="c1"># print (approx_covariance.shape,gauss_post.get_covariance().shape)</span>
+
+    <span class="n">approx_post_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">gauss_post</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+    <span class="n">approx_prior_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span> <span class="n">gauss_prior</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">hf_data_mean</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">approx_post_mean</span> <span class="o">+=</span> <span class="n">hf_data_mean</span>
+        <span class="n">approx_prior_mean</span> <span class="o">+=</span> <span class="n">hf_data_mean</span>
+
+    <span class="n">approx_post_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">approx_post_covariance</span><span class="p">))</span>
+    <span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">approx_post_mean</span><span class="p">,</span> <span class="s1">&#39;--g&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">mean_label</span><span class="p">)</span>
+    <span class="n">axs</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">approx_post_mean</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">approx_post_std</span><span class="p">,</span>
+                     <span class="n">approx_post_mean</span><span class="o">+</span><span class="mi">2</span><span class="o">*</span><span class="n">approx_post_std</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;green&#39;</span><span class="p">,</span>
+                     <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+
+    <span class="n">approx_prior_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">approx_prior_covariance</span><span class="p">))</span>
+    <span class="n">axs</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">approx_prior_mean</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">approx_prior_std</span><span class="p">,</span>
+                     <span class="n">approx_prior_mean</span><span class="o">+</span><span class="mi">2</span><span class="o">*</span><span class="n">approx_prior_std</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;black&#39;</span><span class="p">,</span>
+                     <span class="n">alpha</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">labels</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">samples</span><span class="p">)):</span>
+        <span class="n">samples</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">colors</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+                     <span class="n">c</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">labels</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+            <span class="c1"># axs.ylim([(approx_post_mean-2*approx_post_std).min(),</span>
+            <span class="c1">#          (approx_post_mean+2*approx_post_std).max()])</span>
+            <span class="c1"># axs.set_ylim([(-2*approx_prior_std).min(),(2*approx_prior_std).max()])</span>
+    <span class="n">axs</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="n">xx</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">xx</span><span class="o">.</span><span class="n">max</span><span class="p">()])</span>
+    <span class="n">axs</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">plot_peer_network</span><span class="p">(</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">ax</span><span class="p">):</span>
+    <span class="c1"># Best use with axis of (8,3) or (8,6)</span>
+    <span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;node_size&#39;</span><span class="p">:</span> <span class="mi">2000</span><span class="p">,</span> <span class="s1">&#39;width&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;arrowsize&#39;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s1">&#39;ax&#39;</span><span class="p">:</span> <span class="n">ax</span><span class="p">}</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">coords</span> <span class="o">+=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="mi">16</span><span class="p">]]</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">coords</span><span class="p">))</span>
+
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">):</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">ii</span><span class="p">,</span> <span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">nx</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+    <span class="n">labels_str</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$\theta_{</span><span class="si">%d</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">labels_str</span><span class="p">))</span>
+    <span class="n">nx</span><span class="o">.</span><span class="n">draw_networkx_labels</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">plot_diverging_network</span><span class="p">(</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">ax</span><span class="p">):</span>
+    <span class="c1"># Best use with axis of (8,3) or (8,6)</span>
+    <span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;node_size&#39;</span><span class="p">:</span> <span class="mi">2000</span><span class="p">,</span> <span class="s1">&#39;width&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;arrowsize&#39;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s1">&#39;ax&#39;</span><span class="p">:</span> <span class="n">ax</span><span class="p">}</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">coords</span> <span class="o">+=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="mi">16</span><span class="p">]]</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">coords</span><span class="p">))</span>
+
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">):</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">ii</span><span class="p">)</span>
+
+    <span class="n">nx</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+    <span class="n">labels_str</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$\theta_{</span><span class="si">%d</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">labels_str</span><span class="p">))</span>
+    <span class="n">nx</span><span class="o">.</span><span class="n">draw_networkx_labels</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">plot_peer_network_with_data</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">ax</span><span class="p">):</span>
+    <span class="n">nmodels</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span><span class="o">//</span><span class="mi">2</span>
+    <span class="c1"># Best use with axis of (8,3) or (8,6)</span>
+    <span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;node_size&#39;</span><span class="p">:</span> <span class="mi">2000</span><span class="p">,</span> <span class="s1">&#39;width&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;arrowsize&#39;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s1">&#39;ax&#39;</span><span class="p">:</span> <span class="n">ax</span><span class="p">}</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">coords</span> <span class="o">+=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="mi">16</span><span class="p">]]</span>
+    <span class="n">coords</span> <span class="o">+=</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="mi">16</span><span class="p">]))</span>
+    <span class="n">coords</span> <span class="o">+=</span> <span class="p">[[</span><span class="n">coords</span><span class="p">[</span><span class="n">nmodels</span><span class="o">//</span><span class="mi">2</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="o">/</span><span class="mi">16</span><span class="p">]]</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">coords</span><span class="p">))</span>
+
+    <span class="n">nx</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+    <span class="n">labels_str</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$\theta_{</span><span class="si">%d</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+    <span class="n">labels_str</span> <span class="o">+=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$y_{</span><span class="si">%d</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">labels_str</span><span class="p">))</span>
+    <span class="n">nx</span><span class="o">.</span><span class="n">draw_networkx_labels</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">plot_hierarchical_network</span><span class="p">(</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">ax</span><span class="p">):</span>
+    <span class="c1"># Best use with axis of (8,3) or (8,6)</span>
+    <span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;node_size&#39;</span><span class="p">:</span> <span class="mi">2000</span><span class="p">,</span> <span class="s1">&#39;width&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;arrowsize&#39;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s1">&#39;ax&#39;</span><span class="p">:</span> <span class="n">ax</span><span class="p">}</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="p">(</span><span class="n">nmodels</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="n">nmodels</span><span class="p">),</span> <span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">coords</span><span class="p">))</span>
+
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">):</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">ii</span><span class="p">,</span> <span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">nx</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+    <span class="n">labels_str</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$\theta_{</span><span class="si">%d</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">labels_str</span><span class="p">))</span>
+    <span class="n">nx</span><span class="o">.</span><span class="n">draw_networkx_labels</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">plot_hierarchical_network_network_with_data</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">ax</span><span class="p">):</span>
+    <span class="n">nmodels</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span><span class="o">//</span><span class="mi">2</span>
+    <span class="c1"># Best use with axis of (8,3) or (8,6)</span>
+    <span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;node_size&#39;</span><span class="p">:</span> <span class="mi">2000</span><span class="p">,</span> <span class="s1">&#39;width&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;arrowsize&#39;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s1">&#39;ax&#39;</span><span class="p">:</span> <span class="n">ax</span><span class="p">}</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="p">(</span><span class="n">nmodels</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="n">nmodels</span><span class="p">),</span> <span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">coords</span> <span class="o">+=</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="p">(</span><span class="n">nmodels</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="n">nmodels</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="mi">16</span><span class="p">]))</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">coords</span><span class="p">))</span>
+
+    <span class="n">nx</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+    <span class="n">labels_str</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$\theta_{</span><span class="si">%d</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+    <span class="n">labels_str</span> <span class="o">+=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$y_{</span><span class="si">%d</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">labels_str</span><span class="p">))</span>
+    <span class="n">nx</span><span class="o">.</span><span class="n">draw_networkx_labels</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">set_polynomial_ensemble_coef_from_flattened</span><span class="p">(</span><span class="n">polys</span><span class="p">,</span> <span class="n">coefs</span><span class="p">):</span>
+    <span class="n">idx1</span><span class="p">,</span> <span class="n">idx2</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">polys</span><span class="p">)):</span>
+        <span class="n">idx2</span> <span class="o">+=</span> <span class="n">polys</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">num_terms</span><span class="p">()</span>
+        <span class="n">polys</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">coefs</span><span class="p">[</span><span class="n">idx1</span><span class="p">:</span><span class="n">idx2</span><span class="p">])</span>
+        <span class="n">idx1</span> <span class="o">=</span> <span class="n">idx2</span>
+    <span class="k">return</span> <span class="n">polys</span>
+
+
+<span class="k">def</span> <span class="nf">plot_3_node_fully_connected_network</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">labels_str</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">nmodels</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;node_size&#39;</span><span class="p">:</span> <span class="mi">2000</span><span class="p">,</span> <span class="s1">&#39;width&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;arrowsize&#39;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s1">&#39;ax&#39;</span><span class="p">:</span> <span class="n">ax</span><span class="p">}</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">64</span><span class="p">,</span> <span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">coords</span> <span class="o">+=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="mi">16</span><span class="p">]]</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">coords</span><span class="p">))</span>
+
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">):</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">ii</span><span class="p">,</span> <span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">nx</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">labels_str</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">labels_str</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$\theta_{</span><span class="si">%d</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">labels_str</span><span class="p">))</span>
+    <span class="n">nx</span><span class="o">.</span><span class="n">draw_networkx_labels</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

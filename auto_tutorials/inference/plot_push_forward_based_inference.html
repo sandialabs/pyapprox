@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Push Forward Based Inference &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Gaussian Networks" href="plot_bayesian_networks.html" />
+    <link rel="prev" title="Sensitivity Analysis" href="../analysis/plot_sensitivity_analysis.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> PyApprox
+            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#inference">Inference</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Push Forward Based Inference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="plot_bayesian_networks.html">Gaussian Networks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Theoretical Tutorials</a> &raquo;</li>
+      <li>Push Forward Based Inference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/auto_tutorials/inference/plot_push_forward_based_inference.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-inference-plot-push-forward-based-inference-py"><span class="std std-ref">here</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="push-forward-based-inference">
+<span id="sphx-glr-auto-tutorials-inference-plot-push-forward-based-inference-py"></span><h1>Push Forward Based Inference<a class="headerlink" href="#push-forward-based-inference" title="Permalink to this headline"></a></h1>
+<p>This tutorial describes push forward based inference (PFI) <a class="reference internal" href="#bjwsisc2018" id="id1"><span>[BJWSISC2018]</span></a>.</p>
+<p>PFI solves the inverse problem of inferring parameters <span class="math notranslate nohighlight">\(\rv\)</span> of a deterministic model <span class="math notranslate nohighlight">\(f(\rv)\)</span> from stochastic observational data on quantities of interest.  The solution is a posterior probability measure that when propagated through the deterministic model produces a push-forward measure that exactly matches a given observed probability measure on available data.</p>
+<p>The solution to the PFI inverse problem is given by</p>
+<div class="math notranslate nohighlight">
+\[\pi_\text{post}(\rv)=\pi_\text{pr}(\rv)\frac{\pi_\text{obs}(f(\rv))}{\pi_\text{model}(f(\rv))}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\pi_\text{pr}(\rv)\)</span> is a prior density which captures any initial knowledge, <span class="math notranslate nohighlight">\(\pi_\text{obs}(f(\rv))\)</span> is the density on the observations, and <span class="math notranslate nohighlight">\(\pi_\text{model}(f(\rv))\)</span> is the push-forward of the prior density trough the forward model.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span> <span class="k">as</span> <span class="nn">mpl</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+</pre></div>
+</div>
+<p>First we must define the forward model. We will use a functional of solution to the following system of non-linear equations</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\rv_1 x_1^2+x_2^2&amp;=1\\
+x_1^2-\rv_2x_2^2&amp;=1\end{split}\]</div>
+<p>Specifically we choose <span class="math notranslate nohighlight">\(f(\rv)=x_2(\rv)\)</span>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;parameterized_nonlinear_model&quot;</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span>
+</pre></div>
+</div>
+<p>Define the prior density and the observational density</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">prior_variable</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span>
+<span class="n">prior_pdf</span> <span class="o">=</span> <span class="n">prior_variable</span><span class="o">.</span><span class="n">pdf</span>
+
+
+<span class="n">mean</span> <span class="o">=</span> <span class="mf">0.3</span>
+<span class="n">variance</span> <span class="o">=</span> <span class="mf">0.025</span><span class="o">**</span><span class="mi">2</span>
+<span class="n">obs_variable</span> <span class="o">=</span> <span class="n">stats</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">mean</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">variance</span><span class="p">))</span>
+<span class="k">def</span> <span class="nf">obs_pdf</span><span class="p">(</span><span class="n">y</span><span class="p">):</span> <span class="k">return</span> <span class="n">obs_variable</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>PFI requires the push forward of the prior <span class="math notranslate nohighlight">\(\pi_\text{model}(f(\rv))\)</span>. Lets approximate this PDF using a Gaussian kernel density estimate built on a large number model outputs evaluated at random samples of the prior.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#Define samples used to evaluate the push forward of the prior</span>
+<span class="n">num_prior_samples</span> <span class="o">=</span> <span class="mi">10000</span>
+<span class="n">prior_samples</span> <span class="o">=</span> <span class="n">prior_variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">num_prior_samples</span><span class="p">)</span>
+<span class="n">response_vals_at_prior_samples</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">prior_samples</span><span class="p">)</span>
+
+<span class="c1">#Construct a KDE of the push forward of the prior through the model</span>
+<span class="n">push_forward_kde</span> <span class="o">=</span> <span class="n">stats</span><span class="o">.</span><span class="n">gaussian_kde</span><span class="p">(</span><span class="n">response_vals_at_prior_samples</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">push_forward_pdf</span><span class="p">(</span><span class="n">y</span><span class="p">):</span> <span class="k">return</span> <span class="n">push_forward_kde</span><span class="p">(</span><span class="n">y</span><span class="o">.</span><span class="n">T</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>We can now simply evaluate</p>
+<div class="math notranslate nohighlight">
+\[\pi_\text{post}(\rv)=\pi_\text{pr}(\rv)\frac{\pi_\text{obs}(f(\rv))}{\hat{\pi}_\text{model}(f(\rv))}\]</div>
+<p>using the approximate push forward PDF <span class="math notranslate nohighlight">\(\hat{\pi}_\text{model}(f(\rv))\)</span>. Lets use this fact to plot the posterior density.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#Define the samples at which to evaluate the posterior density</span>
+<span class="n">num_pts_1d</span> <span class="o">=</span> <span class="mi">50</span>
+<span class="kn">from</span> <span class="nn">pyapprox.analysis</span> <span class="kn">import</span> <span class="n">visualize</span>
+<span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">samples_for_posterior_eval</span> <span class="o">=</span> \
+    <span class="n">visualize</span><span class="o">.</span><span class="n">get_meshgrid_samples_from_variable</span><span class="p">(</span><span class="n">prior_variable</span><span class="p">,</span> <span class="mi">30</span><span class="p">)</span>
+
+<span class="c1">#Evaluate the density of the prior at the samples used to evaluate</span>
+<span class="c1">#the posterior</span>
+<span class="n">prior_prob_at_samples_for_posterior_eval</span> <span class="o">=</span> <span class="n">prior_pdf</span><span class="p">(</span>
+    <span class="n">samples_for_posterior_eval</span><span class="p">)</span>
+
+<span class="c1">#Evaluate the model at the samples used to evaluate</span>
+<span class="c1">#the posterior</span>
+<span class="n">response_vals_at_samples_for_posterior_eval</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">samples_for_posterior_eval</span><span class="p">)</span>
+
+<span class="c1">#Evaluate the distribution on the observable data</span>
+<span class="n">obs_prob_at_samples_for_posterior_eval</span> <span class="o">=</span> <span class="n">obs_pdf</span><span class="p">(</span>
+    <span class="n">response_vals_at_samples_for_posterior_eval</span><span class="p">)</span>
+
+<span class="c1">#Evaluate the probability of the responses at the desired points</span>
+<span class="n">response_prob_at_samples_for_posterior_eval</span> <span class="o">=</span> <span class="n">push_forward_pdf</span><span class="p">(</span>
+    <span class="n">response_vals_at_samples_for_posterior_eval</span><span class="p">)</span>
+
+<span class="c1">#Evaluate the posterior probability</span>
+<span class="n">posterior_prob</span> <span class="o">=</span> <span class="p">(</span><span class="n">prior_prob_at_samples_for_posterior_eval</span><span class="o">*</span><span class="p">(</span>
+    <span class="n">obs_prob_at_samples_for_posterior_eval</span> <span class="o">/</span>
+    <span class="n">response_prob_at_samples_for_posterior_eval</span><span class="p">))</span>
+
+<span class="c1">#Plot the posterior density</span>
+<span class="n">p</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span>
+    <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">posterior_prob</span><span class="p">,</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">),</span>
+    <span class="n">levels</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">posterior_prob</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">posterior_prob</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="mi">30</span><span class="p">),</span>
+    <span class="n">cmap</span><span class="o">=</span><span class="n">mpl</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">coolwarm</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_push_forward_based_inference_001.png" srcset="../../_images/sphx_glr_plot_push_forward_based_inference_001.png" alt="plot push forward based inference" class = "sphx-glr-single-img"/><p>Note that to plot the posterior we had to evaluate the model at each plot points. This can be expensive. To avoid this surrogate models can be used to replace the expensive model <a class="reference internal" href="#bjwsisc2018b" id="id2"><span>[BJWSISC2018b]</span></a>. But ignoring such approaches we can still obtain useful information without additional model evaluations as is done above. For example, we can easily and with no additional model evaluations evaluate the posterior density at the prior samples</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">prior_prob_at_prior_samples</span> <span class="o">=</span> <span class="n">prior_pdf</span><span class="p">(</span><span class="n">prior_samples</span><span class="p">)</span>
+<span class="n">obs_prob_at_prior_samples</span> <span class="o">=</span> <span class="n">obs_pdf</span><span class="p">(</span><span class="n">response_vals_at_prior_samples</span><span class="p">)</span>
+<span class="n">response_prob_at_prior_samples</span> <span class="o">=</span> <span class="n">push_forward_pdf</span><span class="p">(</span>
+    <span class="n">response_vals_at_prior_samples</span><span class="p">)</span>
+<span class="n">posterior_prob_at_prior_samples</span> <span class="o">=</span> <span class="n">prior_prob_at_prior_samples</span> <span class="o">*</span> <span class="p">(</span>
+    <span class="n">obs_prob_at_prior_samples</span> <span class="o">/</span> <span class="n">response_prob_at_prior_samples</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We can also use rejection sampling to draw samples from the posterior
+Given a random number <span class="math notranslate nohighlight">\(u\sim U[0,1]\)</span>, and the prior samples <span class="math notranslate nohighlight">\(x\)</span>. We accept a prior sample as a draw from the posterior if</p>
+<div class="math notranslate nohighlight">
+\[u\le\frac{\pi_\text{post}(\rv)}{M\pi_\text{prop}(\rv)}\]</div>
+<p>for some proposal density <span class="math notranslate nohighlight">\(\pi_\text{prop}(\rv)\)</span> such that <span class="math notranslate nohighlight">\(M\pi_\text{prop}(\rv)\)</span> is an upper bound on the density of the posterior. Here we set <span class="math notranslate nohighlight">\(M=1.1\,\max_{\rv\in\rvdom}\pi_\text{post}(\rv)\)</span> to be a constant sligthly bigger than the maximum of the posterior over all the prior samples.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">max_posterior_prob</span> <span class="o">=</span> <span class="n">posterior_prob_at_prior_samples</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+<span class="n">accepted_samples_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+    <span class="n">posterior_prob_at_prior_samples</span><span class="o">/</span><span class="p">(</span><span class="mf">1.1</span><span class="o">*</span><span class="n">max_posterior_prob</span><span class="p">)</span> <span class="o">&gt;</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="p">(</span><span class="n">num_prior_samples</span><span class="p">,</span> <span class="mi">1</span><span class="p">)))[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">posterior_samples</span> <span class="o">=</span> <span class="n">prior_samples</span><span class="p">[:,</span> <span class="n">accepted_samples_idx</span><span class="p">]</span>
+<span class="n">acceptance_ratio</span> <span class="o">=</span> <span class="n">posterior_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">num_prior_samples</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Acceptance ratio&quot;</span><span class="p">,</span> <span class="n">acceptance_ratio</span><span class="p">)</span>
+
+<span class="c1">#plot the accepted samples</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">posterior_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">posterior_samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s1">&#39;ok&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">ranges</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">ranges</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_push_forward_based_inference_002.png" srcset="../../_images/sphx_glr_plot_push_forward_based_inference_002.png" alt="plot push forward based inference" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Acceptance ratio 0.1778
+</pre></div>
+</div>
+<p>The goal of inverse problem was to define the posterior density that when push forward through the forward model exactly matches the observed PDF. Lets check that by pushing forward our samples from the posterior.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#compute the posterior push forward</span>
+<span class="n">posterior_push_forward_kde</span> <span class="o">=</span> <span class="n">stats</span><span class="o">.</span><span class="n">gaussian_kde</span><span class="p">(</span>
+    <span class="n">response_vals_at_prior_samples</span><span class="p">[</span><span class="n">accepted_samples_idx</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">posterior_push_forward_pdf</span><span class="p">(</span>
+    <span class="n">y</span><span class="p">):</span> <span class="k">return</span> <span class="n">posterior_push_forward_kde</span><span class="p">(</span><span class="n">y</span><span class="o">.</span><span class="n">T</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+
+
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+<span class="n">lb</span><span class="p">,</span> <span class="n">ub</span> <span class="o">=</span> <span class="n">obs_variable</span><span class="o">.</span><span class="n">interval</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="mf">1e-10</span><span class="p">)</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span> <span class="n">ub</span><span class="p">,</span> <span class="mi">101</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">obs_pdf</span><span class="p">(</span><span class="n">y</span><span class="p">),</span> <span class="s1">&#39;r-&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">posterior_push_forward_pdf</span><span class="p">(</span><span class="n">y</span><span class="p">),</span> <span class="s1">&#39;k--&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">push_forward_pdf</span><span class="p">(</span><span class="n">y</span><span class="p">),</span> <span class="s1">&#39;b:&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_push_forward_based_inference_003.png" srcset="../../_images/sphx_glr_plot_push_forward_based_inference_003.png" alt="plot push forward based inference" class = "sphx-glr-single-img"/><p>Explore the number effect of changing the number of prior samples on the posterior and its push-forward.</p>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h2>
+<dl class="citation">
+<dt class="label" id="bjwsisc2018"><span class="brackets"><a class="fn-backref" href="#id1">BJWSISC2018</a></span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1137/16M1087229">T Butler, J Jakeman, T Wildey. Combining push-forward measures and Bayes’ rule to construct consistent solutions to stochastic inverse problems. SIAM Journal on Scientific Computing, 40 (2), A984-A1011 (2018).</a></p>
+</dd>
+<dt class="label" id="bjwsisc2018b"><span class="brackets"><a class="fn-backref" href="#id2">BJWSISC2018b</a></span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1137/18M1181675">T Butler, J Jakeman, T Wildey. Convergence of probability densities using approximate models for forward and inverse problems in uncertainty quantification. SIAM Journal on Scientific Computing, 40 (5), A3523-A3548 (2018).</a></p>
+</dd>
+</dl>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.711 seconds)</p>
+<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-inference-plot-push-forward-based-inference-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/be108a4564a52a9c7f1610bf923454f3/plot_push_forward_based_inference.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_push_forward_based_inference.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/761348c578acc3cf0364670884f211af/plot_push_forward_based_inference.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_push_forward_based_inference.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../analysis/plot_sensitivity_analysis.html" class="btn btn-neutral float-left" title="Sensitivity Analysis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_bayesian_networks.html" class="btn btn-neutral float-right" title="Gaussian Networks" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

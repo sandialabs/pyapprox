@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>setup_ishigami_function &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="setup_sobol_g_function" href="pyapprox.benchmarks.setup_sobol_g_function.html" />
+    <link rel="prev" title="GaussianNetwork" href="pyapprox.bayes.GaussianNetwork.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> PyApprox
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.analysis">pyapprox.analysis Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.bayes">pyapprox.bayes Package</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.benchmarks">pyapprox.benchmarks Package</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="../user_reference_guide.html#id2">Functions</a><ul class="current">
+<li class="toctree-l4 current"><a class="current reference internal" href="#">setup_ishigami_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_sobol_g_function.html">setup_sobol_g_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_oakley_function.html">setup_oakley_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_genz_function.html">setup_genz_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_rosenbrock_function.html">setup_rosenbrock_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_benchmark.html">setup_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_piston_benchmark.html">setup_piston_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_wing_weight_benchmark.html">setup_wing_weight_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_polynomial_ensemble.html">setup_polynomial_ensemble</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_reference_guide.html#id3">Classes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.expdesign">pyapprox.expdesign Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.interface">pyapprox.interface Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.multifidelity">pyapprox.multifidelity Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.optimization">pyapprox.optimization Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.surrogates">pyapprox.surrogates Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.util">pyapprox.util Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.variables">pyapprox.variables Package</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
+      <li>setup_ishigami_function</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/pyapprox.benchmarks.setup_ishigami_function.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="setup-ishigami-function">
+<h1>setup_ishigami_function<a class="headerlink" href="#setup-ishigami-function" title="Permalink to this headline"></a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="pyapprox.benchmarks.setup_ishigami_function">
+<span class="sig-prename descclassname"><span class="pre">pyapprox.benchmarks.</span></span><span class="sig-name descname"><span class="pre">setup_ishigami_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/benchmarks/benchmarks.html#setup_ishigami_function"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.benchmarks.setup_ishigami_function" title="Permalink to this definition"></a></dt>
+<dd><p>Setup the Ishigami function benchmark</p>
+<div class="math notranslate nohighlight">
+\[f(z) = \sin(z_1)+a\sin^2(z_2) + bz_3^4\sin(z_0)\]</div>
+<p>using</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyapprox.benchmarks.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">benchmark</span><span class="o">=</span><span class="n">setup_benchmark</span><span class="p">(</span><span class="s1">&#39;ishigami&#39;</span><span class="p">,</span><span class="n">a</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span><span class="n">b</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<span class="go">dict_keys([&#39;fun&#39;, &#39;jac&#39;, &#39;hess&#39;, &#39;variable&#39;, &#39;mean&#39;, &#39;variance&#39;, &#39;main_effects&#39;, &#39;total_effects&#39;, &#39;sobol_indices&#39;])</span>
+</pre></div>
+</div>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>a</strong><span class="classifier">float</span></dt><dd><p>The hyper-parameter a</p>
+</dd>
+<dt><strong>b</strong><span class="classifier">float</span></dt><dd><p>The hyper-parameter b</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl>
+<dt><strong>benchmark</strong><span class="classifier"><a class="reference internal" href="pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark" title="pyapprox.benchmarks.Benchmark"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.benchmarks.Benchmark</span></code></a></span></dt><dd><p>Object containing the benchmark attributes</p>
+</dd>
+<dt><strong>fun</strong><span class="classifier">callable</span></dt><dd><p>The function being analyzed</p>
+</dd>
+<dt><strong>variable</strong><span class="classifier"><a class="reference internal" href="pyapprox.variables.JointVariable.html#pyapprox.variables.JointVariable" title="pyapprox.variables.JointVariable"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.variables.JointVariable</span></code></a></span></dt><dd><p>Class containing information about each of the nvars inputs to fun</p>
+</dd>
+<dt><strong>jac</strong><span class="classifier">callable</span></dt><dd><p>The jacobian of fun. (optional)</p>
+</dd>
+<dt><strong>hess</strong><span class="classifier">callable</span></dt><dd><p>The Hessian of fun. (optional)</p>
+</dd>
+<dt><strong>hessp</strong><span class="classifier">callable</span></dt><dd><p>Function implementing the hessian of fun multiplied by a vector.
+(optional)</p>
+</dd>
+<dt>mean: np.ndarray (nvars)</dt><dd><p>The mean of the function with respect to the PDF of var</p>
+</dd>
+<dt>variance: np.ndarray (nvars)</dt><dd><p>The variance of the function with respect to the PDF of var</p>
+</dd>
+<dt><strong>main_effects</strong><span class="classifier">np.ndarray (nvars)</span></dt><dd><p>The variance based main effect sensitivity indices</p>
+</dd>
+<dt><strong>total_effects</strong><span class="classifier">np.ndarray (nvars)</span></dt><dd><p>The variance based total effect sensitivity indices</p>
+</dd>
+<dt><strong>sobol_indices</strong><span class="classifier">np.ndarray (nsobol_indices)</span></dt><dd><p>The variance based Sobol sensitivity indices</p>
+</dd>
+<dt><strong>sobol_interaction_indices</strong><span class="classifier">np.ndarray(nsobol_indices)</span></dt><dd><p>The indices of the acitive variable dimensions involved in each
+sobol index</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<dl class="citation">
+<dt class="label" id="r99817a96f951-ishigami1990"><span class="brackets">Ishigami1990</span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1109/ISUMA.1990.151285">T. Ishigami and T. Homma, “An importance quantification technique in uncertainty analysis for computer models,” [1990] Proceedings. First International Symposium on Uncertainty Modeling and Analysis, College Park, MD, USA, 1990, pp. 398-403</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pyapprox.bayes.GaussianNetwork.html" class="btn btn-neutral float-left" title="GaussianNetwork" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pyapprox.benchmarks.setup_sobol_g_function.html" class="btn btn-neutral float-right" title="setup_sobol_g_function" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

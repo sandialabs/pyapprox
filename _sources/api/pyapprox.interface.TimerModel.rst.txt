@@ -1,0 +1,17 @@
+TimerModel
+==========
+
+.. currentmodule:: pyapprox.interface
+
+.. autoclass:: TimerModel
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~TimerModel.__call__
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__

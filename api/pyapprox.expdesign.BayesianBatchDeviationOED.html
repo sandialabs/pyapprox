@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BayesianBatchDeviationOED &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="BayesianSequentialOED" href="pyapprox.expdesign.BayesianSequentialOED.html" />
+    <link rel="prev" title="BayesianBatchKLOED" href="pyapprox.expdesign.BayesianBatchKLOED.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> PyApprox
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.analysis">pyapprox.analysis Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.bayes">pyapprox.bayes Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.benchmarks">pyapprox.benchmarks Package</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.expdesign">pyapprox.expdesign Package</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../user_reference_guide.html#id4">Functions</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="../user_reference_guide.html#id5">Classes</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.expdesign.AlphabetOptimalDesign.html">AlphabetOptimalDesign</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.expdesign.NonLinearAlphabetOptimalDesign.html">NonLinearAlphabetOptimalDesign</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.expdesign.BayesianBatchKLOED.html">BayesianBatchKLOED</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">BayesianBatchDeviationOED</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.expdesign.BayesianSequentialOED.html">BayesianSequentialOED</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.expdesign.BayesianSequentialKLOED.html">BayesianSequentialKLOED</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.expdesign.BayesianSequentialDeviationOED.html">BayesianSequentialDeviationOED</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.expdesign.AbstractBayesianOED.html">AbstractBayesianOED</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.interface">pyapprox.interface Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.multifidelity">pyapprox.multifidelity Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.optimization">pyapprox.optimization Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.surrogates">pyapprox.surrogates Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.util">pyapprox.util Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.variables">pyapprox.variables Package</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
+      <li>BayesianBatchDeviationOED</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/pyapprox.expdesign.BayesianBatchDeviationOED.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="bayesianbatchdeviationoed">
+<h1>BayesianBatchDeviationOED<a class="headerlink" href="#bayesianbatchdeviationoed" title="Permalink to this headline"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyapprox.expdesign.BayesianBatchDeviationOED">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyapprox.expdesign.</span></span><span class="sig-name descname"><span class="pre">BayesianBatchDeviationOED</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">design_candidates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">obs_fun</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">noise_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prior_variable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">qoi_fun=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nouter_loop_samples=1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ninner_loop_samples=1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generate_inner_prior_samples=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">econ=False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">deviation_fun=&lt;function</span> <span class="pre">oed_standard_deviation&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_eval_concurrency=1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_fun=&lt;function</span> <span class="pre">oed_average_prediction_deviation&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#BayesianBatchDeviationOED"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.BayesianBatchDeviationOED" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="pyapprox.expdesign.AbstractBayesianOED.html#pyapprox.expdesign.AbstractBayesianOED" title="pyapprox.expdesign.bayesian_oed.AbstractBayesianOED"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.expdesign.bayesian_oed.AbstractBayesianOED</span></code></a></p>
+<p>Compute open-loop OED by minimizing the deviation on the push forward
+of the posterior through a QoI model.</p>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.expdesign.BayesianBatchDeviationOED.compute_expected_utility" title="pyapprox.expdesign.BayesianBatchDeviationOED.compute_expected_utility"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_expected_utility</span></code></a>(...[, return_all])</p></td>
+<td><p>Compute the negative expected deviation in predictions of QoI</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.expdesign.BayesianBatchDeviationOED.populate" title="pyapprox.expdesign.BayesianBatchDeviationOED.populate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">populate</span></code></a>()</p></td>
+<td><p>Compute the data needed to initialize the OED algorithm.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.expdesign.BayesianBatchDeviationOED.compute_expected_utility">
+<span class="sig-name descname"><span class="pre">compute_expected_utility</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">collected_design_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_design_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_all</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#BayesianBatchDeviationOED.compute_expected_utility"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.BayesianBatchDeviationOED.compute_expected_utility" title="Permalink to this definition"></a></dt>
+<dd><p>Compute the negative expected deviation in predictions of QoI</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>collected_design_indices</strong><span class="classifier">np.ndarray (nobs)</span></dt><dd><p>The indices into the qoi vector associated with the
+collected observations</p>
+</dd>
+<dt><strong>new_design_indices</strong><span class="classifier">np.ndarray (nnew_obs)</span></dt><dd><p>The indices into the qoi vector associated with new design
+locations under consideration</p>
+</dd>
+<dt><strong>return_all</strong><span class="classifier">boolean</span></dt><dd><p>False - return the utilities
+True - used for debugging returns utilities
+and itermediate data useful for testing</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>utility</strong><span class="classifier">float</span></dt><dd><p>The negative expected deviation</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.expdesign.BayesianBatchDeviationOED.populate">
+<span class="sig-name descname"><span class="pre">populate</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#BayesianBatchDeviationOED.populate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.BayesianBatchDeviationOED.populate" title="Permalink to this definition"></a></dt>
+<dd><p>Compute the data needed to initialize the OED algorithm.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pyapprox.expdesign.BayesianBatchKLOED.html" class="btn btn-neutral float-left" title="BayesianBatchKLOED" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pyapprox.expdesign.BayesianSequentialOED.html" class="btn btn-neutral float-right" title="BayesianSequentialOED" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

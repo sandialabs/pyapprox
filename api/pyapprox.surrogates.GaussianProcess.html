@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GaussianProcess &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="cartesian_product" href="pyapprox.util.cartesian_product.html" />
+    <link rel="prev" title="CombinationSparseGrid" href="pyapprox.surrogates.CombinationSparseGrid.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> PyApprox
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.analysis">pyapprox.analysis Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.bayes">pyapprox.bayes Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.benchmarks">pyapprox.benchmarks Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.expdesign">pyapprox.expdesign Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.interface">pyapprox.interface Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.multifidelity">pyapprox.multifidelity Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.optimization">pyapprox.optimization Package</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.surrogates">pyapprox.surrogates Package</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../user_reference_guide.html#id10">Functions</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="../user_reference_guide.html#id11">Classes</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.surrogates.PolynomialChaosExpansion.html">PolynomialChaosExpansion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.surrogates.APC.html">APC</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.surrogates.AdaptiveInducedPCE.html">AdaptiveInducedPCE</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.surrogates.AdaptiveLejaPCE.html">AdaptiveLejaPCE</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.surrogates.CombinationSparseGrid.html">CombinationSparseGrid</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">GaussianProcess</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.util">pyapprox.util Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.variables">pyapprox.variables Package</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
+      <li>GaussianProcess</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/pyapprox.surrogates.GaussianProcess.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="gaussianprocess">
+<h1>GaussianProcess<a class="headerlink" href="#gaussianprocess" title="Permalink to this headline"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyapprox.surrogates.GaussianProcess">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyapprox.surrogates.</span></span><span class="sig-name descname"><span class="pre">GaussianProcess</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">kernel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">optimizer</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fmin_l_bfgs_b'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_restarts_optimizer</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize_y</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">copy_X_train</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/gaussianprocess/gaussian_process.html#GaussianProcess"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.GaussianProcess" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sklearn.gaussian_process._gpr.GaussianProcessRegressor</span></code></p>
+<p>A Gaussian process.</p>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.GaussianProcess.__call__" title="pyapprox.surrogates.GaussianProcess.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(samples[, return_std, return_cov])</p></td>
+<td><p>A light weight wrapper of sklearn GaussianProcessRegressor.predict function.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.surrogates.GaussianProcess.condition_number" title="pyapprox.surrogates.GaussianProcess.condition_number"><code class="xref py py-obj docutils literal notranslate"><span class="pre">condition_number</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.GaussianProcess.fit" title="pyapprox.surrogates.GaussianProcess.fit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fit</span></code></a>(train_samples, train_values)</p></td>
+<td><p>A light weight wrapper of sklearn GaussianProcessRegressor.fit function.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.surrogates.GaussianProcess.get_training_samples" title="pyapprox.surrogates.GaussianProcess.get_training_samples"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_training_samples</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.GaussianProcess.map_from_canonical" title="pyapprox.surrogates.GaussianProcess.map_from_canonical"><code class="xref py py-obj docutils literal notranslate"><span class="pre">map_from_canonical</span></code></a>(canonical_samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.surrogates.GaussianProcess.map_to_canonical" title="pyapprox.surrogates.GaussianProcess.map_to_canonical"><code class="xref py py-obj docutils literal notranslate"><span class="pre">map_to_canonical</span></code></a>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.GaussianProcess.num_training_samples" title="pyapprox.surrogates.GaussianProcess.num_training_samples"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_training_samples</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.surrogates.GaussianProcess.predict_random_realization" title="pyapprox.surrogates.GaussianProcess.predict_random_realization"><code class="xref py py-obj docutils literal notranslate"><span class="pre">predict_random_realization</span></code></a>(samples[, ...])</p></td>
+<td><p>Predict values of a random realization of the Gaussian process</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.surrogates.GaussianProcess.set_variable_transformation" title="pyapprox.surrogates.GaussianProcess.set_variable_transformation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_variable_transformation</span></code></a>(var_trans)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.GaussianProcess.__call__">
+<span class="sig-name descname"><span class="pre">__call__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_std</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_cov</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/gaussianprocess/gaussian_process.html#GaussianProcess.__call__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.GaussianProcess.__call__" title="Permalink to this definition"></a></dt>
+<dd><p>A light weight wrapper of sklearn GaussianProcessRegressor.predict
+function. See sklearn documentation for more info. This wrapper
+is needed because sklearn stores a unique sample in each row
+of a samples matrix whereas pyapprox uses the transpose.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>samples</strong><span class="classifier">np.ndarray (nvars,nsamples)</span></dt><dd><p>Samples at which to evaluate the GP. Sklearn requires the
+transpose of this matrix, i.e a matrix with size (nsamples,nvars)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.GaussianProcess.condition_number">
+<span class="sig-name descname"><span class="pre">condition_number</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/gaussianprocess/gaussian_process.html#GaussianProcess.condition_number"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.GaussianProcess.condition_number" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.GaussianProcess.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">train_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_values</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/gaussianprocess/gaussian_process.html#GaussianProcess.fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.GaussianProcess.fit" title="Permalink to this definition"></a></dt>
+<dd><p>A light weight wrapper of sklearn GaussianProcessRegressor.fit
+function. See sklearn documentation for more info. This wrapper
+is needed because sklearn stores a unique sample in each row
+of a samples matrix whereas pyapprox uses the transpose.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>samples</strong><span class="classifier">np.ndarray (nvars,nsamples)</span></dt><dd><p>Samples at which to evaluate the GP. Sklearn requires the
+transpose of this matrix, i.e a matrix with size (nsamples,nvars)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.GaussianProcess.get_training_samples">
+<span class="sig-name descname"><span class="pre">get_training_samples</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/gaussianprocess/gaussian_process.html#GaussianProcess.get_training_samples"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.GaussianProcess.get_training_samples" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.GaussianProcess.map_from_canonical">
+<span class="sig-name descname"><span class="pre">map_from_canonical</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">canonical_samples</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/gaussianprocess/gaussian_process.html#GaussianProcess.map_from_canonical"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.GaussianProcess.map_from_canonical" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.GaussianProcess.map_to_canonical">
+<span class="sig-name descname"><span class="pre">map_to_canonical</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/gaussianprocess/gaussian_process.html#GaussianProcess.map_to_canonical"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.GaussianProcess.map_to_canonical" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.GaussianProcess.num_training_samples">
+<span class="sig-name descname"><span class="pre">num_training_samples</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/gaussianprocess/gaussian_process.html#GaussianProcess.num_training_samples"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.GaussianProcess.num_training_samples" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.GaussianProcess.predict_random_realization">
+<span class="sig-name descname"><span class="pre">predict_random_realization</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rand_noise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">truncated_svd</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keep_normalized</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/gaussianprocess/gaussian_process.html#GaussianProcess.predict_random_realization"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.GaussianProcess.predict_random_realization" title="Permalink to this definition"></a></dt>
+<dd><p>Predict values of a random realization of the Gaussian process</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>truncated_svd</strong><span class="classifier">dictionary</span></dt><dd><p>Dictionary containing the following attribues needed to define
+a truncated singular values decomposition. If None then
+factor the entire matrix</p>
+</dd>
+<dt><strong>nsingular_vals</strong><span class="classifier">integer</span></dt><dd><p>Only compute the first n singular values when
+factorizing the covariance matrix. n=truncated_svd</p>
+</dd>
+<dt><strong>tol</strong><span class="classifier">float</span></dt><dd><p>The contribution to total variance from the truncated singular
+values must not exceed this value.</p>
+</dd>
+<dt><strong>Notes</strong></dt><dd></dd>
+<dt><strong>—–</strong></dt><dd></dd>
+<dt><strong>This function replaces</strong></dt><dd></dd>
+<dt><strong>gp.sample_y(samples.T, n_samples=rand_noise, random_state=0)</strong></dt><dd></dd>
+<dt><strong>which cannot be passed rand_noise vectors and cannot use truncated SVD</strong></dt><dd></dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>A different realization will be returned for two different samples
+Even if the same random noise i used. To see this for a 1D GP use:</p>
+<p>xx = np.linspace(0, 1, 101)
+rand_noise = np.random.normal(0, 1, (xx.shape[0], 1))
+yy = gp.predict_random_realization(xx[None, :], rand_noise)
+plt.plot(xx, yy)
+xx = np.linspace(0, 1, 97)
+rand_noise = np.random.normal(0, 1, (xx.shape[0], 1))
+yy = gp.predict_random_realization(xx[None, :], rand_noise)
+plt.plot(xx, yy)
+plt.show()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.surrogates.GaussianProcess.set_variable_transformation">
+<span class="sig-name descname"><span class="pre">set_variable_transformation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">var_trans</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/surrogates/gaussianprocess/gaussian_process.html#GaussianProcess.set_variable_transformation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.surrogates.GaussianProcess.set_variable_transformation" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pyapprox.surrogates.CombinationSparseGrid.html" class="btn btn-neutral float-left" title="CombinationSparseGrid" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pyapprox.util.cartesian_product.html" class="btn btn-neutral float-right" title="cartesian_product" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

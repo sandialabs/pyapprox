@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IndependentMarginalsVariable &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="GaussCopulaVariable" href="pyapprox.variables.GaussCopulaVariable.html" />
+    <link rel="prev" title="combine_uncertain_and_bounded_design_variables" href="pyapprox.variables.combine_uncertain_and_bounded_design_variables.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> PyApprox
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.analysis">pyapprox.analysis Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.bayes">pyapprox.bayes Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.benchmarks">pyapprox.benchmarks Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.expdesign">pyapprox.expdesign Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.interface">pyapprox.interface Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.multifidelity">pyapprox.multifidelity Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.optimization">pyapprox.optimization Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.surrogates">pyapprox.surrogates Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.util">pyapprox.util Package</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.variables">pyapprox.variables Package</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../user_reference_guide.html#id13">Functions</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="../user_reference_guide.html#id14">Classes</a><ul class="current">
+<li class="toctree-l4 current"><a class="current reference internal" href="#">IndependentMarginalsVariable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.variables.GaussCopulaVariable.html">GaussCopulaVariable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.variables.JointVariable.html">JointVariable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.variables.AffineTransform.html">AffineTransform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.variables.NatafTransform.html">NatafTransform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.variables.RosenblattTransform.html">RosenblattTransform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.variables.ConfigureVariableTransformation.html">ConfigureVariableTransformation</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
+      <li>IndependentMarginalsVariable</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/pyapprox.variables.IndependentMarginalsVariable.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="independentmarginalsvariable">
+<h1>IndependentMarginalsVariable<a class="headerlink" href="#independentmarginalsvariable" title="Permalink to this headline"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyapprox.variables.IndependentMarginalsVariable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyapprox.variables.</span></span><span class="sig-name descname"><span class="pre">IndependentMarginalsVariable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unique_variables</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unique_variable_indices</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_labels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/joint.html#IndependentMarginalsVariable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.IndependentMarginalsVariable" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="pyapprox.variables.JointVariable.html#pyapprox.variables.JointVariable" title="pyapprox.variables.joint.JointVariable"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.variables.joint.JointVariable</span></code></a></p>
+<p>Class representing independent random variables</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyapprox.variables.joint</span> <span class="kn">import</span> <span class="n">IndependentMarginalsVariable</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">norm</span><span class="p">,</span> <span class="n">beta</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">marginals</span> <span class="o">=</span> <span class="p">[</span><span class="n">norm</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="n">beta</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="n">norm</span><span class="p">()]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">marginals</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span>
+<span class="go">I.I.D. Variable</span>
+<span class="go">Number of variables: 3</span>
+<span class="go">Unique variables and global id:</span>
+<span class="go">    norm(loc=0,scale=1): z0, z2</span>
+<span class="go">    beta(a=0,b=1,loc=0,scale=1): z1</span>
+</pre></div>
+</div>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.variables.IndependentMarginalsVariable.evaluate" title="pyapprox.variables.IndependentMarginalsVariable.evaluate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate</span></code></a>(function_name, x)</p></td>
+<td><p>Evaluate a frunction for each univariate random variable.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.variables.IndependentMarginalsVariable.get_statistics" title="pyapprox.variables.IndependentMarginalsVariable.get_statistics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_statistics</span></code></a>(function_name, **kwargs)</p></td>
+<td><p>Get a statistic from each univariate random variable.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.variables.IndependentMarginalsVariable.is_bounded_continuous_variable" title="pyapprox.variables.IndependentMarginalsVariable.is_bounded_continuous_variable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_bounded_continuous_variable</span></code></a>()</p></td>
+<td><p>Are all 1D variables are continuous and bounded.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.variables.IndependentMarginalsVariable.marginals" title="pyapprox.variables.IndependentMarginalsVariable.marginals"><code class="xref py py-obj docutils literal notranslate"><span class="pre">marginals</span></code></a>()</p></td>
+<td><p>Return a list of all the 1D scipy.stats random variables.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.variables.IndependentMarginalsVariable.num_vars" title="pyapprox.variables.IndependentMarginalsVariable.num_vars"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_vars</span></code></a>()</p></td>
+<td><p>Return The number of independent 1D variables</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.variables.IndependentMarginalsVariable.pdf" title="pyapprox.variables.IndependentMarginalsVariable.pdf"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pdf</span></code></a>(x[, log])</p></td>
+<td><p>Evaluate the joint probability distribution function.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.variables.IndependentMarginalsVariable.rvs" title="pyapprox.variables.IndependentMarginalsVariable.rvs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rvs</span></code></a>(num_samples[, random_state])</p></td>
+<td><p>Generate samples from a tensor-product probability measure.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.IndependentMarginalsVariable.evaluate">
+<span class="sig-name descname"><span class="pre">evaluate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">function_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/joint.html#IndependentMarginalsVariable.evaluate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.IndependentMarginalsVariable.evaluate" title="Permalink to this definition"></a></dt>
+<dd><p>Evaluate a frunction for each univariate random variable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>function_name</strong><span class="classifier">string</span></dt><dd><p>The function name of the scipy random variable statistic of
+interest</p>
+</dd>
+<dt><strong>x</strong><span class="classifier">np.ndarray (nsamples)</span></dt><dd><p>The input to the scipy statistic function</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>stat</strong><span class="classifier">np.ndarray (nsamples, nqoi)</span></dt><dd><p>The outputs of the stat function for each variable</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.IndependentMarginalsVariable.get_statistics">
+<span class="sig-name descname"><span class="pre">get_statistics</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">function_name</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/joint.html#IndependentMarginalsVariable.get_statistics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.IndependentMarginalsVariable.get_statistics" title="Permalink to this definition"></a></dt>
+<dd><p>Get a statistic from each univariate random variable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>function_name</strong><span class="classifier">string</span></dt><dd><p>The function name of the scipy random variable statistic of
+interest</p>
+</dd>
+<dt><strong>kwargs</strong><span class="classifier">kwargs</span></dt><dd><p>The arguments to the scipy statistic function</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>stat</strong><span class="classifier">np.ndarray</span></dt><dd><p>The output of the stat function</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pyapprox</span> <span class="k">as</span> <span class="nn">pya</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">uniform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">num_vars</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">variable</span> <span class="o">=</span> <span class="n">pya</span><span class="o">.</span><span class="n">IndependentMarginalsVariable</span><span class="p">([</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)],</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_vars</span><span class="p">)])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">variable</span><span class="o">.</span><span class="n">get_statistics</span><span class="p">(</span><span class="s2">&quot;interval&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="go">array([[-2.,  1.],</span>
+<span class="go">       [-2.,  1.]])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">variable</span><span class="o">.</span><span class="n">get_statistics</span><span class="p">(</span><span class="s2">&quot;pdf&quot;</span><span class="p">,</span><span class="n">x</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<span class="go">array([[0.33333333, 0.33333333, 0.33333333],</span>
+<span class="go">       [0.33333333, 0.33333333, 0.33333333]])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.IndependentMarginalsVariable.is_bounded_continuous_variable">
+<span class="sig-name descname"><span class="pre">is_bounded_continuous_variable</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/joint.html#IndependentMarginalsVariable.is_bounded_continuous_variable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.IndependentMarginalsVariable.is_bounded_continuous_variable" title="Permalink to this definition"></a></dt>
+<dd><p>Are all 1D variables are continuous and bounded.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>is_bounded</strong><span class="classifier">boolean</span></dt><dd><p>True - all 1D variables are continuous and bounded
+False - otherwise</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.IndependentMarginalsVariable.marginals">
+<span class="sig-name descname"><span class="pre">marginals</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/joint.html#IndependentMarginalsVariable.marginals"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.IndependentMarginalsVariable.marginals" title="Permalink to this definition"></a></dt>
+<dd><p>Return a list of all the 1D scipy.stats random variables.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>variables</strong><span class="classifier">list</span></dt><dd><p>List of <code class="xref py py-class docutils literal notranslate"><span class="pre">scipy.stats.dist</span></code> variables</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.IndependentMarginalsVariable.num_vars">
+<span class="sig-name descname"><span class="pre">num_vars</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/joint.html#IndependentMarginalsVariable.num_vars"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.IndependentMarginalsVariable.num_vars" title="Permalink to this definition"></a></dt>
+<dd><p>Return The number of independent 1D variables</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>nvars</strong><span class="classifier">integer</span></dt><dd><p>The number of independent 1D variables</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.IndependentMarginalsVariable.pdf">
+<span class="sig-name descname"><span class="pre">pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/joint.html#IndependentMarginalsVariable.pdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.IndependentMarginalsVariable.pdf" title="Permalink to this definition"></a></dt>
+<dd><p>Evaluate the joint probability distribution function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>x</strong><span class="classifier">np.ndarray (nvars, nsamples)</span></dt><dd><p>Values in the domain of the random variable X</p>
+</dd>
+<dt><strong>log</strong><span class="classifier">boolean</span></dt><dd><p>True - return the natural logarithm of the PDF values
+False - return the PDF values</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>values</strong><span class="classifier">np.ndarray (nsamples, 1)</span></dt><dd><p>The values of the PDF at x</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyapprox.variables.IndependentMarginalsVariable.rvs">
+<span class="sig-name descname"><span class="pre">rvs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/joint.html#IndependentMarginalsVariable.rvs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.IndependentMarginalsVariable.rvs" title="Permalink to this definition"></a></dt>
+<dd><p>Generate samples from a tensor-product probability measure.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>num_samples</strong><span class="classifier">integer</span></dt><dd><p>The number of samples to generate</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>samples</strong><span class="classifier">np.ndarray (num_vars, num_samples)</span></dt><dd><p>Independent samples from the target distribution</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pyapprox.variables.combine_uncertain_and_bounded_design_variables.html" class="btn btn-neutral float-left" title="combine_uncertain_and_bounded_design_variables" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pyapprox.variables.GaussCopulaVariable.html" class="btn btn-neutral float-right" title="GaussCopulaVariable" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

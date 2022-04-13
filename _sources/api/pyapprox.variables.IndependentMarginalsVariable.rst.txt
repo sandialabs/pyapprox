@@ -1,0 +1,29 @@
+IndependentMarginalsVariable
+============================
+
+.. currentmodule:: pyapprox.variables
+
+.. autoclass:: IndependentMarginalsVariable
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~IndependentMarginalsVariable.evaluate
+      ~IndependentMarginalsVariable.get_statistics
+      ~IndependentMarginalsVariable.is_bounded_continuous_variable
+      ~IndependentMarginalsVariable.marginals
+      ~IndependentMarginalsVariable.num_vars
+      ~IndependentMarginalsVariable.pdf
+      ~IndependentMarginalsVariable.rvs
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: evaluate
+   .. automethod:: get_statistics
+   .. automethod:: is_bounded_continuous_variable
+   .. automethod:: marginals
+   .. automethod:: num_vars
+   .. automethod:: pdf
+   .. automethod:: rvs

@@ -1,0 +1,23 @@
+AlphabetOptimalDesign
+=====================
+
+.. currentmodule:: pyapprox.expdesign
+
+.. autoclass:: AlphabetOptimalDesign
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~AlphabetOptimalDesign.constraint
+      ~AlphabetOptimalDesign.objective
+      ~AlphabetOptimalDesign.setup_objective
+      ~AlphabetOptimalDesign.solve
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: constraint
+   .. automethod:: objective
+   .. automethod:: setup_objective
+   .. automethod:: solve

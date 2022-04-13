@@ -1,77 +1,43 @@
-
-
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8">
-  
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Multi-fidelity Monte Carlo &mdash; PyApprox 1.0.0 documentation</title>
-  
-
-  
-  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
-  <link rel="stylesheet" href="../../_static/gallery.css" type="text/css" />
-  <link rel="stylesheet" href="../../_static/gallery-binder.css" type="text/css" />
-  <link rel="stylesheet" href="../../_static/gallery-dataframe.css" type="text/css" />
-
-  
-  
-  
-  
-
-  
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/jquery.js"></script>
         <script src="../../_static/underscore.js"></script>
         <script src="../../_static/doctools.js"></script>
-        <script src="../../_static/language_data.js"></script>
-        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
-    
-    <script type="text/javascript" src="../../_static/js/theme.js"></script>
-
-    
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Generalized Approximate Control Variate Monte Carlo" href="plot_many_model_approximate_control_variate_monte_carlo.html" />
     <link rel="prev" title="Multi-level Monte Carlo" href="plot_multi_level_monte_carlo.html" /> 
 </head>
 
-<body class="wy-body-for-nav">
-
-   
+<body class="wy-body-for-nav"> 
   <div class="wy-grid-for-nav">
-    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-          
-
-          
-            <a href="../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
-          
-
-          
-            
+            <a href="../../index.html" class="icon icon-home"> PyApprox
             <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
-          
           </a>
-
-          
-            
-            
-          
-
-          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
@@ -79,28 +45,20 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-
-          
-        </div>
-
-        
-        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-          
-            
-            
-              
-            
-            
-              <p class="caption"><span class="caption-text">Getting Started</span></p>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Tutorials</span></p>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="../index.html">PyApprox Tutorials</a><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="../index.html#foundations">Foundations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html">Approximate Control Variate Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
@@ -110,101 +68,57 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
-<li class="toctree-l3"><a class="reference internal" href="plot_multi_index_collocation.html">Multi-index Stochastic Collocation</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_gaussian_mfnets.html">MFNets: Multi-fidelity networks</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../index.html#polynomial-chaos-expansions">Polynomial Chaos Expansions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
 </ul>
 </li>
 </ul>
-<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
 </ul>
-<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Developer Reference Guide</a></li>
-</ul>
 
-            
-          
         </div>
-        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-
-      
-      <nav class="wy-nav-top" aria-label="top navigation">
-        
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="../../index.html">PyApprox</a>
-        
       </nav>
 
-
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
-          
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<div role="navigation" aria-label="breadcrumbs navigation">
-
+          <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-    
       <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
-        
-          <li><a href="../index.html">PyApprox Tutorials</a> &raquo;</li>
-        
+          <li><a href="../index.html">Theoretical Tutorials</a> &raquo;</li>
       <li>Multi-fidelity Monte Carlo</li>
-    
-    
       <li class="wy-breadcrumbs-aside">
-        
-            
             <a href="../../_sources/auto_tutorials/multi_fidelity/plot_multi_fidelity_monte_carlo.rst.txt" rel="nofollow"> View page source</a>
-          
-        
       </li>
-    
   </ul>
-
-  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-            
+             
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-multi-fidelity-monte-carlo-py"><span class="std std-ref">here</span></a>     to download the full example code</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-multi-fidelity-monte-carlo-py"><span class="std std-ref">here</span></a>
+to download the full example code</p>
 </div>
-<div class="sphx-glr-example-title section" id="multi-fidelity-monte-carlo">
-<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-multi-fidelity-monte-carlo-py"></span><h1>Multi-fidelity Monte Carlo<a class="headerlink" href="#multi-fidelity-monte-carlo" title="Permalink to this headline">¶</a></h1>
+<section class="sphx-glr-example-title" id="multi-fidelity-monte-carlo">
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-multi-fidelity-monte-carlo-py"></span><h1>Multi-fidelity Monte Carlo<a class="headerlink" href="#multi-fidelity-monte-carlo" title="Permalink to this headline"></a></h1>
 <p>This tutorial builds on from <a class="reference internal" href="plot_multi_level_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py"><span class="std std-ref">Multi-level Monte Carlo</span></a> and <a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-approximate-control-variate-monte-carlo-py"><span class="std std-ref">Approximate Control Variate Monte Carlo</span></a> and introduces an approximate control variate estimator called Multi-fidelity Monte Carlo (MFMC). Unlike MLMC this method does not assume a strict ordering of models.</p>
-<div class="section" id="many-model-mfmc">
-<h2>Many Model MFMC<a class="headerlink" href="#many-model-mfmc" title="Permalink to this headline">¶</a></h2>
+<section id="many-model-mfmc">
+<h2>Many Model MFMC<a class="headerlink" href="#many-model-mfmc" title="Permalink to this headline"></a></h2>
 <p>To derive the MFMC estimator first recall the two model ACV estimator</p>
 <div class="math notranslate nohighlight">
 \[Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \eta\left(Q_{1,\mathcal{Z}_{0}}-\mu_{1,\mathcal{Z}_{1}}\right)\]</div>
@@ -216,15 +130,19 @@
 <col style="width: 50%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><div class="figure align-center" id="id2">
-<span id="mfmc-sample-allocation"></span><a class="reference internal image-reference" href="../../_images/mfmc1.png"><img alt="../../_images/mfmc1.png" src="../../_images/mfmc1.png" style="width: 100%;" /></a>
-<p class="caption"><span class="caption-text">MFMC sampling strategy</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
-</div>
+<tr class="row-odd"><td><figure class="align-center" id="id2">
+<span id="mfmc-sample-allocation"></span><a class="reference internal image-reference" href="../../_images/mfmc.png"><img alt="../../_images/mfmc.png" src="../../_images/mfmc.png" style="width: 100%;" /></a>
+<figcaption>
+<p><span class="caption-text">MFMC sampling strategy</span><a class="headerlink" href="#id2" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
 </td>
-<td><div class="figure align-center" id="id3">
-<span id="mlmc-sample-allocation-mfmc-comparison"></span><a class="reference internal image-reference" href="../../_images/mlmc1.png"><img alt="../../_images/mlmc1.png" src="../../_images/mlmc1.png" style="width: 100%;" /></a>
-<p class="caption"><span class="caption-text">MLMC sampling strategy</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
-</div>
+<td><figure class="align-center" id="id3">
+<span id="mlmc-sample-allocation-mfmc-comparison"></span><a class="reference internal image-reference" href="../../_images/mlmc.png"><img alt="../../_images/mlmc.png" src="../../_images/mlmc.png" style="width: 100%;" /></a>
+<figcaption>
+<p><span class="caption-text">MLMC sampling strategy</span><a class="headerlink" href="#id3" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
 </td>
 </tr>
 </tbody>
@@ -245,50 +163,44 @@
 <p>Let us use MFMC to estimate the mean of our high-fidelity model.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
-<span class="kn">import</span> <span class="nn">pyapprox</span> <span class="k">as</span> <span class="nn">pya</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
-<span class="kn">from</span> <span class="nn">pyapprox.tests.test_control_variate_monte_carlo</span> <span class="kn">import</span> \
-    <span class="n">TunableModelEnsemble</span><span class="p">,</span> <span class="n">ShortColumnModelEnsemble</span><span class="p">,</span> <span class="n">PolynomialModelEnsemble</span>
-<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">interface</span>
+<span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">multifidelity</span>
 
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;short_column_ensemble&quot;</span><span class="p">)</span>
+<span class="n">short_column_model</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span>
+<span class="n">model_costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mi">100</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">])</span>
 
-<span class="n">short_column_model</span> <span class="o">=</span> <span class="n">ShortColumnModelEnsemble</span><span class="p">()</span>
-<span class="n">model_ensemble</span> <span class="o">=</span> <span class="n">pya</span><span class="o">.</span><span class="n">ModelEnsemble</span><span class="p">(</span>
-    <span class="p">[</span><span class="n">short_column_model</span><span class="o">.</span><span class="n">m0</span><span class="p">,</span><span class="n">short_column_model</span><span class="o">.</span><span class="n">m1</span><span class="p">,</span><span class="n">short_column_model</span><span class="o">.</span><span class="n">m2</span><span class="p">])</span>
-
-<span class="n">costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mi">100</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">5</span><span class="p">])</span>
 <span class="n">target_cost</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">1e4</span><span class="p">)</span>
-<span class="n">idx</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span>
-<span class="n">cov</span> <span class="o">=</span> <span class="n">short_column_model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">()[</span><span class="n">np</span><span class="o">.</span><span class="n">ix_</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span><span class="n">idx</span><span class="p">)]</span>
+<span class="n">idx</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+<span class="n">cov</span> <span class="o">=</span> <span class="n">short_column_model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">()[</span><span class="n">np</span><span class="o">.</span><span class="n">ix_</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">idx</span><span class="p">)]</span>
+<span class="n">model_ensemble</span> <span class="o">=</span> <span class="n">interface</span><span class="o">.</span><span class="n">ModelEnsemble</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">short_column_model</span><span class="o">.</span><span class="n">models</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">idx</span><span class="p">])</span>
+<span class="n">costs</span> <span class="o">=</span> <span class="n">model_costs</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
 
 <span class="c1"># define the sample allocation</span>
-<span class="n">nhf_samples</span><span class="p">,</span><span class="n">nsample_ratios</span> <span class="o">=</span> <span class="n">pya</span><span class="o">.</span><span class="n">allocate_samples_mfmc</span><span class="p">(</span>
-    <span class="n">cov</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">)[:</span><span class="mi">2</span><span class="p">]</span>
-<span class="c1"># generate sample sets</span>
-<span class="n">samples</span><span class="p">,</span><span class="n">values</span> <span class="o">=</span><span class="n">pya</span><span class="o">.</span><span class="n">generate_samples_and_values_mfmc</span><span class="p">(</span>
-    <span class="n">nhf_samples</span><span class="p">,</span><span class="n">nsample_ratios</span><span class="p">,</span><span class="n">model_ensemble</span><span class="p">,</span>
-    <span class="n">short_column_model</span><span class="o">.</span><span class="n">generate_samples</span><span class="p">)</span>
-<span class="c1"># compute mean using only hf data</span>
-<span class="n">hf_mean</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
-<span class="c1"># compute mlmc control variate weights</span>
-<span class="n">eta</span> <span class="o">=</span> <span class="n">pya</span><span class="o">.</span><span class="n">get_mfmc_control_variate_weights</span><span class="p">(</span><span class="n">cov</span><span class="p">)</span>
-<span class="c1"># compute MLMC mean</span>
-<span class="n">mfmc_mean</span> <span class="o">=</span> <span class="n">pya</span><span class="o">.</span><span class="n">compute_approximate_control_variate_mean_estimate</span><span class="p">(</span><span class="n">eta</span><span class="p">,</span><span class="n">values</span><span class="p">)</span>
+<span class="n">est</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mfmc&quot;</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
+<span class="n">nsample_ratios</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">rounded_target_cost</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span>
+    <span class="n">target_cost</span><span class="p">)</span>
+<span class="n">acv_samples</span><span class="p">,</span> <span class="n">acv_values</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">generate_data</span><span class="p">(</span><span class="n">model_ensemble</span><span class="p">)</span>
+<span class="n">mlmc_mean</span> <span class="o">=</span> <span class="n">est</span><span class="p">(</span><span class="n">acv_values</span><span class="p">)</span>
+<span class="n">hf_mean</span> <span class="o">=</span> <span class="n">acv_values</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
 
 <span class="c1"># get the true mean of the high-fidelity model</span>
 <span class="n">true_mean</span> <span class="o">=</span> <span class="n">short_column_model</span><span class="o">.</span><span class="n">get_means</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
-<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;MLMC error&#39;</span><span class="p">,</span><span class="nb">abs</span><span class="p">(</span><span class="n">mfmc_mean</span><span class="o">-</span><span class="n">true_mean</span><span class="p">))</span>
-<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;MC error&#39;</span><span class="p">,</span><span class="nb">abs</span><span class="p">(</span><span class="n">hf_mean</span><span class="o">-</span><span class="n">true_mean</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;MC error&#39;</span><span class="p">,</span> <span class="nb">abs</span><span class="p">(</span><span class="n">hf_mean</span><span class="o">-</span><span class="n">true_mean</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;MFMC error&#39;</span><span class="p">,</span> <span class="nb">abs</span><span class="p">(</span><span class="n">mlmc_mean</span><span class="o">-</span><span class="n">true_mean</span><span class="p">))</span>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>MLMC error 0.017508096391419592
-MC error 0.009640551732770564
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>MC error 0.007037370239274421
+MFMC error 0.017509111944310596
 </pre></div>
 </div>
-</div>
-<div class="section" id="optimal-sample-allocation">
-<h2>Optimal Sample Allocation<a class="headerlink" href="#optimal-sample-allocation" title="Permalink to this headline">¶</a></h2>
+</section>
+<section id="optimal-sample-allocation">
+<h2>Optimal Sample Allocation<a class="headerlink" href="#optimal-sample-allocation" title="Permalink to this headline"></a></h2>
 <p>Similarly to MLMC, the optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically (see <span id="id1">[PWGSIAM2016]</span>). Recalling that <span class="math notranslate nohighlight">\(C_\mathrm{tot}\)</span> is the total budget then the optimal number of high fidelity samples is</p>
 <div class="math notranslate nohighlight">
 \[N_0 = \frac{C_\mathrm{tot}}{\V{w}^T\V{r}}\]</div>
@@ -297,41 +209,38 @@ MC error 0.009640551732770564
 \[r_\alpha=\left(\frac{w_0(\rho^2_{0,\alpha}-\rho^2_{0,\alpha+1})}{w_\alpha(1-\rho^2_{0,1})}\right)^{\frac{1}{2}}\]</div>
 <p>where <span class="math notranslate nohighlight">\(\V{w}=[w_0,w_M]^T\)</span> are the relative costs of each model, and <span class="math notranslate nohighlight">\(\rho_{j,k}\)</span> is the correlation between models <span class="math notranslate nohighlight">\(j\)</span> and <span class="math notranslate nohighlight">\(k\)</span>.</p>
 <p>Now lets us compare MC with MFMC using optimal sample allocations</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">poly_model</span> <span class="o">=</span> <span class="n">PolynomialModelEnsemble</span><span class="p">()</span>
-<span class="n">model_ensemble</span> <span class="o">=</span> <span class="n">pya</span><span class="o">.</span><span class="n">ModelEnsemble</span><span class="p">(</span><span class="n">poly_model</span><span class="o">.</span><span class="n">models</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;polynomial_ensemble&quot;</span><span class="p">)</span>
+<span class="n">poly_model</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span>
+<span class="n">model_ensemble</span> <span class="o">=</span> <span class="n">interface</span><span class="o">.</span><span class="n">ModelEnsemble</span><span class="p">(</span><span class="n">poly_model</span><span class="o">.</span><span class="n">models</span><span class="p">)</span>
 <span class="n">cov</span> <span class="o">=</span> <span class="n">poly_model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">()</span>
-<span class="n">target_costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1e1</span><span class="p">,</span><span class="mf">1e2</span><span class="p">,</span><span class="mf">1e3</span><span class="p">,</span><span class="mf">1e4</span><span class="p">],</span><span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+<span class="n">target_costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1e1</span><span class="p">,</span> <span class="mf">1e2</span><span class="p">,</span> <span class="mf">1e3</span><span class="p">,</span> <span class="mf">1e4</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
 <span class="n">costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mi">10</span><span class="o">**-</span><span class="n">ii</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">cov</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])])</span>
-<span class="n">model_labels</span><span class="o">=</span><span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$f_0$&#39;</span><span class="p">,</span><span class="sa">r</span><span class="s1">&#39;$f_1$&#39;</span><span class="p">,</span><span class="sa">r</span><span class="s1">&#39;$f_2$&#39;</span><span class="p">,</span><span class="sa">r</span><span class="s1">&#39;$f_3$&#39;</span><span class="p">,</span><span class="sa">r</span><span class="s1">&#39;$f_4$&#39;</span><span class="p">]</span>
-<span class="n">variances</span><span class="p">,</span> <span class="n">nsamples_history</span> <span class="o">=</span> <span class="p">[],[]</span>
-<span class="n">npilot_samples</span> <span class="o">=</span> <span class="mi">5</span>
-<span class="n">estimators</span> <span class="o">=</span> <span class="p">[</span><span class="n">pya</span><span class="o">.</span><span class="n">MC</span><span class="p">,</span><span class="n">pya</span><span class="o">.</span><span class="n">MFMC</span><span class="p">]</span>
-<span class="k">for</span> <span class="n">target_cost</span> <span class="ow">in</span> <span class="n">target_costs</span><span class="p">:</span>
-    <span class="k">for</span> <span class="n">estimator</span> <span class="ow">in</span> <span class="n">estimators</span><span class="p">:</span>
-        <span class="n">est</span> <span class="o">=</span> <span class="n">estimator</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span><span class="n">costs</span><span class="p">)</span>
-        <span class="n">nhf_samples</span><span class="p">,</span><span class="n">nsample_ratios</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span><span class="n">target_cost</span><span class="p">)[:</span><span class="mi">2</span><span class="p">]</span>
-        <span class="n">variances</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">get_variance</span><span class="p">(</span><span class="n">nhf_samples</span><span class="p">,</span><span class="n">nsample_ratios</span><span class="p">))</span>
-        <span class="n">nsamples_history</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">get_nsamples</span><span class="p">(</span><span class="n">nhf_samples</span><span class="p">,</span><span class="n">nsample_ratios</span><span class="p">))</span>
-<span class="n">variances</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">variances</span><span class="p">)</span>
-<span class="n">nsamples_history</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">nsamples_history</span><span class="p">)</span>
+<span class="n">model_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$f_0$&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$f_1$&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$f_2$&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$f_3$&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$f_4$&#39;</span><span class="p">]</span>
+<span class="n">npilot_samples</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">cov_mc</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">estimate_model_ensemble_covariance</span><span class="p">(</span>
+    <span class="n">npilot_samples</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span> <span class="n">model_ensemble</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 
-<span class="n">fig</span><span class="p">,</span><span class="n">axs</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span><span class="mi">6</span><span class="p">))</span>
-<span class="c1"># plot sample allocation</span>
-<span class="n">pya</span><span class="o">.</span><span class="n">plot_acv_sample_allocation</span><span class="p">(</span><span class="n">nsamples_history</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">],</span><span class="n">costs</span><span class="p">,</span><span class="n">model_labels</span><span class="p">,</span><span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
-<span class="n">mfmc_total_costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">nsamples_history</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">])</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">costs</span><span class="p">)</span>
-<span class="n">mfmc_variances</span> <span class="o">=</span> <span class="n">variances</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">]</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">mfmc_total_costs</span><span class="p">,</span><span class="n">mfmc_variances</span><span class="p">,</span><span class="s1">&#39;:&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$\mathrm</span><span class="si">{MFMC}</span><span class="s1">$&#39;</span><span class="p">)</span>
-<span class="n">mc_total_costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">nsamples_history</span><span class="p">[::</span><span class="mi">2</span><span class="p">])</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">costs</span><span class="p">)</span>
-<span class="n">mc_variances</span> <span class="o">=</span> <span class="n">variances</span><span class="p">[::</span><span class="mi">2</span><span class="p">]</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">mc_total_costs</span><span class="p">,</span><span class="n">mc_variances</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$\mathrm</span><span class="si">{MC}</span><span class="s1">$&#39;</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">get_ylim</span><span class="p">()[</span><span class="mi">0</span><span class="p">],</span><span class="mf">1e-2</span><span class="p">)</span>
-<span class="n">_</span> <span class="o">=</span> <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
-<span class="c1">#plt.show()</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.configure_plots</span> <span class="kn">import</span> <span class="n">mathrm_labels</span><span class="p">,</span> <span class="n">mathrm_label</span>
+<span class="n">estimators</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">multifidelity</span><span class="o">.</span><span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mfmc&quot;</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">poly_model</span><span class="o">.</span><span class="n">variable</span><span class="p">),</span>
+    <span class="n">multifidelity</span><span class="o">.</span><span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mc&quot;</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">poly_model</span><span class="o">.</span><span class="n">variable</span><span class="p">)]</span>
+<span class="n">est_labels</span> <span class="o">=</span> <span class="n">mathrm_labels</span><span class="p">([</span><span class="s2">&quot;MFMC&quot;</span><span class="p">,</span> <span class="s2">&quot;MC&quot;</span><span class="p">])</span>
+<span class="n">optimized_estimators</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">compare_estimator_variances</span><span class="p">(</span>
+    <span class="n">target_costs</span><span class="p">,</span> <span class="n">estimators</span><span class="p">)</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">multifidelity</span><span class="o">.</span><span class="n">plot_estimator_variances</span><span class="p">(</span>
+    <span class="n">optimized_estimators</span><span class="p">,</span> <span class="n">est_labels</span><span class="p">,</span> <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+    <span class="n">ylabel</span><span class="o">=</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Relative Estimator Variance&quot;</span><span class="p">))</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">target_costs</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">target_costs</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
+<span class="n">multifidelity</span><span class="o">.</span><span class="n">plot_acv_sample_allocation_comparison</span><span class="p">(</span>
+    <span class="n">optimized_estimators</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">model_labels</span><span class="p">,</span> <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 <span class="c1">#fig # necessary for jupyter notebook to reshow plot in new cell</span>
 </pre></div>
 </div>
-<img alt="plot multi fidelity monte carlo" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_multi_fidelity_monte_carlo_0011.png" />
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.487 seconds)</p>
+<img src="../../_images/sphx_glr_plot_multi_fidelity_monte_carlo_001.png" srcset="../../_images/sphx_glr_plot_multi_fidelity_monte_carlo_001.png" alt="plot multi fidelity monte carlo" class = "sphx-glr-single-img"/><p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.590 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multi-fidelity-monte-carlo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/bfab875d6c43c07fdca70c9667b3fca3/plot_multi_fidelity_monte_carlo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multi_fidelity_monte_carlo.py</span></code></a></p>
@@ -341,63 +250,38 @@ MC error 0.009640551732770564
 </div>
 </div>
 <p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
-</div>
-</div>
+</section>
+</section>
 
 
            </div>
-           
           </div>
-          <footer>
-  
-    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-      
-        <a href="plot_many_model_approximate_control_variate_monte_carlo.html" class="btn btn-neutral float-right" title="Generalized Approximate Control Variate Monte Carlo" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
-      
-      
-        <a href="plot_multi_level_monte_carlo.html" class="btn btn-neutral float-left" title="Multi-level Monte Carlo" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
-      
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="plot_multi_level_monte_carlo.html" class="btn btn-neutral float-left" title="Multi-level Monte Carlo" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_many_model_approximate_control_variate_monte_carlo.html" class="btn btn-neutral float-right" title="Generalized Approximate Control Variate Monte Carlo" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
-  
 
   <hr/>
 
   <div role="contentinfo">
-    <p>
-        
-        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
-
-    </p>
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
   </div>
-    
-    
-    
-    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
-    
-    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
-    
-    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
 
 </footer>
-
         </div>
       </div>
-
     </section>
-
   </div>
-  
-
-  <script type="text/javascript">
+  <script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script>
-
-  
-  
-    
-   
+  </script> 
 
 </body>
 </html>

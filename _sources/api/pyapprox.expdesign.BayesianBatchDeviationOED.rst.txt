@@ -1,0 +1,19 @@
+BayesianBatchDeviationOED
+=========================
+
+.. currentmodule:: pyapprox.expdesign
+
+.. autoclass:: BayesianBatchDeviationOED
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~BayesianBatchDeviationOED.compute_expected_utility
+      ~BayesianBatchDeviationOED.populate
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: compute_expected_utility
+   .. automethod:: populate

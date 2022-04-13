@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multivariate Piecewise Polynomial Interpolation &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Convergence studies" href="plot_pde_convergence.html" />
+    <link rel="prev" title="Multivariate Lagrange Interpolation" href="plot_barycentric_interpolation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> PyApprox
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="plot_variables.html">Random Variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_interface.html">Model interfacing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_parameter_sweeps.html">Parameter Sweeps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_low_discrepancy_quadrature.html">Low-discrepancy quadrature</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_gaussian_quadrature.html">Univariate Gaussian Quadrature</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_barycentric_interpolation.html">Multivariate Lagrange Interpolation</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Multivariate Piecewise Polynomial Interpolation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_pde_convergence.html">Convergence studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_sparse_grid_uq.html">Sparse Grid Interpolation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="index.html">Software Tutorials</a> &raquo;</li>
+      <li>Multivariate Piecewise Polynomial Interpolation</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/auto_examples/plot_multivariate_piecewise_polynomial_interpolation.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-examples-plot-multivariate-piecewise-polynomial-interpolation-py"><span class="std std-ref">here</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="multivariate-piecewise-polynomial-interpolation">
+<span id="sphx-glr-auto-examples-plot-multivariate-piecewise-polynomial-interpolation-py"></span><h1>Multivariate Piecewise Polynomial Interpolation<a class="headerlink" href="#multivariate-piecewise-polynomial-interpolation" title="Permalink to this headline"></a></h1>
+<p>Piecewise polynomial interpolation can efficiently approximation functions
+with low smoothness, e.g. piecewise continuous functions. Here we will use
+piecewise quadratic polynomials to interpolate the discontinuous Genz
+benchmark. The function interpolates functions on tensor-products of
+1D equidistant grids. The number of points in the grid doubles with each level.
+Here levels specifies the level of each 1D grid</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="kn">from</span> <span class="nn">pyapprox.analysis</span> <span class="kn">import</span> <span class="n">visualize</span>
+<span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">surrogates</span>
+
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;genz&quot;</span><span class="p">,</span> <span class="n">test_name</span><span class="o">=</span><span class="s2">&quot;discontinuous&quot;</span><span class="p">,</span> <span class="n">nvars</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="n">levels</span> <span class="o">=</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">]</span>
+<span class="n">interp_fun</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
+    <span class="n">surrogates</span><span class="o">.</span><span class="n">tensor_product_piecewise_polynomial_interpolation</span><span class="p">,</span>
+    <span class="n">levels</span><span class="o">=</span><span class="n">levels</span><span class="p">,</span> <span class="n">fun</span><span class="o">=</span><span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="s2">&quot;quadratic&quot;</span><span class="p">)</span>
+
+<span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span> <span class="o">=</span> <span class="n">visualize</span><span class="o">.</span><span class="n">get_meshgrid_function_data_from_variable</span><span class="p">(</span>
+    <span class="n">interp_fun</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">visualize</span><span class="o">.</span><span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">Z</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="mi">20</span><span class="p">))</span>
+</pre></div>
+</div>
+<img src="../_images/sphx_glr_plot_multivariate_piecewise_polynomial_interpolation_001.png" srcset="../_images/sphx_glr_plot_multivariate_piecewise_polynomial_interpolation_001.png" alt="plot multivariate piecewise polynomial interpolation" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.contour.QuadContourSet object at 0x1274f0340&gt;
+</pre></div>
+</div>
+<p>To plot the difference between the interpolant and the target function use</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span> <span class="o">=</span> <span class="n">visualize</span><span class="o">.</span><span class="n">get_meshgrid_function_data_from_variable</span><span class="p">(</span>
+    <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">interp_fun</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">-</span><span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">Z</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="mi">20</span><span class="p">))</span>
+<span class="n">visualize</span><span class="o">.</span><span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.098 seconds)</p>
+<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-multivariate-piecewise-polynomial-interpolation-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/487ae4b30c84219d55a52fda474a780f/plot_multivariate_piecewise_polynomial_interpolation.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multivariate_piecewise_polynomial_interpolation.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/c40c9b7e7ceff4f2787637d2c39928a8/plot_multivariate_piecewise_polynomial_interpolation.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_multivariate_piecewise_polynomial_interpolation.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="plot_barycentric_interpolation.html" class="btn btn-neutral float-left" title="Multivariate Lagrange Interpolation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_pde_convergence.html" class="btn btn-neutral float-right" title="Convergence studies" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
