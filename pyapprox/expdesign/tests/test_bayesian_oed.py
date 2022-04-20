@@ -190,7 +190,7 @@ def compute_linear_gaussian_oed_prediction_stats(
 
 def compute_linear_gaussian_oed_utility(
         oed_type, prior_mean, prior_cov, prior_cov_inv, post_cov, pred_mat,
-        nu_vec, Cmat, nonlinear, risk_fun, pointwise_post_stat):
+        nu_vec, Cmat, risk_fun, pointwise_post_stat):
     """
     Compute the expected utility for a linear Gaussian model
     """
@@ -346,7 +346,7 @@ def linear_gaussian_prediction_deviation_based_oed(
                 nonlinear, quantile, post_cov, pred_mat, nu_vec, Cmat)
             utility_val = compute_linear_gaussian_oed_utility(
                 oed_type, prior_mean, prior_cov, prior_cov_inv, post_cov,
-                pred_mat, nu_vec, Cmat, nonlinear, risk_fun,
+                pred_mat, nu_vec, Cmat, risk_fun,
                 pointwise_post_stat)
             data.append({"expected_deviations": pointwise_post_stat,
                          "utility_val": utility_val})

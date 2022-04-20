@@ -83,6 +83,54 @@ def chebyshev_derivative_matrix(order):
     return pts, derivative_matrix
 
 
+def _chebyshev_second_derivative_matrix_entry(degree, pts, ii, jj):
+    if (ii == 0 and jj == 0) or (ii == degree and jj == degree):
+        return (degree**4-1)/15
+
+    if (ii == jj and ((ii > 0) and (ii < degree))):
+        return -((degree**2-1)*(1-pts[ii]**2)+3)/(
+            3*(1-pts[ii]**2)**2)
+
+    if (ii != jj and (ii > 0 and ii < degree)):
+        deriv = (-1)**(ii+jj)*(
+            pts[ii]**2+pts[ii]*pts[jj]-2)/(
+                (1-pts[ii]**2)*(pts[ii]-pts[jj])**2)
+        if jj == 0 or jj == degree:
+            deriv /= 2
+        return deriv
+
+    # because I define pts from left to right instead of right to left
+    # the next two formulas are different to those in the book
+    # Roger Peyret. Spectral Methods for Incompressible Viscous Flow
+    # I.e. pts  = -x
+    if (ii == 0 and jj > 0):
+        deriv = 2/3*(-1)**jj*(
+            (2*degree**2+1)*(1+pts[jj])-6)/(1+pts[jj])**2
+        if jj == degree:
+            deriv /= 2
+        return deriv
+
+    if ii == degree and jj < degree:
+        deriv = 2/3*(-1)**(jj+degree)*(
+            (2*degree**2+1)*(1-pts[jj])-6)/(1-pts[jj])**2
+        if jj == 0:
+            deriv /= 2
+        return deriv
+
+    raise RuntimeError("Will not happen")
+
+
+def chebyshev_second_derivative_matrix(degree):
+    # this is reverse order used in book
+    pts = -np.cos(np.linspace(0., np.pi, degree+1))
+    derivative_matrix = np.empty((degree+1, degree+1))
+    for ii in range(degree+1):
+        for jj in range(degree+1):
+            derivative_matrix[ii, jj] = \
+                _chebyshev_second_derivative_matrix_entry(degree, pts, ii, jj)
+    return pts, derivative_matrix
+
+
 class AbstractAdvectionDiffusion(ABC):
     r"""
     Solve the advection diffusion equation
@@ -763,7 +811,6 @@ class OneDCollocationMesh(AbstractCartesianProductCollocationMesh):
                 self.domain[0], self.domain[1], num_plot_pts_1d)
             interp_vals = self.interpolate(mesh_values, plot_mesh)
             plt.plot(plot_mesh, interp_vals, color+'-')
-
         elif plot_mesh_coords is not None:
             assert mesh_values.shape[0] == plot_mesh_coords.squeeze().shape[0]
             plt.plot(plot_mesh_coords, mesh_values, 'o-'+color)

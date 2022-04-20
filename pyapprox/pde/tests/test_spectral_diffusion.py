@@ -7,7 +7,9 @@ from pyapprox.pde.spectral_diffusion import (
     SteadyStateAdvectionDiffusionEquation1D,
     TransientAdvectionDiffusionEquation1D,
     SteadyStateAdvectionDiffusionEquation2D,
-    TransientAdvectionDiffusionEquation2D
+    TransientAdvectionDiffusionEquation2D,
+    chebyshev_derivative_matrix,
+    chebyshev_second_derivative_matrix
 )
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.util.utilities import check_gradients
@@ -74,6 +76,18 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         error = np.absolute(grad(model.mesh.mesh_pts) - cheb_grad)
         # print(error)
         assert np.max(error) < 1e-9
+
+    def test_second_derivative_matrix(self):
+        degree = 32
+        # applying D1 twice for large degree suffers significant rounding error
+        # TODO: sue methods in Section 3.3.5 of
+        # Roger Peyret. Spectral Methods for Incompressible Viscous Flow forcing
+        # to reduce roundoff errors
+        D1_mat = chebyshev_derivative_matrix(degree)[1]
+        D2_mat = chebyshev_second_derivative_matrix(degree)[1]
+
+        print(np.linalg.norm(D1_mat.dot(D1_mat)-D2_mat))
+        assert np.allclose(D2_mat, D1_mat.dot(D1_mat))
 
     def test_homogeneous_possion_equation(self):
         """
