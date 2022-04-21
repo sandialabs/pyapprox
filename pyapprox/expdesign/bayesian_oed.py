@@ -190,7 +190,7 @@ def sq_dists_numba_3d_XX_prereduced(XX, YY, a, b, active_indices):
 
     b : float
         scalar added to l2 distance
-
+    
     Returns
     -------
     ss : np.ndarray (LL, MM)
@@ -571,11 +571,8 @@ def compute_expected_kl_utility_monte_carlo(
 def __compute_negative_expected_deviation_monte_carlo(
         log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
-        inner_loop_pred_qois, deviation_fun, active_indices, risk_fun,
-        return_all):
-    """
-    """
-
+        inner_loop_pred_qois, deviation_fun, active_indices, pred_risk_fun,
+        return_all, data_risk_fun):
     nouter_loop_samples = outer_loop_pred_obs.shape[0]
     ninner_loop_samples = int(
         inner_loop_pred_obs.shape[0]//nouter_loop_samples)
@@ -600,10 +597,11 @@ def __compute_negative_expected_deviation_monte_carlo(
     # assume always want deviation here, but this can be changed
     # expected_obs_deviations = np.sum(deviations*outer_loop_weights, axis=0)
     # use einsum because it does not create intermediate arrays
-    expected_obs_deviations = np.einsum(
-        "ij,i->j", deviations, outer_loop_weights[:, 0])
+    # expected_obs_deviations = np.einsum(
+    #    "ij,i->j", deviations, outer_loop_weights[:, 0])
+    expected_obs_deviations = data_risk_fun(deviations, outer_loop_weights)
 
-    disutility_val = risk_fun(expected_obs_deviations[:, None])
+    disutility_val = pred_risk_fun(expected_obs_deviations)
 
     utility_val = -disutility_val
     if not return_all:
@@ -611,7 +609,7 @@ def __compute_negative_expected_deviation_monte_carlo(
     result = {
         'utility_val': utility_val, 'evidences': evidences,
         'weights': weights, 'deviations': deviations,
-        'expected_deviations': expected_obs_deviations[:, None]}
+        'expected_deviations': expected_obs_deviations}
     return result
 
 
@@ -619,7 +617,7 @@ def compute_negative_expected_deviation_monte_carlo(
         log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         inner_loop_pred_qois, deviation_fun, collected_design_indices,
-        new_design_indices, risk_fun, return_all):
+        new_design_indices, pred_risk_fun, return_all, data_risk_fun):
     if collected_design_indices is not None:
         active_indices = np.hstack(
             (collected_design_indices, new_design_indices)).astype(int)
@@ -630,8 +628,8 @@ def compute_negative_expected_deviation_monte_carlo(
     return __compute_negative_expected_deviation_monte_carlo(
         log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
-        inner_loop_pred_qois, deviation_fun, active_indices, risk_fun,
-        return_all)
+        inner_loop_pred_qois, deviation_fun, active_indices, pred_risk_fun,
+        return_all, data_risk_fun)
 
 
 def select_design(design_candidates, collected_design_indices,
@@ -1006,7 +1004,7 @@ class BayesianBatchKLOED(AbstractBayesianOED):
             new_design_indices, return_all)
 
 
-def oed_average_prediction_deviation(qoi_vals, weights=None):
+def oed_prediction_average(qoi_vals, weights=None):
     assert qoi_vals.ndim == 2 and qoi_vals.shape[1] == 1
     if weights is None:
         return qoi_vals.mean()
@@ -1072,6 +1070,58 @@ def oed_entropic_deviation(samples, weights):
     return risks-means
 
 
+def oed_data_expectation(deviations, weights):
+    """
+    Compute the expected deviation for each outer loop sample
+
+    Parameters
+    ----------
+    deviations : np.ndarray (nouter_loop_samples, nqois)
+         The samples
+
+    weights : np.ndarray (nouter_loop_samples, 1)
+        Weights associated with each innner loop sample
+
+    Returns
+    -------
+    expected_obs_deviations : np.ndarray (nqois, 1)
+        The deviation vals
+    """
+    expected_obs_deviations = np.einsum(
+        "ij,i->j", deviations, weights[:, 0])[:, None]
+    return expected_obs_deviations
+
+
+def oed_data_cvar(deviations, weights, quantile=None):
+    """
+    Compute the conditional value of risk of the deviations
+    for each outer loop sample
+
+    Parameters
+    ----------
+    deviations : np.ndarray (nouter_loop_samples, nqois)
+         The samples
+
+    weights : np.ndarray (nouter_loop_samples, 1)
+        Weights associated with each innner loop sample
+
+    quantile : float
+        The quantile used to compute of the conditional value at risk
+        of the deviations for each outerloop obsevation
+
+    Returns
+    -------
+    cvar_obs_deviations : np.ndarray (nqois, 1)
+        The deviation vals
+    """
+    assert quantile is not None
+    cvar_obs_deviations = np.empty((deviations.shape[1], 1))
+    for qq in range(deviations.shape[1]):
+        cvar_obs_deviations[qq, 0] = conditional_value_at_risk(
+            deviations[:, qq], quantile, weights[:, 0], False)
+    return cvar_obs_deviations
+
+
 def oed_standard_deviation(samples, weights):
     """
     Compute the standard deviation for each outer loop sample using the
@@ -1110,6 +1160,10 @@ def oed_conditional_value_at_risk_deviation(samples, weights, quantile=None,
     weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
         Weights associated with each innner loop sample
 
+    quantile : float
+        The quantile of the conditional value at risk used to
+        compute the deviation
+
     Returns
     -------
     deviation_vals : np.ndarray (nouter_loop_samples, nqois)
@@ -1139,7 +1193,8 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
                  econ=False, deviation_fun=oed_standard_deviation,
                  max_eval_concurrency=1,
-                 risk_fun=oed_average_prediction_deviation):
+                 pred_risk_fun=oed_prediction_average,
+                 data_risk_fun=oed_data_expectation):
         r"""
         Constructor.
 
@@ -1230,12 +1285,19 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
             this uses multiprocessing.Pool and seems to provide very little
             benefit and in many cases increases the CPU time.
 
-        risk_fun : callable
-            Function with the signature
+        pred_risk_fun : callable
+            Function to compute risk over multiple qoi with the signature
 
-             `risk_fun(deviations) -> float`
+             `pred_risk_fun(expected_deviations) -> float`
 
-            where deviations : np.ndarray (nqois, 1)
+            where expected_deviations : np.ndarray (nqois, 1)
+
+        data_risk_fun : callable
+            Function to compute risk of deviations over all outerloop samples
+
+             `data_risk_fun(deviations) -> np.ndarray (nqois, 1)`
+
+            where deviations : np.ndarray (nouter_loop_samples, nqois)
         """
 
         super().__init__(design_candidates, obs_fun, noise_std,
@@ -1250,7 +1312,8 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
             raise ValueError("deviation_fun must be a callable function")
         self.qoi_fun = qoi_fun
         self.deviation_fun = deviation_fun
-        self.risk_fun = risk_fun
+        self.pred_risk_fun = pred_risk_fun
+        self.data_risk_fun = data_risk_fun
 
     def __populate(self):
         """
@@ -1339,7 +1402,7 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
             self.inner_loop_pred_obs, self.inner_loop_weights,
             self.outer_loop_weights, self.inner_loop_pred_qois,
             self.deviation_fun, collected_design_indices, new_design_indices,
-            self.risk_fun, return_all)
+            self.pred_risk_fun, return_all, self.data_risk_fun)
 
 
 class BayesianSequentialOED(AbstractBayesianOED):
@@ -1473,8 +1536,8 @@ class BayesianSequentialOED(AbstractBayesianOED):
         new_obs = self.obs_process(self.collected_design_indices)
         self.update_observations(new_obs)
 
-    def update_design(self):
-        return super().update_design()
+    # def update_design(self, return_all=False, rounding_decimals=16):
+    #     return super().update_design(return_all, rounding_decimals)
 
 
 class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
@@ -1482,7 +1545,7 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
     Compute closed-loop OED my maximizing KL divergence between the prior and
     posterior.
     """
-    
+
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, obs_process=None, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
@@ -1561,7 +1624,7 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
         max_eval_concurrency : integer
             The number of threads used to compute OED design. Warning:
             this uses multiprocessing.Pool and seems to provide very little
-            benefit and in many cases increases the CPU time.   
+            benefit and in many cases increases the CPU time.
         """
         # obs_process default is None so same API can be used as
         # open loop design
@@ -1612,7 +1675,8 @@ class BayesianSequentialDeviationOED(
                  generate_inner_prior_samples=None, econ=False,
                  deviation_fun=oed_standard_deviation,
                  max_eval_concurrency=1,
-                 risk_fun=oed_average_prediction_deviation):
+                 pred_risk_fun=oed_prediction_average,
+                 data_risk_fun=oed_data_expectation):
         r"""
         Constructor.
 
@@ -1710,12 +1774,12 @@ class BayesianSequentialDeviationOED(
             this uses multiprocessing.Pool and seems to provide very little
             benefit and in many cases increases the CPU time.
 
-        risk_fun : callable
-            Function with the signature
+        pred_risk_fun : callable
+            Function to compute risk over multiple qoi with the signature
 
-             `risk_fun(deviations) -> float`
+             `pred_risk_fun(expected_deviations) -> float`
 
-            where deviations : np.ndarray (nqois, 1)            
+            where expected_deviations : np.ndarray (nqois, 1)
         """
         # obs_process default is None so same API can be used as
         # open loop design
@@ -1723,7 +1787,7 @@ class BayesianSequentialDeviationOED(
             self, design_candidates, obs_fun, noise_std,
             prior_variable, qoi_fun, nouter_loop_samples,
             ninner_loop_samples, generate_inner_prior_samples,
-            econ, deviation_fun, max_eval_concurrency, risk_fun)
+            econ, deviation_fun, max_eval_concurrency, pred_risk_fun, data_risk_fun)
         BayesianSequentialOED.__init__(self, obs_process)
 
     def compute_expected_utility(self, collected_design_indices,
@@ -1756,7 +1820,7 @@ class BayesianSequentialDeviationOED(
             self.inner_loop_pred_obs, self.inner_loop_weights_up,
             self.outer_loop_weights_up, self.inner_loop_pred_qois,
             self.deviation_fun, None, new_design_indices,
-            self.risk_fun, return_all)
+            self.pred_risk_fun, return_all, self.data_risk_fun)
 
 
 def get_oed_inner_quadrature_rule(ninner_loop_samples, prior_variable,
@@ -1917,13 +1981,15 @@ def generate_inner_prior_samples_fixed(x_quad, w_quad, nsamples):
     return x_quad, w_quad
 
 
-def run_bayesian_batch_deviation_oed(
+def run_bayesian_batch_deviation_oed_deprecated(
         prior_variable, obs_fun, qoi_fun, noise_std,
         design_candidates, pre_collected_design_indices, deviation_fun,
-        risk_fun, nexperiments, nouter_loop_samples, ninner_loop_samples,
+        pred_risk_fun, nexperiments, nouter_loop_samples, ninner_loop_samples,
         quad_method, max_eval_concurrency=1, return_all=False,
         rounding_decimals=16):
     r"""
+    Deprecated. Use get_bayesian_oed_optimizer()
+
     Parameters
     ----------
     prior_variable : pya.IndependentMarginalsVariable
@@ -1965,12 +2031,12 @@ def run_bayesian_batch_deviation_oed(
          inner_loop_pred_qois : np.ndarray (nouter_loop_samples, ninner_loop_samples, nqois)
          weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
 
-    risk_fun : callable
-        Function with the signature
+    pred_risk_fun : callable
+        Function to compute risk over multiple qoi with the signature
 
-         `risk_fun(deviations) -> float`
+         `pred_risk_fun(expected_deviations) -> float`
 
-        where deviations : np.ndarray (nqois, 1)
+        where expected_deviations : np.ndarray (nqois, 1)
 
     nexperiments : integer
         The number of experiments to be collected
@@ -2042,7 +2108,7 @@ def run_bayesian_batch_deviation_oed(
         design_candidates, obs_fun, noise_std, prior_variable,
         qoi_fun, nouter_loop_samples, ninner_loop_samples,
         generate_inner_prior_samples=generate_inner_prior_samples,
-        econ=econ, deviation_fun=deviation_fun, risk_fun=risk_fun,
+        econ=econ, deviation_fun=deviation_fun, pred_risk_fun=pred_risk_fun,
         max_eval_concurrency=max_eval_concurrency)
     oed.populate()
     if pre_collected_design_indices is not None:
@@ -2064,9 +2130,11 @@ def run_bayesian_batch_deviation_oed(
 
 def get_deviation_fun(name, opts={}):
     """
-    Get the deviation function used to compute the deviation of themselves
+    Get the deviation function used to compute the deviation of the
     posterior push-forward for a realization of the observational data
 
+    Parameters
+    ----------
     name : string
         Name of the deviation function.
         Must be one of ["std", "cvar", "entropic"]
@@ -2091,8 +2159,7 @@ def get_deviation_fun(name, opts={}):
     """
     deviation_funs = {
         "std": oed_standard_deviation,
-        "cvar": partial(
-            oed_conditional_value_at_risk_deviation),
+        "cvar": oed_conditional_value_at_risk_deviation,
         "entropic": oed_entropic_deviation}
 
     if name not in deviation_funs:
@@ -2100,6 +2167,47 @@ def get_deviation_fun(name, opts={}):
         raise ValueError(msg)
 
     fun = partial(deviation_funs[name], **opts)
+    return fun
+
+
+def get_data_risk_fun(name, opts={}):
+    """
+    Get the risk function used to compute the risk of the deviation for all
+    outerloop realizations of the observations
+
+    Parameters
+    ----------
+    name : string
+        Name of the deviation function.
+        Must be one of ["std", "cvar", "entropic"]
+
+    opts : dict
+         Any options needed by the desired deviation function. cvar requires
+         {"quantile", p} where 0<=p<1. No options are needed for the other
+         deviation functions
+
+    Returns
+    -------
+    deviation_fun : callable
+        Function with the signature
+
+        `deviation_fun(inner_loop_pred_qois, weights) ->
+         np.ndarray(nouter_loop_samples, nqois)`
+
+         where
+
+         inner_loop_pred_qois : np.ndarray (nouter_loop_samples, ninner_loop_samples, nqois)
+         weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
+    """
+    risk_funs = {
+        "mean": oed_data_expectation,
+        "cvar": oed_data_cvar}
+
+    if name not in risk_funs:
+        msg = f"{name} not in {risk_funs.keys()}"
+        raise ValueError(msg)
+
+    fun = partial(risk_funs[name], **opts)
     return fun
 
 
