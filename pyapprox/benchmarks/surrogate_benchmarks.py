@@ -708,7 +708,7 @@ class SpectralPDEMultiIndexWrapper(object):
             order = sample[self.nvars:-1]
             time_step_size = sample[-1]
         else:
-            order = sample[self.nvars:-1]
+            order = sample[self.nvars:]
             time_step_size = None
         assert np.allclose(order.astype(int), order)
         order = order.astype(int)
