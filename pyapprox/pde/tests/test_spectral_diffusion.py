@@ -21,11 +21,12 @@ def get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
     sp_x, sp_y = sp.symbols(['x', 'y'])
     # u = sp.sin(sp.pi*sp_x)*sp.cos(sp_t)
     u = sp.sympify(sol_string)
-    dxu2 = u.diff(sp_x, 2) + u.diff(sp_y, 2)  # diffusion
+    kdxu = [diffusivity*u.diff(sp_x, 1), diffusivity*u.diff(sp_y, 1)]
+    dxu2 = kdxu[0].diff(sp_x, 1) + kdxu[1].diff(sp_y, 1)  # diffusion
     # dtu = u.diff(sp_t, 1)   # time derivative
     dxu = advection_1*u.diff(sp_x, 1)+advection_2*u.diff(sp_y, 1)  # advection
     # sp_forcing = dtu-(diffusivity*dxu2+advection*dxu)
-    sp_forcing = -(diffusivity*dxu2-dxu)
+    sp_forcing = -(dxu2-dxu)
     print(sp_forcing)
     # forcing_fun = sp.lambdify((sp_x, sp_y, sp_t), sp_forcing, "numpy")
     forcing_fun = sp.lambdify((sp_x, sp_y), sp_forcing, "numpy")
@@ -99,7 +100,8 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         bndry_conds = [[lambda x: x.T*0, "D"],
                        [lambda x: x.T*0+0.5, "D"]]
         domain = [0, 1]
-        model.initialize(bndry_conds, lambda x, z: x.T*0+1,
+        def diff_fun(x, z): return x.T*0+1
+        model.initialize(bndry_conds, diff_fun,
                          lambda x, z: x.T*0, lambda x, z: x.T*0, order, domain)
         mesh_pts = model.get_collocation_points()
         sample = np.zeros((0))  # dummy for this example
@@ -108,6 +110,13 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
             exact_sol(mesh_pts)-solution) < 20*self.eps
+
+        # test compuation of fluxes
+        normal_fluxes = model.compute_bndry_fluxes(solution, [0, 1], sample)
+        def exact_flux(x, z): return diff_fun(x, z)*0.5
+        normals = np.array([-1, 1])[:, None]
+        assert np.allclose(np.array(normal_fluxes),
+                           exact_flux(mesh_pts[:, [0, -1]], sample)*normals)
 
     def test_neumann_boundary_conditions(self):
         """
@@ -686,9 +695,11 @@ class TestSpectralDiffusion2D(unittest.TestCase):
 
     def test_2d_advection_diffusion_neumann_x_dim_bcs(self):
         sol_string = "x**2*sin(pi*y)"
+        diff_string = "1+x"
+        diff_sp = sp.sympify(diff_string)
         sp_forcing_fun = \
             get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
-                sol_string, 1, 1, 0)
+                sol_string, diff_sp, 1, 0)
 
         def exact_sol(x): return (x[0, :]**2*np.sin(np.pi*x[1, :]))[:, None]
 
@@ -704,7 +715,8 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             [lambda x: np.zeros((x.shape[1], 1)), "D"],
             [lambda x: np.zeros((x.shape[1], 1)), "D"]]
         model.initialize(
-            bndry_conds, lambda x, z: np.ones((x.shape[1], 1)), forcing_fun,
+            bndry_conds,
+            lambda x, z: np.ones((x.shape[1], 1))+x[0:1, :].T, forcing_fun,
             lambda x, z: np.hstack(
                 (np.ones((x.shape[1], 1)), np.zeros((x.shape[1], 1)))),
             order, domain)
@@ -712,21 +724,28 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         sample = np.zeros((0))  # dummy for this example
         solution = model.solve(sample)
 
-        # print(np.linalg.norm(exact_sol(model.mesh.mesh_pts)-solution))
-        # fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
-        # X, Y, Z = get_meshgrid_function_data(exact_sol, model.domain, 30)
-        # p = axs[0].contourf(
-        #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 10))
-        # plt.colorbar(p, ax=axs[0])
-        # X, Y, Z = get_meshgrid_function_data(
-        #     partial(model.mesh.interpolate, solution), model.domain, 30)
-        # p = axs[1].contourf(
-        #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 10))
-        # plt.colorbar(p, ax=axs[1])
-        # plt.show()
-
         assert np.linalg.norm(
             exact_sol(model.mesh.mesh_pts)-solution) < 1e-9
+
+        # test compuation of fluxes
+        sp_x, sp_y = sp.symbols(['x', 'y'])
+        u = sp.sympify(sol_string)
+        grad_u_sp = [u.diff(sp_x, 1), u.diff(sp_y, 1)]
+        flux_sp = [diff_sp*grad_u_sp[0], diff_sp*grad_u_sp[1]]
+        flux_fun = sp.lambdify((sp_x, sp_y), flux_sp, "numpy")
+        normal_fluxes = model.compute_bndry_fluxes(
+            solution, [0, 1, 2, 3], sample)
+        def exact_flux(x, z):
+            return np.array(flux_fun(x[0], x[1])).T
+        normals = model.mesh._get_bndry_normals(np.arange(4))
+        assert np.allclose(
+            normals, np.array([[-1, 0], [1, 0], [0, -1], [0, 1]]))
+        for ii, indices in enumerate(model.mesh.boundary_indices):
+            assert np.allclose(
+                np.array(normal_fluxes[ii]),
+                exact_flux(model.mesh.mesh_pts[:, indices], sample).dot(
+                    normals[ii]))
+
 
     def test_2d_advection_diffusion_neumann_y_dim_bcs(self):
         sol_string = "y**2*sin(pi*x)"

@@ -142,6 +142,7 @@ class AbstractAdvectionDiffusion(ABC):
         self.advection_fun = None
         self.domain = None
         self.qoi_functional = None
+        self.mesh = None
 
     def set_qoi_functional(self, qoi_functional, qoi_functional_deriv=None):
         self.qoi_functional = qoi_functional
@@ -240,6 +241,21 @@ class AbstractAdvectionDiffusion(ABC):
     @abstractmethod
     def get_num_degrees_of_freedom(self, config_sample):
         raise NotImplementedError()
+
+    def compute_bndry_fluxes(self, sol, bndry_indices, sample):
+        normal_fluxes = []
+        normals = self.mesh._get_bndry_normals(bndry_indices)
+        for ii, idx in enumerate(bndry_indices):
+            normal_flux = 0
+            diff_vals = self.diffusivity_fun(
+                self.mesh.mesh_pts[:, self.mesh.boundary_indices[idx]], sample)
+            for dd in range(self.mesh.nphys_vars):
+                deriv_dd = self.mesh.derivative_matrices[dd][
+                    self.mesh.boundary_indices[idx], :]
+                flux_1d = diff_vals*(deriv_dd.dot(sol))
+                normal_flux += flux_1d*normals[ii, dd]
+            normal_fluxes.append(normal_flux[:, 0])
+        return normal_fluxes
 
 
 class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
@@ -603,10 +619,28 @@ def get_2d_sub_domain_quadrature_rule(subdomain, order):
 
 class AbstractCartesianProductCollocationMesh(ABC):
     def __init__(self, domain, order):
+        self.domain = None
+        self.nphys_vars = None
+        self.order = None
+        self.canonical_domain = None
+        self.quad_pts = None
+        self.quad_wts = None
+        self.mesh_pts_1d = None
+        self.derivative_matrices_1d = None
+        self.mesh_pts = None
         self.bndry_conds = None
         self.dirichlet_bndry_indices = []
         self.neumann_bndry_indices = []
+        self.adjoint_bndry_conds = None
+        self.boundary_indices = None
+        self.adjoint_dirichlet_bndry_indices = None
+        self.adjoint_neumann_bndry_indices = None
+        self.derivative_matrices = []
         self.set_domain(domain, order)
+        # Note all variables set by member function
+        # defined in this abstract class must be defined here
+        # or sometimes when a derived class is created these variables
+        # will not be populated when scope returned to outside class
 
     def _expand_order(self, order):
         order = np.atleast_1d(order).astype(int)
@@ -663,6 +697,10 @@ class AbstractCartesianProductCollocationMesh(ABC):
 
     @abstractmethod
     def _determine_boundary_indices(self):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _get_bndry_normals(self, bndry_indices):
         raise NotImplementedError()
 
     def integrate(self, mesh_values, order=None, domain=None, qoi=None):
@@ -797,6 +835,17 @@ class OneDCollocationMesh(AbstractCartesianProductCollocationMesh):
             np.array([0]), np.array(
                 [self.derivative_matrices[0].shape[0]-1])]
 
+    def _get_bndry_normal(self, bndry_index):
+        if bndry_index == 0:
+            return -1.
+        return 1.
+
+    def _get_bndry_normals(self, bndry_indices):
+        normals = np.empty((len(bndry_indices), self.nphys_vars))
+        for ii, bndry_index in enumerate(bndry_indices):
+            normals[ii] = self._get_bndry_normal(bndry_index)
+        return normals
+
     def _apply_neumann_boundary_conditions_to_matrix(self, matrix):
         matrix[self.neumann_bndry_indices, :] = \
             self.derivative_matrices[0][self.neumann_bndry_indices, :]
@@ -820,12 +869,21 @@ class OneDCollocationMesh(AbstractCartesianProductCollocationMesh):
 
 
 class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
+    def __init__(self, domain, order):
+        # because __init__ calls function that sets self.boundary_indices
+        # first define default value for all new attributes then call
+        # super
+        self.boundary_indices_to_edges_map = None
+        self.lr_neumann_bndry_indices = None
+        self.bt_neumann_bndry_indices = None
+        super().__init__(domain, order)
+        self._bndry_normals = np.array([[-1, 0], [1, 0], [0, -1], [0, 1]])
+
     def _form_derivative_matrices(self):
         if self.domain.shape[0] != 4:
             raise ValueError("Domain must be 2D")
         ident1 = np.eye(self.order[1]+1)
         ident2 = np.eye(self.order[0]+1)
-        self.derivative_matrices = []
         self.derivative_matrices.append(np.kron(
             ident1,
             self.derivative_matrices_1d[0]*2./(self.domain[1]-self.domain[0])))
@@ -859,6 +917,9 @@ class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
 
         self.boundary_indices = [
             np.array(idx, dtype=int) for idx in self.boundary_indices]
+
+    def _get_bndry_normals(self, bndry_indices):
+        return self._bndry_normals[bndry_indices]
 
     def set_boundary_conditions(self, bndry_conds):
         super().set_boundary_conditions(bndry_conds)
