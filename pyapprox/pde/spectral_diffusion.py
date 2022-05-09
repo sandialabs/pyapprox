@@ -669,6 +669,10 @@ class AbstractCartesianProductCollocationMesh(ABC):
             canonical_pts, self.canonical_domain, self.domain)
         return pts
 
+    def map_samples_to_canonical_domain(self, pts):
+        return map_hypercube_samples(
+                pts, self.domain, self.canonical_domain)
+
     def form_quadrature_rule(self, order, domain):
         univariate_quad_rules = [
             partial(gauss_jacobi_pts_wts_1D, alpha_poly=0, beta_poly=0)
@@ -721,26 +725,31 @@ class AbstractCartesianProductCollocationMesh(ABC):
         # Compute and return integral
         return np.dot(quad_vals[:, 0], quad_wts)
 
-    def interpolate(self, mesh_values, eval_samples):
+    def _interpolate(self, canonical_abscissa_1d, values, eval_samples):
         if eval_samples.ndim == 1:
             eval_samples = eval_samples[None, :]
         assert eval_samples.shape[0] == self.mesh_pts.shape[0]
-        if mesh_values.ndim == 1:
-            mesh_values = mesh_values[:, None]
-        assert mesh_values.ndim == 2
+        if values.ndim == 1:
+            values = values[:, None]
+        assert values.ndim == 2
         num_dims = eval_samples.shape[0]  # map samples to canonical domain
         eval_samples = map_hypercube_samples(
             eval_samples, self.domain, self.canonical_domain)
         # mesh_pts_1d are in canonical domain
-        abscissa_1d = self.mesh_pts_1d
-        weights_1d = [compute_barycentric_weights_1d(xx) for xx in abscissa_1d]
+        weights_1d = [compute_barycentric_weights_1d(xx)
+                      for xx in canonical_abscissa_1d]
         interp_vals = multivariate_barycentric_lagrange_interpolation(
             eval_samples,
-            abscissa_1d,
+            canonical_abscissa_1d,
             weights_1d,
-            mesh_values,
+            values,
             np.arange(num_dims))
         return interp_vals
+
+    def interpolate(self, mesh_values, eval_samples):
+        canonical_abscissa_1d = self.mesh_pts_1d
+        return self._interpolate(
+            canonical_abscissa_1d, mesh_values, eval_samples)
 
     def set_boundary_conditions(self, bndry_conds):
         """
@@ -822,6 +831,27 @@ class AbstractCartesianProductCollocationMesh(ABC):
             rhs[idx] = bndry_cond[0](self.mesh_pts[:, idx])
         return rhs
 
+    def _bndry_segment_mesh(self, segment_id):
+        return self.mesh_pts[:, self.boundary_indices[segment_id]]
+
+    def _interpolate_bndry_segment(self, segment_id, values, samples):
+        segment_mesh = self._bndry_segment_mesh(segment_id)
+        canonical_segment_mesh = self.map_samples_to_canonical_domain(
+            segment_mesh)
+        if segment_id < 2:
+            if not np.allclose(samples[0, :], segment_mesh[0, 0]):
+                print(samples, segment_mesh[0, 0])
+                raise RuntimeError()
+            canonical_abscissa_1d = [canonical_segment_mesh[0, :1],
+                                     canonical_segment_mesh[1, :]]
+        else:
+            if not np.allclose(samples[1, :], segment_mesh[1, 0]):
+                raise RuntimeError()
+            canonical_abscissa_1d = [canonical_segment_mesh[0, :],
+                                     canonical_segment_mesh[1, :1]]
+        interp_vals = self._interpolate(canonical_abscissa_1d, values, samples)
+        return interp_vals
+
 
 class OneDCollocationMesh(AbstractCartesianProductCollocationMesh):
     def _form_derivative_matrices(self):
@@ -901,22 +931,29 @@ class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
         self.boundary_indices = [[] for ii in range(4)]
         self.boundary_indices_to_edges_map = -np.ones(self.mesh_pts.shape[1])
         # Todo avoid double counting the bottom and upper boundaries
+        tol = 1e-15
         for ii in range(self.mesh_pts.shape[1]):
-            if (self.mesh_pts[0, ii] == self.domain[0]):
+            if np.allclose(self.mesh_pts[0, ii], self.domain[0], atol=tol):
                 self.boundary_indices[0].append(ii)
                 self.boundary_indices_to_edges_map[ii] = 0
-            elif (self.mesh_pts[0, ii] == self.domain[1]):
+            if np.allclose(self.mesh_pts[0, ii], self.domain[1], atol=tol):
                 self.boundary_indices[1].append(ii)
                 self.boundary_indices_to_edges_map[ii] = 1
-            elif (self.mesh_pts[1, ii] == self.domain[2]):
+            if np.allclose(self.mesh_pts[1, ii], self.domain[2], atol=tol):
                 self.boundary_indices[2].append(ii)
                 self.boundary_indices_to_edges_map[ii] = 2
-            elif (self.mesh_pts[1, ii] == self.domain[3]):
+            if np.allclose(self.mesh_pts[1, ii], self.domain[3], atol=tol):
                 self.boundary_indices[3].append(ii)
                 self.boundary_indices_to_edges_map[ii] = 3
 
+
         self.boundary_indices = [
             np.array(idx, dtype=int) for idx in self.boundary_indices]
+
+        nbdry_dof = np.sum(
+            [indices.shape[0] for indices in self.boundary_indices])
+        if nbdry_dof != 2*(self.order[0]+1)+2*(self.order[1]+1):
+            raise RuntimeError("Ndof on boundary is incorrect")
 
     def _get_bndry_normals(self, bndry_indices):
         return self._bndry_normals[bndry_indices]

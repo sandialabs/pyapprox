@@ -1,5 +1,5 @@
-import numpy as np
 import unittest
+import numpy as np
 import sympy as sp
 import matplotlib.pyplot as plt
 
@@ -745,7 +745,6 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                 np.array(normal_fluxes[ii]),
                 exact_flux(model.mesh.mesh_pts[:, indices], sample).dot(
                     normals[ii]))
-
 
     def test_2d_advection_diffusion_neumann_y_dim_bcs(self):
         sol_string = "y**2*sin(pi*x)"
