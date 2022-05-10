@@ -939,10 +939,14 @@ class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
             if np.allclose(self.mesh_pts[0, ii], self.domain[1], atol=tol):
                 self.boundary_indices[1].append(ii)
                 self.boundary_indices_to_edges_map[ii] = 1
-            if np.allclose(self.mesh_pts[1, ii], self.domain[2], atol=tol):
+            if (np.allclose(self.mesh_pts[1, ii], self.domain[2], atol=tol) and
+                not np.allclose(self.mesh_pts[0, ii], self.domain[0], atol=tol) and
+                not np.allclose(self.mesh_pts[0, ii], self.domain[1], atol=tol)):
                 self.boundary_indices[2].append(ii)
                 self.boundary_indices_to_edges_map[ii] = 2
-            if np.allclose(self.mesh_pts[1, ii], self.domain[3], atol=tol):
+            if (np.allclose(self.mesh_pts[1, ii], self.domain[3], atol=tol) and
+                not np.allclose(self.mesh_pts[0, ii], self.domain[0], atol=tol) and
+                not np.allclose(self.mesh_pts[0, ii], self.domain[1], atol=tol)):
                 self.boundary_indices[3].append(ii)
                 self.boundary_indices_to_edges_map[ii] = 3
 
@@ -952,7 +956,7 @@ class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
 
         nbdry_dof = np.sum(
             [indices.shape[0] for indices in self.boundary_indices])
-        if nbdry_dof != 2*(self.order[0]+1)+2*(self.order[1]+1):
+        if nbdry_dof != 2*(self.order[0]+1)+2*(self.order[1]+1)-4:
             raise RuntimeError("Ndof on boundary is incorrect")
 
     def _get_bndry_normals(self, bndry_indices):
