@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 from scipy.special import comb as nchoosek
 
@@ -80,6 +81,27 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
     assert np.all(np.isfinite(result)), (num_samples)
     return result
 
+
+def _barycentric_interpolation_1d(abscissa, weights, vals, eval_samples):
+    # mask = np.in1d(eval_samples, abscissa)
+    # II = np.where(~mask)[0]
+    # All eval_samples not corresponding to abscissa
+    # using mask will avoid divide by zero but is much slower
+    approx_vals = np.empty((eval_samples.shape[0]))
+    diff = eval_samples[:, None]-abscissa[None, :]
+    approx_vals = (
+        weights*vals/diff).sum(axis=1)/(weights/diff).sum(axis=1)
+    # set approx to vals at abscissa
+    II = np.where(eval_samples == abscissa[:, None])
+    approx_vals[II[1]] = vals[II[0]]
+    return approx_vals
+
+
+def barycentric_interpolation_1d(abscissa, weights, vals, eval_samples):
+    with warnings.catch_warnings():
+        # avoid division by zero warning
+        warnings.simplefilter("ignore")
+        return _barycentric_interpolation_1d(abscissa, weights, vals, eval_samples)
 
 def barycentric_lagrange_interpolation_precompute(
         num_act_dims, abscissa_1d, barycentric_weights_1d,

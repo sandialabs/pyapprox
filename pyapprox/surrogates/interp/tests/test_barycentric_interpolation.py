@@ -13,7 +13,7 @@ from pyapprox.surrogates.interp.barycentric_interpolation import (
     multivariate_barycentric_lagrange_interpolation,
     clenshaw_curtis_barycentric_weights,
     multivariate_hierarchical_barycentric_lagrange_interpolation,
-    tensor_product_lagrange_interpolation
+    tensor_product_lagrange_interpolation, barycentric_interpolation_1d
 )
 from pyapprox.util.utilities import cartesian_product
 from pyapprox.surrogates.orthopoly.quadrature import (
@@ -155,6 +155,19 @@ class TestBarycentricInterpolation(unittest.TestCase):
         print(weights)
         print(np.absolute(weights).max(), np.absolute(weights).min())
         print(np.absolute(weights).max()/np.absolute(weights).min())
+
+    def test_barycentric_interpolation_1d(self):
+        level = 3
+        abscissa = clenshaw_curtis_in_polynomial_order(level, False)[0]
+        weights = compute_barycentric_weights_1d(abscissa)
+        def fun(x):
+            return np.cos(x)
+        vals = fun(abscissa)
+        xx = np.linspace(-1, 1, 21)
+        xx[2] = abscissa[1]
+        approx_vals = barycentric_interpolation_1d(
+            abscissa, weights, vals, xx)
+        assert np.allclose(fun(xx), approx_vals)
 
     def test_multivariate_barycentric_lagrange_interpolation(self):
         def f(x): return np.sum(x**2, axis=0)

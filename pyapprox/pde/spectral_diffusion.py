@@ -10,10 +10,10 @@ from pyapprox.util.utilities import (
 from pyapprox.util.linalg import qr_solve
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.surrogates.interp.barycentric_interpolation import (
-    compute_barycentric_weights_1d,
+    compute_barycentric_weights_1d, barycentric_interpolation_1d,
     multivariate_barycentric_lagrange_interpolation
 )
-from pyapprox.variables.transforms import map_hypercube_samples
+from pyapprox.variables.transforms import _map_hypercube_samples
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array
 )
@@ -636,7 +636,9 @@ class AbstractCartesianProductCollocationMesh(ABC):
         self.adjoint_dirichlet_bndry_indices = None
         self.adjoint_neumann_bndry_indices = None
         self.derivative_matrices = []
+        self._mesh_pts_1d_barycentric_weights = None
         self.set_domain(domain, order)
+        self._arange_nphys_vars = np.arange(self.nphys_vars)
         # Note all variables set by member function
         # defined in this abstract class must be defined here
         # or sometimes when a derived class is created these variables
@@ -665,13 +667,13 @@ class AbstractCartesianProductCollocationMesh(ABC):
         self._determine_boundary_indices()
 
     def map_samples_from_canonical_domain(self, canonical_pts):
-        pts = map_hypercube_samples(
+        pts = _map_hypercube_samples(
             canonical_pts, self.canonical_domain, self.domain)
         return pts
 
     def map_samples_to_canonical_domain(self, pts):
-        return map_hypercube_samples(
-                pts, self.domain, self.canonical_domain)
+        return _map_hypercube_samples(
+            pts, self.domain, self.canonical_domain)
 
     def form_quadrature_rule(self, order, domain):
         univariate_quad_rules = [
@@ -690,6 +692,9 @@ class AbstractCartesianProductCollocationMesh(ABC):
             mpts, der_mat = chebyshev_derivative_matrix(self.order[ii])
             self.mesh_pts_1d.append(mpts)
             self.derivative_matrices_1d.append(der_mat)
+
+        self._mesh_pts_1d_barycentric_weights = [
+            compute_barycentric_weights_1d(xx) for xx in self.mesh_pts_1d]
 
         self.mesh_pts = self.map_samples_from_canonical_domain(
             cartesian_product(self.mesh_pts_1d))
@@ -725,31 +730,30 @@ class AbstractCartesianProductCollocationMesh(ABC):
         # Compute and return integral
         return np.dot(quad_vals[:, 0], quad_wts)
 
-    def _interpolate(self, canonical_abscissa_1d, values, eval_samples):
+    def _interpolate(self, canonical_abscissa_1d,
+                     canonical_barycentric_weights_1d,
+                     values, eval_samples):
         if eval_samples.ndim == 1:
             eval_samples = eval_samples[None, :]
-        assert eval_samples.shape[0] == self.mesh_pts.shape[0]
+            assert eval_samples.shape[0] == self.mesh_pts.shape[0]
         if values.ndim == 1:
             values = values[:, None]
-        assert values.ndim == 2
-        num_dims = eval_samples.shape[0]  # map samples to canonical domain
-        eval_samples = map_hypercube_samples(
+            assert values.ndim == 2
+        eval_samples = _map_hypercube_samples(
             eval_samples, self.domain, self.canonical_domain)
-        # mesh_pts_1d are in canonical domain
-        weights_1d = [compute_barycentric_weights_1d(xx)
-                      for xx in canonical_abscissa_1d]
         interp_vals = multivariate_barycentric_lagrange_interpolation(
             eval_samples,
             canonical_abscissa_1d,
-            weights_1d,
+            canonical_barycentric_weights_1d,
             values,
-            np.arange(num_dims))
+            self._arange_nphys_vars)
         return interp_vals
 
     def interpolate(self, mesh_values, eval_samples):
         canonical_abscissa_1d = self.mesh_pts_1d
         return self._interpolate(
-            canonical_abscissa_1d, mesh_values, eval_samples)
+            canonical_abscissa_1d, self._mesh_pts_1d_barycentric_weights,
+            mesh_values, eval_samples)
 
     def set_boundary_conditions(self, bndry_conds):
         """
@@ -831,28 +835,7 @@ class AbstractCartesianProductCollocationMesh(ABC):
             rhs[idx] = bndry_cond[0](self.mesh_pts[:, idx])
         return rhs
 
-    def _bndry_segment_mesh(self, segment_id):
-        return self.mesh_pts[:, self.boundary_indices[segment_id]]
-
-    def _interpolate_bndry_segment(self, segment_id, values, samples):
-        segment_mesh = self._bndry_segment_mesh(segment_id)
-        canonical_segment_mesh = self.map_samples_to_canonical_domain(
-            segment_mesh)
-        if segment_id < 2:
-            if not np.allclose(samples[0, :], segment_mesh[0, 0]):
-                print(samples, segment_mesh[0, 0])
-                raise RuntimeError()
-            canonical_abscissa_1d = [canonical_segment_mesh[0, :1],
-                                     canonical_segment_mesh[1, :]]
-        else:
-            if not np.allclose(samples[1, :], segment_mesh[1, 0]):
-                raise RuntimeError()
-            canonical_abscissa_1d = [canonical_segment_mesh[0, :],
-                                     canonical_segment_mesh[1, :1]]
-        interp_vals = self._interpolate(canonical_abscissa_1d, values, samples)
-        return interp_vals
-
-
+  
 class OneDCollocationMesh(AbstractCartesianProductCollocationMesh):
     def _form_derivative_matrices(self):
         if self.domain.shape[0] != 2:
@@ -906,8 +889,11 @@ class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
         self.boundary_indices_to_edges_map = None
         self.lr_neumann_bndry_indices = None
         self.bt_neumann_bndry_indices = None
+        self._bndry_segment_canonical_abscissa = None
+        self._bndry_segment_canonical_bary_weights = None
         super().__init__(domain, order)
         self._bndry_normals = np.array([[-1, 0], [1, 0], [0, -1], [0, 1]])
+        self._set_bndry_segment_interpolation_data()
 
     def _form_derivative_matrices(self):
         if self.domain.shape[0] != 4:
@@ -950,7 +936,6 @@ class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
                 self.boundary_indices[3].append(ii)
                 self.boundary_indices_to_edges_map[ii] = 3
 
-
         self.boundary_indices = [
             np.array(idx, dtype=int) for idx in self.boundary_indices]
 
@@ -990,6 +975,51 @@ class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
             fun, self.domain, num_pts_1d, qoi=0)
         return ax.contourf(
             X, Y, Z, levels=np.linspace(Z.min(), Z.max(), ncontour_levels))
+
+    def _bndry_segment_mesh(self, segment_id):
+        return self.mesh_pts[:, self.boundary_indices[segment_id]]
+
+    def _set_bndry_segment_interpolation_data(self):
+        self._bndry_segment_canonical_abscissa = []
+        self._bndry_segment_canonical_bary_weights = []
+        for segment_id in range(4):
+            segment_mesh = self._bndry_segment_mesh(segment_id)
+            canonical_segment_mesh = self.map_samples_to_canonical_domain(
+                segment_mesh)
+            if segment_id < 2:
+                canonical_abscissa_1d = [canonical_segment_mesh[0, :1],
+                                         canonical_segment_mesh[1, :]]
+            else:
+                canonical_abscissa_1d = [canonical_segment_mesh[0, :],
+                                         canonical_segment_mesh[1, :1]]
+            self._bndry_segment_canonical_abscissa.append(
+                canonical_abscissa_1d)
+            self._bndry_segment_canonical_bary_weights.append(
+                [compute_barycentric_weights_1d(xx)
+                 for xx in canonical_abscissa_1d])
+
+    def _interpolate_bndry_segment(self, segment_id, values, samples):
+        # if segment_id < 2:
+        #     if not np.allclose(samples[0, :], segment_mesh[0, 0]):
+        #         print(samples, segment_mesh[0, 0])
+        #         raise RuntimeError()
+        # else:
+        #     if not np.allclose(samples[1, :], segment_mesh[1, 0]):
+        #         raise RuntimeError()
+        # interp_vals = self._interpolate(
+        #     self._bndry_segment_canonical_abscissa[segment_id],
+        #     self._bndry_segment_canonical_bary_weights[segment_id],
+        #     values, samples)
+        # return interp_vals
+        assert values.ndim == 1
+        dim = int(segment_id < 2)
+        canonical_samples = _map_hypercube_samples(
+            samples[dim:dim+1], self.domain, self.canonical_domain)
+        approx_vals = barycentric_interpolation_1d(
+            self._bndry_segment_canonical_abscissa[segment_id][dim],
+            self._bndry_segment_canonical_bary_weights[segment_id][dim],
+            values, canonical_samples[dim])[:, None]
+        return approx_vals
 
 
 # Wrappers to maintain backwards compatability
