@@ -15,6 +15,12 @@ from pyapprox.variables.joint import (
 )
 
 
+def _map_hypercube_samples(current_samples, current_ranges, new_ranges):
+    # no error checking or notion of active_vars
+    clbs, cubs = current_ranges[0::2], current_ranges[1::2]
+    nlbs, nubs = new_ranges[0::2], new_ranges[1::2]
+    return ((current_samples.T-clbs)/(cubs-clbs)*(nubs-nlbs)+nlbs).T
+
 def map_hypercube_samples(current_samples, current_ranges, new_ranges,
                           active_vars=None, tol=2*np.finfo(float).eps):
     """
@@ -57,28 +63,27 @@ def map_hypercube_samples(current_samples, current_ranges, new_ranges,
     num_vars = current_samples.shape[0]
     assert num_vars == new_ranges.shape[0]//2
     assert num_vars == current_ranges.shape[0]//2
+    clbs, cubs = current_ranges[0::2], current_ranges[1::2]
+    nlbs, nubs = new_ranges[0::2], new_ranges[1::2]
+    if np.any((current_samples.min(axis=1)) <= clbs-tol):
+        raise ValueError("samples outside lower bounds")
+    if np.any((current_samples.max(axis=1)) >= cubs+tol):
+        raise ValueError("samples outside upper bounds")
+    II = np.where(current_samples.T < clbs)
+    JJ = np.where(current_samples.T > cubs)
+    if II[0].shape[0] > 0:
+        current_samples[II[1], II[0]] = clbs[II[1]]
+    if JJ[0].shape[0] > 0:
+        current_samples[JJ[1], JJ[0]] = cubs[JJ[1]]
+
     if active_vars is None:
-        active_vars = np.arange(num_vars)
-    for dd in active_vars:
-        lb = current_ranges[2*dd]
-        ub = current_ranges[2*dd+1]
-        # print (lb,current_samples[dd,:].min())
-        # print (ub,current_samples[dd,:].max(),tol)
-        assert current_samples[dd, :].min() >= lb-tol
-        assert current_samples[dd, :].max() <= ub+tol
-        if tol > 0:
-            II = np.where(current_samples[dd, :] < lb)[0]
-            if II.shape[0] > 0:
-                print('c', current_samples[dd, II])
-            current_samples[dd, II] = lb
-            J = np.where(current_samples[dd, :] > ub)[0]
-            current_samples[dd, J] = ub
-        assert ub-lb > np.finfo(float).eps*2
-        new_samples[dd, :] = (current_samples[dd, :].copy()-lb)/(ub-lb)
-        lb = new_ranges[2*dd]
-        ub = new_ranges[2*dd+1]
-        assert ub-lb > np.finfo(float).eps*2
-        new_samples[dd, :] = new_samples[dd, :]*(ub-lb)+lb
+        return _map_hypercube_samples(
+            current_samples, current_ranges, new_ranges)
+
+    new_samples[active_vars] = (
+        (current_samples[active_vars].T-clbs[active_vars])/(
+            cubs[active_vars]-clbs[active_vars])*(
+                nubs[active_vars]-nlbs[active_vars])+nlbs[active_vars]).T
     return new_samples
 
 

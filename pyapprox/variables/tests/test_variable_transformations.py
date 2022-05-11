@@ -31,10 +31,26 @@ class TestVariableTransformations(unittest.TestCase):
         new_ranges = np.ones(2*num_vars)
         new_ranges[::2] = -1.
         samples = map_hypercube_samples(
-            current_samples, current_ranges, new_ranges,
-            active_vars=[0, 2])
+            current_samples, current_ranges, new_ranges)
+        true_samples = 2*current_samples-1.
+        assert np.allclose(true_samples, samples)
+
+        num_vars = 3
+        num_samples = 6
+        current_samples = np.random.uniform(0., 1., (num_vars, num_samples))
+        current_samples[:, [2, 4]] = 1
+        current_ranges = np.ones(2*num_vars)
+        current_ranges[::2] = 0.
+        new_ranges = np.ones(2*num_vars)
+        new_ranges[::2] = -1.
         true_samples = 2*current_samples-1.
         true_samples[1, :] = current_samples[1, :]
+        # perturb some samples with numerical noise to make sure
+        # that these samples are clipped correctly
+        current_samples[:, [2, 4]] += np.finfo(float).eps
+        samples = map_hypercube_samples(
+            current_samples, current_ranges, new_ranges,
+            active_vars=[0, 2])
         assert np.allclose(true_samples, samples)
 
     def test_define_mixed_tensor_product_random_variable(self):
