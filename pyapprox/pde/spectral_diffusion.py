@@ -863,6 +863,8 @@ class OneDCollocationMesh(AbstractCartesianProductCollocationMesh):
         return normals
 
     def _apply_neumann_boundary_conditions_to_matrix(self, matrix):
+        if self.neumann_bndry_indices.shape[0] == 0:
+            return matrix
         matrix[self.neumann_bndry_indices, :] = \
             self.derivative_matrices[0][self.neumann_bndry_indices, :]
         return matrix
@@ -961,11 +963,13 @@ class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
 
     def _apply_neumann_boundary_conditions_to_matrix(self, matrix):
         # left and right boundaries
-        matrix[self.lr_neumann_bndry_indices, :] = \
-            self.derivative_matrices[0][self.lr_neumann_bndry_indices, :]
+        if self.lr_neumann_bndry_indices.shape[0] > 0:
+            matrix[self.lr_neumann_bndry_indices, :] = \
+                self.derivative_matrices[0][self.lr_neumann_bndry_indices, :]
         # bottom and top boundaries
-        matrix[self.bt_neumann_bndry_indices, :] = \
-            self.derivative_matrices[1][self.bt_neumann_bndry_indices, :]
+        if self.bt_neumann_bndry_indices.shape[0] > 0:
+            matrix[self.bt_neumann_bndry_indices, :] = \
+                self.derivative_matrices[1][self.bt_neumann_bndry_indices, :]
         return matrix
 
     def plot(self, mesh_values, num_pts_1d=100, ncontour_levels=20, ax=None):
