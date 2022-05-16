@@ -194,7 +194,7 @@ class StokesFlowModel(AbstractSpectralPDE):
             # i.e. only apply u_1 = 0 for rhs elements associated with u_1 mesh
             # (first row block) and u_2 = 0 for rhs elements associated with
             # u_2 mesh (second row block)
-            for dd in range(len(bndry_vals)):
+            for dd in range(self._mesh.nphys_vars):
                 rhs[idx+dd*nvel_dof] = bndry_vals[dd]
         return rhs
 
@@ -233,6 +233,12 @@ class StokesFlowModel(AbstractSpectralPDE):
         split.append(vector[self._mesh.nphys_vars*nvel_dof:])
         return split
 
+    def interpolate(self, sol_vals, xx):
+        Z = [None, None, None]
+        for ii in range(self._mesh.nphys_vars):
+            Z[ii] = self._mesh.interpolate(sol_vals[ii], xx)
+        Z[-1] = self._pres_mesh.interpolate(sol_vals[-1], xx)
+        return Z
 
 def evaluate_sp_lambda(sp_lambda, xx):
     # sp_lambda returns a singel function output
@@ -280,23 +286,26 @@ class TestStokes(unittest.TestCase):
         assert np.allclose(
             deriv_mat_1d_interior.dot(fun(interior_pts)), deriv(interior_pts))
 
-    def test_stokes(self):
+    def test_stokes_mms(self):
         np.set_printoptions(linewidth=150, threshold=2000)
         nphys_vars = 2
         sp_x, sp_y = sp.symbols(['x', 'y'])
         if nphys_vars == 2:
-            order = 4
-            symbs = (sp_x, sp_y)
-            # velocity_strings = ["-cos(pi*x)*sin(pi*y)", "sin(pi*x)*cos(pi*y)"]
-            velocity_strings = ["-x**3", "-y**3"]
-            pressure_string = "x**2+y**2"
             domain = [0, 1, 0, 1]
+            symbs = (sp_x, sp_y)
+            velocity_strings = ["-cos(pi*x)*sin(pi*y)", "sin(pi*x)*cos(pi*y)"]
+            pressure_string = "x**2+y**2"
+            order = 20
+            # velocity_strings = ["-cos(pi*x)*sin(pi*y)", "sin(pi*x)*cos(pi*y)"]
+            # order = 4
+            # velocity_strings = ["-x**3", "-y**3"]
+            # pressure_string = "x**2+y**2"
         else:
-            order = 4
+            domain = [0, 1]
             symbs = (sp_x,)
+            order = 4
             velocity_strings = ["-x**3"]
             pressure_string = "x**2"
-            domain = [0, 1]
 
         sp_pres = sp.sympify(pressure_string)
         sp_vel = [sp.sympify(s) for s in velocity_strings]
@@ -331,13 +340,6 @@ class TestStokes(unittest.TestCase):
                        [lambda x: exact_vel(x), "D"],
                        [lambda x: exact_vel(x), "D"]]
 
-        # todo ensure boundary conditions are being enforced exactly
-        # they are not yet
-        # bndry_conds = [[lambda x: [90*np.ones((x.shape[1], 1))]*2, "D"],
-        #                [lambda x: [90*np.ones((x.shape[1], 1))]*2, "D"],
-        #                [lambda x: [90*np.ones((x.shape[1], 1))]*2, "D"],
-        #                [lambda x: [90*np.ones((x.shape[1], 1))]*2, "D"]]
-
         bndry_conds = bndry_conds[:len(domain)]
 
         model = StokesFlowModel()
@@ -371,20 +373,70 @@ class TestStokes(unittest.TestCase):
         # check value used to enforce unique pressure is found correctly
         assert np.allclose(
             recovered_forcing[nphys_vars][-1], exact_sol_vals[-1])
-        
-        cnt = 0
+
         for exact_v, v in zip(exact_vel_vals, sol_vals[:-1]):
             assert np.allclose(exact_v, v)
 
-        num_pts_1d = 30
+        num_pts_1d = 100
         plot_limits = domain
         from pyapprox.util.visualization import get_meshgrid_samples
-        # X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d)
-        # Z = exact_vel(pts)
-        # print(sol_vals[1])
-        # print(exact_vel_vals[0])
-        # plt.quiver(X, Y, Z[0], Z[1])
-        # plt.show()
+        X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d)
+        Z = model.interpolate(sol_vals, pts)
+        for ii in range(model._mesh.nphys_vars):
+            assert np.allclose(Z[ii], exact_vel(pts)[ii])
+            Z[ii] = np.reshape(Z[ii], (X.shape[0], X.shape[1]))
+        assert np.allclose(Z[-1], exact_pres(pts))
+        Z[-1] = np.reshape(Z[-1], (X.shape[0], X.shape[1]))
+        plt.quiver(X, Y, Z[0], Z[1])
+        plt.show()
+
+    def lid_driven_cavity_flow(self):
+        # todo ensure boundary conditions are being enforced exactly
+        # they are not yet
+
+        # drive cavity using left boundary as top and bottom boundaries
+        # do not hvae dof at the corners
+        def bndry_condition(xx):
+            cond = [np.zeros((xx.shape[1], 1)),
+                    (16*xx[1, :]**2*(1-xx[1, :]**2))[:, None]]
+            return cond
+
+        order = 128
+        domain = [0, 1, 0, 1]
+        bndry_conds = [
+            [bndry_condition, "D"],
+            [lambda x: [np.zeros((x.shape[1], 1)) for ii in range(2)], "D"],
+            [lambda x: [np.zeros((x.shape[1], 1)) for ii in range(2)], "D"],
+            [lambda x: [np.zeros((x.shape[1], 1)) for ii in range(2)], "D"]]
+
+        def forcing_fun(xx, zz):
+            return [np.zeros((xx.shape[1], 1)) for ii in range(3)]
+        
+        model = StokesFlowModel()
+        model.initialize(bndry_conds, order, domain, forcing_fun)
+        sample = np.zeros(0)  # dummy
+        sol_vals = model.solve(sample)
+
+        rhs = model._split_quantities(model._rhs)
+        assert np.allclose(
+            sol_vals[1][model._mesh.boundary_indices[0], 0],
+            rhs[1][model._mesh.boundary_indices[0], 0])
+        # assert False
+
+        num_pts_1d = 100
+        plot_limits = domain
+        from pyapprox.util.visualization import get_meshgrid_samples
+        X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d)
+        Z = model.interpolate(sol_vals, pts)
+        II = np.where(pts[0, :] == 0)[0]
+        print(pts[:, II])
+        print(Z[1][II, 0])
+        Z = [np.reshape(zz, (X.shape[0], X.shape[1])) for zz in Z]
+        print(sol_vals[0][model._mesh.boundary_indices[0], 0])
+        print(sol_vals[1][model._mesh.boundary_indices[0], 0])
+        print(sol_vals[-1].max())
+        plt.quiver(X, Y, Z[0], Z[1])
+        plt.show()
 
 
 if __name__ == "__main__":
