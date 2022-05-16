@@ -687,7 +687,7 @@ class AbstractCartesianProductCollocationMesh(ABC):
         return quad_pts, quad_wts
 
     def _form_1d_derivative_matrices(self, order):
-        return chebyshev_derivative_matrix(self.order[ii])
+        return chebyshev_derivative_matrix(order)
 
     def form_derivative_matrices(self):
         self.mesh_pts_1d, self.derivative_matrices_1d = [], []
