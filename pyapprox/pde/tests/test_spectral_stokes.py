@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 import sympy as sp
 import matplotlib.pyplot as plt
+from functools import partial
 
 from abc import ABC, abstractmethod
 from pyapprox.pde.spectral_diffusion import (
@@ -160,6 +161,9 @@ class StokesFlowModel(AbstractSpectralPDE):
             np.zeros((self._interior_indices.shape[0],
                       self._interior_indices.shape[0])))
 
+        # for s in sub_mats:
+        #     print([t.shape for t in s])
+
         matrix = np.block(sub_mats)
         return matrix
 
@@ -185,12 +189,16 @@ class StokesFlowModel(AbstractSpectralPDE):
         for ii, bndry_cond in enumerate(self._mesh.bndry_conds):
             idx = self._mesh.boundary_indices[ii]
             bndry_vals = bndry_cond[0](self._mesh.mesh_pts[:, idx])
+            # only apply boundary conditions that define values of solution
+            # consistent with degrees of freedom under consideration
+            # i.e. only apply u_1 = 0 for rhs elements associated with u_1 mesh
+            # (first row block) and u_2 = 0 for rhs elements associated with
+            # u_2 mesh (second row block)
             for dd in range(len(bndry_vals)):
-                for kk in range(self._mesh.nphys_vars):
-                    rhs[idx+kk*nvel_dof] = bndry_vals[dd]
+                rhs[idx+dd*nvel_dof] = bndry_vals[dd]
         return rhs
 
-    def solve(self, sample):
+    def solve(self, sample, pres=1):
         forcing = self.forcing_fun(self._mesh.mesh_pts, sample[:, None])
         assert len(forcing) == self._mesh.nphys_vars+1
         for ii in range(len(forcing)):
@@ -204,14 +212,18 @@ class StokesFlowModel(AbstractSpectralPDE):
         self.collocation_matrix = self._form_collocation_matrix()
         matrix = self._apply_boundary_conditions_to_matrix(
             self.collocation_matrix.copy())
-        # print(self._split_quantities(matrix))
-        forcing = self._apply_boundary_conditions_to_rhs(forcing)
-        # print([s[self._interior_indices, 0] for s in self._split_quantities(forcing)[:self._mesh.nphys_vars]])
-        print(np.round(matrix, decimals=2))
-        print(forcing)
-        solution = np.linalg.solve(matrix, forcing)
+        rhs = self._apply_boundary_conditions_to_rhs(forcing)
+
+        # set pressure value at one location to make pressure unique
+        matrix[-1, :] = 0
+        matrix[-1, -1] = 1
+        # assert False
+        rhs[-1, 0] = pres
+        
+        solution = np.linalg.solve(matrix, rhs)
         split_solutions = self._split_quantities(solution)
         self._matrix = matrix
+        self._rhs = rhs
         return split_solutions
 
     def _split_quantities(self, vector):
@@ -220,6 +232,26 @@ class StokesFlowModel(AbstractSpectralPDE):
                  for ii in range(self._mesh.nphys_vars)]
         split.append(vector[self._mesh.nphys_vars*nvel_dof:])
         return split
+
+
+def evaluate_sp_lambda(sp_lambda, xx):
+    # sp_lambda returns a singel function output
+    vals = sp_lambda(*[x for x in xx])
+    if type(vals) == np.ndarray:
+        return vals[:, None]
+    return np.full((xx.shape[1], 1), vals)
+
+
+def evaluate_sp_lambda_list(sp_lambda, xx):
+    # sp_lambda returns list of values from multiple functions
+    vals = sp_lambda(*[x for x in xx])  # vals is a list
+    for ii in range(len(vals)):
+        tmp = vals[ii]
+        if type(tmp) == np.ndarray:
+            vals[ii] = tmp[:, None]
+        else:
+            vals[ii] = np.full((xx.shape[1], 1), tmp)
+    return vals
 
 
 class TestStokes(unittest.TestCase):
@@ -248,59 +280,51 @@ class TestStokes(unittest.TestCase):
         assert np.allclose(
             deriv_mat_1d_interior.dot(fun(interior_pts)), deriv(interior_pts))
 
-    def test_stokes_2d(self):
+    def test_stokes(self):
         np.set_printoptions(linewidth=150, threshold=2000)
         nphys_vars = 2
         sp_x, sp_y = sp.symbols(['x', 'y'])
         if nphys_vars == 2:
-            order = 3
+            order = 4
             symbs = (sp_x, sp_y)
             # velocity_strings = ["-cos(pi*x)*sin(pi*y)", "sin(pi*x)*cos(pi*y)"]
-            velocity_strings = ["0", "x+y"]  # Does not work when vel strings are not the same in each direction
-            # velocity_strings = ["x**3+y**3", "x**3+y**3"] works when vel strings are the same in each direction
-            #pressure_string = "x**2+y**2"
-            pressure_string = "1"
+            velocity_strings = ["-x**3", "-y**3"]
+            pressure_string = "x**2+y**2"
             domain = [0, 1, 0, 1]
         else:
             order = 4
-            symbs = (sp_x, )
+            symbs = (sp_x,)
             velocity_strings = ["-x**3"]
             pressure_string = "x**2"
             domain = [0, 1]
-        
+
         sp_pres = sp.sympify(pressure_string)
         sp_vel = [sp.sympify(s) for s in velocity_strings]
         sp_forc = [(vel.diff(s, 2)-sp_pres.diff(s, 1))
                    for vel, s in zip(sp_vel, symbs)]
+        sp_div = sum([vel.diff(s, 1) for vel, s in zip(sp_vel, symbs)])
         print('v', sp_vel)
         print('p', sp_pres)
         print('f', sp_forc)
-        sp_div = sum([vel.diff(s, 1) for vel, s in zip(sp_vel, symbs)])
         print(([vel.diff(s, 1) for vel, s in zip(sp_vel, symbs)]))
         print('div', sp_div)
-        # assert (sp_div == 0)
+
         exact_vel_lambda = [sp.lambdify(symbs, fun, "numpy")
                             for fun in sp_vel]
         exact_pres_lambda = sp.lambdify(symbs, sp_pres, "numpy")
+        vel_forcing_lambda = sp.lambdify(symbs, sp_forc, "numpy")
+        div_lambda = sp.lambdify(symbs, sp_div, "numpy")
+        exact_pres = partial(evaluate_sp_lambda, exact_pres_lambda)
+        vel_forcing_fun = partial(evaluate_sp_lambda_list, vel_forcing_lambda)
+
         def exact_vel(xx):
-            vals = []
-            for fun in exact_vel_lambda:
-                tmp = fun(*[x for x in xx])
-                if type(tmp) == np.ndarray:
-                    vals.append(tmp[:, None])
-                else:
-                    vals.append(np.full((xx.shape[1], 1), tmp))
+            vals = [evaluate_sp_lambda(fun, xx) for fun in exact_vel_lambda]
             return vals
-        def exact_pres(xx):
-            vals = exact_pres_lambda(*[x for x in xx])
-            if type(vals) == np.ndarray:
-                return vals[:, None]
-            else:
-                return np.full((xx.shape[1], 1), vals)
-        def exact_sol(xx):
-            exact_vel_vals = exact_vel(xx)
-            exact_pres_vals = exact_pres(xx)
-            return exact_vel_vals+[exact_pres_vals]
+
+        def forcing_fun(xx, z):
+            vel_forcing_vals = vel_forcing_fun(xx)
+            div_vals = evaluate_sp_lambda(div_lambda, xx)
+            return vel_forcing_vals+[div_vals]
 
         bndry_conds = [[lambda x: exact_vel(x), "D"],
                        [lambda x: exact_vel(x), "D"],
@@ -315,70 +339,41 @@ class TestStokes(unittest.TestCase):
         #                [lambda x: [90*np.ones((x.shape[1], 1))]*2, "D"]]
 
         bndry_conds = bndry_conds[:len(domain)]
-        
-        model = StokesFlowModel()
-        forc_fun_np = sp.lambdify(symbs, sp_forc, "numpy")
-        div_fun_np = sp.lambdify(symbs, sp_div, "numpy")
-        def forcing_fun(xx, z):
-            vals = forc_fun_np(*[x for x in xx]) # vals is a list
-            for ii in range(len(vals)):
-                tmp = vals[ii]
-                if type(tmp) == np.ndarray:
-                    vals[ii] = tmp[:, None]
-                else:
-                    vals[ii] = np.full((xx.shape[1], 1), tmp)
-            div_vals = div_fun_np(*[x for x in xx])
-            if type(div_vals) == np.ndarray:
-                div_vals = div_vals[:, None]
-            else:
-                div_vals = np.full((xx.shape[1], 1), div_vals)
 
-            return vals+[div_vals]
+        model = StokesFlowModel()
         model.initialize(bndry_conds, order, domain, forcing_fun)
 
-        sample = np.zeros(0) # dummy
-        sol = model.solve(sample)
+        assert np.allclose(model._mesh.mesh_pts[:, model._interior_indices],
+                           model._pres_mesh.mesh_pts)
 
         exact_vel_vals = exact_vel(model._mesh.mesh_pts)
         exact_pres_vals = exact_pres(model._pres_mesh.mesh_pts)
-        exact_sol = np.vstack(exact_vel_vals+[exact_pres_vals])
-        cnt = 0
-        for dd in range(nphys_vars):
-            recovered_forcing = (
-                model._matrix[cnt:cnt+model._mesh.mesh_pts.shape[1], :].dot(
-                    exact_sol))
-            cnt += model._mesh.mesh_pts.shape[1]
-            exact_forcing = forcing_fun(model._mesh.mesh_pts, sample)[dd]
-            bc_vals = exact_vel_vals[dd][np.hstack(
-                model._mesh.boundary_indices)]
-            assert np.allclose(recovered_forcing[model._interior_indices],
-                               exact_forcing[model._interior_indices])
-            print((bc_vals, recovered_forcing[np.hstack(
-                model._mesh.boundary_indices)]))
-            assert np.allclose(bc_vals, recovered_forcing[np.hstack(
-                model._mesh.boundary_indices)])
-            print(bc_vals, sol[dd][np.hstack(
-                model._mesh.boundary_indices)])
-            print(model._mesh.mesh_pts[:, np.hstack(
-                model._mesh.boundary_indices)])
-            assert np.allclose(bc_vals, sol[dd][np.hstack(
-                model._mesh.boundary_indices)])
-        exact_forcing = forcing_fun(model._mesh.mesh_pts, sample)[-1]
-        # Dmat = model._mesh.derivative_matrices[dd]
-        # recovered_forcing = Dmat[model._interior_indices].dot(exact_vel_vals[0])
-        recovered_forcing = (
-            model._matrix[nphys_vars*model._mesh.mesh_pts.shape[1]:, :].dot(
-                exact_sol))
-        # print(model._matrix[nphys_vars*model._mesh.mesh_pts.shape[1]:, :])
-        print(recovered_forcing, exact_forcing[model._interior_indices])
-        assert np.allclose(
-            recovered_forcing, exact_forcing[model._interior_indices], atol=1e-6)
-            
+        exact_sol_vals = np.vstack(exact_vel_vals+[exact_pres_vals])
 
+        sample = np.zeros(0)  # dummy
+        sol_vals = model.solve(sample, pres=exact_sol_vals[-1])
+        bndry_indices = np.hstack(model._mesh.boundary_indices)
+        recovered_forcing = model._split_quantities(
+            model._matrix.dot(exact_sol_vals))
+        exact_forcing = forcing_fun(model._mesh.mesh_pts, sample)
+        for dd in range(nphys_vars):
+            assert np.allclose(sol_vals[dd][bndry_indices],
+                               exact_vel_vals[dd][bndry_indices])
+            assert np.allclose(recovered_forcing[dd][model._interior_indices],
+                               exact_forcing[dd][model._interior_indices])
+            assert np.allclose(exact_vel_vals[dd][bndry_indices],
+                               recovered_forcing[dd][bndry_indices])
+        # check pressure at all but point used for enforcing unique value
+        # are set correctly
+        assert np.allclose(
+            recovered_forcing[nphys_vars][:-1],
+            exact_forcing[nphys_vars][model._interior_indices][:-1])
+        # check value used to enforce unique pressure is found correctly
+        assert np.allclose(
+            recovered_forcing[nphys_vars][-1], exact_sol_vals[-1])
+        
         cnt = 0
-        for exact_v, v in zip(exact_vel_vals, sol[:-1]):
-            print('e', exact_v)
-            print('v', v)
+        for exact_v, v in zip(exact_vel_vals, sol_vals[:-1]):
             assert np.allclose(exact_v, v)
 
         num_pts_1d = 30
@@ -386,7 +381,7 @@ class TestStokes(unittest.TestCase):
         from pyapprox.util.visualization import get_meshgrid_samples
         # X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d)
         # Z = exact_vel(pts)
-        # print(sol[1])
+        # print(sol_vals[1])
         # print(exact_vel_vals[0])
         # plt.quiver(X, Y, Z[0], Z[1])
         # plt.show()
