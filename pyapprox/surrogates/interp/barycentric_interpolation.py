@@ -103,6 +103,7 @@ def barycentric_interpolation_1d(abscissa, weights, vals, eval_samples):
         warnings.simplefilter("ignore")
         return _barycentric_interpolation_1d(abscissa, weights, vals, eval_samples)
 
+
 def barycentric_lagrange_interpolation_precompute(
         num_act_dims, abscissa_1d, barycentric_weights_1d,
         active_abscissa_indices_1d_list):
