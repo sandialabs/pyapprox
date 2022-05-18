@@ -151,11 +151,9 @@ class InteriorRectangularCollocationMesh(RectangularCollocationMesh):
         # it will now work
         self.mesh_pts_1d = [
             -np.cos(np.linspace(0, np.pi, o+1))[1:-1] for o in self.order]
-        # will not work creates a singular matrix
         # self.mesh_pts_1d = [
-        #     -np.cos(np.linspace(0, np.pi, o+1)) for o in self.order-2]
-        # self.mesh_pts_1d = [gauss_jacobi_pts_wts_1D(o, 0, 0)[0]
-        #                     for o in self.order-1]
+        #     -np.cos(np.linspace(0, np.pi, self.order[0]+1))[1:-1],
+        #     -np.cos(np.linspace(0, np.pi, self.order[0]-1))]
         self._mesh_pts_1d_barycentric_weights = [
             compute_barycentric_weights_1d(xx) for xx in self.mesh_pts_1d]
         eval_samples = cartesian_product(
@@ -227,11 +225,11 @@ class StokesFlowModel(AbstractSpectralPDE):
             vel_mat = Dmat.dot(Dmat)
             for ii in range(self._mesh.nphys_vars):
                 if ii == dd:
-                    sub_mats[-1][ii] = vel_mat
+                    sub_mats[-1][ii] = -vel_mat
                 else:
                     sub_mats[-1][ii] = np.zeros_like(vel_mat)
             pres_mat = self._pres_mesh.derivative_matrices[dd]
-            sub_mats[-1][self._mesh.nphys_vars] = -pres_mat
+            sub_mats[-1][self._mesh.nphys_vars] = pres_mat
 
         # divergence constraint
         sub_mats.append([])
@@ -241,8 +239,8 @@ class StokesFlowModel(AbstractSpectralPDE):
         sub_mats[-1].append(np.zeros((Dmat.shape[0],
                                       Dmat.shape[0])))
 
-        for s in sub_mats:
-             print([t.shape for t in s])
+        # for s in sub_mats:
+        #      print([t.shape for t in s])
 
         matrix = np.block(sub_mats)
         return matrix
@@ -278,7 +276,7 @@ class StokesFlowModel(AbstractSpectralPDE):
                 rhs[idx+dd*nvel_dof] = bndry_vals[dd]
         return rhs
 
-    def solve(self, sample, pres=1):
+    def solve(self, sample, pres=(0, 1)):
         forcing = self.forcing_fun(self._mesh.mesh_pts, sample[:, None])
         assert len(forcing) == self._mesh.nphys_vars+1
         for ii in range(len(forcing)):
@@ -293,18 +291,21 @@ class StokesFlowModel(AbstractSpectralPDE):
         self.forcing_vals = forcing.copy()
         # print([s[:, 0] for s in self._split_quantities(forcing)])
         self.collocation_matrix = self._form_collocation_matrix()
+        print(np.linalg.matrix_rank(self.collocation_matrix),
+              self.collocation_matrix.shape)
         matrix = self._apply_boundary_conditions_to_matrix(
             self.collocation_matrix.copy())
-        rhs = self._apply_boundary_conditions_to_rhs(forcing)
+        print(np.linalg.matrix_rank(matrix), matrix.shape)
+        rhs = self._apply_boundary_conditions_to_rhs(forcing.copy())
 
         # set pressure value at one location to make pressure unique
-        matrix[self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1], :] = 0
-        matrix[self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1],
-               self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1]] = 1
-        rhs[self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1], 0] = pres
+        matrix[self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1]+pres[0], :] = 0
+        matrix[self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1]+pres[0],
+               self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1]+pres[0]] = 1
+        rhs[self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1]+pres[0], 0] = pres[1]
 
         print(np.linalg.cond(matrix))
-        # print(np.linalg.matrix_rank(matrix))
+        print(np.linalg.matrix_rank(matrix), matrix.shape)
         tmp = self._split_quantities(np.round(matrix, decimals=2))
         for t in tmp:
             print("#")
@@ -312,6 +313,11 @@ class StokesFlowModel(AbstractSpectralPDE):
             for s in tmp1:
                 print(s.T)
 
+        for t in self._split_quantities(rhs):
+            print(t)
+        for t in self._split_quantities(forcing):
+            print(t)
+        
         solution = np.linalg.solve(matrix, rhs)
         split_solutions = self._split_quantities(solution)
         self._matrix = matrix
@@ -470,7 +476,7 @@ class TestStokes(unittest.TestCase):
             order = 20
             velocity_strings = ["-cos(pi*x)*sin(pi*y)", "sin(pi*x)*cos(pi*y)"]
             pressure_string = "x**2+y**2"
-            order = 4
+            order = 6
             velocity_strings = ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"]
             # pressure_string = "1"
             pressure_string = "x**1*y**2"
@@ -486,7 +492,7 @@ class TestStokes(unittest.TestCase):
 
         sp_pres = sp.sympify(pressure_string)
         sp_vel = [sp.sympify(s) for s in velocity_strings]
-        sp_forc = [(vel.diff(s, 2)-sp_pres.diff(s, 1))
+        sp_forc = [(-vel.diff(s, 2)+sp_pres.diff(s, 1))
                    for vel, s in zip(sp_vel, symbs)]
         sp_div = sum([vel.diff(s, 1) for vel, s in zip(sp_vel, symbs)])
         print('v', sp_vel)
@@ -520,7 +526,6 @@ class TestStokes(unittest.TestCase):
         def forcing_fun(xx, z):
             vel_forcing_vals = vel_forcing_fun(xx)
             div_vals = evaluate_sp_lambda(div_lambda, xx)
-            # return [v*0 for v in vel_forcing_vals] + [div_vals*0]
             return vel_forcing_vals+[div_vals]
 
         bndry_conds = [[lambda x: exact_vel(x), "D"],
@@ -533,16 +538,20 @@ class TestStokes(unittest.TestCase):
         model = StokesFlowModel()
         model.initialize(bndry_conds, order, domain, forcing_fun)
 
-        # assert np.allclose(model._mesh.mesh_pts[:, model._interior_indices],
-        #                    model._pres_mesh.mesh_pts)
+        assert np.allclose(model._mesh.mesh_pts[:, model._interior_indices],
+                           model._pres_mesh.mesh_pts)
 
         exact_vel_vals = exact_vel(model._mesh.mesh_pts)
         exact_pres_vals = exact_pres(model._pres_mesh.mesh_pts)
         exact_sol_vals = np.vstack(exact_vel_vals+[exact_pres_vals])
 
         sample = np.zeros(0)  # dummy
-        pres_idx = 0  # index of fixed pressure in split solution
-        sol_vals = model.solve(sample, pres=exact_pres_vals[pres_idx])
+        # pres_idx = 0  # index of fixed pressure in split solution
+        pres_idx = model._pres_mesh.mesh_pts.shape[1]//2
+        #pres_idx = model._pres_mesh.mesh_pts.shape[1]-1
+        pres_val = exact_pres_vals[pres_idx]
+        sol_vals = model.solve(
+            sample, pres=(pres_idx, pres_val))
 
         for dd in range(model._mesh.nphys_vars):
             assert np.allclose(
@@ -560,15 +569,17 @@ class TestStokes(unittest.TestCase):
                                exact_forcing[dd][model._interior_indices])
             assert np.allclose(exact_vel_vals[dd][bndry_indices],
                                recovered_forcing[dd][bndry_indices])
+
+        # check value used to enforce unique pressure is found correctly
+        print(sol_vals[nphys_vars][pres_idx], pres_val)
+        assert np.allclose(
+            sol_vals[nphys_vars][pres_idx], pres_val)
         # check pressure at all but point used for enforcing unique value
-        # # are set correctly
-        # assert np.allclose(
-        #     np.delete(recovered_forcing[nphys_vars], pres_idx),
-        #     np.delete(
-        #         exact_forcing[nphys_vars][model._interior_indices], pres_idx))
-        # # check value used to enforce unique pressure is found correctly
-        # assert np.allclose(
-        #     sol_vals[nphys_vars][pres_idx], exact_pres_vals[pres_idx])
+        # are set correctly
+        assert np.allclose(
+            np.delete(recovered_forcing[nphys_vars], pres_idx),
+            np.delete(
+                exact_forcing[nphys_vars][model._interior_indices], pres_idx))
 
         for exact_v, v in zip(exact_vel_vals, sol_vals[:-1]):
             assert np.allclose(exact_v, v)
@@ -609,11 +620,15 @@ class TestStokes(unittest.TestCase):
         # drive cavity using left boundary as top and bottom boundaries
         # do not hvae dof at the corners
         def bndry_condition(xx):
-            cond = [(16*xx[0, :]**2*(1-xx[0, :]**2))[:, None],
+            cond = [(1*xx[0, :]**2*(1-xx[0, :]**2))[:, None],
                     np.zeros((xx.shape[1], 1))]
+            # cond = [(np.exp(-(xx[0, :]-0.5)**2/.01))[:, None],
+            #         np.zeros((xx.shape[1], 1))]
             return cond
+        print(bndry_condition(
+            np.hstack((np.linspace(0, 1, 11)[None, :], np.ones((1, 11))))))
 
-        order = 20
+        order = 3
         domain = [0, 1, 0, 1]
         bndry_conds = [
             [lambda x: [np.zeros((x.shape[1], 1)) for ii in range(2)], "D"],
@@ -622,16 +637,17 @@ class TestStokes(unittest.TestCase):
             [bndry_condition, "D"]]
 
         def forcing_fun(xx, zz):
-            return [np.zeros((xx.shape[1], 1)) for ii in range(3)]
-            #return ([np.ones((xx.shape[1], 1)) for ii in range(2)] +
-            #        [np.zeros((xx.shape[1], 1))])
+            #return [np.zeros((xx.shape[1], 1)) for ii in range(3)]
+            return [2*np.exp(2*xx[0, :]+2*xx[1, :])[:, None],
+                    2*np.exp(2*xx[0, :]+2*xx[1, :])[:, None],
+                    np.zeros((xx.shape[1], 1))]
 
         pres_idx = 0
-        unique_pres_val = 1
+        unique_pres_val = 0
         model = StokesFlowModel()
         model.initialize(bndry_conds, order, domain, forcing_fun)
         sample = np.zeros(0)  # dummy
-        sol_vals = model.solve(sample, unique_pres_val)
+        sol_vals = model.solve(sample, (pres_idx, unique_pres_val))
 
         rhs = model._split_quantities(model._rhs)
         assert np.allclose(
@@ -640,8 +656,8 @@ class TestStokes(unittest.TestCase):
         # assert False
 
         # check value used to enforce unique pressure is found correctly
-        assert np.allclose(
-            sol_vals[model._mesh.nphys_vars][pres_idx], unique_pres_val)
+        # assert np.allclose(
+        #     sol_vals[model._mesh.nphys_vars][pres_idx], unique_pres_val)
 
         num_pts_1d = 50
         plot_limits = domain
@@ -654,12 +670,21 @@ class TestStokes(unittest.TestCase):
         Z = [np.reshape(zz, (X.shape[0], X.shape[1])) for zz in Z]
         fig, axs = plt.subplots(1, 4, figsize=(8*4, 6))
         axs[0].quiver(X, Y, Z[0], Z[1])
+        from pyapprox.util.visualization import plot_2d_samples
         for ii in range(3):
             if Z[ii].min() != Z[ii].max():
                 pl = axs[ii+1].contourf(
                     X, Y, Z[ii],
                     levels=np.linspace(Z[ii].min(), Z[ii].max(), 20))
+                # plot_2d_samples(
+                #     model._mesh.mesh_pts, ax=axs[ii+1], c='r', marker='o')
+                # plot_2d_samples(
+                #     model._pres_mesh.mesh_pts, ax=axs[ii+1], c='k', marker='o')
                 plt.colorbar(pl, ax=axs[ii+1])
+        print(model._pres_mesh.mesh_pts.min(axis=1),
+              model._pres_mesh.mesh_pts.max(axis=1))
+        print(model._mesh.mesh_pts.min(axis=1),
+              model._mesh.mesh_pts.max(axis=1))
         plt.show()
 
 

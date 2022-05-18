@@ -84,11 +84,19 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         # TODO: sue methods in Section 3.3.5 of
         # Roger Peyret. Spectral Methods for Incompressible Viscous Flow forcing
         # to reduce roundoff errors
-        D1_mat = chebyshev_derivative_matrix(degree)[1]
+        pts, D1_mat = chebyshev_derivative_matrix(degree)
         D2_mat = chebyshev_second_derivative_matrix(degree)[1]
 
-        print(np.linalg.norm(D1_mat.dot(D1_mat)-D2_mat))
+        # print(np.linalg.norm(D1_mat.dot(D1_mat)-D2_mat))
         assert np.allclose(D2_mat, D1_mat.dot(D1_mat))
+
+        def fun(xx):
+            return xx**(degree-2)
+        def second_deriv(xx):
+            return (degree-3)*(degree-2)*xx**(degree-4)
+        # print(D2_mat.dot(fun(pts)))
+        # print(D1_mat.dot(D1_mat.dot(fun(pts))))
+        assert np.allclose(D2_mat.dot(fun(pts)),second_deriv(pts))
 
     def test_homogeneous_possion_equation(self):
         """
