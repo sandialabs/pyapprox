@@ -85,7 +85,7 @@ class CartesianProductSpectralGalerkinDomain(AbstractSpectralGalerkinDomain):
 
     def _define_quadrature_rule(self):
         canonical_quad_rules_1d = [
-            gauss_jacobi_pts_wts_1D(degree+3, 0, 0)
+            gauss_jacobi_pts_wts_1D(degree+1+degree % 2, 0, 0)
             for degree in self._degrees]
         canonical_quad_samples = (
             cartesian_product([rule[0] for rule in canonical_quad_rules_1d]))
@@ -110,8 +110,8 @@ class CartesianProductSpectralGalerkinDomain(AbstractSpectralGalerkinDomain):
                 for ii in range(2)]
         else:
             canonical_quad_rules_1d = [
-                 gauss_jacobi_pts_wts_1D(degree+2, 0, 0)
-                 for degree in self._degrees]
+                gauss_jacobi_pts_wts_1D(degree+1+degree % 2, 0, 0)
+                for degree in self._degrees]
             nquad_rules_1d = [len(q[0]) for q in canonical_quad_rules_1d]
             # boundaries ordered left, right, bottom, top
             canonical_quad_samples = [
@@ -130,7 +130,7 @@ class CartesianProductSpectralGalerkinDomain(AbstractSpectralGalerkinDomain):
             bndry_quad_weights = [
                 canonical_quad_rules_1d[1][1][:, None],
                 canonical_quad_rules_1d[1][1][:, None],
-                canonical_quad_rules_1d[1][0][:, None],
+                canonical_quad_rules_1d[0][1][:, None],
                 canonical_quad_rules_1d[0][1][:, None]]
             bndry_normals = [
                 partial(self._boundary_normal, val)
@@ -189,14 +189,15 @@ class AbstractSpectralGalerkinSolver(ABC):
         for ii, bndry_cond in enumerate(self._bndry_conds):
             bndry_vals = bndry_cond[0](
                 self.domain._bndry_quad_samples[ii])
+            assert bndry_vals.ndim == 2 and bndry_vals.shape[1] == 1
             basis_vals = self.domain._basis_vals_at_bndry_quad[ii]
             if bndry_cond[1] == "D":
                 bndry_integral = self._dirichlet_penalty*(
                     (bndry_vals*basis_vals).T.dot(self.domain._quad_weights))
                 bndry_integral += self._bndry_adjustment(ii, bndry_vals)
-                # continue
+                rhs_bc += bndry_integral
+                continue
             # Neumann
-            assert bndry_vals.ndim == 2 and bndry_vals.shape[1] == 1
             bndry_integral = (bndry_vals*basis_vals).T.dot(
                     self.domain._bndry_quad_weights[ii])
             rhs_bc += bndry_integral
@@ -224,36 +225,6 @@ class AbstractSpectralGalerkinSolver(ABC):
     @abstractmethod
     def _bndry_adjustment(self, bndry_id, bndry_vals):
         raise NotImplementedError()
-
-
-class SpectralGalerkinAdvectionDiffusionSolver(AbstractSpectralGalerkinSolver):
-
-    def __init__(self, domain):
-        super().__init__(domain)
-        self._diffusivity_fun = None
-        self._velocity_fun = None
-        self._forcing_fun = None
-
-    def initialize(self, diffusivity_fun, velocity_fun, forcing_fun,
-                   bndry_conds):
-        self._diffusivity_fun = diffusivity_fun
-        self._velocity_fun = velocity_fun
-        self._forcing_fun = forcing_fun
-        self._bndry_conds = bndry_conds
-
-    def _form_matrix(self):
-        Amat = np.zeros(
-            (self.domain._nbasis, self.domain._nbasis))
-        basis_derivs = self.domain._basis_derivs_at_quad
-        diff_vals = self._diffusivity_fun(self.domain._quad_samples)
-        for dd in range(self.domain._nphys_vars):
-            kderiv_vals = (diff_vals*basis_derivs[dd])
-            for ii in range(self.domain._nbasis):
-                Amat[ii, :] += (
-                    (basis_derivs[dd][:, ii:ii+1]*kderiv_vals).T.dot(
-                        self.domain._quad_weights))[:, 0]
-                # TODO add velocity contribution
-        return Amat
 
 
 class SpectralGalerkinBiLaplacianSolver(AbstractSpectralGalerkinSolver):
@@ -306,7 +277,7 @@ class SpectralGalerkinBiLaplacianSolver(AbstractSpectralGalerkinSolver):
         adjust = np.zeros(
             (self.domain._nbasis, self.domain._nbasis))
         for ii, bndry_cond in enumerate(self._bndry_conds):
-            #TODO do not compute bdnry vals again make this code used
+            # TODO do not compute bdnry vals again make this code used
             # values computed when forming rhs
             if bndry_cond[1] == "D":
                 bndry_vals = bndry_cond[0](
@@ -330,6 +301,37 @@ class SpectralGalerkinBiLaplacianSolver(AbstractSpectralGalerkinSolver):
             adjust[ii, :] += ((basis_vals[:, ii:ii+1]*basis_vals).T.dot(
                 self.domain._quad_weights))[:, 0]
         return adjust
+
+
+class SpectralGalerkinAdvectionDiffusionSolver(
+        SpectralGalerkinBiLaplacianSolver):
+
+    def __init__(self, domain):
+        super().__init__(domain)
+        self._diffusivity_fun = None
+        self._velocity_fun = None
+        self._forcing_fun = None
+
+    def initialize(self, diffusivity_fun, velocity_fun, forcing_fun,
+                   bndry_conds):
+        self._diffusivity_fun = diffusivity_fun
+        self._velocity_fun = velocity_fun
+        self._forcing_fun = forcing_fun
+        self._bndry_conds = bndry_conds
+
+    def _form_matrix(self):
+        Amat = np.zeros(
+            (self.domain._nbasis, self.domain._nbasis))
+        basis_derivs = self.domain._basis_derivs_at_quad
+        diff_vals = self._diffusivity_fun(self.domain._quad_samples)
+        for dd in range(self.domain._nphys_vars):
+            kderiv_vals = (diff_vals*basis_derivs[dd])
+            for ii in range(self.domain._nbasis):
+                Amat[ii, :] += (
+                    (basis_derivs[dd][:, ii:ii+1]*kderiv_vals).T.dot(
+                        self.domain._quad_weights))[:, 0]
+                # TODO add velocity contribution
+        return Amat
 
 
 def evaluate_sp_lambda(sp_lambda, xx, *args):
@@ -421,14 +423,8 @@ class TestSpectralGalerkin(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
-    def test_advection_diffusion(self):
-        np.set_printoptions(linewidth=400, threshold=5000, precision=2)
-        domain_bounds, orders = [0, 1], [2]
-        sol_string, diff_string, vel_strings = "x**2", "1", ["0"]
-
-        domain_bounds, orders = [0, 1, 0, 1], [2, 2]
-        sol_string, diff_string, vel_strings = "x**2*y**2", "1", ["0", "0"]
-
+    def check_advection_diffusion(self, domain_bounds, orders, sol_string,
+                                  diff_string, vel_strings):
         sol_fun, diff_fun, vel_fun, forc_fun = (
             setup_steady_advection_diffusion_manufactured_solution(
                 sol_string, diff_string, vel_strings))
@@ -444,6 +440,40 @@ class TestSpectralGalerkin(unittest.TestCase):
         sample = np.zeros((0, 1))  # dummy
         sol = model.solve(sample)
 
+        fig, axs = plt.subplots(1, model.domain._nphys_vars)
+        axs = np.atleast_1d(axs)
+        p = model.domain.plot(sol_fun, 50, ax=axs[0])
+        plt.colorbar(p, ax=axs[0])
+        # model.domain.plot_poly(sol, 50, ax=axs[-1], ls='--')
+        p = model.domain.plot(
+            lambda xx: model.domain.interpolate(sol, xx)-sol_fun(xx),
+            50, ax=axs[-1], ls='--')
+        plt.colorbar(p, ax=axs[-1])
+        plt.show()
+
+        xx = cartesian_product(
+            [np.linspace(domain_bounds[2*ii], domain_bounds[2*ii+1], 20)
+             for ii in range(model.domain._nphys_vars)])
+        sol_vals = model.domain.interpolate(sol, xx)
+        exact_sol_vals = sol_fun(xx)
+        # print(sol_vals)
+        # print(exact_sol_vals)
+        # print(sol_vals-exact_sol_vals)
+        assert np.allclose(sol_vals, exact_sol_vals)
+
+
+    def test_advection_diffusion(self):
+        domain_bounds, orders = [0, 1], [2]
+        sol_string, diff_string, vel_strings = "x**2", "1", ["0"]
+        self.check_advection_diffusion(
+            domain_bounds, orders, sol_string, diff_string, vel_strings)
+
+        domain_bounds, orders = [0, 1, 0, 1], [2, 2]
+        sol_string, diff_string, vel_strings = "x**2*y**2", "1", ["0", "0"]
+        self.check_advection_diffusion(
+            domain_bounds, orders, sol_string, diff_string, vel_strings)
+
+
     def check_bilaplacian(self, domain_bounds, orders, sol_string, diff_string,
                           mass_string):
 
@@ -453,11 +483,14 @@ class TestSpectralGalerkin(unittest.TestCase):
         # Solution designed to have zero flux at boundaries.
         # Thus we are isolating testing of assembling bilinear form and rhs
 
+        def normal_flux(flux_funs, active_var, sign, xx):
+            return sign*flux_funs(xx)[:, active_var:active_var+1]
+
         nphys_vars = len(orders)
         bndry_conds = []
         for dd in range(nphys_vars):
-            bndry_conds += [[lambda xx: -0*flux_funs(xx)[:, dd:dd+1], "N"],
-                            [lambda xx: 0*flux_funs(xx)[:, dd:dd+1], "N"]]
+            bndry_conds.append([partial(normal_flux, flux_funs, dd, -1), "N"])
+            bndry_conds.append([partial(normal_flux, flux_funs, dd, 1), "N"])
 
         domain = CartesianProductSpectralGalerkinDomain(domain_bounds, orders)
         model = SpectralGalerkinBiLaplacianSolver(domain)
@@ -466,38 +499,50 @@ class TestSpectralGalerkin(unittest.TestCase):
         sample = np.zeros((0, 1))  # dummy
         sol = model.solve(sample)
 
+        # fig, axs = plt.subplots(1, model.domain._nphys_vars)
+        # axs = np.atleast_1d(axs)
+        # p = model.domain.plot(sol_fun, 50, ax=axs[0])
+        # plt.colorbar(p, ax=axs[0])
+        # #model.domain.plot_poly(sol, 50, ax=axs[-1], ls='--')
+        # p = model.domain.plot(
+        #     lambda xx: model.domain.interpolate(sol, xx)-sol_fun(xx),
+        #     50, ax=axs[-1], ls='--')
+        # plt.colorbar(p, ax=axs[-1])
+        # plt.show()
+
         xx = cartesian_product(
             [np.linspace(domain_bounds[2*ii], domain_bounds[2*ii+1], 20)
              for ii in range(model.domain._nphys_vars)])
         sol_vals = model.domain.interpolate(sol, xx)
         exact_sol_vals = sol_fun(xx)
         # print(sol_vals)
-        # # print(exact_sol_vals)
-        # fig, axs = plt.subplots(1, model.domain._nphys_vars)
-        # axs = np.atleast_1d(axs)
-        # model.domain.plot(sol_fun, 50, ax=axs[0])
-        # model.domain.plot_poly(sol, 50, ax=axs[-1], ls='--')
-        # plt.show()
-        print(sol_vals-exact_sol_vals)
+        # print(exact_sol_vals)
+        # print(sol_vals-exact_sol_vals)
         assert np.allclose(sol_vals, exact_sol_vals)
 
     def test_bilaplacian(self):
-        domain_bounds, orders = [0, 1], [3]
-        sol_string, diff_string, mass_string = "5/3*x**2-10/9*x**3", "1", "1"
-        self.check_bilaplacian(domain_bounds, orders, sol_string, diff_string,
-                               mass_string)
-
         # domain_bounds, orders = [0, 1], [3]
+        # sol_string, diff_string, mass_string = "5/3*x**2-10/9*x**3", "1", "1"
+        # self.check_bilaplacian(domain_bounds, orders, sol_string, diff_string,
+        #                        mass_string)
+
+        # domain_bounds, orders = [0, 1], [4]
         # sol_string, diff_string, mass_string = "x**3", "1", "1"
         # self.check_bilaplacian(domain_bounds, orders, sol_string, diff_string,
         #                        mass_string)
-        
-        domain_bounds, orders = [0, 1, 0, 1], [3, 3]
+
+        domain_bounds, orders = [0, 1, 0, 1], [4, 3]
         sol_string = "(5/3*x**2-10/9*x**3)*(5/3*y**2-10/9*y**3)"
         diff_string, mass_string = "1", "1"
         self.check_bilaplacian(domain_bounds, orders, sol_string, diff_string,
                                mass_string)
-        
+
+        domain_bounds, orders = [0, 1, 0, 1], [4, 3]
+        sol_string = "x**2*y**2"
+        diff_string, mass_string = "1", "1"
+        self.check_bilaplacian(domain_bounds, orders, sol_string, diff_string,
+                               mass_string)
+
 
 
 
