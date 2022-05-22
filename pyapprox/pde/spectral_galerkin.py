@@ -281,7 +281,8 @@ class SpectralGalerkinLinearDiffusionReactionSolver(
         deriv_normals = np.sum(normals[:, :, None]*basis_derivs, axis=0)
         adjust = -(deriv_normals.T.dot(kwbasis_vals))
         adjust -= kwbasis_vals.T.dot(deriv_normals)
-        adjust += self._dirichlet_penalty*(weights*basis_vals).T.dot(basis_vals)
+        adjust += self._dirichlet_penalty*(weights*basis_vals).T.dot(
+            basis_vals)
         return adjust
 
 
@@ -313,3 +314,17 @@ class SpectralGalerkinAdvectionDiffusionSolver(
         Amat += (weights*basis_vals).T.dot(np.einsum(
             "jk,jkm->km", vel_vals.T, basis_derivs))
         return Amat
+
+
+class SpectralGalerkinStokes():
+    def initialize(self, bndry_conds):
+        self._bndry_conds = bndry_conds
+
+    def _form_matrix(self):
+        basis_derivs = self.domain._basis_derivs_at_quad
+        weights = self.domain._quad_weights
+        Amat = np.sum(
+            (weights)[:, :, None]*np.einsum(
+                "ijk,kjm->mij", basis_derivs.T, basis_derivs).T, axis=0)
+        return Amat
+        

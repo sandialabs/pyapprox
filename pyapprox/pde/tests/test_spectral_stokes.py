@@ -221,13 +221,26 @@ class StokesFlowModel(AbstractSpectralPDE):
         sub_mats = []
         for dd in range(self._mesh.nphys_vars):
             sub_mats.append([None for ii in range(self._mesh.nphys_vars+1)])
-            Dmat = self._mesh.derivative_matrices[dd]
-            vel_mat = Dmat.dot(Dmat)
             for ii in range(self._mesh.nphys_vars):
                 if ii == dd:
+                    Dmat = (
+                        self._mesh.derivative_matrices[0])
+                    vel_mat = Dmat.dot(Dmat)
+                    for jj in range(1, self._mesh.nphys_vars):
+                        Dmat = (
+                            self._mesh.derivative_matrices[jj])
+                        vel_mat += Dmat.dot(Dmat)
                     sub_mats[-1][ii] = -vel_mat
                 else:
                     sub_mats[-1][ii] = np.zeros_like(vel_mat)
+
+            # for ii in range(self._mesh.nphys_vars):
+            #     if ii == dd:
+            #         Dmat = self._mesh.derivative_matrices[dd]
+            #         vel_mat = Dmat.dot(Dmat)
+            #         sub_mats[-1][ii] = -vel_mat
+            #     else:
+            #         sub_mats[-1][ii] = np.zeros_like(vel_mat)
             pres_mat = self._pres_mesh.derivative_matrices[dd]
             sub_mats[-1][self._mesh.nphys_vars] = pres_mat
 
@@ -492,8 +505,11 @@ class TestStokes(unittest.TestCase):
 
         sp_pres = sp.sympify(pressure_string)
         sp_vel = [sp.sympify(s) for s in velocity_strings]
-        sp_forc = [(-vel.diff(s, 2)+sp_pres.diff(s, 1))
-                   for vel, s in zip(sp_vel, symbs)]
+        sp_forc = []
+        for vel, s1 in zip(sp_vel, symbs):
+            sp_forc.append(
+                sum([-vel.diff(s2, 2) for s2 in symbs])+
+                sp_pres.diff(s1, 1))
         sp_div = sum([vel.diff(s, 1) for vel, s in zip(sp_vel, symbs)])
         print('v', sp_vel)
         print('p', sp_pres)
@@ -628,7 +644,7 @@ class TestStokes(unittest.TestCase):
         print(bndry_condition(
             np.hstack((np.linspace(0, 1, 11)[None, :], np.ones((1, 11))))))
 
-        order = 3
+        order = 20
         domain = [0, 1, 0, 1]
         bndry_conds = [
             [lambda x: [np.zeros((x.shape[1], 1)) for ii in range(2)], "D"],
@@ -675,7 +691,7 @@ class TestStokes(unittest.TestCase):
             if Z[ii].min() != Z[ii].max():
                 pl = axs[ii+1].contourf(
                     X, Y, Z[ii],
-                    levels=np.linspace(Z[ii].min(), Z[ii].max(), 20))
+                    levels=np.linspace(Z[ii].min(), Z[ii].max(), 40))
                 # plot_2d_samples(
                 #     model._mesh.mesh_pts, ax=axs[ii+1], c='r', marker='o')
                 # plot_2d_samples(
