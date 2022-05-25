@@ -228,7 +228,6 @@ class TestSolvers(unittest.TestCase):
         errors = errors[np.isfinite(errors)]
         assert errors.max() > 0.1 and errors.min() <= 6e-7
 
-    #@unittest.skip("Not fully implemented")
     def test_diffusion_compute_error_estimate(self):
         """
         for the PDE -((1+z*x)*u(x)')' = 1, u(0) = 0, u(1) = 0

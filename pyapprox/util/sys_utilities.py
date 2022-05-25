@@ -69,7 +69,6 @@ def get_num_args(function):
         args, varargs, keywords
     """
     args = inspect.getfullargspec(function)
-    print(args)
     num_args = 0
     if args[0] is not None:
         num_args += len(args[0])
