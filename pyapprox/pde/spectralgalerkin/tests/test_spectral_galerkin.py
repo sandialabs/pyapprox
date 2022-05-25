@@ -10,95 +10,10 @@ from pyapprox.pde.spectral_galerkin import (
     SpectralGalerkinLinearDiffusionReactionSolver
 )
 from pyapprox.util.utilities import cartesian_product
-
-def evaluate_sp_lambda(sp_lambda, xx, *args):
-    # sp_lambda returns a single function output
-    sp_args = tuple([x for x in xx])+args
-    vals = sp_lambda(*sp_args)
-    if type(vals) == np.ndarray:
-        return vals[:, None]
-    return np.full((xx.shape[1], 1), vals)
-
-
-def evaluate_list_of_sp_lambda(sp_lambdas, xx, *args):
-    # sp_lambda returns list of values from multiple functions
-    vals = [evaluate_sp_lambda(sp_lambda, xx) for sp_lambda in sp_lambdas]
-    return np.hstack(vals)
-
-
-def setup_steady_advection_diffusion_manufactured_solution(
-        sol_string, diff_string, vel_strings):
-    nphys_vars = len(vel_strings)
-    sp_x, sp_y = sp.symbols(['x', 'y'])
-    symbs = (sp_x, sp_y)[:nphys_vars]
-    sol_expr = sp.sympify(sol_string)
-    sol_lambda = sp.lambdify(symbs, sol_expr, "numpy")
-    sol_fun = partial(evaluate_sp_lambda, sol_lambda)
-
-    diff_expr = sp.sympify(diff_string)
-    diff_lambda = sp.lambdify(symbs, diff_expr, "numpy")
-    diff_fun = partial(evaluate_sp_lambda, diff_lambda)
-    diffusion_expr = sum([(diff_expr*sol_expr.diff(symb, 1)).diff(symb, 1)
-                          for symb in symbs])
-
-    vel_exprs = [sp.sympify(vel_string) for vel_string in vel_strings]
-    vel_lambdas = [
-        sp.lambdify(symbs, vel_expr, "numpy") for vel_expr in vel_exprs]
-    vel_fun = partial(evaluate_list_of_sp_lambda, vel_lambdas)
-    advection_expr = sum(
-        [vel_expr*sol_expr.diff(symb, 1)
-         for vel_expr, symb in zip(vel_exprs, symbs)])
-
-    forc_expr = -(diffusion_expr-advection_expr)
-    forc_lambda = sp.lambdify(symbs, forc_expr, "numpy")
-    forc_fun = partial(evaluate_sp_lambda, forc_lambda)
-
-    flux_exprs = [diff_expr*sol_expr.diff(symb, 1) for symb in symbs]
-    flux_lambdas = [
-        sp.lambdify(symbs, flux_expr, "numpy") for flux_expr in flux_exprs]
-    flux_funs = partial(evaluate_list_of_sp_lambda, flux_lambdas)
-
-    print("solu", sol_expr)
-    print("diff", diff_expr)
-    print("forc", forc_expr)
-
-    return sol_fun, diff_fun, vel_fun, forc_fun, flux_funs
-
-
-def setup_steady_linear_diffusion_reaction_manufactured_solution(
-        sol_string, diff_string, mass_string, nphys_vars):
-    sp_x, sp_y = sp.symbols(['x', 'y'])
-    symbs = (sp_x, sp_y)[:nphys_vars]
-    sol_expr = sp.sympify(sol_string)
-    sol_lambda = sp.lambdify(symbs, sol_expr, "numpy")
-    sol_fun = partial(evaluate_sp_lambda, sol_lambda)
-
-    diff_expr = sp.sympify(diff_string)
-    diff_lambda = sp.lambdify(symbs, diff_expr, "numpy")
-    diff_fun = partial(evaluate_sp_lambda, diff_lambda)
-    diffusion_expr = sum([(diff_expr*sol_expr.diff(symb, 1)).diff(symb, 1)
-                          for symb in symbs])
-
-    mass_expr = sp.sympify(mass_string)
-    mass_lambda = sp.lambdify(symbs, mass_expr, "numpy")
-    mass_fun = partial(evaluate_sp_lambda, mass_lambda)
-    second_expr = mass_expr*sol_expr
-
-    forc_expr = -diffusion_expr+second_expr
-    forc_lambda = sp.lambdify(symbs, forc_expr, "numpy")
-    forc_fun = partial(evaluate_sp_lambda, forc_lambda)
-
-    flux_exprs = [diff_expr*sol_expr.diff(symb, 1) for symb in symbs]
-    flux_lambdas = [
-        sp.lambdify(symbs, flux_expr, "numpy") for flux_expr in flux_exprs]
-    flux_funs = partial(evaluate_list_of_sp_lambda, flux_lambdas)
-
-    print("solu", sol_expr)
-    print("diff", diff_expr)
-    print("forc", forc_expr)
-    print("flux", flux_exprs)
-
-    return sol_fun, diff_fun, mass_fun, forc_fun, flux_funs
+from pyapprox.pde.tests.manufactured_solutions import (
+    setup_steady_advection_diffusion_manufactured_solution,
+    setup_steady_linear_diffusion_reaction_manufactured_solution
+)
 
 
 class TestSpectralGalerkin(unittest.TestCase):
@@ -111,8 +26,15 @@ class TestSpectralGalerkin(unittest.TestCase):
             setup_steady_advection_diffusion_manufactured_solution(
                 sol_string, diff_string, vel_strings))
 
+        sample = np.zeros((0, 1))  # dummy
+        # model should not know about randomness and just take functions
+        # even when sample is not a dummy variable
         def normal_flux(flux_funs, active_var, sign, xx):
-            return sign*flux_funs(xx)[:, active_var:active_var+1]
+            return sign*flux_funs(xx, sample)[:, active_var:active_var+1]
+        diff_fun = partial(diff_fun, sample=sample)
+        vel_fun = partial(vel_fun, sample=sample)
+        forc_fun = partial(forc_fun, sample=sample)
+        sol_fun = partial(sol_fun, sample=sample)
 
         nphys_vars = len(orders)
         bndry_conds = []
@@ -134,21 +56,20 @@ class TestSpectralGalerkin(unittest.TestCase):
             domain, dirichlet_penalty)
         model.initialize(diff_fun, vel_fun, forc_fun, bndry_conds)
 
-        sample = np.zeros((0, 1))  # dummy
-        sol = model.solve(sample)
+        sol = model.solve()
 
-        fig, axs = plt.subplots(1, model.domain._nphys_vars)
-        axs = np.atleast_1d(axs)
-        p1 = model.domain.plot(sol_fun, 50, ax=axs[0])
-        if model.domain._nphys_vars == 1:
-            p2 = model.domain.plot_poly(sol, 50, ax=axs[-1], ls='--')
-        else:
-            p2 = model.domain.plot(
-                lambda xx: model.domain.interpolate(sol, xx)-sol_fun(xx),
-                50, ax=axs[-1])
-            plt.colorbar(p1, ax=axs[0])
-            plt.colorbar(p2, ax=axs[-1])
-        plt.show()
+        # fig, axs = plt.subplots(1, model.domain._nphys_vars)
+        # axs = np.atleast_1d(axs)
+        # p1 = model.domain.plot(sol_fun, 50, ax=axs[0])
+        # if model.domain._nphys_vars == 1:
+        #     p2 = model.domain.plot_poly(sol, 50, ax=axs[-1], ls='--')
+        # else:
+        #     p2 = model.domain.plot(
+        #         lambda xx: model.domain.interpolate(sol, xx)-sol_fun(xx),
+        #         50, ax=axs[-1])
+        #     plt.colorbar(p1, ax=axs[0])
+        #     plt.colorbar(p2, ax=axs[-1])
+        # plt.show()
 
         xx = cartesian_product(
             [np.linspace(domain_bounds[2*ii], domain_bounds[2*ii+1], 20)
@@ -164,6 +85,7 @@ class TestSpectralGalerkin(unittest.TestCase):
     def test_advection_diffusion(self):
         test_cases = [
             [[0, 1], [3], "x**2", "1", ["2"], ["D"]*2],
+            [[0, 1], [3], "x**2", "1", ["2"], ["D", "N"]],
             [[0, 1, 0, 1], [2, 2], "x**2*y**2", "1+x", ["0", "0"], ["D"]*4],
             [[0, 1, 0, 1], [2, 2], "x**2*y**2", "1+x", ["2-x", "2"], ["D"]*4]
         ]
@@ -180,8 +102,15 @@ class TestSpectralGalerkin(unittest.TestCase):
         # Solution designed to have zero flux at boundaries.
         # Thus we are isolating testing of assembling bilinear form and rhs
 
+        # model should not know about randomness and just take functions
+        # even when sample is not a dummy variable
+        sample = np.zeros((0, 1))  # dummy
         def normal_flux(flux_funs, active_var, sign, xx):
-            return sign*flux_funs(xx)[:, active_var:active_var+1]
+            return sign*flux_funs(xx, sample)[:, active_var:active_var+1]
+        diff_fun = partial(diff_fun, sample=sample)
+        mass_fun = partial(mass_fun, sample=sample)
+        forc_fun = partial(forc_fun, sample=sample)
+        sol_fun = partial(sol_fun, sample=sample)
 
         # effects accuracy of solution
         # larger values will enforce dirichlet boundary condition more
@@ -208,8 +137,7 @@ class TestSpectralGalerkin(unittest.TestCase):
             domain, dirichlet_penalty)
         model.initialize(diff_fun, mass_fun, forc_fun, bndry_conds)
 
-        sample = np.zeros((0, 1))  # dummy
-        sol = model.solve(sample)
+        sol = model.solve()
 
         # fig, axs = plt.subplots(1, model.domain._nphys_vars)
         # axs = np.atleast_1d(axs)

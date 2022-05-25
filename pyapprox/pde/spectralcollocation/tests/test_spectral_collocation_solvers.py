@@ -1,242 +1,26 @@
 import unittest
 import numpy as np
 import sympy as sp
-import matplotlib.pyplot as plt
+from functools import partial
 
-from pyapprox.pde.spectral_diffusion import (
+from pyapprox.pde.spectralcollocation.stokes import StokesFlowModel
+from pyapprox.pde.spectralcollocation.diffusion import (
     SteadyStateAdvectionDiffusionEquation1D,
-    TransientAdvectionDiffusionEquation1D,
     SteadyStateAdvectionDiffusionEquation2D,
-    TransientAdvectionDiffusionEquation2D,
-    chebyshev_derivative_matrix,
-    chebyshev_second_derivative_matrix
+    TransientAdvectionDiffusionEquation1D,
+    TransientAdvectionDiffusionEquation2D)
+from pyapprox.pde.tests.manufactured_solutions import (
+    setup_steady_advection_diffusion_manufactured_solution,
+    setup_steady_stokes_manufactured_solution
 )
-from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.util.utilities import check_gradients
 
 
-def get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
-        sol_string, diffusivity, advection_1, advection_2):
-    # from sympy.abc import t as sp_t
-    sp_x, sp_y = sp.symbols(['x', 'y'])
-    # u = sp.sin(sp.pi*sp_x)*sp.cos(sp_t)
-    u = sp.sympify(sol_string)
-    kdxu = [diffusivity*u.diff(sp_x, 1), diffusivity*u.diff(sp_y, 1)]
-    dxu2 = kdxu[0].diff(sp_x, 1) + kdxu[1].diff(sp_y, 1)  # diffusion
-    # dtu = u.diff(sp_t, 1)   # time derivative
-    dxu = advection_1*u.diff(sp_x, 1)+advection_2*u.diff(sp_y, 1)  # advection
-    # sp_forcing = dtu-(diffusivity*dxu2+advection*dxu)
-    sp_forcing = -(dxu2-dxu)
-    print(sp_forcing)
-    # forcing_fun = sp.lambdify((sp_x, sp_y, sp_t), sp_forcing, "numpy")
-    forcing_fun = sp.lambdify((sp_x, sp_y), sp_forcing, "numpy")
-    return forcing_fun
-
-
-class TestSpectralDiffusion2D(unittest.TestCase):
+class TestSolvers(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
-        self.eps = 2 * np.finfo(float).eps
 
-    def test_derivative_matrix(self):
-        order = 4
-        model = SteadyStateAdvectionDiffusionEquation1D()
-        bndry_conds = [[lambda x: x.T*0, "D"],
-                       [lambda x: x.T*0, "D"]]
-        domain = [-1, 1]
-        model.initialize(bndry_conds, lambda x, z: x.T*0+1,
-                         lambda x, z: x.T*0, lambda x, z: x.T*0, order, domain)
-        derivative_matrix = model.get_derivative_matrices()[0]
-        true_matrix = \
-            [[5.5,        -6.82842712,  2.,         -1.17157288,  0.5],
-             [1.70710678, -0.70710678, -1.41421356,  0.70710678, -0.29289322],
-             [-0.5,         1.41421356, -0.,         -1.41421356,  0.5],
-             [0.29289322, -0.70710678,  1.41421356,  0.70710678, -1.70710678],
-             [-0.5,         1.17157288, -2.,          6.82842712, -5.5]]
-        # I return points and calculate derivatives using reverse order of
-        # points compared to what is used by Matlab cheb function thus the
-        # derivative matrix I return will be the negative of the matlab version
-        assert np.allclose(-derivative_matrix, true_matrix)
-
-        def fun(x): return (np.exp(x)*np.sin(5*x)).T
-        def grad(x): return (np.exp(x)*(np.sin(5*x)+5*np.cos(5*x))).T
-
-        order = 20
-        model = SteadyStateAdvectionDiffusionEquation1D()
-        bndry_conds = [[lambda x: x.T*0, "D"],
-                       [lambda x: x.T*0, "D"]]
-        domain = [-1, 1]
-        model.initialize(bndry_conds, lambda x, z: x.T*0+1,
-                         lambda x, z: x.T*0, lambda x, z: x.T*0, order, domain)
-        cheb_grad = model.mesh.derivative_matrices[0].dot(
-            fun(model.mesh.mesh_pts))
-        # from pyapprox import plt
-        # plt.plot(model.mesh.mesh_pts, grad(model.mesh.mesh_pts))
-        # plt.plot(model.mesh.mesh_pts, cheb_grad)
-        # plt.show()
-        error = np.absolute(grad(model.mesh.mesh_pts) - cheb_grad)
-        # print(error)
-        assert np.max(error) < 1e-9
-
-    def test_second_derivative_matrix(self):
-        degree = 32
-        # applying D1 twice for large degree suffers significant rounding error
-        # TODO: sue methods in Section 3.3.5 of
-        # Roger Peyret. Spectral Methods for Incompressible Viscous Flow forcing
-        # to reduce roundoff errors
-        pts, D1_mat = chebyshev_derivative_matrix(degree)
-        D2_mat = chebyshev_second_derivative_matrix(degree)[1]
-
-        # print(np.linalg.norm(D1_mat.dot(D1_mat)-D2_mat))
-        assert np.allclose(D2_mat, D1_mat.dot(D1_mat))
-
-        def fun(xx):
-            return xx**(degree-2)
-        def second_deriv(xx):
-            return (degree-3)*(degree-2)*xx**(degree-4)
-        # print(D2_mat.dot(fun(pts)))
-        # print(D1_mat.dot(D1_mat.dot(fun(pts))))
-        assert np.allclose(D2_mat.dot(fun(pts)),second_deriv(pts))
-
-    def test_homogeneous_possion_equation(self):
-        """
-        solve -u(x)'' = 0, u(0) = 0, u(1) = 0.5
-        """
-
-        order = 4
-        model = SteadyStateAdvectionDiffusionEquation1D()
-        bndry_conds = [[lambda x: x.T*0, "D"],
-                       [lambda x: x.T*0+0.5, "D"]]
-        domain = [0, 1]
-        def diff_fun(x, z): return x.T*0+1
-        model.initialize(bndry_conds, diff_fun,
-                         lambda x, z: x.T*0, lambda x, z: x.T*0, order, domain)
-        mesh_pts = model.get_collocation_points()
-        sample = np.zeros((0))  # dummy for this example
-        solution = model.solve(sample)
-        def exact_sol(x): return 0.5*x.T
-        # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
-        assert np.linalg.norm(
-            exact_sol(mesh_pts)-solution) < 20*self.eps
-
-        # test compuation of fluxes
-        normal_fluxes = model.compute_bndry_fluxes(solution, [0, 1], sample)
-        def exact_flux(x, z): return diff_fun(x, z)*0.5
-        normals = np.array([-1, 1])[:, None]
-        assert np.allclose(np.array(normal_fluxes),
-                           exact_flux(mesh_pts[:, [0, -1]], sample)*normals)
-
-    def test_neumann_boundary_conditions(self):
-        """
-        Solve -u(x)''=exp(4x) u(-1)'=0 and u(1)=0
-        """
-        order = 20
-        model = SteadyStateAdvectionDiffusionEquation1D()
-        bndry_conds = [[lambda x: x.T*0, "N"],
-                       [lambda x: x.T*0, "D"]]
-        domain = [-1, 1]
-        model.initialize(bndry_conds, lambda x, z: x.T*0+1,
-                         lambda x, z: -np.exp(4*x.T),
-                         lambda x, z: x.T*0, order, domain)
-        mesh_pts = model.get_collocation_points()
-        sample = np.zeros((0))  # dummy for this example
-        solution = model.solve(sample)
-        def exact_sol(x): return (
-            np.exp(4*x)-4*np.exp(-4)*(x-1)-np.exp(4)).T/16
-        # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
-        assert np.linalg.norm(
-            exact_sol(mesh_pts)-solution) < 1e-11
-
-    def test_inhomogeneous_possion_equation(self):
-        """
-        solve -u(x)'' = -1, u(0) = 0, u(1) = 1
-        solution u(x) =  0.5*(x-3.)*x
-        """
-        order = 4
-        model = SteadyStateAdvectionDiffusionEquation1D()
-        bndry_conds = [[lambda x: x.T*0, "D"],
-                       [lambda x: x.T*0-1, "D"]]
-        domain = [0, 1]
-        model.initialize(bndry_conds, lambda x, z: x.T*0+1,
-                         lambda x, z: 0*x.T-1,
-                         lambda x, z: x.T*0, order, domain)
-        mesh_pts = model.get_collocation_points()
-        sample = np.zeros((0))  # dummy for this example
-        solution = model.solve(sample)
-        def exact_sol(x): return (0.5*(x-3.)*x).T
-        print(np.linalg.norm(exact_sol(mesh_pts)-solution))
-        assert np.linalg.norm(
-            exact_sol(mesh_pts)-solution) < 30*self.eps
-
-    def test_inhomogeneous_advection_diffusion_equation(self):
-        """
-        solve -u(x)'' + a u(x)' = a cos(x)+sin(x), u(0) = 0, u(1) = sin(1)
-        solution u(x) =  sin(x)
-        """
-        a = 10
-        order = 20
-        model = SteadyStateAdvectionDiffusionEquation1D()
-        bndry_conds = [[lambda x: x.T*0, "D"],
-                       [lambda x: x.T*0+np.sin(1), "D"]]
-        domain = [0, 1]
-        model.initialize(bndry_conds, lambda x, z: x.T*0+1,
-                         lambda x, z: (a*np.cos(x)+np.sin(x)).T,
-                         lambda x, z: x.T*0+a, order, domain)
-        mesh_pts = model.get_collocation_points()
-        sample = np.zeros((0))  # dummy for this example
-        solution = model.solve(sample)
-        def exact_sol(x): return np.sin(x.T)
-        # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
-        assert np.linalg.norm(
-            exact_sol(mesh_pts)-solution) < 6e-14
-
-    def test_homogeneous_advection_diffusion_equation(self):
-        """
-        solve -a u(x)'' - u(x)' = 0, u(0) = 0, u(1) = 1
-        solution u(x) =  sin(x)
-        """
-        a = 1
-        order = 20
-        model = SteadyStateAdvectionDiffusionEquation1D()
-        bndry_conds = [[lambda x: x.T*0, "D"],
-                       [lambda x: x.T*0+1, "D"]]
-        domain = [0, 1]
-        model.initialize(bndry_conds, lambda x, z: x.T*0+a,
-                         lambda x, z: x.T*0,
-                         lambda x, z: x.T*0-1, order, domain)
-        mesh_pts = model.get_collocation_points()
-        sample = np.zeros((0))  # dummy for this example
-        solution = model.solve(sample)
-        def exact_sol(x): return ((np.exp(-x/a)-1)/(np.exp(-1/a)-1)).T
-        # plt.plot(mesh_pts[0, :], exact_sol(mesh_pts)[:, 0])
-        # plt.plot(mesh_pts[0, :], solution[:, 0], '--')
-        # plt.show()
-        print(np.linalg.norm(exact_sol(mesh_pts)-solution))
-        assert np.linalg.norm(
-            exact_sol(mesh_pts)-solution) < 3e-13
-
-    def test_inhomogeneous_diffusion_equation_with_variable_coefficient(self):
-        """
-        solve -((1+x)*u(x)')' = 1, u(0) = 0, u(1) = 0
-        solution u(x) = log(x+1)/log(2) - x
-        """
-        order = 20
-        model = SteadyStateAdvectionDiffusionEquation1D()
-        bndry_conds = [[lambda x: x.T*0, "D"],
-                       [lambda x: x.T*0, "D"]]
-        domain = [0, 1]
-        model.initialize(bndry_conds, lambda x, z: x.T+1,
-                         lambda x, z: x.T*0+1,
-                         lambda x, z: x.T*0, order, domain)
-        mesh_pts = model.get_collocation_points()
-        sample = np.zeros((0))  # dummy for this example
-        solution = model.solve(sample)
-        def exact_sol(x): return (np.log(x+1.) / np.log(2.) - x).T
-        # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
-        assert np.linalg.norm(
-            exact_sol(mesh_pts)-solution) < 4e-14
-
-    def test_integrate_1d(self):
+    def test_diffusion_integrate_1d(self):
         order = 4
         model = SteadyStateAdvectionDiffusionEquation1D()
         bndry_conds = [[lambda x: x.T*0, "D"],
@@ -246,7 +30,6 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                          lambda x, z: x.T*0+1,
                          lambda x, z: x.T*0, order, domain)
         mesh_pts = model.get_collocation_points()
-        print(model.mesh.integrate(mesh_pts.T**2))
         assert np.allclose(model.mesh.integrate(mesh_pts.T**2), 1./3.)
         assert np.allclose(model.mesh.integrate(mesh_pts.T**3), 1./4.)
 
@@ -259,11 +42,10 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                          lambda x, z: x.T*0-1,
                          lambda x, z: x.T*0, order, domain)
         mesh_pts = model.get_collocation_points()
-        print(model.mesh.integrate(mesh_pts.T**2))
         assert np.allclose(model.mesh.integrate(mesh_pts.T**2), 2./3.)
         assert np.allclose(model.mesh.integrate(mesh_pts.T**3), 0.)
 
-    def test_evaluate(self):
+    def test_diffusion_evaluate(self):
         """
         for the PDE -((1+z*x)*u(x)')' = 1, u(0) = 0, u(1) = 0
         buse model.evaluate to extract QoI
@@ -291,7 +73,94 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             -(qoi_coords*np.log(9./4.)-2.*np.log(qoi_coords+2.) +
               np.log(4.))/np.log(3./2.), qoi)
 
-    def test_evaluate_gradient_1d(self):
+    def check_advection_diffusion(self, domain_bounds, orders, sol_string,
+                                  diff_string, vel_strings, bndry_types):
+        sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
+            setup_steady_advection_diffusion_manufactured_solution(
+                sol_string, diff_string, vel_strings))
+
+        def normal_flux(flux_funs, active_var, sign, xx, sample):
+            vals = sign*flux_funs(xx, sample)[:, active_var:active_var+1]
+            return vals
+
+        def robin_bndry_fun(sol_fun, flux_funs, active_var, sign, alpha,
+                            xx, sample):
+            return alpha*sol_fun(xx, sample) + normal_flux(
+                flux_funs, active_var, sign, xx, sample)
+
+        sample = np.zeros((0))  # dummy
+
+        nphys_vars = len(orders)
+        bndry_conds = []
+        for dd in range(nphys_vars):
+            if bndry_types[2*dd] == "N":
+                bndry_conds.append(
+                    [partial(normal_flux, flux_funs, dd, -1, sample=sample),
+                     "N"])
+            elif bndry_types[2*dd] == "D":
+                bndry_conds.append([lambda xx: sol_fun(xx, sample), "D"])
+            elif bndry_types[2*dd] == "R":
+                alpha = 1
+                bndry_conds.append(
+                    [partial(robin_bndry_fun, sol_fun, flux_funs, dd, -1, alpha,
+                             sample=sample), "R", alpha])
+                # warning use of lists and lambda like commented code below
+                # causes error because of shallow pointer copies
+                # bndry_conds.append(
+                #     [lambda xx: alpha*sol_fun(xx, sample)+normal_flux(
+                #         flux_funs, dd, -1, xx, sample), "R", alpha])
+            if bndry_types[2*dd+1] == "N":
+                bndry_conds.append(
+                    [partial(normal_flux, flux_funs, dd, 1, sample=sample),
+                     "N"])
+            elif bndry_types[2*dd+1] == "D":
+                bndry_conds.append([lambda xx: sol_fun(xx, sample), "D"])
+            elif bndry_types[2*dd+1] == "R":
+                alpha = 2
+                bndry_conds.append(
+                    [partial(robin_bndry_fun, sol_fun, flux_funs, dd, 1, alpha,
+                             sample=sample), "R", alpha])
+
+        model = SteadyStateAdvectionDiffusionEquation2D()
+        model.initialize(
+            bndry_conds, diff_fun, forc_fun, vel_fun,
+            orders, domain_bounds)
+
+        sol = model.solve(sample)
+
+        assert np.linalg.norm(
+            sol_fun(model.mesh.mesh_pts, sample)-sol) < 1e-9
+
+        normals = model.mesh._get_bndry_normals(np.arange(nphys_vars*2))
+        if nphys_vars == 2:
+            assert np.allclose(
+                normals, np.array([[-1, 0], [1, 0], [0, -1], [0, 1]]))
+        else:
+            assert np.allclose(normals, np.array([[-1], [1]]))
+        normal_fluxes = model.compute_bndry_fluxes(
+            sol, np.arange(nphys_vars*2), sample)
+        for ii, indices in enumerate(model.mesh.boundary_indices):
+            assert np.allclose(
+                np.array(normal_fluxes[ii]),
+                flux_funs(model.mesh.mesh_pts[:, indices], sample).dot(
+                    normals[ii]))
+
+    def test_2d_advection_diffusion(self):
+        test_cases = [
+            [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["D", "D"]],
+            [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["D", "R"]],
+            [[0, 1], [20], "log(x+1)/log(2)-x", "1+x", ["0"], ["D", "D"]],
+            [[-1, 1], [20], "(exp(4*x)-4*exp(-4)*(x-1)-exp(4))/16", "1", ["0"],
+             ["D", "N"]],
+            [[0, .5, 0, 1], [14, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
+             ["D", "N", "N", "D"]],
+            [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
+             ["D", "R", "D", "D"]]
+        ]
+        for test_case in test_cases:
+            self.check_advection_diffusion(*test_case)
+
+    def test_diffusion_evaluate_gradient_1d(self):
         """
         for the PDE -((1+sum(z^2)*x)*u(x)')' = 2, u(0) = 0, u(1) = 1
         use model.evaluate_gradient to evaluate the gradient of the QoI
@@ -323,7 +192,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         assert errors.max() > 0.1 and errors.min() <= 8e-7
 
     @unittest.skip("Gradient does not work when advection is turned on")
-    def test_evaluate_advection_gradient_1d(self):
+    def test_diffusion_evaluate_advection_gradient_1d(self):
         """
         For the PDE
              -((1+sum(z^2)*x)*u(x)')'+2*sum(z)*u(x)' = 2, u(0) = 0, u(1) = 1
@@ -360,7 +229,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         assert errors.max() > 0.1 and errors.min() <= 6e-7
 
     @unittest.skip("Not fully implemented")
-    def test_compute_error_estimate(self):
+    def test_diffusion_compute_error_estimate(self):
         """
         for the PDE -((1+z*x)*u(x)')' = 1, u(0) = 0, u(1) = 0
         use model.compute_error_estomate to compute an error estimate of
@@ -411,7 +280,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         # print model.mesh.integrate( (exact_solution - solution )**2 )
         assert np.allclose(error_estimate, error)
 
-    def test_timestepping_without_forcing(self):
+    def test_diffusion_timestepping_without_forcing(self):
         r"""
         solve u_t(x,t) = u_xx(x,t), u(-1,t) = 0, u(1,t) = 0,
         u(x,0) = \sin(\pi*x)
@@ -446,7 +315,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             # print(time, L2_error, 1e-3*factor)
             assert L2_error < 1e-4*factor  # crank-nicholson
 
-    def test_timestepping_with_time_independent_forcing_1d(self):
+    def test_diffusion_timestepping_with_time_independent_forcing_1d(self):
         r"""
         solve u_t(x,t) = u_xx(x,t)+sin(3\pi x), u(0,t) = 0, u(1,t) = 0,
         u(x,0) = 5\sin(2\pi x)+2\sin(3\pi x)
@@ -484,7 +353,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             # print(time, L2_error, 1e-3*factor)
             assert L2_error < 1e-3*factor  # crank-nicholson
 
-    def test_timestepping_with_time_dependent_forcing_1d(self):
+    def test_diffusion_timestepping_with_time_dependent_forcing_1d(self):
         r"""
         solve
             u_t(x,t) = u_xx(x,t)-sin(t)sin(pi*x)+pi**2*cos(t)sin(pi*x),
@@ -539,7 +408,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                 # plt.show()
             assert L2_error < 1e-4*factor  # crank-nicholson
 
-    def test_timestepping_with_time_dependent_forcing_2d(self):
+    def test_diffusion_timestepping_with_time_dependent_forcing_2d(self):
         r"""
         solve
             u_t(x,t) = u_xx(x,t)-f(x,t)
@@ -591,7 +460,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             # print(time, L2_error, 1e-4*factor)
             assert L2_error < 1e-4*factor  # crank-nicholson
 
-    def test_convergence(self):
+    def test_diffusion_convergence(self):
 
         def exact_sol(x, t):
             return (5.*np.exp(-4.*np.pi**2*t)*np.sin(2.*np.pi*x) +
@@ -654,138 +523,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         # plt.legend(loc=0)
         # plt.show()
 
-    def test_inhomogeneous_diffusion_equation_2d_variable_coefficient(self):
-        """
-        wolfram alpha z random variable x and w are spatial dimension
-        d/dx 16*exp(-z^2)*(x^2-1/4)*(w^2-1/4)
-        d/dx (1+t/pi^2*z*cos(pi/2*(x^2+w^2)))*32*(w^2-1/4)*x*exp(-z^2)
-        Peter zaspels thesis is wrong it is 1 = sigma * not 1 + sigma +
-        """
-
-        sigma = 1
-
-        def forcing_fun(x, z):
-            vals = -(32.*(1.+sigma*z[0]*sigma*np.cos(
-                np.pi/2.*(x[0, :]**2+x[1, :]**2))/np.pi**2) *
-                np.exp(-z[0]**2)*(x[0, :]**2+x[1, :]**2-0.5) -
-                32./np.pi*z[0]*sigma*np.sin(np.pi/2.*(x[0, :]**2+x[1, :]**2)) *
-                (x[0, :]**2 * np.exp(-z[0]**2)*(x[1, :]**2-0.25)+x[1, :]**2 *
-                 np.exp(-z[0]**2)*(x[0, :]**2-0.25)))[:, None]
-            return vals
-
-        def diffusivity_fun(x, z):
-            return (1.+sigma/np.pi**2*z[0]*np.cos(
-                np.pi/2.*(x[0, :]**2+x[1, :]**2)))[:, None]
-
-        # only well posed if |y| < pi^2/sigma
-        def exact_sol(x, y): return (
-                16.*np.exp(-y**2) *
-                (x[0, :]**2-0.25)*(x[1, :]**2-0.25))[:, None]
-
-        order = 16
-        model = SteadyStateAdvectionDiffusionEquation2D()
-        domain = [-0.5, 0.5, -0.5, 0.5]
-        bndry_conds = [[lambda x: x[1:2, :].T*0, "D"],
-                       [lambda x: x[1:2, :].T*0, "D"],
-                       [lambda x: x[0:1, :].T*0, "D"],
-                       [lambda x: x[0:1, :].T*0, "D"]]
-        model.initialize(
-                bndry_conds, diffusivity_fun, forcing_fun,
-                lambda x, z: np.zeros((x.shape[1], 2)), order, domain)
-
-        num_dims = 1
-        rng = np.random.RandomState(1)
-        sample = rng.uniform(-np.sqrt(3), np.sqrt(3), (num_dims))
-        mesh_pts = model.get_collocation_points()
-        solution = model.solve(sample)
-        # print (np.linalg.norm(exact_sol(mesh_pts, sample)-solution))
-        assert np.linalg.norm(exact_sol(mesh_pts, sample) - solution) < 2.e-12
-
-    def test_2d_advection_diffusion_neumann_x_dim_bcs(self):
-        sol_string = "x**2*sin(pi*y)"
-        diff_string = "1+x"
-        diff_sp = sp.sympify(diff_string)
-        sp_forcing_fun = \
-            get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
-                sol_string, diff_sp, 1, 0)
-
-        def exact_sol(x): return (x[0, :]**2*np.sin(np.pi*x[1, :]))[:, None]
-
-        def forcing_fun(x, z):
-            return sp_forcing_fun(x[0, :], x[1, :])[:, None]
-
-        order = 16
-        model = SteadyStateAdvectionDiffusionEquation2D()
-        domain = [0, 1, 0, 1]
-        bndry_conds = [
-            [lambda x: np.zeros((x.shape[1], 1)), "N"],
-            [lambda x: exact_sol(x), "D"],
-            [lambda x: np.zeros((x.shape[1], 1)), "D"],
-            [lambda x: np.zeros((x.shape[1], 1)), "D"]]
-        model.initialize(
-            bndry_conds,
-            lambda x, z: np.ones((x.shape[1], 1))+x[0:1, :].T, forcing_fun,
-            lambda x, z: np.hstack(
-                (np.ones((x.shape[1], 1)), np.zeros((x.shape[1], 1)))),
-            order, domain)
-
-        sample = np.zeros((0))  # dummy for this example
-        solution = model.solve(sample)
-
-        assert np.linalg.norm(
-            exact_sol(model.mesh.mesh_pts)-solution) < 1e-9
-
-        # test compuation of fluxes
-        sp_x, sp_y = sp.symbols(['x', 'y'])
-        u = sp.sympify(sol_string)
-        grad_u_sp = [u.diff(sp_x, 1), u.diff(sp_y, 1)]
-        flux_sp = [diff_sp*grad_u_sp[0], diff_sp*grad_u_sp[1]]
-        flux_fun = sp.lambdify((sp_x, sp_y), flux_sp, "numpy")
-        normal_fluxes = model.compute_bndry_fluxes(
-            solution, [0, 1, 2, 3], sample)
-        def exact_flux(x, z):
-            return np.array(flux_fun(x[0], x[1])).T
-        normals = model.mesh._get_bndry_normals(np.arange(4))
-        assert np.allclose(
-            normals, np.array([[-1, 0], [1, 0], [0, -1], [0, 1]]))
-        for ii, indices in enumerate(model.mesh.boundary_indices):
-            assert np.allclose(
-                np.array(normal_fluxes[ii]),
-                exact_flux(model.mesh.mesh_pts[:, indices], sample).dot(
-                    normals[ii]))
-
-    def test_2d_advection_diffusion_neumann_y_dim_bcs(self):
-        sol_string = "y**2*sin(pi*x)"
-        sp_forcing_fun = \
-            get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
-                sol_string, 1, 1, 0)
-
-        def exact_sol(x): return (x[1, :]**2*np.sin(np.pi*x[0, :]))[:, None]
-
-        def forcing_fun(x, z):
-            return sp_forcing_fun(x[0, :], x[1, :])[:, None]
-
-        order = 16
-        model = SteadyStateAdvectionDiffusionEquation2D()
-        domain = [0, 1, 0, 1]
-        bndry_conds = [
-            [lambda x: np.zeros((x.shape[1], 1)), "D"],
-            [lambda x: np.zeros((x.shape[1], 1)), "D"],
-            [lambda x: np.zeros((x.shape[1], 1)), "N"],
-            [lambda x: exact_sol(x), "D"]]
-        model.initialize(
-            bndry_conds, lambda x, z: np.ones((x.shape[1], 1)), forcing_fun,
-            lambda x, z: np.hstack(
-                (np.ones((x.shape[1], 1)), np.zeros((x.shape[1], 1)))),
-            order, domain)
-
-        sample = np.zeros((0))  # dummy for this example
-        solution = model.solve(sample)
-
-        assert np.linalg.norm(
-            exact_sol(model.mesh.mesh_pts)-solution) < 1e-9
-
-    def test_integrate_2d(self):
+    def test_diffusion_integrate_2d(self):
         order = 4
         model = SteadyStateAdvectionDiffusionEquation2D()
         domain = [0, 1, 0, 1]
@@ -816,7 +554,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         assert np.allclose(
             model.mesh.integrate(np.sum(mesh_pts**2, axis=0)[:, None]), 8./3.)
 
-    def test_evaluate_gradient_2d(self):
+    def test_diffusion_evaluate_gradient_2d(self):
         """
         for the PDE -((1+sum(z^2)*x)*u(x)')' = 2, u(0) = 0, u(1) = 1
         use model.evaluate_gradient to evaluate the gradient of the QoI
@@ -853,8 +591,148 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         errors = errors[np.isfinite(errors)]
         assert errors.max() > 0.1 and errors.min() <= 4e-6
 
+    def check_stokes_mms(self, domain_bounds, orders, vel_strings, pres_string):
+        vel_fun, pres_fun, forc_fun, pres_grad_fun = (
+            setup_steady_stokes_manufactured_solution(
+                vel_strings, pres_string))
+        bndry_conds = [[lambda x: vel_fun(x), "D"],
+                       [lambda x: vel_fun(x), "D"],
+                       [lambda x: vel_fun(x), "D"],
+                       [lambda x: vel_fun(x), "D"]]
+
+        sample = np.zeros(0)  # dummy
+        vel_fun = partial(vel_fun, sample=sample)
+        pres_fun = partial(pres_fun, sample=sample)
+        pres_grad_fun = partial(pres_grad_fun, sample=sample)
+
+        nphys_vars = len(domain_bounds)//2
+        bndry_conds = bndry_conds[:2*nphys_vars]
+
+        model = StokesFlowModel()
+        model.initialize(bndry_conds, orders, domain_bounds, forc_fun)
+
+        assert np.allclose(model._mesh.mesh_pts[:, model._interior_indices],
+                           model._pres_mesh.mesh_pts)
+
+        exact_vel_vals = vel_fun(model._mesh.mesh_pts)
+        exact_pres_vals = pres_fun(model._pres_mesh.mesh_pts)
+        exact_sol_vals = np.vstack(exact_vel_vals+[exact_pres_vals])
+
+        pres_idx = model._pres_mesh.mesh_pts.shape[1]//2
+        pres_val = exact_pres_vals[pres_idx]
+        sol_vals = model.solve(sample, pres=(pres_idx, pres_val))
+
+        for dd in range(model._mesh.nphys_vars):
+            assert np.allclose(
+                model._pres_mesh.derivative_matrices[dd].dot(exact_pres_vals),
+                pres_grad_fun(model._mesh.mesh_pts)[dd])
+
+        bndry_indices = np.hstack(model._mesh.boundary_indices)
+        recovered_forcing = model._split_quantities(
+            model._matrix.dot(exact_sol_vals))
+        exact_forcing = forc_fun(model._mesh.mesh_pts, sample)
+        for dd in range(nphys_vars):
+            assert np.allclose(sol_vals[dd][bndry_indices],
+                               exact_vel_vals[dd][bndry_indices])
+            assert np.allclose(recovered_forcing[dd][model._interior_indices],
+                               exact_forcing[dd][model._interior_indices])
+            assert np.allclose(exact_vel_vals[dd][bndry_indices],
+                               recovered_forcing[dd][bndry_indices])
+
+        # check value used to enforce unique pressure is found correctly
+        assert np.allclose(
+            sol_vals[nphys_vars][pres_idx], pres_val)
+        # check pressure at all but point used for enforcing unique value
+        # are set correctly
+        assert np.allclose(
+            np.delete(recovered_forcing[nphys_vars], pres_idx),
+            np.delete(
+                exact_forcing[nphys_vars][model._interior_indices], pres_idx))
+
+        for exact_v, v in zip(exact_vel_vals, sol_vals[:-1]):
+            assert np.allclose(exact_v, v)
+
+    def test_stokes_mms(self):
+        test_cases = [
+            [[0, 1], [6], ["(1-x)**2"], "x**2"],
+            [[0, 1, 0, 1], [20, 20],
+             ["-cos(pi*x)*sin(pi*y)", "sin(pi*x)*cos(pi*y)"], "x**2+y**2"],
+            [[0, 1, 0, 1], [6, 7],
+             ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2"]]
+        for test_case in test_cases:
+            self.check_stokes_mms(*test_case)
+
+    def test_lid_driven_cavity_flow(self):
+        # drive cavity using left boundary as top and bottom boundaries
+        # do not hvae dof at the corners
+        def bndry_condition(xx):
+            cond = [(1*xx[0, :]**2*(1-xx[0, :]**2))[:, None],
+                    np.zeros((xx.shape[1], 1))]
+            return cond
+
+        order = 20
+        domain = [0, 1, 0, 1]
+        bndry_conds = [
+            [lambda x: [np.zeros((x.shape[1], 1)) for ii in range(2)], "D"],
+            [lambda x: [np.zeros((x.shape[1], 1)) for ii in range(2)], "D"],
+            [lambda x: [np.zeros((x.shape[1], 1)) for ii in range(2)], "D"],
+            [bndry_condition, "D"]]
+
+        def forcing_fun(xx, zz):
+            return [np.zeros((xx.shape[1], 1)) for ii in range(3)]
+            # split pressure into p = p_solve + np.exp(2*x+2*y)
+            # to lessen singularity at top right corner
+            # return [2*np.exp(2*xx[0, :]+2*xx[1, :])[:, None],
+            #         2*np.exp(2*xx[0, :]+2*xx[1, :])[:, None],
+            #         np.zeros((xx.shape[1], 1))]
+
+        pres_idx = 0
+        unique_pres_val = 0
+        model = StokesFlowModel()
+        model.initialize(bndry_conds, order, domain, forcing_fun)
+        sample = np.zeros(0)  # dummy
+        sol_vals = model.solve(sample, (pres_idx, unique_pres_val))
+
+        rhs = model._split_quantities(model._rhs)
+        assert np.allclose(
+            sol_vals[0][model._mesh.boundary_indices[3], 0],
+            rhs[0][model._mesh.boundary_indices[3], 0])
+
+        # check value used to enforce unique pressure is found correctly
+        assert np.allclose(
+            sol_vals[model._mesh.nphys_vars][pres_idx], unique_pres_val)
+
+        # num_pts_1d = 50
+        # plot_limits = domain
+        # from pyapprox.util.visualization import get_meshgrid_samples
+        # X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d)
+        # Z = model.interpolate(sol_vals, pts)
+
+        # Z = [np.reshape(zz, (X.shape[0], X.shape[1])) for zz in Z]
+        # fig, axs = plt.subplots(1, 4, figsize=(8*4, 6))
+        # axs[0].quiver(X, Y, Z[0], Z[1])
+        # from pyapprox.util.visualization import plot_2d_samples
+        # for ii in range(3):
+        #     if Z[ii].min() != Z[ii].max():
+        #         pl = axs[ii+1].contourf(
+        #             X, Y, Z[ii],
+        #             levels=np.linspace(Z[ii].min(), Z[ii].max(), 40))
+        #         # plot_2d_samples(
+        #         #     model._mesh.mesh_pts, ax=axs[ii+1], c='r', marker='o')
+        #         # plot_2d_samples(
+        #         #     model._pres_mesh.mesh_pts, ax=axs[ii+1], c='k', marker='o')
+        #         plt.colorbar(pl, ax=axs[ii+1])
+        # # plt.show()
+
 
 if __name__ == "__main__":
-    spectral_diffusion_test_suite = \
-        unittest.TestLoader().loadTestsFromTestCase(TestSpectralDiffusion2D)
-    unittest.TextTestRunner(verbosity=2).run(spectral_diffusion_test_suite)
+    solvers_test_suite = \
+        unittest.TestLoader().loadTestsFromTestCase(TestSolvers)
+    unittest.TextTestRunner(verbosity=2).run(solvers_test_suite)
+
+#TODO clone conda environment when coding on branch
+#diff spectral diffusion on master and on pde branch
+#make sure that  _form_1d_derivative_matrices in this file is being called
+#extract timestepper from advection diffusion and make its own object
+#which just takes an steady state solver like diffusion or stokes and
+#integrates it in time

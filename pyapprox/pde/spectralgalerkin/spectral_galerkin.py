@@ -195,7 +195,7 @@ class AbstractSpectralGalerkinSolver(ABC):
                     self.domain._bndry_quad_weights[ii])
         return rhs_bc
 
-    def solve(self, sample):
+    def solve(self):
         Amat = self._form_matrix()
         rhs = self._form_rhs()
         # Amat_bc should be symmetic when velocity and thus advection term

@@ -1,3 +1,3 @@
-"""The :mod:`pyapprox.pde` module implements spectral collocation methods
+"""The :mod:`pyapprox.pde` module implements numerical methods
 for solving partial differential equations (PDEs).
 """
