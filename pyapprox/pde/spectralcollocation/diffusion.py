@@ -8,7 +8,8 @@ from pyapprox.interface.wrappers import (
 )
 from pyapprox.util.sys_utilities import get_num_args
 from pyapprox.pde.spectralcollocation.spectral_collocation import (
-    OneDCollocationMesh, RectangularCollocationMesh
+    OneDCollocationMesh, RectangularCollocationMesh,
+    chebyshev_derivative_matrix
 )
 
 
@@ -73,19 +74,25 @@ class AbstractAdvectionDiffusion(ABC):
         assert get_num_args(fun) == 2
         self.forcing_fun = fun
 
-    def form_collocation_matrix(self, diffusivity_vals, advection_vals):
+    def form_collocation_matrix_from_mesh(self, diffusivity_vals, velocity_vals,
+                                          mesh):
         assert diffusivity_vals.ndim == 2 and diffusivity_vals.shape[1] == 1
-        assert (advection_vals.ndim == 2 and
-                advection_vals.shape[1] == self.mesh.nphys_vars)
+        assert (velocity_vals.ndim == 2 and
+                velocity_vals.shape[1] == self.mesh.nphys_vars)
 
         matrix = 0
         for dd in range(self.mesh.nphys_vars):
             matrix += np.dot(
-                self.mesh.derivative_matrices[dd],
-                diffusivity_vals*self.mesh.derivative_matrices[dd])
-            matrix -= self.mesh.derivative_matrices[dd]*advection_vals[:, dd]
+                mesh.derivative_matrices[dd],
+                diffusivity_vals*mesh.derivative_matrices[dd])
+            matrix -= mesh.derivative_matrices[dd]*velocity_vals[:, dd]
         # want to solve -u_xx-u_yy+au_x+bu_y=f so add negative
         return -matrix
+
+
+    def form_collocation_matrix(self, diffusivity_vals, velocity_vals):
+        return self.form_collocation_matrix_from_mesh(
+            diffusivity_vals, velocity_vals, self.mesh)
 
     def apply_boundary_conditions_to_matrix(self, matrix):
         return self.mesh._apply_boundary_conditions_to_matrix(
@@ -152,19 +159,18 @@ class AbstractAdvectionDiffusion(ABC):
 class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
     def __init__(self):
         super().__init__()
-        self.adjoint_derivative_matrix = None
-        self.adjoint_mesh_pts = None
+        self.adjoint_mesh = None
 
     def solve(self, sample):
         assert sample.ndim == 1
         diffusivity = self.diffusivity_fun(self.mesh.mesh_pts, sample[:, None])
         forcing = self.forcing_fun(self.mesh.mesh_pts, sample[:, None])
-        advection = self.velocity_fun(self.mesh.mesh_pts, sample[:, None])
+        velocity = self.velocity_fun(self.mesh.mesh_pts, sample[:, None])
 
         assert diffusivity.ndim == 2 and diffusivity.shape[1] == 1
         assert forcing.ndim == 2 and forcing.shape[1] == 1
-        assert advection.ndim == 2 and (
-            advection.shape[1] == self.mesh.mesh_pts.shape[0])
+        assert velocity.ndim == 2 and (
+            velocity.shape[1] == self.mesh.mesh_pts.shape[0])
         # forcing will be overwritten with bounary values so must take a
         # deep copy
         forcing = forcing.copy()
@@ -172,7 +178,7 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
         self.forcing_vals = forcing.copy()
         assert not np.any(diffusivity <= 0.)
         self.collocation_matrix = self.form_collocation_matrix(
-            diffusivity, advection)
+            diffusivity, velocity)
         matrix, forcing = self.apply_boundary_conditions(
             self.collocation_matrix.copy(), forcing)
         solution = np.linalg.solve(matrix, forcing)
@@ -185,53 +191,59 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
         Typically with FEM we solve Ax=b and the discrete adjoint equation
         is A'y=z. But with collocation this does not work. Instead of
         taking the adjoint of the discrete system as the aforementioned
-        approach does. We discretize the continuous adjoint equation. Which for
-        the ellipic diffusion equation is just Ay=z. That is the adjoint
-        of A is A.
+        approach does. We discretize the continuous adjoint equation. 
+        The forward ellipic diffusion equation is just (A+B)y=z. 
+        The adjoint equation is (A-B)y=z. The convection is reversed
         """
         if np.allclose(order, self.mesh.order):
-            # used when computing gradient from adjoint solution
-            matrix = self.collocation_matrix.copy()
+            # the diffusion term is self adjoint but the sign of the advection
+            # term is reveersed thus multiply velocity_vals by -1
+            diffusivity_vals = self.diffusivity_fun(
+                self.mesh.mesh_pts, sample[:, None])
+            velocity_vals = self.velocity_fun(
+                self.mesh.mesh_pts, sample[:, None])
+            matrix = self.form_collocation_matrix(
+                diffusivity_vals, -velocity_vals)
+            self.adjoint_mesh = self.mesh
+            fwd_solution = self.fwd_solution
+            rhs = self.qoi_functional_deriv(fwd_solution)
         else:
             # used when computing error estimate from adjoint solution
-            if self.adjoint_derivative_matrix is None:
-                adjoint_mesh_pts, self.adjoint_derivative_matrix = \
-                    chebyshev_derivative_matrix(order)
-                self.adjoint_mesh_pts = self.map_samples_from_canonical_domain(
-                    adjoint_mesh_pts)
-                # scale derivative matrix from [-1,1] to [a,b]
-                self.adjoint_derivative_matrix *= 2. / \
-                    (self.domain[1]-self.domain[0])
-                # TODO: THIS will not yet work for 2D
+            if self.adjoint_mesh is None:
+                self.adjoint_mesh = OneDCollocationMesh(
+                    self.mesh.domain, order)
+                self.adjoint_mesh.set_boundary_conditions(
+                    self.mesh.bndry_conds)
 
-            diffusivity = self.diffusivity_fun(self.adjoint_mesh_pts, sample)
-            advection = self.velocity_fun(self.adjoint_mesh_pts, sample)
-            matrix = self._form_collocation_matrix(
-                self.adjoint_derivative_matrix, diffusivity, advection)
-            self.adjoint_collocation_matrix = matrix.copy()
+            diffusivity = self.diffusivity_fun(
+                self.adjoint_mesh.mesh_pts, sample)
+            velocity = self.velocity_fun(self.adjoint_mesh.mesh_pts, sample)
+            # the diffusion term is self adjoint but the sign of the advection
+            # term is reversed thus multiply velocity_vals by -1
+            self.adjoint_collocation_matrix = (
+                self.form_collocation_matrix_from_mesh(
+                    diffusivity, -velocity, self.adjoint_mesh))
+            fwd_solution = self.mesh.interpolate(
+                self.fwd_solution, self.adjoint_mesh.mesh_pts)
+            matrix = self.adjoint_collocation_matrix.copy()
+            # qoi must always be linear functional so rhs is always ones.
+            rhs = ones_fun_axis_0(fwd_solution)
 
-        # regardless of whether computing error estimate or
-        # computing gradient, rhs is always derivative (with respect to the
-        # solution) of the qoi_functional
-        qoi_deriv = self.qoi_functional_deriv(self.fwd_solution)
-        print(qoi_deriv, 'd')
-        print(self.fwd_solution, 'f')
-
-        matrix = self.mesh._apply_dirichlet_boundary_conditions_to_matrix(
-            matrix, self.mesh.adjoint_dirichlet_bndry_indices)
-        qoi_deriv = self.mesh._apply_boundary_conditions_to_rhs(
-            qoi_deriv, self.mesh.adjoint_bndry_conds)
+        matrix = (
+            self.adjoint_mesh._apply_dirichlet_boundary_conditions_to_matrix(
+                matrix, self.adjoint_mesh.adjoint_dirichlet_bndry_indices))
+        qoi_deriv = self.adjoint_mesh._apply_boundary_conditions_to_rhs(
+            rhs, self.adjoint_mesh.adjoint_bndry_conds)
         adj_solution = np.linalg.solve(matrix, qoi_deriv)
         return adj_solution
 
     def compute_residual(self, matrix, solution, forcing):
-        matrix, forcing = self.apply_boundary_conditions(matrix, forcing)
         return forcing - np.dot(matrix, solution)
 
     def compute_residual_derivative(self, solution, diffusivity_deriv,
-                                    forcing_deriv, advection_deriv):
+                                    forcing_deriv, velocity_deriv):
         matrix = self.form_collocation_matrix(
-            diffusivity_deriv, advection_deriv)
+            diffusivity_deriv, velocity_deriv)
         matrix = self.mesh._apply_dirichlet_boundary_conditions_to_matrix(
             matrix, self.mesh.adjoint_dirichlet_bndry_indices)
         # the values here are the derivative of the boundary conditions
@@ -242,20 +254,21 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
         return forcing_deriv.squeeze() - np.dot(matrix, solution)
 
     def compute_error_estimate(self, sample):
-        raise NotImplementedError("Not passing tests")
+        # raise NotImplementedError("Not passing tests")
         # must solve adjoint with a higher order grid
-        adj_solution = self.solve_adjoint(sample, self.order*2)
+        adj_solution = self.solve_adjoint(sample, self.mesh.order+2)
 
         # interpolate forward solution onto higher-order grid
-        interp_fwd_solution = self.interpolate(
-            self.fwd_solution, self.adjoint_mesh_pts)
+        interp_fwd_solution = self.mesh.interpolate(
+            self.fwd_solution, self.adjoint_mesh.mesh_pts)
 
         # compute residual of forward solution using higher-order grid
-        forcing_vals = self.forcing_fun(self.adjoint_mesh_pts, sample)
+        forcing_vals = self.forcing_fun(self.adjoint_mesh.mesh_pts, sample)
 
         # compute residual
         residual = self.compute_residual(self.adjoint_collocation_matrix,
                                          interp_fwd_solution, forcing_vals)
+        print(residual)
 
         # self.plot(interp_fwd_solution+adj_solution,
         #           plot_mesh_coords=self.adjoint_mesh_pts )
@@ -267,7 +280,8 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
         # print(np.dot(residual, adj_solution )/self.integrate(
         #    residual * adj_solution)
         # print('cond', np.linalg.cond(self.adjoint_collocation_matrix))
-        error_estimate = self.integrate(residual * adj_solution, self.order*2)
+        error_estimate = self.adjoint_mesh.integrate(
+            residual * adj_solution, self.adjoint_mesh.order*2)
 
         return error_estimate
 
@@ -282,11 +296,12 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
                 self.mesh.mesh_pts, sample, ii)
             forcing_deriv_vals_i = self.forcing_derivs_fun(
                 self.mesh.mesh_pts, sample, ii)
-            advection_deriv_vals_i = self.advection_derivs_fun(
+            velocity_deriv_vals_i = self.velocity_derivs_fun(
                 self.mesh.mesh_pts, sample, ii)
+            print(velocity_deriv_vals_i)
             residual_deriv = self.compute_residual_derivative(
                 self.fwd_solution, diffusivity_deriv_vals_i,
-                forcing_deriv_vals_i, advection_deriv_vals_i)
+                forcing_deriv_vals_i, velocity_deriv_vals_i)
             gradient[ii] = self.mesh.integrate(residual_deriv * adj_solution)
         return gradient
 
@@ -433,11 +448,11 @@ class TransientAdvectionDiffusion(SteadyStateAdvectionDiffusion):
         # consider replacing time = 0 with time = self.initial_time
         time = 0.
         diffusivity = self.diffusivity_fun(self.mesh.mesh_pts, sample[:, None])
-        advection = self.velocity_fun(self.mesh.mesh_pts, sample[:, None])
+        velocity = self.velocity_fun(self.mesh.mesh_pts, sample[:, None])
         # negate collocation matrix because it has moved from
         # lhs for steady state to rhs for transient
         self.collocation_matrix = -self.form_collocation_matrix(
-            diffusivity, advection)
+            diffusivity, velocity)
         assert (self.initial_sol is not None and
                 self.initial_sol.shape[1] == 1)
         # make sure that if mesh has been updated initial sol has also been

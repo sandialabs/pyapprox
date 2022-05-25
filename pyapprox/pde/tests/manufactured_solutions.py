@@ -21,10 +21,12 @@ def evaluate_list_of_sp_lambda(sp_lambdas, xx, sample, as_list=False):
 
 
 def setup_steady_advection_diffusion_manufactured_solution(
-        sol_string, diff_string, vel_strings):
+        sol_string, diff_string, vel_strings, nrandom_vars=0):
     nphys_vars = len(vel_strings)
     sp_x, sp_y = sp.symbols(['x', 'y'])
     symbs = (sp_x, sp_y)[:nphys_vars]
+    # sp_w, sp_z = sp.symbols(['w', 'z'])
+    # random_symbs = (sp_w, sp_z)[:nrandom_vars]
     sol_expr = sp.sympify(sol_string)
     sol_lambda = sp.lambdify(symbs, sol_expr, "numpy")
     sol_fun = partial(evaluate_sp_lambda, sol_lambda)
@@ -95,11 +97,12 @@ def setup_steady_linear_diffusion_reaction_manufactured_solution(
     return sol_fun, diff_fun, mass_fun, forc_fun, flux_funs
 
 
-def setup_steady_stokes_manufactured_solution(velocity_strings, pressure_string):
+def setup_steady_stokes_manufactured_solution(
+        velocity_strings, pressure_string):
     nphys_vars = len(velocity_strings)
     sp_x, sp_y = sp.symbols(['x', 'y'])
     symbs = (sp_x, sp_y)[:nphys_vars]
-    
+
     pres_expr = sp.sympify(pressure_string)
     pres_lambda = sp.lambdify(symbs, pres_expr, "numpy")
     pres_fun = partial(evaluate_sp_lambda, pres_lambda)
@@ -123,4 +126,3 @@ def setup_steady_stokes_manufactured_solution(velocity_strings, pressure_string)
         evaluate_list_of_sp_lambda, pres_grad_lambda, as_list=True)
 
     return vel_fun, pres_fun, forc_fun, pres_grad_fun
-    

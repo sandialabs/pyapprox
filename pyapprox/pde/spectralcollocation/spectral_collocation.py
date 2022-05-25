@@ -318,12 +318,12 @@ class AbstractCartesianProductCollocationMesh(ABC):
             order = self.order
             quad_pts, quad_wts = self.quad_pts, self.quad_wts
         else:
-            order = self._expand_order(order, domain)
-            quad_pts, quad_wts = self.form_quadrature_rule(order)
-        if domain is None:
-            domain = self.domain
+            if domain is None:
+                domain = self.domain
             assert np.all(domain[::2] >= self.domain[::2])
             assert np.all(domain[1::2] <= self.domain[1::2])
+            order = self._expand_order(order)
+            quad_pts, quad_wts = self.form_quadrature_rule(order, domain)
         if qoi is None:
             qoi = mesh_values.shape[1]-1
 
