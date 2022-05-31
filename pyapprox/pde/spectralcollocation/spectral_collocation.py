@@ -14,6 +14,22 @@ from pyapprox.surrogates.interp.barycentric_interpolation import (
 from pyapprox.variables.transforms import _map_hypercube_samples
 
 
+from pyapprox.util.sys_utilities import package_available
+# def package_available(name): # hack to turn off torch use
+#     return False
+
+if package_available("torch"):
+    import torch as pkg
+else:
+    import numpy as pkg
+
+
+def np_to_pkg_format(array):
+    if package_available("torch"):
+        return pkg.tensor(array)
+    return array
+
+
 def zeros_fun_axis_1(x):
     # axis_1 used when x is mesh points
     return np.zeros((x.shape[1], 1))
@@ -406,7 +422,7 @@ class AbstractCartesianProductCollocationMesh(ABC):
         return matrix
 
     def _apply_dirichlet_boundary_conditions_to_residual(self, residual, sol):
-        for ii, bndry_cond in enumerate(self.bndry_conds):
+        for ii, bndry_cond in enumerate(self.pkg_bndry_conds):
             if bndry_cond[1] == "D":
                 idx = self.boundary_indices[ii]
                 residual[idx] = sol[idx]-bndry_cond[0](
@@ -415,7 +431,7 @@ class AbstractCartesianProductCollocationMesh(ABC):
 
     def _apply_neumann_and_robin_boundary_conditions_to_residual(
             self, residual, sol):
-        for ii, bndry_cond in enumerate(self.bndry_conds):
+        for ii, bndry_cond in enumerate(self.pkg_bndry_conds):
             if bndry_cond[1] == "N" or bndry_cond[1] == "R":
                 idx = self.boundary_indices[ii]
                 bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])
@@ -423,9 +439,11 @@ class AbstractCartesianProductCollocationMesh(ABC):
                 if ii < 2:
                     # warning flux is not dependent on diffusivity (
                     # diffusion equation not a standard boundary formulation)
-                    flux = self.derivative_matrices[0][idx, :].dot(sol)
+                    flux = pkg.linalg.multi_dot(
+                        (self.pkg_derivative_matrices[0][idx, :], sol))
                 else:
-                    flux = self.derivative_matrices[1][idx, :].dot(sol)
+                    flux = pkg.linalg.multi_dot(
+                        (self.pkg_derivative_matrices[1][idx, :], sol))
                 residual[idx] = normal*flux-bndry_vals
                 if bndry_cond[1] == "R":
                     residual[idx] += bndry_cond[2]*sol[idx]

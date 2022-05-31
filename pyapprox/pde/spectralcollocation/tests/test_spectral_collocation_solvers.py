@@ -76,43 +76,63 @@ class TestSolvers(unittest.TestCase):
             -(qoi_coords*np.log(9./4.)-2.*np.log(qoi_coords+2.) +
               np.log(4.))/np.log(3./2.), qoi)
 
-    def test_advection_diffusion_residual(self):
+    def test_advection_diffusion_reaction_residual(self):
         # check finite difference of residual gives collocation matrix
         order = 4
-        model = SteadyStateAdvectionDiffusionEquation1D()
+        model = SteadyStateAdvectionDiffusionReaction()
         bndry_conds = [[lambda x: x.T*0, "D"],
                        [lambda x: x.T*0, "D"]]
         domain = [0, 1]
         model.initialize(bndry_conds, lambda x, z: z*x.T + 1.,
                          lambda x, z:  0*x.T+1,
-                         lambda x, z: x.T*0, order, domain)
+                         lambda x, z: x.T*0,
+                         lambda x, z: x.T*0,
+                         order, domain)
+        model1 = SteadyStateAdvectionDiffusionEquation1D()
+        bndry_conds1 = [[lambda x: x.T*0, "D"],
+                        [lambda x: x.T*0, "D"]]
+        model1.initialize(bndry_conds1, lambda x, z: z*x.T + 1.,
+                          lambda x, z:  0*x.T+1,
+                          lambda x, z: x.T*0,
+                          order, domain)
         sample = np.ones((1), float)
-        sol = model.solve(sample)
-        residual = model._residual(sol, sample)
+        sol1 = model1.solve(sample)
+        # sol = model.solve(sample, initial_guess=sol1)
+        residual = model._residual(sol1, sample)
         assert np.allclose(residual, np.zeros_like(residual))
 
         guess = np.ones((model.mesh.mesh_pts.shape[1], 1))
         residual = model._residual(guess, sample)
-        jac_fd = approx_jacobian(
-            partial(model._residual, sample=sample), guess)
-        jac = model.form_collocation_matrix(
+        residual_fun = partial(model._residual, sample=sample)
+        jac_fd = approx_jacobian(residual_fun, guess)
+        jac = model1.form_collocation_matrix(
             model.diffusivity_fun(model.mesh.mesh_pts, sample[:, None]),
             model.velocity_fun(model.mesh.mesh_pts, sample[:, None]))
-        jac = model.mesh._apply_boundary_conditions_to_matrix(jac)
+        jac = model1.mesh._apply_boundary_conditions_to_matrix(jac)
         assert np.allclose(jac, jac_fd)
+        jac_ad = model._compute_jacobian(residual_fun, guess)
+        assert np.allclose(jac, jac_ad, rtol=1e-15)
 
         order = 4
-        model = SteadyStateAdvectionDiffusionEquation1D()
-        bndry_conds = [[lambda x: x.T*0, "R", 1],
+        model = SteadyStateAdvectionDiffusionReaction()
+        bndry_conds = [[lambda x: x.T*0, "D"],
                        [lambda x: x.T*0, "D"]]
         domain = [0, 1]
         model.initialize(bndry_conds, lambda x, z: z*x.T + 1.,
                          lambda x, z:  0*x.T+1,
-                         lambda x, z: x.T*0, order, domain)
+                         lambda x, z: x.T*0,
+                         lambda x, z: x.T*0,
+                         order, domain)
+        model1 = SteadyStateAdvectionDiffusionEquation1D()
+        bndry_conds1 = [[lambda x: x.T*0, "D"],
+                        [lambda x: x.T*0, "D"]]
+        model1.initialize(bndry_conds1, lambda x, z: z*x.T + 1.,
+                          lambda x, z:  0*x.T+1,
+                          lambda x, z: x.T*0,
+                          order, domain)
         sample = np.ones((1), float)
-        sol = model.solve(sample)
-        residual = model._residual(sol, sample)
-        print(residual)
+        sol1 = model1.solve(sample)
+        residual = model._residual(sol1, sample)
         assert np.allclose(residual, np.zeros_like(residual))
 
         guess = np.ones((model.mesh.mesh_pts.shape[1], 1))
@@ -123,13 +143,14 @@ class TestSolvers(unittest.TestCase):
             model.diffusivity_fun(model.mesh.mesh_pts, sample[:, None]),
             model.velocity_fun(model.mesh.mesh_pts, sample[:, None]))
         jac = model.mesh._apply_boundary_conditions_to_matrix(jac)
-        print(jac)
-        print(jac_fd)
         assert np.allclose(jac, jac_fd)
+        jac_ad = model._compute_jacobian(residual_fun, guess)
+        # print(jac)
+        # print(jac_ad)
+        assert np.allclose(jac, jac_ad)
 
     def check_advection_diffusion(self, domain_bounds, orders, sol_string,
                                   diff_string, vel_strings, bndry_types):
-        print(bndry_types)
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_steady_advection_diffusion_manufactured_solution(
                 sol_string, diff_string, vel_strings))
@@ -142,7 +163,6 @@ class TestSolvers(unittest.TestCase):
                             xx, sample):
             vals = alpha*sol_fun(xx, sample) + normal_flux(
                 flux_funs, active_var, sign, xx, sample)
-            print(alpha, vals)
             return vals
 
         sample = np.zeros((0))  # dummy
@@ -173,7 +193,7 @@ class TestSolvers(unittest.TestCase):
             orders, domain_bounds)
 
         sol = model.solve(sample)
-        
+
         print(np.linalg.norm(
             sol_fun(model.mesh.mesh_pts, sample)-sol))
         assert np.linalg.norm(
@@ -195,13 +215,13 @@ class TestSolvers(unittest.TestCase):
 
     def test_advection_diffusion(self):
         test_cases = [
-            [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["D", "D"]],
-            [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["D", "N"]],
-            [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["N", "D"]],
-            [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["R", "D"]],
-            [[0, 1], [20], "log(x+1)/log(2)-x", "1+x", ["0"], ["D", "D"]],
-            [[-1, 1], [20], "(exp(4*x)-4*exp(-4)*(x-1)-exp(4))/16", "1", ["0"],
-             ["D", "N"]],
+            # [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["D", "D"]],
+            # [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["D", "N"]],
+            # [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["N", "D"]],
+            # [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["R", "D"]],
+            # [[0, 1], [20], "log(x+1)/log(2)-x", "1+x", ["0"], ["D", "D"]],
+            # [[-1, 1], [20], "(exp(4*x)-4*exp(-4)*(x-1)-exp(4))/16", "1", ["0"],
+            #  ["D", "N"]],
             [[0, .5, 0, 1], [14, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
              ["D", "N", "N", "D"]],
             [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
@@ -829,7 +849,7 @@ class TestSolvers(unittest.TestCase):
 
         print(np.linalg.norm(
             sol_fun(model.mesh.mesh_pts, sample)-sol))
-        print(sol[[0, -1]], sol_fun(model.mesh.mesh_pts, sample)[[0, -1]])
+        # print(sol[[0, -1]], sol_fun(model.mesh.mesh_pts, sample)[[0, -1]])
         # model.mesh.plot(sol)
         # model.mesh.plot(sol_fun(model.mesh.mesh_pts, sample))
         # import matplotlib.pyplot as plt

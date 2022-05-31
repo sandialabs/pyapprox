@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 from scipy.linalg import qr as qr_factorization
 from abc import ABC, abstractmethod
@@ -10,7 +11,8 @@ from pyapprox.interface.wrappers import (
 )
 from pyapprox.util.sys_utilities import get_num_args
 from pyapprox.pde.spectralcollocation.spectral_collocation import (
-    OneDCollocationMesh, RectangularCollocationMesh
+    OneDCollocationMesh, RectangularCollocationMesh, pkg, np_to_pkg_format,
+    package_available
 )
 
 
@@ -90,7 +92,6 @@ class AbstractAdvectionDiffusion(ABC):
         # want to solve -u_xx-u_yy+au_x+bu_y=f so add negative
         return -matrix
 
-
     def form_collocation_matrix(self, diffusivity_vals, velocity_vals):
         return self.form_collocation_matrix_from_mesh(
             diffusivity_vals, velocity_vals, self.mesh)
@@ -163,24 +164,35 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
         self.adjoint_mesh = None
 
     def _raw_residual(self, sol, sample):
-        diff_vals = self.diffusivity_fun(self.mesh.mesh_pts, sample[:, None])
-        forcing_vals = self.forcing_fun(self.mesh.mesh_pts, sample[:, None])
-        velocity_vals = self.velocity_fun(self.mesh.mesh_pts, sample[:, None])
-
+        # torch requires 1d arrays but to multiply each row of derivative
+        # matrix by diff_vals we must use [:, None] when computin residual
+        diff_vals = self._pkg_diffusivity_fun(
+            self.mesh.mesh_pts, sample[:, None])
+        forcing_vals = self._pkg_forcing_fun(
+            self.mesh.mesh_pts, sample[:, None])
+        velocity_vals = self._pkg_velocity_fun(
+            self.mesh.mesh_pts, sample[:, None])
         residual = 0
         for dd in range(self.mesh.nphys_vars):
-            residual += np.linalg.multi_dot(
-                (self.mesh.derivative_matrices[dd],
-                 diff_vals*self.mesh.derivative_matrices[dd], sol))
-            residual -= np.dot(
-                self.mesh.derivative_matrices[dd]*velocity_vals[:, dd], sol)
+            residual += pkg.linalg.multi_dot(
+                (self.mesh.pkg_derivative_matrices[dd],
+                 diff_vals[:, None]*self.mesh.pkg_derivative_matrices[dd],
+                 sol))
+            residual -= pkg.linalg.multi_dot(
+                (velocity_vals[:, dd:dd+1]*self.mesh.pkg_derivative_matrices[dd],
+                 sol))
         residual += forcing_vals
         return -residual
 
     def _residual(self, sol, sample):
+        sol = sol.squeeze()
+        if package_available("torch") and type(sol) == np.ndarray:
+            sol = pkg.tensor(sol)
         # correct equations for boundary conditions
-        residual = self._raw_residual(sol, sample)
-        return self.mesh._apply_boundary_conditions_to_residual(residual, sol)
+        raw_residual = self._raw_residual(sol, sample)
+        residual = self.mesh._apply_boundary_conditions_to_residual(
+            raw_residual, sol)
+        return residual
 
     def solve(self, sample):
         assert sample.ndim == 1
@@ -289,7 +301,6 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
         # compute residual
         residual = self.compute_residual(self.adjoint_collocation_matrix,
                                          interp_fwd_solution, forcing_vals)
-        print(residual)
 
         # self.plot(interp_fwd_solution+adj_solution,
         #           plot_mesh_coords=self.adjoint_mesh_pts )
@@ -319,7 +330,6 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
                 self.mesh.mesh_pts, sample, ii)
             velocity_deriv_vals_i = self.velocity_derivs_fun(
                 self.mesh.mesh_pts, sample, ii)
-            print(velocity_deriv_vals_i)
             residual_deriv = self.compute_residual_derivative(
                 self.fwd_solution, diffusivity_deriv_vals_i,
                 forcing_deriv_vals_i, velocity_deriv_vals_i)
@@ -533,6 +543,15 @@ class SteadyStateAdvectionDiffusionEquation2D(SteadyStateAdvectionDiffusion):
 
 class SteadyStateAdvectionDiffusionReaction(SteadyStateAdvectionDiffusion):
 
+    def cast_1d_array_fun_to_pkg_format(self, fun, *args):
+        # torch.autograd.functional.jacobian requires 1d arrays
+        vals = fun(*args)[:, 0]
+        return np_to_pkg_format(vals)
+
+    def cast_2d_array_fun_to_pkg_format(self, fun, *args):
+        vals = fun(*args)
+        return np_to_pkg_format(vals)
+
     def initialize(self, bndry_conds, diffusivity_fun, forcing_fun,
                    velocity_fun, reaction_fun, order, domain):
         super().initialize(bndry_conds, diffusivity_fun, forcing_fun,
@@ -541,21 +560,49 @@ class SteadyStateAdvectionDiffusionReaction(SteadyStateAdvectionDiffusion):
         assert get_num_args(reaction_fun) == 2
         self.reaction_fun = reaction_fun
 
+        self._pkg_diffusivity_fun = partial(
+            self.cast_1d_array_fun_to_pkg_format, self.diffusivity_fun)
+        self._pkg_forcing_fun = partial(
+            self.cast_1d_array_fun_to_pkg_format, self.forcing_fun)
+        self._pkg_velocity_fun = partial(
+            self.cast_2d_array_fun_to_pkg_format, self.velocity_fun)
+        self._pkg_reaction_fun = partial(
+            self.cast_1d_array_fun_to_pkg_format, self.reaction_fun)
+
+        self.mesh.pkg_bndry_conds = [
+            copy.deepcopy(bndry_cond) for bndry_cond in self.mesh.bndry_conds]
+        for ii in range(len(self.mesh.bndry_conds)):
+            self.mesh.pkg_bndry_conds[ii][0] = partial(
+                self.cast_1d_array_fun_to_pkg_format,
+                self.mesh.pkg_bndry_conds[ii][0])
+
+        self.mesh.pkg_derivative_matrices = []
+        for ii in range(len(self.mesh.derivative_matrices)):
+            self.mesh.pkg_derivative_matrices.append(np_to_pkg_format(
+                self.mesh.derivative_matrices[ii]))
+
     def _raw_residual(self, sol, sample):
-        reaction_rate_vals = self.reaction_fun(
+        reaction_rate_vals = self._pkg_reaction_fun(
             self.mesh.mesh_pts, sample[:, None])
 
         residual = super()._raw_residual(sol, sample)
         residual += reaction_rate_vals*sol**2
         return residual
 
-    def solve(self, sample, initial_guess=None, tol=1e-7, maxiters=10):
-        if initial_guess is None:
-            sol = super().solve(sample)
-        else:
-            sol = initial_guess
+    def _compute_jacobian(self, residual_fun, sol):
+        if not package_available("torch"):
+            return approx_jacobian(residual_fun, sol)
+        sol_tensor = pkg.tensor(sol.squeeze(), requires_grad=True)
+        return pkg.autograd.functional.jacobian(
+            residual_fun, sol_tensor, strict=True)
 
-        # TODO this revaluates diffusivity, velocity, forcing funs each time
+    def solve(self, sample, initial_guess=None, tol=1e-8, maxiters=10):
+        if initial_guess is None:
+            sol = super().solve(sample).squeeze()
+        else:
+            sol = initial_guess.copy().squeeze()
+
+        # TODO this re-evaluates diffusivity, velocity, forcing funs each time
         # remove this redundancy
         residual_fun = partial(self._residual, sample=sample)
         residual = residual_fun(sol)
@@ -573,11 +620,8 @@ class SteadyStateAdvectionDiffusionReaction(SteadyStateAdvectionDiffusion):
                 break
             if it > 4 and (residual_norm > residual_norms[it-5]):
                 raise RuntimeError("Newton solve diverged")
-            jac = approx_jacobian(residual_fun, sol)
+            jac = self._compute_jacobian(residual_fun, sol)
             sol = sol - np.linalg.solve(jac, residual)
             residual = residual_fun(sol)
             it += 1
-        
-        return sol
-
-
+        return sol[:, None]
