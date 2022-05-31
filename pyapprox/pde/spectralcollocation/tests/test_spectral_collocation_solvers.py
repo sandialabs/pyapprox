@@ -8,12 +8,14 @@ from pyapprox.pde.spectralcollocation.diffusion import (
     SteadyStateAdvectionDiffusionEquation1D,
     SteadyStateAdvectionDiffusionEquation2D,
     TransientAdvectionDiffusionEquation1D,
-    TransientAdvectionDiffusionEquation2D)
+    TransientAdvectionDiffusionEquation2D,
+    SteadyStateAdvectionDiffusionReaction)
 from pyapprox.pde.tests.manufactured_solutions import (
     setup_steady_advection_diffusion_manufactured_solution,
+    setup_steady_advection_diffusion_reaction_manufactured_solution,
     setup_steady_stokes_manufactured_solution
 )
-from pyapprox.util.utilities import check_gradients
+from pyapprox.util.utilities import check_gradients, approx_jacobian
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 
 
@@ -74,8 +76,60 @@ class TestSolvers(unittest.TestCase):
             -(qoi_coords*np.log(9./4.)-2.*np.log(qoi_coords+2.) +
               np.log(4.))/np.log(3./2.), qoi)
 
+    def test_advection_diffusion_residual(self):
+        # check finite difference of residual gives collocation matrix
+        order = 4
+        model = SteadyStateAdvectionDiffusionEquation1D()
+        bndry_conds = [[lambda x: x.T*0, "D"],
+                       [lambda x: x.T*0, "D"]]
+        domain = [0, 1]
+        model.initialize(bndry_conds, lambda x, z: z*x.T + 1.,
+                         lambda x, z:  0*x.T+1,
+                         lambda x, z: x.T*0, order, domain)
+        sample = np.ones((1), float)
+        sol = model.solve(sample)
+        residual = model._residual(sol, sample)
+        assert np.allclose(residual, np.zeros_like(residual))
+
+        guess = np.ones((model.mesh.mesh_pts.shape[1], 1))
+        residual = model._residual(guess, sample)
+        jac_fd = approx_jacobian(
+            partial(model._residual, sample=sample), guess)
+        jac = model.form_collocation_matrix(
+            model.diffusivity_fun(model.mesh.mesh_pts, sample[:, None]),
+            model.velocity_fun(model.mesh.mesh_pts, sample[:, None]))
+        jac = model.mesh._apply_boundary_conditions_to_matrix(jac)
+        assert np.allclose(jac, jac_fd)
+
+        order = 4
+        model = SteadyStateAdvectionDiffusionEquation1D()
+        bndry_conds = [[lambda x: x.T*0, "R", 1],
+                       [lambda x: x.T*0, "D"]]
+        domain = [0, 1]
+        model.initialize(bndry_conds, lambda x, z: z*x.T + 1.,
+                         lambda x, z:  0*x.T+1,
+                         lambda x, z: x.T*0, order, domain)
+        sample = np.ones((1), float)
+        sol = model.solve(sample)
+        residual = model._residual(sol, sample)
+        print(residual)
+        assert np.allclose(residual, np.zeros_like(residual))
+
+        guess = np.ones((model.mesh.mesh_pts.shape[1], 1))
+        residual = model._residual(guess, sample)
+        jac_fd = approx_jacobian(
+            partial(model._residual, sample=sample), guess)
+        jac = model.form_collocation_matrix(
+            model.diffusivity_fun(model.mesh.mesh_pts, sample[:, None]),
+            model.velocity_fun(model.mesh.mesh_pts, sample[:, None]))
+        jac = model.mesh._apply_boundary_conditions_to_matrix(jac)
+        print(jac)
+        print(jac_fd)
+        assert np.allclose(jac, jac_fd)
+
     def check_advection_diffusion(self, domain_bounds, orders, sol_string,
                                   diff_string, vel_strings, bndry_types):
+        print(bndry_types)
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_steady_advection_diffusion_manufactured_solution(
                 sol_string, diff_string, vel_strings))
@@ -86,41 +140,32 @@ class TestSolvers(unittest.TestCase):
 
         def robin_bndry_fun(sol_fun, flux_funs, active_var, sign, alpha,
                             xx, sample):
-            return alpha*sol_fun(xx, sample) + normal_flux(
+            vals = alpha*sol_fun(xx, sample) + normal_flux(
                 flux_funs, active_var, sign, xx, sample)
+            print(alpha, vals)
+            return vals
 
         sample = np.zeros((0))  # dummy
 
         nphys_vars = len(orders)
         bndry_conds = []
-        for dd in range(nphys_vars):
-            if bndry_types[2*dd] == "N":
+        for dd in range(2*nphys_vars):
+            if bndry_types[dd] == "N":
                 bndry_conds.append(
-                    [partial(normal_flux, flux_funs, dd, -1, sample=sample),
-                     "N"])
-            elif bndry_types[2*dd] == "D":
+                    [partial(normal_flux, flux_funs, dd//2, (-1)**(dd+1),
+                             sample=sample), "N"])
+            elif bndry_types[dd] == "D":
                 bndry_conds.append([lambda xx: sol_fun(xx, sample), "D"])
-            elif bndry_types[2*dd] == "R":
+            elif bndry_types[dd] == "R":
                 alpha = 1
                 bndry_conds.append(
-                    [partial(robin_bndry_fun, sol_fun, flux_funs, dd, -1, alpha,
-                             sample=sample), "R", alpha])
+                    [partial(robin_bndry_fun, sol_fun, flux_funs, dd//2,
+                             (-1)**(dd+1), alpha, sample=sample), "R", alpha])
                 # warning use of lists and lambda like commented code below
                 # causes error because of shallow pointer copies
                 # bndry_conds.append(
                 #     [lambda xx: alpha*sol_fun(xx, sample)+normal_flux(
                 #         flux_funs, dd, -1, xx, sample), "R", alpha])
-            if bndry_types[2*dd+1] == "N":
-                bndry_conds.append(
-                    [partial(normal_flux, flux_funs, dd, 1, sample=sample),
-                     "N"])
-            elif bndry_types[2*dd+1] == "D":
-                bndry_conds.append([lambda xx: sol_fun(xx, sample), "D"])
-            elif bndry_types[2*dd+1] == "R":
-                alpha = 2
-                bndry_conds.append(
-                    [partial(robin_bndry_fun, sol_fun, flux_funs, dd, 1, alpha,
-                             sample=sample), "R", alpha])
 
         model = SteadyStateAdvectionDiffusionEquation2D()
         model.initialize(
@@ -128,7 +173,9 @@ class TestSolvers(unittest.TestCase):
             orders, domain_bounds)
 
         sol = model.solve(sample)
-
+        
+        print(np.linalg.norm(
+            sol_fun(model.mesh.mesh_pts, sample)-sol))
         assert np.linalg.norm(
             sol_fun(model.mesh.mesh_pts, sample)-sol) < 1e-9
 
@@ -146,10 +193,12 @@ class TestSolvers(unittest.TestCase):
                 flux_funs(model.mesh.mesh_pts[:, indices], sample).dot(
                     normals[ii]))
 
-    def test_2d_advection_diffusion(self):
+    def test_advection_diffusion(self):
         test_cases = [
             [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["D", "D"]],
-            [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["D", "R"]],
+            [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["D", "N"]],
+            [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["N", "D"]],
+            [[0, 1], [20], "0.5*(x-3)*x", "1", ["0"], ["R", "D"]],
             [[0, 1], [20], "log(x+1)/log(2)-x", "1+x", ["0"], ["D", "D"]],
             [[-1, 1], [20], "(exp(4*x)-4*exp(-4)*(x-1)-exp(4))/16", "1", ["0"],
              ["D", "N"]],
@@ -721,6 +770,99 @@ class TestSolvers(unittest.TestCase):
         #         #     model._pres_mesh.mesh_pts, ax=axs[ii+1], c='k', marker='o')
         #         plt.colorbar(pl, ax=axs[ii+1])
         # # plt.show()
+
+    def check_advection_diffusion_reaction(
+            self, domain_bounds, orders, sol_string,
+            diff_string, vel_strings, rate_string, bndry_types):
+        sol_fun, diff_fun, vel_fun, forc_fun, rate_fun, flux_funs = (
+            setup_steady_advection_diffusion_reaction_manufactured_solution(
+                sol_string, diff_string, vel_strings, rate_string))
+
+        def normal_flux(flux_funs, active_var, sign, xx, sample):
+            vals = sign*flux_funs(xx, sample)[:, active_var:active_var+1]
+            return vals
+
+        def robin_bndry_fun(sol_fun, flux_funs, active_var, sign, alpha,
+                            xx, sample):
+            return alpha*sol_fun(xx, sample) + normal_flux(
+                flux_funs, active_var, sign, xx, sample)
+
+        sample = np.zeros((0))  # dummy
+
+        nphys_vars = len(orders)
+        bndry_conds = []
+        for dd in range(nphys_vars):
+            if bndry_types[2*dd] == "N":
+                bndry_conds.append(
+                    [partial(normal_flux, flux_funs, dd, -1, sample=sample),
+                     "N"])
+            elif bndry_types[2*dd] == "D":
+                bndry_conds.append([lambda xx: sol_fun(xx, sample), "D"])
+            elif bndry_types[2*dd] == "R":
+                alpha = 1
+                bndry_conds.append(
+                    [partial(robin_bndry_fun, sol_fun, flux_funs, dd, -1, alpha,
+                             sample=sample), "R", alpha])
+                # warning use of lists and lambda like commented code below
+                # causes error because of shallow pointer copies
+                # bndry_conds.append(
+                #     [lambda xx: alpha*sol_fun(xx, sample)+normal_flux(
+                #         flux_funs, dd, -1, xx, sample), "R", alpha])
+            if bndry_types[2*dd+1] == "N":
+                bndry_conds.append(
+                    [partial(normal_flux, flux_funs, dd, 1, sample=sample),
+                     "N"])
+            elif bndry_types[2*dd+1] == "D":
+                bndry_conds.append([lambda xx: sol_fun(xx, sample), "D"])
+            elif bndry_types[2*dd+1] == "R":
+                alpha = 2
+                bndry_conds.append(
+                    [partial(robin_bndry_fun, sol_fun, flux_funs, dd, 1, alpha,
+                             sample=sample), "R", alpha])
+
+        model = SteadyStateAdvectionDiffusionReaction()
+        model.initialize(
+            bndry_conds, diff_fun, forc_fun, vel_fun, rate_fun,
+            orders, domain_bounds)
+
+        sol = model.solve(sample)
+
+        print(np.linalg.norm(
+            sol_fun(model.mesh.mesh_pts, sample)-sol))
+        print(sol[[0, -1]], sol_fun(model.mesh.mesh_pts, sample)[[0, -1]])
+        # model.mesh.plot(sol)
+        # model.mesh.plot(sol_fun(model.mesh.mesh_pts, sample))
+        # import matplotlib.pyplot as plt
+        # plt.show()
+        assert np.linalg.norm(
+            sol_fun(model.mesh.mesh_pts, sample)-sol) < 1e-7
+
+        normals = model.mesh._get_bndry_normals(np.arange(nphys_vars*2))
+        if nphys_vars == 2:
+            assert np.allclose(
+                normals, np.array([[-1, 0], [1, 0], [0, -1], [0, 1]]))
+        else:
+            assert np.allclose(normals, np.array([[-1], [1]]))
+        normal_fluxes = model.compute_bndry_fluxes(
+            sol, np.arange(nphys_vars*2), sample)
+        for ii, indices in enumerate(model.mesh.boundary_indices):
+            assert np.allclose(
+                np.array(normal_fluxes[ii]),
+                flux_funs(model.mesh.mesh_pts[:, indices], sample).dot(
+                    normals[ii]))
+
+    def test_advection_diffusion_reaction(self):
+        test_cases = [
+            [[0, 1], [6], "0.5*(x-3)*x", "1", ["0"], "1", ["D", "D"]],
+            [[0, 1], [6], "0.5*(x-3)*x", "1", ["0"], "1", ["D", "N"]],
+            [[0, 1], [6], "0.5*(x-3)*x", "1", ["0"], "1", ["D", "R"]],
+            [[0, .5, 0, 1], [14, 16], "y**2*sin(pi*x)", "1", ["0", "0"], "1",
+             ["D", "N", "N", "D"]],
+            [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"], "1",
+             ["D", "R", "D", "D"]]
+        ]
+        for test_case in test_cases:
+            self.check_advection_diffusion_reaction(*test_case)
 
 
 if __name__ == "__main__":

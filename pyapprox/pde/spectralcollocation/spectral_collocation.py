@@ -226,13 +226,8 @@ class AbstractCartesianProductCollocationMesh(ABC):
         self.derivative_matrices_1d = None
         self.mesh_pts = None
         self.bndry_conds = None
-        self.dirichlet_bndry_indices = []
-        self.neumann_bndry_indices = []
-        self.robin_bndry_indices = []
-        self.robin_bndry_scales = []
         self.adjoint_bndry_conds = None
         self.boundary_indices = None
-        self.adjoint_dirichlet_bndry_indices = None
         self.derivative_matrices = []
         self._mesh_pts_1d_barycentric_weights = None
         self.set_domain(domain, order)
@@ -362,10 +357,6 @@ class AbstractCartesianProductCollocationMesh(ABC):
         are needed. Then this function must be called at every timestep
         """
         self.bndry_conds = bndry_conds
-        self.dirichlet_bndry_indices = []
-        self.neumann_bndry_indices = []
-        self.robin_bndry_indices = []
-        self.robin_bndry_scales = []
 
         if len(bndry_conds) != len(self.boundary_indices):
             msg = "Incorrect number of boundary conditions provided.\n"
@@ -387,70 +378,73 @@ class AbstractCartesianProductCollocationMesh(ABC):
                 msg = f"Boundary condition function must have {num_args} "
                 msg += "arguments"
                 raise ValueError(msg)
-            idx = self.boundary_indices[ii]
-            if bndry_cond[1] == "D":
-                self.dirichlet_bndry_indices.append(idx)
-            elif bndry_cond[1] == "N":
-                self.neumann_bndry_indices.append(idx)
-            elif bndry_cond[1] == "R":
-                self.robin_bndry_indices.append(idx)
-                self.robin_bndry_scales.append(
-                    np.full((idx.shape[0]), bndry_cond[2]))
-            else:
-                raise ValueError("Incorrect boundary type")
-            # adjoint boundary conditions are always dirichlet zero
             self.adjoint_bndry_conds.append([zeros_fun_axis_1, "D"])
 
-        if len(self.dirichlet_bndry_indices) > 0:
-            self.dirichlet_bndry_indices = np.concatenate(
-                self.dirichlet_bndry_indices)
-        else:
-            self.dirichlet_bndry_indices = np.empty((0), dtype=int)
-        if len(self.neumann_bndry_indices) > 0:
-            self.neumann_bndry_indices = np.concatenate(
-                self.neumann_bndry_indices)
-        else:
-            self.neumann_bndry_indices = np.empty((0), dtype=int)
-
-        if len(self.robin_bndry_indices) > 0:
-            self.robin_bndry_indices = np.concatenate(
-                self.robin_bndry_indices)
-            self.robin_bndry_scales = np.concatenate(self.robin_bndry_scales)
-        else:
-            self.robin_bndry_indices = np.empty((0), dtype=int)
-            self.robin_bndry_scales = np.empty((0), dtype=float)
-
-        if (np.sum([len(idx) for idx in self.boundary_indices]) !=
-                len(self.dirichlet_bndry_indices) +
-                len(self.neumann_bndry_indices) +
-                len(self.robin_bndry_indices)):
-            raise ValueError("Boundary indices mismatch")
-
-        self.adjoint_dirichlet_bndry_indices = np.concatenate((
-            self.dirichlet_bndry_indices, self.neumann_bndry_indices))
-
     def _apply_dirichlet_boundary_conditions_to_matrix(
-            self, matrix, dirichlet_bndry_indices):
+            self, matrix, bndry_conds):
         # needs to have indices as argument so this fucntion can be used
         # when setting boundary conditions for forward and adjoint solves
-        matrix[dirichlet_bndry_indices, :] = 0.0
-        matrix[dirichlet_bndry_indices,
-               dirichlet_bndry_indices] = 1.0
+        for ii, bndry_cond in enumerate(bndry_conds):
+            idx = self.boundary_indices[ii]
+            matrix[idx, :] = 0
+            matrix[idx, idx] = 1
         return matrix
 
-    @abstractmethod
-    def _apply_neumann_boundary_conditions_to_matrix(self, matrix):
-        raise NotImplementedError()
+    def _apply_neumann_and_robin_boundary_conditions_to_matrix(self, matrix):
+        for ii, bndry_cond in enumerate(self.bndry_conds):
+            if bndry_cond[1] == "N" or bndry_cond[1] == "R":
+                idx = self.boundary_indices[ii]
+                normal = (-1)**(ii+1)
+                if ii < 2:
+                    # warning flux is not dependent on diffusivity (
+                    # diffusion equation not a standard boundary formulation)
+                    matrix[idx, :] = normal*self.derivative_matrices[0][idx, :]
+                else:
+                    matrix[idx, :] = normal*self.derivative_matrices[1][idx, :]
+                if bndry_cond[1] == "R":
+                    matrix[idx, idx] += bndry_cond[2]
+        return matrix
 
-    @abstractmethod
-    def _apply_robin_boundary_conditions_to_matrix(self, matrix):
-        raise NotImplementedError()
+    def _apply_dirichlet_boundary_conditions_to_residual(self, residual, sol):
+        for ii, bndry_cond in enumerate(self.bndry_conds):
+            if bndry_cond[1] == "D":
+                idx = self.boundary_indices[ii]
+                residual[idx] = sol[idx]-bndry_cond[0](
+                    self.mesh_pts[:, idx])
+        return residual
+
+    def _apply_neumann_and_robin_boundary_conditions_to_residual(
+            self, residual, sol):
+        for ii, bndry_cond in enumerate(self.bndry_conds):
+            if bndry_cond[1] == "N" or bndry_cond[1] == "R":
+                idx = self.boundary_indices[ii]
+                bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])
+                normal = (-1)**(ii+1)
+                if ii < 2:
+                    # warning flux is not dependent on diffusivity (
+                    # diffusion equation not a standard boundary formulation)
+                    flux = self.derivative_matrices[0][idx, :].dot(sol)
+                else:
+                    flux = self.derivative_matrices[1][idx, :].dot(sol)
+                residual[idx] = normal*flux-bndry_vals
+                if bndry_cond[1] == "R":
+                    residual[idx] += bndry_cond[2]*sol[idx]
+        return residual
+
+    def _apply_boundary_conditions_to_residual(self, residual, sol):
+        residual = self._apply_dirichlet_boundary_conditions_to_residual(
+            residual, sol)
+        residual = (
+            self._apply_neumann_and_robin_boundary_conditions_to_residual(
+                residual, sol))
+        return residual
 
     def _apply_boundary_conditions_to_matrix(self, matrix):
         matrix = self._apply_dirichlet_boundary_conditions_to_matrix(
-            matrix, self.dirichlet_bndry_indices)
-        matrix = self._apply_neumann_boundary_conditions_to_matrix(matrix)
-        return self._apply_robin_boundary_conditions_to_matrix(matrix)
+            matrix, self.bndry_conds)
+        matrix = self._apply_neumann_and_robin_boundary_conditions_to_matrix(
+            matrix)
+        return matrix
 
     def _apply_boundary_conditions_to_rhs(self, rhs, bndry_conds):
         for ii, bndry_cond in enumerate(bndry_conds):
@@ -482,37 +476,18 @@ class OneDCollocationMesh(AbstractCartesianProductCollocationMesh):
             normals[ii] = self._get_bndry_normal(bndry_index)
         return normals
 
-    def _apply_neumann_boundary_conditions_to_matrix(self, matrix):
-        if self.neumann_bndry_indices.shape[0] == 0:
-            return matrix
-        matrix[self.neumann_bndry_indices, :] = \
-            self.derivative_matrices[0][self.neumann_bndry_indices, :]
-        return matrix
-
-    def _apply_robin_boundary_conditions_to_matrix(self, matrix):
-        if self.robin_bndry_indices.shape[0] == 0:
-            return matrix
-        matrix[self.robin_bndry_indices, :] = \
-            self.derivative_matrices[0][self.robin_bndry_indices, :]
-        matrix[self.robin_bndry_indices, self.robin_bndry_indices] += (
-            self.robin_bndry_scales)
-        return matrix
-
-    def plot(self, mesh_values, num_plot_pts_1d=None, plot_mesh_coords=None,
-             color='k'):
+    def plot(self, mesh_values, num_plot_pts_1d=None,
+             **kwargs):
         import pylab as plt
         if num_plot_pts_1d is not None:
             # interpolate values onto plot points
             plot_mesh = np.linspace(
                 self.domain[0], self.domain[1], num_plot_pts_1d)
             interp_vals = self.interpolate(mesh_values, plot_mesh)
-            plt.plot(plot_mesh, interp_vals, color+'-')
-        elif plot_mesh_coords is not None:
-            assert mesh_values.shape[0] == plot_mesh_coords.squeeze().shape[0]
-            plt.plot(plot_mesh_coords, mesh_values, 'o-'+color)
+            plt.plot(plot_mesh, interp_vals, **kwargs)
         else:
             # just plot values on mesh points
-            plt.plot(self.mesh_pts, mesh_values, color)
+            plt.plot(self.mesh_pts[0, :], mesh_values, **kwargs)
 
 
 class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
@@ -582,47 +557,7 @@ class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
 
     def _get_bndry_normals(self, bndry_indices):
         return self._bndry_normals[bndry_indices]
-
-    def set_boundary_conditions(self, bndry_conds):
-        super().set_boundary_conditions(bndry_conds)
-        II = np.where(
-            self.boundary_indices_to_edges_map[self.neumann_bndry_indices] < 2)
-        self.lr_neumann_bndry_indices = self.neumann_bndry_indices[II]
-        JJ = np.where(
-            self.boundary_indices_to_edges_map[self.neumann_bndry_indices] > 1)
-        self.bt_neumann_bndry_indices = self.neumann_bndry_indices[JJ]
-
-        KK = np.where(
-            self.boundary_indices_to_edges_map[self.robin_bndry_indices] < 2)
-        self.lr_robin_bndry_indices = self.robin_bndry_indices[KK]
-        LL = np.where(
-            self.boundary_indices_to_edges_map[self.robin_bndry_indices] > 1)
-        self.bt_robin_bndry_indices = self.robin_bndry_indices[LL]
-
-    def _apply_neumann_boundary_conditions_to_matrix(self, matrix):
-        # left and right boundaries
-        if self.lr_neumann_bndry_indices.shape[0] > 0:
-            matrix[self.lr_neumann_bndry_indices, :] = \
-                self.derivative_matrices[0][self.lr_neumann_bndry_indices, :]
-        # bottom and top boundaries
-        if self.bt_neumann_bndry_indices.shape[0] > 0:
-            matrix[self.bt_neumann_bndry_indices, :] = \
-                self.derivative_matrices[1][self.bt_neumann_bndry_indices, :]
-        return matrix
-
-    def _apply_robin_boundary_conditions_to_matrix(self, matrix):
-        # left and right boundaries
-        if self.lr_robin_bndry_indices.shape[0] > 0:
-            matrix[self.lr_robin_bndry_indices, :] = \
-                self.derivative_matrices[0][self.lr_robin_bndry_indices, :]
-        # bottom and top boundaries
-        if self.bt_robin_bndry_indices.shape[0] > 0:
-            matrix[self.bt_robin_bndry_indices, :] = \
-                self.derivative_matrices[1][self.bt_robin_bndry_indices, :]
-        matrix[self.robin_bndry_indices, self.robin_bndry_indices] += (
-            self.robin_bndry_scales)
-        return matrix
-    
+   
     def plot(self, mesh_values, num_pts_1d=100, ncontour_levels=20, ax=None):
         from pyapprox.util.visualization import get_meshgrid_function_data, plt
         if ax is None:

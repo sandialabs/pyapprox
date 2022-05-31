@@ -20,13 +20,11 @@ def evaluate_list_of_sp_lambda(sp_lambdas, xx, sample, as_list=False):
     return np.hstack(vals)
 
 
-def setup_steady_advection_diffusion_manufactured_solution(
-        sol_string, diff_string, vel_strings, nrandom_vars=0):
+def setup_steady_advection_diffusion_reaction_manufactured_solution(
+        sol_string, diff_string, vel_strings, rate_string):
     nphys_vars = len(vel_strings)
     sp_x, sp_y = sp.symbols(['x', 'y'])
     symbs = (sp_x, sp_y)[:nphys_vars]
-    # sp_w, sp_z = sp.symbols(['w', 'z'])
-    # random_symbs = (sp_w, sp_z)[:nrandom_vars]
     sol_expr = sp.sympify(sol_string)
     sol_lambda = sp.lambdify(symbs, sol_expr, "numpy")
     sol_fun = partial(evaluate_sp_lambda, sol_lambda)
@@ -45,7 +43,12 @@ def setup_steady_advection_diffusion_manufactured_solution(
         [vel_expr*sol_expr.diff(symb, 1)
          for vel_expr, symb in zip(vel_exprs, symbs)])
 
-    forc_expr = -(diffusion_expr-advection_expr)
+    rate_expr = sp.sympify(rate_string)
+    rate_lambda = sp.lambdify(symbs, rate_expr, "numpy")
+    rate_fun = partial(evaluate_sp_lambda, rate_lambda)
+    reaction_expr = rate_expr*sol_expr**2
+
+    forc_expr = -(diffusion_expr-advection_expr-reaction_expr)
     forc_lambda = sp.lambdify(symbs, forc_expr, "numpy")
     forc_fun = partial(evaluate_sp_lambda, forc_lambda)
 
@@ -58,6 +61,14 @@ def setup_steady_advection_diffusion_manufactured_solution(
     print("diff", diff_expr)
     print("forc", forc_expr)
 
+    return sol_fun, diff_fun, vel_fun, forc_fun, rate_fun, flux_funs
+
+
+def setup_steady_advection_diffusion_manufactured_solution(
+        sol_string, diff_string, vel_strings):
+    sol_fun, diff_fun, vel_fun, forc_fun, rate_fun, flux_funs = (
+        setup_steady_advection_diffusion_reaction_manufactured_solution(
+            sol_string, diff_string, vel_strings, "0"))
     return sol_fun, diff_fun, vel_fun, forc_fun, flux_funs
 
 

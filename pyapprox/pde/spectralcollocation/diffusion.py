@@ -1,15 +1,16 @@
 import numpy as np
 from scipy.linalg import qr as qr_factorization
 from abc import ABC, abstractmethod
+from functools import partial
 
 from pyapprox.util.linalg import qr_solve
+from pyapprox.util.utilities import approx_jacobian
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array
 )
 from pyapprox.util.sys_utilities import get_num_args
 from pyapprox.pde.spectralcollocation.spectral_collocation import (
-    OneDCollocationMesh, RectangularCollocationMesh,
-    chebyshev_derivative_matrix
+    OneDCollocationMesh, RectangularCollocationMesh
 )
 
 
@@ -161,6 +162,26 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
         super().__init__()
         self.adjoint_mesh = None
 
+    def _raw_residual(self, sol, sample):
+        diff_vals = self.diffusivity_fun(self.mesh.mesh_pts, sample[:, None])
+        forcing_vals = self.forcing_fun(self.mesh.mesh_pts, sample[:, None])
+        velocity_vals = self.velocity_fun(self.mesh.mesh_pts, sample[:, None])
+
+        residual = 0
+        for dd in range(self.mesh.nphys_vars):
+            residual += np.linalg.multi_dot(
+                (self.mesh.derivative_matrices[dd],
+                 diff_vals*self.mesh.derivative_matrices[dd], sol))
+            residual -= np.dot(
+                self.mesh.derivative_matrices[dd]*velocity_vals[:, dd], sol)
+        residual += forcing_vals
+        return -residual
+
+    def _residual(self, sol, sample):
+        # correct equations for boundary conditions
+        residual = self._raw_residual(sol, sample)
+        return self.mesh._apply_boundary_conditions_to_residual(residual, sol)
+
     def solve(self, sample):
         assert sample.ndim == 1
         diffusivity = self.diffusivity_fun(self.mesh.mesh_pts, sample[:, None])
@@ -231,7 +252,7 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
 
         matrix = (
             self.adjoint_mesh._apply_dirichlet_boundary_conditions_to_matrix(
-                matrix, self.adjoint_mesh.adjoint_dirichlet_bndry_indices))
+                matrix, self.mesh.adjoint_bndry_conds))
         qoi_deriv = self.adjoint_mesh._apply_boundary_conditions_to_rhs(
             rhs, self.adjoint_mesh.adjoint_bndry_conds)
         adj_solution = np.linalg.solve(matrix, qoi_deriv)
@@ -245,7 +266,7 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
         matrix = self.form_collocation_matrix(
             diffusivity_deriv, velocity_deriv)
         matrix = self.mesh._apply_dirichlet_boundary_conditions_to_matrix(
-            matrix, self.mesh.adjoint_dirichlet_bndry_indices)
+            matrix, self.mesh.adjoint_bndry_conds)
         # the values here are the derivative of the boundary conditions
         # with respect to the random parameters. I assume that
         # this is always zero
@@ -493,7 +514,6 @@ class TransientAdvectionDiffusion(SteadyStateAdvectionDiffusion):
         return np.prod(order)*ntime_steps
 
 
-
 # Wrappers to maintain backwards compatability
 class TransientAdvectionDiffusionEquation1D(TransientAdvectionDiffusion):
     pass
@@ -509,3 +529,55 @@ class SteadyStateAdvectionDiffusionEquation1D(SteadyStateAdvectionDiffusion):
 
 class SteadyStateAdvectionDiffusionEquation2D(SteadyStateAdvectionDiffusion):
     pass
+
+
+class SteadyStateAdvectionDiffusionReaction(SteadyStateAdvectionDiffusion):
+
+    def initialize(self, bndry_conds, diffusivity_fun, forcing_fun,
+                   velocity_fun, reaction_fun, order, domain):
+        super().initialize(bndry_conds, diffusivity_fun, forcing_fun,
+                           velocity_fun, order, domain)
+        assert callable(reaction_fun)
+        assert get_num_args(reaction_fun) == 2
+        self.reaction_fun = reaction_fun
+
+    def _raw_residual(self, sol, sample):
+        reaction_rate_vals = self.reaction_fun(
+            self.mesh.mesh_pts, sample[:, None])
+
+        residual = super()._raw_residual(sol, sample)
+        residual += reaction_rate_vals*sol**2
+        return residual
+
+    def solve(self, sample, initial_guess=None, tol=1e-7, maxiters=10):
+        if initial_guess is None:
+            sol = super().solve(sample)
+        else:
+            sol = initial_guess
+
+        # TODO this revaluates diffusivity, velocity, forcing funs each time
+        # remove this redundancy
+        residual_fun = partial(self._residual, sample=sample)
+        residual = residual_fun(sol)
+        residual_norms = []
+        it = 0
+        while True:
+            residual_norm = np.linalg.norm(residual)
+            residual_norms.append(residual_norm)
+            print("Iter", it, "rnorm", residual_norm)
+            if residual_norm < tol:
+                print(f"Tolerance {tol} reached")
+                break
+            if it > maxiters:
+                print(f"Max iterations {maxiters} reached")
+                break
+            if it > 4 and (residual_norm > residual_norms[it-5]):
+                raise RuntimeError("Newton solve diverged")
+            jac = approx_jacobian(residual_fun, sol)
+            sol = sol - np.linalg.solve(jac, residual)
+            residual = residual_fun(sol)
+            it += 1
+        
+        return sol
+
+
