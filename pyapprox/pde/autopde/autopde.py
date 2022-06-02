@@ -303,7 +303,7 @@ class AbstractSpectralCollocationSolver(ABC):
             residual_fun, sol, strict=True)#, create_graph=True)
 
     def solve(self, initial_guess, tol=1e-8, maxiters=10,
-              verbosity=2):
+              verbosity=0):
         initial_guess = initial_guess.squeeze()
         if type(initial_guess) == np.ndarray:
             sol = torch.tensor(initial_guess.clone(), requires_grad=True)
