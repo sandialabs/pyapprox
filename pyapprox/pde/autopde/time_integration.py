@@ -64,7 +64,7 @@ def explicit_butcher_tableau(order):
 def butcher_tableau_implicit_backward_euler():
     c_coef = np.array([1.])
     b_coef = np.array([1.])
-    a_coef = np.zeros((1, 1), dtype=float)
+    a_coef = np.ones((1, 1), dtype=float)
     return a_coef, b_coef, c_coef
 
 
@@ -107,7 +107,6 @@ def newton_solve(residual_fun, initial_guess, tol=1e-8, maxiters=10,
             raise RuntimeError("Newton solve diverged")
         jac = torch.autograd.functional.jacobian(
             residual_fun, sol, strict=True)
-        print(jac)
         sol = sol-torch.linalg.solve(jac, residual)
         it += 1
 
@@ -118,7 +117,7 @@ def newton_solve(residual_fun, initial_guess, tol=1e-8, maxiters=10,
 
 def implicit_runge_kuttta_stage_solution(prev_sol, deltat, prev_time, rhs,
                                          butcher_tableau, stage_deltas):
-    a_coef, c_coef = butcher_tableau[0], butcher_tableau[1]
+    a_coef, c_coef = butcher_tableau[0], butcher_tableau[2]
     nstages = a_coef.shape[0]
     ndof = stage_deltas.shape[0]//nstages
     tmp = torch.kron(torch.tensor(a_coef), torch.ones((ndof, ndof)))
@@ -127,11 +126,8 @@ def implicit_runge_kuttta_stage_solution(prev_sol, deltat, prev_time, rhs,
         stage_time = prev_time+c_coef[ii]*deltat
         stage_delta = stage_deltas[ii*ndof:(ii+1)*ndof]
         stage_rhs.append(deltat*rhs(prev_sol+stage_delta, stage_time))
-        print(ii, stage_rhs[-1])
     stage_rhs = torch.cat(stage_rhs)
     stage_deltas = torch.linalg.multi_dot((tmp, stage_rhs))
-    print(stage_rhs)
-    print(stage_deltas)
     return stage_deltas, stage_rhs
 
 
@@ -174,17 +170,18 @@ if __name__ == "__main__":
         # dy/dt = y0 = y0*(t+1)/(t+1)
         return sol/(time+1)
 
-
+    time_integration_order = 1
     ntime_steps = 3
     deltat = 0.1
     time = 0
     sol = torch.tensor(y0)
     sols = [y0]
-    butcher_tableau = butcher_tableau_implicit_crank_nicholson()
+    butcher_tableau = implicit_butcher_tableau(time_integration_order)
+    print(butcher_tableau)
     for tt in range(ntime_steps):
         sol = implicit_runge_kuttta_update(
             sol, deltat, time, rhs, butcher_tableau,
-            [torch.ones(sol.shape[0], dtype=torch.double)]*2)
+            [torch.ones(sol.shape[0], dtype=torch.double)]*time_integration_order)
         sols.append(sol.detach().numpy())
         time += deltat
     sols = np.array(sols)
