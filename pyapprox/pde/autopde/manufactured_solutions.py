@@ -1,11 +1,21 @@
+from functools import partial
 import numpy as np
 import sympy as sp
-from functools import partial
+
 
 def _evaluate_sp_lambda(sp_lambda, xx):
     # sp_lambda returns a single function output
     sp_args = tuple(x for x in xx)
     vals = sp_lambda(*sp_args)
+    if type(vals) == np.ndarray:
+        return vals[:, None]
+    return np.full((xx.shape[1], 1), vals)
+
+
+def _evaluate_transient_sp_lambda(sp_lambda, xx, time):
+    # sp_lambda returns a single function output
+    sp_args = tuple(x for x in xx)
+    vals = sp_lambda(*sp_args, time)
     if type(vals) == np.ndarray:
         return vals[:, None]
     return np.full((xx.shape[1], 1), vals)
@@ -21,13 +31,22 @@ def _evaluate_list_of_sp_lambda(sp_lambdas, xx, as_list=False):
 
 
 def setup_steady_advection_diffusion_reaction_manufactured_solution(
-        sol_string, diff_string, vel_strings, react_fun):
+        sol_string, diff_string, vel_strings, react_fun, transient=False):
     nphys_vars = len(vel_strings)
     sp_x, sp_y = sp.symbols(['x', 'y'])
     symbs = (sp_x, sp_y)[:nphys_vars]
+    if transient:
+        # These manufacture solutions assume
+        # only solution and forcing are time dependent
+        all_symbs = symbs + (sp.symbols('t'),)
+    else:
+        all_symbs = symbs
     sol_expr = sp.sympify(sol_string)
-    sol_lambda = sp.lambdify(symbs, sol_expr, "numpy")
-    sol_fun = partial(_evaluate_sp_lambda, sol_lambda)
+    sol_lambda = sp.lambdify(all_symbs, sol_expr, "numpy")
+    if transient:
+        sol_fun = partial(_evaluate_transient_sp_lambda, sol_lambda)
+    else:
+        sol_fun = partial(_evaluate_sp_lambda, sol_lambda)
 
     diff_expr = sp.sympify(diff_string)
     diff_lambda = sp.lambdify(symbs, diff_expr, "numpy")
@@ -46,8 +65,11 @@ def setup_steady_advection_diffusion_reaction_manufactured_solution(
     reaction_expr = react_fun(sol_expr)
 
     forc_expr = -diffusion_expr+advection_expr+reaction_expr
-    forc_lambda = sp.lambdify(symbs, forc_expr, "numpy")
-    forc_fun = partial(_evaluate_sp_lambda, forc_lambda)
+    forc_lambda = sp.lambdify(all_symbs, forc_expr, "numpy")
+    if transient:
+        forc_fun = partial(_evaluate_transient_sp_lambda, forc_lambda)
+    else:
+        forc_fun = partial(_evaluate_sp_lambda, forc_lambda)
 
     flux_exprs = [diff_expr*sol_expr.diff(symb, 1) for symb in symbs]
     flux_lambdas = [

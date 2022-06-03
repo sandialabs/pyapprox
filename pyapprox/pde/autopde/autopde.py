@@ -1,6 +1,7 @@
 import torch
 from abc import ABC, abstractmethod
 import numpy as np
+from functools import partial
 
 from pyapprox.util.utilities import cartesian_product
 from pyapprox.variables.transforms import _map_hypercube_samples
@@ -13,6 +14,8 @@ from pyapprox.pde.spectralcollocation.spectral_collocation import (
     chebyshev_derivative_matrix
 )
 from pyapprox.util.visualization import get_meshgrid_function_data, plt
+from pyapprox.pde.autopde.util import newton_solve
+from pyapprox.pde.autopde.time_integration import ImplicitRungeKutta
 
 
 class IntervalMeshBoundary():
@@ -226,8 +229,9 @@ class CartesianProductCollocationMesh():
         for ii, bndry_cond in enumerate(self._bndry_conds):
             if bndry_cond[1] == "D":
                 idx = self._bndry_indices[ii]
-                residual[idx] = sol[idx]-bndry_cond[0](
-                    self.mesh_pts[:, idx])[:, 0]
+                bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
+                print(bndry_vals, bndry_cond[0]._name, sol[idx])
+                residual[idx] = sol[idx]-bndry_vals
         return residual
 
     def _apply_neumann_and_robin_boundary_conditions_to_residual(
@@ -274,6 +278,12 @@ class AbstractFunction(ABC):
         return torch.tensor(vals, requires_grad=self._requires_grad)
 
 
+class AbstractTransientFunction(AbstractFunction):
+    @abstractmethod
+    def set_time(self, time):
+        raise NotImplementedError()
+
+
 class Function(AbstractFunction):
     def __init__(self, fun, requires_grad=False):
         super().__init__(requires_grad)
@@ -283,9 +293,25 @@ class Function(AbstractFunction):
         return self._fun(samples)
 
 
-class AbstractSpectralCollocationSolver(ABC):
+class TransientFunction(AbstractFunction):
+    def __init__(self, fun, name='fun', requires_grad=False):
+        super().__init__(requires_grad)
+        self._fun = fun
+        self._name=name
+        self._partial_fun = None
+        self._time = None
+
+    def _eval(self, samples):
+        return self._partial_fun(samples)
+
+    def set_time(self, time):
+        self._partial_fun = partial(self._fun, time=time)
+
+
+class AbstractSpectralCollocationResidual(ABC):
     def __init__(self, mesh):
         self.mesh = mesh
+        self._funs = None
 
     @abstractmethod
     def _raw_residual(self, sol):
@@ -297,44 +323,53 @@ class AbstractSpectralCollocationSolver(ABC):
         return self.mesh._apply_boundary_conditions_to_residual(
             raw_residual, sol)
 
-    def _compute_jacobian(self, residual_fun, sol):
-        assert sol.requires_grad
-        return torch.autograd.functional.jacobian(
-            residual_fun, sol, strict=True)#, create_graph=True)
+    def _transient_residual(self, sol, time):
+        # correct equations for boundary conditions
+        for fun in self._funs:
+            if hasattr(fun, "set_time"):
+                fun.set_time(time)
+                print(fun._name, time)
+        for bndry_cond in self.mesh._bndry_conds:
+            if hasattr(bndry_cond[0], "set_time"):
+                bndry_cond[0].set_time(time)
+                print(bndry_cond[0]._name, time)
+        return self._raw_residual(sol)
 
-    def solve(self, initial_guess, tol=1e-8, maxiters=10,
-              verbosity=0):
+
+class SteadyStatePDE():
+    def __init__(self, residual):
+        self.residual = residual
+
+    def solve(self, initial_guess, tol=1e-8, maxiters=10, verbosity=0):
         initial_guess = initial_guess.squeeze()
         if type(initial_guess) == np.ndarray:
             sol = torch.tensor(initial_guess.clone(), requires_grad=True)
         else:
             sol = initial_guess.clone().detach().requires_grad_(True)
-        residual_norms = []
-        it = 0
-        while True:
-            residual = self._residual(sol)
-            residual_norm = torch.linalg.norm(residual)
-            residual_norms.append(residual_norm)
-            if verbosity > 1:
-                print("Iter", it, "rnorm", residual_norm.detach().numpy())
-            if residual_norm < tol:
-                exit_msg = f"Tolerance {tol} reached"
-                break
-            if it > maxiters:
-                exit_msg = f"Max iterations {maxiters} reached"
-                break
-            if it > 4 and (residual_norm > residual_norms[it-5]):
-                raise RuntimeError("Newton solve diverged")
-            jac = self._compute_jacobian(self._residual, sol)
-            sol = sol-torch.linalg.solve(jac, residual)
-            it += 1
-
-        if verbosity > 0:
-            print(exit_msg)
+        sol = newton_solve(self.residual._residual, sol, tol, maxiters, verbosity)
         return sol.detach().numpy()[:, None]
 
 
-class AdvectionDiffusionReaction(AbstractSpectralCollocationSolver):
+class SteadyStateLinearPDE(SteadyStatePDE):
+    def solve(self):
+        init_guess = torch.ones(
+            (self.residual.mesh.mesh_pts.shape[1], 1), dtype=torch.double)
+        return super().solve(init_guess)
+
+
+class TransientPDE():
+    def __init__(self, residual, deltat, tableau_name):
+        self.residual = residual
+        self.time_integrator = ImplicitRungeKutta(
+            deltat, self.residual._transient_residual, tableau_name,
+            constraints_fun=self.residual.mesh._apply_boundary_conditions_to_residual)
+
+    def solve(self, init_sol, init_time, final_time, tol=1e-8, maxiters=10, verbosity=0):
+        sols = self.time_integrator.integrate(init_sol, init_time, final_time)
+        return sols
+    
+
+class AdvectionDiffusionReaction(AbstractSpectralCollocationResidual):
     def __init__(self, mesh, diff_fun, vel_fun, react_fun, forc_fun):
         super().__init__(mesh)
 
@@ -343,37 +378,38 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationSolver):
         self._react_fun = react_fun
         self._forc_fun = forc_fun
 
-        self._diff_vals, self._vel_vals, self._forc_vals = (
-            self._precompute_data())
+        self._funs = [
+            self._diff_fun, self._vel_fun, self._react_fun, self._forc_fun]
 
-    def _precompute_data(self):
-        return (self._diff_fun(self.mesh.mesh_pts),
-                self._vel_fun(self.mesh.mesh_pts),
-                self._forc_fun(self.mesh.mesh_pts))
+    #     self._diff_vals, self._vel_vals, self._forc_vals = (
+    #         self._precompute_data())
+
+    # def _precompute_data(self):
+    #     return (self._diff_fun(self.mesh.mesh_pts),
+    #             self._vel_fun(self.mesh.mesh_pts),
+    #             self._forc_fun(self.mesh.mesh_pts))
 
     def _raw_residual(self, sol):
         # torch requires 1d arrays but to multiply each row of derivative
         # matrix by diff_vals we must use [:, None] when computing residual
+        diff_vals = self._diff_fun(self.mesh.mesh_pts)
+        vel_vals = self._vel_fun(self.mesh.mesh_pts)
         residual = 0
         for dd in range(self.mesh.nphys_vars):
             residual -= torch.linalg.multi_dot(
                 (self.mesh._derivative_matrices[dd],
-                 self._diff_vals*self.mesh._derivative_matrices[dd],
+                 diff_vals*self.mesh._derivative_matrices[dd],
                  sol))
             residual += torch.linalg.multi_dot(
-                (self._vel_vals[:, dd:dd+1]*self.mesh._derivative_matrices[dd],
+                (vel_vals[:, dd:dd+1]*self.mesh._derivative_matrices[dd],
                  sol))
         residual += self._react_fun(sol)
-        residual -= self._forc_vals[:, 0]
-        return residual
-
-    def solve(self):
-        init_guess = torch.ones(
-            (self.mesh.mesh_pts.shape[1], 1), dtype=torch.double)
-        return super().solve(init_guess)
+        forc_vals = self._forc_fun(self.mesh.mesh_pts)[:, 0]
+        residual -= forc_vals
+        return -residual
 
 
-class EulerBernoulliBeam(AbstractSpectralCollocationSolver):
+class EulerBernoulliBeam(AbstractSpectralCollocationResidual):
     def __init__(self, mesh, emod_fun, smom_fun, forc_fun):
         if mesh.nphys_vars > 1:
             raise ValueError("Only 1D meshes supported")
@@ -397,7 +433,6 @@ class EulerBernoulliBeam(AbstractSpectralCollocationSolver):
         # matrix by diff_vals we must use [:, None] when computing residual
         residual = 0
         dmat = self.mesh._derivative_matrices[0]
-        print(self._forc_vals.shape)
         residual = torch.linalg.multi_dot(
             (dmat, dmat, self._emod_vals*self._smom_vals*dmat, dmat, sol))
         residual -= self._forc_vals[:, 0]
@@ -407,7 +442,6 @@ class EulerBernoulliBeam(AbstractSpectralCollocationSolver):
         # correct equations for boundary conditions
         raw_residual = self._raw_residual(sol)
         dmat = self.mesh._derivative_matrices[0]
-        print(sol.shape, dmat.shape)
         raw_residual[0] = sol[0]-0
         raw_residual[1] = torch.linalg.multi_dot((dmat[0, :], sol))-0
         raw_residual[-1] = torch.linalg.multi_dot((torch.linalg.multi_dot(
@@ -416,13 +450,8 @@ class EulerBernoulliBeam(AbstractSpectralCollocationSolver):
             (dmat, dmat, dmat))[-1, :], sol))-0
         return raw_residual
 
-    def solve(self):
-        init_guess = torch.ones(
-            (self.mesh.mesh_pts.shape[1], 1), dtype=torch.double)
-        return super().solve(init_guess)
 
-
-class Helmholtz(AbstractSpectralCollocationSolver):
+class Helmholtz(AbstractSpectralCollocationResidual):
     def __init__(self, mesh, wnum_fun, forc_fun):
         super().__init__(mesh)
 
@@ -444,9 +473,4 @@ class Helmholtz(AbstractSpectralCollocationSolver):
         residual += self._wnum_vals[:, 0]*sol
         residual -= self._forc_vals[:, 0]
         return residual
-
-    def solve(self):
-        init_guess = torch.ones(
-            (self.mesh.mesh_pts.shape[1], 1), dtype=torch.double)
-        return super().solve(init_guess)
     

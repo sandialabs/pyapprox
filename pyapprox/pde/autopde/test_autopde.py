@@ -9,7 +9,8 @@ from pyapprox.pde.autopde.manufactured_solutions import (
 )
 from pyapprox.pde.autopde.autopde import (
     CartesianProductCollocationMesh, AdvectionDiffusionReaction,
-    Function, EulerBernoulliBeam, Helmholtz
+    Function, EulerBernoulliBeam, Helmholtz, SteadyStateLinearPDE,
+    TransientFunction, TransientPDE
 )
 
 def normal_flux(flux_funs, active_var, sign, xx):
@@ -55,8 +56,8 @@ class TestAutoPDE(unittest.TestCase):
 
         mesh = CartesianProductCollocationMesh(
             domain_bounds, orders, bndry_conds)
-        solver = AdvectionDiffusionReaction(
-            mesh, diff_fun, vel_fun, react_fun, forc_fun)
+        solver = SteadyStateLinearPDE(AdvectionDiffusionReaction(
+            mesh, diff_fun, vel_fun, react_fun, forc_fun))
         sol = solver.solve()
 
         # import matplotlib.pyplot as plt
@@ -73,9 +74,9 @@ class TestAutoPDE(unittest.TestCase):
         # plt.show()
 
         print(np.linalg.norm(
-            sol_fun(solver.mesh.mesh_pts)-sol))
+            sol_fun(mesh.mesh_pts)-sol))
         assert np.linalg.norm(
-            sol_fun(solver.mesh.mesh_pts)-sol) < 1e-9
+            sol_fun(mesh.mesh_pts)-sol) < 1e-9
 
         
         # normals = solver.mesh._get_bndry_normals(np.arange(nphys_vars*2))
@@ -121,20 +122,20 @@ class TestAutoPDE(unittest.TestCase):
         emod_val, smom_val, forcing_val = 1., 1., -2. 
         mesh = CartesianProductCollocationMesh(
             domain_bounds, orders, bndry_conds)
-        solver = EulerBernoulliBeam(
+        solver = SteadyStateLinearPDE(EulerBernoulliBeam(
             mesh, Function(lambda x: np.full((x.shape[1], 1), 1)),
             Function(lambda x: np.full((x.shape[1], 1), 1)),
-            Function(lambda x: np.full((x.shape[1], 1), forcing_val)))
+            Function(lambda x: np.full((x.shape[1], 1), forcing_val))))
         sol = solver.solve()
 
         def sol_fun(x):
             length = domain_bounds[1]-domain_bounds[0]
             return (forcing_val*x**2*(6*length**2-4*length*x+x**2)/(
                 24*emod_val*smom_val)).T
-        assert np.allclose(sol, sol_fun(solver.mesh.mesh_pts))
-        solver.mesh.plot(sol, nplot_pts_1d=100)
-        import matplotlib.pyplot as plt
-        plt.show()
+        assert np.allclose(sol, sol_fun(mesh.mesh_pts))
+        # mesh.plot(sol, nplot_pts_1d=100)
+        # import matplotlib.pyplot as plt
+        # plt.show()
 
     def check_helmholtz(self, domain_bounds, orders, sol_string, wnum_string,
                         bndry_types):
@@ -162,13 +163,13 @@ class TestAutoPDE(unittest.TestCase):
 
         mesh = CartesianProductCollocationMesh(
             domain_bounds, orders, bndry_conds)
-        solver = Helmholtz(mesh, wnum_fun, forc_fun)
+        solver = SteadyStateLinearPDE(Helmholtz(mesh, wnum_fun, forc_fun))
         sol = solver.solve()
 
         print(np.linalg.norm(
-            sol_fun(solver.mesh.mesh_pts)-sol))
+            sol_fun(mesh.mesh_pts)-sol))
         assert np.linalg.norm(
-            sol_fun(solver.mesh.mesh_pts)-sol) < 1e-9
+            sol_fun(mesh.mesh_pts)-sol) < 1e-9
 
     def test_helmholtz(self):
         test_cases = [
@@ -176,7 +177,62 @@ class TestAutoPDE(unittest.TestCase):
             [[0, .5, 0, 1], [16, 16], "y**2*x**2", "1", ["N", "D", "D", "D"]]]
         for test_case in test_cases:
             self.check_helmholtz(*test_case)
+
+    def test_transient_pde(self):
+        (domain_bounds, orders, sol_string, diff_string, vel_strings,
+        react_fun, bndry_types) = [
+            [0, 1], [4], "0.5*(x-3)*x*(1+t)**2", "1", ["0"], lambda x: 0*x**2,["D", "D"]]
         
+        sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
+            setup_steady_advection_diffusion_reaction_manufactured_solution(
+                sol_string, diff_string, vel_strings, react_fun, True))
+
+        diff_fun = Function(diff_fun)
+        vel_fun = Function(vel_fun)
+        forc_fun = TransientFunction(forc_fun, name='forcing')
+        sol_fun = TransientFunction(sol_fun, name='sol')
+
+        nphys_vars = len(orders)
+        bndry_conds = []
+        for dd in range(2*nphys_vars):
+            if bndry_types[dd] == "D":
+                bndry_conds.append([sol_fun, "D"])
+            else:
+                if bndry_types[dd] == "R":
+                    alpha = 1
+                else:
+                    alpha = 0
+                bndry_conds.append(
+                    [partial(robin_bndry_fun, sol_fun, flux_funs, dd//2,
+                             (-1)**(dd+1), alpha), "R", alpha])
+
+        deltat = 0.1
+        final_time = 0.1
+        tableau_name = "im_crank2"
+        tableau_name = "im_beuler1"
+
+        mesh = CartesianProductCollocationMesh(
+            domain_bounds, orders, bndry_conds)
+        solver = TransientPDE(
+            AdvectionDiffusionReaction(
+                mesh, diff_fun, vel_fun, react_fun, forc_fun),
+            deltat, tableau_name)
+        sol_fun.set_time(0)
+        sols = solver.solve(sol_fun(mesh.mesh_pts), 0, final_time)
+
+        import matplotlib.pyplot as plt
+        ax = plt.subplots(1, 1)[1]
+        mesh.plot(sols[:, :1], ax=ax, label='init approx sol')
+        mesh.plot(sols[:, -1:], ax=ax, label='final approx sol')
+        sol_fun.set_time(0)
+        mesh.plot(sol_fun(mesh.mesh_pts), ax=ax, label="init sol", ls='--')
+        sol_fun.set_time(final_time)
+        mesh.plot(sol_fun(mesh.mesh_pts), ax=ax, label='final sol', ls='--')
+        print(sol_fun(mesh.mesh_pts).numpy()[:, 0])
+        print(sols[:, -1])
+        print(sol_fun(mesh.mesh_pts).numpy()[:, 0]-sols[:, -1])
+        plt.legend()
+        #plt.show()
 
 if __name__ == "__main__":
     autopde_test_suite = \
