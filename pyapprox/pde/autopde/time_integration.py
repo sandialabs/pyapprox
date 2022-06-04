@@ -5,23 +5,24 @@ from functools import partial
 from pyapprox.pde.autopde.util import newton_solve
 
 
-def explicit_runge_kutta_update(prev_sol, deltat, prev_time, rhs, butcher_tableau):
-    assert prev_sol.ndim == 1
+def explicit_runge_kutta_update(sol, deltat, time, rhs, butcher_tableau):
+    assert sol.ndim == 1
     assert callable(rhs)
     a_coef, b_coef, c_coef = butcher_tableau
     order = a_coef.shape[0]
-    stage_rhs = np.empty((order, prev_sol.shape[0]), dtype=float)
-    stage_deltas = np.empty((order, prev_sol.shape[0]), dtype=float)
-    stage_rhs[0, :] = rhs(prev_sol, prev_time)
+    stage_rhs = np.empty((order, sol.shape[0]), dtype=float)
+    stage_deltas = np.empty((order, sol.shape[0]), dtype=float)
+    stage_rhs[0, :] = rhs(sol, time)
     stage_deltas[0, :] = 0
-    new_sol = prev_sol+deltat*b_coef[0]*stage_rhs[0, :]
+    new_sol = sol+deltat*b_coef[0]*stage_rhs[0, :]
     tmp = np.zeros((stage_rhs.shape[1]))
     for ii in range(1, order):
         tmp[:] = 0.
         for jj in range(ii):
             tmp += a_coef[ii, jj]*stage_rhs[jj]
         stage_deltas[ii] = deltat*tmp
-        stage_rhs[ii] = rhs(prev_sol+stage_deltas[ii], prev_time+c_coef[ii]*deltat)
+        stage_rhs[ii] = rhs(
+            sol+stage_deltas[ii], time+c_coef[ii]*deltat)
         new_sol += deltat*b_coef[ii]*stage_rhs[ii]
         # print(ii, stage_rhs[ii], '$')
     return new_sol, stage_deltas, stage_rhs
@@ -130,8 +131,8 @@ def create_butcher_tableau(name, return_tensors=True):
         "ex_rk4":  butcher_tableau_explicit_rk4,
         "im_beuler1": butcher_tableau_implicit_backward_euler,
         "im_crank2": butcher_tableau_implicit_crank_nicolson,
-        "im_igauss4": butcher_tableau_implicit_fourth_order_gauss,
-        "im_igauss6": butcher_tableau_implicit_sixth_order_gauss,
+        "im_gauss4": butcher_tableau_implicit_fourth_order_gauss,
+        "im_gauss6": butcher_tableau_implicit_sixth_order_gauss,
         "diag_im3": butcher_tableau_diag_implicit_order_3,
         }
     if name not in butcher_tableaus:
@@ -145,48 +146,43 @@ def create_butcher_tableau(name, return_tensors=True):
 
 
 def implicit_runge_kutta_stage_solution(
-        sol, deltat, time, rhs, butcher_tableau, stage_deltas,
-        constraints):
+        sol, deltat, time, rhs, butcher_tableau, stage_deltas):
     a_coef, c_coef = butcher_tableau[0], butcher_tableau[2]
     nstages = a_coef.shape[0]
     ndof = stage_deltas.shape[0]//nstages
-    tmp = torch.kron(a_coef, torch.eye(ndof))
-    new_stage_deltas = torch.linalg.multi_dot((tmp, deltat*stage_deltas))
-    new_stage_rhs = []
+    stage_rhs = []
     for ii in range(nstages):
         stage_time = time+c_coef[ii]*deltat
-        new_stage_delta = new_stage_deltas[ii*ndof:(ii+1)*ndof]
-        stage_sol = sol+new_stage_delta
+        stage_delta = stage_deltas[ii*ndof:(ii+1)*ndof]
+        stage_sol = sol+stage_delta
         # print(stage_delta, 's')
         # stage_sol = stage_delta  # **
-        print(ii, 'stage_time', stage_time)
         srhs = rhs(stage_sol, stage_time)
-        if constraints is not None:
-            srhs = constraints(srhs, stage_sol)
-        new_stage_rhs.append(srhs)
-        print(ii, sol, 's')
-        print(ii, new_stage_delta, 'd')
-        print(ii, stage_sol, 's+d')
-        print(ii, new_stage_rhs[-1].detach().numpy(), 'r')
-    new_stage_rhs = torch.cat(new_stage_rhs)
+        stage_rhs.append(srhs)
+    stage_rhs = torch.cat(stage_rhs)
+    tmp = torch.kron(a_coef, torch.eye(ndof))
+    new_stage_deltas = torch.linalg.multi_dot((tmp, deltat*stage_rhs))
     # print(stage_deltas, tmp, deltat, stage_rhs)
     # stage_deltas = torch.linalg.multi_dot((tmp, deltat*stage_rhs))+sol  # **
-    return new_stage_deltas, new_stage_rhs
+    return new_stage_deltas, stage_rhs
 
 
 def implicit_runge_kutta_residual(sol, deltat, time, rhs,
                                   butcher_tableau, stage_deltas, constraints):
-    print("### res")
-    new_stage_rhs = implicit_runge_kutta_stage_solution(
-        sol, deltat, time, rhs, butcher_tableau, stage_deltas,
-        constraints)[1]
-    residual = stage_deltas-new_stage_rhs
-    print(stage_deltas, new_stage_rhs)
+    new_stage_deltas = implicit_runge_kutta_stage_solution(
+        sol, deltat, time, rhs, butcher_tableau, stage_deltas)[0]
+    residual = stage_deltas-new_stage_deltas
+    if constraints is not None:
+        residual = constraints(
+            residual, new_stage_deltas+torch.cat(
+                [sol]*butcher_tableau[0].shape[0]))
+    # print(stage_deltas, new_stage_deltas)
     return residual
 
 
 class ImplicitRungeKutta():
-    def __init__(self, deltat, rhs, tableau_name="beuler1", constraints_fun=None):
+    def __init__(self, deltat, rhs, tableau_name="beuler1",
+                 constraints_fun=None):
         self._tableau_name = tableau_name
         self._butcher_tableau = create_butcher_tableau(self._tableau_name)
         self._deltat = deltat
@@ -206,16 +202,16 @@ class ImplicitRungeKutta():
         self._time = time
         self._sol = sol
         b_coef = self._butcher_tableau[1]
-        print('i', init_guesses)
         init_guess = torch.cat(init_guesses)
         init_guess.requires_grad = True
         stage_deltas = newton_solve(self._residual_fun, init_guess)
         stage_rhs = implicit_runge_kutta_stage_solution(
             sol, self._deltat, time, self._rhs, self._butcher_tableau,
-            stage_deltas, self._constraints_fun)[1]
+            stage_deltas)[1]
         nstages = stage_deltas.shape[0]//sol.shape[0]
-        return (self._sol + self._deltat*torch.sum(b_coef[:, None]*stage_rhs.reshape(
-            (nstages, sol.shape[0])), dim=0)).detach()
+        return (self._sol + self._deltat*torch.sum(
+            b_coef[:, None]*stage_rhs.reshape(
+                (nstages, sol.shape[0])), dim=0)).detach()
 
     def integrate(self, init_sol, init_time, final_time, verbosity=0):
         sols = []
@@ -226,7 +222,6 @@ class ImplicitRungeKutta():
             sol = init_sol.clone()
         if sol.ndim == 2:
             sol = sol[:, 0]
-        print(self._butcher_tableau)
         sols.append(sol.detach().numpy())
         while time < final_time:
             if verbosity > 0:

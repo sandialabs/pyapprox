@@ -209,7 +209,7 @@ class TestAutoPDE(unittest.TestCase):
         deltat = 0.1
         final_time = 0.1
         tableau_name = "im_crank2"
-        tableau_name = "im_beuler1"
+        # tableau_name = "im_beuler1"
 
         mesh = CartesianProductCollocationMesh(
             domain_bounds, orders, bndry_conds)
@@ -232,7 +232,7 @@ class TestAutoPDE(unittest.TestCase):
         print(sols[:, -1])
         print(sol_fun(mesh.mesh_pts).numpy()[:, 0]-sols[:, -1])
         plt.legend()
-        #plt.show()
+        plt.show()
 
 if __name__ == "__main__":
     autopde_test_suite = \

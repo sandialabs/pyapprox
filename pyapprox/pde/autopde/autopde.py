@@ -264,7 +264,8 @@ class CartesianProductCollocationMesh():
 
 
 class AbstractFunction(ABC):
-    def __init__(self, requires_grad=False):
+    def __init__(self, name, requires_grad=False):
+        self._name = name
         self._requires_grad = requires_grad
 
     @abstractmethod
@@ -285,8 +286,8 @@ class AbstractTransientFunction(AbstractFunction):
 
 
 class Function(AbstractFunction):
-    def __init__(self, fun, requires_grad=False):
-        super().__init__(requires_grad)
+    def __init__(self, fun, name='fun', requires_grad=False):
+        super().__init__(name, requires_grad)
         self._fun = fun
 
     def _eval(self, samples):
@@ -295,9 +296,8 @@ class Function(AbstractFunction):
 
 class TransientFunction(AbstractFunction):
     def __init__(self, fun, name='fun', requires_grad=False):
-        super().__init__(requires_grad)
+        super().__init__(name, requires_grad)
         self._fun = fun
-        self._name=name
         self._partial_fun = None
         self._time = None
 

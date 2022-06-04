@@ -25,12 +25,8 @@ def newton_solve(residual_fun, initial_guess, tol=1e-8, maxiters=10,
             break
         if it > 4 and (residual_norm > residual_norms[it-5]):
             raise RuntimeError("Newton solve diverged")
-        print('Computing jac')
         jac = torch.autograd.functional.jacobian(
             residual_fun, sol, strict=True)
-        print('jac', jac)
-        print('res', residual)
-        print('sol', sol)
         sol = sol-torch.linalg.solve(jac, residual)
         it += 1
     if verbosity > 0:
