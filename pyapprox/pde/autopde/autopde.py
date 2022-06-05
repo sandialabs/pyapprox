@@ -410,6 +410,7 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationResidual):
                  sol))
         residual += self._react_fun(sol)
         forc_vals = self._forc_fun(self.mesh.mesh_pts)[:, 0]
+        print(diff_vals, vel_vals, forc_vals)
         residual -= forc_vals
         return -residual
 

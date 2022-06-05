@@ -424,7 +424,6 @@ class TransientAdvectionDiffusion(SteadyStateAdvectionDiffusion):
             self.mesh.mesh_pts, sample, time+self.time_step_size)
         if (self.time_step_method == "backward-euler"):
             rhs = current_sol + self.time_step_size*future_forcing
-            print("RHS", rhs[:, 0], current_sol[:, 0], self.time_step_size, future_forcing[:, 0])
         elif (self.time_step_method == "crank-nicholson"):
             identity = np.eye(self.collocation_matrix.shape[0])
             rhs = np.dot(

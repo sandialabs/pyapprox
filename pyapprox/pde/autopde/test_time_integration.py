@@ -52,7 +52,7 @@ class TestTimeIntegration(unittest.TestCase):
         
 
     def test_implicit_runge_kutta_update(self):
-        degree, ndof = 2, 2
+        degree, ndof = 5, 1
 
         def exact_sol(time):
             return np.array([(ii+1+time)**degree for ii in range(ndof)])
@@ -65,10 +65,10 @@ class TestTimeIntegration(unittest.TestCase):
 
         # tableau_name = "ex_heun2"
         # tableau_name = "ex_rk4"
-        # tableau_name = "im_gauss6"
-        tableau_name = "im_crank2"
+        tableau_name = "im_gauss6"
+        # tableau_name = "im_crank2"
         # tableau_name = "im_beuler1" # test with degree=1 will fail because of pathalogical choices of degree and deltat if degree=2 and deltat=1
-        deltat = 1
+        deltat = .2 # stability for gauss method will not work if h=1 and degree = integration degree
         init_time = 0
         final_time = init_time + deltat
         init_sol = torch.tensor(exact_sol(0), dtype=torch.double)

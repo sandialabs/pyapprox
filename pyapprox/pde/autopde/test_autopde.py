@@ -232,7 +232,7 @@ class TestAutoPDE(unittest.TestCase):
             mybndry_conds, lambda x, z: diff_fun(x),
             myforc_fun,
             lambda x, z: 0*x.T, orders, domain_bounds, final_time, deltat,
-            lambda x: sol_fun(x).numpy())
+            lambda x: sol_fun(x).numpy(), mytableau_name)
         mysample = np.ones((1), float)  # dummy argument for this example
         mysols = mymodel.solve(mysample)
         print("#####")
@@ -266,7 +266,7 @@ class TestAutoPDE(unittest.TestCase):
             mysols[:, -1:], nplot_pts_1d=50, ax=ax, label='myapprox sol', ls=':')
         # assert np.allclose(mysols[:, -1], sols[:, -1])
         plt.legend()
-        plt.show()
+        # plt.show()
 
 if __name__ == "__main__":
     autopde_test_suite = \

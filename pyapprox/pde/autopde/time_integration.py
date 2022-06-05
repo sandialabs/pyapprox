@@ -156,6 +156,7 @@ def implicit_runge_kutta_stage_solution_trad(
         stage_unknown = stage_unknowns[ii*ndof:(ii+1)*ndof]
         stage_sol = sol+stage_unknown
         srhs = rhs(stage_sol, stage_time)
+        print(srhs, stage_time)
         stage_rhs.append(srhs)
     stage_rhs = torch.cat(stage_rhs)
     tmp = torch.kron(a_coef, torch.eye(ndof))
