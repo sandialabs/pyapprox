@@ -27,6 +27,8 @@ def newton_solve(residual_fun, initial_guess, tol=1e-8, maxiters=10,
             raise RuntimeError("Newton solve diverged")
         jac = torch.autograd.functional.jacobian(
             residual_fun, sol, strict=True)
+        print(jac.detach().numpy(), 'jac')
+        print(residual.detach().numpy(), "RHS")
         sol = sol-torch.linalg.solve(jac, residual)
         it += 1
     if verbosity > 0:

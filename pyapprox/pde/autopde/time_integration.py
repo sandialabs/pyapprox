@@ -145,38 +145,124 @@ def create_butcher_tableau(name, return_tensors=True):
     return tableau
 
 
-def implicit_runge_kutta_stage_solution(
-        sol, deltat, time, rhs, butcher_tableau, stage_deltas):
+def implicit_runge_kutta_stage_solution_trad(
+        sol, deltat, time, rhs, butcher_tableau, stage_unknowns):
     a_coef, c_coef = butcher_tableau[0], butcher_tableau[2]
     nstages = a_coef.shape[0]
-    ndof = stage_deltas.shape[0]//nstages
+    ndof = stage_unknowns.shape[0]//nstages
     stage_rhs = []
     for ii in range(nstages):
         stage_time = time+c_coef[ii]*deltat
-        stage_delta = stage_deltas[ii*ndof:(ii+1)*ndof]
-        stage_sol = sol+stage_delta
-        # print(stage_delta, 's')
-        # stage_sol = stage_delta  # **
+        stage_unknown = stage_unknowns[ii*ndof:(ii+1)*ndof]
+        stage_sol = sol+stage_unknown
         srhs = rhs(stage_sol, stage_time)
         stage_rhs.append(srhs)
     stage_rhs = torch.cat(stage_rhs)
     tmp = torch.kron(a_coef, torch.eye(ndof))
-    new_stage_deltas = torch.linalg.multi_dot((tmp, deltat*stage_rhs))
-    # print(stage_deltas, tmp, deltat, stage_rhs)
-    # stage_deltas = torch.linalg.multi_dot((tmp, deltat*stage_rhs))+sol  # **
-    return new_stage_deltas, stage_rhs
+    new_stage_unknowns = torch.linalg.multi_dot((tmp, deltat*stage_rhs))
+    return new_stage_unknowns, stage_rhs
 
+
+def implicit_runge_kutta_apply_constraints_trad(
+        butcher_tableau, stage_unknowns, time, deltat, constraints,
+        residual, sol):
+    # The following cannot seem to accurately enforce constraints. Need to
+    # fix or move on to just support wildey
+    raise NotImplementedError()
+    nstages = butcher_tableau[0].shape[0]
+    ndof = stage_unknowns.shape[0]//nstages
+    for ii in range(nstages):
+        stage_time = time+butcher_tableau[2][ii]*deltat
+        residual[ii*ndof:(ii+1)*ndof] = constraints(
+            residual[ii*ndof:(ii+1)*ndof],
+            stage_unknowns[ii*ndof:(ii+1)*ndof]+sol,
+            stage_time)
+    return residual
+
+
+def implicit_runge_kutta_update_trad(
+        sol, stage_unknowns, deltat, time, rhs, butcher_tableau):
+    b_coef = butcher_tableau[1]
+    nstages = stage_unknowns.shape[0]//sol.shape[0]
+    stage_rhs = implicit_runge_kutta_stage_solution(
+        sol, deltat, time, rhs, butcher_tableau,
+        stage_unknowns)[1]
+    new_sol = (sol + deltat*torch.sum(
+        b_coef[:, None]*stage_rhs.reshape(
+            (nstages, sol.shape[0])), dim=0)).detach()
+    return new_sol
+
+
+def implicit_runge_kutta_stage_solution_wildey(
+        sol, deltat, time, rhs, butcher_tableau, stage_unknowns):
+    a_coef, b_coef, c_coef = butcher_tableau
+    nstages = a_coef.shape[0]
+    ndof = stage_unknowns.shape[0]//nstages
+    stage_rhs, new_stage_unknowns = [], []
+    for ii in range(nstages):
+        stage_time = time+c_coef[ii]*deltat
+        stage_sol = sol.clone()
+        for jj in range(nstages):
+            stage_sol += a_coef[ii, jj]/b_coef[jj]*(
+                stage_unknowns[jj*ndof:(jj+1)*ndof]-sol)
+        srhs = rhs(stage_sol, stage_time)
+        stage_rhs.append(srhs)
+        new_stage_unknowns.append(sol+srhs*b_coef[ii]*deltat)
+    stage_rhs = torch.cat(stage_rhs)
+    new_stage_unknowns = torch.cat(new_stage_unknowns)
+    return new_stage_unknowns, stage_rhs
+
+
+def implicit_runge_kutta_update_wildey(
+        sol, stage_unknowns, deltat, time, rhs, butcher_tableau):
+    # the last 4 arguments are not used and only kept to keep inteface
+    # between wildey and trad update functions
+    nstages = stage_unknowns.shape[0]//sol.shape[0]
+    new_sol = sol.clone()
+    ndof = stage_unknowns.shape[0]//nstages
+    for ii in range(nstages):
+        new_sol += (stage_unknowns[ii*ndof:(ii+1)*ndof]-sol)
+    return new_sol
+
+
+def implicit_runge_kutta_apply_constraints_wildey(
+        butcher_tableau, stage_unknowns, time, deltat, constraints,
+        residual, sol):
+    # sol arg not needed for wildey method but kept to maintain
+    # consistent api with trad method
+    nstages = butcher_tableau[0].shape[0]
+    ndof = stage_unknowns.shape[0]//nstages
+    for ii in range(nstages):
+        stage_time = time+butcher_tableau[2][ii]*deltat
+        residual[ii*ndof:(ii+1)*ndof] = constraints(
+            residual[ii*ndof:(ii+1)*ndof],
+            stage_unknowns[ii*ndof:(ii+1)*ndof], stage_time)
+    return residual
+
+
+# (implicit_runge_kutta_stage_solution, implicit_runge_kutta_update,
+#  implicit_runge_kutta_apply_constraints) = (
+#      implicit_runge_kutta_stage_solution_trad,
+#      implicit_runge_kutta_update_trad,
+#      implicit_runge_kutta_apply_constraints_trad
+# )
+
+(implicit_runge_kutta_stage_solution, implicit_runge_kutta_update,
+ implicit_runge_kutta_apply_constraints) = (
+     implicit_runge_kutta_stage_solution_wildey,
+     implicit_runge_kutta_update_wildey,
+     implicit_runge_kutta_apply_constraints_wildey
+)
 
 def implicit_runge_kutta_residual(sol, deltat, time, rhs,
-                                  butcher_tableau, stage_deltas, constraints):
-    new_stage_deltas = implicit_runge_kutta_stage_solution(
-        sol, deltat, time, rhs, butcher_tableau, stage_deltas)[0]
-    residual = stage_deltas-new_stage_deltas
+                                  butcher_tableau, stage_unknowns, constraints):
+    new_stage_unknowns = implicit_runge_kutta_stage_solution(
+        sol, deltat, time, rhs, butcher_tableau, stage_unknowns)[0]
+    residual = stage_unknowns-new_stage_unknowns
     if constraints is not None:
-        residual = constraints(
-            residual, new_stage_deltas+torch.cat(
-                [sol]*butcher_tableau[0].shape[0]))
-    # print(stage_deltas, new_stage_deltas)
+        residual = implicit_runge_kutta_apply_constraints(
+            butcher_tableau, stage_unknowns, time, deltat, constraints,
+            residual, sol)
     return residual
 
 
@@ -192,26 +278,21 @@ class ImplicitRungeKutta():
         self._sol = None
         self._time = None
 
-    def _residual_fun(self, stage_deltas):
+    def _residual_fun(self, stage_unknowns):
         return implicit_runge_kutta_residual(
             self._sol, self._deltat, self._time, self._rhs,
-            self._butcher_tableau, stage_deltas,
+            self._butcher_tableau, stage_unknowns,
             constraints=self._constraints_fun)
 
     def update(self, sol, time, init_guesses):
         self._time = time
         self._sol = sol
-        b_coef = self._butcher_tableau[1]
         init_guess = torch.cat(init_guesses)
         init_guess.requires_grad = True
-        stage_deltas = newton_solve(self._residual_fun, init_guess)
-        stage_rhs = implicit_runge_kutta_stage_solution(
-            sol, self._deltat, time, self._rhs, self._butcher_tableau,
-            stage_deltas)[1]
-        nstages = stage_deltas.shape[0]//sol.shape[0]
-        return (self._sol + self._deltat*torch.sum(
-            b_coef[:, None]*stage_rhs.reshape(
-                (nstages, sol.shape[0])), dim=0)).detach()
+        stage_unknowns = newton_solve(self._residual_fun, init_guess)
+        return implicit_runge_kutta_update(
+            sol, stage_unknowns, self._deltat, self._time, self._rhs,
+            self._butcher_tableau)
 
     def integrate(self, init_sol, init_time, final_time, verbosity=0):
         sols = []

@@ -230,7 +230,6 @@ class CartesianProductCollocationMesh():
             if bndry_cond[1] == "D":
                 idx = self._bndry_indices[ii]
                 bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
-                print(bndry_vals, bndry_cond[0]._name, sol[idx])
                 residual[idx] = sol[idx]-bndry_vals
         return residual
 
@@ -328,11 +327,9 @@ class AbstractSpectralCollocationResidual(ABC):
         for fun in self._funs:
             if hasattr(fun, "set_time"):
                 fun.set_time(time)
-                print(fun._name, time)
         for bndry_cond in self.mesh._bndry_conds:
             if hasattr(bndry_cond[0], "set_time"):
                 bndry_cond[0].set_time(time)
-                print(bndry_cond[0]._name, time)
         return self._raw_residual(sol)
 
 
@@ -362,12 +359,20 @@ class TransientPDE():
         self.residual = residual
         self.time_integrator = ImplicitRungeKutta(
             deltat, self.residual._transient_residual, tableau_name,
-            constraints_fun=self.residual.mesh._apply_boundary_conditions_to_residual)
+            constraints_fun=self._apply_boundary_conditions_to_residual)
 
-    def solve(self, init_sol, init_time, final_time, tol=1e-8, maxiters=10, verbosity=0):
-        sols = self.time_integrator.integrate(init_sol, init_time, final_time)
+    def _apply_boundary_conditions_to_residual(self, raw_residual, sol, time):
+        for bndry_cond in self.residual.mesh._bndry_conds:
+            if hasattr(bndry_cond[0], "set_time"):
+                bndry_cond[0].set_time(time)
+        return self.residual.mesh._apply_boundary_conditions_to_residual(
+            raw_residual, sol)
+
+    def solve(self, init_sol, init_time, final_time, verbosity=0):
+        sols = self.time_integrator.integrate(
+            init_sol, init_time, final_time, verbosity)
         return sols
-    
+
 
 class AdvectionDiffusionReaction(AbstractSpectralCollocationResidual):
     def __init__(self, mesh, diff_fun, vel_fun, react_fun, forc_fun):
@@ -413,7 +418,7 @@ class EulerBernoulliBeam(AbstractSpectralCollocationResidual):
     def __init__(self, mesh, emod_fun, smom_fun, forc_fun):
         if mesh.nphys_vars > 1:
             raise ValueError("Only 1D meshes supported")
-        
+
         super().__init__(mesh)
 
         self._emod_fun = emod_fun
@@ -473,4 +478,3 @@ class Helmholtz(AbstractSpectralCollocationResidual):
         residual += self._wnum_vals[:, 0]*sol
         residual -= self._forc_vals[:, 0]
         return residual
-    

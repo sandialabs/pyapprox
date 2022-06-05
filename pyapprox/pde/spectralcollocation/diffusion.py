@@ -424,6 +424,7 @@ class TransientAdvectionDiffusion(SteadyStateAdvectionDiffusion):
             self.mesh.mesh_pts, sample, time+self.time_step_size)
         if (self.time_step_method == "backward-euler"):
             rhs = current_sol + self.time_step_size*future_forcing
+            print("RHS", rhs[:, 0], current_sol[:, 0], self.time_step_size, future_forcing[:, 0])
         elif (self.time_step_method == "crank-nicholson"):
             identity = np.eye(self.collocation_matrix.shape[0])
             rhs = np.dot(
@@ -446,6 +447,7 @@ class TransientAdvectionDiffusion(SteadyStateAdvectionDiffusion):
         else:
             raise Exception('incorrect timestepping method specified')
         self.apply_boundary_conditions_to_matrix(matrix)
+        print(matrix)
         return qr_factorization(matrix)
 
     def time_step(self, current_sol, time, sample):

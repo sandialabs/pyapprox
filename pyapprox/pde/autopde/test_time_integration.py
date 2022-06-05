@@ -52,7 +52,7 @@ class TestTimeIntegration(unittest.TestCase):
         
 
     def test_implicit_runge_kutta_update(self):
-        degree, ndof = 2, 1
+        degree, ndof = 2, 2
 
         def exact_sol(time):
             return np.array([(ii+1+time)**degree for ii in range(ndof)])

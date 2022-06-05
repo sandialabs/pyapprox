@@ -181,7 +181,19 @@ class TestAutoPDE(unittest.TestCase):
     def test_transient_pde(self):
         (domain_bounds, orders, sol_string, diff_string, vel_strings,
         react_fun, bndry_types) = [
-            [0, 1], [4], "0.5*(x-3)*x*(1+t)**2", "1", ["0"], lambda x: 0*x**2,["D", "D"]]
+            [0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["0"],
+            lambda x: 0*x**2, ["D", "D"]]
+        mybndry_conds = [[lambda x: 0, "D"],
+                         [lambda x: 0, "D"]]
+        myforc_fun = lambda x, z, t: -2*(t + 1)**2 +x.T*0
+
+        # (domain_bounds, orders, sol_string, diff_string, vel_strings,
+        # react_fun, bndry_types) = [
+        #      [0, 1], [3], "(x-1)*x*(1+t)**2+x**2", "1", ["0"],
+        #     lambda x: 0*x**2, ["D", "D"]]
+        # mybndry_conds = [[lambda x: 0, "D"],
+        #                  [lambda x: 1, "D"]]
+        # myforc_fun = lambda x, z, t: -2*(t + 1)**2 - 2 +x.T*0
         
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_steady_advection_diffusion_reaction_manufactured_solution(
@@ -208,8 +220,23 @@ class TestAutoPDE(unittest.TestCase):
 
         deltat = 0.1
         final_time = 0.1
-        tableau_name = "im_crank2"
-        # tableau_name = "im_beuler1"
+        # tableau_name = "im_gauss4"
+        # tableau_name, mytableau_name = "im_crank2", "crank-nicholson"
+        tableau_name, mytableau_name = "im_beuler1", "backward-euler"
+ 
+        sol_fun.set_time(0)
+        from pyapprox.pde.spectralcollocation.diffusion import (
+            TransientAdvectionDiffusionEquation1D)
+        mymodel = TransientAdvectionDiffusionEquation1D()
+        mymodel.initialize(
+            mybndry_conds, lambda x, z: diff_fun(x),
+            myforc_fun,
+            lambda x, z: 0*x.T, orders, domain_bounds, final_time, deltat,
+            lambda x: sol_fun(x).numpy())
+        mysample = np.ones((1), float)  # dummy argument for this example
+        mysols = mymodel.solve(mysample)
+        print("#####")
+        #assert False
 
         mesh = CartesianProductCollocationMesh(
             domain_bounds, orders, bndry_conds)
@@ -222,15 +249,22 @@ class TestAutoPDE(unittest.TestCase):
 
         import matplotlib.pyplot as plt
         ax = plt.subplots(1, 1)[1]
-        mesh.plot(sols[:, :1], ax=ax, label='init approx sol')
-        mesh.plot(sols[:, -1:], ax=ax, label='final approx sol')
+        mesh.plot(sols[:, :1], nplot_pts_1d=50, ax=ax, label='init approx sol')
+        mesh.plot(
+            sols[:, -1:], nplot_pts_1d=50, ax=ax, label='final approx sol')
         sol_fun.set_time(0)
-        mesh.plot(sol_fun(mesh.mesh_pts), ax=ax, label="init sol", ls='--')
+        mesh.plot(sol_fun(mesh.mesh_pts).numpy(), nplot_pts_1d=50, ax=ax,
+                  label="init sol", ls='--')
         sol_fun.set_time(final_time)
-        mesh.plot(sol_fun(mesh.mesh_pts), ax=ax, label='final sol', ls='--')
+        mesh.plot(sol_fun(mesh.mesh_pts).numpy(), nplot_pts_1d=50, ax=ax,
+                  label='final sol', ls='--')
         print(sol_fun(mesh.mesh_pts).numpy()[:, 0])
         print(sols[:, -1])
-        print(sol_fun(mesh.mesh_pts).numpy()[:, 0]-sols[:, -1])
+        print(mysols[:, -1])
+        print(mysols[:, -1]-sols[:, -1])
+        mesh.plot(
+            mysols[:, -1:], nplot_pts_1d=50, ax=ax, label='myapprox sol', ls=':')
+        # assert np.allclose(mysols[:, -1], sols[:, -1])
         plt.legend()
         plt.show()
 
