@@ -263,14 +263,14 @@ class CartesianProductCollocationMesh():
 
     def integrate(self, mesh_values):
         quad_rules = [
-            gauss_jacobi_pts_wts_1D(o+2, 0, 0) for o in range(self.nphys_vars)]
+            gauss_jacobi_pts_wts_1D(o+2, 0, 0) for o in self._orders]
         canonical_xquad = cartesian_product([q[0] for q in quad_rules])
         canonical_wquad = outer_product([q[1] for q in quad_rules])
         xquad = self._map_samples_from_canonical_domain(
-            cartesian_product(canonical_xquad))
+            canonical_xquad)
         wquad = canonical_wquad/np.prod(
             self._domain_bounds[1::2]-self._domain_bounds[::2])
-        return self.interpolate(mesh_values, xquad).dot(wquad)
+        return self.interpolate(mesh_values, xquad)[:, 0].dot(wquad)
 
 
 class AbstractFunction(ABC):
@@ -286,7 +286,9 @@ class AbstractFunction(ABC):
         vals = self._eval(samples)
         if vals.ndim != 2:
             raise ValueError("Function must return a 2D np.ndarray")
-        return torch.tensor(vals, requires_grad=self._requires_grad)
+        if type(vals) == np.ndarray:
+            return torch.tensor(vals, requires_grad=self._requires_grad)
+        return vals.clone().detach().requires_grad_(True)
 
 
 class AbstractTransientFunction(AbstractFunction):
@@ -421,7 +423,6 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationResidual):
                  sol))
         residual += self._react_fun(sol)
         forc_vals = self._forc_fun(self.mesh.mesh_pts)[:, 0]
-        print(diff_vals, vel_vals, forc_vals)
         residual -= forc_vals
         return -residual
 

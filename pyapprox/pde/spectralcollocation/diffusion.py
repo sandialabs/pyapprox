@@ -446,7 +446,6 @@ class TransientAdvectionDiffusion(SteadyStateAdvectionDiffusion):
         else:
             raise Exception('incorrect timestepping method specified')
         self.apply_boundary_conditions_to_matrix(matrix)
-        print(matrix)
         return qr_factorization(matrix)
 
     def time_step(self, current_sol, time, sample):

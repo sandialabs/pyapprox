@@ -13,13 +13,23 @@ from pyapprox.pde.autopde.autopde import (
     TransientFunction, TransientPDE
 )
 
-def normal_flux(flux_funs, active_var, sign, xx):
+
+
+# Functions and testing only for wrapping Sympy generated manufactured
+# solutions
+def _normal_flux(flux_funs, active_var, sign, xx):
     vals = sign*flux_funs(xx)[:, active_var:active_var+1]
     return vals
 
 
-def robin_bndry_fun(sol_fun, flux_funs, active_var, sign, alpha, xx):
-    vals = alpha*sol_fun(xx) + normal_flux(flux_funs, active_var, sign, xx)
+def _robin_bndry_fun(sol_fun, flux_funs, active_var, sign, alpha, xx,
+                     time=None):
+    if time is not None:
+        if hasattr(sol_fun, "set_time"):
+            sol_fun.set_time(time)
+        if hasattr(flux_funs, "set_time"):
+            flux_funs.set_time(time)
+    vals = alpha*sol_fun(xx) + _normal_flux(flux_funs, active_var, sign, xx)
     return vals
 
 
@@ -51,7 +61,7 @@ class TestAutoPDE(unittest.TestCase):
                 else:
                     alpha = 0
                 bndry_conds.append(
-                    [partial(robin_bndry_fun, sol_fun, flux_funs, dd//2,
+                    [partial(_robin_bndry_fun, sol_fun, flux_funs, dd//2,
                              (-1)**(dd+1), alpha), "R", alpha])
 
         mesh = CartesianProductCollocationMesh(
@@ -85,11 +95,11 @@ class TestAutoPDE(unittest.TestCase):
         #         normals, np.array([[-1, 0], [1, 0], [0, -1], [0, 1]]))
         # else:
         #     assert np.allclose(normals, np.array([[-1], [1]]))
-        # normal_fluxes = solver.compute_bndry_fluxes(
+        # _normal_fluxes = solver.compute_bndry_fluxes(
         #     sol, np.arange(nphys_vars*2))
         # for ii, indices in enumerate(solver.mesh.boundary_indices):
         #     assert np.allclose(
-        #         np.array(normal_fluxes[ii]),
+        #         np.array(_normal_fluxes[ii]),
         #         flux_funs(solver.mesh.mesh_pts[:, indices],).dot(
         #             normals[ii]))
     
@@ -158,7 +168,7 @@ class TestAutoPDE(unittest.TestCase):
                 else:
                     alpha = 0
                 bndry_conds.append(
-                    [partial(robin_bndry_fun, sol_fun, flux_funs, dd//2,
+                    [partial(_robin_bndry_fun, sol_fun, flux_funs, dd//2,
                              (-1)**(dd+1), alpha), "R", alpha])
 
         mesh = CartesianProductCollocationMesh(
@@ -178,23 +188,9 @@ class TestAutoPDE(unittest.TestCase):
         for test_case in test_cases:
             self.check_helmholtz(*test_case)
 
-    def test_transient_pde(self):
-        (domain_bounds, orders, sol_string, diff_string, vel_strings,
-        react_fun, bndry_types) = [
-            [0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["0"],
-            lambda x: 0*x**2, ["D", "D"]]
-        mybndry_conds = [[lambda x: 0, "D"],
-                         [lambda x: 0, "D"]]
-        myforc_fun = lambda x, z, t: -2*(t + 1)**2 +x.T*0
-
-        # (domain_bounds, orders, sol_string, diff_string, vel_strings,
-        # react_fun, bndry_types) = [
-        #      [0, 1], [3], "(x-1)*x*(1+t)**2+x**2", "1", ["0"],
-        #     lambda x: 0*x**2, ["D", "D"]]
-        # mybndry_conds = [[lambda x: 0, "D"],
-        #                  [lambda x: 1, "D"]]
-        # myforc_fun = lambda x, z, t: -2*(t + 1)**2 - 2 +x.T*0
-        
+    def check_transient_pde(self, domain_bounds, orders, sol_string,
+                            diff_string, vel_strings, react_fun, bndry_types,
+                            tableau_name):
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_steady_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_fun, True))
@@ -203,6 +199,7 @@ class TestAutoPDE(unittest.TestCase):
         vel_fun = Function(vel_fun)
         forc_fun = TransientFunction(forc_fun, name='forcing')
         sol_fun = TransientFunction(sol_fun, name='sol')
+        flux_funs = TransientFunction(flux_funs, name='flux')
 
         nphys_vars = len(orders)
         bndry_conds = []
@@ -215,29 +212,12 @@ class TestAutoPDE(unittest.TestCase):
                 else:
                     alpha = 0
                 bndry_conds.append(
-                    [partial(robin_bndry_fun, sol_fun, flux_funs, dd//2,
-                             (-1)**(dd+1), alpha), "R", alpha])
+                    [TransientFunction(
+                        partial(_robin_bndry_fun, sol_fun, flux_funs, dd//2,
+                                (-1)**(dd+1), alpha)), "R", alpha])
 
         deltat = 0.1
-        final_time = 0.1
-        # tableau_name = "im_gauss4"
-        # tableau_name, mytableau_name = "im_crank2", "crank-nicholson"
-        tableau_name, mytableau_name = "im_beuler1", "backward-euler"
- 
-        sol_fun.set_time(0)
-        from pyapprox.pde.spectralcollocation.diffusion import (
-            TransientAdvectionDiffusionEquation1D)
-        mymodel = TransientAdvectionDiffusionEquation1D()
-        mymodel.initialize(
-            mybndry_conds, lambda x, z: diff_fun(x),
-            myforc_fun,
-            lambda x, z: 0*x.T, orders, domain_bounds, final_time, deltat,
-            lambda x: sol_fun(x).numpy(), mytableau_name)
-        mysample = np.ones((1), float)  # dummy argument for this example
-        mysols = mymodel.solve(mysample)
-        print("#####")
-        #assert False
-
+        final_time = deltat*5
         mesh = CartesianProductCollocationMesh(
             domain_bounds, orders, bndry_conds)
         solver = TransientPDE(
@@ -245,38 +225,34 @@ class TestAutoPDE(unittest.TestCase):
                 mesh, diff_fun, vel_fun, react_fun, forc_fun),
             deltat, tableau_name)
         sol_fun.set_time(0)
-        sols = solver.solve(sol_fun(mesh.mesh_pts), 0, final_time)
+        sols, times = solver.solve(sol_fun(mesh.mesh_pts), 0, final_time)
 
-        import matplotlib.pyplot as plt
-        ax = plt.subplots(1, 1)[1]
-        mesh.plot(sols[:, :1], nplot_pts_1d=50, ax=ax, label='init approx sol')
-        mesh.plot(
-            sols[:, -1:], nplot_pts_1d=50, ax=ax, label='final approx sol')
-        sol_fun.set_time(0)
-        mesh.plot(sol_fun(mesh.mesh_pts).numpy(), nplot_pts_1d=50, ax=ax,
-                  label="init sol", ls='--')
-        sol_fun.set_time(final_time)
-        mesh.plot(sol_fun(mesh.mesh_pts).numpy(), nplot_pts_1d=50, ax=ax,
-                  label='final sol', ls='--')
-        print(sol_fun(mesh.mesh_pts).numpy()[:, 0])
-        print(sols[:, -1])
-        print(mysols[:, -1])
-        print(mysols[:, -1]-sols[:, -1])
-        mesh.plot(
-            mysols[:, -1:], nplot_pts_1d=50, ax=ax, label='myapprox sol', ls=':')
-        # assert np.allclose(mysols[:, -1], sols[:, -1])
-        plt.legend()
-        # plt.show()
-
-        for ii, time in enumerate(model.times):
-            exact_sol_t = sol_fun(solver.mesh.mesh_pts, time)
+        for ii, time in enumerate(times):
+            sol_fun.set_time(time)
+            exact_sol_t = sol_fun(solver.residual.mesh.mesh_pts).numpy()
             model_sol_t = sols[:, ii:ii+1]
             L2_error = np.sqrt(
-                solver.mesh.integrate((exact_sol_t-model_sol_t)**2))
+                solver.residual.mesh.integrate((exact_sol_t-model_sol_t)**2))
             factor = np.sqrt(
-                model.mesh.integrate(exact_sol_t**2))
-            # print(time, L2_error, 1e-3*factor)
-            assert L2_error < 1e-4*factor  # crank-nicholson
+                solver.residual.mesh.integrate(exact_sol_t**2))
+            # print(time, L2_error, 1e-8*factor)
+            assert L2_error < 1e-8*factor
+
+
+    def test_transient_pde(self):
+        test_cases = [
+            [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["0"],
+             lambda x: 0*x**2, ["D", "D"], "im_crank2"],
+            [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
+             lambda x: 1*x**2, ["D", "D"], "im_crank2"],
+            [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
+             lambda x: 1*x**2, ["N", "D"], "im_crank2"],
+            [[0, 1, 0, 1], [3, 3], "(x-1)*x*(1+t)**2*y**2", "1", ["1", "1"],
+             lambda x: 1*x**2, ["D", "N", "R", "D"], "im_crank2"]
+        ]
+        for test_case in test_cases:
+            self.check_transient_pde(*test_case)
+        
 
 if __name__ == "__main__":
     autopde_test_suite = \

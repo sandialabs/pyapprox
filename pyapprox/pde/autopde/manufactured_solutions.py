@@ -29,6 +29,14 @@ def _evaluate_list_of_sp_lambda(sp_lambdas, xx, as_list=False):
         return vals
     return np.hstack(vals)
 
+def _evaluate_list_of_transient_sp_lambda(sp_lambdas, xx, time, as_list=False):
+    # sp_lambda returns list of values from multiple functions
+    vals = [_evaluate_transient_sp_lambda(sp_lambda, xx, time)
+            for sp_lambda in sp_lambdas]
+    if as_list:
+        return vals
+    return np.hstack(vals)
+
 
 def setup_steady_advection_diffusion_reaction_manufactured_solution(
         sol_string, diff_string, vel_strings, react_fun, transient=False):
@@ -65,6 +73,9 @@ def setup_steady_advection_diffusion_reaction_manufactured_solution(
     reaction_expr = react_fun(sol_expr)
 
     forc_expr = -diffusion_expr+advection_expr+reaction_expr
+    if transient:
+        forc_expr += sol_expr.diff(all_symbs[-1], 1)
+    
     forc_lambda = sp.lambdify(all_symbs, forc_expr, "numpy")
     if transient:
         forc_fun = partial(_evaluate_transient_sp_lambda, forc_lambda)
@@ -73,8 +84,12 @@ def setup_steady_advection_diffusion_reaction_manufactured_solution(
 
     flux_exprs = [diff_expr*sol_expr.diff(symb, 1) for symb in symbs]
     flux_lambdas = [
-        sp.lambdify(symbs, flux_expr, "numpy") for flux_expr in flux_exprs]
-    flux_funs = partial(_evaluate_list_of_sp_lambda, flux_lambdas)
+        sp.lambdify(all_symbs, flux_expr, "numpy") for flux_expr in flux_exprs]
+    if transient:
+        flux_funs = partial(
+            _evaluate_list_of_transient_sp_lambda, flux_lambdas)
+    else:
+        flux_funs = partial(_evaluate_list_of_sp_lambda, flux_lambdas)
 
     print("solu", sol_expr)
     print("diff", diff_expr)
