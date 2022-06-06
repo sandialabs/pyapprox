@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from functools import partial
 
-from pyapprox.util.utilities import cartesian_product
+from pyapprox.util.utilities import cartesian_product, outer_product
 from pyapprox.variables.transforms import _map_hypercube_samples
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.surrogates.interp.barycentric_interpolation import (
@@ -260,6 +260,17 @@ class CartesianProductCollocationMesh():
             self._apply_neumann_and_robin_boundary_conditions_to_residual(
                 residual, sol))
         return residual
+
+    def integrate(self, mesh_values):
+        quad_rules = [
+            gauss_jacobi_pts_wts_1D(o+2, 0, 0) for o in range(self.nphys_vars)]
+        canonical_xquad = cartesian_product([q[0] for q in quad_rules])
+        canonical_wquad = outer_product([q[1] for q in quad_rules])
+        xquad = self._map_samples_from_canonical_domain(
+            cartesian_product(canonical_xquad))
+        wquad = canonical_wquad/np.prod(
+            self._domain_bounds[1::2]-self._domain_bounds[::2])
+        return self.interpolate(mesh_values, xquad).dot(wquad)
 
 
 class AbstractFunction(ABC):

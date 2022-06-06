@@ -268,6 +268,16 @@ class TestAutoPDE(unittest.TestCase):
         plt.legend()
         # plt.show()
 
+        for ii, time in enumerate(model.times):
+            exact_sol_t = sol_fun(solver.mesh.mesh_pts, time)
+            model_sol_t = sols[:, ii:ii+1]
+            L2_error = np.sqrt(
+                solver.mesh.integrate((exact_sol_t-model_sol_t)**2))
+            factor = np.sqrt(
+                model.mesh.integrate(exact_sol_t**2))
+            # print(time, L2_error, 1e-3*factor)
+            assert L2_error < 1e-4*factor  # crank-nicholson
+
 if __name__ == "__main__":
     autopde_test_suite = \
         unittest.TestLoader().loadTestsFromTestCase(TestAutoPDE)
