@@ -102,6 +102,13 @@ def div(deriv_mats, quantities):
     return vals
 
 
+def dot(quantities1, quantities2):
+    vals = 0
+    assert quantities1.shape[1] == quantities2.shape[1]
+    vals = torch.sum(quantities1*quantities2, dim=1)
+    return vals
+
+
 class CartesianProductCollocationMesh():
     def __init__(self, domain_bounds, orders, bndry_conds):
 
@@ -314,6 +321,9 @@ class CartesianProductCollocationMesh():
 
     def div(self, quantities):
         return div(self._deriv_mats, quantities)
+
+    def dot(self, quantities1, quantities2):
+        return dot(quantities1, quantities2)
 
 
 class AbstractFunction(ABC):
@@ -548,6 +558,8 @@ class VectorMesh():
         return Z
 
     def plot(self, sol_vals, nplot_pts_1d=50, axs=None):
+        if self._meshes[0].nphys_vars != 2:
+            return
         from pyapprox.util.visualization import get_meshgrid_samples
         if axs is None:
             fig, axs = plt.subplots(1, 3, figsize=(8*3, 6))
@@ -654,18 +666,19 @@ class InteriorCartesianProductCollocationMesh(CartesianProductCollocationMesh):
         return div(self._get_deriv_mats(quantities), quantities)
 
 
-
-class LinearStokes(AbstractSpectralCollocationResidual):
+class NavierStokes(AbstractSpectralCollocationResidual):
     def __init__(self, mesh, vel_forc_fun, pres_forc_fun,
                  unique_pres_data=(0, 1)):
         super().__init__(mesh)
 
+        self._navier_stokes = True
         self._vel_forc_fun = vel_forc_fun
         self._pres_forc_fun = pres_forc_fun
         self._unique_pres_data = unique_pres_data
 
     def _raw_residual(self, sol):
         split_sols = self.mesh.split_quantities(sol)
+        vel_sols = torch.hstack([s[:, None] for s in split_sols[:-1]])
         vel_forc_vals = self._vel_forc_fun(self.mesh._meshes[0].mesh_pts)
         residual = [None for ii in range(len(split_sols))]
         for dd in range(self.mesh.nphys_vars):
@@ -673,11 +686,21 @@ class LinearStokes(AbstractSpectralCollocationResidual):
                 -self.mesh._meshes[dd].laplace(split_sols[dd]) +
                 self.mesh._meshes[-1].partial_deriv(split_sols[-1], dd))
             residual[dd] -= vel_forc_vals[:, dd]
+            if self._navier_stokes:
+                residual[dd] += self.mesh._meshes[0].dot(
+                    vel_sols, self.mesh._meshes[dd].grad(split_sols[dd]))
         nvel_unknowns = self.mesh._meshes[0].nunknowns
-        vel_sols = torch.hstack([s[:, None] for s in split_sols[:-1]])
         residual[-1] = (
             self.mesh._meshes[-1].div(vel_sols) -
             self._pres_forc_fun(self.mesh._meshes[-1].mesh_pts)[:, 0])
         residual[-1][self._unique_pres_data[0]] = (
             split_sols[-1][self._unique_pres_data[0]]-self._unique_pres_data[1])
         return torch.cat(residual)
+
+
+class LinearStokes(NavierStokes):
+    def __init__(self, mesh, vel_forc_fun, pres_forc_fun,
+                 unique_pres_data=(0, 1)):
+        super().__init__(mesh, vel_forc_fun, pres_forc_fun,
+                         unique_pres_data)
+        self._navier_stokes = False

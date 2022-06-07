@@ -124,7 +124,7 @@ def setup_helmholtz_manufactured_solution(sol_string, wnum_string, nphys_vars):
 
 
 def setup_steady_stokes_manufactured_solution(
-        velocity_strings, pres_string):
+        velocity_strings, pres_string, navier_stokes=False):
     nphys_vars = len(velocity_strings)
     sp_x, sp_y = sp.symbols(['x', 'y'])
     symbs = (sp_x, sp_y)[:nphys_vars]
@@ -142,6 +142,9 @@ def setup_steady_stokes_manufactured_solution(
         vel_forc_expr.append(
             sum([-vel.diff(s2, 2) for s2 in symbs]) +
             pres_expr.diff(s1, 1))
+        if navier_stokes:
+            vel_forc_expr[-1] += sum(
+                [u*vel.diff(s2, 1) for u, s2 in zip(vel_expr, symbs)])
     vel_forc_lambda = [sp.lambdify(symbs, f, "numpy") for f in vel_forc_expr]
     vel_forc_fun = partial(
         _evaluate_list_of_sp_lambda, vel_forc_lambda, as_list=False)

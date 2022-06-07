@@ -11,7 +11,7 @@ from pyapprox.pde.autopde.manufactured_solutions import (
 from pyapprox.pde.autopde.autopde import (
     CartesianProductCollocationMesh, AdvectionDiffusionReaction,
     Function, EulerBernoulliBeam, Helmholtz, SteadyStateLinearPDE,
-    TransientFunction, TransientPDE, LinearStokes,
+    TransientFunction, TransientPDE, LinearStokes, NavierStokes,
     InteriorCartesianProductCollocationMesh, VectorMesh
 )
 
@@ -257,10 +257,11 @@ class TestAutoPDE(unittest.TestCase):
             self.check_transient_advection_diffusion_reaction(*test_case)
 
     def check_stokes_mms(
-            self, domain_bounds, orders, vel_strings, pres_string, bndry_types):
+            self, domain_bounds, orders, vel_strings, pres_string, bndry_types,
+            navier_stokes):
         vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, pres_grad_fun = (
             setup_steady_stokes_manufactured_solution(
-                vel_strings, pres_string))
+                vel_strings, pres_string, navier_stokes))
 
         vel_fun = Function(vel_fun)
         pres_fun = Function(pres_fun)
@@ -288,7 +289,11 @@ class TestAutoPDE(unittest.TestCase):
         mesh = VectorMesh(vel_meshes + [pres_mesh])
         pres_idx = 0
         pres_val = pres_fun(pres_mesh.mesh_pts[:, pres_idx:pres_idx+1])
-        solver = SteadyStateLinearPDE(LinearStokes(
+        if not navier_stokes:
+            Residual = LinearStokes
+        else:
+            Residual = NavierStokes
+        solver = SteadyStateLinearPDE(Residual(
             mesh, vel_forc_fun, pres_forc_fun, (pres_idx, pres_val)))
         sol = solver.solve()
 
@@ -301,30 +306,37 @@ class TestAutoPDE(unittest.TestCase):
         fig, axs = plt.subplots(1, 3, figsize=(8*3, 6))
         # plt_objs = mesh.plot(
         #     [v[:, None] for v in exact_vel_vals.T]+[exact_pres_vals])
-        plt_objs = mesh.plot(split_sols, axs=axs)
-        for ax, obj in zip(axs, plt_objs):
-            plt.colorbar(obj, ax=ax)
-        # plt.show()
+        # plt_objs = mesh.plot(split_sols, axs=axs)
+        exact_sols = [v[:, None] for v in exact_vel_vals.T]+[exact_pres_vals]
+        # plt_objs = mesh.plot(
+        #     [v-u for v, u in zip(exact_sols, split_sols)])
+        # for ax, obj in zip(axs, plt_objs):
+        #     plt.colorbar(obj, ax=ax)
+        #     plt.show()
 
         # check value used to enforce unique pressure is found correctly
         assert np.allclose(
             split_sols[-1][pres_idx], pres_val)
 
         for exact_v, v in zip(exact_vel_vals.T, split_sols[:-1]):
-            # print(exact_v-v[:, 0])
+            print(exact_v-v[:, 0])
             assert np.allclose(exact_v, v[:, 0])
         print(np.absolute(exact_pres_vals-split_sols[-1]).max())
         assert np.allclose(exact_pres_vals, split_sols[-1], atol=5e-8)
 
     def test_stokes_mms(self):
         test_cases = [
-            # [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "D"]],
-            [[0, 1, 0, 1], [20, 20],
-             ["-cos(pi*x)*sin(pi*y)", "sin(pi*x)*cos(pi*y)"], "x**3*y**3",
-             ["D", "D", "D", "D"]],
-            [[0, 1, 0, 1], [6, 7],
+            # [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "D"], False],
+            # [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "D"], True],
+            # [[0, 1, 0, 1], [20, 20],
+            #  ["-cos(pi*x)*sin(pi*y)", "sin(pi*x)*cos(pi*y)"], "x**3*y**3",
+            #  ["D", "D", "D", "D"], False],
+            # [[0, 1, 0, 1], [6, 7],
+            #  ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
+            #  ["D", "D", "D", "D"], False],
+            [[0, 1, 0, 1], [12, 12],
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
-             ["D", "D", "D", "D"]]
+             ["D", "D", "D", "D"], True]
         ]
         for test_case in test_cases:
             self.check_stokes_mms(*test_case)
