@@ -208,12 +208,12 @@ class StokesFlowModel(AbstractSpectralPDE):
         matrix[self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1]+pres[0], :] = 0
         matrix[self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1]+pres[0],
                self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1]+pres[0]] = 1
-        rhs[self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1]+pres[0], 0] = pres[1]
-        
+        rhs[self._mesh.nphys_vars*self._mesh.mesh_pts.shape[1]+pres[0], 0] = pres[1]       
         solution = np.linalg.solve(matrix, rhs)
         split_solutions = self._split_quantities(solution)
         self._matrix = matrix
         self._rhs = rhs
+
         return split_solutions
 
     def _split_quantities(self, vector):

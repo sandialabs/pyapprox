@@ -1,14 +1,14 @@
 import torch
 
-def newton_solve(residual_fun, initial_guess, tol=1e-8, maxiters=10,
+def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=2,
                  verbosity=0):
-    if not initial_guess.requires_grad:
-        raise ValueError("initial_guess must have requires_grad=True")
+    if not init_guess.requires_grad:
+        raise ValueError("init_guess must have requires_grad=True")
 
-    if not initial_guess.ndim == 1:
-        raise ValueError("initial_guess must be 1D tensor so AD can be used")
+    if not init_guess.ndim == 1:
+        raise ValueError("init_guess must be 1D tensor so AD can be used")
 
-    sol = initial_guess
+    sol = init_guess.clone()
     residual_norms = []
     it = 0
     while True:

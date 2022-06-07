@@ -38,7 +38,7 @@ def _evaluate_list_of_transient_sp_lambda(sp_lambdas, xx, time, as_list=False):
     return np.hstack(vals)
 
 
-def setup_steady_advection_diffusion_reaction_manufactured_solution(
+def setup_advection_diffusion_reaction_manufactured_solution(
         sol_string, diff_string, vel_strings, react_fun, transient=False):
     nphys_vars = len(vel_strings)
     sp_x, sp_y = sp.symbols(['x', 'y'])
@@ -135,20 +135,24 @@ def setup_steady_stokes_manufactured_solution(
 
     vel_expr = [sp.sympify(s) for s in velocity_strings]
     vel_lambda = [sp.lambdify(symbs, vel, "numpy") for vel in vel_expr]
-    vel_fun = partial(_evaluate_list_of_sp_lambda, vel_lambda, as_list=True)
+    vel_fun = partial(_evaluate_list_of_sp_lambda, vel_lambda, as_list=False)
 
-    forc_expr = []
+    vel_forc_expr = []
     for vel, s1 in zip(vel_expr, symbs):
-        forc_expr.append(
+        vel_forc_expr.append(
             sum([-vel.diff(s2, 2) for s2 in symbs]) +
             pres_expr.diff(s1, 1))
-    forc_expr.append(sum([vel.diff(s, 1) for vel, s in zip(vel_expr, symbs)]))
-    forc_lambda = [sp.lambdify(symbs, f, "numpy") for f in forc_expr]
-    forc_fun = partial(_evaluate_list_of_sp_lambda, forc_lambda, as_list=True)
+    vel_forc_lambda = [sp.lambdify(symbs, f, "numpy") for f in vel_forc_expr]
+    vel_forc_fun = partial(
+        _evaluate_list_of_sp_lambda, vel_forc_lambda, as_list=False)
+    pres_forc_expr = sum([vel.diff(s, 1) for vel, s in zip(vel_expr, symbs)])
+    pres_forc_lambda = sp.lambdify(symbs, pres_forc_expr, "numpy")
+    pres_forc_fun = partial(_evaluate_sp_lambda, pres_forc_lambda)
 
     pres_grad_expr = [pres_expr.diff(s, 1) for s in symbs]
-    pres_grad_lambda = [sp.lambdify(symbs, pg, "numpy") for pg in pres_grad_expr]
+    pres_grad_lambda = [
+        sp.lambdify(symbs, pg, "numpy") for pg in pres_grad_expr]
     pres_grad_fun = partial(
         _evaluate_list_of_sp_lambda, pres_grad_lambda, as_list=True)
 
-    return vel_fun, pres_fun, forc_fun, pres_grad_fun
+    return vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, pres_grad_fun

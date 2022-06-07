@@ -4,15 +4,16 @@ import numpy as np
 from functools import partial
 
 from pyapprox.pde.autopde.manufactured_solutions import (
-    setup_steady_advection_diffusion_reaction_manufactured_solution,
-    setup_helmholtz_manufactured_solution
+    setup_advection_diffusion_reaction_manufactured_solution,
+    setup_helmholtz_manufactured_solution,
+    setup_steady_stokes_manufactured_solution
 )
 from pyapprox.pde.autopde.autopde import (
     CartesianProductCollocationMesh, AdvectionDiffusionReaction,
     Function, EulerBernoulliBeam, Helmholtz, SteadyStateLinearPDE,
-    TransientFunction, TransientPDE
+    TransientFunction, TransientPDE, LinearStokes,
+    InteriorCartesianProductCollocationMesh, VectorMesh
 )
-
 
 
 # Functions and testing only for wrapping Sympy generated manufactured
@@ -33,6 +34,27 @@ def _robin_bndry_fun(sol_fun, flux_funs, active_var, sign, alpha, xx,
     return vals
 
 
+def _get_boundary_funs(nphys_vars, bndry_types, sol_fun, flux_funs):
+    bndry_conds = []
+    for dd in range(2*nphys_vars):
+        if bndry_types[dd] == "D":
+            bndry_conds.append([sol_fun, "D"])
+        else:
+            if bndry_types[dd] == "R":
+                # an arbitray non-zero value just chosen to test use of
+                # Robin BCs
+                alpha = 1
+            else:
+                # Zero to reduce Robin BC to Neumann
+                alpha = 0
+            bndry_fun = partial(_robin_bndry_fun, sol_fun, flux_funs, dd//2,
+                                (-1)**(dd+1), alpha)
+            if hasattr(sol_fun, "set_time") or hasattr(flux_funs, "set_time"):
+                bndry_fun = TransientFunction(bndry_fun)
+            bndry_conds.append([bndry_fun, "R", alpha])
+    return bndry_conds
+
+
 class TestAutoPDE(unittest.TestCase):
     def setUp(self):
       torch.manual_seed(1)
@@ -42,7 +64,7 @@ class TestAutoPDE(unittest.TestCase):
             self, domain_bounds, orders, sol_string, diff_string, vel_strings,
             react_fun, bndry_types):
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
-            setup_steady_advection_diffusion_reaction_manufactured_solution(
+            setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_fun))
 
         diff_fun = Function(diff_fun)
@@ -51,18 +73,8 @@ class TestAutoPDE(unittest.TestCase):
         sol_fun = Function(sol_fun)
 
         nphys_vars = len(orders)
-        bndry_conds = []
-        for dd in range(2*nphys_vars):
-            if bndry_types[dd] == "D":
-                bndry_conds.append([sol_fun, "D"])
-            else:
-                if bndry_types[dd] == "R":
-                    alpha = 1
-                else:
-                    alpha = 0
-                bndry_conds.append(
-                    [partial(_robin_bndry_fun, sol_fun, flux_funs, dd//2,
-                             (-1)**(dd+1), alpha), "R", alpha])
+        bndry_conds = _get_boundary_funs(
+            nphys_vars, bndry_types, sol_fun, flux_funs)
 
         mesh = CartesianProductCollocationMesh(
             domain_bounds, orders, bndry_conds)
@@ -88,7 +100,7 @@ class TestAutoPDE(unittest.TestCase):
         assert np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol) < 1e-9
 
-        
+
         # normals = solver.mesh._get_bndry_normals(np.arange(nphys_vars*2))
         # if nphys_vars == 2:
         #     assert np.allclose(
@@ -102,7 +114,7 @@ class TestAutoPDE(unittest.TestCase):
         #         np.array(_normal_fluxes[ii]),
         #         flux_funs(solver.mesh.mesh_pts[:, indices],).dot(
         #             normals[ii]))
-    
+
     def test_advection_diffusion_reaction(self):
         test_cases = [
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"], lambda x: 0*x**2,
@@ -129,7 +141,7 @@ class TestAutoPDE(unittest.TestCase):
         # end of the domain. This cannot be done with usual boundary condition
         # functions and msut be imposed on the residual exactly
         domain_bounds, orders, bndry_conds = [0, 1], [4], [None]*2
-        emod_val, smom_val, forcing_val = 1., 1., -2. 
+        emod_val, smom_val, forcing_val = 1., 1., -2.
         mesh = CartesianProductCollocationMesh(
             domain_bounds, orders, bndry_conds)
         solver = SteadyStateLinearPDE(EulerBernoulliBeam(
@@ -158,18 +170,8 @@ class TestAutoPDE(unittest.TestCase):
         sol_fun = Function(sol_fun)
 
         nphys_vars = len(orders)
-        bndry_conds = []
-        for dd in range(2*nphys_vars):
-            if bndry_types[dd] == "D":
-                bndry_conds.append([sol_fun, "D"])
-            else:
-                if bndry_types[dd] == "R":
-                    alpha = 1
-                else:
-                    alpha = 0
-                bndry_conds.append(
-                    [partial(_robin_bndry_fun, sol_fun, flux_funs, dd//2,
-                             (-1)**(dd+1), alpha), "R", alpha])
+        bndry_conds = _get_boundary_funs(
+            nphys_vars, bndry_types, sol_fun, flux_funs)
 
         mesh = CartesianProductCollocationMesh(
             domain_bounds, orders, bndry_conds)
@@ -188,11 +190,12 @@ class TestAutoPDE(unittest.TestCase):
         for test_case in test_cases:
             self.check_helmholtz(*test_case)
 
-    def check_transient_pde(self, domain_bounds, orders, sol_string,
-                            diff_string, vel_strings, react_fun, bndry_types,
-                            tableau_name):
+    def check_transient_advection_diffusion_reaction(
+            self, domain_bounds, orders, sol_string,
+            diff_string, vel_strings, react_fun, bndry_types,
+            tableau_name):
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
-            setup_steady_advection_diffusion_reaction_manufactured_solution(
+            setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_fun, True))
 
         diff_fun = Function(diff_fun)
@@ -239,20 +242,93 @@ class TestAutoPDE(unittest.TestCase):
             assert L2_error < 1e-8*factor
 
 
-    def test_transient_pde(self):
+    def test_transient_advection_diffusion_reaction(self):
         test_cases = [
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["0"],
-             lambda x: 0*x**2, ["D", "D"], "im_crank2"],
+              lambda x: 0*x**2, ["D", "D"], "im_crank2"],
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
-             lambda x: 1*x**2, ["D", "D"], "im_crank2"],
+            lambda x: 1*x**2, ["D", "D"], "im_crank2"],
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
              lambda x: 1*x**2, ["N", "D"], "im_crank2"],
             [[0, 1, 0, 1], [3, 3], "(x-1)*x*(1+t)**2*y**2", "1", ["1", "1"],
              lambda x: 1*x**2, ["D", "N", "R", "D"], "im_crank2"]
         ]
         for test_case in test_cases:
-            self.check_transient_pde(*test_case)
+            self.check_transient_advection_diffusion_reaction(*test_case)
+
+    def check_stokes_mms(
+            self, domain_bounds, orders, vel_strings, pres_string, bndry_types):
+        vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, pres_grad_fun = (
+            setup_steady_stokes_manufactured_solution(
+                vel_strings, pres_string))
+
+        vel_fun = Function(vel_fun)
+        pres_fun = Function(pres_fun)
+        vel_forc_fun = Function(vel_forc_fun)
+        pres_forc_fun = Function(pres_forc_fun)
+        pres_grad_fun = Function(pres_grad_fun)
+
+        # TODO Curently not test stokes with Neumann Boundary conditions
+        def vel_component_fun(ii, x):
+            vals = vel_fun(x)
+            return vals[:, ii:ii+1]
         
+        flux_funs = None
+        nphys_vars = len(orders)
+        vel_bndry_conds = [
+            _get_boundary_funs(
+                nphys_vars, bndry_types, partial(vel_component_fun, ii),
+                flux_funs) for ii in range(nphys_vars)]
+
+        vel_meshes = [CartesianProductCollocationMesh(
+            domain_bounds, orders, vel_bndry_conds[ii])
+                      for ii in range(nphys_vars)]
+        pres_mesh = InteriorCartesianProductCollocationMesh(
+            domain_bounds, orders)
+        mesh = VectorMesh(vel_meshes + [pres_mesh])
+        pres_idx = 0
+        pres_val = pres_fun(pres_mesh.mesh_pts[:, pres_idx:pres_idx+1])
+        solver = SteadyStateLinearPDE(LinearStokes(
+            mesh, vel_forc_fun, pres_forc_fun, (pres_idx, pres_val)))
+        sol = solver.solve()
+
+        exact_vel_vals = vel_fun(vel_meshes[0].mesh_pts).numpy()
+        exact_pres_vals = pres_fun(pres_mesh.mesh_pts).numpy()
+
+        split_sols = mesh.split_quantities(sol)
+
+        import matplotlib.pyplot as plt
+        fig, axs = plt.subplots(1, 3, figsize=(8*3, 6))
+        # plt_objs = mesh.plot(
+        #     [v[:, None] for v in exact_vel_vals.T]+[exact_pres_vals])
+        plt_objs = mesh.plot(split_sols, axs=axs)
+        for ax, obj in zip(axs, plt_objs):
+            plt.colorbar(obj, ax=ax)
+        # plt.show()
+
+        # check value used to enforce unique pressure is found correctly
+        assert np.allclose(
+            split_sols[-1][pres_idx], pres_val)
+
+        for exact_v, v in zip(exact_vel_vals.T, split_sols[:-1]):
+            # print(exact_v-v[:, 0])
+            assert np.allclose(exact_v, v[:, 0])
+        print(np.absolute(exact_pres_vals-split_sols[-1]).max())
+        assert np.allclose(exact_pres_vals, split_sols[-1], atol=5e-8)
+
+    def test_stokes_mms(self):
+        test_cases = [
+            # [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "D"]],
+            [[0, 1, 0, 1], [20, 20],
+             ["-cos(pi*x)*sin(pi*y)", "sin(pi*x)*cos(pi*y)"], "x**3*y**3",
+             ["D", "D", "D", "D"]],
+            [[0, 1, 0, 1], [6, 7],
+             ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
+             ["D", "D", "D", "D"]]
+        ]
+        for test_case in test_cases:
+            self.check_stokes_mms(*test_case)
+
 
 if __name__ == "__main__":
     autopde_test_suite = \
