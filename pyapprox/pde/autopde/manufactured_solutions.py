@@ -265,31 +265,36 @@ def setup_shallow_shelf_manufactured_solution(
 
     C = 2*visc_expr*depth_expr
 
-    forc_expr = [0 for ii in range(nphys_vars)]
+    vel_forc_expr = [0 for ii in range(nphys_vars)]
     if nphys_vars == 1:
-        forc_expr[0] = -(C*2*vx[0]).diff(symbs[0], 1)
+        vel_forc_expr[0] = -(C*2*vx[0]).diff(symbs[0], 1)
     else:
-        forc_expr[0] = -(
+        vel_forc_expr[0] = -(
             (C*(2*vx[0]+vx[1])).diff(symbs[0], 1) +
             (C*(wx[0]+wx[1])/2).diff(symbs[1], 1))
-        forc_expr[1] = -(
+        vel_forc_expr[1] = -(
             (C*(wx[0]+wx[1])/2).diff(symbs[0], 1) +
             (C*(vx[0]+2*vx[1])).diff(symbs[1], 1))
 
     for ii in range(nphys_vars):
-        forc_expr[ii] += beta_expr*vel_expr[ii]
-        forc_expr[ii] += rho*g*depth_expr*(bed_expr+depth_expr).diff(
+        vel_forc_expr[ii] += beta_expr*vel_expr[ii]
+        vel_forc_expr[ii] += rho*g*depth_expr*(bed_expr+depth_expr).diff(
             symbs[ii], 1)
 
-    forc_lambda = [
-        sp.lambdify(symbs, f, "numpy") for f in forc_expr]
-    forc_fun = partial(
-        eval_list_of_sp_lambda, forc_lambda, as_list=False)
+    vel_forc_lambda = [
+        sp.lambdify(symbs, f, "numpy") for f in vel_forc_expr]
+    vel_forc_fun = partial(
+        eval_list_of_sp_lambda, vel_forc_lambda, as_list=False)
+
+    depth_forc_expr = sum(
+        [(v*depth_expr).diff(symb, 1) for v, symb in zip(vel_expr, symbs)])
+    depth_forc_fun = partial(
+        eval_sp_lambda, sp.lambdify(symbs, depth_forc_expr, "numpy"))
 
     print('H', depth_expr)
     print('v', vel_expr)
-    print('F', forc_expr)
+    print('F', vel_forc_expr)
     print('bed', bed_expr)
     print('beta', beta_expr)
 
-    return depth_fun, vel_fun, forc_fun, bed_fun, beta_fun
+    return depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun, depth_forc_fun

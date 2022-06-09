@@ -15,7 +15,7 @@ from pyapprox.pde.autopde.autopde import (
     Function, EulerBernoulliBeam, Helmholtz,
     TransientFunction, TransientPDE, LinearStokes, NavierStokes,
     InteriorCartesianProductCollocationMesh, VectorMesh,
-    SteadyStatePDE, ShallowWater, ShallowShelf
+    SteadyStatePDE, ShallowWater, ShallowShelfVelocities, ShallowShelf
 )
 
 
@@ -516,18 +516,19 @@ class TestAutoPDE(unittest.TestCase):
 
     def check_shallow_shelf_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,
-            beta_string, bndry_types):
+            beta_string, bndry_types, velocities_only):
         A, rho = 1, 1
         nphys_vars = len(vel_strings)
-        depth_fun, vel_fun, forc_fun, bed_fun, beta_fun = (
+        depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun, depth_forc_fun = (
             setup_shallow_shelf_manufactured_solution(
                 depth_string, vel_strings, bed_string, beta_string, A, rho))
 
         bed_fun = Function(bed_fun)
         beta_fun = Function(beta_fun)
         depth_fun = Function(depth_fun)
+        depth_forc_fun = Function(depth_forc_fun)
 
-        forc_fun = Function(forc_fun)
+        vel_forc_fun = Function(vel_forc_fun)
         vel_fun = Function(vel_fun)
  
         # TODO test neumann boundary conditions so need flux funs
@@ -537,16 +538,32 @@ class TestAutoPDE(unittest.TestCase):
             nphys_vars, bndry_types,
             partial(_vel_component_fun, vel_fun, ii),
             flux_funs) for ii in range(nphys_vars)]
+        depth_bndry_conds = _get_boundary_funs(
+            nphys_vars, bndry_types, depth_fun, flux_funs)
 
         vel_meshes = [CartesianProductCollocationMesh(
             domain_bounds, orders, vel_bndry_conds[ii])
                       for ii in range(nphys_vars)]
-        mesh = VectorMesh(vel_meshes)
+        depth_mesh = CartesianProductCollocationMesh(
+            domain_bounds, orders, depth_bndry_conds)
+        if velocities_only:
+            mesh = VectorMesh(vel_meshes)
+        else:
+            mesh = VectorMesh(vel_meshes+[depth_mesh])
 
-        solver = SteadyStatePDE(
-            ShallowShelf(mesh, forc_fun, bed_fun, beta_fun, depth_fun, A, rho))
-        exact_vel_vals = [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]
-        init_guess = torch.cat(exact_vel_vals)
+        exact_vel_vals = [
+            v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]
+        exact_depth_vals = depth_fun(vel_meshes[0].mesh_pts)
+        if velocities_only:
+            solver = SteadyStatePDE(
+                ShallowShelfVelocities(mesh, vel_forc_fun, bed_fun, beta_fun,
+                                       depth_fun, A, rho))
+            init_guess = torch.cat(exact_vel_vals)
+        else:
+             solver = SteadyStatePDE(
+                ShallowShelf(mesh, vel_forc_fun, bed_fun, beta_fun,
+                             depth_forc_fun, A, rho))
+             init_guess = torch.cat(exact_vel_vals+[exact_depth_vals])
 
         # print(init_guess, 'i')
         res_vals = solver.residual._raw_residual(init_guess.squeeze())
@@ -559,14 +576,21 @@ class TestAutoPDE(unittest.TestCase):
         for exact_v, v in zip(exact_vel_vals, split_sols):
             # print(exact_v[:, 0]-v[:, 0])
             assert np.allclose(exact_v[:, 0], v[:, 0])
+        if not velocities_only:
+            assert np.allclose(exact_depth_vals, split_sols[-1])
 
 
     def test_shallow_shelf_mms(self):
         # Avoid velocity=0 in any part of the domain
         test_cases = [
-            [[0, 1], [9], ["(x+2)**2"], "1+x**2", "-x**2", "1", ["D", "D"]],
+            [[0, 1], [9], ["(x+2)**2"], "1+x**2", "-x**2", "1",
+             ["D", "D"], True],
+            [[0, 1], [9], ["(x+2)**2"], "1+x**2", "-x**2", "1",
+             ["D", "D"], False],
             [[0, 1, 0, 1], [10, 10], ["(x+1)**2", "(y+1)**2"], "1+x+y",
-             "1+x+y**2", "1", ["D", "D", "D", "D"]]
+             "1+x+y**2", "1", ["D", "D", "D", "D"], True],
+            #[[0, 1, 0, 1], [10, 10], ["(x+1)**2", "(y+1)**2"], "1+x+y",
+            # "1+x+y**2", "1", ["D", "D", "D", "D"], False]
         ]
         for test_case in test_cases:
             self.check_shallow_shelf_mms(*test_case)
