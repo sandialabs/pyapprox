@@ -222,5 +222,74 @@ def setup_shallow_wave_equations_manufactured_solution(
     print('v', vel_expr)
     print('fh', depth_forc_expr)
     print('fv', vel_forc_expr)
-    
+
     return depth_fun, vel_fun, depth_forc_fun, vel_forc_fun, bed_fun
+
+
+def setup_shallow_shelf_manufactured_solution(
+        depth_string, vel_strings, bed_string, beta_string, A, rho):
+
+    g, n = 9.81, 3
+
+    nphys_vars = len(vel_strings)
+    sp_x, sp_y = sp.symbols(['x', 'y'])
+    symbs = (sp_x, sp_y)[:nphys_vars]
+    eval_sp_lambda = _evaluate_sp_lambda
+    eval_list_of_sp_lambda = _evaluate_list_of_sp_lambda
+
+    vel_expr = [sp.sympify(s) for s in vel_strings]
+    vel_lambda = [sp.lambdify(symbs, vel, "numpy") for vel in vel_expr]
+    vel_fun = partial(
+        eval_list_of_sp_lambda, vel_lambda, as_list=False)
+
+    depth_expr = sp.sympify(depth_string)
+    depth_lambda = sp.lambdify(symbs, depth_expr, "numpy")
+    depth_fun = partial(eval_sp_lambda, depth_lambda)
+
+    beta_expr = sp.sympify(beta_string)
+    beta_lambda = sp.lambdify(symbs, beta_expr, "numpy")
+    beta_fun = partial(eval_sp_lambda, beta_lambda)
+
+    bed_expr = sp.sympify(bed_string)
+    bed_lambda = sp.lambdify(symbs, bed_expr, "numpy")
+    bed_fun = partial(eval_sp_lambda, bed_lambda)
+
+    vx = [v.diff(s, 1) for s, v in zip(symbs, vel_expr)]
+    if nphys_vars == 1:
+        De = (vx[0]**2/2)**(1/2)
+    else:
+        wx = [v.diff(s, 1) for s, v in zip(symbs[::-1], vel_expr)]
+        De = (vx[0]**2+vx[1]**2+vx[0]*vx[1]+1/4*(wx[0]+wx[1])**2)**(1/2)
+        print(vx, wx)
+    visc_expr = 1/2*A**(-1/n)*De**((n-1)/(n))
+
+    C = 2*visc_expr*depth_expr
+
+    forc_expr = [0 for ii in range(nphys_vars)]
+    if nphys_vars == 1:
+        forc_expr[0] = -(C*2*vx[0]).diff(symbs[0], 1)
+    else:
+        forc_expr[0] = -(
+            (C*(2*vx[0]+vx[1])).diff(symbs[0], 1) +
+            (C*(wx[0]+wx[1])/2).diff(symbs[1], 1))
+        forc_expr[1] = -(
+            (C*(wx[0]+wx[1])/2).diff(symbs[0], 1) +
+            (C*(vx[0]+2*vx[1])).diff(symbs[1], 1))
+
+    for ii in range(nphys_vars):
+        forc_expr[ii] += beta_expr*vel_expr[ii]
+        forc_expr[ii] += rho*g*depth_expr*(bed_expr+depth_expr).diff(
+            symbs[ii], 1)
+
+    forc_lambda = [
+        sp.lambdify(symbs, f, "numpy") for f in forc_expr]
+    forc_fun = partial(
+        eval_list_of_sp_lambda, forc_lambda, as_list=False)
+
+    print('H', depth_expr)
+    print('v', vel_expr)
+    print('F', forc_expr)
+    print('bed', bed_expr)
+    print('beta', beta_expr)
+
+    return depth_fun, vel_fun, forc_fun, bed_fun, beta_fun

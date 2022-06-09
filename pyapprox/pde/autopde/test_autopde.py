@@ -7,14 +7,15 @@ from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
     setup_helmholtz_manufactured_solution,
     setup_steady_stokes_manufactured_solution,
-    setup_shallow_wave_equations_manufactured_solution
+    setup_shallow_wave_equations_manufactured_solution,
+    setup_shallow_shelf_manufactured_solution
 )
 from pyapprox.pde.autopde.autopde import (
     CartesianProductCollocationMesh, AdvectionDiffusionReaction,
     Function, EulerBernoulliBeam, Helmholtz,
     TransientFunction, TransientPDE, LinearStokes, NavierStokes,
     InteriorCartesianProductCollocationMesh, VectorMesh,
-    SteadyStatePDE, ShallowWater
+    SteadyStatePDE, ShallowWater, ShallowShelf
 )
 
 
@@ -512,6 +513,64 @@ class TestAutoPDE(unittest.TestCase):
         ]
         for test_case in test_cases:
             self.check_shallow_water_transient_mms(*test_case)
+
+    def check_shallow_shelf_mms(
+            self, domain_bounds, orders, vel_strings, depth_string, bed_string,
+            beta_string, bndry_types):
+        A, rho = 1, 1
+        nphys_vars = len(vel_strings)
+        depth_fun, vel_fun, forc_fun, bed_fun, beta_fun = (
+            setup_shallow_shelf_manufactured_solution(
+                depth_string, vel_strings, bed_string, beta_string, A, rho))
+
+        bed_fun = Function(bed_fun)
+        beta_fun = Function(beta_fun)
+        depth_fun = Function(depth_fun)
+
+        forc_fun = Function(forc_fun)
+        vel_fun = Function(vel_fun)
+ 
+        # TODO test neumann boundary conditions so need flux funs
+        # returned by MMS
+        flux_funs = None
+        vel_bndry_conds = [_get_boundary_funs(
+            nphys_vars, bndry_types,
+            partial(_vel_component_fun, vel_fun, ii),
+            flux_funs) for ii in range(nphys_vars)]
+
+        vel_meshes = [CartesianProductCollocationMesh(
+            domain_bounds, orders, vel_bndry_conds[ii])
+                      for ii in range(nphys_vars)]
+        mesh = VectorMesh(vel_meshes)
+
+        solver = SteadyStatePDE(
+            ShallowShelf(mesh, forc_fun, bed_fun, beta_fun, depth_fun, A, rho))
+        exact_vel_vals = [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]
+        init_guess = torch.cat(exact_vel_vals)
+
+        # print(init_guess, 'i')
+        res_vals = solver.residual._raw_residual(init_guess.squeeze())
+        print(np.abs(res_vals.detach().numpy()).max(), 'r')
+        assert np.allclose(res_vals, 0)
+
+        init_guess = init_guess+torch.randn(init_guess.shape)*1e-1
+        sol = solver.solve(init_guess, tol=1e-8)
+        split_sols = mesh.split_quantities(sol)
+        for exact_v, v in zip(exact_vel_vals, split_sols):
+            # print(exact_v[:, 0]-v[:, 0])
+            assert np.allclose(exact_v[:, 0], v[:, 0])
+
+
+    def test_shallow_shelf_mms(self):
+        # Avoid velocity=0 in any part of the domain
+        test_cases = [
+            [[0, 1], [9], ["(x+2)**2"], "1+x**2", "-x**2", "1", ["D", "D"]],
+            [[0, 1, 0, 1], [10, 10], ["(x+1)**2", "(y+1)**2"], "1+x+y",
+             "1+x+y**2", "1", ["D", "D", "D", "D"]]
+        ]
+        for test_case in test_cases:
+            self.check_shallow_shelf_mms(*test_case)
+
 
 
 if __name__ == "__main__":
