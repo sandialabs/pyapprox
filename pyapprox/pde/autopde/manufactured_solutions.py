@@ -75,7 +75,7 @@ def setup_advection_diffusion_reaction_manufactured_solution(
     forc_expr = -diffusion_expr+advection_expr+reaction_expr
     if transient:
         forc_expr += sol_expr.diff(all_symbs[-1], 1)
-    
+
     forc_lambda = sp.lambdify(all_symbs, forc_expr, "numpy")
     if transient:
         forc_fun = partial(_evaluate_transient_sp_lambda, forc_lambda)
@@ -124,8 +124,8 @@ def setup_helmholtz_manufactured_solution(sol_string, wnum_string, nphys_vars):
 
 
 def setup_steady_stokes_manufactured_solution(
-        velocity_strings, pres_string, navier_stokes=False):
-    nphys_vars = len(velocity_strings)
+        vel_strings, pres_string, navier_stokes=False):
+    nphys_vars = len(vel_strings)
     sp_x, sp_y = sp.symbols(['x', 'y'])
     symbs = (sp_x, sp_y)[:nphys_vars]
 
@@ -133,7 +133,7 @@ def setup_steady_stokes_manufactured_solution(
     pres_lambda = sp.lambdify(symbs, pres_expr, "numpy")
     pres_fun = partial(_evaluate_sp_lambda, pres_lambda)
 
-    vel_expr = [sp.sympify(s) for s in velocity_strings]
+    vel_expr = [sp.sympify(s) for s in vel_strings]
     vel_lambda = [sp.lambdify(symbs, vel, "numpy") for vel in vel_expr]
     vel_fun = partial(_evaluate_list_of_sp_lambda, vel_lambda, as_list=False)
 
@@ -159,3 +159,68 @@ def setup_steady_stokes_manufactured_solution(
         _evaluate_list_of_sp_lambda, pres_grad_lambda, as_list=True)
 
     return vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, pres_grad_fun
+
+
+def setup_shallow_wave_equations_manufactured_solution(
+        vel_strings, depth_string, bed_string, transient=False):
+    # Conservative form
+    g = 9.81
+    nphys_vars = len(vel_strings)
+    sp_x, sp_y = sp.symbols(['x', 'y'])
+    symbs = (sp_x, sp_y)[:nphys_vars]
+    if transient:
+        all_symbs = symbs + (sp.symbols('t'),)
+        eval_sp_lambda = _evaluate_transient_sp_lambda
+        eval_list_of_sp_lambda = _evaluate_list_of_transient_sp_lambda
+    else:
+        all_symbs = symbs
+        eval_sp_lambda = _evaluate_sp_lambda
+        eval_list_of_sp_lambda = _evaluate_list_of_sp_lambda
+
+    vel_expr = [sp.sympify(s) for s in vel_strings]
+    vel_lambda = [sp.lambdify(all_symbs, vel, "numpy") for vel in vel_expr]
+    vel_fun = partial(
+        eval_list_of_sp_lambda, vel_lambda, as_list=False)
+
+    depth_expr = sp.sympify(depth_string)
+    depth_lambda = sp.lambdify(all_symbs, depth_expr, "numpy")
+    depth_fun = partial(eval_sp_lambda, depth_lambda)
+
+    bed_expr = sp.sympify(bed_string)
+    bed_lambda = sp.lambdify(symbs, bed_expr, "numpy")
+    bed_fun = partial(_evaluate_sp_lambda, bed_lambda)
+
+    depth_forc_expr = sum(
+        [(u*depth_expr).diff(s, 1) for u, s in zip(vel_expr, symbs)])
+    if transient:
+        depth_forc_expr += depth_expr.diff(all_symbs[-1], 1)
+    depth_forc_lambda = sp.lambdify(all_symbs, depth_forc_expr, "numpy")
+    depth_forc_fun = partial(eval_sp_lambda, depth_forc_lambda)
+
+    vel_forc_expr = [(vel_expr[0]**2*depth_expr+g*depth_expr**2/2).diff(
+        symbs[0], 1)]
+    if nphys_vars > 1:
+        vel_forc_expr[0] += (vel_expr[0]*vel_expr[1]*depth_expr).diff(
+            symbs[1], 1)
+        vel_forc_expr.append((vel_expr[0]*vel_expr[1]*depth_expr).diff(
+            symbs[0], 1)+(vel_expr[1]**2*depth_expr+g*depth_expr**2/2).diff(
+                symbs[1], 1))
+    vel_forc_expr = [
+        e + g*depth_expr*(bed_expr).diff(s, 1)
+        for e, s in zip(vel_forc_expr, symbs)]
+    if transient:
+        vel_forc_expr = [
+            e + (depth_expr*v).diff(all_symbs[-1], 1)
+            for e, v in zip(vel_forc_expr, vel_expr)]
+    vel_forc_lambda = [
+        sp.lambdify(all_symbs, f, "numpy") for f in vel_forc_expr]
+    vel_forc_fun = partial(
+        eval_list_of_sp_lambda, vel_forc_lambda, as_list=False)
+
+    print('b', bed_expr)
+    print('h', depth_expr)
+    print('v', vel_expr)
+    print('fh', depth_forc_expr)
+    print('fv', vel_forc_expr)
+    
+    return depth_fun, vel_fun, depth_forc_fun, vel_forc_fun, bed_fun

@@ -311,6 +311,7 @@ class ImplicitRungeKutta():
         self._deltat = deltat
         self._rhs = rhs
         self._constraints_fun = constraints_fun
+        self._newton_opts = {}
 
         self._res_sol = None
         self._res_time = None
@@ -374,7 +375,8 @@ class ImplicitRungeKutta():
             self._active_stage_idx = ii
             init_guess.requires_grad = True
             active_stage_unknown = newton_solve(
-                self._diag_residual_fun, init_guess)
+                self._diag_residual_fun, init_guess,
+                **self._newton_opts)
             init_guess = active_stage_unknown.detach()
             self._computed_stage_unknowns.append(init_guess.clone())
         return implicit_runge_kutta_update_wildey(
@@ -385,7 +387,9 @@ class ImplicitRungeKutta():
     def update(self, sol, time, deltat, init_guess):
         return self._update(sol, time, deltat, init_guess)
 
-    def integrate(self, init_sol, init_time, final_time, verbosity=0):
+    def integrate(self, init_sol, init_time, final_time, verbosity=0,
+                  newton_opts={}):
+        self._newton_opts = newton_opts
         sols, times = [], []
         time = init_time
         times.append(time)

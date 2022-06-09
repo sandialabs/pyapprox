@@ -340,7 +340,8 @@ class AbstractFunction(ABC):
         if vals.ndim != 2:
             raise ValueError("Function must return a 2D np.ndarray")
         if type(vals) == np.ndarray:
-            return torch.tensor(vals, requires_grad=self._requires_grad)
+            return torch.tensor(
+                vals, requires_grad=self._requires_grad, dtype=torch.double)
         return vals.clone().detach().requires_grad_(True)
 
 
@@ -403,22 +404,18 @@ class SteadyStatePDE():
     def __init__(self, residual):
         self.residual = residual
 
-    def solve(self, initial_guess, tol=1e-7, maxiters=10, verbosity=2):
-        initial_guess = initial_guess.squeeze()
-        if type(initial_guess) == np.ndarray:
-            sol = torch.tensor(initial_guess.clone(), requires_grad=True)
+    def solve(self, init_guess=None, **newton_kwargs):
+        if init_guess is None:
+            init_guess = torch.ones(
+                (self.residual.mesh.nunknowns, 1), dtype=torch.double)
+        init_guess = init_guess.squeeze()
+        if type(init_guess) == np.ndarray:
+            sol = torch.tensor(init_guess.clone(), requires_grad=True)
         else:
-            sol = initial_guess.clone().detach().requires_grad_(True)
+            sol = init_guess.clone().detach().requires_grad_(True)
         sol = newton_solve(
-            self.residual._residual, sol, tol, maxiters, verbosity)
+            self.residual._residual, sol, **newton_kwargs)
         return sol.detach().numpy()[:, None]
-
-
-class SteadyStateLinearPDE(SteadyStatePDE):
-    def solve(self):
-        init_guess = torch.ones(
-            (self.residual.mesh.nunknowns, 1), dtype=torch.double)
-        return super().solve(init_guess)
 
 
 class TransientPDE():
@@ -435,9 +432,10 @@ class TransientPDE():
         return self.residual.mesh._apply_boundary_conditions_to_residual(
             raw_residual, sol)
 
-    def solve(self, init_sol, init_time, final_time, verbosity=0):
+    def solve(self, init_sol, init_time, final_time, verbosity=0,
+              newton_opts={}):
         sols = self.time_integrator.integrate(
-            init_sol, init_time, final_time, verbosity)
+            init_sol, init_time, final_time, verbosity, newton_opts)
         return sols
 
 
@@ -527,12 +525,14 @@ class Helmholtz(AbstractSpectralCollocationResidual):
         return residual
 
 
-
 class VectorMesh():
     def __init__(self, meshes):
         self._meshes = meshes
         self.nunknowns = sum([m.mesh_pts.shape[1] for m in self._meshes])
         self.nphys_vars = self._meshes[0].nphys_vars
+        self._bndry_conds = []
+        for mesh in self._meshes:
+            self._bndry_conds += mesh._bndry_conds
 
     def split_quantities(self, vector):
         cnt = 0
@@ -557,12 +557,26 @@ class VectorMesh():
             Z.append(self._meshes[ii].interpolate(sol_vals[ii], xx))
         return Z
 
-    def plot(self, sol_vals, nplot_pts_1d=50, axs=None):
-        if self._meshes[0].nphys_vars != 2:
-            return
-        from pyapprox.util.visualization import get_meshgrid_samples
+    def integrate(self, sol_vals):
+        Z = []
+        for ii in range(len(self._meshes)):
+            Z.append(self._meshes[ii].integrate(sol_vals[ii]))
+        return Z
+
+    def plot(self, sol_vals, nplot_pts_1d=50, axs=None, **kwargs):
         if axs is None:
-            fig, axs = plt.subplots(1, 3, figsize=(8*3, 6))
+            fig, axs = plt.subplots(
+                1, self.nphys_vars+1, figsize=(8*(self.nphys_vars+1), 6))
+        if self._meshes[0].nphys_vars == 1:
+            xx = np.linspace(
+                *self._meshes[0]._domain_bounds, nplot_pts_1d)[None, :]
+            Z =  self.interpolate(sol_vals, xx)
+            objs = []
+            for ii in range(2):
+                obj = axs[ii].plot(xx[0, :], Z[ii], **kwargs)
+                objs.append(obj)
+            return objs
+        from pyapprox.util.visualization import get_meshgrid_samples
         X, Y, pts = get_meshgrid_samples(
             self._meshes[0]._domain_bounds, nplot_pts_1d)
         Z = self.interpolate(sol_vals, pts)
@@ -583,7 +597,7 @@ class InteriorCartesianProductCollocationMesh(CartesianProductCollocationMesh):
 
     def _apply_boundary_conditions_to_residual(self, residual, sol):
         return residual
-    
+
     def _form_canonical_deriv_matrices(self, canonical_mesh_pts_1d):
         eval_samples = cartesian_product(
             [-np.cos(np.linspace(0, np.pi, o+1)) for o in self._orders])
@@ -596,7 +610,7 @@ class InteriorCartesianProductCollocationMesh(CartesianProductCollocationMesh):
         return [lagrange_polynomial_derivative_matrix_1d(
             eval_samples[0], canonical_mesh_pts_1d[0])[0]], np.atleast_1d(
                 canonical_mesh_pts_1d)
-        
+
     def _form_derivative_matrices(self):
         # will work but divergence condition is only satisfied on interior
         # so if want to drive flow with only boundary conditions on velocity
@@ -623,7 +637,7 @@ class InteriorCartesianProductCollocationMesh(CartesianProductCollocationMesh):
         return (canonical_mesh_pts_1d, None,
                 canonical_mesh_pts_1d_baryc_weights,
                 mesh_pts, deriv_mats)
-    
+
     def _form_derivative_matrices_alt(self):
         canonical_mesh_pts_1d = [
             -np.cos(np.linspace(0, np.pi, o+1))[1:-1] for o in self._orders]
@@ -638,7 +652,7 @@ class InteriorCartesianProductCollocationMesh(CartesianProductCollocationMesh):
                 lagrange_polynomial_derivative_matrix_1d(
                     canonical_mesh_pts_1d[0],
                     -np.cos(np.linspace(0, np.pi, self._orders[0]+1)))[0]]
-            
+
         deriv_mats_alt = []
         for dd in range(self.nphys_vars):
             deriv_mats_alt.append(canonical_deriv_mats_alt[dd]*2./(
@@ -704,3 +718,50 @@ class LinearStokes(NavierStokes):
         super().__init__(mesh, vel_forc_fun, pres_forc_fun,
                          unique_pres_data)
         self._navier_stokes = False
+
+
+class ShallowWater(AbstractSpectralCollocationResidual):
+    def __init__(self, mesh, depth_forc_fun, vel_forc_fun, bed_fun):
+        super().__init__(mesh)
+
+        self._depth_forc_fun = depth_forc_fun
+        self._vel_forc_fun = vel_forc_fun
+        self._g = 9.81
+
+        self._funs = [self._depth_forc_fun, self._vel_forc_fun]
+        self._bed_vals = bed_fun(self.mesh._meshes[0].mesh_pts)
+
+    def _raw_residual(self, sol):
+        split_sols = self.mesh.split_quantities(sol)
+        depth = split_sols[0]
+        vels = torch.hstack([s[:, None] for s in split_sols[1:]])
+        depth_forc_vals = self._depth_forc_fun(self.mesh._meshes[0].mesh_pts)
+        vel_forc_vals = self._vel_forc_fun(self.mesh._meshes[1].mesh_pts)
+
+        residual = [0 for ii in range(len(split_sols))]
+        # depth equation (mass balance)
+        for dd in range(self.mesh.nphys_vars):
+            # split_sols = [q1, q2] = [h, u, v]
+            residual[0] += self.mesh._meshes[0].partial_deriv(
+                depth*vels[:, dd], dd)
+            # split_sols = [q1, q2] = [h, uh, vh]
+            # residual[0] += self.mesh._meshes[0].partial_deriv(
+            #     split_sols[dd+1], dd)
+        residual[0] -= depth_forc_vals[:, 0]
+        # velocity equations (momentum equations)
+        for dd in range(self.mesh.nphys_vars):
+            # split_sols = [q1, q2] = [h, u, v]
+            residual[dd+1] += self.mesh._meshes[dd].partial_deriv(
+                depth*vels[:, dd]**2+self._g*depth**2/2, dd)
+            # split_sols = [q1, q2] = [h, uh, vh]
+            # residual[dd+1] += self.mesh._meshes[dd].partial_deriv(
+            #     vels[:, dd]**2/depth+self._g*depth**2/2, dd)
+            residual[dd+1] += self._g*depth*self.mesh._meshes[dd].partial_deriv(
+                self._bed_vals[:, 0], dd)
+            residual[dd+1] -= vel_forc_vals[:, dd]
+        if self.mesh.nphys_vars > 1:
+            residual[1] += self.mesh._meshes[1].partial_deriv(
+                depth*torch.prod(vels, dim=1), 1)
+            residual[2] += self.mesh._meshes[2].partial_deriv(
+                depth*torch.prod(vels, dim=1), 0)
+        return torch.cat(residual)
