@@ -271,6 +271,14 @@ class CartesianProductCollocationMesh():
                 residual[idx] = sol[idx]-bndry_vals
         return residual
 
+    def _apply_periodic_boundary_conditions_to_residual(self, residual, sol):
+        for ii in range(len(self._bndry_conds)//2):
+            if self._bndry_conds[2*ii][1] == "P":
+                idx1 = self._bndry_indices[2*ii]
+                idx2 = self._bndry_indices[2*ii+1]
+                residual[idx1] = sol[idx1]-sol[idx2]
+        return residual
+
     def _apply_neumann_and_robin_boundary_conditions_to_residual(
             self, residual, sol):
         for ii, bndry_cond in enumerate(self._bndry_conds):
@@ -297,6 +305,8 @@ class CartesianProductCollocationMesh():
         residual = (
             self._apply_neumann_and_robin_boundary_conditions_to_residual(
                 residual, sol))
+        residual = (self._apply_periodic_boundary_conditions_to_residual(
+            residual, sol))
         return residual
 
     def integrate(self, mesh_values):
@@ -800,12 +810,13 @@ class ShallowWater(AbstractSpectralCollocationResidual):
 
 class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
     def __init__(self, mesh, forc_fun, bed_fun, beta_fun,
-                 depth_fun, A, rho):
+                 depth_fun, A, rho, homotopy_val=0):
         super().__init__(mesh)
 
         self._forc_fun = forc_fun
         self._A = A
         self._rho = rho
+        self._homotopy_val = homotopy_val
         self._g = 9.81
         self._n = 3
 
@@ -819,13 +830,16 @@ class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
     def _raw_residual_1d(self, split_sols, depth_vals):
         pderiv = self.mesh._meshes[0].partial_deriv
         dudx = pderiv(split_sols[0], 0)
-        De = (dudx**2/2)**(1/2)
+        De = (dudx**2/2+self._homotopy_val)**(1/2)
         visc = 1/2*self._A**(-1/self._n)*De**((self._n-1)/(self._n))
         C = 2*depth_vals[:, 0]*visc
+        # todo check whether 2 needs to muliply C below
         residual = -pderiv(C*2*dudx, 0)
         residual += self._beta_vals[:, 0]*split_sols[0]
         residual += self._rho*self._g*depth_vals[:, 0]*pderiv(
             self._bed_vals[:, 0]+depth_vals[:, 0], 0)
+        #plt.plot(self.mesh._meshes[0].mesh_pts[0,:], (self._beta_vals[:, 0]*split_sols[0]).detach())
+        #plt.show()
         residual -= self._forc_vals[:, 0]
         return residual
 
@@ -835,7 +849,8 @@ class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
         dvdy = pderiv(split_sols[1], 1)
         dudy = pderiv(split_sols[0], 1)
         dvdx = pderiv(split_sols[1], 0)
-        De = (dudx**2+dvdy**2+dudx*dvdy+(dudy+dvdx)**2/4)**(1/2)
+        De = (dudx**2+dvdy**2+dudx*dvdy+(dudy+dvdx)**2/4+
+              self._homotopy_val)**(1/2)
         visc = 1/2*self._A**(-1/self._n)*De**((self._n-1)/(self._n))
         C = 2*depth_vals[:, 0]*visc
         residual = [0, 0]
@@ -861,12 +876,12 @@ class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
 
 class ShallowShelf(ShallowShelfVelocities):
     def __init__(self, mesh, forc_fun, bed_fun, beta_fun,
-                 depth_forc_fun, A, rho):
+                 depth_forc_fun, A, rho, homotopy_val=0):
         if len(mesh._meshes) != mesh._meshes[0].nphys_vars+1:
             raise ValueError("Incorrect number of meshes provided")
-        
+
         super().__init__(mesh, forc_fun, bed_fun, beta_fun,
-                         None, A, rho)
+                         None, A, rho, homotopy_val)
         self._depth_forc_fun = depth_forc_fun
 
     def _raw_residual(self, sol):
@@ -882,3 +897,63 @@ class ShallowShelf(ShallowShelfVelocities):
         depth_residual -= self._depth_forc_fun(
             self.mesh._meshes[self.mesh.nphys_vars].mesh_pts)[:, 0]
         return torch.cat((residual, depth_residual))
+
+
+class NaviersLinearElasticity(AbstractSpectralCollocationResidual):
+    def __init__(self, mesh, forc_fun, lambda_fun, mu_fun, rho):
+        super().__init__(mesh)
+
+        self._rho = rho
+        self._forc_fun = forc_fun
+        self._lambda_fun = lambda_fun
+        self._mu_fun = mu_fun
+
+        # only needs to be time dependent funs
+        self._funs = [self._forc_fun]
+
+        # assumed to be time independent
+        self._lambda_vals = self._lambda_fun(self.mesh._meshes[0].mesh_pts)
+        self._mu_vals = self._mu_fun(self.mesh._meshes[0].mesh_pts)
+
+        # sol is the displacement field
+        # beam length L box cross section with width W
+        # lambda = Lamae elasticity parameter
+        # mu = Lamae elasticity parameter
+        # rho density of beam
+        # g acceleartion due to gravity
+
+    def _raw_residual_1d(self, sol_vals, forc_vals):
+        pderiv = self.mesh.meshes[0].partial_deriv
+        residual = -pderiv(
+            (self._lambda_vals[:, 0]+2*self._mu_vals[:, 0]) *
+            pderiv(sol_vals[:, 0], 0), 0) - self._rho*forc_vals[:, 0]
+        return residual
+
+    def _raw_residual_2d(self, sol_vals, forc_vals):
+        pderiv = self.mesh.meshes[0].partial_deriv
+        residual = [0, 0]
+        mu = self._mu_vals[:, 0]
+        lam = self._lambda_vals[:, 0]
+        lp2mu = lam+2*mu
+        # strains
+        exx = pderiv(sol_vals[:, 0], 0)
+        eyy = pderiv(sol_vals[:, 1], 1)
+        exy = 0.5*(pderiv(sol_vals[:, 0], 1)+pderiv(sol_vals[:, 1], 0))
+        # stresses
+        tauxy = 2*mu*exy
+        tauxx = lp2mu*exx+lam*eyy
+        tauyy = lam*exx+lp2mu*eyy
+        residual[0] = pderiv(tauxx, 0)+pderiv(tauxy, 1)
+        residual[0] += self._rho*forc_vals[:, 0]
+        residual[1] = pderiv(tauxy, 0)+pderiv(tauyy, 1)
+        residual[1] += self._rho*forc_vals[:, 1]
+        return torch.cat(residual)
+
+    def _raw_residual(self, sol):
+        split_sols = self.mesh.split_quantities(sol)
+        sol_vals = torch.hstack(
+            [s[:, None] for s in split_sols[:self.mesh.nphys_vars]])
+        forc_vals = self._forc_fun(self.mesh._meshes[0].mesh_pts)
+        if self.mesh.nphys_vars == 1:
+            return self._raw_residual_1d(sol_vals, forc_vals)
+        return self._raw_residual_2d(sol_vals, forc_vals)

@@ -1,7 +1,7 @@
 import torch
 
 def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
-                 verbosity=0):
+                 verbosity=0, step_size=1):
     if not init_guess.requires_grad:
         raise ValueError("init_guess must have requires_grad=True")
 
@@ -22,9 +22,9 @@ def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
             break
         if it > maxiters:
             exit_msg = f"Max iterations {maxiters} reached"
-            break
-        if it > 4 and (residual_norm > residual_norms[it-5]):
-            raise RuntimeError("Newton solve diverged")
+            raise RuntimeError(exit_msg)
+        # if it > 4 and (residual_norm > residual_norms[it-5]):
+        #     raise RuntimeError("Newton solve diverged")
         jac = torch.autograd.functional.jacobian(
             residual_fun, sol, strict=True)
         # import numpy as np
@@ -32,7 +32,7 @@ def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
         # print(jac.numpy())
         # print(np.linalg.cond(jac.numpy()))
         # assert False
-        sol = sol-torch.linalg.solve(jac, residual)
+        sol = sol-step_size*torch.linalg.solve(jac, residual)
         it += 1
     if verbosity > 0:
         print(exit_msg)
