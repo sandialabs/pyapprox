@@ -461,6 +461,15 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationResidual):
         self._funs = [
             self._diff_fun, self._vel_fun, self._react_fun, self._forc_fun]
 
+    def _check_shape(self, vals, ncols, name=None):
+        if vals.ndim != 2 or vals.shape[1] != ncols:
+            if name is not None:
+                msg = name
+            else:
+                msg = "The ndarray"
+            msg += f' has the wrong shape {vals.shape}'
+            raise ValueError(msg)
+
     def _raw_residual(self, sol):
         # torch requires 1d sol to be a 1D tensor so Jacobian can be
         # computed correctly. But each other quantity must be a 2D tensor
@@ -470,9 +479,14 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationResidual):
         diff_vals = self._diff_fun(self.mesh.mesh_pts)
         vel_vals = self._vel_fun(self.mesh.mesh_pts)
         forc_vals = self._forc_fun(self.mesh.mesh_pts)
+        react_vals = self._react_fun(sol[:, None])
+        self._check_shape(diff_vals, 1, "diff_vals")
+        self._check_shape(forc_vals, 1, "forc_vals")
+        self._check_shape(vel_vals, self.mesh.nphys_vars, "vel_vals")
+        self._check_shape(react_vals, 1, "react_vals")
         residual = (self.mesh.div(diff_vals*self.mesh.grad(sol)) -
                     self.mesh.div(vel_vals*sol[:, None]) -
-                    self._react_fun(sol)+forc_vals[:, 0])
+                    react_vals[:, 0]+forc_vals[:, 0])
         return residual
 
 
