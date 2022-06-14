@@ -72,7 +72,7 @@ class TestAutoPDE(unittest.TestCase):
 
     def check_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_string, diff_string, vel_strings,
-            react_fun, bndry_types):
+            react_fun, bndry_types, basis_types):
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_fun))
@@ -87,21 +87,25 @@ class TestAutoPDE(unittest.TestCase):
             nphys_vars, bndry_types, sol_fun, flux_funs)
 
         mesh = CartesianProductCollocationMesh(
-            domain_bounds, orders, bndry_conds)
+            domain_bounds, orders, bndry_conds, basis_types)
+       
         solver = SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, diff_fun, vel_fun, react_fun, forc_fun))
+
+        assert np.allclose(
+            solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]), 0)
         sol = solver.solve()
 
         # import matplotlib.pyplot as plt
         # ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-        # mesh.plot(sol, ax=ax, marker='o', ls=None)
+        # mesh.plot(sol, ax=ax, marker='o', ls='None', c='k', ms=20)
         # mesh.plot(
         #     sol_fun(mesh.mesh_pts).numpy(), ax=ax, marker='s',
-        #     ls=None)
-        # mesh.plot(sol, ax=ax, nplot_pts_1d=100, label="Collocation")
+        #     ls='None', c='b')
+        # # mesh.plot(sol, ax=ax, nplot_pts_1d=100, label="Collocation", c="k')
         # mesh.plot(
         #     sol_fun(mesh.mesh_pts).numpy(), ax=ax, nplot_pts_1d=100,
-        #     ls="--", label="Exact")
+        #     ls="--", label="Exact", c='b')
         # plt.legend()
         # plt.show()
 
@@ -128,21 +132,25 @@ class TestAutoPDE(unittest.TestCase):
     def test_advection_diffusion_reaction(self):
         test_cases = [
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"], lambda x: 0*x**2,
-             ["D", "D"]],
+             ["D", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"], lambda x: 0*x**2,
-             ["N", "D"]],
+             ["N", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"], lambda x: 0*x**2,
-             ["R", "D"]],
+             ["R", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"], lambda x: x**2,
-             ["D", "D"]],
-            [[0, 1], [4], "0.5*(x-1)*x", "1", ["0"], lambda x: 0*x**2,
-             ["P", "D"]],
+             ["D", "D"], ["C"]],
+            # When using periodic bcs must have reaction term to have a
+            # unique solution
+            [[0, 2*np.pi], [30], "sin(x)", "1", ["0"], lambda x: 1*x,
+             ["P", "P"], ["C"]],
+            [[0, 2*np.pi], [5], "sin(x)", "1", ["0"], lambda x: 1*x,
+             ["P", "P"], ["F"]],
             [[0, 1, 0, 1], [4, 4], "y**2*x**2", "1", ["0", "0"],
-             lambda x: 0*x**2, ["D", "N", "N", "D"]],
+             lambda x: 0*x**2, ["D", "N", "N", "D"], ["C", "C"]],
             [[0, .5, 0, 1], [14, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
-             lambda x: 0*x**2, ["D", "N", "N", "D"]],
+             lambda x: 0*x**2, ["D", "N", "N", "D"], ["C", "C"]],
             [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
-             lambda x: 0*x**2, ["D", "R", "D", "D"]]
+             lambda x: 0*x**2, ["D", "R", "D", "D"], ["C", "C"]]
         ]
         for test_case in test_cases:
             self.check_advection_diffusion_reaction(*test_case)
@@ -152,7 +160,7 @@ class TestAutoPDE(unittest.TestCase):
         # This 4th order equation requires 4 boundary conditions, two at each
         # end of the domain. This cannot be done with usual boundary condition
         # functions and msut be imposed on the residual exactly
-        domain_bounds, orders, bndry_conds = [0, 1], [4], [None]*2
+        domain_bounds, orders, bndry_conds = [0, 1], [4], [[None, None]]*2
         emod_val, smom_val, forcing_val = 1., 1., -2.
         mesh = CartesianProductCollocationMesh(
             domain_bounds, orders, bndry_conds)
@@ -528,13 +536,13 @@ class TestAutoPDE(unittest.TestCase):
             setup_shallow_shelf_manufactured_solution(
                 depth_string, vel_strings, bed_string, beta_string, A, rho))
 
-        bed_fun = Function(bed_fun)
-        beta_fun = Function(beta_fun)
-        depth_fun = Function(depth_fun)
-        depth_forc_fun = Function(depth_forc_fun)
+        bed_fun = Function(bed_fun, 'bed')
+        beta_fun = Function(beta_fun, 'beta')
+        depth_fun = Function(depth_fun, 'depth')
+        depth_forc_fun = Function(depth_forc_fun, 'depth_forc')
 
-        vel_forc_fun = Function(vel_forc_fun)
-        vel_fun = Function(vel_fun)
+        vel_forc_fun = Function(vel_forc_fun, 'vel_forc')
+        vel_fun = Function(vel_fun, 'vel')
  
         # TODO test neumann boundary conditions so need flux funs
         # returned by MMS
@@ -562,12 +570,12 @@ class TestAutoPDE(unittest.TestCase):
         if velocities_only:
             solver = SteadyStatePDE(
                 ShallowShelfVelocities(mesh, vel_forc_fun, bed_fun, beta_fun,
-                                       depth_fun, A, rho))
+                                       depth_fun, A, rho, 1e-15))
             init_guess = torch.cat(exact_vel_vals)
         else:
              solver = SteadyStatePDE(
                 ShallowShelf(mesh, vel_forc_fun, bed_fun, beta_fun,
-                             depth_forc_fun, A, rho))
+                             depth_forc_fun, A, rho, 1e-15))
              init_guess = torch.cat(exact_vel_vals+[exact_depth_vals])
 
         # print(init_guess, 'i')
@@ -575,8 +583,11 @@ class TestAutoPDE(unittest.TestCase):
         print(np.abs(res_vals.detach().numpy()).max(), 'r')
         assert np.allclose(res_vals, 0)
 
-        init_guess = init_guess+torch.randn(init_guess.shape)*1e-8
-        sol = solver.solve(init_guess, tol=1e-7, verbosity=2)
+        if velocities_only:
+            init_guess = torch.randn(init_guess.shape, dtype=torch.double)
+        else:
+            init_guess = (init_guess+torch.randn(init_guess.shape)*1e-2)
+        sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=100)
         split_sols = mesh.split_quantities(sol)
         for exact_v, v in zip(exact_vel_vals, split_sols):
             # print(exact_v[:, 0]-v[:, 0])
@@ -588,14 +599,14 @@ class TestAutoPDE(unittest.TestCase):
     def test_shallow_shelf_mms(self):
         # Avoid velocity=0 in any part of the domain
         test_cases = [
-            # [[0, 1], [9], ["(x+2)**2"], "1+x**2", "-x**2", "1",
-            #  ["D", "D"], True],
-            # [[0, 1], [9], ["(x+2)**2"], "1+x**2", "-x**2", "1",
-            #  ["D", "D"], False],
-            # [[0, 1, 0, 1], [10, 10], ["(x+1)**2", "(y+1)**2"], "1+x+y",
-            #  "1+x+y**2", "1", ["D", "D", "D", "D"], True],
-            [[0, 1, 0, 1], [10, 10], ["(x+1)**2/10", "(y+1)**2/10"], "1+x+y",
-             "1+x+y**2", "1", ["D", "D", "D", "D"], False]
+            [[0, 1], [9], ["(x+2)**2"], "1+x**2", "-x**2", "1",
+             ["D", "D"], True],
+            [[0, 1], [9], ["(x+2)**2"], "1+x**2", "-x**2", "1",
+             ["D", "D"], False],
+            [[0, 1, 0, 1], [10, 10], ["(x+1)**2", "(y+1)**2"], "1+x+y",
+             "1+x+y**2", "1", ["D", "D", "D", "D"], True],
+            [[0, 2, 0, 2], [15, 15], ["(x+1)**2", "(y+1)**2"], "1+x+y",
+             "0-x-y", "1", ["D", "D", "D", "D"], False]
         ]
         # may need to setup backtracking for Newtons method
         for test_case in test_cases:

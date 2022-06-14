@@ -12,7 +12,8 @@ from pyapprox.surrogates.interp.barycentric_interpolation import (
 )
 from pyapprox.pde.spectralcollocation.spectral_collocation import (
     chebyshev_derivative_matrix, lagrange_polynomial_derivative_matrix_2d,
-    lagrange_polynomial_derivative_matrix_1d
+    lagrange_polynomial_derivative_matrix_1d, fourier_derivative_matrix,
+    fourier_basis
 )
 from pyapprox.util.visualization import get_meshgrid_function_data, plt
 from pyapprox.pde.autopde.util import newton_solve
@@ -110,12 +111,18 @@ def dot(quantities1, quantities2):
 
 
 class CartesianProductCollocationMesh():
-    def __init__(self, domain_bounds, orders, bndry_conds):
+    def __init__(self, domain_bounds, orders, bndry_conds, basis_types=None):
 
         if len(orders) != len(domain_bounds)//2:
             raise ValueError("Order must be specified for each dimension")
         if len(orders) > 2:
             raise ValueError("Only 1D and 2D meshes supported")
+
+        if basis_types is None:
+            basis_types = ["C"]*(len(domain_bounds)//2)
+        if len(basis_types) != len(domain_bounds)//2:
+            raise ValueError("Basis type must be specified for each dimension")
+        self._basis_types = basis_types
 
         super().__init__()
         self._domain_bounds = np.asarray(domain_bounds)
@@ -124,6 +131,9 @@ class CartesianProductCollocationMesh():
 
         self._canonical_domain_bounds = np.ones(2*self.nphys_vars)
         self._canonical_domain_bounds[::2] = -1.
+        for ii in range(self.nphys_vars):
+            if self._basis_types [ii]== "F":
+                self._canonical_domain_bounds[2*ii:2*ii+2] = [0, 2*np.pi]
 
         (self._canonical_mesh_pts_1d, self._canonical_deriv_mats_1d,
          self._canonical_mesh_pts_1d_baryc_weights, self.mesh_pts,
@@ -135,6 +145,13 @@ class CartesianProductCollocationMesh():
         if len(self._bndrys) != len(bndry_conds):
             raise ValueError(
                 "Incorrect number of boundary conditions provided")
+        for bndry_cond in bndry_conds:
+            if bndry_cond[1] not in ["D", "R", "P", None]:
+                raise ValueError(
+                    "Boundary condition {bndry_cond[1} not supported")
+            if (bndry_cond[1] not in [None, "P"] and
+                not callable(bndry_cond[0])):
+                raise ValueError("Boundary condition must be callable")
         self._bndry_conds = bndry_conds
         self.nunknowns = self.mesh_pts.shape[1]
 
@@ -166,13 +183,18 @@ class CartesianProductCollocationMesh():
             samples, self._domain_bounds, self._canonical_domain_bounds)
 
     @staticmethod
-    def _form_1d_derivative_matrices(order):
-        return chebyshev_derivative_matrix(order)
+    def _form_1d_derivative_matrices(order, basis_type):
+        if basis_type == "C":
+            return chebyshev_derivative_matrix(order)
+        elif basis_type == "F":
+            return fourier_derivative_matrix(order)
+        raise Exception(f"Basis type {basis_type} provided not supported")
 
     def _form_derivative_matrices(self):
         canonical_mesh_pts_1d, canonical_deriv_mats_1d = [], []
         for ii in range(self.nphys_vars):
-            mpts, der_mat = self._form_1d_derivative_matrices(self._orders[ii])
+            mpts, der_mat = self._form_1d_derivative_matrices(
+                self._orders[ii], self._basis_types[ii])
             canonical_mesh_pts_1d.append(mpts)
             canonical_deriv_mats_1d.append(der_mat)
 
@@ -183,22 +205,29 @@ class CartesianProductCollocationMesh():
             cartesian_product(canonical_mesh_pts_1d))
 
         if self.nphys_vars == 1:
+            canonical_len = (self._canonical_domain_bounds[1]-
+                             self._canonical_domain_bounds[0])
             deriv_mats = [
-                canonical_deriv_mats_1d[0]*2./(
+                canonical_deriv_mats_1d[0]*(canonical_len)/(
                     self._domain_bounds[1]-self._domain_bounds[0])]
         else:
             ident_mats = [np.eye(o+1) for o in self._orders]
             # assumes that 2d-mesh_pts varies in x1 faster than x2,
             # e.g. points are
             # [[x11,x21],[x12,x21],[x13,x12],[x11,x22],[x12,x22],...]
+            canonical_len = [(self._canonical_domain_bounds[1] -
+                              self._canonical_domain_bounds[0]),
+                             (self._canonical_domain_bounds[3] -
+                              self._canonical_domain_bounds[2])]
             deriv_mats = [
                 np.kron(np.eye(self._orders[1]+1),
-                        canonical_deriv_mats_1d[0]*2./(
+                        canonical_deriv_mats_1d[0]*canonical_len[0]/(
                             self._domain_bounds[1]-self._domain_bounds[0])),
-                np.kron(canonical_deriv_mats_1d[1]*2./(
+                np.kron(canonical_deriv_mats_1d[1]*canonical_len[1]/(
                     self._domain_bounds[3]-self._domain_bounds[2]),
                         np.eye(self._orders[0]+1))]
-        deriv_mats = [torch.tensor(mat) for mat in deriv_mats]
+        deriv_mats = [torch.tensor(mat, dtype=torch.double)
+                      for mat in deriv_mats]
 
         return (canonical_mesh_pts_1d, canonical_deriv_mats_1d,
                 canonical_mesh_pts_1d_baryc_weights,
@@ -215,11 +244,30 @@ class CartesianProductCollocationMesh():
             assert values.ndim == 2
         canonical_eval_samples = self._map_samples_to_canonical_domain(
             eval_samples)
+        if np.all([t == "C" for t in self._basis_types]):
+            return self._cheby_interpolate(
+                canonical_eval_samples, canonical_abscissa_1d,
+                canonical_barycentric_weights_1d, values)
+        elif np.all([t == "F" for t in self._basis_types]):
+            return self._fourier_interpolate(canonical_eval_samples, values)
+        raise ValueError("Mixed basis not currently supported")
+
+    def _cheby_interpolate(self, canonical_eval_samples, canonical_abscissa_1d,
+                           canonical_barycentric_weights_1d, values):
         interp_vals = multivariate_barycentric_lagrange_interpolation(
             canonical_eval_samples, canonical_abscissa_1d,
             canonical_barycentric_weights_1d, values,
             np.arange(self.nphys_vars))
         return interp_vals
+
+    def _fourier_interpolate(self, canonical_eval_samples, values):
+        basis_vals = [
+            fourier_basis(o, s)
+            for o, s in zip(self._orders, canonical_eval_samples)]
+        if self.nphys_vars == 1:
+            return basis_vals[0].dot(values)
+        return (basis_vals[0]*basis_vals[1]).dot(values)
+
 
     def interpolate(self, mesh_values, eval_samples):
         canonical_abscissa_1d = self._canonical_mesh_pts_1d
@@ -261,11 +309,15 @@ class CartesianProductCollocationMesh():
             return self._plot_1d(
                 mesh_values, nplot_pts_1d, ax, **kwargs)
         return self._plot_2d(
-            mesh_values, nplot_pts_1d, 30, ax=None)
+            mesh_values, nplot_pts_1d, 30, ax=ax)
 
     def _apply_dirichlet_boundary_conditions_to_residual(self, residual, sol):
         for ii, bndry_cond in enumerate(self._bndry_conds):
             if bndry_cond[1] == "D":
+                if self._basis_types[ii//2] == "F":
+                    msg = "Cannot enforce non-periodic boundary conditions "
+                    msg += "when using a Fourier basis"
+                    raise ValueError(msg)
                 idx = self._bndry_indices[ii]
                 bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
                 residual[idx] = sol[idx]-bndry_vals
@@ -273,16 +325,25 @@ class CartesianProductCollocationMesh():
 
     def _apply_periodic_boundary_conditions_to_residual(self, residual, sol):
         for ii in range(len(self._bndry_conds)//2):
-            if self._bndry_conds[2*ii][1] == "P":
+            if (self._basis_types[ii] == "C" and
+                self._bndry_conds[2*ii][1] == "P"):
                 idx1 = self._bndry_indices[2*ii]
                 idx2 = self._bndry_indices[2*ii+1]
                 residual[idx1] = sol[idx1]-sol[idx2]
+                residual[idx2] = torch.linalg.multi_dot(
+                    (self._deriv_mats[ii//2][idx1, :], sol))-(
+                        torch.linalg.multi_dot(
+                            (self._deriv_mats[ii//2][idx2, :], sol)))
         return residual
 
     def _apply_neumann_and_robin_boundary_conditions_to_residual(
             self, residual, sol):
         for ii, bndry_cond in enumerate(self._bndry_conds):
             if bndry_cond[1] == "N" or bndry_cond[1] == "R":
+                if self._basis_types[ii//2] == "F":
+                    msg = "Cannot enforce non-periodic boundary conditions "
+                    msg += "when using a Fourier basis"
+                    raise ValueError(msg)
                 idx = self._bndry_indices[ii]
                 bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
                 normal = (-1)**(ii+1)
@@ -350,9 +411,10 @@ class AbstractFunction(ABC):
         if vals.ndim != 2:
             raise ValueError("Function must return a 2D np.ndarray")
         if type(vals) == np.ndarray:
-            return torch.tensor(
+            vals = torch.tensor(
                 vals, requires_grad=self._requires_grad, dtype=torch.double)
-        return vals.clone().detach().requires_grad_(True)
+            return vals
+        return vals.clone().detach().requires_grad_(self._requires_grad)
 
 
 class AbstractTransientFunction(AbstractFunction):
@@ -420,7 +482,8 @@ class SteadyStatePDE():
                 (self.residual.mesh.nunknowns, 1), dtype=torch.double)
         init_guess = init_guess.squeeze()
         if type(init_guess) == np.ndarray:
-            sol = torch.tensor(init_guess.clone(), requires_grad=True)
+            sol = torch.tensor(
+                init_guess.clone(), requires_grad=True, dtype=torch.double)
         else:
             sol = init_guess.clone().detach().requires_grad_(True)
         sol = newton_solve(
@@ -461,7 +524,8 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationResidual):
         self._funs = [
             self._diff_fun, self._vel_fun, self._react_fun, self._forc_fun]
 
-    def _check_shape(self, vals, ncols, name=None):
+    @staticmethod
+    def _check_shape(vals, ncols, name=None):
         if vals.ndim != 2 or vals.shape[1] != ncols:
             if name is not None:
                 msg = name
@@ -608,14 +672,15 @@ class VectorMesh():
         for ii in range(3):
             obj = axs[ii].contourf(
                 X, Y, Z[ii].reshape(X.shape),
-                levels=np.linspace(Z[ii].min(), Z[ii].max(), nplot_pts_1d))
+                levels=np.linspace(Z[ii].min(), Z[ii].max(), 20))
             objs.append(obj)
         return objs
 
 
 class InteriorCartesianProductCollocationMesh(CartesianProductCollocationMesh):
     def __init__(self, domain_bounds, orders):
-        super().__init__(domain_bounds, orders, [None]*len(domain_bounds))
+        super().__init__(domain_bounds, orders,
+                         [[None ,None]]*len(domain_bounds))
 
         self._deriv_mats_alt = self._form_derivative_matrices_alt()
 
@@ -657,7 +722,8 @@ class InteriorCartesianProductCollocationMesh(CartesianProductCollocationMesh):
         for dd in range(self.nphys_vars):
             deriv_mats.append(canonical_deriv_mats[dd]*2./(
                 self._domain_bounds[2*dd+1]-self._domain_bounds[2*dd]))
-        deriv_mats = [torch.tensor(mat) for mat in deriv_mats]
+        deriv_mats = [torch.tensor(mat, dtype=torch.double)
+                      for mat in deriv_mats]
         return (canonical_mesh_pts_1d, None,
                 canonical_mesh_pts_1d_baryc_weights,
                 mesh_pts, deriv_mats)
@@ -681,7 +747,8 @@ class InteriorCartesianProductCollocationMesh(CartesianProductCollocationMesh):
         for dd in range(self.nphys_vars):
             deriv_mats_alt.append(canonical_deriv_mats_alt[dd]*2./(
                 self._domain_bounds[2*dd+1]-self._domain_bounds[2*dd]))
-        return [torch.tensor(mat) for mat in deriv_mats_alt]
+        return [torch.tensor(mat, dtype=torch.double)
+                for mat in deriv_mats_alt]
 
     def _get_deriv_mats(self, quantity):
         if quantity.shape[0] == self.nunknowns:
@@ -822,6 +889,7 @@ class ShallowWater(AbstractSpectralCollocationResidual):
                 depth*torch.prod(vels, dim=1), 0)
         return torch.cat(residual)
 
+
 class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
     def __init__(self, mesh, forc_fun, bed_fun, beta_fun,
                  depth_fun, A, rho, homotopy_val=0):
@@ -839,21 +907,22 @@ class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
         self._bed_vals = bed_fun(self.mesh._meshes[0].mesh_pts)
         self._beta_vals = beta_fun(self.mesh._meshes[0].mesh_pts)
         self._forc_vals = self._forc_fun(self.mesh._meshes[0].mesh_pts)
+
         self._depth_vals = None
 
     def _raw_residual_1d(self, split_sols, depth_vals):
         pderiv = self.mesh._meshes[0].partial_deriv
         dudx = pderiv(split_sols[0], 0)
-        De = (dudx**2/2+self._homotopy_val)**(1/2)
-        visc = 1/2*self._A**(-1/self._n)*De**((self._n-1)/(self._n))
+        if self._n == 1:
+            visc = 1/2*self._A**(-1)
+        else:
+            De = (dudx**2+self._homotopy_val)**(1/2)
+            visc = 1/2*self._A**(-1/self._n)*De**((self._n-1)/(self._n))
         C = 2*depth_vals[:, 0]*visc
-        # todo check whether 2 needs to muliply C below
         residual = -pderiv(C*2*dudx, 0)
         residual += self._beta_vals[:, 0]*split_sols[0]
         residual += self._rho*self._g*depth_vals[:, 0]*pderiv(
             self._bed_vals[:, 0]+depth_vals[:, 0], 0)
-        #plt.plot(self.mesh._meshes[0].mesh_pts[0,:], (self._beta_vals[:, 0]*split_sols[0]).detach())
-        #plt.show()
         residual -= self._forc_vals[:, 0]
         return residual
 
@@ -868,8 +937,8 @@ class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
         visc = 1/2*self._A**(-1/self._n)*De**((self._n-1)/(self._n))
         C = 2*depth_vals[:, 0]*visc
         residual = [0, 0]
-        residual[0] = -pderiv(C*(2*dudx+dvdy), 0)-pderiv(C*(dudy+dvdx)/2, 1)
-        residual[1] = -pderiv(C*(dudy+dvdx)/2, 0)-pderiv(C*(dudx+2*dvdy), 1)
+        residual[0] = -pderiv(C*(2*dudx+dvdy), 0)-pderiv(C*(dudy+dvdx), 1)
+        residual[1] = -pderiv(C*(dudy+dvdx), 0)-pderiv(C*(dudx+2*dvdy), 1)
         for ii in range(2):
             residual[ii] += self._beta_vals[:, 0]*split_sols[ii]
             residual[ii] += self._rho*self._g*depth_vals[:, 0]*pderiv(
@@ -906,9 +975,9 @@ class ShallowShelf(ShallowShelfVelocities):
             split_sols[:-1], depth_vals[:, None])
         vel_vals = torch.hstack(
             [s[:, None] for s in split_sols[:self.mesh.nphys_vars]])
-        depth_residual = self.mesh._meshes[self.mesh.nphys_vars].div(
+        depth_residual = -self.mesh._meshes[self.mesh.nphys_vars].div(
             depth_vals[:, None]*vel_vals)
-        depth_residual -= self._depth_forc_fun(
+        depth_residual += self._depth_forc_fun(
             self.mesh._meshes[self.mesh.nphys_vars].mesh_pts)[:, 0]
         return torch.cat((residual, depth_residual))
 

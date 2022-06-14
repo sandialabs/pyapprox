@@ -256,7 +256,7 @@ def setup_shallow_shelf_manufactured_solution(
 
     vx = [v.diff(s, 1) for s, v in zip(symbs, vel_expr)]
     if nphys_vars == 1:
-        De = (vx[0]**2/2)**(1/2)
+        De = (vx[0]**2)**(1/2)
     else:
         wx = [v.diff(s, 1) for s, v in zip(symbs[::-1], vel_expr)]
         De = (vx[0]**2+vx[1]**2+vx[0]*vx[1]+1/4*(wx[0]+wx[1])**2)**(1/2)
@@ -271,9 +271,9 @@ def setup_shallow_shelf_manufactured_solution(
     else:
         vel_forc_expr[0] = -(
             (C*(2*vx[0]+vx[1])).diff(symbs[0], 1) +
-            (C*(wx[0]+wx[1])/2).diff(symbs[1], 1))
+            (C*(wx[0]+wx[1])).diff(symbs[1], 1))
         vel_forc_expr[1] = -(
-            (C*(wx[0]+wx[1])/2).diff(symbs[0], 1) +
+            (C*(wx[0]+wx[1])).diff(symbs[0], 1) +
             (C*(vx[0]+2*vx[1])).diff(symbs[1], 1))
 
     for ii in range(nphys_vars):

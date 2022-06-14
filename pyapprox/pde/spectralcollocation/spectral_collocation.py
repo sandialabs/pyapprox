@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from functools import partial
+from scipy.linalg import toeplitz
 
 from pyapprox.util.utilities import (
     cartesian_product, outer_product, get_tensor_product_quadrature_rule
@@ -105,6 +106,39 @@ def _chebyshev_second_derivative_matrix_entry(degree, pts, ii, jj):
         return deriv
 
     raise RuntimeError("Will not happen")
+
+
+def fourier_derivative_matrix(order):
+    assert order % 2 == 1
+    npts = (order+1)
+    h = 2*np.pi/npts
+    indices = np.arange(1, npts)
+    col = np.hstack([0, .5*(-1)**indices*(1/np.tan(indices*h/2))])
+    row = col[np.hstack([0, indices[::-1]])]
+    pts = h*np.arange(1, npts+1)
+    return pts, toeplitz(col, row)
+
+
+def fourier_second_order_derivative_matrix(order):
+    assert order % 2 == 1
+    npts = (order+1)
+    h = 2*np.pi/npts
+    indices = np.arange(1, npts)
+    col = np.hstack(
+        [-np.pi**2/(3*h**2)-1/6, -.5*(-1)**indices/(np.sin(indices*h/2)**2)])
+    pts = h*np.arange(1, npts+1)
+    return pts, toeplitz(col)
+
+
+def fourier_basis(order, samples):
+    npts = (order+1)
+    h = 2*np.pi/npts
+    pts = h*np.arange(1, npts+1)
+    II = np.where(samples==2*np.pi)[0]
+    samples[II] = 0
+    xx = samples[:, None]-pts[None, :]
+    vals = np.sin(np.pi*xx/h)/(2*np.pi/h*np.tan(xx/2))
+    return vals
 
 
 def chebyshev_second_derivative_matrix(degree):
@@ -494,18 +528,20 @@ class OneDCollocationMesh(AbstractCartesianProductCollocationMesh):
             normals[ii] = self._get_bndry_normal(bndry_index)
         return normals
 
-    def plot(self, mesh_values, num_plot_pts_1d=None,
+    def plot(self, mesh_values, num_plot_pts_1d=None, ax=None, 
              **kwargs):
         import pylab as plt
+        if ax is None:
+            fig, ax = plt.subplots(1, 1)
         if num_plot_pts_1d is not None:
             # interpolate values onto plot points
             plot_mesh = np.linspace(
                 self.domain[0], self.domain[1], num_plot_pts_1d)
             interp_vals = self.interpolate(mesh_values, plot_mesh)
-            plt.plot(plot_mesh, interp_vals, **kwargs)
+            ax.plot(plot_mesh, interp_vals, **kwargs)
         else:
             # just plot values on mesh points
-            plt.plot(self.mesh_pts[0, :], mesh_values, **kwargs)
+            ax.plot(self.mesh_pts[0, :], mesh_values, **kwargs)
 
 
 class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):

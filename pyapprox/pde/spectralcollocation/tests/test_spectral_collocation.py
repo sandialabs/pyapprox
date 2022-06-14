@@ -5,7 +5,9 @@ from pyapprox.pde.spectralcollocation.spectral_collocation import (
     chebyshev_derivative_matrix,
     chebyshev_second_derivative_matrix,
     lagrange_polynomial_derivative_matrix_1d,
-    lagrange_polynomial_derivative_matrix_2d
+    lagrange_polynomial_derivative_matrix_2d,
+    fourier_derivative_matrix, fourier_second_order_derivative_matrix,
+    fourier_basis
 )
 from pyapprox.util.utilities import approx_jacobian, cartesian_product
 
@@ -50,6 +52,41 @@ class TestSpectralCollocation(unittest.TestCase):
         # print(D1_mat.dot(D1_mat.dot(fun(pts))))
         assert np.allclose(D2_mat.dot(fun(pts)), second_deriv(pts))
 
+    def test_fourier_derivative_matrix(self):
+        def fun(xx):
+            return np.exp(np.sin(xx))
+
+        def deriv(xx):
+            vals = fun(xx)
+            return np.cos(xx)*vals
+
+        def deriv2(xx):
+            vals = fun(xx)
+            return (np.cos(xx)**2-np.sin(xx))*vals
+
+        order = 31
+        pts, D1_mat = fourier_derivative_matrix(order)
+        vals = fun(pts)
+        # print(D1_mat.dot(vals))
+        # print(deriv(pts))
+        assert np.allclose(D1_mat.dot(vals), deriv(pts))
+        pts, D2_mat = fourier_second_order_derivative_matrix(order)
+        assert np.allclose(D2_mat.dot(vals), deriv2(pts))
+
+        # cannot interpolate at xx=np.pi*2
+        # but the value at this point is the same as at x=0
+        xx = np.linspace(0, np.pi*2-1e-15, 51)
+        basis_matrix = fourier_basis(order, xx)
+        # print(basis_matrix.dot(vals), fun(xx))
+        assert np.allclose(basis_matrix.dot(vals), fun(xx))
+
+        # test scaling of derivative_matrices
+        pts, D1_mat = fourier_derivative_matrix(order)
+        pts *= 2
+        D1_mat *= 2*np.pi/(4*np.pi)
+        vals = fun(pts)
+        assert np.allclose(D1_mat.dot(vals), deriv(pts))
+
     def test_lagrange_polynomial_derivative_matrix_1d(self):
         order = 5
         degree = order-2
@@ -71,7 +108,6 @@ class TestSpectralCollocation(unittest.TestCase):
                 pts, interior_pts)[0]
         assert np.allclose(
             dmat_int.dot(fun(interior_pts)), deriv(pts))
-
 
         interior_pts = pts[1:-1]
         deriv_mat_1d_interior = np.zeros((pts.shape[0], pts.shape[0]))

@@ -74,20 +74,21 @@ def get_shallow_ice_velocity(surface_vals, grad_surface_vals, depth_vals,
 class ISMIPHOMBenchmark():
     def __init__(self, case, Lx):
         alpha = {"A": 0.5, "B": 0.5, "C": 0.1, "D": 0.1}[case]
-        alpha = np.pi/180*alpha
-        self.surface_fun = partial(get_ISMIPHOM_surface_expr, alpha)
-        self.grad_surface_fun = partial(get_ISMIPHOM_grad_surface_expr, alpha)
+        self.alpha = np.pi/180*alpha
+        self.surface_fun = partial(get_ISMIPHOM_surface_expr, self.alpha)
+        self.grad_surface_fun = partial(
+            get_ISMIPHOM_grad_surface_expr, self.alpha)
 
         Lz = 1  # km
         self.friction_fun, self.bed_fun = {
             "A": (get_ISMIPHOM_A_basal_friction,
-                  partial(get_ISMIPHOM_A_bottom_expr, alpha, Lx, Lz)),
+                  partial(get_ISMIPHOM_A_bottom_expr, self.alpha, Lx, Lz)),
             "B": (get_ISMIPHOM_B_basal_friction,
-                  partial(get_ISMIPHOM_B_bottom_expr, alpha, Lx, Lz)),
+                  partial(get_ISMIPHOM_B_bottom_expr, self.alpha, Lx, Lz)),
             "C": (partial(get_ISMIPHOM_C_basal_friction, Lx, Lz),
-                  partial(get_ISMIPHOM_C_bottom_expr, alpha, Lx, Lz)),
+                  partial(get_ISMIPHOM_C_bottom_expr, self.alpha, Lx, Lz)),
             "D": (partial(get_ISMIPHOM_D_basal_friction, Lx, Lz),
-                  partial(get_ISMIPHOM_D_bottom_expr, alpha, Lx, Lz)),
+                  partial(get_ISMIPHOM_D_bottom_expr, self.alpha, Lx, Lz)),
         }[case]
 
     def thickness_fun(self, x):
@@ -100,8 +101,8 @@ from pyapprox.pde.autopde.autopde import (
 import matplotlib.pyplot as plt
         
 if __name__ == "__main__":
-    Lx = 10  # km
-    orders = [61]
+    Lx = 160  # km
+    orders = [21]
     
     benchmark = ISMIPHOMBenchmark("D", Lx=Lx)
 
@@ -109,6 +110,7 @@ if __name__ == "__main__":
     vel_bndry_conds = [
         [[None, "P"] for ii in range(nphys_vars*2)]
         for jj in range(nphys_vars)]
+    print(vel_bndry_conds)
     
     nphys_vars = len(orders)
     domain_bounds = np.zeros(nphys_vars*2)
@@ -121,9 +123,10 @@ if __name__ == "__main__":
     def vel_forc_fun(x):
         return np.zeros((x.shape[1], nphys_vars))
 
-    homotopy_val = 1e-10
+    homotopy_alpha = 16
+    homotopy_val = 10**(-homotopy_alpha)
     nhomotopy_steps = 1
-    init_guess = torch.ones((mesh.nunknowns, 1), dtype=torch.double)
+    init_guess = torch.zeros((mesh.nunknowns, 1), dtype=torch.double)
     # init_guess = torch.cos(
     #    torch.tensor(vel_meshes[0].mesh_pts.T/Lx*np.pi, dtype=torch.double))*0
     # print(init_guess)
@@ -137,9 +140,11 @@ if __name__ == "__main__":
             Function(benchmark.thickness_fun), A, rho, homotopy_val))
     for ii in range(nhomotopy_steps):
         print(solver.residual._homotopy_val)
-        sol = solver.solve(init_guess, step_size=1, verbosity=2, maxiters=100)
+        sol = solver.solve(
+            init_guess, step_size=1, verbosity=2, maxiters=100, tol=2e-8)
         init_guess = torch.tensor(sol)
-        solver.residual._homotopy_val = solver.residual._homotopy_val*0.1
+        homotopy_alpha += 0.1
+        solver.residual._homotopy_val = 10**(-homotopy_alpha)
 
     print(sol)
     nplot_pts_1d = 100
