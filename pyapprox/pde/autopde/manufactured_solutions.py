@@ -271,9 +271,9 @@ def setup_shallow_shelf_manufactured_solution(
     else:
         vel_forc_expr[0] = -(
             (C*(2*vx[0]+vx[1])).diff(symbs[0], 1) +
-            (C*(wx[0]+wx[1])).diff(symbs[1], 1))
+            (C*(wx[0]+wx[1])/2).diff(symbs[1], 1))
         vel_forc_expr[1] = -(
-            (C*(wx[0]+wx[1])).diff(symbs[0], 1) +
+            (C*(wx[0]+wx[1])/2).diff(symbs[0], 1) +
             (C*(vx[0]+2*vx[1])).diff(symbs[1], 1))
 
     for ii in range(nphys_vars):

@@ -99,9 +99,10 @@ from pyapprox.pde.autopde.autopde import (
     CartesianProductCollocationMesh, VectorMesh, SteadyStatePDE,
     Function, ShallowShelfVelocities)
 import matplotlib.pyplot as plt
-        
+
+
 if __name__ == "__main__":
-    Lx = 160  # km
+    Lx = 80  # km
     orders = [21]
     
     benchmark = ISMIPHOMBenchmark("D", Lx=Lx)
