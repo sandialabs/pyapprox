@@ -29,6 +29,7 @@ def _evaluate_list_of_sp_lambda(sp_lambdas, xx, as_list=False):
         return vals
     return np.hstack(vals)
 
+
 def _evaluate_list_of_transient_sp_lambda(sp_lambdas, xx, time, as_list=False):
     # sp_lambda returns list of values from multiple functions
     vals = [_evaluate_transient_sp_lambda(sp_lambda, xx, time)
@@ -301,9 +302,7 @@ def setup_shallow_shelf_manufactured_solution(
 
 
 def setup_first_order_stokes_ice_manufactured_solution(
-        depth_string, vel_strings, bed_string, beta_string, A, rho, g):
-
-    n = 3
+        depth_string, vel_strings, bed_string, beta_string, A, rho, g, alpha, n):
 
     # There is no equation for z velocity but mesh must always include z
     nphys_vars = len(vel_strings)+1
@@ -319,60 +318,125 @@ def setup_first_order_stokes_ice_manufactured_solution(
         eval_list_of_sp_lambda, vel_lambda, as_list=False)
 
     depth_expr = sp.sympify(depth_string)
-    depth_lambda = sp.lambdify(symbs, depth_expr, "numpy")
+    depth_lambda = sp.lambdify(symbs[0], depth_expr, "numpy")
     depth_fun = partial(eval_sp_lambda, depth_lambda)
 
     beta_expr = sp.sympify(beta_string)
-    beta_lambda = sp.lambdify(symbs, beta_expr, "numpy")
+    beta_lambda = sp.lambdify(symbs[0], beta_expr, "numpy")
     beta_fun = partial(eval_sp_lambda, beta_lambda)
 
     bed_expr = sp.sympify(bed_string)
-    bed_lambda = sp.lambdify(symbs, bed_expr, "numpy")
+    bed_lambda = sp.lambdify(symbs[0], bed_expr, "numpy")
     bed_fun = partial(eval_sp_lambda, bed_lambda)
 
-    vx = [vel_expr[0].diff(s, 1) for s in symbs]
-    De = (vx[0]**2+vx[1]**2/4)**(1/2)
+    ux = [vel_expr[0].diff(s, 1) for s in symbs]
+    De = (ux[0]**2+ux[1]**2/4)**(1/2)
     visc_expr = 1/2*A**(-1/n)*De**((1-n)/(n))
+    print(visc_expr, 1/2*A**(-1/n))
     C = 2*visc_expr
     vel_forc_expr = [
-        -((C*2*vx[0]).diff(symbs[0], 1)+(C*2*vx[1]/2).diff(symbs[1], 1))]
-    vel_forc_expr[0] += rho*g*(depth_expr+bed_expr).diff(symbs[0])
+        -((C*2*ux[0]).diff(symbs[0], 1)+(C*ux[1]/2).diff(symbs[1], 1))]
+    # vel_forc_expr[0] -= rho*g*(depth_expr+bed_expr).diff(symbs[0])
     vel_forc_lambda = [
         sp.lambdify(symbs, f, "numpy") for f in vel_forc_expr]
     vel_forc_fun = partial(
         eval_list_of_sp_lambda, vel_forc_lambda, as_list=False)
+    import matplotlib.pyplot as plt
+    xx = np.linspace(-1, 1, 101)[None, :]
+    zz = (bed_fun(xx)+depth_fun(xx)).T*0+1
+    pts = np.vstack((xx, zz))
+    print(pts.shape)
+    # vals = vel_fun(np.vstack((xx, zz)))
+    vals = partial(eval_sp_lambda, sp.lambdify(symbs, 2*visc_expr*ux[0], "numpy"))(pts)
+    print(np.vstack((xx, zz)), n)
+    #vals = partial(eval_sp_lambda, sp.lambdify(symbs, (C*2*ux[0]), "numpy"))(pts))
+    print('v', vals[:, 0])
+    # vals = -vel_forc_fun(pts)
+    plt.plot(xx[0, :], vals)
+    print(vel_expr)
+    # plt.show()
 
-    alpha = 1
     surface_expr = bed_expr+depth_expr
-    phi1 = surface_expr-sp_z#sp_z-surface_expr
+    phi1 = sp_z-surface_expr
     phi2 = 4*A*(alpha*rho*g)**3*sp_x
     phi3 = 4*sp_x**3*phi1**5*phi2**2
     phi4 = (8*alpha*sp_x**3*phi1**3*phi2-(2*depth_expr*alpha*rho*g)/beta_expr +
             3*sp_x*phi2*(phi1**4-depth_expr**4))
-    phi5 = (56*alpha*sp_x**2*phi1**3*phi2+48*alpha**2*sp_x**4*phi1**2*phi2 +
-            6*phi2*(phi1**4-depth_expr**4))
+    # phi5 = (56*alpha*sp_x**2*phi1**3*phi2+48*alpha**2*sp_x**4*phi1**2*phi2 +
+    #         6*phi2*(phi1**4-depth_expr**4))
     mu = 1/2*(A*phi4**2+A*sp_x*phi1*phi3)**(-1/3)
-    f = (16/3*A*mu**4*(-2*phi4**2*phi5+24*phi3*phi4*(phi1+2*alpha*sp_x**2)) -
-         6*sp_x**3*phi1**3*phi2*phi3-18*sp_x**2*phi1**2*phi2*phi4**2 -
-         6*sp_x*phi1*phi3*phi5)
-    print()
-    print(phi1)
-    print(phi2, alpha, rho, g)
-    print(visc_expr)
-    print(mu)
-    assert False
-    print()
-    print()
-    print(f)
-    print()
-    print(vel_forc_expr[0])
-    print(f-vel_forc_expr[0])
-    assert False
+    # f1 = 16/3*A*mu**4*(
+    #     -2*phi4**2*phi5+24*phi3*phi4*(phi1+2*alpha*sp_x**2) -
+    #     6*sp_x**3*phi1**3*phi2*phi3-18*sp_x**2*phi1**2*phi2*phi4**2 -
+    #     6*sp_x*phi1*phi3*phi5)
+    # vel_forc_lambda = [sp.lambdify(symbs, f1, "numpy")]
+    # vel_forc_fun = partial(
+    #     eval_list_of_sp_lambda, vel_forc_lambda, as_list=False)
 
-    print('H', depth_expr)
-    print('v', vel_expr)
-    print('F', vel_forc_expr)
-    print('bed', bed_expr)
-    print('beta', beta_expr)
+    # phi4 = -du/dx = -ux[0]
+    # phi2 = 4*A*alpha**2*(rho*g)**3*(ds/dx)
+    x = np.array([-1, -0.5, 0.5, 1])
+    # below does not equal zero exactly unless A = 1 but is zero
+    # to machine precision. This can only be checked though by lamdifying
+    # and evaluating expression for values of x
+    # assert (sp.simplify(ux[0]+phi4)) == 0
+    # assert sp.simplify(ux[1]**2/4 - sp_x*phi1*phi3) == 0
+    # assert (sp.simplify(visc_expr-mu) == 0)
+    # print(sp.lambdify(symbs, visc_expr-mu, "numpy")(
+    #         x, bed_fun(x[None, :])[:, 0]))
+    # assert np.allclose(
+    #     sp.lambdify(symbs, visc_expr-mu, "numpy")(
+    #         x, bed_fun(x[None, :])[:, 0]), 0)
 
-    return depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun
+    # # print(vel_forc_expr[0])
+    # assert np.allclose(
+    #     sp.lambdify(symbs, vel_forc_expr[0]-f1, "numpy")(
+    #         x, bed_fun(x[None, :])[:, 0]), 0)
+
+    # assert False
+
+    # left, right, top, bottom
+    surface_expr = bed_expr+depth_expr
+    surface_normal = [-surface_expr.diff(sp_x, 1), 1]
+    factor = sum([s**2 for s in surface_normal])**(1/2)
+    surface_normal = [s/factor for s in surface_normal]
+    # print('n', surface_normal)
+    bndry_expr = [
+        -C*2*ux[0], C*2*ux[0],
+        -C*2*ux[0]*surface_normal[0]-C*ux[1]/2*1+beta_expr*vel_expr[0],
+        C*2*ux[0]*surface_normal[0]+C*ux[1]/2*1,
+    ]
+    bndry_lambdas = [
+        sp.lambdify(symbs, f, "numpy") for f in bndry_expr]
+    bndry_funs = [partial(eval_sp_lambda, lam) for lam in bndry_lambdas]
+
+    # print('H', depth_expr)
+    # print('v', vel_expr)
+    # print('F', vel_forc_expr)
+    # print('bed', bed_expr)
+    # print('beta', beta_expr)
+
+    # print(-4*phi4*mu)
+    # print(bndry_expr[0])
+    # assert np.allclose(
+    #     sp.lambdify(symbs, -(-4*phi4*mu)-bndry_expr[0], "numpy")(
+    #         x, bed_fun(x[None, :])[:, 0]), 0)
+    # assert np.allclose(
+    #     sp.lambdify(symbs, -4*phi4*mu-bndry_expr[1], "numpy")(
+    #         x, bed_fun(x[None, :])[:, 0]), 0)
+    # assert (surface_normal[0]-(2*alpha*sp_x)/(4*alpha**2*sp_x**2+1)**(1/2) == 0)
+    # assert np.allclose(
+    #     sp.lambdify(
+    #         symbs,
+    #         (-4*phi4*mu*surface_normal[0]-4*phi2*sp_x**2*phi1**3*mu*1) -
+    #         bndry_expr[3], "numpy")(
+    #             x, (bed_fun(x[None, :])+depth_fun(x[None, :]))[:, 0]), 0)
+    # assert np.allclose(
+    #     sp.lambdify(
+    #         symbs,
+    #         (-4*phi4*mu*(-surface_normal[0])-4*phi2*sp_x**2*phi1**3*mu*(-1) +
+    #         2*depth_expr*alpha*rho*g*sp_x
+    #         -beta_expr*sp_x**2*phi2*(phi1**4-depth_expr**4))
+    #         -bndry_expr[2], "numpy")(x, bed_fun(x[None, :])[:, 0]), 0)
+
+    return depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun, bndry_funs

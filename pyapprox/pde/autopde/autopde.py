@@ -132,7 +132,7 @@ class CartesianProductCollocationMesh():
         self._canonical_domain_bounds = np.ones(2*self.nphys_vars)
         self._canonical_domain_bounds[::2] = -1.
         for ii in range(self.nphys_vars):
-            if self._basis_types [ii]== "F":
+            if self._basis_types[ii] == "F":
                 self._canonical_domain_bounds[2*ii:2*ii+2] = [0, 2*np.pi]
 
         (self._canonical_mesh_pts_1d, self._canonical_deriv_mats_1d,
@@ -143,6 +143,7 @@ class CartesianProductCollocationMesh():
         self._bndrys = self._form_boundaries()
         self._bndry_indices = self._determine_boundary_indices()
         if len(self._bndrys) != len(bndry_conds):
+            print(bndry_conds, self._bndrys)
             raise ValueError(
                 "Incorrect number of boundary conditions provided")
         for bndry_cond in bndry_conds:
@@ -311,6 +312,20 @@ class CartesianProductCollocationMesh():
         return self._plot_2d(
             mesh_values, nplot_pts_1d, 30, ax=ax)
 
+    def _apply_custom_boundary_conditions_to_residual(self, residual, sol):
+        for ii, bndry_cond in enumerate(self._bndry_conds):
+            if bndry_cond[1] == "C":
+                if self._basis_types[ii//2] == "F":
+                    msg = "Cannot enforce non-periodic boundary conditions "
+                    msg += "when using a Fourier basis"
+                    raise ValueError(msg)
+                idx = self._bndry_indices[ii]
+                bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
+                bndry_lhs = bndry_cond[2](sol, idx, self, ii)
+                assert bndry_lhs.ndim == 1
+                residual[idx] = (bndry_lhs-bndry_vals)
+        return residual
+
     def _apply_dirichlet_boundary_conditions_to_residual(self, residual, sol):
         for ii, bndry_cond in enumerate(self._bndry_conds):
             if bndry_cond[1] == "D":
@@ -367,6 +382,8 @@ class CartesianProductCollocationMesh():
             self._apply_neumann_and_robin_boundary_conditions_to_residual(
                 residual, sol))
         residual = (self._apply_periodic_boundary_conditions_to_residual(
+            residual, sol))
+        residual = (self._apply_custom_boundary_conditions_to_residual(
             residual, sol))
         return residual
 
@@ -908,8 +925,6 @@ class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
         self._beta_vals = beta_fun(self.mesh._meshes[0].mesh_pts)
         self._forc_vals = self._forc_fun(self.mesh._meshes[0].mesh_pts)
 
-        self._depth_vals = None
-
     def _derivs(self, split_sols):
         pderiv = self.mesh._meshes[0].partial_deriv
         dudx_ij = []
@@ -1065,6 +1080,16 @@ class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
         self._g = 9.81
         self._n = 3
 
+        self._depth_fun = depth_fun
+        self._funs = [self._forc_fun]
+        self._bed_vals = bed_fun(self.mesh._meshes[0].mesh_pts[:-1])
+        self._beta_vals = beta_fun(self.mesh._meshes[0].mesh_pts[:-1])
+        self._forc_vals = self._forc_fun(self.mesh._meshes[0].mesh_pts)
+
+        # for computing boundary conditions
+        self._surface_vals = None
+        self._vecs = None
+
     def _derivs(self, split_sols):
         pderiv = self.mesh._meshes[0].partial_deriv
         dudx_ij = []
@@ -1088,23 +1113,55 @@ class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
 
     def _vector_components(self, dudx_ij):
         if self.mesh.nphys_vars == 2:
-            return (
-                torch.hstack([2*dudx_ij[0][0][:, None], dudx_ij[0][1]/2]), )
+            return (torch.hstack(
+                [2*dudx_ij[0][0][:, None], dudx_ij[0][1][:, None]/2]), )
         raise NotImplementedError()
 
     def _raw_residual_nD(self, split_sols, depth_vals):
         div = self.mesh._meshes[0].div
         dudx_ij = self._derivs(split_sols)
         visc = self._viscosity(dudx_ij)
-        C = 2*visc
-        vecs = self._vector_components(dudx_ij)
-        residual = [0 for ii in range(self.mesh.nphys_vars)]
+        print(visc)
+        vecs = [2*visc[:, None]*(self._vector_components(dudx_ij)[ii])
+                for ii in range(self.mesh.nphys_vars-1)]
+        self._vecs = vecs
+        residual = [0 for ii in range(self.mesh.nphys_vars-1)]
         for ii in range(self.mesh.nphys_vars-1):
-            residual[ii] = -div(C[:, None]*vecs[ii])
+            residual[ii] = -div(vecs[ii])
+            idx = self.mesh._meshes[0]._bndry_indices[3]
+            mesh_pts = self.mesh._meshes[0].mesh_pts[:, idx]
+            print(mesh_pts ,self._n)
+            # plt.plot(mesh_pts[0], residual[ii][idx], '-o')
+            # plt.plot(mesh_pts[0], split_sols[0][idx], '-o')
+            print(visc[idx, None].shape)
+            plt.plot(mesh_pts[0], (2*visc[idx, None]*dudx_ij[0][0][idx])[:, 0], '-o')
+            # plt.plot(
+            #     mesh_pts[0], self._vector_components(dudx_ij)[0][idx, 0], '-o')
+            # print(dudx_ij[0][0][idx], self._homotopy_val)
+            # print(self._vector_components(dudx_ij)[0][idx], self._homotopy_val)
+            plt.show()
             residual[ii] -= self._forc_vals[:, ii]
         return torch.cat(residual)
 
     def _raw_residual(self, sol):
-        depth_vals = self._depth_fun(self.mesh._meshes[0].mesh_pts)
+        depth_vals = self._depth_fun(self.mesh._meshes[0].mesh_pts[:-1])
+        self._surface_vals = self._bed_vals+depth_vals
         split_sols = self.mesh.split_quantities(sol)
         return self._raw_residual_nD(split_sols, depth_vals)
+
+    def _strain_boundary_conditions(self, sol, idx, mesh, bndry_index):
+        multi_dot = torch.linalg.multi_dot
+        if bndry_index < 2:
+            return self._vecs[0][idx, 0]*(-1)**((bndry_index+1) % 2)
+
+        # derivative of surface
+        dsdx = multi_dot(
+            (mesh._deriv_mats[0][idx, :], self._surface_vals))
+        normals = torch.vstack((dsdx.T, torch.zeros((1, idx.shape[0]))))
+        normals /= torch.sqrt(torch.sum(normals**2, dim=0))
+        vals = torch.sum(self._vecs[0][idx, :]*normals.T, dim=1)
+        if bndry_index == 3:
+            return vals
+
+        # negative sign on vals because normals are reversed
+        return -vals + self._beta_vals[idx, 0]*sol[idx]

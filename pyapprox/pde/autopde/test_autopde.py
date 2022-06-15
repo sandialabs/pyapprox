@@ -16,7 +16,8 @@ from pyapprox.pde.autopde.autopde import (
     Function, EulerBernoulliBeam, Helmholtz,
     TransientFunction, TransientPDE, LinearStokes, NavierStokes,
     InteriorCartesianProductCollocationMesh, VectorMesh,
-    SteadyStatePDE, ShallowWater, ShallowShelfVelocities, ShallowShelf
+    SteadyStatePDE, ShallowWater, ShallowShelfVelocities, ShallowShelf,
+    FirstOrderStokesIce
 )
 
 
@@ -53,11 +54,11 @@ def _get_boundary_funs(nphys_vars, bndry_types, sol_fun, flux_funs):
             else:
                 # Zero to reduce Robin BC to Neumann
                 alpha = 0
-            bndry_fun = partial(_robin_bndry_fun, sol_fun, flux_funs, dd//2,
-                                (-1)**(dd+1), alpha)
+                bndry_fun = partial(_robin_bndry_fun, sol_fun, flux_funs, dd//2,
+                                    (-1)**(dd+1), alpha)
             if hasattr(sol_fun, "set_time") or hasattr(flux_funs, "set_time"):
                 bndry_fun = TransientFunction(bndry_fun)
-            bndry_conds.append([bndry_fun, "R", alpha])
+                bndry_conds.append([bndry_fun, "R", alpha])
     return bndry_conds
 
 
@@ -68,8 +69,8 @@ def _vel_component_fun(vel_fun, ii, x):
 
 class TestAutoPDE(unittest.TestCase):
     def setUp(self):
-      torch.manual_seed(1)
-      np.random.seed(1)
+        torch.manual_seed(1)
+        np.random.seed(1)
 
     def check_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_string, diff_string, vel_strings,
@@ -89,7 +90,7 @@ class TestAutoPDE(unittest.TestCase):
 
         mesh = CartesianProductCollocationMesh(
             domain_bounds, orders, bndry_conds, basis_types)
-       
+
         solver = SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, diff_fun, vel_fun, react_fun, forc_fun))
 
@@ -302,9 +303,9 @@ class TestAutoPDE(unittest.TestCase):
             Residual = LinearStokes
         else:
             Residual = NavierStokes
-        solver = SteadyStatePDE(Residual(
-            mesh, vel_forc_fun, pres_forc_fun, (pres_idx, pres_val)))
-        sol = solver.solve()
+            solver = SteadyStatePDE(Residual(
+                mesh, vel_forc_fun, pres_forc_fun, (pres_idx, pres_val)))
+            sol = solver.solve()
 
         exact_vel_vals = vel_fun(vel_meshes[0].mesh_pts).numpy()
         exact_pres_vals = pres_fun(pres_mesh.mesh_pts).numpy()
@@ -329,8 +330,8 @@ class TestAutoPDE(unittest.TestCase):
 
         for exact_v, v in zip(exact_vel_vals.T, split_sols[:-1]):
             assert np.allclose(exact_v, v[:, 0])
-        print(np.abs(exact_pres_vals-split_sols[-1]).max())
-        assert np.allclose(exact_pres_vals, split_sols[-1], atol=6e-8)
+            print(np.abs(exact_pres_vals-split_sols[-1]).max())
+            assert np.allclose(exact_pres_vals, split_sols[-1], atol=6e-8)
 
     def test_stokes_mms(self):
         test_cases = [
@@ -363,7 +364,7 @@ class TestAutoPDE(unittest.TestCase):
         vel_forc_fun = Function(vel_forc_fun)
         depth_fun = Function(depth_fun)
         vel_fun = Function(vel_fun)
- 
+
         # TODO test neumann boundary conditions so need flux funs
         # returned by MMS
         flux_funs = None
@@ -441,7 +442,7 @@ class TestAutoPDE(unittest.TestCase):
         test_cases = [
             [[0, 1], [5], ["-x**2"], "1+x", "0", ["D", "D"]],
             [[0, 1, 0, 1], [5, 5], ["-x**2", "-y**2"], "1+x+y", "0",
-            ["D", "D", "D", "D"]]
+             ["D", "D", "D", "D"]]
         ]
         for test_case in test_cases:
             self.check_shallow_water_mms(*test_case)
@@ -502,7 +503,7 @@ class TestAutoPDE(unittest.TestCase):
             vel_fun.set_time(time)
             exact_sol_t = np.vstack([
                 depth_fun(depth_mesh.mesh_pts).numpy()]+
-                [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts)])
+                                    [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts)])
             model_sol_t = sols[:, ii:ii+1]
             print(mesh.split_quantities(
                 exact_sol_t)[0][[0, -1]],
@@ -514,12 +515,12 @@ class TestAutoPDE(unittest.TestCase):
                     mesh.split_quantities((exact_sol_t-model_sol_t)**2)))
             print(time, L2_error)
             assert np.all(L2_error < 1e-8)
-        # plt.show()
+            # plt.show()
 
     def test_shallow_water_transient_mms(self):
         # order must be odd or Jacobian will be almost uninvertable and
         # newton solve will diverge
-        
+
         test_cases = [
             [[0, 1], [5], ["-x**2"], "1+x", "0", ["D", "D"], "im_crank2"],
             # [[0, 1, 0, 1], [5, 5], ["-x**2", "-y**2"], "1+x+y", "0",
@@ -544,7 +545,7 @@ class TestAutoPDE(unittest.TestCase):
 
         vel_forc_fun = Function(vel_forc_fun, 'vel_forc')
         vel_fun = Function(vel_fun, 'vel')
- 
+
         # TODO test neumann boundary conditions so need flux funs
         # returned by MMS
         flux_funs = None
@@ -574,10 +575,10 @@ class TestAutoPDE(unittest.TestCase):
                                        depth_fun, A, rho, 1e-15))
             init_guess = torch.cat(exact_vel_vals)
         else:
-             solver = SteadyStatePDE(
+            solver = SteadyStatePDE(
                 ShallowShelf(mesh, vel_forc_fun, bed_fun, beta_fun,
                              depth_forc_fun, A, rho, 1e-15))
-             init_guess = torch.cat(exact_vel_vals+[exact_depth_vals])
+            init_guess = torch.cat(exact_vel_vals+[exact_depth_vals])
 
         # print(init_guess, 'i')
         res_vals = solver.residual._raw_residual(init_guess.squeeze())
@@ -588,8 +589,8 @@ class TestAutoPDE(unittest.TestCase):
             init_guess = torch.randn(init_guess.shape, dtype=torch.double)*0
         else:
             init_guess = (init_guess+torch.randn(init_guess.shape)*5e-3)
-        sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=100)
-        split_sols = mesh.split_quantities(sol)
+            sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=100)
+            split_sols = mesh.split_quantities(sol)
         for exact_v, v in zip(exact_vel_vals, split_sols):
             # print(exact_v[:, 0]-v[:, 0])
             assert np.allclose(exact_v[:, 0], v[:, 0])
@@ -614,11 +615,12 @@ class TestAutoPDE(unittest.TestCase):
 
     def check_first_order_stokes_ice_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,
-            beta_string, bndry_types, A, rho, g, velocities_only):
-        nphys_vars = len(vel_strings)
-        depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun = (
+            beta_string, A, rho, g, alpha, n):
+        nphys_vars = len(domain_bounds)//2
+        depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun, bndry_funs = (
             setup_first_order_stokes_ice_manufactured_solution(
-                depth_string, vel_strings, bed_string, beta_string, A, rho, g))
+                depth_string, vel_strings, bed_string, beta_string, A, rho, g,
+                alpha, n))
 
         bed_fun = Function(bed_fun, 'bed')
         beta_fun = Function(beta_fun, 'beta')
@@ -626,77 +628,59 @@ class TestAutoPDE(unittest.TestCase):
 
         vel_forc_fun = Function(vel_forc_fun, 'vel_forc')
         vel_fun = Function(vel_fun, 'vel')
- 
-        flux_funs = None
-        vel_bndry_conds = [_get_boundary_funs(
-            nphys_vars, bndry_types,
-            partial(_vel_component_fun, vel_fun, ii),
-            flux_funs) for ii in range(nphys_vars)]
-        depth_bndry_conds = _get_boundary_funs(
-            nphys_vars, bndry_types, depth_fun, flux_funs)
+
+        # placeholder so that custom boundary conditions can be added
+        # after residual is created
+        vel_bndry_conds = [[[None, None] for ii in range(nphys_vars*2)]]
 
         vel_meshes = [CartesianProductCollocationMesh(
             domain_bounds, orders, vel_bndry_conds[ii])
-                      for ii in range(nphys_vars)]
-        depth_mesh = CartesianProductCollocationMesh(
-            domain_bounds, orders, depth_bndry_conds)
-        if velocities_only:
-            mesh = VectorMesh(vel_meshes)
-        else:
-            mesh = VectorMesh(vel_meshes+[depth_mesh])
+                      for ii in range(nphys_vars-1)]
+        mesh = VectorMesh(vel_meshes)
 
         exact_vel_vals = [
             v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]
-        exact_depth_vals = depth_fun(vel_meshes[0].mesh_pts)
-        if velocities_only:
-            solver = SteadyStatePDE(
-                ShallowShelfVelocities(mesh, vel_forc_fun, bed_fun, beta_fun,
-                                       depth_fun, A, rho, 1e-15))
-            init_guess = torch.cat(exact_vel_vals)
-        else:
-             solver = SteadyStatePDE(
-                ShallowShelf(mesh, vel_forc_fun, bed_fun, beta_fun,
-                             depth_forc_fun, A, rho, 1e-15))
-             init_guess = torch.cat(exact_vel_vals+[exact_depth_vals])
-
-        # print(init_guess, 'i')
+        solver = SteadyStatePDE(
+            FirstOrderStokesIce(mesh, vel_forc_fun, bed_fun, beta_fun,
+                                depth_fun, A, rho, 1e-16))
+        solver.residual._n = n
+        # for ii in range(len(mesh._meshes[0]._bndry_conds)):
+        #     mesh._meshes[0]._bndry_conds[ii] = [
+        #         Function(bndry_funs[ii]), "C",
+        #         solver.residual._strain_boundary_conditions]
+        init_guess = torch.cat(exact_vel_vals)
         res_vals = solver.residual._raw_residual(init_guess.squeeze())
         print(np.abs(res_vals.detach().numpy()).max(), 'r')
         assert np.allclose(res_vals, 0)
 
-        if velocities_only:
-            init_guess = torch.randn(init_guess.shape, dtype=torch.double)
-        else:
-            init_guess = (init_guess+torch.randn(init_guess.shape)*5e-3)
-        sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=100)
+        # solver.residual._n = 1
+        # init_guess = torch.randn(init_guess.shape, dtype=torch.double)
+        sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=5)
         split_sols = mesh.split_quantities(sol)
         for exact_v, v in zip(exact_vel_vals, split_sols):
             # print(exact_v[:, 0]-v[:, 0])
             assert np.allclose(exact_v[:, 0], v[:, 0])
-        if not velocities_only:
-            assert np.allclose(exact_depth_vals, split_sols[-1])
-
 
     def test_first_order_stokes_ice_mms(self):
         # Avoid velocity=0 in any part of the domain
-        # L, s0, H, alpha, beta, n, rho, g, A = (
-        #     1, 2, 1, 4e-5, 1, 3, 910, 9.81, 1e-4)
-        L, s0, H, alpha, beta, n, rho, g, A = 1, 2, 1, 1, 1, 3, 1, 1, 1
+        L, s0, H, alpha, beta, n, rho, g, A = (
+            #50, 2, 1, 4e-5, 1, 3, 910, 9.81, 1e-4)
+            1, 2, 1, 1e-1, 1, 1, 910, 9.81, 1e-4)
+        # L, s0, H, alpha, beta, n, rho, g, A = 1, 2, 1, 1, 1, 3, 1, 1, 1
         s = f"{s0}-{alpha}*x**2"
         dsdx = f"(-2*{alpha}*x)"
         vel_string = (
             f"2*{A}*({rho}*{g})**{n}/({n}+1)" +
             f"*((({s})-z)**({n}+1)-{H}**({n}+1))" +
             f"*{dsdx}**({n}-1)*{dsdx}-{rho}*{g}/{beta}*{H}*{dsdx}")
-        print(vel_string)
         test_cases = [
-            [[-L, L, -L, L], [10, 10], [vel_string], f"{s}-{H}", f"{H}",
-             f"{beta}", ["D", "D", "D", "D"], A, rho, g, True],
+            [[-L, L, -L, L], [6, 3], [vel_string], f"{H}", f"{s}-{H}",
+             f"{beta}", A, rho, g, alpha, n],
         ]
         # may need to setup backtracking for Newtons method
         for test_case in test_cases:
             self.check_first_order_stokes_ice_mms(*test_case)
-    
+
 
 
 if __name__ == "__main__":
