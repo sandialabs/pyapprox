@@ -68,7 +68,7 @@ def get_shallow_ice_velocity(surface_vals, grad_surface_vals, depth_vals,
     # rho*g*(surface_vals-z)/friction_vals)
     return ((gamma*((surface_vals-z)**(n+1)-depth_vals**(n+1)) *
              np.abs(grad_surface_vals)**(n-1)-rho*g*depth_vals/friction_vals) *
-             grad_surface_vals)
+            grad_surface_vals)
 
 
 class ISMIPHOMBenchmark():
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     def vel_forc_fun(x):
         return np.zeros((x.shape[1], nphys_vars))
 
-    homotopy_alpha = 16
+    homotopy_alpha = 12
     homotopy_val = 10**(-homotopy_alpha)
     nhomotopy_steps = 1
     init_guess = torch.zeros((mesh.nunknowns, 1), dtype=torch.double)

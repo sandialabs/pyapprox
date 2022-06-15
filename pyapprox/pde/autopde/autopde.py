@@ -910,49 +910,49 @@ class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
 
         self._depth_vals = None
 
-    def _strains(self, split_sols):
+    def _derivs(self, split_sols):
         pderiv = self.mesh._meshes[0].partial_deriv
-        e_ij = []
+        dudx_ij = []
         for ii in range(len(split_sols)):
-            e_ij.append([])
+            dudx_ij.append([])
             for jj in range(self.mesh.nphys_vars):
-                e_ij[-1].append(pderiv(split_sols[ii], jj))
-        return e_ij
+                dudx_ij[-1].append(pderiv(split_sols[ii], jj))
+        return dudx_ij
 
-    def _effective_strain_rate_1d(self, e_ij):
-        return (e_ij[0][0]**2+self._homotopy_val)**(1/2)
+    def _effective_strain_rate_1d(self, dudx_ij):
+        return (dudx_ij[0][0]**2+self._homotopy_val)**(1/2)
 
-    def _effective_strain_rate_2d(self, e_ij):
-        return (e_ij[0][0]**2 + e_ij[1][1]**2+e_ij[0][0]*e_ij[1][1]+
-                e_ij[0][1]**2/4+self._homotopy_val)**(1/2)
+    def _effective_strain_rate_2d(self, dudx_ij):
+        return (dudx_ij[0][0]**2 + dudx_ij[1][1]**2+dudx_ij[0][0]*dudx_ij[1][1]
+                + dudx_ij[0][1]**2/4+self._homotopy_val)**(1/2)
 
-    def _effective_strain_rate(self, e_ij):
+    def _effective_strain_rate(self, dudx_ij):
         if self.mesh.nphys_vars == 2:
-            return self._effective_strain_rate_2d(e_ij)
+            return self._effective_strain_rate_2d(dudx_ij)
         elif self.mesh.nphys_vars == 1:
-            return self._effective_strain_rate_1d(e_ij)
+            return self._effective_strain_rate_1d(dudx_ij)
         raise NotImplementedError()
 
-    def _viscosity(self, e_ij):
-        return (1/2*self._A**(-1/self._n)*
-                self._effective_strain_rate(e_ij)**((self._n-1)/(self._n)))
+    def _viscosity(self, dudx_ij):
+        return (1/2*self._A**(-1/self._n) *
+                self._effective_strain_rate(dudx_ij)**((1-self._n)/(self._n)))
 
-    def _vector_components(self, e_ij):
+    def _vector_components(self, dudx_ij):
         if self.mesh.nphys_vars == 2:
-            vec1 = torch.hstack([(2*e_ij[0][0] + e_ij[1][1])[:, None],
-                                 ((e_ij[0][1] + e_ij[1][0])/2)[:, None]])
-            vec2 = torch.hstack([((e_ij[0][1] + e_ij[1][0])/2)[:, None],
-                                 (e_ij[0][0] + 2*e_ij[1][1])[:, None]])
+            vec1 = torch.hstack([(2*dudx_ij[0][0] + dudx_ij[1][1])[:, None],
+                                 ((dudx_ij[0][1] + dudx_ij[1][0])/2)[:, None]])
+            vec2 = torch.hstack([((dudx_ij[0][1] + dudx_ij[1][0])/2)[:, None],
+                                 (dudx_ij[0][0] + 2*dudx_ij[1][1])[:, None]])
             return vec1, vec2
-        return (2*e_ij[0][0][:, None],)
+        return (2*dudx_ij[0][0][:, None],)
 
     def _raw_residual_nD(self, split_sols, depth_vals):
         pderiv = self.mesh._meshes[0].partial_deriv
         div = self.mesh._meshes[0].div
-        e_ij = self._strains(split_sols)
-        visc = self._viscosity(e_ij)
+        dudx_ij = self._derivs(split_sols)
+        visc = self._viscosity(dudx_ij)
         C = 2*visc*depth_vals[:, 0]
-        vecs = self._vector_components(e_ij)
+        vecs = self._vector_components(dudx_ij)
         residual = [0 for ii in range(self.mesh.nphys_vars)]
         for ii in range(self.mesh.nphys_vars):
             residual[ii] = -div(C[:, None]*vecs[ii])
@@ -961,48 +961,6 @@ class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
                 self._bed_vals[:, 0]+depth_vals[:, 0], ii)
             residual[ii] -= self._forc_vals[:, ii]
         return torch.cat(residual)
-    
-
-    # def _raw_residual_1d(self, split_sols, depth_vals):
-    #     pderiv = self.mesh._meshes[0].partial_deriv
-    #     dudx = pderiv(split_sols[0], 0)
-    #     if self._n == 1:
-    #         visc = 1/2*self._A**(-1)
-    #     else:
-    #         De = (dudx**2+self._homotopy_val)**(1/2)
-    #         visc = 1/2*self._A**(-1/self._n)*De**((self._n-1)/(self._n))
-    #     C = 2*depth_vals[:, 0]*visc
-    #     residual = -pderiv(C*2*dudx, 0)
-    #     residual += self._beta_vals[:, 0]*split_sols[0]
-    #     residual += self._rho*self._g*depth_vals[:, 0]*pderiv(
-    #         self._bed_vals[:, 0]+depth_vals[:, 0], 0)
-    #     residual -= self._forc_vals[:, 0]
-    #     return residual
-
-    # def _raw_residual_2d(self, split_sols, depth_vals):
-    #     pderiv = self.mesh._meshes[0].partial_deriv
-    #     dudx = pderiv(split_sols[0], 0)
-    #     dvdy = pderiv(split_sols[1], 1)
-    #     dudy = pderiv(split_sols[0], 1)
-    #     dvdx = pderiv(split_sols[1], 0)
-    #     De = (dudx**2+dvdy**2+dudx*dvdy+(dudy+dvdx)**2/4 +
-    #           self._homotopy_val)**(1/2)
-    #     visc = 1/2*self._A**(-1/self._n)*De**((self._n-1)/(self._n))
-    #     C = 2*depth_vals[:, 0]*visc
-    #     residual = [0, 0]
-    #     residual[0] = -pderiv(C*(2*dudx+dvdy), 0)-pderiv(C*(dudy+dvdx)/2, 1)
-    #     residual[1] = -pderiv(C*(dudy+dvdx)/2, 0)-pderiv(C*(dudx+2*dvdy), 1)
-    #     for ii in range(2):
-    #         residual[ii] += self._beta_vals[:, 0]*split_sols[ii]
-    #         residual[ii] += self._rho*self._g*depth_vals[:, 0]*pderiv(
-    #             self._bed_vals[:, 0]+depth_vals[:, 0], ii)
-    #         residual[ii] -= self._forc_vals[:, ii]
-    #     return torch.cat(residual)
-
-    # def _raw_residual_nD(self, split_sols, depth_vals):
-    #     # if self.mesh.nphys_vars == 1:
-    #     #     return self._raw_residual_1d(split_sols, depth_vals)
-    #     # return self._raw_residual_2d(split_sols, depth_vals)
 
     def _raw_residual(self, sol):
         depth_vals = self._depth_fun(self.mesh._meshes[0].mesh_pts)
@@ -1107,44 +1065,46 @@ class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
         self._g = 9.81
         self._n = 3
 
-    def _strains(split_sols):
+    def _derivs(self, split_sols):
         pderiv = self.mesh._meshes[0].partial_deriv
-        e_ij = []
+        dudx_ij = []
         for ii in range(len(split_sols)):
-            e_ij.append([])
+            dudx_ij.append([])
             for jj in range(self.mesh.nphys_vars):
-                e_ij[-1].append(pderiv(split_sols[ii], jj))
-        return e_ij
+                dudx_ij[-1].append(pderiv(split_sols[ii], jj))
+        return dudx_ij
 
-    def _effective_strain_rate_2d(self, e_ij):
-        rate = e_ij[0, 0]**2 + e_ij[0, 1]**2/4
+    def _effective_strain_rate_xz(self, dudx_ij):
+        return (dudx_ij[0][0]**2+dudx_ij[0][1]**2/4+self._homotopy_val)**(1/2)
 
-    def _effective_strain_rate(self, e_ij):
+    def _effective_strain_rate(self, dudx_ij):
         if self.mesh.nphys_vars == 2:
-            return self._effective_strain_rate_2d(self, e_ij)
+            return self._effective_strain_rate_xz(dudx_ij)
         raise NotImplementedError()
 
-    def _viscosity(self, e_ij):
-        return 1/2*self._A**(-1/self._n)*self._effective_strain_rate(e_ij)
+    def _viscosity(self, dudx_ij):
+        return (1/2*self._A**(-1/self._n) *
+                self._effective_strain_rate(dudx_ij)**((1-self._n)/(self._n)))
 
-    def _vector_components_2d(self, e_ij):
-        vec1 = torch.hstack([(2*e_ij[0, 0] + e_ij[1, 1])[:, None],
-                             (e_ij[0, 1] + e_ij[1, 0]/2)[:, None]])
-        vec2 = torch.hstack([(e_ij[0, 1] + e_ij[1, 0]/2)[:, None],
-                             (e_ij[0, 0] + 2*e_ij[1, 1])[:, None]])
-        return vec1, vec2
+    def _vector_components(self, dudx_ij):
+        if self.mesh.nphys_vars == 2:
+            return (
+                torch.hstack([2*dudx_ij[0][0][:, None], dudx_ij[0][1]/2]), )
+        raise NotImplementedError()
 
-    
-    def _raw_residual(self, split_sols, depth_vals):
-        e_ij = self._strains(split_sols)
-        visc = self._viscosity(e_ij)
-        C = 2*visc*depth_vals[:, 0]
-        vecs = self._vector_components_2d(e_ij)
+    def _raw_residual_nD(self, split_sols, depth_vals):
+        div = self.mesh._meshes[0].div
+        dudx_ij = self._derivs(split_sols)
+        visc = self._viscosity(dudx_ij)
+        C = 2*visc
+        vecs = self._vector_components(dudx_ij)
         residual = [0 for ii in range(self.mesh.nphys_vars)]
-        for ii in range(self.mesh.nphys_vars):
-            residual[ii] = self.mesh.div(C[:, None]*vecs[ii]) 
-            residual[ii] += self._beta_vals[:, 0]*split_sols[ii]
-            residual[ii] += self._rho*self._g*depth_vals[:, 0]*pderiv(
-                self._bed_vals[:, 0]+depth_vals[:, 0], ii)
+        for ii in range(self.mesh.nphys_vars-1):
+            residual[ii] = -div(C[:, None]*vecs[ii])
             residual[ii] -= self._forc_vals[:, ii]
         return torch.cat(residual)
+
+    def _raw_residual(self, sol):
+        depth_vals = self._depth_fun(self.mesh._meshes[0].mesh_pts)
+        split_sols = self.mesh.split_quantities(sol)
+        return self._raw_residual_nD(split_sols, depth_vals)

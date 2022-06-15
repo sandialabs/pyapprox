@@ -261,7 +261,7 @@ def setup_shallow_shelf_manufactured_solution(
         wx = [v.diff(s, 1) for s, v in zip(symbs[::-1], vel_expr)]
         De = (vx[0]**2+vx[1]**2+vx[0]*vx[1]+1/4*(wx[0]+wx[1])**2)**(1/2)
         print(vx, wx)
-    visc_expr = 1/2*A**(-1/n)*De**((n-1)/(n))
+    visc_expr = 1/2*A**(-1/n)*De**((1-n)/(n))
 
     C = 2*visc_expr*depth_expr
 
@@ -298,3 +298,81 @@ def setup_shallow_shelf_manufactured_solution(
     print('beta', beta_expr)
 
     return depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun, depth_forc_fun
+
+
+def setup_first_order_stokes_ice_manufactured_solution(
+        depth_string, vel_strings, bed_string, beta_string, A, rho, g):
+
+    n = 3
+
+    # There is no equation for z velocity but mesh must always include z
+    nphys_vars = len(vel_strings)+1
+    assert nphys_vars == 2
+    sp_x, sp_z = sp.symbols(['x', 'z'])
+    symbs = (sp_x, sp_z)
+    eval_sp_lambda = _evaluate_sp_lambda
+    eval_list_of_sp_lambda = _evaluate_list_of_sp_lambda
+
+    vel_expr = [sp.sympify(s) for s in vel_strings]
+    vel_lambda = [sp.lambdify(symbs, vel, "numpy") for vel in vel_expr]
+    vel_fun = partial(
+        eval_list_of_sp_lambda, vel_lambda, as_list=False)
+
+    depth_expr = sp.sympify(depth_string)
+    depth_lambda = sp.lambdify(symbs, depth_expr, "numpy")
+    depth_fun = partial(eval_sp_lambda, depth_lambda)
+
+    beta_expr = sp.sympify(beta_string)
+    beta_lambda = sp.lambdify(symbs, beta_expr, "numpy")
+    beta_fun = partial(eval_sp_lambda, beta_lambda)
+
+    bed_expr = sp.sympify(bed_string)
+    bed_lambda = sp.lambdify(symbs, bed_expr, "numpy")
+    bed_fun = partial(eval_sp_lambda, bed_lambda)
+
+    vx = [vel_expr[0].diff(s, 1) for s in symbs]
+    De = (vx[0]**2+vx[1]**2/4)**(1/2)
+    visc_expr = 1/2*A**(-1/n)*De**((1-n)/(n))
+    C = 2*visc_expr
+    vel_forc_expr = [
+        -((C*2*vx[0]).diff(symbs[0], 1)+(C*2*vx[1]/2).diff(symbs[1], 1))]
+    vel_forc_expr[0] += rho*g*(depth_expr+bed_expr).diff(symbs[0])
+    vel_forc_lambda = [
+        sp.lambdify(symbs, f, "numpy") for f in vel_forc_expr]
+    vel_forc_fun = partial(
+        eval_list_of_sp_lambda, vel_forc_lambda, as_list=False)
+
+    alpha = 1
+    surface_expr = bed_expr+depth_expr
+    phi1 = surface_expr-sp_z#sp_z-surface_expr
+    phi2 = 4*A*(alpha*rho*g)**3*sp_x
+    phi3 = 4*sp_x**3*phi1**5*phi2**2
+    phi4 = (8*alpha*sp_x**3*phi1**3*phi2-(2*depth_expr*alpha*rho*g)/beta_expr +
+            3*sp_x*phi2*(phi1**4-depth_expr**4))
+    phi5 = (56*alpha*sp_x**2*phi1**3*phi2+48*alpha**2*sp_x**4*phi1**2*phi2 +
+            6*phi2*(phi1**4-depth_expr**4))
+    mu = 1/2*(A*phi4**2+A*sp_x*phi1*phi3)**(-1/3)
+    f = (16/3*A*mu**4*(-2*phi4**2*phi5+24*phi3*phi4*(phi1+2*alpha*sp_x**2)) -
+         6*sp_x**3*phi1**3*phi2*phi3-18*sp_x**2*phi1**2*phi2*phi4**2 -
+         6*sp_x*phi1*phi3*phi5)
+    print()
+    print(phi1)
+    print(phi2, alpha, rho, g)
+    print(visc_expr)
+    print(mu)
+    assert False
+    print()
+    print()
+    print(f)
+    print()
+    print(vel_forc_expr[0])
+    print(f-vel_forc_expr[0])
+    assert False
+
+    print('H', depth_expr)
+    print('v', vel_expr)
+    print('F', vel_forc_expr)
+    print('bed', bed_expr)
+    print('beta', beta_expr)
+
+    return depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun
