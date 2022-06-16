@@ -15,7 +15,9 @@ from pyapprox.pde.spectralcollocation.spectral_collocation import (
     lagrange_polynomial_derivative_matrix_1d, fourier_derivative_matrix,
     fourier_basis
 )
-from pyapprox.util.visualization import get_meshgrid_function_data, plt
+from pyapprox.util.visualization import (
+    get_meshgrid_function_data, plt, get_meshgrid_samples
+)
 from pyapprox.pde.autopde.util import newton_solve
 from pyapprox.pde.autopde.time_integration import ImplicitRungeKutta
 
@@ -110,24 +112,25 @@ def dot(quantities1, quantities2):
     return vals
 
 
-class CartesianProductCollocationMesh():
-    def __init__(self, domain_bounds, orders, bndry_conds, basis_types=None):
+class TransformedCollocationMesh():
+    def __init__(self, orders, bndry_conds, transform, transform_inv,
+                 transform_inv_derivs, basis_types=None):
 
-        if len(orders) != len(domain_bounds)//2:
-            raise ValueError("Order must be specified for each dimension")
+        self._transform = transform
+        self._transform_inv = transform_inv
+        self._transform_inv_derivs = transform_inv_derivs
+
         if len(orders) > 2:
             raise ValueError("Only 1D and 2D meshes supported")
+        self.nphys_vars = len(orders)
 
         if basis_types is None:
-            basis_types = ["C"]*(len(domain_bounds)//2)
-        if len(basis_types) != len(domain_bounds)//2:
+            basis_types = ["C"]*(self.nphys_vars)
+        if len(basis_types) != self.nphys_vars:
             raise ValueError("Basis type must be specified for each dimension")
         self._basis_types = basis_types
 
-        super().__init__()
-        self._domain_bounds = np.asarray(domain_bounds)
         self._orders = orders
-        self.nphys_vars = len(self._domain_bounds)//2
 
         self._canonical_domain_bounds = np.ones(2*self.nphys_vars)
         self._canonical_domain_bounds[::2] = -1.
@@ -143,7 +146,7 @@ class CartesianProductCollocationMesh():
         self._bndrys = self._form_boundaries()
         self._bndry_indices = self._determine_boundary_indices()
         if len(self._bndrys) != len(bndry_conds):
-            print(bndry_conds, self._bndrys)
+            print(bndry_conds, len(self._bndrys))
             raise ValueError(
                 "Incorrect number of boundary conditions provided")
         for bndry_cond in bndry_conds:
@@ -175,13 +178,10 @@ class CartesianProductCollocationMesh():
         return bndry_indices
 
     def _map_samples_from_canonical_domain(self, canonical_samples):
-        return _map_hypercube_samples(
-            canonical_samples, self._canonical_domain_bounds,
-            self._domain_bounds)
+        return self._transform(canonical_samples)
 
     def _map_samples_to_canonical_domain(self, samples):
-        return _map_hypercube_samples(
-            samples, self._domain_bounds, self._canonical_domain_bounds)
+        return self._transform_inv(samples)
 
     @staticmethod
     def _form_1d_derivative_matrices(order, basis_type):
@@ -234,9 +234,7 @@ class CartesianProductCollocationMesh():
                 canonical_mesh_pts_1d_baryc_weights,
                 mesh_pts, deriv_mats)
 
-    def _interpolate(self, canonical_abscissa_1d,
-                     canonical_barycentric_weights_1d,
-                     values, eval_samples):
+    def interpolate(self, values, eval_samples):
         if eval_samples.ndim == 1:
             eval_samples = eval_samples[None, :]
             assert eval_samples.shape[0] == self.mesh_pts.shape[0]
@@ -245,10 +243,13 @@ class CartesianProductCollocationMesh():
             assert values.ndim == 2
         canonical_eval_samples = self._map_samples_to_canonical_domain(
             eval_samples)
+        return self._canonical_interpolate(canonical_eval_samples, values)
+
+    def _canonical_interpolate(self, canonical_eval_samples, values):
         if np.all([t == "C" for t in self._basis_types]):
             return self._cheby_interpolate(
-                canonical_eval_samples, canonical_abscissa_1d,
-                canonical_barycentric_weights_1d, values)
+                canonical_eval_samples, self._canonical_mesh_pts_1d,
+                self._canonical_mesh_pts_1d_baryc_weights, values)
         elif np.all([t == "F" for t in self._basis_types]):
             return self._fourier_interpolate(canonical_eval_samples, values)
         raise ValueError("Mixed basis not currently supported")
@@ -269,12 +270,6 @@ class CartesianProductCollocationMesh():
             return basis_vals[0].dot(values)
         return (basis_vals[0]*basis_vals[1]).dot(values)
 
-    def interpolate(self, mesh_values, eval_samples):
-        canonical_abscissa_1d = self._canonical_mesh_pts_1d
-        return self._interpolate(
-            canonical_abscissa_1d, self._canonical_mesh_pts_1d_baryc_weights,
-            mesh_values, eval_samples)
-
     def _plot_2d(self, mesh_values, num_pts_1d=100, ncontour_levels=20,
                  ax=None):
         if ax is None:
@@ -282,10 +277,16 @@ class CartesianProductCollocationMesh():
         # interpolate values onto plot points
 
         def fun(x):
-            return self.interpolate(mesh_values, x)
+            return self._canonical_interpolate(mesh_values, x)
 
-        X, Y, Z = get_meshgrid_function_data(
-            fun, self._domain_bounds, num_pts_1d, qoi=0)
+        X_can, Y_can, Z = get_meshgrid_function_data(
+            fun, self._canonical_domain_bounds, num_pts_1d, qoi=0)
+        X = np.reshape(
+            self._map_samples_from_canonical_domain(X_can.flatten()),
+            Y_can.shape)
+        Y = np.reshape(
+            self._map_samples_from_canonical_domain(X_can.flatten()),
+            (X.shape[0], Y_can.shape[1]))
         return ax.contourf(
             X, Y, Z, levels=np.linspace(Z.min(), Z.max(), ncontour_levels))
 
@@ -433,36 +434,39 @@ class AbstractFunction(ABC):
         return vals.clone().detach().requires_grad_(self._requires_grad)
 
 
-class TransformedCollocationMesh(CartesianProductCollocationMesh):
-    def __init__(self, orders, bndry_conds, transform, transform_inv,
-                 transform_inv_derivs):
-        domain_bounds = np.tile([0, 1], len(orders))
+def _map_hypercube_derivatives(
+        current_ranges, new_ranges, current_derivs, samples):
+    nvars = len(current_ranges)//2
+    current_lens = [
+        current_ranges[2*ii+1]-current_ranges[2*ii] for ii in range(nvars)]
+    new_lens = [
+       new_ranges[2*ii+1]-new_ranges[2*ii] for ii in range(nvars)]
+    new_derivs = current_derivs.copy()
+    for ii in range(nvars):
+        new_derivs[:, ii] *= new_lens[ii]/current_lens[ii]
+    return new_derivs
+
+
+class CartesianProductCollocationMesh(TransformedCollocationMesh):
+    def __init__(self, domain_bounds, orders, bndry_conds, basis_types=None):
+        self._domain_bounds = np.asarray(domain_bounds)
+
         super()._init__(domain_bounds, orders, bndry_conds, basis_types=None)
-        self._transform = transform
-        self._transform_inv = transform_inv
-        self._transform_inv_derivs = transform_inv_derivs
+        self._transform = partial(
+            _map_hypercube_samples,
+            current_ranges=self._canonical_domain_bounds,
+            new_ranges=self._domain_bounds)
+        self._transform_inv = partial(
+            _map_hypercube_samples,
+            current_ranges=self._domain_bounds,
+            nwe_ranges=self._canonical_domain_bounds)
+        self._transform_inv_derivs = partial(
+            _map_hypercube_derivatives,
+            self._domain_bounds,
+            self._canonical_domain_bounds)
 
-    def _map_samples_from_canonical_domain(self, canonical_samples):
-        return self._transform(canonical_samples)
-
-    def _map_samples_to_canonical_domain(self, samples):
-        return self._transform_inv(samples)
-
-    def _plot_2d(self, mesh_values, num_pts_1d=100, ncontour_levels=20,
-                 ax=None):
-        if ax is None:
-            ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-        # interpolate values onto plot points
-
-        def fun(x):
-            return self.interpolate(mesh_values, x)
-
-        X, Y, Z = get_meshgrid_function_data(
-            fun, self._domain_bounds, num_pts_1d, qoi=0)
-        return ax.tricontourf(
-            X, Y, Z, levels=np.linspace(Z.min(), Z.max(), ncontour_levels))
-
-
+        # return ax.tricontourf(
+        #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), ncontour_levels))
     
         
 
@@ -713,7 +717,6 @@ class VectorMesh():
                 obj = axs[ii].plot(xx[0, :], Z[ii], **kwargs)
                 objs.append(obj)
             return objs
-        from pyapprox.util.visualization import get_meshgrid_samples
         X, Y, pts = get_meshgrid_samples(
             self._meshes[0]._domain_bounds, nplot_pts_1d)
         Z = self.interpolate(sol_vals, pts)

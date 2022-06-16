@@ -54,11 +54,11 @@ def _get_boundary_funs(nphys_vars, bndry_types, sol_fun, flux_funs):
             else:
                 # Zero to reduce Robin BC to Neumann
                 alpha = 0
-                bndry_fun = partial(_robin_bndry_fun, sol_fun, flux_funs, dd//2,
-                                    (-1)**(dd+1), alpha)
+            bndry_fun = partial(_robin_bndry_fun, sol_fun, flux_funs, dd//2,
+                                (-1)**(dd+1), alpha)
             if hasattr(sol_fun, "set_time") or hasattr(flux_funs, "set_time"):
                 bndry_fun = TransientFunction(bndry_fun)
-                bndry_conds.append([bndry_fun, "R", alpha])
+            bndry_conds.append([bndry_fun, "R", alpha])
     return bndry_conds
 
 
@@ -305,7 +305,7 @@ class TestAutoPDE(unittest.TestCase):
             Residual = NavierStokes
             solver = SteadyStatePDE(Residual(
                 mesh, vel_forc_fun, pres_forc_fun, (pres_idx, pres_val)))
-            sol = solver.solve()
+        sol = solver.solve()
 
         exact_vel_vals = vel_fun(vel_meshes[0].mesh_pts).numpy()
         exact_pres_vals = pres_fun(pres_mesh.mesh_pts).numpy()
@@ -589,8 +589,8 @@ class TestAutoPDE(unittest.TestCase):
             init_guess = torch.randn(init_guess.shape, dtype=torch.double)*0
         else:
             init_guess = (init_guess+torch.randn(init_guess.shape)*5e-3)
-            sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=100)
-            split_sols = mesh.split_quantities(sol)
+        sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=100)
+        split_sols = mesh.split_quantities(sol)
         for exact_v, v in zip(exact_vel_vals, split_sols):
             # print(exact_v[:, 0]-v[:, 0])
             assert np.allclose(exact_v[:, 0], v[:, 0])
@@ -753,7 +753,7 @@ class TestAutoPDE(unittest.TestCase):
             # print(exact_v[:, 0]-v[:, 0])
             assert np.allclose(exact_v[:, 0], v[:, 0])
 
-    def test_first_order_stokes_ice_solver_mms(self):
+    def xtest_first_order_stokes_ice_solver_mms(self):
         # Avoid velocity=0 in any part of the domain
         L, s0, H, alpha, beta, n, rho, g, A = (
             50, 2, 1, 4e-5, 1, 3, 910, 9.8, 1e-4)
