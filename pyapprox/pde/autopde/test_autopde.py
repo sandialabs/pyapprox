@@ -268,7 +268,7 @@ class TestAutoPDE(unittest.TestCase):
         for test_case in test_cases:
             self.check_transient_advection_diffusion_reaction(*test_case)
 
-    def check_stokes_mms(
+    def check_stokes_solver_mms(
             self, domain_bounds, orders, vel_strings, pres_string, bndry_types,
             navier_stokes):
         vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, pres_grad_fun = (
@@ -333,7 +333,7 @@ class TestAutoPDE(unittest.TestCase):
             print(np.abs(exact_pres_vals-split_sols[-1]).max())
             assert np.allclose(exact_pres_vals, split_sols[-1], atol=6e-8)
 
-    def test_stokes_mms(self):
+    def test_stokes_solver_mms(self):
         test_cases = [
             [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "D"], False],
             [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "D"], True],
@@ -348,9 +348,9 @@ class TestAutoPDE(unittest.TestCase):
              ["D", "D", "D", "D"], True]
         ]
         for test_case in test_cases:
-            self.check_stokes_mms(*test_case)
+            self.check_stokes_solver_mms(*test_case)
 
-    def check_shallow_water_mms(
+    def check_shallow_water_solver_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,
             bndry_types):
         nphys_vars = len(vel_strings)
@@ -405,7 +405,7 @@ class TestAutoPDE(unittest.TestCase):
             print(exact_v[:, 0]-v[:, 0])
             assert np.allclose(exact_v[:, 0], v[:, 0])
 
-    def test_shallow_water_mms_setup(self):
+    def test_shallow_water_solver_mms_setup(self):
         # or Analytical solutions see
         # https://hal.archives-ouvertes.fr/hal-00628246v6/document
         def bernoulli_realtion(q, bed_fun, C, x, h):
@@ -436,7 +436,7 @@ class TestAutoPDE(unittest.TestCase):
         assert np.allclose(depth_forc_fun(xx), 0, atol=1e-12)
         assert np.allclose(vel_forc_fun(xx), 0, atol=1e-12)
 
-    def test_shallow_water_mms(self):
+    def test_shallow_water_solver_mms(self):
         # order must be odd or Jacobian will be almost uninvertable and
         # newton solve will diverge
         test_cases = [
@@ -445,9 +445,9 @@ class TestAutoPDE(unittest.TestCase):
              ["D", "D", "D", "D"]]
         ]
         for test_case in test_cases:
-            self.check_shallow_water_mms(*test_case)
+            self.check_shallow_water_solver_mms(*test_case)
 
-    def check_shallow_water_transient_mms(
+    def check_shallow_water_transient_solver_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,
             bndry_types, tableau_name):
         nphys_vars = len(vel_strings)
@@ -517,7 +517,7 @@ class TestAutoPDE(unittest.TestCase):
             assert np.all(L2_error < 1e-8)
             # plt.show()
 
-    def test_shallow_water_transient_mms(self):
+    def test_shallow_water_transient_solver_mms(self):
         # order must be odd or Jacobian will be almost uninvertable and
         # newton solve will diverge
 
@@ -527,9 +527,9 @@ class TestAutoPDE(unittest.TestCase):
             #  ["D", "D", "D", "D"], "im_beuler1"]
         ]
         for test_case in test_cases:
-            self.check_shallow_water_transient_mms(*test_case)
+            self.check_shallow_water_transient_solver_mms(*test_case)
 
-    def check_shallow_shelf_mms(
+    def check_shallow_shelf_solver_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,
             beta_string, bndry_types, velocities_only):
         A, rho = 1, 1
@@ -597,7 +597,7 @@ class TestAutoPDE(unittest.TestCase):
         if not velocities_only:
             assert np.allclose(exact_depth_vals, split_sols[-1])
 
-    def test_shallow_shelf_mms(self):
+    def test_shallow_shelf_solver_mms(self):
         # Avoid velocity=0 in any part of the domain
         test_cases = [
             [[0, 1], [9], ["(x+2)**2"], "1+x**2", "-x**2", "1",
@@ -611,16 +611,105 @@ class TestAutoPDE(unittest.TestCase):
         ]
         # may need to setup backtracking for Newtons method
         for test_case in test_cases:
-            self.check_shallow_shelf_mms(*test_case)
+            self.check_shallow_shelf_solver_mms(*test_case)
 
-    def check_first_order_stokes_ice_mms(
-            self, domain_bounds, orders, vel_strings, depth_string, bed_string,
-            beta_string, A, rho, g, alpha, n):
-        nphys_vars = len(domain_bounds)//2
+    def test_first_order_stokes_ice_mms(self):
+        """
+        Match manufactured solution from 
+        I .K. Tezaur et al.: A finite element, 
+        first-order Stokes approximation ice sheet solver
+
+        There seems to be a mistake in that paper in the definition of the
+        forcing (f1 below)
+        """
+        L, s0, H, alpha, beta, n, rho, g, A = (
+            50, 2, 1, 4e-5, 1, 3, 910, 9.8, 1e-4)
+        s = f"{s0}-{alpha}*x**2"
+        dsdx = f"(-2*{alpha}*x)"
+        vel_string = (
+            f"2*{A}*({rho}*{g})**{n}/({n}+1)" +
+            f"*((({s})-z)**({n}+1)-{H}**({n}+1))" +
+            f"*{dsdx}**({n}-1)*{dsdx}-{rho}*{g}*{H}*{dsdx}/{beta}")
+        test_case = [
+            f"{H}", [vel_string], f"{s}-{H}",
+            f"{beta}", A, rho, g, alpha, n, 50, True]
+        (depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun, bndry_funs,
+         depth_expr, vel_expr, vel_forc_expr, bed_expr, beta_expr,
+         bndry_exprs, ux, visc_expr, surface_normal) = (
+             setup_first_order_stokes_ice_manufactured_solution(*test_case))
+
+        import sympy as sp
+        sp_x, sp_z = sp.symbols(['x', 'z'])
+        symbs = (sp_x, sp_z)
+        surface_expr = bed_expr+depth_expr
+        phi1 = sp_z-surface_expr
+        phi2 = 4*A*(alpha*rho*g)**3*sp_x
+        phi3 = 4*sp_x**3*phi1**5*phi2**2
+        phi4 = (8*alpha*sp_x**3*phi1**3*phi2 -
+                (2*depth_expr*alpha*rho*g)/beta_expr +
+                3*sp_x*phi2*(phi1**4-depth_expr**4))
+        phi5 = (56*alpha*sp_x**2*phi1**3*phi2 +
+                48*alpha**2*sp_x**4*phi1**2*phi2 +
+                6*phi2*(phi1**4-depth_expr**4))
+        mu = 1/2*(A*phi4**2+A*sp_x*phi1*phi3)**(-1/3)
+        f1 = 16/3*A*mu**4*(
+            -2*phi4**2*phi5+24*phi3*phi4*(phi1+2*alpha*sp_x**2) -
+            6*sp_x**3*phi1**3*phi2*phi3-18*sp_x**2*phi1**2*phi2*phi4**2 -
+            6*sp_x*phi1*phi3*phi5)
+
+        # phi4 = -du/dx = -ux[0]
+        # phi2 = 4*A*alpha**2*(rho*g)**3*(ds/dx)
+        
+        # below does not equal zero exactly unless A = 1 but is zero
+        # to machine precision. This can only be checked though by lamdifying
+        #  and evaluating expression for values of x
+        xx = np.array([-1, -0.5, 0.5, 1])
+        # assert (sp.simplify(ux[0]+phi4)) == 0
+        # assert sp.simplify(ux[1]**2/4 - sp_x*phi1*phi3) == 0
+        # assert (sp.simplify(visc_expr-mu) == 0)
+        print(sp.lambdify(symbs, visc_expr-mu, "numpy")(
+                xx, bed_fun(xx[None, :])[:, 0]))
+        assert np.allclose(
+            sp.lambdify(symbs, visc_expr-mu, "numpy")(
+                xx, bed_fun(xx[None, :])[:, 0]), 0)
+
+        # print(vel_forc_expr[0])
+        # assert np.allclose(
+        #     sp.lambdify(symbs, vel_forc_expr[0]-f1, "numpy")(
+        #         xx, bed_fun(xx[None, :])[:, 0]), 0)
+        
+        assert np.allclose(
+            sp.lambdify(symbs, -(-4*phi4*mu)-bndry_exprs[0], "numpy")(
+                xx, bed_fun(xx[None, :])[:, 0]), 0)
+        assert np.allclose(
+            sp.lambdify(symbs, -4*phi4*mu-bndry_exprs[1], "numpy")(
+                xx, bed_fun(xx[None, :])[:, 0]), 0)
+        assert (
+            surface_normal[0]-(2*alpha*sp_x)/(4*alpha**2*sp_x**2+1)**(1/2) == 0)
+        assert np.allclose(
+            sp.lambdify(
+                symbs,
+                (-4*phi4*mu*surface_normal[0]-4*phi2*sp_x**2*phi1**3*mu*1) -
+                bndry_exprs[3], "numpy")(
+                    xx, (bed_fun(xx[None, :])+depth_fun(xx[None, :]))[:, 0]), 0)
+        assert np.allclose(
+            sp.lambdify(
+                symbs,
+                (-4*phi4*mu*(-surface_normal[0]) -
+                 4*phi2*sp_x**2*phi1**3*mu*(-1) +
+                 2*depth_expr*alpha*rho*g*sp_x -
+                 beta_expr*sp_x**2*phi2*(phi1**4-depth_expr**4)) -
+                bndry_exprs[2], "numpy")(xx, bed_fun(xx[None, :])[:, 0]), 0)
+
+    def check_first_order_stokes_ice_solver_mms(
+            self, orders, vel_strings, depth_string, bed_string,
+            beta_string, A, rho, g, alpha, n, L):
+        domain_bounds = [-L, L, 0, 1]
+        nphys_vars = 2
         depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun, bndry_funs = (
             setup_first_order_stokes_ice_manufactured_solution(
                 depth_string, vel_strings, bed_string, beta_string, A, rho, g,
-                alpha, n))
+                alpha, n, L))
 
         bed_fun = Function(bed_fun, 'bed')
         beta_fun = Function(beta_fun, 'beta')
@@ -642,7 +731,7 @@ class TestAutoPDE(unittest.TestCase):
             v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]
         solver = SteadyStatePDE(
             FirstOrderStokesIce(mesh, vel_forc_fun, bed_fun, beta_fun,
-                                depth_fun, A, rho, 1e-16))
+                                depth_fun, A, rho, 0))
         solver.residual._n = n
         # for ii in range(len(mesh._meshes[0]._bndry_conds)):
         #     mesh._meshes[0]._bndry_conds[ii] = [
@@ -650,36 +739,39 @@ class TestAutoPDE(unittest.TestCase):
         #         solver.residual._strain_boundary_conditions]
         init_guess = torch.cat(exact_vel_vals)
         res_vals = solver.residual._raw_residual(init_guess.squeeze())
-        print(np.abs(res_vals.detach().numpy()).max(), 'r')
-        assert np.allclose(res_vals, 0)
+        res_error = (np.linalg.norm(res_vals.detach().numpy()) /
+                     np.linalg.norm(solver.residual._forc_vals[:, 0].numpy()))
+        print(np.linalg.norm(res_vals.detach().numpy()))
+        print(res_error, 'r')
+        assert res_error < 4e-5
 
         # solver.residual._n = 1
         # init_guess = torch.randn(init_guess.shape, dtype=torch.double)
-        sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=5)
+        sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=20)
         split_sols = mesh.split_quantities(sol)
         for exact_v, v in zip(exact_vel_vals, split_sols):
             # print(exact_v[:, 0]-v[:, 0])
             assert np.allclose(exact_v[:, 0], v[:, 0])
 
-    def test_first_order_stokes_ice_mms(self):
+    def test_first_order_stokes_ice_solver_mms(self):
         # Avoid velocity=0 in any part of the domain
         L, s0, H, alpha, beta, n, rho, g, A = (
-            #50, 2, 1, 4e-5, 1, 3, 910, 9.81, 1e-4)
-            1, 2, 1, 1e-1, 1, 1, 910, 9.81, 1e-4)
-        # L, s0, H, alpha, beta, n, rho, g, A = 1, 2, 1, 1, 1, 3, 1, 1, 1
+            50, 2, 1, 4e-5, 1, 3, 910, 9.8, 1e-4)
+           # 1, 2, 1, 1e-1, 1, 2, 910, 9.81, 1e-4)
+        # L, s0, H, alpha, beta, n, rho, g, A = 1, 1/25, 1/50, 1, 1, 3, 1, 1, 1
         s = f"{s0}-{alpha}*x**2"
         dsdx = f"(-2*{alpha}*x)"
         vel_string = (
             f"2*{A}*({rho}*{g})**{n}/({n}+1)" +
             f"*((({s})-z)**({n}+1)-{H}**({n}+1))" +
-            f"*{dsdx}**({n}-1)*{dsdx}-{rho}*{g}/{beta}*{H}*{dsdx}")
+            f"*{dsdx}**({n}-1)*{dsdx}-{rho}*{g}*{H}*{dsdx}/{beta}")
         test_cases = [
-            [[-L, L, -L, L], [6, 3], [vel_string], f"{H}", f"{s}-{H}",
-             f"{beta}", A, rho, g, alpha, n],
+            [[60, 10], [vel_string], f"{H}", f"{s}-{H}",
+             f"{beta}", A, rho, g, alpha, n, 50],
         ]
         # may need to setup backtracking for Newtons method
         for test_case in test_cases:
-            self.check_first_order_stokes_ice_mms(*test_case)
+            self.check_first_order_stokes_ice_solver_mms(*test_case)
 
 
 

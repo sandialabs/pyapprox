@@ -206,7 +206,7 @@ class CartesianProductCollocationMesh():
             cartesian_product(canonical_mesh_pts_1d))
 
         if self.nphys_vars == 1:
-            canonical_len = (self._canonical_domain_bounds[1]-
+            canonical_len = (self._canonical_domain_bounds[1] -
                              self._canonical_domain_bounds[0])
             deriv_mats = [
                 canonical_deriv_mats_1d[0]*(canonical_len)/(
@@ -268,7 +268,6 @@ class CartesianProductCollocationMesh():
         if self.nphys_vars == 1:
             return basis_vals[0].dot(values)
         return (basis_vals[0]*basis_vals[1]).dot(values)
-
 
     def interpolate(self, mesh_values, eval_samples):
         canonical_abscissa_1d = self._canonical_mesh_pts_1d
@@ -433,6 +432,39 @@ class AbstractFunction(ABC):
             return vals
         return vals.clone().detach().requires_grad_(self._requires_grad)
 
+
+class TransformedCollocationMesh(CartesianProductCollocationMesh):
+    def __init__(self, orders, bndry_conds, transform, transform_inv,
+                 transform_inv_derivs):
+        domain_bounds = np.tile([0, 1], len(orders))
+        super()._init__(domain_bounds, orders, bndry_conds, basis_types=None)
+        self._transform = transform
+        self._transform_inv = transform_inv
+        self._transform_inv_derivs = transform_inv_derivs
+
+    def _map_samples_from_canonical_domain(self, canonical_samples):
+        return self._transform(canonical_samples)
+
+    def _map_samples_to_canonical_domain(self, samples):
+        return self._transform_inv(samples)
+
+    def _plot_2d(self, mesh_values, num_pts_1d=100, ncontour_levels=20,
+                 ax=None):
+        if ax is None:
+            ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+        # interpolate values onto plot points
+
+        def fun(x):
+            return self.interpolate(mesh_values, x)
+
+        X, Y, Z = get_meshgrid_function_data(
+            fun, self._domain_bounds, num_pts_1d, qoi=0)
+        return ax.tricontourf(
+            X, Y, Z, levels=np.linspace(Z.min(), Z.max(), ncontour_levels))
+
+
+    
+        
 
 class AbstractTransientFunction(AbstractFunction):
     @abstractmethod
@@ -1113,33 +1145,39 @@ class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
 
     def _vector_components(self, dudx_ij):
         if self.mesh.nphys_vars == 2:
-            return (torch.hstack(
+            vals = (torch.hstack(
                 [2*dudx_ij[0][0][:, None], dudx_ij[0][1][:, None]/2]), )
+            return vals
         raise NotImplementedError()
 
     def _raw_residual_nD(self, split_sols, depth_vals):
         div = self.mesh._meshes[0].div
         dudx_ij = self._derivs(split_sols)
         visc = self._viscosity(dudx_ij)
-        print(visc)
         vecs = [2*visc[:, None]*(self._vector_components(dudx_ij)[ii])
                 for ii in range(self.mesh.nphys_vars-1)]
         self._vecs = vecs
         residual = [0 for ii in range(self.mesh.nphys_vars-1)]
         for ii in range(self.mesh.nphys_vars-1):
             residual[ii] = -div(vecs[ii])
-            idx = self.mesh._meshes[0]._bndry_indices[3]
-            mesh_pts = self.mesh._meshes[0].mesh_pts[:, idx]
-            print(mesh_pts ,self._n)
-            # plt.plot(mesh_pts[0], residual[ii][idx], '-o')
-            # plt.plot(mesh_pts[0], split_sols[0][idx], '-o')
-            print(visc[idx, None].shape)
-            plt.plot(mesh_pts[0], (2*visc[idx, None]*dudx_ij[0][0][idx])[:, 0], '-o')
-            # plt.plot(
-            #     mesh_pts[0], self._vector_components(dudx_ij)[0][idx, 0], '-o')
-            # print(dudx_ij[0][0][idx], self._homotopy_val)
-            # print(self._vector_components(dudx_ij)[0][idx], self._homotopy_val)
-            plt.show()
+            # idx = self.mesh._meshes[0]._bndry_indices[3]
+            # mesh_pts = self.mesh._meshes[0].mesh_pts[:, idx]
+            # fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
+            # self.mesh._meshes[0].plot(
+            #     residual[ii].detach().numpy(), nplot_pts_1d=50, ax=axs[0])
+            # self.mesh._meshes[0].plot(
+            #     self._forc_vals[:, ii].detach().numpy(), nplot_pts_1d=50,
+            #     ax=axs[1])
+            # plt.plot(mesh_pts[0], self._forc_vals[idx, ii], '-s')
+            # plt.plot(mesh_pts[0], residual[ii][idx], '--o')
+            # plt.plot(mesh_pts[0], (vecs[0][idx, 0]), '--o')
+            # plt.plot(mesh_pts[0], (visc[idx]), '--o')
+            # plt.plot(mesh_pts[0], self._effective_strain_rate(dudx_ij)[idx], '--o')
+            # plt.plot(mesh_pts[0], dudx_ij[0][0][idx], '--o')
+            # plt.plot(mesh_pts[0], split_sols[0][idx], '--o')
+            # print(np.abs(residual[ii]-self._forc_vals[:, ii]).max())
+            # print(np.abs(residual[ii]-self._forc_vals[:, ii]).max()/np.linalg.norm(residual[ii]))
+            # plt.show()
             residual[ii] -= self._forc_vals[:, ii]
         return torch.cat(residual)
 

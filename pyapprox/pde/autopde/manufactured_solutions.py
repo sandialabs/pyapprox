@@ -9,7 +9,7 @@ def _evaluate_sp_lambda(sp_lambda, xx):
     vals = sp_lambda(*sp_args)
     if type(vals) == np.ndarray:
         return vals[:, None]
-    return np.full((xx.shape[1], 1), vals)
+    return np.full((xx.shape[1], 1), vals, dtype=np.double)
 
 
 def _evaluate_transient_sp_lambda(sp_lambda, xx, time):
@@ -18,7 +18,7 @@ def _evaluate_transient_sp_lambda(sp_lambda, xx, time):
     vals = sp_lambda(*sp_args, time)
     if type(vals) == np.ndarray:
         return vals[:, None]
-    return np.full((xx.shape[1], 1), vals)
+    return np.full((xx.shape[1], 1), vals, dtype=np.double)
 
 
 def _evaluate_list_of_sp_lambda(sp_lambdas, xx, as_list=False):
@@ -302,7 +302,8 @@ def setup_shallow_shelf_manufactured_solution(
 
 
 def setup_first_order_stokes_ice_manufactured_solution(
-        depth_string, vel_strings, bed_string, beta_string, A, rho, g, alpha, n):
+        depth_string, vel_strings, bed_string, beta_string, A, rho, g,
+        alpha, n, L, return_expr=False):
 
     # There is no equation for z velocity but mesh must always include z
     nphys_vars = len(vel_strings)+1
@@ -332,7 +333,7 @@ def setup_first_order_stokes_ice_manufactured_solution(
     ux = [vel_expr[0].diff(s, 1) for s in symbs]
     De = (ux[0]**2+ux[1]**2/4)**(1/2)
     visc_expr = 1/2*A**(-1/n)*De**((1-n)/(n))
-    print(visc_expr, 1/2*A**(-1/n))
+    # print(visc_expr, 1/2*A**(-1/n))
     C = 2*visc_expr
     vel_forc_expr = [
         -((C*2*ux[0]).diff(symbs[0], 1)+(C*ux[1]/2).diff(symbs[1], 1))]
@@ -341,61 +342,7 @@ def setup_first_order_stokes_ice_manufactured_solution(
         sp.lambdify(symbs, f, "numpy") for f in vel_forc_expr]
     vel_forc_fun = partial(
         eval_list_of_sp_lambda, vel_forc_lambda, as_list=False)
-    import matplotlib.pyplot as plt
-    xx = np.linspace(-1, 1, 101)[None, :]
-    zz = (bed_fun(xx)+depth_fun(xx)).T*0+1
-    pts = np.vstack((xx, zz))
-    print(pts.shape)
-    # vals = vel_fun(np.vstack((xx, zz)))
-    vals = partial(eval_sp_lambda, sp.lambdify(symbs, 2*visc_expr*ux[0], "numpy"))(pts)
-    print(np.vstack((xx, zz)), n)
-    #vals = partial(eval_sp_lambda, sp.lambdify(symbs, (C*2*ux[0]), "numpy"))(pts))
-    print('v', vals[:, 0])
-    # vals = -vel_forc_fun(pts)
-    plt.plot(xx[0, :], vals)
-    print(vel_expr)
-    # plt.show()
 
-    surface_expr = bed_expr+depth_expr
-    phi1 = sp_z-surface_expr
-    phi2 = 4*A*(alpha*rho*g)**3*sp_x
-    phi3 = 4*sp_x**3*phi1**5*phi2**2
-    phi4 = (8*alpha*sp_x**3*phi1**3*phi2-(2*depth_expr*alpha*rho*g)/beta_expr +
-            3*sp_x*phi2*(phi1**4-depth_expr**4))
-    # phi5 = (56*alpha*sp_x**2*phi1**3*phi2+48*alpha**2*sp_x**4*phi1**2*phi2 +
-    #         6*phi2*(phi1**4-depth_expr**4))
-    mu = 1/2*(A*phi4**2+A*sp_x*phi1*phi3)**(-1/3)
-    # f1 = 16/3*A*mu**4*(
-    #     -2*phi4**2*phi5+24*phi3*phi4*(phi1+2*alpha*sp_x**2) -
-    #     6*sp_x**3*phi1**3*phi2*phi3-18*sp_x**2*phi1**2*phi2*phi4**2 -
-    #     6*sp_x*phi1*phi3*phi5)
-    # vel_forc_lambda = [sp.lambdify(symbs, f1, "numpy")]
-    # vel_forc_fun = partial(
-    #     eval_list_of_sp_lambda, vel_forc_lambda, as_list=False)
-
-    # phi4 = -du/dx = -ux[0]
-    # phi2 = 4*A*alpha**2*(rho*g)**3*(ds/dx)
-    x = np.array([-1, -0.5, 0.5, 1])
-    # below does not equal zero exactly unless A = 1 but is zero
-    # to machine precision. This can only be checked though by lamdifying
-    # and evaluating expression for values of x
-    # assert (sp.simplify(ux[0]+phi4)) == 0
-    # assert sp.simplify(ux[1]**2/4 - sp_x*phi1*phi3) == 0
-    # assert (sp.simplify(visc_expr-mu) == 0)
-    # print(sp.lambdify(symbs, visc_expr-mu, "numpy")(
-    #         x, bed_fun(x[None, :])[:, 0]))
-    # assert np.allclose(
-    #     sp.lambdify(symbs, visc_expr-mu, "numpy")(
-    #         x, bed_fun(x[None, :])[:, 0]), 0)
-
-    # # print(vel_forc_expr[0])
-    # assert np.allclose(
-    #     sp.lambdify(symbs, vel_forc_expr[0]-f1, "numpy")(
-    #         x, bed_fun(x[None, :])[:, 0]), 0)
-
-    # assert False
-
-    # left, right, top, bottom
     surface_expr = bed_expr+depth_expr
     surface_normal = [-surface_expr.diff(sp_x, 1), 1]
     factor = sum([s**2 for s in surface_normal])**(1/2)
@@ -410,33 +357,32 @@ def setup_first_order_stokes_ice_manufactured_solution(
         sp.lambdify(symbs, f, "numpy") for f in bndry_expr]
     bndry_funs = [partial(eval_sp_lambda, lam) for lam in bndry_lambdas]
 
-    # print('H', depth_expr)
-    # print('v', vel_expr)
-    # print('F', vel_forc_expr)
-    # print('bed', bed_expr)
-    # print('beta', beta_expr)
+    # import matplotlib.pyplot as plt
+    # xx = np.linspace(-L, L, 101)[None, :]
+    # zz = (bed_fun(xx)+depth_fun(xx)).T*0+1
+    # pts = np.vstack((xx, zz))
+    # print(pts.shape)
+    # vals = vel_fun(np.vstack((xx, zz)))
+    # vals = partial(eval_sp_lambda, sp.lambdify(symbs, C*2*ux[0], "numpy"))(pts)
+    # vals = partial(eval_sp_lambda, sp.lambdify(symbs, visc_expr, "numpy"))(pts)
+    # vals = partial(eval_sp_lambda, sp.lambdify(symbs, De, "numpy"))(pts)
+    # vals = partial(eval_sp_lambda, sp.lambdify(symbs, ux[0], "numpy"))(pts)
+    # vals = partial(eval_sp_lambda, sp.lambdify(symbs, vel_expr[0], "numpy"))(pts)
+    # plt.plot(xx[0, :], vals, '-')
+    # from pyapprox.util.visualization import get_meshgrid_function_data
+    # #X, Y, Z = get_meshgrid_function_data(vel_forc_fun, [-1, 1, 0, 1], 50)
+    # #plt.contourf(X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 20))
+    # plt.figure()
+    # def fun(x):
+    #     x[1] += bed_fun(x[0:1])[:, 0]
+    #     print(bed_fun(x[0:1])[:, 0])
+    #     return vel_fun(x)
+    # X, Y, Z = get_meshgrid_function_data(vel_fun, [-50, 50, 0, 1], 50)
+    # p = plt.contourf(X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 30))
+    # plt.colorbar(p)
 
-    # print(-4*phi4*mu)
-    # print(bndry_expr[0])
-    # assert np.allclose(
-    #     sp.lambdify(symbs, -(-4*phi4*mu)-bndry_expr[0], "numpy")(
-    #         x, bed_fun(x[None, :])[:, 0]), 0)
-    # assert np.allclose(
-    #     sp.lambdify(symbs, -4*phi4*mu-bndry_expr[1], "numpy")(
-    #         x, bed_fun(x[None, :])[:, 0]), 0)
-    # assert (surface_normal[0]-(2*alpha*sp_x)/(4*alpha**2*sp_x**2+1)**(1/2) == 0)
-    # assert np.allclose(
-    #     sp.lambdify(
-    #         symbs,
-    #         (-4*phi4*mu*surface_normal[0]-4*phi2*sp_x**2*phi1**3*mu*1) -
-    #         bndry_expr[3], "numpy")(
-    #             x, (bed_fun(x[None, :])+depth_fun(x[None, :]))[:, 0]), 0)
-    # assert np.allclose(
-    #     sp.lambdify(
-    #         symbs,
-    #         (-4*phi4*mu*(-surface_normal[0])-4*phi2*sp_x**2*phi1**3*mu*(-1) +
-    #         2*depth_expr*alpha*rho*g*sp_x
-    #         -beta_expr*sp_x**2*phi2*(phi1**4-depth_expr**4))
-    #         -bndry_expr[2], "numpy")(x, bed_fun(x[None, :])[:, 0]), 0)
-
+    if return_expr:
+        return (depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun,
+                bndry_funs, depth_expr, vel_expr, vel_forc_expr, bed_expr,
+                beta_expr, bndry_expr, ux, visc_expr, surface_normal)
     return depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun, bndry_funs
