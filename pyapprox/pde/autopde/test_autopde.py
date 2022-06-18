@@ -72,7 +72,7 @@ class TestAutoPDE(unittest.TestCase):
         torch.manual_seed(1)
         np.random.seed(1)
 
-    def check_advection_diffusion_reaction(
+    def _check_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_string, diff_string, vel_strings,
             react_fun, bndry_types, basis_types):
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
@@ -94,6 +94,7 @@ class TestAutoPDE(unittest.TestCase):
         solver = SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, diff_fun, vel_fun, react_fun, forc_fun))
 
+        print(solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]))
         assert np.allclose(
             solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]), 0)
         sol = solver.solve()
@@ -145,17 +146,17 @@ class TestAutoPDE(unittest.TestCase):
             # unique solution
             [[0, 2*np.pi], [30], "sin(x)", "1", ["0"], lambda x: 1*x,
              ["P", "P"], ["C"]],
-            [[0, 2*np.pi], [5], "sin(x)", "1", ["0"], lambda x: 1*x,
-             ["P", "P"], ["F"]],
+            # [[0, 2*np.pi], [5], "sin(x)", "1", ["0"], lambda x: 1*x,
+            #  ["P", "P"], ["F"]],
             [[0, 1, 0, 1], [4, 4], "y**2*x**2", "1", ["0", "0"],
              lambda x: 0*x**2, ["D", "N", "N", "D"], ["C", "C"]],
-            [[0, .5, 0, 1], [14, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
-             lambda x: 0*x**2, ["D", "N", "N", "D"], ["C", "C"]],
-            [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
-             lambda x: 0*x**2, ["D", "R", "D", "D"], ["C", "C"]]
-        ]
+            # [[0, .5, 0, 1], [14, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
+            #  lambda x: 0*x**2, ["D", "N", "N", "D"], ["C", "C"]],
+            # [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
+            #  lambda x: 0*x**2, ["D", "R", "D", "D"], ["C", "C"]]
+        ] 
         for test_case in test_cases:
-            self.check_advection_diffusion_reaction(*test_case)
+            self._check_advection_diffusion_reaction(*test_case)
 
     def test_euler_bernoulli_beam(self):
         # bndry_conds are None because they are imposed in the solver
@@ -170,18 +171,24 @@ class TestAutoPDE(unittest.TestCase):
             mesh, Function(lambda x: np.full((x.shape[1], 1), 1)),
             Function(lambda x: np.full((x.shape[1], 1), 1)),
             Function(lambda x: np.full((x.shape[1], 1), forcing_val))))
-        sol = solver.solve()
 
         def sol_fun(x):
             length = domain_bounds[1]-domain_bounds[0]
             return (forcing_val*x**2*(6*length**2-4*length*x+x**2)/(
                 24*emod_val*smom_val)).T
-        assert np.allclose(sol, sol_fun(mesh.mesh_pts))
+
+        exact_sol_vals = sol_fun(mesh.mesh_pts)
+        assert np.allclose(
+            solver.residual._raw_residual(torch.tensor(exact_sol_vals[:, 0])), 0)
+        
+        sol = solver.solve()
+
+        assert np.allclose(sol, exact_sol_vals)
         # mesh.plot(sol, nplot_pts_1d=100)
         # import matplotlib.pyplot as plt
         # plt.show()
 
-    def check_helmholtz(self, domain_bounds, orders, sol_string, wnum_string,
+    def _check_helmholtz(self, domain_bounds, orders, sol_string, wnum_string,
                         bndry_types):
         sol_fun, wnum_fun, forc_fun, flux_funs = (
             setup_helmholtz_manufactured_solution(
@@ -210,9 +217,9 @@ class TestAutoPDE(unittest.TestCase):
             [[0, 1], [16], "x**2", "1", ["N", "D"]],
             [[0, .5, 0, 1], [16, 16], "y**2*x**2", "1", ["N", "D", "D", "D"]]]
         for test_case in test_cases:
-            self.check_helmholtz(*test_case)
+            self._check_helmholtz(*test_case)
 
-    def check_transient_advection_diffusion_reaction(
+    def _check_transient_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_string,
             diff_string, vel_strings, react_fun, bndry_types,
             tableau_name):
@@ -256,19 +263,19 @@ class TestAutoPDE(unittest.TestCase):
 
     def test_transient_advection_diffusion_reaction(self):
         test_cases = [
-            # [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["0"],
-            #  lambda x: 0*x**2, ["D", "D"], "im_crank2"],
-            # [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
-            # lambda x: 1*x**2, ["D", "D"], "im_crank2"],
-            # [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
-            #  lambda x: 1*x**2, ["N", "D"], "im_crank2"],
+            [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["0"],
+             lambda x: 0*x**2, ["D", "D"], "im_crank2"],
+            [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
+            lambda x: 1*x**2, ["D", "D"], "im_crank2"],
+            [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
+             lambda x: 1*x**2, ["N", "D"], "im_crank2"],
             [[0, 1, 0, 1], [3, 3], "(x-1)*x*(1+t)**2*y**2", "1", ["1", "1"],
-             lambda x: 1*x**2, ["D", "N", "R", "D"], "im_crank2"]
+            lambda x: 1*x**2, ["D", "N", "R", "D"], "im_crank2"]
         ]
         for test_case in test_cases:
-            self.check_transient_advection_diffusion_reaction(*test_case)
+            self._check_transient_advection_diffusion_reaction(*test_case)
 
-    def check_stokes_solver_mms(
+    def _check_stokes_solver_mms(
             self, domain_bounds, orders, vel_strings, pres_string, bndry_types,
             navier_stokes):
         vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, pres_grad_fun = (
@@ -303,8 +310,8 @@ class TestAutoPDE(unittest.TestCase):
             Residual = LinearStokes
         else:
             Residual = NavierStokes
-            solver = SteadyStatePDE(Residual(
-                mesh, vel_forc_fun, pres_forc_fun, (pres_idx, pres_val)))
+        solver = SteadyStatePDE(Residual(
+            mesh, vel_forc_fun, pres_forc_fun, (pres_idx, pres_val)))
         sol = solver.solve()
 
         exact_vel_vals = vel_fun(vel_meshes[0].mesh_pts).numpy()
@@ -348,9 +355,9 @@ class TestAutoPDE(unittest.TestCase):
              ["D", "D", "D", "D"], True]
         ]
         for test_case in test_cases:
-            self.check_stokes_solver_mms(*test_case)
+            self._check_stokes_solver_mms(*test_case)
 
-    def check_shallow_water_solver_mms(
+    def _check_shallow_water_solver_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,
             bndry_types):
         nphys_vars = len(vel_strings)
@@ -445,9 +452,9 @@ class TestAutoPDE(unittest.TestCase):
              ["D", "D", "D", "D"]]
         ]
         for test_case in test_cases:
-            self.check_shallow_water_solver_mms(*test_case)
+            self._check_shallow_water_solver_mms(*test_case)
 
-    def check_shallow_water_transient_solver_mms(
+    def _check_shallow_water_transient_solver_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,
             bndry_types, tableau_name):
         nphys_vars = len(vel_strings)
@@ -527,9 +534,9 @@ class TestAutoPDE(unittest.TestCase):
             #  ["D", "D", "D", "D"], "im_beuler1"]
         ]
         for test_case in test_cases:
-            self.check_shallow_water_transient_solver_mms(*test_case)
+            self._check_shallow_water_transient_solver_mms(*test_case)
 
-    def check_shallow_shelf_solver_mms(
+    def _check_shallow_shelf_solver_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,
             beta_string, bndry_types, velocities_only):
         A, rho = 1, 1
@@ -611,7 +618,7 @@ class TestAutoPDE(unittest.TestCase):
         ]
         # may need to setup backtracking for Newtons method
         for test_case in test_cases:
-            self.check_shallow_shelf_solver_mms(*test_case)
+            self._check_shallow_shelf_solver_mms(*test_case)
 
     def test_first_order_stokes_ice_mms(self):
         """
@@ -701,7 +708,7 @@ class TestAutoPDE(unittest.TestCase):
                  beta_expr*sp_x**2*phi2*(phi1**4-depth_expr**4)) -
                 bndry_exprs[2], "numpy")(xx, bed_fun(xx[None, :])[:, 0]), 0)
 
-    def check_first_order_stokes_ice_solver_mms(
+    def _check_first_order_stokes_ice_solver_mms(
             self, orders, vel_strings, depth_string, bed_string,
             beta_string, A, rho, g, alpha, n, L):
         domain_bounds = [-L, L, 0, 1]
@@ -771,7 +778,7 @@ class TestAutoPDE(unittest.TestCase):
         ]
         # may need to setup backtracking for Newtons method
         for test_case in test_cases:
-            self.check_first_order_stokes_ice_solver_mms(*test_case)
+            self._check_first_order_stokes_ice_solver_mms(*test_case)
 
 
 
