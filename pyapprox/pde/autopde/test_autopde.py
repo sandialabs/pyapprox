@@ -17,7 +17,7 @@ from pyapprox.pde.autopde.autopde import (
     TransientFunction, TransientPDE, LinearStokes, NavierStokes,
     InteriorCartesianProductCollocationMesh, VectorMesh,
     SteadyStatePDE, ShallowWater, ShallowShelfVelocities, ShallowShelf,
-    FirstOrderStokesIce
+    FirstOrderStokesIce, TransformedCollocationMesh
 )
 
 
@@ -65,6 +65,80 @@ def _get_boundary_funs(nphys_vars, bndry_types, sol_fun, flux_funs):
 def _vel_component_fun(vel_fun, ii, x):
     vals = vel_fun(x)
     return vals[:, ii:ii+1]
+
+
+def _liny_transform(alpha, canonical_samples):
+    samples = np.empty(canonical_samples.shape)
+    samples[0] = (canonical_samples[0]+1)/2
+    samples[1] = canonical_samples[1]-alpha*samples[0]
+    return samples
+
+
+def _liny_transform_inv(alpha, samples):
+    canonical_samples = np.empty(samples.shape)
+    canonical_samples[0] = 2*samples[0]-1
+    canonical_samples[1] = samples[1]+alpha*samples[0]
+    return canonical_samples
+
+
+def _get_liny_transform_inv_derivs(alpha):
+    """ 
+    df/du = df/dx*dx/du + df/dy*dy/du
+    df/dv = df/dx*dx/dv + df/dy*dy/dv
+
+    u = (x+1)/2        v = y-alpha*u
+    x = 2*u-1          y = v+alpha*u
+    dx/du = 2          dy/du = alpha
+    dx/dv = 0          dy/dv = 1
+    """
+    def dxdu(samples):
+        return torch.full((samples.shape[1], ), 2)
+    def dydu(samples):
+        return torch.full((samples.shape[1], ), alpha)
+    dxdv = 0
+    def dydv(samples):
+        return torch.full((samples.shape[1], ), 1)
+    deriv_funs = [[dxdu, dydu], [dxdv, dydv]]
+    return deriv_funs
+
+
+def _quady_transform(s0, depth, L, alpha, canonical_samples):
+    samples = np.empty(canonical_samples.shape)
+    samples[0] = canonical_samples[0]*L
+    samples[1] = (canonical_samples[1]+1)/2*depth+(
+       s0-alpha*samples[0]**2-depth)
+    # samples[1] = canonical_samples[1].copy()
+    return samples
+
+
+def _quady_transform_inv(s0, depth, L, alpha, samples):
+    canonical_samples = np.empty(samples.shape)
+    canonical_samples[0] = samples[0]/L
+    canonical_samples[1] = 2/depth*(
+       samples[1]-(s0-alpha*samples[0]**2-depth))-1
+    # canonical_samples[1] = samples[1].copy()
+    return canonical_samples
+
+
+def _get_quady_transform_inv_derivs(s0, depth, L, alpha):
+    """ 
+    df/du = df/dx*dx/du + df/dy*dy/du
+    df/dv = df/dx*dx/dv + df/dy*dy/dv
+
+    u = x*L               v = (y+1)/2*H+(s0-a*u**2)-H
+    x = u/L               y = 2/H*(v-((s0-a*u**2)-H))-1
+    dx/du = 1/L           dy/du = 4*a*u/H
+    dx/dv = 0             dy/dv = 2/H
+    """
+    def dxdu(samples):
+        return torch.full((samples.shape[1], ), 1/L)
+    def dydu(samples):
+        return torch.tensor(4*alpha*samples[0, :]/depth)
+    dxdv = 0
+    def dydv(samples):
+        return torch.full((samples.shape[1], ), 2/depth)
+    deriv_funs = [[dxdu, dydu], [dxdv, dydv]]
+    return deriv_funs
 
 
 class TestAutoPDE(unittest.TestCase):
@@ -708,6 +782,73 @@ class TestAutoPDE(unittest.TestCase):
                  beta_expr*sp_x**2*phi2*(phi1**4-depth_expr**4)) -
                 bndry_exprs[2], "numpy")(xx, bed_fun(xx[None, :])[:, 0]), 0)
 
+    def _check_gradients_of_transformed_mesh(self, mesh, degree):
+        # degree : degree of function being approximated
+        # necessary for quadratic map
+        assert np.all(np.asarray(mesh._orders) >= 3*degree-2)
+
+        assert np.allclose(
+            mesh._transform_inv(mesh._transform(mesh._canonical_mesh_pts)),
+            mesh._canonical_mesh_pts)
+
+        assert np.allclose(
+            mesh._transform(mesh._transform_inv(mesh.mesh_pts)),
+            mesh.mesh_pts)
+
+        def fun(xx):
+            return (xx[0]**degree*xx[1]**(degree-1))[:, None]
+
+        def grad(xx):
+            return np.hstack(
+                [((degree*xx[0]**(degree-1))*(xx[1]**(degree-1)))[:, None],
+                 ((xx[0]**degree)*((degree-1)*xx[1]**(degree-2)))[:, None]])
+
+        # import matplotlib.pyplot as plt
+        # mesh.plot(fun(mesh.mesh_pts)[:, :1], 10)
+        # plt.plot(mesh.mesh_pts[0, :], mesh.mesh_pts[1, :], 'ko')
+        # plt.show()
+
+        fun_vals = torch.tensor(fun(mesh.mesh_pts))
+
+        from pyapprox.util.utilities import cartesian_product
+        eval_samples = mesh._transform(
+            cartesian_product([np.linspace(-1, 1, 30)]*2))
+        interp_vals = mesh.interpolate(fun_vals, eval_samples)
+        # print(fun(eval_samples))
+        # print(interp_vals)
+        assert np.allclose(fun(eval_samples), interp_vals)
+
+        for ii in range(2):
+            # print(mesh.partial_deriv(fun_vals[:, 0], ii).numpy())
+            # print(grad(mesh.mesh_pts)[:, ii])
+            assert np.allclose(
+                mesh.partial_deriv(fun_vals[:, 0], ii).numpy(),
+                grad(mesh.mesh_pts)[:, ii])
+
+    def test_gradients_of_transformed_mesh(self):
+        orders, degree = [10, 10], 4
+
+        L = 2
+        bndry_conds = [[None, None] for ii in range(4)]
+        mesh = CartesianProductCollocationMesh(
+            [-L, L, -1, 1], orders, bndry_conds)
+        self._check_gradients_of_transformed_mesh(mesh, degree)
+
+        s0, depth, L, alpha = 2, .1, 1, 1e-1
+        mesh = TransformedCollocationMesh(
+            orders, bndry_conds,
+            partial(_liny_transform, alpha),
+            partial(_liny_transform_inv, alpha),
+            _get_liny_transform_inv_derivs(alpha))
+        self._check_gradients_of_transformed_mesh(mesh, degree)
+
+        mesh = TransformedCollocationMesh(
+            orders, bndry_conds,
+            partial(_quady_transform, s0, depth, L, alpha),
+            partial(_quady_transform_inv, s0, depth, L, alpha),
+            _get_quady_transform_inv_derivs(s0, depth, L, alpha))
+        self._check_gradients_of_transformed_mesh(mesh, degree)
+
     def _check_first_order_stokes_ice_solver_mms(
             self, orders, vel_strings, depth_string, bed_string,
             beta_string, A, rho, g, alpha, n, L):
@@ -729,10 +870,20 @@ class TestAutoPDE(unittest.TestCase):
         # after residual is created
         vel_bndry_conds = [[[None, None] for ii in range(nphys_vars*2)]]
 
-        vel_meshes = [CartesianProductCollocationMesh(
-            domain_bounds, orders, vel_bndry_conds[ii])
-                      for ii in range(nphys_vars-1)]
+        s0 = 2
+        depth = 1
+        vel_meshes = [TransformedCollocationMesh(
+            orders, vel_bndry_conds[ii],
+            partial(_quady_transform, s0, depth, L, alpha),
+            partial(_quady_transform_inv, s0, depth, L, alpha),
+            _get_quady_transform_inv_derivs(s0, depth, L, alpha)())
+            for ii in range(nphys_vars-1)]
         mesh = VectorMesh(vel_meshes)
+
+        vel_meshes[0].plot(vel_fun(vel_meshes[0].mesh_pts)[:, :1], 10)
+        import matplotlib.pyplot as plt
+        plt.plot(vel_meshes[0].mesh_pts[0, :], vel_meshes[0].mesh_pts[1, :], 'o')
+        plt.show()
 
         exact_vel_vals = [
             v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]
@@ -773,7 +924,7 @@ class TestAutoPDE(unittest.TestCase):
             f"*((({s})-z)**({n}+1)-{H}**({n}+1))" +
             f"*{dsdx}**({n}-1)*{dsdx}-{rho}*{g}*{H}*{dsdx}/{beta}")
         test_cases = [
-            [[60, 10], [vel_string], f"{H}", f"{s}-{H}",
+            [[10, 10], [vel_string], f"{H}", f"{s}-{H}",
              f"{beta}", A, rho, g, alpha, n, 50],
         ]
         # may need to setup backtracking for Newtons method

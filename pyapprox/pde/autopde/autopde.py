@@ -2,6 +2,7 @@ import torch
 from abc import ABC, abstractmethod
 import numpy as np
 from functools import partial
+import matplotlib.tri as tri
 
 from pyapprox.util.utilities import cartesian_product, outer_product
 from pyapprox.variables.transforms import _map_hypercube_samples
@@ -236,6 +237,8 @@ class CanonicalCollocationMesh():
         return self._interpolate(values, eval_samples)
 
     def _interpolate(self, values, canonical_eval_samples):
+        if type(values) != np.ndarray:
+            values = values.detach().numpy()
         if np.all([t == "C" for t in self._basis_types]):
             return self._cheby_interpolate(
                 self._canonical_mesh_pts_1d,
@@ -282,11 +285,18 @@ class CanonicalCollocationMesh():
     def _plot_2d(self, mesh_values, nplot_pts_1d=100, ncontour_levels=20,
                  ax=None):
         X, Y, pts = self._create_plot_mesh_2d(nplot_pts_1d)
-        Z = self._canonical_interpolate(mesh_values, pts).reshape(X.shape)
+        Z = self._interpolate(mesh_values, pts)
+        triang = tri.Triangulation(pts[0], pts[1])
+        x = pts[0, triang.triangles].mean(axis=1)
+        y = pts[1, triang.triangles].mean(axis=1)
+        can_pts = self._map_samples_to_canonical_domain(
+            np.vstack((x[None, :], y[None, :])))
+        mask = np.where((can_pts[0] >= -1) & (can_pts[0] <= 1) &
+                        (can_pts[1] >= -1) & (can_pts[1] <= 1), 0, 1)
+        triang.set_mask(mask)
         return ax.tricontourf(
-            X, Y, Z, levels=np.linspace(Z.min(), Z.max(), ncontour_levels))
-        # return ax.contourf(
-        #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), ncontour_levels))
+            triang, Z[:, 0],
+            levels=np.linspace(Z.min(), Z.max(), ncontour_levels))
 
     def plot(self, mesh_values, nplot_pts_1d=None, ax=None, **kwargs):
         if ax is None:
@@ -294,6 +304,8 @@ class CanonicalCollocationMesh():
         if self.nphys_vars == 1:
             return self._plot_1d(
                 mesh_values, nplot_pts_1d, ax, **kwargs)
+        if nplot_pts_1d is None:
+            raise ValueError("nplot_pts_1d must be not None for 2D plot")
         return self._plot_2d(
             mesh_values, nplot_pts_1d, 30, ax=ax)
 
@@ -314,7 +326,7 @@ class CanonicalCollocationMesh():
     def partial_deriv(self, quantity, dd, idx=None):
         return partial_deriv(self._canonical_deriv_mats, quantity, dd, idx)
 
-    def high_order_partial_deriv(self, orer, quantity, dd, idx=None):
+    def high_order_partial_deriv(self, order, quantity, dd, idx=None):
         return high_order_partial_deriv(
             order, self._canonical_deriv_mats, quantity, dd, idx)
 
@@ -428,14 +440,31 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
 
     def partial_deriv(self, quantity, dd, idx=None):
         # dq/du = dq/dx * dx/du + dq/dy * dy/du
+        assert quantity.ndim == 1
         vals = 0
         for ii in range(self.nphys_vars):
-            if self._transform_inv_derivs[dd][ii] is not None:
-                scale = self._transform_inv_derivs[dd][ii](
-                    self._canonical_mesh_pts[:, idx])
-                vals += scale*super().partial_deriv(quantity, ii, idx)
+            if self._transform_inv_derivs[dd][ii] == 0:
+                continue
+            if self._transform_inv_derivs[dd][ii] == 1:
+                scale = 1
+            else:
+                if idx is not None:
+                    # this may need to be evaluted at mesh not canonical mesh
+                    scale = self._transform_inv_derivs[dd][ii](
+                        self.mesh_pts[:, idx])
+                else:
+                    scale = self._transform_inv_derivs[dd][ii](
+                        self.mesh_pts)
+            # print(dd, ii, scale)
+            # print(super().partial_deriv(quantity, ii, idx))
+            vals += scale*super().partial_deriv(quantity, ii, idx)
             # else: scale is zero
         return vals
+
+    def _create_plot_mesh_2d(self, nplot_pts_1d):
+        X, Y, pts = super()._create_plot_mesh_2d(nplot_pts_1d)
+        pts = self._map_samples_from_canonical_domain(pts)
+        return X, Y, pts
 
 
 def _derivatives_map_hypercube(current_range, new_range, samples):
@@ -464,7 +493,7 @@ class CartesianProductCollocationMesh(TransformedCollocationMesh):
             new_ranges=canonical_domain_bounds)
         transform_inv_derivs = []
         for ii in range(nphys_vars):
-            transform_inv_derivs.append([None for jj in range(nphys_vars)])
+            transform_inv_derivs.append([0 for jj in range(nphys_vars)])
             transform_inv_derivs[ii][ii] = partial(
                 _derivatives_map_hypercube,
                 self._domain_bounds[2*ii:2*ii+2],
