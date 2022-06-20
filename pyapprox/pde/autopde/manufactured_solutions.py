@@ -394,3 +394,56 @@ def setup_first_order_stokes_ice_manufactured_solution(
                 bndry_funs, depth_expr, vel_expr, vel_forc_expr, bed_expr,
                 beta_expr, bndry_expr, ux, visc_expr, surface_normal)
     return depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun, bndry_funs
+
+
+from pyapprox.pde.autopde.autopde import (
+    vertical_transform_2D_mesh, vertical_transform_2D_mesh_inv,
+    vertical_transform_2D_mesh_inv_dxdu,
+    vertical_transform_2D_mesh_inv_dxdv,
+    vertical_transform_2D_mesh_inv_dydu,
+    vertical_transform_2D_mesh_inv_dydv,
+    Function
+)
+def get_vertical_2d_mesh_transforms_from_string(
+        xdomain_bounds, surface_string, bed_string):
+    sp_x, sp_y = sp.symbols(['x', 'y'])
+    symbs = (sp_x, sp_y)
+    bed_expr = sp.sympify(bed_string)
+    bed_fun = partial(
+        _evaluate_sp_lambda, sp.lambdify(symbs[0], bed_expr, "numpy"))
+
+    surface_expr = sp.sympify(surface_string)
+    surface_fun = partial(
+        _evaluate_sp_lambda, sp.lambdify(symbs[0], surface_expr, "numpy"))
+
+    surf_grad_u_expr = surface_expr.diff(symbs[0], 1)
+    surf_grad_u = partial(
+        _evaluate_sp_lambda, sp.lambdify(symbs[0], surf_grad_u_expr, "numpy"))
+    bed_grad_u_expr = bed_expr.diff(symbs[0], 1)
+    bed_grad_u = partial(
+        _evaluate_sp_lambda, sp.lambdify(symbs[0], bed_grad_u_expr, "numpy"))
+
+    print(surface_expr)
+    print(bed_expr)
+
+    transform = partial(
+        vertical_transform_2D_mesh, xdomain_bounds, bed_fun, surface_fun)
+    transform_inv = partial(
+        vertical_transform_2D_mesh_inv, xdomain_bounds, bed_fun, surface_fun)
+    transform_inv_dxdu = partial(
+        vertical_transform_2D_mesh_inv_dxdu, xdomain_bounds)
+    transform_inv_dydu = partial(
+        vertical_transform_2D_mesh_inv_dydu, bed_fun,
+        surface_fun, bed_grad_u, surf_grad_u)
+    transform_inv_dxdv = vertical_transform_2D_mesh_inv_dxdv
+    transform_inv_dydv = partial(
+        vertical_transform_2D_mesh_inv_dydv, bed_fun,
+        surface_fun)
+
+    return (transform, transform_inv,
+            [[Function(transform_inv_dxdu, oned=True),
+              Function(transform_inv_dydu, oned=True)],
+             [Function(transform_inv_dxdv, oned=True),
+              Function(transform_inv_dydv, oned=True)]])
+
+

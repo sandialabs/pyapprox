@@ -9,7 +9,8 @@ from pyapprox.pde.autopde.manufactured_solutions import (
     setup_steady_stokes_manufactured_solution,
     setup_shallow_wave_equations_manufactured_solution,
     setup_shallow_shelf_manufactured_solution,
-    setup_first_order_stokes_ice_manufactured_solution
+    setup_first_order_stokes_ice_manufactured_solution,
+    get_vertical_2d_mesh_transforms_from_string
 )
 from pyapprox.pde.autopde.autopde import (
     CartesianProductCollocationMesh, AdvectionDiffusionReaction,
@@ -818,24 +819,25 @@ class TestAutoPDE(unittest.TestCase):
                 [((degree*xx[0]**(degree-1))*(xx[1]**(degree-1)))[:, None],
                  ((xx[0]**degree)*((degree-1)*xx[1]**(degree-2)))[:, None]])
 
-        # import matplotlib.pyplot as plt
-        # mesh.plot(fun(mesh.mesh_pts)[:, :1], 10)
-        # plt.plot(mesh.mesh_pts[0, :], mesh.mesh_pts[1, :], 'ko')
-        # plt.show()
+        import matplotlib.pyplot as plt
+        mesh.plot(fun(mesh.mesh_pts)[:, :1], 50)
+        plt.plot(mesh.mesh_pts[0, :], mesh.mesh_pts[1, :], 'ko')
+        plt.show()
 
         fun_vals = torch.tensor(fun(mesh.mesh_pts))
 
         from pyapprox.util.utilities import cartesian_product
         eval_samples = mesh._transform(
-            cartesian_product([np.linspace(-1, 1, 30)]*2))
+            cartesian_product([np.linspace(-1, 1, 5)]*2))
         interp_vals = mesh.interpolate(fun_vals, eval_samples)
-        # print(fun(eval_samples))
-        # print(interp_vals)
+        print(fun(eval_samples))
+        print(interp_vals)
+        print(fun(eval_samples)-interp_vals)
         assert np.allclose(fun(eval_samples), interp_vals)
 
         for ii in range(2):
-            # print(mesh.partial_deriv(fun_vals[:, 0], ii).numpy())
-            # print(grad(mesh.mesh_pts)[:, ii])
+            #print(mesh.partial_deriv(fun_vals[:, 0], ii).numpy())
+            #print(grad(mesh.mesh_pts)[:, ii])
             assert np.allclose(
                 mesh.partial_deriv(fun_vals[:, 0], ii).numpy(),
                 grad(mesh.mesh_pts)[:, ii])
@@ -847,7 +849,7 @@ class TestAutoPDE(unittest.TestCase):
         bndry_conds = [[None, None] for ii in range(4)]
         mesh = CartesianProductCollocationMesh(
             [-L, L, -1, 1], orders, bndry_conds)
-        self._check_gradients_of_transformed_mesh(mesh, degree)
+        #self._check_gradients_of_transformed_mesh(mesh, degree)
 
         s0, depth, L, alpha = 2, .1, 1, 1e-1
         mesh = TransformedCollocationMesh(
@@ -855,13 +857,33 @@ class TestAutoPDE(unittest.TestCase):
             partial(_liny_transform, alpha),
             partial(_liny_transform_inv, alpha),
             _get_liny_transform_inv_derivs(alpha))
-        self._check_gradients_of_transformed_mesh(mesh, degree)
+        #vself._check_gradients_of_transformed_mesh(mesh, degree)
 
         mesh = TransformedCollocationMesh(
             orders, bndry_conds,
             partial(_quady_transform, s0, depth, L, alpha),
             partial(_quady_transform_inv, s0, depth, L, alpha),
             _get_quady_transform_inv_derivs(s0, depth, L, alpha))
+        # self._check_gradients_of_transformed_mesh(mesh, degree)
+
+        transforms = get_vertical_2d_mesh_transforms_from_string(
+            [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
+        mesh = TransformedCollocationMesh(
+            orders, bndry_conds, transforms[0], transforms[1], transforms[2])
+        # self._check_gradients_of_transformed_mesh(mesh, degree)
+
+        L, alpha = 20, np.pi/180*0.1
+        degree, orders = 2, [15, 4] # when using taylor series expansion of sine
+        # degree, orders = 2, [20, 4] # hen using sine
+        surf_string = f"-tan({alpha})*x"
+        # depth_string = f"1-1/2*1*sin(2*pi/{L}*x)"
+        depth_string = f"1-1/2*(2*pi*x/{L}-4/3*(pi*x/{L})**3+4/15*(pi*x/{L})**5"
+        depth_string += f"-8/315*(pi*x/{L})**7+4/2835*(pi*x/{L})**9"
+        depth_string += f"-8/155925*(pi*x/{L})**11+8/6081075*(pi*x/{L})**13)"
+        transforms = get_vertical_2d_mesh_transforms_from_string(
+            [0, L], f"{surf_string}-{depth_string}", surf_string)
+        mesh = TransformedCollocationMesh(
+            orders, bndry_conds, transforms[0], transforms[1], transforms[2])
         self._check_gradients_of_transformed_mesh(mesh, degree)
 
     def _check_first_order_stokes_ice_solver_mms(

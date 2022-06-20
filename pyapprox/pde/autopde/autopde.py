@@ -460,8 +460,6 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
                 else:
                     scale = self._transform_inv_derivs[dd][ii](
                         self.mesh_pts)
-            # print(dd, ii, scale)
-            # print(super().partial_deriv(quantity, ii, idx))
             vals += scale*super().partial_deriv(quantity, ii, idx)
             # else: scale is zero
         return vals
@@ -524,9 +522,10 @@ class CartesianProductCollocationMesh(TransformedCollocationMesh):
 
 
 class AbstractFunction(ABC):
-    def __init__(self, name, requires_grad=False):
+    def __init__(self, name, requires_grad=False, oned=False):
         self._name = name
         self._requires_grad = requires_grad
+        self._oned = oned
 
     @abstractmethod
     def _eval(self, samples):
@@ -534,8 +533,10 @@ class AbstractFunction(ABC):
 
     def __call__(self, samples):
         vals = self._eval(samples)
-        if vals.ndim != 2:
+        if not self._oned and vals.ndim != 2:
             raise ValueError("Function must return a 2D np.ndarray")
+        if self._oned and vals.ndim != 1:
+            raise ValueError("Function must return a 1D np.ndarray")
         if type(vals) == np.ndarray:
             vals = torch.tensor(
                 vals, requires_grad=self._requires_grad, dtype=torch.double)
@@ -550,8 +551,8 @@ class AbstractTransientFunction(AbstractFunction):
 
 
 class Function(AbstractFunction):
-    def __init__(self, fun, name='fun', requires_grad=False):
-        super().__init__(name, requires_grad)
+    def __init__(self, fun, name='fun', requires_grad=False, oned=False):
+        super().__init__(name, requires_grad, oned)
         self._fun = fun
 
     def _eval(self, samples):
@@ -559,8 +560,8 @@ class Function(AbstractFunction):
 
 
 class TransientFunction(AbstractFunction):
-    def __init__(self, fun, name='fun', requires_grad=False):
-        super().__init__(name, requires_grad)
+    def __init__(self, fun, name='fun', requires_grad=False, oned=False):
+        super().__init__(name, requires_grad, oned)
         self._fun = fun
         self._partial_fun = None
         self._time = None
@@ -1326,3 +1327,50 @@ class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
             return vals
 
         return vals + self._beta_vals[idx, 0]*sol[idx]
+
+
+def vertical_transform_2D_mesh(xdomain_bounds, bed_fun, surface_fun,
+                               canonical_samples):
+    samples = np.empty_like(canonical_samples)
+    xx, yy = canonical_samples[0], canonical_samples[1]
+    samples[0] = (xx+1)/2*(
+        xdomain_bounds[1]-xdomain_bounds[0])+xdomain_bounds[0]
+    bed_vals = bed_fun(samples[0:1])[:, 0]
+    samples[1] = (yy+1)/2*(surface_fun(samples[0:1])[:, 0]-bed_vals)+bed_vals
+    return samples
+
+
+def vertical_transform_2D_mesh_inv(xdomain_bounds, bed_fun, surface_fun,
+                                   samples):
+    canonical_samples = np.empty_like(samples)
+    uu, vv = samples[0], samples[1]
+    canonical_samples[0] = 2*(uu-xdomain_bounds[0])/(
+        xdomain_bounds[1]-xdomain_bounds[0])-1
+    bed_vals = bed_fun(samples[0:1])[:, 0]
+    canonical_samples[1] = 2*(samples[1]-bed_vals)/(
+        surface_fun(samples[0:1])[:, 0]-bed_vals)-1
+    return canonical_samples
+
+
+def vertical_transform_2D_mesh_inv_dxdu(xdomain_bounds, samples):
+    return np.full(samples.shape[1], 2/(xdomain_bounds[1]-xdomain_bounds[0]))
+
+
+
+def vertical_transform_2D_mesh_inv_dydu(
+        bed_fun, surface_fun, bed_grad_u, surf_grad_u, samples):
+    surf_vals = surface_fun(samples[:1])[:, 0]
+    bed_vals = bed_fun(samples[:1])[:, 0]
+    return 2*(bed_grad_u(samples[:1])[:, 0]*(samples[1]-surf_vals) +
+              surf_grad_u(samples[:1])[:, 0]*(bed_vals-samples[1]))/(
+                  surf_vals-bed_vals)**2
+
+
+def vertical_transform_2D_mesh_inv_dxdv(samples):
+    return np.zeros(samples.shape[1])
+
+
+def vertical_transform_2D_mesh_inv_dydv(bed_fun, surface_fun, samples):
+    surf_vals = surface_fun(samples[:1])[:, 0]
+    bed_vals = bed_fun(samples[:1])[:, 0]
+    return 2/(surf_vals-bed_vals)
