@@ -364,6 +364,13 @@ class CanonicalCollocationMesh():
                     raise ValueError(msg)
                 idx = self._bndry_indices[ii]
                 bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
+                # for jj in range(2):
+                #     print(self._bndry_conds[jj][0](self.mesh_pts[:, self._bndry_indices[jj]])[:, 0])
+                #     print(jj,  self._bndry_indices[jj])
+                # print("###")
+                # print(bndry_vals)
+                # print(ii, idx)
+                # print(self._canonical_mesh_pts[:, idx])
                 residual[idx] = sol[idx]-bndry_vals
         return residual
 
@@ -389,8 +396,6 @@ class CanonicalCollocationMesh():
                     raise ValueError(msg)
                 idx = self._bndry_indices[ii]
                 bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
-                # TODO this will not work for non tensorial domains. The normals
-                # must be mapped
                 normal_vals = self._bndrys[ii].normals(self.mesh_pts[:, idx])
                 # warning flux is not dependent on diffusivity (
                 # diffusion equation not the usual boundary formulation used
@@ -1287,7 +1292,7 @@ class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
             # plt.plot(mesh_pts[0], (vecs[0][idx, 0]), '--o')
             # plt.plot(mesh_pts[0], (visc[idx]), '--o')
             # plt.plot(mesh_pts[0], self._effective_strain_rate(dudx_ij)[idx], '--o')
-            # plt.plot(mesh_pts[0], dudx_ij[0][0][idx], '--o')
+            # plt.plot(mesh_pts[0], dudx_ij[0][0][idx], '--o'
             # plt.plot(mesh_pts[0], split_sols[0][idx], '--o')
             # print(np.abs(residual[ii]-self._forc_vals[:, ii]).max())
             # print(np.abs(residual[ii]-self._forc_vals[:, ii]).max()/np.linalg.norm(residual[ii]))
@@ -1304,16 +1309,20 @@ class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
     def _strain_boundary_conditions(self, sol, idx, mesh, bndry_index):
         multi_dot = torch.linalg.multi_dot
         if bndry_index < 2:
-            return self._vecs[0][idx, 0]*(-1)**((bndry_index+1) % 2)
-
-        # derivative of surface
-        dsdx = multi_dot(
-            (mesh._deriv_mats[0][idx, :], self._surface_vals))
-        normals = torch.vstack((dsdx.T, torch.zeros((1, idx.shape[0]))))
-        normals /= torch.sqrt(torch.sum(normals**2, dim=0))
+            normal0 = (-1)**((bndry_index+1) % 2)
+            # print(bndry_index, normal0)
+            return self._vecs[0][idx, 0]*normal0
+        
+        dsdu = mesh.partial_deriv(self._surface_vals[:, 0], 0, idx)
+        normals = torch.vstack((-dsdu.T, torch.ones((1, idx.shape[0]))))
+        # normals /= torch.sqrt(torch.sum(normals**2, dim=0))
         vals = torch.sum(self._vecs[0][idx, :]*normals.T, dim=1)
+        if bndry_index == 2:
+            vals *= -1
+        
+        # normal_vals = mesh._bndrys[bndry_index].normals(mesh.mesh_pts[:, idx])
+        # vals = mesh.dot(self._vecs[0][idx, :], normal_vals)
         if bndry_index == 3:
             return vals
 
-        # negative sign on vals because normals are reversed
-        return -vals + self._beta_vals[idx, 0]*sol[idx]
+        return vals + self._beta_vals[idx, 0]*sol[idx]

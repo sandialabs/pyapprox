@@ -148,7 +148,7 @@ class TestAutoPDE(unittest.TestCase):
 
     def _check_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_string, diff_string, vel_strings,
-            react_fun, bndry_types, basis_types):
+            react_fun, bndry_types, basis_types, mesh_transforms=None):
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_fun))
@@ -162,27 +162,31 @@ class TestAutoPDE(unittest.TestCase):
         bndry_conds = _get_boundary_funs(
             nphys_vars, bndry_types, sol_fun, flux_funs)
 
-        mesh = CartesianProductCollocationMesh(
-            domain_bounds, orders, bndry_conds, basis_types)
+        if mesh_transforms is None:
+            mesh = CartesianProductCollocationMesh(
+                domain_bounds, orders, bndry_conds, basis_types)
+        else:
+            mesh = TransformedCollocationMesh(
+                orders, bndry_conds, *mesh_transforms)
 
         solver = SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, diff_fun, vel_fun, react_fun, forc_fun))
 
-        print(solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]))
+        # print(solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]))
         assert np.allclose(
             solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]), 0)
         sol = solver.solve()
 
         # import matplotlib.pyplot as plt
         # ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-        # mesh.plot(sol, ax=ax, marker='o', ls='None', c='k', ms=20)
-        # mesh.plot(
-        #     sol_fun(mesh.mesh_pts).numpy(), ax=ax, marker='s',
-        #     ls='None', c='b')
-        # # mesh.plot(sol, ax=ax, nplot_pts_1d=100, label="Collocation", c="k')
-        # mesh.plot(
-        #     sol_fun(mesh.mesh_pts).numpy(), ax=ax, nplot_pts_1d=100,
-        #     ls="--", label="Exact", c='b')
+        # # mesh.plot(sol, ax=ax, marker='o', ls='None', c='k', ms=20)
+        # # mesh.plot(
+        # #     sol_fun(mesh.mesh_pts).numpy(), ax=ax, marker='s',
+        # #     ls='None', c='b')
+        # mesh.plot(sol, ax=ax, nplot_pts_1d=100, label="Collocation", c='k')
+        # # mesh.plot(
+        # #     sol_fun(mesh.mesh_pts).numpy(), ax=ax, nplot_pts_1d=100,
+        # #     ls="--", label="Exact", c='b')
         # plt.legend()
         # plt.show()
 
@@ -190,7 +194,6 @@ class TestAutoPDE(unittest.TestCase):
             sol_fun(mesh.mesh_pts)-sol))
         assert np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol) < 1e-9
-
 
         # normals = solver.mesh._get_bndry_normals(np.arange(nphys_vars*2))
         # if nphys_vars == 2:
@@ -207,6 +210,12 @@ class TestAutoPDE(unittest.TestCase):
         #             normals[ii]))
 
     def test_advection_diffusion_reaction(self):
+        s0, depth, L, alpha = 2, .1, 1, 1e-1
+        mesh_transforms = (
+            partial(_quady_transform, s0, depth, L, alpha),
+            partial(_quady_transform_inv, s0, depth, L, alpha),
+            _get_quady_transform_inv_derivs(s0, depth, L, alpha))
+        
         test_cases = [
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"], lambda x: 0*x**2,
              ["D", "D"], ["C"]],
@@ -224,11 +233,17 @@ class TestAutoPDE(unittest.TestCase):
             #  ["P", "P"], ["F"]],
             [[0, 1, 0, 1], [4, 4], "y**2*x**2", "1", ["0", "0"],
              lambda x: 0*x**2, ["D", "N", "N", "D"], ["C", "C"]],
-            # [[0, .5, 0, 1], [14, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
-            #  lambda x: 0*x**2, ["D", "N", "N", "D"], ["C", "C"]],
-            # [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
-            #  lambda x: 0*x**2, ["D", "R", "D", "D"], ["C", "C"]]
-        ] 
+            [[0, .5, 0, 1], [14, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
+             lambda x: 0*x**2, ["D", "N", "N", "D"], ["C", "C"]],
+            [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
+             lambda x: 0*x**2, ["D", "R", "D", "D"], ["C", "C"]],
+            [None, [6, 6], "y**2*x**2", "1", ["0", "0"],
+             lambda x: 0*x**2, ["D", "D", "D", "D"], ["C", "C"],
+             mesh_transforms],
+            [None, [6, 6], "y**2*x**2", "1", ["1", "0"],
+             lambda x: 1*x**2, ["N", "D", "D", "D"], ["C", "C"],
+             mesh_transforms]
+        ]
         for test_case in test_cases:
             self._check_advection_diffusion_reaction(*test_case)
 
@@ -870,20 +885,23 @@ class TestAutoPDE(unittest.TestCase):
         # after residual is created
         vel_bndry_conds = [[[None, None] for ii in range(nphys_vars*2)]]
 
+        vel_bndry_conds = [_get_boundary_funs(
+            nphys_vars, ["D", "D", "D", "D"], vel_fun, None)]
+
         s0 = 2
         depth = 1
         vel_meshes = [TransformedCollocationMesh(
             orders, vel_bndry_conds[ii],
             partial(_quady_transform, s0, depth, L, alpha),
             partial(_quady_transform_inv, s0, depth, L, alpha),
-            _get_quady_transform_inv_derivs(s0, depth, L, alpha)())
+            _get_quady_transform_inv_derivs(s0, depth, L, alpha))
             for ii in range(nphys_vars-1)]
         mesh = VectorMesh(vel_meshes)
 
-        vel_meshes[0].plot(vel_fun(vel_meshes[0].mesh_pts)[:, :1], 10)
-        import matplotlib.pyplot as plt
-        plt.plot(vel_meshes[0].mesh_pts[0, :], vel_meshes[0].mesh_pts[1, :], 'o')
-        plt.show()
+        # vel_meshes[0].plot(vel_fun(vel_meshes[0].mesh_pts)[:, :1], 10)
+        # import matplotlib.pyplot as plt
+        # plt.plot(vel_meshes[0].mesh_pts[0, :], vel_meshes[0].mesh_pts[1, :], 'o')
+        # plt.show()
 
         exact_vel_vals = [
             v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]
@@ -891,10 +909,10 @@ class TestAutoPDE(unittest.TestCase):
             FirstOrderStokesIce(mesh, vel_forc_fun, bed_fun, beta_fun,
                                 depth_fun, A, rho, 0))
         solver.residual._n = n
-        # for ii in range(len(mesh._meshes[0]._bndry_conds)):
-        #     mesh._meshes[0]._bndry_conds[ii] = [
-        #         Function(bndry_funs[ii]), "C",
-        #         solver.residual._strain_boundary_conditions]
+        for ii in range(len(mesh._meshes[0]._bndry_conds)):
+            mesh._meshes[0]._bndry_conds[ii] = [
+                Function(bndry_funs[ii]), "C",
+                solver.residual._strain_boundary_conditions]
         init_guess = torch.cat(exact_vel_vals)
         res_vals = solver.residual._raw_residual(init_guess.squeeze())
         res_error = (np.linalg.norm(res_vals.detach().numpy()) /
@@ -905,17 +923,32 @@ class TestAutoPDE(unittest.TestCase):
 
         # solver.residual._n = 1
         # init_guess = torch.randn(init_guess.shape, dtype=torch.double)
-        sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=20)
+        sol = solver.solve(init_guess, tol=1e-5, verbosity=2, maxiters=20)
         split_sols = mesh.split_quantities(sol)
+
+        print(exact_vel_vals[0][:, 0].numpy())
+        print(split_sols[0][:, 0])
+
+        import matplotlib.pyplot as plt
+        fig, axs = plt.subplots(1, 2, figsize=(16, 6), sharey=True)
+        p0 = vel_meshes[0].plot(vel_fun(vel_meshes[0].mesh_pts).numpy()[:, :1], 10, ax=axs[0])
+        p1 = vel_meshes[0].plot(split_sols[0], 10, ax=axs[1])
+        plt.colorbar(p0, ax=axs[0])
+        plt.colorbar(p1, ax=axs[1])
+        # plt.plot(vel_meshes[0].mesh_pts[0, :], vel_meshes[0].mesh_pts[1, :], 'ko')
+        plt.show()
+        
         for exact_v, v in zip(exact_vel_vals, split_sols):
-            # print(exact_v[:, 0]-v[:, 0])
+            print(np.linalg.norm(exact_v[:, 0].numpy()-v[:, 0]))
+            # print(exact_v[:, 0].numpy())
+            # print(v[:, 0])
             assert np.allclose(exact_v[:, 0], v[:, 0])
 
     def xtest_first_order_stokes_ice_solver_mms(self):
         # Avoid velocity=0 in any part of the domain
-        L, s0, H, alpha, beta, n, rho, g, A = (
-            50, 2, 1, 4e-5, 1, 3, 910, 9.8, 1e-4)
-           # 1, 2, 1, 1e-1, 1, 2, 910, 9.81, 1e-4)
+        L, s0, H, alpha, beta, n, rho, g, A, order = (
+            50, 2, 1, 4e-5, 1, 3, 910, 9.8, 1e-4, 30)
+            # 50, 2, 1, 4e-5, 1, 1, 910, 9.8, 1e-4, 10)
         # L, s0, H, alpha, beta, n, rho, g, A = 1, 1/25, 1/50, 1, 1, 3, 1, 1, 1
         s = f"{s0}-{alpha}*x**2"
         dsdx = f"(-2*{alpha}*x)"
@@ -924,7 +957,7 @@ class TestAutoPDE(unittest.TestCase):
             f"*((({s})-z)**({n}+1)-{H}**({n}+1))" +
             f"*{dsdx}**({n}-1)*{dsdx}-{rho}*{g}*{H}*{dsdx}/{beta}")
         test_cases = [
-            [[10, 10], [vel_string], f"{H}", f"{s}-{H}",
+            [[order, order], [vel_string], f"{H}", f"{s}-{H}",
              f"{beta}", A, rho, g, alpha, n, 50],
         ]
         # may need to setup backtracking for Newtons method

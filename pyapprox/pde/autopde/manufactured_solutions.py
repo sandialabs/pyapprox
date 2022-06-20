@@ -343,16 +343,21 @@ def setup_first_order_stokes_ice_manufactured_solution(
     vel_forc_fun = partial(
         eval_list_of_sp_lambda, vel_forc_lambda, as_list=False)
 
+    # Let w = velocity, u,v be user coordates, x, y canonical coords
+    # 2*C*dw/du = 2*C*(dw/dx*dx/du+dw/dy*dy/du)
+    #           = 2*C()
+
     surface_expr = bed_expr+depth_expr
     surface_normal = [-surface_expr.diff(sp_x, 1), 1]
-    factor = sum([s**2 for s in surface_normal])**(1/2)
-    surface_normal = [s/factor for s in surface_normal]
+    # factor = sum([s**2 for s in surface_normal])**(1/2)
+    # surface_normal = [s/factor for s in surface_normal]
     # print('n', surface_normal)
     bndry_expr = [
         -C*2*ux[0], C*2*ux[0],
-        -C*2*ux[0]*surface_normal[0]-C*ux[1]/2*1+beta_expr*vel_expr[0],
-        C*2*ux[0]*surface_normal[0]+C*ux[1]/2*1,
+        -C*2*ux[0]*surface_normal[0]-C*ux[1]/2*surface_normal[1]+beta_expr*vel_expr[0],
+        C*2*ux[0]*surface_normal[0]+C*ux[1]/2*surface_normal[1],
     ]
+    print(bndry_expr[2])
     bndry_lambdas = [
         sp.lambdify(symbs, f, "numpy") for f in bndry_expr]
     bndry_funs = [partial(eval_sp_lambda, lam) for lam in bndry_lambdas]
@@ -380,6 +385,9 @@ def setup_first_order_stokes_ice_manufactured_solution(
     # X, Y, Z = get_meshgrid_function_data(vel_fun, [-50, 50, 0, 1], 50)
     # p = plt.contourf(X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 30))
     # plt.colorbar(p)
+
+    # print(vel_expr)
+    # print(vel_forc_expr)
 
     if return_expr:
         return (depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun,
