@@ -159,7 +159,7 @@ def dot(quantities1, quantities2):
 
 
 class CanonicalCollocationMesh():
-    def __init__(self, orders, bndry_conds, basis_types=None):
+    def __init__(self, orders, basis_types=None):
         if len(orders) > 2:
             raise ValueError("Only 1D and 2D meshes supported")
         self.nphys_vars = len(orders)
@@ -174,8 +174,6 @@ class CanonicalCollocationMesh():
         self._bndrys = self._form_boundaries()
         self._bndry_indices = self._determine_boundary_indices()
         self.nunknowns = self._canonical_mesh_pts.shape[1]
-        self._bndry_conds = None
-        self._set_boundary_conditions(bndry_conds)
         self._partial_derivs = [partial(self.partial_deriv, dd=dd)
                                 for dd in range(self.nphys_vars)]
 
@@ -244,19 +242,6 @@ class CanonicalCollocationMesh():
             bndry_indices[ii] = self._bndrys[ii].samples_on_boundary(
                 self._canonical_mesh_pts)
         return bndry_indices
-
-    def _set_boundary_conditions(self, bndry_conds):
-        if len(self._bndrys) != len(bndry_conds):
-            raise ValueError(
-                "Incorrect number of boundary conditions provided")
-        for bndry_cond in bndry_conds:
-            if bndry_cond[1] not in ["D", "R", "P", None]:
-                raise ValueError(
-                    "Boundary condition {bndry_cond[1} not supported")
-            if (bndry_cond[1] not in [None, "P"] and
-                not callable(bndry_cond[0])):
-                raise ValueError("Boundary condition must be callable")
-        self._bndry_conds = bndry_conds
 
     def interpolate(self, values, eval_samples):
         if eval_samples.ndim == 1:
@@ -372,8 +357,8 @@ class CanonicalCollocationMesh():
 
     # TODO remove self._bdnry_conds from mesh
     # and make property of residual or solver base class
-    def _apply_custom_boundary_conditions_to_residual(self, residual, sol):
-        for ii, bndry_cond in enumerate(self._bndry_conds):
+    def _apply_custom_boundary_conditions_to_residual(self, bndry_conds, residual, sol):
+        for ii, bndry_cond in enumerate(bndry_conds):
             if bndry_cond[1] == "C":
                 if self._basis_types[ii//2] == "F":
                     msg = "Cannot enforce non-periodic boundary conditions "
@@ -386,8 +371,8 @@ class CanonicalCollocationMesh():
                 residual[idx] = (bndry_lhs-bndry_vals)
         return residual
 
-    def _apply_dirichlet_boundary_conditions_to_residual(self, residual, sol):
-        for ii, bndry_cond in enumerate(self._bndry_conds):
+    def _apply_dirichlet_boundary_conditions_to_residual(self, bndry_conds, residual, sol):
+        for ii, bndry_cond in enumerate(bndry_conds):
             if bndry_cond[1] == "D":
                 if self._basis_types[ii//2] == "F":
                     msg = "Cannot enforce non-periodic boundary conditions "
@@ -395,20 +380,13 @@ class CanonicalCollocationMesh():
                     raise ValueError(msg)
                 idx = self._bndry_indices[ii]
                 bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
-                # for jj in range(2):
-                #     print(self._bndry_conds[jj][0](self.mesh_pts[:, self._bndry_indices[jj]])[:, 0])
-                #     print(jj,  self._bndry_indices[jj])
-                # print("###")
-                # print(bndry_vals)
-                # print(ii, idx)
-                # print(self._canonical_mesh_pts[:, idx])
                 residual[idx] = sol[idx]-bndry_vals
         return residual
 
-    def _apply_periodic_boundary_conditions_to_residual(self, residual, sol):
-        for ii in range(len(self._bndry_conds)//2):
-            if (self._basis_types[ii] == "C" and
-                self._bndry_conds[2*ii][1] == "P"):
+    def _apply_periodic_boundary_conditions_to_residual(
+            self, bndry_conds, residual, sol):
+        for ii in range(len(bndry_conds)//2):
+            if (self._basis_types[ii] == "C" and bndry_conds[2*ii][1] == "P"):
                 idx1 = self._bndry_indices[2*ii]
                 idx2 = self._bndry_indices[2*ii+1]
                 residual[idx1] = sol[idx1]-sol[idx2]
@@ -418,8 +396,8 @@ class CanonicalCollocationMesh():
         return residual
 
     def _apply_neumann_and_robin_boundary_conditions_to_residual(
-            self, residual, sol):
-        for ii, bndry_cond in enumerate(self._bndry_conds):
+            self, bndry_conds, residual, sol):
+        for ii, bndry_cond in enumerate(bndry_conds):
             if bndry_cond[1] == "N" or bndry_cond[1] == "R":
                 if self._basis_types[ii//2] == "F":
                     msg = "Cannot enforce non-periodic boundary conditions "
@@ -437,24 +415,24 @@ class CanonicalCollocationMesh():
                     residual[idx] += bndry_cond[2]*sol[idx]
         return residual
 
-    def _apply_boundary_conditions_to_residual(self, residual, sol):
+    def _apply_boundary_conditions_to_residual(self, bndry_conds, residual, sol):
         residual = self._apply_dirichlet_boundary_conditions_to_residual(
-            residual, sol)
+            bndry_conds, residual, sol)
         residual = (
             self._apply_neumann_and_robin_boundary_conditions_to_residual(
-                residual, sol))
+                bndry_conds, residual, sol))
         residual = (self._apply_periodic_boundary_conditions_to_residual(
-            residual, sol))
+            bndry_conds, residual, sol))
         residual = (self._apply_custom_boundary_conditions_to_residual(
-            residual, sol))
+            bndry_conds, residual, sol))
         return residual
 
 
 class TransformedCollocationMesh(CanonicalCollocationMesh):
-    def __init__(self, orders, bndry_conds, transform, transform_inv,
+    def __init__(self, orders, transform, transform_inv,
                  transform_inv_derivs, trans_bndry_normals, basis_types=None):
 
-        super().__init__(orders, bndry_conds, basis_types)
+        super().__init__(orders, basis_types)
 
         self._transform = transform
         self._transform_inv = transform_inv
@@ -534,7 +512,7 @@ def _derivatives_map_hypercube(current_range, new_range, samples):
 
 
 class CartesianProductCollocationMesh(TransformedCollocationMesh):
-    def __init__(self, domain_bounds, orders, bndry_conds, basis_types=None):
+    def __init__(self, domain_bounds, orders, basis_types=None):
         nphys_vars = len(orders)
         self._domain_bounds = np.asarray(domain_bounds)
         basis_types = self._get_basis_types(nphys_vars, basis_types)
@@ -558,7 +536,7 @@ class CartesianProductCollocationMesh(TransformedCollocationMesh):
                 canonical_domain_bounds[2*ii:2*ii+2])
         trans_normals = [None]*(nphys_vars*2)
         super().__init__(
-            orders, bndry_conds, transform, transform_inv,
+            orders, transform, transform_inv,
             transform_inv_derivs, trans_normals, basis_types=basis_types)
 
     def high_order_partial_deriv(self, order, quantity, dd, idx=None):
@@ -630,9 +608,11 @@ class TransientFunction(AbstractFunction):
 
 
 class AbstractSpectralCollocationResidual(ABC):
-    def __init__(self, mesh):
+    def __init__(self, mesh, bndry_conds):
         self.mesh = mesh
         self._funs = None
+        self._bndry_conds = self._set_boundary_conditions(
+            bndry_conds)
 
     @abstractmethod
     def _raw_residual(self, sol):
@@ -642,17 +622,30 @@ class AbstractSpectralCollocationResidual(ABC):
         # correct equations for boundary conditions
         raw_residual = self._raw_residual(sol)
         return self.mesh._apply_boundary_conditions_to_residual(
-            raw_residual, sol)
+            self._bndry_conds, raw_residual, sol)
 
     def _transient_residual(self, sol, time):
         # correct equations for boundary conditions
         for fun in self._funs:
             if hasattr(fun, "set_time"):
                 fun.set_time(time)
-        for bndry_cond in self.mesh._bndry_conds:
+        for bndry_cond in self._bndry_conds:
             if hasattr(bndry_cond[0], "set_time"):
                 bndry_cond[0].set_time(time)
         return self._raw_residual(sol)
+
+    def _set_boundary_conditions(self, bndry_conds):
+        # if len(self._bndrys) != len(bndry_conds):
+        #     raise ValueError(
+        #         "Incorrect number of boundary conditions provided")
+        # for bndry_cond in bndry_conds:
+        #     if bndry_cond[1] not in ["D", "R", "P", None]:
+        #         raise ValueError(
+        #             "Boundary condition {bndry_cond[1} not supported")
+        #     if (bndry_cond[1] not in [None, "P"] and
+        #         not callable(bndry_cond[0])):
+        #         raise ValueError("Boundary condition must be callable")
+        return bndry_conds
 
 
 class SteadyStatePDE():
@@ -682,11 +675,11 @@ class TransientPDE():
             constraints_fun=self._apply_boundary_conditions_to_residual)
 
     def _apply_boundary_conditions_to_residual(self, raw_residual, sol, time):
-        for bndry_cond in self.residual.mesh._bndry_conds:
+        for bndry_cond in self.residual._bndry_conds:
             if hasattr(bndry_cond[0], "set_time"):
                 bndry_cond[0].set_time(time)
         return self.residual.mesh._apply_boundary_conditions_to_residual(
-            raw_residual, sol)
+            self.residual._bndry_conds, raw_residual, sol)
 
     def solve(self, init_sol, init_time, final_time, verbosity=0,
               newton_opts={}):
@@ -696,8 +689,8 @@ class TransientPDE():
 
 
 class AdvectionDiffusionReaction(AbstractSpectralCollocationResidual):
-    def __init__(self, mesh, diff_fun, vel_fun, react_fun, forc_fun):
-        super().__init__(mesh)
+    def __init__(self, mesh, bndry_conds, diff_fun, vel_fun, react_fun, forc_fun):
+        super().__init__(mesh, bndry_conds)
 
         self._diff_fun = diff_fun
         self._vel_fun = vel_fun
@@ -738,11 +731,11 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationResidual):
 
 
 class EulerBernoulliBeam(AbstractSpectralCollocationResidual):
-    def __init__(self, mesh, emod_fun, smom_fun, forc_fun):
+    def __init__(self, mesh, bndry_conds, emod_fun, smom_fun, forc_fun):
         if mesh.nphys_vars > 1:
             raise ValueError("Only 1D meshes supported")
 
-        super().__init__(mesh)
+        super().__init__(mesh, bndry_conds)
 
         self._emod_fun = emod_fun
         self._smom_fun = smom_fun
@@ -781,8 +774,8 @@ class EulerBernoulliBeam(AbstractSpectralCollocationResidual):
 
 
 class Helmholtz(AbstractSpectralCollocationResidual):
-    def __init__(self, mesh, wnum_fun, forc_fun):
-        super().__init__(mesh)
+    def __init__(self, mesh, bndry_conds, wnum_fun, forc_fun):
+        super().__init__(mesh, bndry_conds)
 
         self._wnum_fun = wnum_fun
         self._forc_fun = forc_fun
@@ -800,9 +793,6 @@ class VectorMesh():
         self._meshes = meshes
         self.nunknowns = sum([m.mesh_pts.shape[1] for m in self._meshes])
         self.nphys_vars = self._meshes[0].nphys_vars
-        self._bndry_conds = []
-        for mesh in self._meshes:
-            self._bndry_conds += mesh._bndry_conds
 
     def split_quantities(self, vector):
         cnt = 0
@@ -813,12 +803,12 @@ class VectorMesh():
             cnt += ndof
         return split_vector
 
-    def _apply_boundary_conditions_to_residual(self, residual, sol):
+    def _apply_boundary_conditions_to_residual(self, bndry_conds, residual, sol):
         split_sols = self.split_quantities(sol)
         split_residual = self.split_quantities(residual)
         for ii, mesh in enumerate(self._meshes):
             split_residual[ii] = mesh._apply_boundary_conditions_to_residual(
-                split_residual[ii], split_sols[ii])
+                bndry_conds[ii], split_residual[ii], split_sols[ii])
         return torch.cat(split_residual)
 
     def interpolate(self, sol_vals, xx):
@@ -859,13 +849,13 @@ class VectorMesh():
 
 
 class CanonicalInteriorCollocationMesh(CanonicalCollocationMesh):
-    def __init__(self, domain_bounds, orders):
-        super().__init__(domain_bounds, orders, None)
+    def __init__(self, orders):
+        super().__init__(orders, None)
 
         self._canonical_deriv_mats_alt = (
             self._form_derivative_matrices_alt())
 
-    def _apply_boundary_conditions_to_residual(self, residual, sol):
+    def _apply_boundary_conditions_to_residual(self, bndry_conds, residual, sol):
         return residual
 
     def _form_canonical_deriv_matrices(self, canonical_mesh_pts_1d):
@@ -932,11 +922,10 @@ class CanonicalInteriorCollocationMesh(CanonicalCollocationMesh):
 
 
 class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
-    def __init__(self, orders, bndry_conds, transform, transform_inv,
-                 transform_inv_derivs):
+    def __init__(self, orders, transform, transform_inv, transform_inv_derivs):
 
-        super().__init__(orders, bndry_conds)
-
+        super().__init__(orders)
+        
         self._transform = transform
         self._transform_inv = transform_inv
         self._transform_inv_derivs = transform_inv_derivs
@@ -990,16 +979,14 @@ class InteriorCartesianProductCollocationMesh(TransformedInteriorCollocationMesh
                 _derivatives_map_hypercube,
                 self._domain_bounds[2*ii:2*ii+2],
                 canonical_domain_bounds[2*ii:2*ii+2])
-        bndry_conds = [[None, None] for ii in range(nphys_vars*2)]
         super().__init__(
-            orders, bndry_conds, transform, transform_inv,
-            transform_inv_derivs)
+            orders, transform, transform_inv, transform_inv_derivs)
 
 
 class NavierStokes(AbstractSpectralCollocationResidual):
-    def __init__(self, mesh, vel_forc_fun, pres_forc_fun,
+    def __init__(self, mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
                  unique_pres_data=(0, 1)):
-        super().__init__(mesh)
+        super().__init__(mesh, bndry_conds)
 
         self._navier_stokes = True
         self._vel_forc_fun = vel_forc_fun
@@ -1029,16 +1016,16 @@ class NavierStokes(AbstractSpectralCollocationResidual):
 
 
 class LinearStokes(NavierStokes):
-    def __init__(self, mesh, vel_forc_fun, pres_forc_fun,
+    def __init__(self, mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
                  unique_pres_data=(0, 1)):
-        super().__init__(mesh, vel_forc_fun, pres_forc_fun,
+        super().__init__(mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
                          unique_pres_data)
         self._navier_stokes = False
 
 
 class ShallowWater(AbstractSpectralCollocationResidual):
-    def __init__(self, mesh, depth_forc_fun, vel_forc_fun, bed_fun):
-        super().__init__(mesh)
+    def __init__(self, mesh, bndry_conds, depth_forc_fun, vel_forc_fun, bed_fun):
+        super().__init__(mesh, bndry_conds)
 
         self._depth_forc_fun = depth_forc_fun
         self._vel_forc_fun = vel_forc_fun
@@ -1116,9 +1103,9 @@ class ShallowWater(AbstractSpectralCollocationResidual):
 
 
 class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
-    def __init__(self, mesh, forc_fun, bed_fun, beta_fun,
+    def __init__(self, mesh, bndry_conds, forc_fun, bed_fun, beta_fun,
                  depth_fun, A, rho, homotopy_val=0):
-        super().__init__(mesh)
+        super().__init__(mesh, bndry_conds)
 
         self._forc_fun = forc_fun
         self._A = A
@@ -1192,12 +1179,12 @@ class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
 
 
 class ShallowShelf(ShallowShelfVelocities):
-    def __init__(self, mesh, forc_fun, bed_fun, beta_fun,
+    def __init__(self, mesh, bndry_conds, forc_fun, bed_fun, beta_fun,
                  depth_forc_fun, A, rho, homotopy_val=0):
         if len(mesh._meshes) != mesh._meshes[0].nphys_vars+1:
             raise ValueError("Incorrect number of meshes provided")
 
-        super().__init__(mesh, forc_fun, bed_fun, beta_fun,
+        super().__init__(mesh, bndry_conds, forc_fun, bed_fun, beta_fun,
                          None, A, rho, homotopy_val)
         self._depth_forc_fun = depth_forc_fun
 
@@ -1217,8 +1204,8 @@ class ShallowShelf(ShallowShelfVelocities):
 
 
 class NaviersLinearElasticity(AbstractSpectralCollocationResidual):
-    def __init__(self, mesh, forc_fun, lambda_fun, mu_fun, rho):
-        super().__init__(mesh)
+    def __init__(self, mesh, bndry_conds, forc_fun, lambda_fun, mu_fun, rho):
+        super().__init__(mesh, bndry_conds)
 
         self._rho = rho
         self._forc_fun = forc_fun
@@ -1277,9 +1264,9 @@ class NaviersLinearElasticity(AbstractSpectralCollocationResidual):
 
 
 class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
-    def __init__(self, mesh, forc_fun, bed_fun, beta_fun,
+    def __init__(self, mesh, bndry_conds, forc_fun, bed_fun, beta_fun,
                  depth_fun, A, rho, homotopy_val=0):
-        super().__init__(mesh)
+        super().__init__(mesh, bndry_conds)
 
         self._forc_fun = forc_fun
         self._A = A

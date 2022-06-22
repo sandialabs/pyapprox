@@ -115,7 +115,7 @@ def _liny_transform_inv(alpha, samples):
 
 
 def _get_liny_transform_inv_derivs(alpha):
-    """ 
+    """
     df/du = df/dx*dx/du + df/dy*dy/du
     df/dv = df/dx*dx/dv + df/dy*dy/dv
 
@@ -154,7 +154,7 @@ def _quady_transform_inv(s0, depth, L, alpha, samples):
 
 
 def _get_quady_transform_inv_derivs(s0, depth, L, alpha):
-    """ 
+    """
     df/du = df/dx*dx/du + df/dy*dy/du
     df/dv = df/dx*dx/dv + df/dy*dy/dv
 
@@ -197,16 +197,16 @@ class TestAutoPDE(unittest.TestCase):
             bndry_conds = _get_boundary_funs(
                 nphys_vars, bndry_types, sol_fun, flux_funs)
             mesh = CartesianProductCollocationMesh(
-                domain_bounds, orders, bndry_conds, basis_types)
+                domain_bounds, orders, basis_types)
         else:
             bndry_conds = _get_boundary_funs(
                 nphys_vars, bndry_types, sol_fun, flux_funs,
                 mesh_transforms[-1])
             mesh = TransformedCollocationMesh(
-                orders, bndry_conds, *mesh_transforms)
+                orders, *mesh_transforms)
 
         solver = SteadyStatePDE(AdvectionDiffusionReaction(
-            mesh, diff_fun, vel_fun, react_fun, forc_fun))
+            mesh, bndry_conds, diff_fun, vel_fun, react_fun, forc_fun))
 
         # print(solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]))
         assert np.allclose(
@@ -249,7 +249,7 @@ class TestAutoPDE(unittest.TestCase):
         s0, depth, L, alpha = 2, .1, 1, 1e-1
         mesh_transforms = get_vertical_2d_mesh_transforms_from_string(
             [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
-        
+
         test_cases = [
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"], lambda x: 0*x**2,
              ["D", "D"], ["C"]],
@@ -288,10 +288,9 @@ class TestAutoPDE(unittest.TestCase):
         # functions and msut be imposed on the residual exactly
         domain_bounds, orders, bndry_conds = [0, 1], [4], [[None, None]]*2
         emod_val, smom_val, forcing_val = 1., 1., -2.
-        mesh = CartesianProductCollocationMesh(
-            domain_bounds, orders, bndry_conds)
+        mesh = CartesianProductCollocationMesh(domain_bounds, orders)
         solver = SteadyStatePDE(EulerBernoulliBeam(
-            mesh, Function(lambda x: np.full((x.shape[1], 1), 1)),
+            mesh, bndry_conds, Function(lambda x: np.full((x.shape[1], 1), 1)),
             Function(lambda x: np.full((x.shape[1], 1), 1)),
             Function(lambda x: np.full((x.shape[1], 1), forcing_val))))
 
@@ -303,7 +302,7 @@ class TestAutoPDE(unittest.TestCase):
         exact_sol_vals = sol_fun(mesh.mesh_pts)
         assert np.allclose(
             solver.residual._raw_residual(torch.tensor(exact_sol_vals[:, 0])), 0)
-        
+
         sol = solver.solve()
 
         assert np.allclose(sol, exact_sol_vals)
@@ -326,8 +325,9 @@ class TestAutoPDE(unittest.TestCase):
             nphys_vars, bndry_types, sol_fun, flux_funs)
 
         mesh = CartesianProductCollocationMesh(
-            domain_bounds, orders, bndry_conds)
-        solver = SteadyStatePDE(Helmholtz(mesh, wnum_fun, forc_fun))
+            domain_bounds, orders)
+        solver = SteadyStatePDE(
+            Helmholtz(mesh, bndry_conds, wnum_fun, forc_fun))
         sol = solver.solve()
 
         print(np.linalg.norm(
@@ -362,11 +362,10 @@ class TestAutoPDE(unittest.TestCase):
 
         deltat = 0.1
         final_time = deltat*5
-        mesh = CartesianProductCollocationMesh(
-            domain_bounds, orders, bndry_conds)
+        mesh = CartesianProductCollocationMesh(domain_bounds, orders)
         solver = TransientPDE(
             AdvectionDiffusionReaction(
-                mesh, diff_fun, vel_fun, react_fun, forc_fun),
+                mesh, bndry_conds, diff_fun, vel_fun, react_fun, forc_fun),
             deltat, tableau_name)
         sol_fun.set_time(0)
         sols, times = solver.solve(
@@ -420,10 +419,10 @@ class TestAutoPDE(unittest.TestCase):
                 nphys_vars, bndry_types,
                 partial(_vel_component_fun, vel_fun, ii),
                 flux_funs) for ii in range(nphys_vars)]
+        bndry_conds = vel_bndry_conds + [[[None, None]]*(2*nphys_vars)]
 
-        vel_meshes = [CartesianProductCollocationMesh(
-            domain_bounds, orders, vel_bndry_conds[ii])
-                      for ii in range(nphys_vars)]
+        vel_meshes = [
+            CartesianProductCollocationMesh(domain_bounds, orders)]*nphys_vars
         pres_mesh = InteriorCartesianProductCollocationMesh(
             domain_bounds, orders)
         mesh = VectorMesh(vel_meshes + [pres_mesh])
@@ -434,7 +433,7 @@ class TestAutoPDE(unittest.TestCase):
         else:
             Residual = NavierStokes
         solver = SteadyStatePDE(Residual(
-            mesh, vel_forc_fun, pres_forc_fun, (pres_idx, pres_val)))
+            mesh, bndry_conds, vel_forc_fun, pres_forc_fun, (pres_idx, pres_val)))
         sol = solver.solve()
 
         exact_vel_vals = vel_fun(vel_meshes[0].mesh_pts).numpy()
@@ -504,16 +503,17 @@ class TestAutoPDE(unittest.TestCase):
             nphys_vars, bndry_types,
             partial(_vel_component_fun, vel_fun, ii),
             flux_funs) for ii in range(nphys_vars)]
+        bndry_conds = [depth_bndry_conds]+vel_bndry_conds
 
         depth_mesh = CartesianProductCollocationMesh(
-            domain_bounds, orders, depth_bndry_conds)
-        vel_meshes = [CartesianProductCollocationMesh(
-            domain_bounds, orders, vel_bndry_conds[ii])
-                      for ii in range(nphys_vars)]
+            domain_bounds, orders)
+        vel_meshes = [
+            CartesianProductCollocationMesh(domain_bounds, orders)]*nphys_vars
         mesh = VectorMesh([depth_mesh]+vel_meshes)
 
         solver = SteadyStatePDE(
-            ShallowWater(mesh, depth_forc_fun, vel_forc_fun, bed_fun))
+            ShallowWater(
+                mesh, bndry_conds, depth_forc_fun, vel_forc_fun, bed_fun))
         exact_depth_vals = depth_fun(depth_mesh.mesh_pts)
         exact_vel_vals = [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]
         # split_sols = [q1, q2] = [h, u, v]
@@ -601,12 +601,11 @@ class TestAutoPDE(unittest.TestCase):
             nphys_vars, bndry_types,
             partial(_vel_component_fun, vel_fun, ii),
             flux_funs) for ii in range(nphys_vars)]
+        bndry_conds = [depth_bndry_conds]+vel_bndry_conds
 
-        depth_mesh = CartesianProductCollocationMesh(
-            domain_bounds, orders, depth_bndry_conds)
-        vel_meshes = [CartesianProductCollocationMesh(
-            domain_bounds, orders, vel_bndry_conds[ii])
-                      for ii in range(nphys_vars)]
+        depth_mesh = CartesianProductCollocationMesh(domain_bounds, orders)
+        vel_meshes = [
+            CartesianProductCollocationMesh(domain_bounds, orders)]*nphys_vars
         mesh = VectorMesh([depth_mesh]+vel_meshes)
 
         depth_fun.set_time(0)
@@ -617,7 +616,8 @@ class TestAutoPDE(unittest.TestCase):
         deltat = 0.05
         final_time = deltat
         solver = TransientPDE(
-            ShallowWater(mesh, depth_forc_fun, vel_forc_fun, bed_fun), deltat,
+            ShallowWater(mesh, bndry_conds, depth_forc_fun, vel_forc_fun,
+                         bed_fun), deltat,
             tableau_name)
         init_sol = torch.cat(
             [depth_fun(depth_mesh.mesh_pts)] +
@@ -658,7 +658,7 @@ class TestAutoPDE(unittest.TestCase):
         ]
         for test_case in test_cases:
             self._check_shallow_water_transient_solver_mms(*test_case)
-
+            
     def _check_shallow_shelf_solver_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,
             beta_string, bndry_types, velocities_only):
@@ -686,27 +686,28 @@ class TestAutoPDE(unittest.TestCase):
         depth_bndry_conds = _get_boundary_funs(
             nphys_vars, bndry_types, depth_fun, flux_funs)
 
-        vel_meshes = [CartesianProductCollocationMesh(
-            domain_bounds, orders, vel_bndry_conds[ii])
-                      for ii in range(nphys_vars)]
-        depth_mesh = CartesianProductCollocationMesh(
-            domain_bounds, orders, depth_bndry_conds)
+        vel_meshes = [
+            CartesianProductCollocationMesh(domain_bounds, orders)]*nphys_vars
+        depth_mesh = CartesianProductCollocationMesh(domain_bounds, orders)
         if velocities_only:
             mesh = VectorMesh(vel_meshes)
+            bndry_conds = vel_bndry_conds
         else:
             mesh = VectorMesh(vel_meshes+[depth_mesh])
+            bndry_conds = vel_bndry_conds + [depth_bndry_conds]
 
         exact_vel_vals = [
             v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]
         exact_depth_vals = depth_fun(vel_meshes[0].mesh_pts)
         if velocities_only:
             solver = SteadyStatePDE(
-                ShallowShelfVelocities(mesh, vel_forc_fun, bed_fun, beta_fun,
-                                       depth_fun, A, rho, 1e-15))
+                ShallowShelfVelocities(
+                    mesh, bndry_conds, vel_forc_fun, bed_fun, beta_fun,
+                    depth_fun, A, rho, 1e-15))
             init_guess = torch.cat(exact_vel_vals)
         else:
             solver = SteadyStatePDE(
-                ShallowShelf(mesh, vel_forc_fun, bed_fun, beta_fun,
+                ShallowShelf(mesh, bndry_conds, vel_forc_fun, bed_fun, beta_fun,
                              depth_forc_fun, A, rho, 1e-15))
             init_guess = torch.cat(exact_vel_vals+[exact_depth_vals])
 
@@ -745,8 +746,8 @@ class TestAutoPDE(unittest.TestCase):
 
     def test_first_order_stokes_ice_mms(self):
         """
-        Match manufactured solution from 
-        I .K. Tezaur et al.: A finite element, 
+        Match manufactured solution from
+        I .K. Tezaur et al.: A finite element,
         first-order Stokes approximation ice sheet solver
 
         There seems to be a mistake in that paper in the definition of the
@@ -789,7 +790,7 @@ class TestAutoPDE(unittest.TestCase):
 
         # phi4 = -du/dx = -ux[0]
         # phi2 = 4*A*alpha**2*(rho*g)**3*(ds/dx)
-        
+
         # below does not equal zero exactly unless A = 1 but is zero
         # to machine precision. This can only be checked though by lamdifying
         #  and evaluating expression for values of x
@@ -807,7 +808,7 @@ class TestAutoPDE(unittest.TestCase):
         # assert np.allclose(
         #     sp.lambdify(symbs, vel_forc_expr[0]-f1, "numpy")(
         #         xx, bed_fun(xx[None, :])[:, 0]), 0)
-        
+
         assert np.allclose(
             sp.lambdify(symbs, -(-4*phi4*mu)-bndry_exprs[0], "numpy")(
                 xx, bed_fun(xx[None, :])[:, 0]), 0)
@@ -879,16 +880,15 @@ class TestAutoPDE(unittest.TestCase):
         orders, degree = [10, 10], 4
 
         L = 2
-        bndry_conds = [[None, None] for ii in range(4)]
         mesh = CartesianProductCollocationMesh(
-            [-L, L, -1, 1], orders, bndry_conds)
+            [-L, L, -1, 1], orders)
         self._check_gradients_of_transformed_mesh(mesh, degree)
 
         s0, depth, L, alpha = 2, .1, 1, 1e-1
         transforms = get_vertical_2d_mesh_transforms_from_string(
             [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
         mesh = TransformedCollocationMesh(
-            orders, bndry_conds, transforms[0], transforms[1], transforms[2],
+            orders, transforms[0], transforms[1], transforms[2],
             transforms[3])
         self._check_gradients_of_transformed_mesh(mesh, degree)
 
@@ -903,7 +903,7 @@ class TestAutoPDE(unittest.TestCase):
         transforms = get_vertical_2d_mesh_transforms_from_string(
             [0, L], f"{surf_string}-{depth_string}", surf_string)
         mesh = TransformedCollocationMesh(
-            orders, bndry_conds, transforms[0], transforms[1], transforms[2],
+            orders, transforms[0], transforms[1], transforms[2],
             transforms[3])
         self._check_gradients_of_transformed_mesh(mesh, degree)
 
@@ -980,7 +980,7 @@ class TestAutoPDE(unittest.TestCase):
         plt.colorbar(p1, ax=axs[1])
         # plt.plot(vel_meshes[0].mesh_pts[0, :], vel_meshes[0].mesh_pts[1, :], 'ko')
         plt.show()
-        
+
         for exact_v, v in zip(exact_vel_vals, split_sols):
             # print(np.linalg.norm(exact_v[:, 0].numpy()-v[:, 0]))
             # print(exact_v[:, 0].numpy())
