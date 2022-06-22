@@ -24,10 +24,10 @@ from pyapprox.pde.autopde.time_integration import ImplicitRungeKutta
 
 
 class Canonical1DMeshBoundary():
-    def __init__(self, bndry_name, inactive_coord, tol=1e-15):
+    def __init__(self, bndry_name, tol=1e-15):
         self._bndry_index = {"left": 0, "right": 1}[bndry_name]
         self._normal = torch.tensor([[-1], [1]])[self._bndry_index]
-        self._inactive_coord = inactive_coord
+        self._inactive_coord = {"left": -1, "right": 1}[bndry_name]
         self._tol = tol
 
     def normals(self, samples):
@@ -42,20 +42,21 @@ class Canonical1DMeshBoundary():
 
 
 class Canonical2DMeshBoundary():
-    def __init__(self, bndry_name, inactive_coord, order, active_bounds,
-                 tol=1e-15):
+    def __init__(self, bndry_name, order, tol=1e-15):
+        active_bounds = [-1, 1]
         if len(active_bounds) != 2:
             msg = "Bounds must be specfied for the dimension with the "
             msg += "varying coordinates"
             raise ValueError(msg)
 
-        self._bndry_index = {"left": 0, "right": 1, "bottom": 2, "top": 3}[
-            bndry_name]
+        self._bndry_index = {
+            "left": 0, "right": 1, "bottom": 2, "top": 3}[bndry_name]
         self._normal = torch.tensor(
             [[-1, 0], [1, 0], [0, -1], [0, 1]])[self._bndry_index]
         self._order = order
         self._active_bounds = active_bounds
-        self._inactive_coord = inactive_coord
+        self._inactive_coord = {
+            "left": -1, "right": 1, "bottom": -1, "top": 1}[bndry_name]
         self._tol = tol
 
     def normals(self, samples):
@@ -77,6 +78,42 @@ class Canonical2DMeshBoundary():
         indices = np.where(
             np.absolute(self._inactive_coord-samples[dd, :]) < self._tol)[0]
         return indices
+
+
+class Transformed2DMeshBoundary(Canonical2DMeshBoundary):
+    # def __init__(self, bndry_name, order, bndry_deriv_vals, tol=1e-15):
+    def __init__(self, bndry_name, order, normal_fun, tol=1e-15):
+        super().__init__(bndry_name, order, tol)
+        # self._bndary_deriv_vals = bndry_deriv_vals
+        self._normal_fun = normal_fun
+        self._active_var = int(self._bndry_index < 2)
+        self._inactive_var = int(self._bndry_index >= 2)
+        self._pts = -np.cos(np.linspace(0., np.pi, order+1))[None, :]
+        self._bary_weights = compute_barycentric_weights_1d(self._pts[0, :])
+
+    def normals(self, samples):
+        if self._normal_fun is None:
+            return super().normals(samples)
+        normal_vals = self._normal_fun(samples)
+        return normal_vals
+
+    def _normals_from_derivs(self, samples):
+        # compute normals numerically using mesh transforms
+        # this will not give exact normals so we know pass in normal
+        # function instead. This function is left incase it is needed in the future
+        surface_derivs = self._interpolate(
+            self._bndary_deriv_vals, samples[self._active_var])
+        normals = torch.empty((samples.shape[1], 2))
+        normals[:, self._active_var] = -torch.tensor(surface_derivs)
+        normals[:, self._inactive_var] = 1
+        factor = torch.sqrt(torch.sum(normals**2, axis=1))
+        normals = 1/factor[:, None]*normals
+        normals *= (-1)**((self._bndry_index+1) % 2)
+        return normals
+
+    def _interpolate(self, values, samples):
+        return barycentric_interpolation_1d(
+            self._pts[0, :], self._bary_weights, values, samples)
 
 
 def partial_deriv(deriv_mats, quantity, dd, idx=None):
@@ -197,14 +234,8 @@ class CanonicalCollocationMesh():
 
     def _form_boundaries(self):
         if self.nphys_vars == 1:
-            return [Canonical1DMeshBoundary(name, inactive_coord)
-                    for name, inactive_coord in zip(
-                            ["left", "right"], self._canonical_domain_bounds)]
-        return [
-            Canonical2DMeshBoundary(
-                name, self._canonical_domain_bounds[ii],
-                self._orders[int(ii < 2)],
-                self._canonical_domain_bounds[2*int(ii < 2): 2*int(ii < 2)+2])
+            return [Canonical1DMeshBoundary(name) for name in ["left", "right"]]
+        return [Canonical2DMeshBoundary(name, self._orders[int(ii < 2)])
             for ii, name in enumerate(["left", "right", "bottom", "top"])]
 
     def _determine_boundary_indices(self):
@@ -421,16 +452,37 @@ class CanonicalCollocationMesh():
 
 class TransformedCollocationMesh(CanonicalCollocationMesh):
     def __init__(self, orders, bndry_conds, transform, transform_inv,
-                 transform_inv_derivs, basis_types=None):
+                 transform_inv_derivs, trans_bndry_normals, basis_types=None):
 
         super().__init__(orders, bndry_conds, basis_types)
 
         self._transform = transform
         self._transform_inv = transform_inv
         self._transform_inv_derivs = transform_inv_derivs
+        if len(trans_bndry_normals) != 2*self.nphys_vars:
+            raise ValueError("Must provide normals for each transformed boundary")
+        self._trans_bndry_normals = trans_bndry_normals
 
         self.mesh_pts = self._map_samples_from_canonical_domain(
             self._canonical_mesh_pts)
+
+        self._bndrys = self._transform_boundaries()
+
+    def _transform_boundaries(self):
+        if self.nphys_vars == 1:
+            return self._bndrys
+        for ii, name in enumerate(["left", "right", "bottom", "top"]):
+            active_var = int(ii > 2)
+            idx = self._bndry_indices[ii]
+            # bndry_deriv_vals = self._canonical_deriv_mats_1d[active_var].dot(
+            #     self.mesh_pts[active_var, idx])
+            # self._bndrys[ii] = Transformed2DMeshBoundary(
+            #     name, self._orders[int(ii < 2)], bndry_deriv_vals,
+            #     self._bndrys[ii]._tol)
+            self._bndrys[ii] = Transformed2DMeshBoundary(
+                name, self._orders[int(ii < 2)], self._trans_bndry_normals[ii],
+                self._bndrys[ii]._tol)
+        return self._bndrys
 
     def _map_samples_from_canonical_domain(self, canonical_samples):
         return self._transform(canonical_samples)
@@ -443,25 +495,28 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
             eval_samples)
         return super()._interpolate(values, canonical_eval_samples)
 
+    def _deriv_scale(self, dd, ii, idx=None):
+        if self._transform_inv_derivs[dd][ii] == 0:
+            return None
+
+        if self._transform_inv_derivs[dd][ii] == 1:
+            return 1
+
+        if idx is not None:
+            return self._transform_inv_derivs[dd][ii](
+                self.mesh_pts[:, idx])
+        
+        return self._transform_inv_derivs[dd][ii](
+            self.mesh_pts)
+
     def partial_deriv(self, quantity, dd, idx=None):
         # dq/du = dq/dx * dx/du + dq/dy * dy/du
         assert quantity.ndim == 1
         vals = 0
         for ii in range(self.nphys_vars):
-            if self._transform_inv_derivs[dd][ii] == 0:
-                continue
-            if self._transform_inv_derivs[dd][ii] == 1:
-                scale = 1
-            else:
-                if idx is not None:
-                    # this may need to be evaluted at mesh not canonical mesh
-                    scale = self._transform_inv_derivs[dd][ii](
-                        self.mesh_pts[:, idx])
-                else:
-                    scale = self._transform_inv_derivs[dd][ii](
-                        self.mesh_pts)
-            vals += scale*super().partial_deriv(quantity, ii, idx)
-            # else: scale is zero
+            scale = self._deriv_scale(dd, ii, idx)
+            if scale is not None:
+                vals += scale*super().partial_deriv(quantity, ii, idx)
         return vals
 
     def _create_plot_mesh_2d(self, nplot_pts_1d):
@@ -501,9 +556,10 @@ class CartesianProductCollocationMesh(TransformedCollocationMesh):
                 _derivatives_map_hypercube,
                 self._domain_bounds[2*ii:2*ii+2],
                 canonical_domain_bounds[2*ii:2*ii+2])
+        trans_normals = [None]*(nphys_vars*2)
         super().__init__(
             orders, bndry_conds, transform, transform_inv,
-            transform_inv_derivs, basis_types=basis_types)
+            transform_inv_derivs, trans_normals, basis_types=basis_types)
 
     def high_order_partial_deriv(self, order, quantity, dd, idx=None):
         # value of xx does not matter for cartesian_product meshes
@@ -1316,7 +1372,7 @@ class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
         
         dsdu = mesh.partial_deriv(self._surface_vals[:, 0], 0, idx)
         normals = torch.vstack((-dsdu.T, torch.ones((1, idx.shape[0]))))
-        # normals /= torch.sqrt(torch.sum(normals**2, dim=0))
+        normals /= torch.sqrt(torch.sum(normals**2, dim=0))
         vals = torch.sum(self._vecs[0][idx, :]*normals.T, dim=1)
         if bndry_index == 2:
             vals *= -1

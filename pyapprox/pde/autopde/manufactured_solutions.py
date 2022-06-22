@@ -349,15 +349,14 @@ def setup_first_order_stokes_ice_manufactured_solution(
 
     surface_expr = bed_expr+depth_expr
     surface_normal = [-surface_expr.diff(sp_x, 1), 1]
-    # factor = sum([s**2 for s in surface_normal])**(1/2)
-    # surface_normal = [s/factor for s in surface_normal]
+    factor = sum([s**2 for s in surface_normal])**(1/2)
+    surface_normal = [s/factor for s in surface_normal]
     # print('n', surface_normal)
     bndry_expr = [
         -C*2*ux[0], C*2*ux[0],
         -C*2*ux[0]*surface_normal[0]-C*ux[1]/2*surface_normal[1]+beta_expr*vel_expr[0],
         C*2*ux[0]*surface_normal[0]+C*ux[1]/2*surface_normal[1],
     ]
-    print(bndry_expr[2])
     bndry_lambdas = [
         sp.lambdify(symbs, f, "numpy") for f in bndry_expr]
     bndry_funs = [partial(eval_sp_lambda, lam) for lam in bndry_lambdas]
@@ -440,10 +439,28 @@ def get_vertical_2d_mesh_transforms_from_string(
         vertical_transform_2D_mesh_inv_dydv, bed_fun,
         surface_fun)
 
+    bndry_normals = []
+    bndry_normals.append(Function(partial(
+        _evaluate_list_of_sp_lambda,
+        [sp.lambdify(symbs, sp.sympify("-1"), "numpy"),
+         sp.lambdify(symbs, sp.sympify("0"), "numpy")])))
+    bndry_normals.append(Function(partial(
+        _evaluate_list_of_sp_lambda,
+        [sp.lambdify(symbs, sp.sympify("1"), "numpy"),
+         sp.lambdify(symbs, sp.sympify("0"), "numpy")])))
+    factor = (bed_grad_u_expr**2+1**2)**(1/2)
+    bndry_normals.append(Function(partial(
+        _evaluate_list_of_sp_lambda,
+        [sp.lambdify(symbs, bed_grad_u_expr/factor, "numpy"),
+        sp.lambdify(symbs, -sp.sympify("1")/factor, "numpy")])))
+    bndry_normals.append(Function(partial(
+        _evaluate_list_of_sp_lambda,
+        [sp.lambdify(symbs, -surf_grad_u_expr/factor, "numpy"),
+         sp.lambdify(symbs, sp.sympify("1")/factor, "numpy")])))
+
     return (transform, transform_inv,
             [[Function(transform_inv_dxdu, oned=True),
               Function(transform_inv_dydu, oned=True)],
              [Function(transform_inv_dxdv, oned=True),
-              Function(transform_inv_dydv, oned=True)]])
-
-
+              Function(transform_inv_dydv, oned=True)]],
+            bndry_normals)

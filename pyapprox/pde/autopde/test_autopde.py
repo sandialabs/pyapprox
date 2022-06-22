@@ -24,23 +24,49 @@ from pyapprox.pde.autopde.autopde import (
 
 # Functions and testing only for wrapping Sympy generated manufactured
 # solutions
-def _normal_flux(flux_funs, active_var, sign, xx):
+def _normal_flux(flux_funs, normal_fun, xx):
+    normal_vals = torch.as_tensor(normal_fun(xx))
+    flux_vals = torch.as_tensor(flux_funs(xx))
+    vals = torch.sum(normal_vals*flux_vals, dim=1)[:, None]
+    return vals
+
+
+def _robin_bndry_fun(sol_fun, flux_funs, normal_fun, alpha, xx, time=None):
+    if time is not None:
+        if hasattr(sol_fun, "set_time"):
+            sol_fun.set_time(time)
+        if hasattr(flux_funs, "set_time"):
+            flux_funs.set_time(time)
+    vals = alpha*sol_fun(xx) + _normal_flux(flux_funs, normal_fun, xx)
+    return vals
+
+
+def _normal_flux_old(flux_funs, active_var, sign, xx):
     vals = sign*flux_funs(xx)[:, active_var:active_var+1]
     return vals
 
 
-def _robin_bndry_fun(sol_fun, flux_funs, active_var, sign, alpha, xx,
+def _robin_bndry_fun_old(sol_fun, flux_funs, active_var, sign, alpha, xx,
                      time=None):
     if time is not None:
         if hasattr(sol_fun, "set_time"):
             sol_fun.set_time(time)
         if hasattr(flux_funs, "set_time"):
             flux_funs.set_time(time)
-    vals = alpha*sol_fun(xx) + _normal_flux(flux_funs, active_var, sign, xx)
+    vals = alpha*sol_fun(xx) + _normal_flux_old(
+        flux_funs, active_var, sign, xx)
     return vals
 
 
-def _get_boundary_funs(nphys_vars, bndry_types, sol_fun, flux_funs):
+def _canonical_normal(bndry_index, samples):
+    normal_vals = np.zeros((samples.shape[1], samples.shape[0]))
+    active_var = int(bndry_index >= 2)
+    normal_vals[:, active_var] = (-1)**((bndry_index+1) % 2)
+    return normal_vals
+
+
+def _get_boundary_funs(nphys_vars, bndry_types, sol_fun, flux_funs,
+                       bndry_normals=None):
     bndry_conds = []
     for dd in range(2*nphys_vars):
         if bndry_types[dd] == "D":
@@ -55,8 +81,14 @@ def _get_boundary_funs(nphys_vars, bndry_types, sol_fun, flux_funs):
             else:
                 # Zero to reduce Robin BC to Neumann
                 alpha = 0
-            bndry_fun = partial(_robin_bndry_fun, sol_fun, flux_funs, dd//2,
-                                (-1)**(dd+1), alpha)
+            if bndry_normals is None:
+                normal_fun = partial(_canonical_normal, dd)
+            else:
+                normal_fun = bndry_normals[dd]
+            bndry_fun = partial(
+                 _robin_bndry_fun, sol_fun, flux_funs, normal_fun, alpha)
+            # bndry_fun = partial(_robin_bndry_fun_old, sol_fun, flux_funs, dd//2,
+            #                     (-1)**(dd+1), alpha)
             if hasattr(sol_fun, "set_time") or hasattr(flux_funs, "set_time"):
                 bndry_fun = TransientFunction(bndry_fun)
             bndry_conds.append([bndry_fun, "R", alpha])
@@ -160,13 +192,16 @@ class TestAutoPDE(unittest.TestCase):
         sol_fun = Function(sol_fun)
 
         nphys_vars = len(orders)
-        bndry_conds = _get_boundary_funs(
-            nphys_vars, bndry_types, sol_fun, flux_funs)
 
         if mesh_transforms is None:
+            bndry_conds = _get_boundary_funs(
+                nphys_vars, bndry_types, sol_fun, flux_funs)
             mesh = CartesianProductCollocationMesh(
                 domain_bounds, orders, bndry_conds, basis_types)
         else:
+            bndry_conds = _get_boundary_funs(
+                nphys_vars, bndry_types, sol_fun, flux_funs,
+                mesh_transforms[-1])
             mesh = TransformedCollocationMesh(
                 orders, bndry_conds, *mesh_transforms)
 
@@ -212,10 +247,8 @@ class TestAutoPDE(unittest.TestCase):
 
     def test_advection_diffusion_reaction(self):
         s0, depth, L, alpha = 2, .1, 1, 1e-1
-        mesh_transforms = (
-            partial(_quady_transform, s0, depth, L, alpha),
-            partial(_quady_transform_inv, s0, depth, L, alpha),
-            _get_quady_transform_inv_derivs(s0, depth, L, alpha))
+        mesh_transforms = get_vertical_2d_mesh_transforms_from_string(
+            [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
         
         test_cases = [
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"], lambda x: 0*x**2,
@@ -242,7 +275,7 @@ class TestAutoPDE(unittest.TestCase):
              lambda x: 0*x**2, ["D", "D", "D", "D"], ["C", "C"],
              mesh_transforms],
             [None, [6, 6], "y**2*x**2", "1", ["1", "0"],
-             lambda x: 1*x**2, ["N", "D", "D", "D"], ["C", "C"],
+             lambda x: 1*x**2, ["D", "D", "D", "N"], ["C", "C"],
              mesh_transforms]
         ]
         for test_case in test_cases:
@@ -764,8 +797,8 @@ class TestAutoPDE(unittest.TestCase):
         # assert (sp.simplify(ux[0]+phi4)) == 0
         # assert sp.simplify(ux[1]**2/4 - sp_x*phi1*phi3) == 0
         # assert (sp.simplify(visc_expr-mu) == 0)
-        print(sp.lambdify(symbs, visc_expr-mu, "numpy")(
-                xx, bed_fun(xx[None, :])[:, 0]))
+        # print(sp.lambdify(symbs, visc_expr-mu, "numpy")(
+        #         xx, bed_fun(xx[None, :])[:, 0]))
         assert np.allclose(
             sp.lambdify(symbs, visc_expr-mu, "numpy")(
                 xx, bed_fun(xx[None, :])[:, 0]), 0)
@@ -819,10 +852,10 @@ class TestAutoPDE(unittest.TestCase):
                 [((degree*xx[0]**(degree-1))*(xx[1]**(degree-1)))[:, None],
                  ((xx[0]**degree)*((degree-1)*xx[1]**(degree-2)))[:, None]])
 
-        import matplotlib.pyplot as plt
-        mesh.plot(fun(mesh.mesh_pts)[:, :1], 50)
-        plt.plot(mesh.mesh_pts[0, :], mesh.mesh_pts[1, :], 'ko')
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # mesh.plot(fun(mesh.mesh_pts)[:, :1], 50)
+        # plt.plot(mesh.mesh_pts[0, :], mesh.mesh_pts[1, :], 'ko')
+        # plt.show()
 
         fun_vals = torch.tensor(fun(mesh.mesh_pts))
 
@@ -830,9 +863,9 @@ class TestAutoPDE(unittest.TestCase):
         eval_samples = mesh._transform(
             cartesian_product([np.linspace(-1, 1, 5)]*2))
         interp_vals = mesh.interpolate(fun_vals, eval_samples)
-        print(fun(eval_samples))
-        print(interp_vals)
-        print(fun(eval_samples)-interp_vals)
+        # print(fun(eval_samples))
+        # print(interp_vals)
+        # print(fun(eval_samples)-interp_vals)
         assert np.allclose(fun(eval_samples), interp_vals)
 
         for ii in range(2):
@@ -849,28 +882,15 @@ class TestAutoPDE(unittest.TestCase):
         bndry_conds = [[None, None] for ii in range(4)]
         mesh = CartesianProductCollocationMesh(
             [-L, L, -1, 1], orders, bndry_conds)
-        #self._check_gradients_of_transformed_mesh(mesh, degree)
+        self._check_gradients_of_transformed_mesh(mesh, degree)
 
         s0, depth, L, alpha = 2, .1, 1, 1e-1
-        mesh = TransformedCollocationMesh(
-            orders, bndry_conds,
-            partial(_liny_transform, alpha),
-            partial(_liny_transform_inv, alpha),
-            _get_liny_transform_inv_derivs(alpha))
-        #vself._check_gradients_of_transformed_mesh(mesh, degree)
-
-        mesh = TransformedCollocationMesh(
-            orders, bndry_conds,
-            partial(_quady_transform, s0, depth, L, alpha),
-            partial(_quady_transform_inv, s0, depth, L, alpha),
-            _get_quady_transform_inv_derivs(s0, depth, L, alpha))
-        # self._check_gradients_of_transformed_mesh(mesh, degree)
-
         transforms = get_vertical_2d_mesh_transforms_from_string(
             [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
         mesh = TransformedCollocationMesh(
-            orders, bndry_conds, transforms[0], transforms[1], transforms[2])
-        # self._check_gradients_of_transformed_mesh(mesh, degree)
+            orders, bndry_conds, transforms[0], transforms[1], transforms[2],
+            transforms[3])
+        self._check_gradients_of_transformed_mesh(mesh, degree)
 
         L, alpha = 20, np.pi/180*0.1
         degree, orders = 2, [15, 4] # when using taylor series expansion of sine
@@ -883,7 +903,8 @@ class TestAutoPDE(unittest.TestCase):
         transforms = get_vertical_2d_mesh_transforms_from_string(
             [0, L], f"{surf_string}-{depth_string}", surf_string)
         mesh = TransformedCollocationMesh(
-            orders, bndry_conds, transforms[0], transforms[1], transforms[2])
+            orders, bndry_conds, transforms[0], transforms[1], transforms[2],
+            transforms[3])
         self._check_gradients_of_transformed_mesh(mesh, degree)
 
     def _check_first_order_stokes_ice_solver_mms(
@@ -939,7 +960,7 @@ class TestAutoPDE(unittest.TestCase):
         res_vals = solver.residual._raw_residual(init_guess.squeeze())
         res_error = (np.linalg.norm(res_vals.detach().numpy()) /
                      np.linalg.norm(solver.residual._forc_vals[:, 0].numpy()))
-        print(np.linalg.norm(res_vals.detach().numpy()))
+        # print(np.linalg.norm(res_vals.detach().numpy()))
         print(res_error, 'r')
         assert res_error < 4e-5
 
@@ -948,8 +969,8 @@ class TestAutoPDE(unittest.TestCase):
         sol = solver.solve(init_guess, tol=1e-5, verbosity=2, maxiters=20)
         split_sols = mesh.split_quantities(sol)
 
-        print(exact_vel_vals[0][:, 0].numpy())
-        print(split_sols[0][:, 0])
+        # print(exact_vel_vals[0][:, 0].numpy())
+        # print(split_sols[0][:, 0])
 
         import matplotlib.pyplot as plt
         fig, axs = plt.subplots(1, 2, figsize=(16, 6), sharey=True)
@@ -961,7 +982,7 @@ class TestAutoPDE(unittest.TestCase):
         plt.show()
         
         for exact_v, v in zip(exact_vel_vals, split_sols):
-            print(np.linalg.norm(exact_v[:, 0].numpy()-v[:, 0]))
+            # print(np.linalg.norm(exact_v[:, 0].numpy()-v[:, 0]))
             # print(exact_v[:, 0].numpy())
             # print(v[:, 0])
             assert np.allclose(exact_v[:, 0], v[:, 0])
