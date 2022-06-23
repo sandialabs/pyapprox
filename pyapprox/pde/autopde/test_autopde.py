@@ -910,7 +910,6 @@ class TestAutoPDE(unittest.TestCase):
     def _check_first_order_stokes_ice_solver_mms(
             self, orders, vel_strings, depth_string, bed_string,
             beta_string, A, rho, g, alpha, n, L):
-        domain_bounds = [-L, L, 0, 1]
         nphys_vars = 2
         depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun, bndry_funs = (
             setup_first_order_stokes_ice_manufactured_solution(
@@ -924,38 +923,36 @@ class TestAutoPDE(unittest.TestCase):
         vel_forc_fun = Function(vel_forc_fun, 'vel_forc')
         vel_fun = Function(vel_fun, 'vel')
 
-        # placeholder so that custom boundary conditions can be added
-        # after residual is created
-        vel_bndry_conds = [[[None, None] for ii in range(nphys_vars*2)]]
-
-        vel_bndry_conds = [_get_boundary_funs(
-            nphys_vars, ["D", "D", "D", "D"], vel_fun, None)]
-
         s0 = 2
         depth = 1
-        vel_meshes = [TransformedCollocationMesh(
-            orders, vel_bndry_conds[ii],
-            partial(_quady_transform, s0, depth, L, alpha),
-            partial(_quady_transform_inv, s0, depth, L, alpha),
-            _get_quady_transform_inv_derivs(s0, depth, L, alpha))
-            for ii in range(nphys_vars-1)]
+        mesh_transforms = get_vertical_2d_mesh_transforms_from_string(
+            [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
+
+        vel_meshes = [TransformedCollocationMesh(orders, *mesh_transforms)]*(
+            nphys_vars-1)
         mesh = VectorMesh(vel_meshes)
 
         # vel_meshes[0].plot(vel_fun(vel_meshes[0].mesh_pts)[:, :1], 10)
         # import matplotlib.pyplot as plt
         # plt.plot(vel_meshes[0].mesh_pts[0, :], vel_meshes[0].mesh_pts[1, :], 'o')
-        # plt.show()
+
+        # placeholder so that custom boundary conditions can be added
+        # after residual is created
+        bndry_conds = [_get_boundary_funs(
+            nphys_vars, ["D", "D", "D", "D"], vel_fun, None)]
 
         exact_vel_vals = [
             v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]
         solver = SteadyStatePDE(
-            FirstOrderStokesIce(mesh, vel_forc_fun, bed_fun, beta_fun,
-                                depth_fun, A, rho, 0))
-        solver.residual._n = n
-        for ii in range(len(mesh._meshes[0]._bndry_conds)):
-            mesh._meshes[0]._bndry_conds[ii] = [
+            FirstOrderStokesIce(
+                mesh, bndry_conds, vel_forc_fun, bed_fun, beta_fun,
+                depth_fun, A, rho, 0))
+        # define correct custom boundaries
+        for ii in range(len(mesh._meshes[0]._bndrys)):
+            solver.residual._bndry_conds[0][ii] = [
                 Function(bndry_funs[ii]), "C",
                 solver.residual._strain_boundary_conditions]
+        solver.residual._n = n
         init_guess = torch.cat(exact_vel_vals)
         res_vals = solver.residual._raw_residual(init_guess.squeeze())
         res_error = (np.linalg.norm(res_vals.detach().numpy()) /
@@ -972,14 +969,14 @@ class TestAutoPDE(unittest.TestCase):
         # print(exact_vel_vals[0][:, 0].numpy())
         # print(split_sols[0][:, 0])
 
-        import matplotlib.pyplot as plt
-        fig, axs = plt.subplots(1, 2, figsize=(16, 6), sharey=True)
-        p0 = vel_meshes[0].plot(vel_fun(vel_meshes[0].mesh_pts).numpy()[:, :1], 10, ax=axs[0])
-        p1 = vel_meshes[0].plot(split_sols[0], 10, ax=axs[1])
-        plt.colorbar(p0, ax=axs[0])
-        plt.colorbar(p1, ax=axs[1])
-        # plt.plot(vel_meshes[0].mesh_pts[0, :], vel_meshes[0].mesh_pts[1, :], 'ko')
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # fig, axs = plt.subplots(1, 2, figsize=(16, 6), sharey=True)
+        # p0 = vel_meshes[0].plot(vel_fun(vel_meshes[0].mesh_pts).numpy()[:, :1], 10, ax=axs[0])
+        # p1 = vel_meshes[0].plot(split_sols[0], 10, ax=axs[1])
+        # plt.colorbar(p0, ax=axs[0])
+        # plt.colorbar(p1, ax=axs[1])
+        # # plt.plot(vel_meshes[0].mesh_pts[0, :], vel_meshes[0].mesh_pts[1, :], 'ko')
+        # plt.show()
 
         for exact_v, v in zip(exact_vel_vals, split_sols):
             # print(np.linalg.norm(exact_v[:, 0].numpy()-v[:, 0]))
@@ -987,7 +984,7 @@ class TestAutoPDE(unittest.TestCase):
             # print(v[:, 0])
             assert np.allclose(exact_v[:, 0], v[:, 0])
 
-    def xtest_first_order_stokes_ice_solver_mms(self):
+    def test_first_order_stokes_ice_solver_mms(self):
         # Avoid velocity=0 in any part of the domain
         L, s0, H, alpha, beta, n, rho, g, A, order = (
             50, 2, 1, 4e-5, 1, 3, 910, 9.8, 1e-4, 30)

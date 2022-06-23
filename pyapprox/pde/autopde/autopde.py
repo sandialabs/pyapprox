@@ -357,7 +357,8 @@ class CanonicalCollocationMesh():
 
     # TODO remove self._bdnry_conds from mesh
     # and make property of residual or solver base class
-    def _apply_custom_boundary_conditions_to_residual(self, bndry_conds, residual, sol):
+    def _apply_custom_boundary_conditions_to_residual(
+            self, bndry_conds, residual, sol):
         for ii, bndry_cond in enumerate(bndry_conds):
             if bndry_cond[1] == "C":
                 if self._basis_types[ii//2] == "F":
@@ -1351,25 +1352,16 @@ class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
         return self._raw_residual_nD(split_sols, depth_vals)
 
     def _strain_boundary_conditions(self, sol, idx, mesh, bndry_index):
-        multi_dot = torch.linalg.multi_dot
-        if bndry_index < 2:
-            normal0 = (-1)**((bndry_index+1) % 2)
-            # print(bndry_index, normal0)
-            return self._vecs[0][idx, 0]*normal0
-        
-        dsdu = mesh.partial_deriv(self._surface_vals[:, 0], 0, idx)
-        normals = torch.vstack((-dsdu.T, torch.ones((1, idx.shape[0]))))
-        normals /= torch.sqrt(torch.sum(normals**2, dim=0))
-        vals = torch.sum(self._vecs[0][idx, :]*normals.T, dim=1)
+        normal_vals = mesh._bndrys[bndry_index].normals(mesh.mesh_pts[:, idx])
+        vals = mesh.dot(self._vecs[0][idx, :], normal_vals)
+        # if bndry_index < 2:
+        #     normal0 = (-1)**((bndry_index+1) % 2)
+        #     return self._vecs[0][idx, 0]*normal0
+        # if bndry_index == 3:
+        #     return vals
         if bndry_index == 2:
-            vals *= -1
-        
-        # normal_vals = mesh._bndrys[bndry_index].normals(mesh.mesh_pts[:, idx])
-        # vals = mesh.dot(self._vecs[0][idx, :], normal_vals)
-        if bndry_index == 3:
-            return vals
-
-        return vals + self._beta_vals[idx, 0]*sol[idx]
+            return vals + self._beta_vals[idx, 0]*sol[idx]
+        return vals
 
 
 def vertical_transform_2D_mesh(xdomain_bounds, bed_fun, surface_fun,
@@ -1397,7 +1389,6 @@ def vertical_transform_2D_mesh_inv(xdomain_bounds, bed_fun, surface_fun,
 
 def vertical_transform_2D_mesh_inv_dxdu(xdomain_bounds, samples):
     return np.full(samples.shape[1], 2/(xdomain_bounds[1]-xdomain_bounds[0]))
-
 
 
 def vertical_transform_2D_mesh_inv_dydu(
