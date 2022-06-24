@@ -208,10 +208,19 @@ class TestAutoPDE(unittest.TestCase):
         solver = SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_fun, forc_fun))
 
-        # print(solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]))
+        #print(np.abs(solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])).max())
+        #print(solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]))
         assert np.allclose(
-            solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]), 0)
+           solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]), 0) #TODO turn test back on
+        #print(torch.autograd.functional.jacobian(
+        #    solver.residual._raw_residual,
+        #    sol_fun(mesh.mesh_pts)[:, 0].requires_grad_(True), strict=True))
+        
+        from time import time
+        t0 = time()
         sol = solver.solve()
+        print(time()-t0, 'sec')
+        assert False
 
         # import matplotlib.pyplot as plt
         # ax = plt.subplots(1, 1, figsize=(8, 6))[1]
@@ -265,7 +274,7 @@ class TestAutoPDE(unittest.TestCase):
              ["P", "P"], ["C"]],
             # [[0, 2*np.pi], [5], "sin(x)", "1", ["0"], lambda x: 1*x,
             #  ["P", "P"], ["F"]],
-            [[0, 1, 0, 1], [4, 4], "y**2*x**2", "1", ["0", "0"],
+            [[0, 1, 0, 1], [3, 3], "y**2*x**2", "1", ["0", "0"],
              lambda x: 0*x**2, ["D", "N", "N", "D"], ["C", "C"]],
             [[0, .5, 0, 1], [14, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
              lambda x: 0*x**2, ["D", "N", "N", "D"], ["C", "C"]],
@@ -278,7 +287,7 @@ class TestAutoPDE(unittest.TestCase):
              lambda x: 1*x**2, ["D", "D", "D", "N"], ["C", "C"],
              mesh_transforms]
         ]
-        for test_case in test_cases:
+        for test_case in test_cases[5:6]:
             self._check_advection_diffusion_reaction(*test_case)
 
     def test_euler_bernoulli_beam(self):
@@ -479,6 +488,37 @@ class TestAutoPDE(unittest.TestCase):
         for test_case in test_cases:
             self._check_stokes_solver_mms(*test_case)
 
+    def test_shallow_water_solver_mms_setup(self):
+        # or Analytical solutions see
+        # https://hal.archives-ouvertes.fr/hal-00628246v6/document
+        def bernoulli_realtion(q, bed_fun, C, x, h):
+            return q**2/(2*9.81*h**2)+h+bed_fun(x)-C
+        x = torch.linspace(0, 1, 11,dtype=torch.double)
+        from util import newton_solve
+        def bed_fun(x):
+            return -x**2*0
+        q, C = 1, 1
+        init_guess = C-bed_fun(x).requires_grad_(True)
+        fun = partial(bernoulli_realtion, q, bed_fun, C, x)
+        sol = newton_solve(fun, init_guess, tol=1e-12, verbosity=2, maxiters=20)
+        sol = sol.detach().numpy()
+        assert np.allclose(sol, sol[0], atol=1e-12)
+
+        # import matplotlib.pyplot as plt
+        # plt.plot(x.numpy(), bed_fun(x).numpy())
+        # plt.plot(x.numpy(), bed_fun(x).numpy()+sol)
+        # plt.show()
+
+        vel_strings = ["%f"%q]
+        bed_string = "0"
+        depth_string = "%f"%sol[0]
+        depth_fun, vel_fun, depth_forc_fun, vel_forc_fun, bed_fun = (
+            setup_shallow_wave_equations_manufactured_solution(
+                vel_strings, depth_string, bed_string))
+        xx = torch.linspace(0, 1, 11)[None, :]
+        assert np.allclose(depth_forc_fun(xx), 0, atol=1e-12)
+        assert np.allclose(vel_forc_fun(xx), 0, atol=1e-12)
+
     def _check_shallow_water_solver_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,
             bndry_types):
@@ -534,37 +574,6 @@ class TestAutoPDE(unittest.TestCase):
         for exact_v, v in zip(exact_vel_vals, split_sols[1:]):
             print(exact_v[:, 0]-v[:, 0])
             assert np.allclose(exact_v[:, 0], v[:, 0])
-
-    def test_shallow_water_solver_mms_setup(self):
-        # or Analytical solutions see
-        # https://hal.archives-ouvertes.fr/hal-00628246v6/document
-        def bernoulli_realtion(q, bed_fun, C, x, h):
-            return q**2/(2*9.81*h**2)+h+bed_fun(x)-C
-        x = torch.linspace(0, 1, 11,dtype=torch.double)
-        from util import newton_solve
-        def bed_fun(x):
-            return -x**2*0
-        q, C = 1, 1
-        init_guess = C-bed_fun(x).requires_grad_(True)
-        fun = partial(bernoulli_realtion, q, bed_fun, C, x)
-        sol = newton_solve(fun, init_guess, tol=1e-12, verbosity=2, maxiters=20)
-        sol = sol.detach().numpy()
-        assert np.allclose(sol, sol[0], atol=1e-12)
-
-        # import matplotlib.pyplot as plt
-        # plt.plot(x.numpy(), bed_fun(x).numpy())
-        # plt.plot(x.numpy(), bed_fun(x).numpy()+sol)
-        # plt.show()
-
-        vel_strings = ["%f"%q]
-        bed_string = "0"
-        depth_string = "%f"%sol[0]
-        depth_fun, vel_fun, depth_forc_fun, vel_forc_fun, bed_fun = (
-            setup_shallow_wave_equations_manufactured_solution(
-                vel_strings, depth_string, bed_string))
-        xx = torch.linspace(0, 1, 11)[None, :]
-        assert np.allclose(depth_forc_fun(xx), 0, atol=1e-12)
-        assert np.allclose(vel_forc_fun(xx), 0, atol=1e-12)
 
     def test_shallow_water_solver_mms(self):
         # order must be odd or Jacobian will be almost uninvertable and
@@ -633,17 +642,18 @@ class TestAutoPDE(unittest.TestCase):
             vel_fun.set_time(time)
             exact_sol_t = np.vstack([
                 depth_fun(depth_mesh.mesh_pts).numpy()]+
-                                    [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts)])
+                [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts)])
             model_sol_t = sols[:, ii:ii+1]
-            print(mesh.split_quantities(
-                exact_sol_t)[0][[0, -1]],
-                  mesh.split_quantities(model_sol_t)[0][[0, -1]])
+            # print(np.hstack((mesh.split_quantities(
+            #     exact_sol_t)[2], mesh.split_quantities(model_sol_t)[2])))
+            # print(np.hstack((exact_sol_t, model_sol_t)))
+            # print(mesh.split_quantities((exact_sol_t-model_sol_t))[1])
             # mesh.plot(mesh.split_quantities(exact_sol_t), axs=axs)
             # mesh.plot(mesh.split_quantities(model_sol_t), axs=axs, ls='--')
             L2_error = np.sqrt(
                 mesh.integrate(
                     mesh.split_quantities((exact_sol_t-model_sol_t)**2)))
-            print(time, L2_error)
+            print(time, L2_error, 'l')
             assert np.all(L2_error < 1e-8)
             # plt.show()
 
@@ -652,8 +662,8 @@ class TestAutoPDE(unittest.TestCase):
         # newton solve will diverge
 
         test_cases = [
-            [[0, 1], [5], ["-x**2"], "1+x", "0", ["D", "D"], "im_crank2"],
-            # [[0, 1, 0, 1], [5, 5], ["-x**2", "-y**2"], "1+x+y", "0",
+             [[0, 1], [5], ["-x**2*(t+1)"], "1+x", "0", ["D", "D"], "im_crank2"],
+            #[[0, 1, 0, 1], [4, 4], ["-x**2", "-y**2"], "1+x+y", "0",
             #  ["D", "D", "D", "D"], "im_beuler1"]
         ]
         for test_case in test_cases:
@@ -1003,7 +1013,6 @@ class TestAutoPDE(unittest.TestCase):
         # may need to setup backtracking for Newtons method
         for test_case in test_cases:
             self._check_first_order_stokes_ice_solver_mms(*test_case)
-
 
 
 if __name__ == "__main__":

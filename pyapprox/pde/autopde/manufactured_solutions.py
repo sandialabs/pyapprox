@@ -209,10 +209,13 @@ def setup_shallow_wave_equations_manufactured_solution(
     vel_forc_expr = [
         e + g*depth_expr*(bed_expr).diff(s, 1)
         for e, s in zip(vel_forc_expr, symbs)]
+    print(vel_forc_expr)
     if transient:
         vel_forc_expr = [
             e + (depth_expr*v).diff(all_symbs[-1], 1)
             for e, v in zip(vel_forc_expr, vel_expr)]
+        print(vel_forc_expr)
+        # assert False
     vel_forc_lambda = [
         sp.lambdify(all_symbs, f, "numpy") for f in vel_forc_expr]
     vel_forc_fun = partial(

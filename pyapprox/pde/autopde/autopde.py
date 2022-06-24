@@ -542,7 +542,7 @@ class CartesianProductCollocationMesh(TransformedCollocationMesh):
 
     def high_order_partial_deriv(self, order, quantity, dd, idx=None):
         # value of xx does not matter for cartesian_product meshes
-        xx = np.zeros((1,1))
+        xx = np.zeros((1, 1))
         deriv_mats = [tmp[0]*tmp[1][ii](xx)[0] for ii, tmp in enumerate(
             zip(self._canonical_deriv_mats, self._transform_inv_derivs))]
         return high_order_partial_deriv(
@@ -950,8 +950,12 @@ class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
         vals = 0
         for ii in range(self.nphys_vars):
             if self._transform_inv_derivs[dd][ii] is not None:
-                scale = self._transform_inv_derivs[dd][ii](
-                    self._canonical_mesh_pts[:, idx])
+                if idx is not None:
+                    scale = self._transform_inv_derivs[dd][ii](
+                        self._canonical_mesh_pts[:, idx])
+                else:
+                    scale = self._transform_inv_derivs[dd][ii](
+                        self._canonical_mesh_pts)
                 vals += scale*super().partial_deriv(quantity, ii, idx)
             # else: scale is zero
         return vals

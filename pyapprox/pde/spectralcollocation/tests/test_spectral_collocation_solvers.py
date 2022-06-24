@@ -192,7 +192,10 @@ class TestSolvers(unittest.TestCase):
             bndry_conds, diff_fun, forc_fun, vel_fun,
             orders, domain_bounds)
 
+        import time
+        t0 = time.time()
         sol = model.solve(sample)
+        print(t0-time.time(), 'sec')
 
         print(np.linalg.norm(
             sol_fun(model.mesh.mesh_pts, sample)-sol))
@@ -224,10 +227,10 @@ class TestSolvers(unittest.TestCase):
              ["D", "N"]],
             [[0, .5, 0, 1], [14, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
              ["D", "N", "N", "D"]],
-            [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
+            [[0, .5, 0, 1], [25, 25], "y**2*sin(pi*x)", "1", ["0", "0"],
              ["D", "R", "D", "D"]]
         ]
-        for test_case in test_cases:
+        for test_case in test_cases[-1:]:
             self.check_advection_diffusion(*test_case)
 
     def test_diffusion_evaluate_gradient_1d(self):
