@@ -276,14 +276,21 @@ def diag_runge_kutta_stage_solution(
     nstages = ii+1
     ndof = stage_unknowns.shape[0]//nstages
     active_stage_time = time+c_coef[ii]*deltat
+    # active_sol : u(z_i)
     active_stage_sol = sol.clone()
     for jj in range(nstages):
         active_stage_sol += a_coef[ii, jj]/b_coef[jj]*(
             stage_unknowns[jj*ndof:(jj+1)*ndof]-sol)
+    # shrs : k_i = f(active_stage_time, u(z_i))
     srhs = rhs(active_stage_sol, active_stage_time)
+    jac = None
+    if type(srhs) == tuple:
+        srhs, jac = srhs[0], srhs[1]
     # print(ii, sol, active_stage_sol, srhs, stage_unknowns)
     new_active_stage_unknowns = (sol+srhs*b_coef[ii]*deltat)
-    return new_active_stage_unknowns, srhs
+    if jac is None:
+        return new_active_stage_unknowns, srhs
+    return new_active_stage_unknowns, srhs, jac
 
 
 def diag_runge_kutta_residual(
@@ -291,19 +298,29 @@ def diag_runge_kutta_residual(
         constraints):
     nstages = ii+1  # the number of computed stages plus the active stage
     ndof = stage_unknowns.shape[0]//nstages
-    new_active_stage_unknowns = diag_runge_kutta_stage_solution(
-        sol, deltat, time, rhs, butcher_tableau, stage_unknowns, ii)[0]
+    out = diag_runge_kutta_stage_solution(
+        sol, deltat, time, rhs, butcher_tableau, stage_unknowns, ii)
+    new_active_stage_unknowns = out[0]
     residual = stage_unknowns[ii*ndof:(ii+1)*ndof]-new_active_stage_unknowns
+    stage_time = time+butcher_tableau[2][ii]*deltat
+    if len(out) == 2:
+        if constraints is not None:
+            residual = constraints(
+                residual, stage_unknowns[ii*ndof:(ii+1)*ndof], stage_time)
+        return residual
+
+    stage_jac = butcher_tableau[1][ii]*deltat*out[2]
+    jac = torch.eye(ndof)-(
+        butcher_tableau[0][ii, ii]/butcher_tableau[1][ii]*stage_jac)
     if constraints is not None:
-        stage_time = time+butcher_tableau[2][ii]*deltat
-        residual = constraints(
-            residual, stage_unknowns[ii*ndof:(ii+1)*ndof], stage_time)
-    return residual
+        residual, jac = constraints(
+            residual, jac, stage_unknowns[ii*ndof:(ii+1)*ndof], stage_time)
+    return residual, jac
 
 
 class ImplicitRungeKutta():
     def __init__(self, deltat, rhs, tableau_name="beuler1",
-                 constraints_fun=None):
+                 constraints_fun=None, auto=True):
         self._tableau_name = tableau_name
         self._butcher_tableau = create_butcher_tableau(self._tableau_name)
         self._update = self._set_update(self._butcher_tableau)
@@ -312,6 +329,7 @@ class ImplicitRungeKutta():
         self._rhs = rhs
         self._constraints_fun = constraints_fun
         self._newton_opts = {}
+        self._auto = auto
 
         self._res_sol = None
         self._res_time = None
@@ -343,7 +361,8 @@ class ImplicitRungeKutta():
         self._res_sol = sol
         init_guess = torch.cat(init_guesses)
         init_guess.requires_grad = True
-        stage_unknowns = newton_solve(self._residual_fun, init_guess, True).detach()
+        stage_unknowns = newton_solve(
+            self._residual_fun, init_guess, True).detach()
         return implicit_runge_kutta_update_wildey(
             self._res_sol, stage_unknowns, self._res_deltat, self._res_time,
             self._rhs, self._butcher_tableau)
@@ -373,9 +392,9 @@ class ImplicitRungeKutta():
         nstages = self._butcher_tableau[0].shape[0]
         for ii in range(nstages):
             self._active_stage_idx = ii
-            init_guess.requires_grad = True
+            init_guess.requires_grad = self._auto
             active_stage_unknown = newton_solve(
-                self._diag_residual_fun, init_guess, True, 
+                self._diag_residual_fun, init_guess, self._auto,
                 **self._newton_opts)
             init_guess = active_stage_unknown.detach()
             self._computed_stage_unknowns.append(init_guess.clone())

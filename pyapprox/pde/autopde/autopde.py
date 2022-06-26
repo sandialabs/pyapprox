@@ -744,9 +744,15 @@ class SteadyStatePDE():
 class TransientPDE():
     def __init__(self, residual, deltat, tableau_name):
         self.residual = residual
+        if isinstance(self.residual, AbstractSpectralCollocationResidual):
+            constraints_fun = self._apply_boundary_conditions_to_residual
+            auto = True
+        else:
+            constraints_fun = self._apply_boundary_conditions
+            auto = False
         self.time_integrator = ImplicitRungeKutta(
             deltat, self.residual._transient_residual, tableau_name,
-            constraints_fun=self._apply_boundary_conditions_to_residual)
+            constraints_fun=constraints_fun, auto=auto)
 
     def _apply_boundary_conditions_to_residual(self, raw_residual, sol, time):
         for bndry_cond in self.residual._bndry_conds:
@@ -754,6 +760,13 @@ class TransientPDE():
                 bndry_cond[0].set_time(time)
         return self.residual.mesh._apply_boundary_conditions_to_residual(
             self.residual._bndry_conds, raw_residual, sol)
+
+    def _apply_boundary_conditions(self, raw_residual, raw_jac, sol, time):
+        for bndry_cond in self.residual._bndry_conds:
+            if hasattr(bndry_cond[0], "set_time"):
+                bndry_cond[0].set_time(time)
+        return self.residual.mesh._apply_boundary_conditions(
+            self.residual._bndry_conds, raw_residual, raw_jac, sol)
 
     def solve(self, init_sol, init_time, final_time, verbosity=0,
               newton_opts={}):

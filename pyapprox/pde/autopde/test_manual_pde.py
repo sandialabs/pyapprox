@@ -10,7 +10,7 @@ from pyapprox.pde.autopde.test_autopde import _get_boundary_funs
 from pyapprox.pde.autopde.autopde import (
     CartesianProductCollocationMesh,
     TransformedCollocationMesh,
-    Function, TransientFunction, SteadyStatePDE)
+    Function, TransientFunction, SteadyStatePDE, TransientPDE)
 from pyapprox.pde.autopde.manual_pde import AdvectionDiffusionReaction
 
 
@@ -110,6 +110,69 @@ class TestAnalyticalPDE(unittest.TestCase):
         ]
         for test_case in test_cases:
             self._check_advection_diffusion_reaction(*test_case)
+
+
+    def _check_transient_advection_diffusion_reaction(
+            self, domain_bounds, orders, sol_string,
+            diff_string, vel_strings, react_funs, bndry_types,
+            tableau_name):
+        sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
+            setup_advection_diffusion_reaction_manufactured_solution(
+                sol_string, diff_string, vel_strings, react_funs[0], True))
+
+        diff_fun = Function(diff_fun)
+        vel_fun = Function(vel_fun)
+        forc_fun = TransientFunction(forc_fun, name='forcing')
+        sol_fun = TransientFunction(sol_fun, name='sol')
+        flux_funs = TransientFunction(flux_funs, name='flux')
+
+        nphys_vars = len(orders)
+        bndry_conds = _get_boundary_funs(
+            nphys_vars, bndry_types, sol_fun, flux_funs)
+
+        deltat = 0.1
+        final_time = deltat*5
+        mesh = CartesianProductCollocationMesh(domain_bounds, orders)
+        solver = TransientPDE(
+            AdvectionDiffusionReaction(
+                mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
+                react_funs[1]), deltat, tableau_name)
+        sol_fun.set_time(0)
+        sols, times = solver.solve(
+            sol_fun(mesh.mesh_pts), 0, final_time, newton_opts={"tol": 1e-8})
+
+        for ii, time in enumerate(times):
+            sol_fun.set_time(time)
+            exact_sol_t = sol_fun(solver.residual.mesh.mesh_pts).numpy()
+            model_sol_t = sols[:, ii:ii+1]
+            L2_error = np.sqrt(
+                solver.residual.mesh.integrate((exact_sol_t-model_sol_t)**2))
+            factor = np.sqrt(
+                solver.residual.mesh.integrate(exact_sol_t**2))
+            print(time, L2_error, 1e-8*factor)
+            assert L2_error < 1e-8*factor
+
+    def test_transient_advection_diffusion_reaction(self):
+        test_cases = [
+            [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["0"],
+             [lambda sol: 0*sol,
+              lambda sol: np.zeros((sol.shape[0], sol.shape[0]))],
+             ["D", "D"], "im_crank2"],
+            [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
+             [lambda sol: 1*sol**2,
+              lambda sol: np.diag(2*sol[:, 0])],
+             ["D", "D"], "im_crank2"],
+            [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
+             [lambda sol: 1*sol**2,
+              lambda sol: np.diag(2*sol[:, 0])],
+             ["N", "D"], "im_crank2"],
+            [[0, 1, 0, 1], [3, 3], "(x-1)*x*(1+t)**2*y**2", "1", ["1", "1"],
+             [lambda sol: 1*sol**2,
+              lambda sol: np.diag(2*sol[:, 0])],
+             ["D", "N", "R", "D"], "im_crank2"]
+        ]
+        for test_case in test_cases:
+            self._check_transient_advection_diffusion_reaction(*test_case)
 
 
 if __name__ == "__main__":

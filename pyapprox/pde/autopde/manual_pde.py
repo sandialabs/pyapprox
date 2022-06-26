@@ -25,19 +25,15 @@ class AbstractSpectralCollocationPhysics(ABC):
             self._bndry_conds, res, jac, sol)
         return res, jac
 
-
-# class SteadyStatePDE():
-#     def __init__(self, residual):
-#         self.residual = residual
-
-#     def solve(self, init_guess=None, **newton_kwargs):
-#         if init_guess is None:
-#             init_guess = np.ones(
-#                 (self.residual.mesh.nunknowns, 1), dtype=np.double)
-#         init_guess = init_guess.squeeze()
-#         sol = numpy_newton_solve(
-#             self.residual._residual, init_guess, **newton_kwargs)
-#         return sol[:, None]
+    def _transient_residual(self, sol, time):
+        # correct equations for boundary conditions
+        for fun in self._funs:
+            if hasattr(fun, "set_time"):
+                fun.set_time(time)
+        for bndry_cond in self._bndry_conds:
+            if hasattr(bndry_cond[0], "set_time"):
+                bndry_cond[0].set_time(time)
+        return self._raw_residual(sol)
 
 
 class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):

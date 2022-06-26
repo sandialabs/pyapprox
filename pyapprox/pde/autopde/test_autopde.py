@@ -331,7 +331,7 @@ class TestAutoPDE(unittest.TestCase):
             [[0, 1, 0, 1], [3, 3], "(x-1)*x*(1+t)**2*y**2", "1", ["1", "1"],
             lambda x: 1*x**2, ["D", "N", "R", "D"], "im_crank2"]
         ]
-        for test_case in test_cases:
+        for test_case in test_cases[:1]:
             self._check_transient_advection_diffusion_reaction(*test_case)
 
     def _check_stokes_solver_mms(
