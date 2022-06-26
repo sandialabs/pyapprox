@@ -153,13 +153,22 @@ def setup_steady_stokes_manufactured_solution(
     pres_forc_lambda = sp.lambdify(symbs, pres_forc_expr, "numpy")
     pres_forc_fun = partial(_evaluate_sp_lambda, pres_forc_lambda)
 
+    vel_grad_funs = []
+    for v in vel_expr:
+        vel_grad_expr = [v.diff(s, 1) for s in symbs]
+        vel_grad_lambda = [
+            sp.lambdify(symbs, f, "numpy") for f in vel_grad_expr]
+        vel_grad_funs.append(partial(
+            _evaluate_list_of_sp_lambda, vel_grad_lambda, as_list=False))
+
     pres_grad_expr = [pres_expr.diff(s, 1) for s in symbs]
     pres_grad_lambda = [
         sp.lambdify(symbs, pg, "numpy") for pg in pres_grad_expr]
     pres_grad_fun = partial(
-        _evaluate_list_of_sp_lambda, pres_grad_lambda, as_list=True)
+        _evaluate_list_of_sp_lambda, pres_grad_lambda, as_list=False)
 
-    return vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, pres_grad_fun
+    return (vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, vel_grad_funs,
+            pres_grad_fun)
 
 
 def setup_shallow_wave_equations_manufactured_solution(

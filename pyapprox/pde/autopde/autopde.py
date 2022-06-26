@@ -925,11 +925,12 @@ class VectorMesh():
 class CanonicalInteriorCollocationMesh(CanonicalCollocationMesh):
     def __init__(self, orders):
         super().__init__(orders, None)
-
+        
         self._canonical_deriv_mats_alt = (
             self._form_derivative_matrices_alt())
 
-    def _apply_boundary_conditions_to_residual(self, bndry_conds, residual, sol):
+    def _apply_boundary_conditions_to_residual(self, bndry_conds, residual,
+                                               sol):
         return residual
 
     def _form_canonical_deriv_matrices(self, canonical_mesh_pts_1d):
@@ -1007,6 +1008,10 @@ class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
         self.mesh_pts = self._map_samples_from_canonical_domain(
             self._canonical_mesh_pts)
 
+        self.mesh_pts_alt = self._map_samples_from_canonical_domain(
+            cartesian_product(
+                [-np.cos(np.linspace(0, np.pi, o+1)) for o in self._orders]))
+
     def _map_samples_from_canonical_domain(self, canonical_samples):
         return self._transform(canonical_samples)
 
@@ -1018,20 +1023,57 @@ class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
             eval_samples)
         return super()._interpolate(values, canonical_eval_samples)
 
+    def _deriv_scale(self, quantity, dd, ii, idx=None):
+        if (self._transform_inv_derivs[dd][ii] == 0 or
+            self._transform_inv_derivs[dd][ii] is None):
+            return None
+
+        if self._transform_inv_derivs[dd][ii] == 1:
+            return 1
+
+        if quantity.shape[0] == self.mesh_pts.shape[1]:
+            mesh_pts = self.mesh_pts_alt
+        elif quantity.shape[0] == self.mesh_pts_alt.shape[1]:
+            mesh_pts = self.mesh_pts
+        else:
+            RuntimeError()
+            
+        if idx is not None:
+            return self._transform_inv_derivs[dd][ii](
+                mesh_pts[:, idx])
+        return self._transform_inv_derivs[dd][ii](
+            mesh_pts)
+
     def partial_deriv(self, quantity, dd, idx=None):
         # dq/du = dq/dx * dx/du + dq/dy * dy/du
+        assert quantity.ndim == 1
         vals = 0
         for ii in range(self.nphys_vars):
-            if self._transform_inv_derivs[dd][ii] is not None:
-                if idx is not None:
-                    scale = self._transform_inv_derivs[dd][ii](
-                        self._canonical_mesh_pts[:, idx])
-                else:
-                    scale = self._transform_inv_derivs[dd][ii](
-                        self._canonical_mesh_pts)
+            scale = self._deriv_scale(quantity, dd, ii, idx)
+            if scale is not None:
                 vals += scale*super().partial_deriv(quantity, ii, idx)
-            # else: scale is zero
         return vals
+    
+    # def partial_deriv(self, quantity, dd, idx=None):
+    #     # dq/du = dq/dx * dx/du + dq/dy * dy/du
+    #     vals = 0
+    #     for ii in range(self.nphys_vars):
+    #         if self._transform_inv_derivs[dd][ii] is not None:
+    #             if idx is not None:
+    #                 scale = self._transform_inv_derivs[dd][ii](
+    #                     self._canonical_mesh_pts[:, idx])
+    #             else:
+    #                  scale = self._transform_inv_derivs[dd][ii](
+    #                      self._canonical_mesh_pts)
+    #             scale = self._transform_inv_derivs[dd][ii](
+    #                 self._canonical_mesh_pts)
+    #             if idx is not None:
+    #                 scale = scale[idx]
+    #             print(idx, scale.shape, quantity.shape)
+    #             print(super().partial_deriv(quantity, ii, idx).shape)
+    #             vals += scale*super().partial_deriv(quantity, ii, idx)
+    #         # else: scale is zero
+    #     return vals
 
 
 class InteriorCartesianProductCollocationMesh(TransformedInteriorCollocationMesh):

@@ -343,7 +343,7 @@ class ImplicitRungeKutta():
         self._res_sol = sol
         init_guess = torch.cat(init_guesses)
         init_guess.requires_grad = True
-        stage_unknowns = newton_solve(self._residual_fun, init_guess).detach()
+        stage_unknowns = newton_solve(self._residual_fun, init_guess, True).detach()
         return implicit_runge_kutta_update_wildey(
             self._res_sol, stage_unknowns, self._res_deltat, self._res_time,
             self._rhs, self._butcher_tableau)
@@ -375,7 +375,7 @@ class ImplicitRungeKutta():
             self._active_stage_idx = ii
             init_guess.requires_grad = True
             active_stage_unknown = newton_solve(
-                self._diag_residual_fun, init_guess,
+                self._diag_residual_fun, init_guess, True, 
                 **self._newton_opts)
             init_guess = active_stage_unknown.detach()
             self._computed_stage_unknowns.append(init_guess.clone())

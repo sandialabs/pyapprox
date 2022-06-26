@@ -18,7 +18,8 @@ from pyapprox.pde.autopde.autopde import (
     TransientFunction, TransientPDE, LinearStokes, NavierStokes,
     InteriorCartesianProductCollocationMesh, VectorMesh,
     SteadyStatePDE, ShallowWater, ShallowShelfVelocities, ShallowShelf,
-    FirstOrderStokesIce, TransformedCollocationMesh
+    FirstOrderStokesIce, TransformedCollocationMesh,
+    TransformedInteriorCollocationMesh
 )
 
 
@@ -98,80 +99,6 @@ def _get_boundary_funs(nphys_vars, bndry_types, sol_fun, flux_funs,
 def _vel_component_fun(vel_fun, ii, x):
     vals = vel_fun(x)
     return vals[:, ii:ii+1]
-
-
-def _liny_transform(alpha, canonical_samples):
-    samples = np.empty(canonical_samples.shape)
-    samples[0] = (canonical_samples[0]+1)/2
-    samples[1] = canonical_samples[1]-alpha*samples[0]
-    return samples
-
-
-def _liny_transform_inv(alpha, samples):
-    canonical_samples = np.empty(samples.shape)
-    canonical_samples[0] = 2*samples[0]-1
-    canonical_samples[1] = samples[1]+alpha*samples[0]
-    return canonical_samples
-
-
-def _get_liny_transform_inv_derivs(alpha):
-    """
-    df/du = df/dx*dx/du + df/dy*dy/du
-    df/dv = df/dx*dx/dv + df/dy*dy/dv
-
-    u = (x+1)/2        v = y-alpha*u
-    x = 2*u-1          y = v+alpha*u
-    dx/du = 2          dy/du = alpha
-    dx/dv = 0          dy/dv = 1
-    """
-    def dxdu(samples):
-        return torch.full((samples.shape[1], ), 2)
-    def dydu(samples):
-        return torch.full((samples.shape[1], ), alpha)
-    dxdv = 0
-    def dydv(samples):
-        return torch.full((samples.shape[1], ), 1)
-    deriv_funs = [[dxdu, dydu], [dxdv, dydv]]
-    return deriv_funs
-
-
-def _quady_transform(s0, depth, L, alpha, canonical_samples):
-    samples = np.empty(canonical_samples.shape)
-    samples[0] = canonical_samples[0]*L
-    samples[1] = (canonical_samples[1]+1)/2*depth+(
-       s0-alpha*samples[0]**2-depth)
-    # samples[1] = canonical_samples[1].copy()
-    return samples
-
-
-def _quady_transform_inv(s0, depth, L, alpha, samples):
-    canonical_samples = np.empty(samples.shape)
-    canonical_samples[0] = samples[0]/L
-    canonical_samples[1] = 2/depth*(
-       samples[1]-(s0-alpha*samples[0]**2-depth))-1
-    # canonical_samples[1] = samples[1].copy()
-    return canonical_samples
-
-
-def _get_quady_transform_inv_derivs(s0, depth, L, alpha):
-    """
-    df/du = df/dx*dx/du + df/dy*dy/du
-    df/dv = df/dx*dx/dv + df/dy*dy/dv
-
-    u = x*L               v = (y+1)/2*H+(s0-a*u**2)-H
-    x = u/L               y = 2/H*(v-((s0-a*u**2)-H))-1
-    dx/du = 1/L           dy/du = 4*a*u/H
-    dx/dv = 0             dy/dv = 2/H
-    """
-    def dxdu(samples):
-        return torch.full((samples.shape[1], ), 1/L)
-    def dydu(samples):
-        return torch.tensor(4*alpha*samples[0, :]/depth)
-    dxdv = 0
-    def dydv(samples):
-        return torch.full((samples.shape[1], ), 2/depth)
-    deriv_funs = [[dxdu, dydu], [dxdv, dydv]]
-    return deriv_funs
 
 
 class TestAutoPDE(unittest.TestCase):
@@ -409,10 +336,10 @@ class TestAutoPDE(unittest.TestCase):
 
     def _check_stokes_solver_mms(
             self, domain_bounds, orders, vel_strings, pres_string, bndry_types,
-            navier_stokes):
-        vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, pres_grad_fun = (
-            setup_steady_stokes_manufactured_solution(
-                vel_strings, pres_string, navier_stokes))
+            navier_stokes, mesh_transforms=None):
+        (vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, vel_grad_funs,
+         pres_grad_fun) = setup_steady_stokes_manufactured_solution(
+                vel_strings, pres_string, navier_stokes)
 
         vel_fun = Function(vel_fun)
         pres_fun = Function(pres_fun)
@@ -421,20 +348,29 @@ class TestAutoPDE(unittest.TestCase):
         pres_grad_fun = Function(pres_grad_fun)
 
         # TODO Curently not test stokes with Neumann Boundary conditions
-
-        flux_funs = None
+        
         nphys_vars = len(orders)
+        if mesh_transforms is None:
+            boundary_normals = None
+        else:
+            boundary_normals = mesh_transforms[-1]
         vel_bndry_conds = [
             _get_boundary_funs(
                 nphys_vars, bndry_types,
                 partial(_vel_component_fun, vel_fun, ii),
-                flux_funs) for ii in range(nphys_vars)]
+                vel_grad_funs[ii], boundary_normals) for ii in range(nphys_vars)]
         bndry_conds = vel_bndry_conds + [[[None, None]]*(2*nphys_vars)]
 
-        vel_meshes = [
-            CartesianProductCollocationMesh(domain_bounds, orders)]*nphys_vars
-        pres_mesh = InteriorCartesianProductCollocationMesh(
-            domain_bounds, orders)
+        if mesh_transforms is None:
+            vel_meshes = [
+                CartesianProductCollocationMesh(domain_bounds, orders)]*nphys_vars
+            pres_mesh = InteriorCartesianProductCollocationMesh(
+                domain_bounds, orders)
+        else:
+            vel_meshes = [TransformedCollocationMesh(
+                orders, *mesh_transforms)]*nphys_vars
+            pres_mesh = TransformedInteriorCollocationMesh(
+                orders, *mesh_transforms[:-1])
         mesh = VectorMesh(vel_meshes + [pres_mesh])
         pres_idx = 0
         pres_val = pres_fun(pres_mesh.mesh_pts[:, pres_idx:pres_idx+1])
@@ -473,9 +409,14 @@ class TestAutoPDE(unittest.TestCase):
             assert np.allclose(exact_pres_vals, split_sols[-1], atol=6e-8)
 
     def test_stokes_solver_mms(self):
+        s0, depth, L, alpha = 2, .1, 1, 1e-1
+        mesh_transforms = get_vertical_2d_mesh_transforms_from_string(
+            [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
         test_cases = [
             [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "D"], False],
+            [[0, 1], [4], ["(1-x)**2"], "x**2", ["N", "D"], False],
             [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "D"], True],
+            [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "N"], True],
             [[0, 1, 0, 1], [20, 20],
              ["-cos(pi*x)*sin(pi*y)", "sin(pi*x)*cos(pi*y)"], "x**3*y**3",
              ["D", "D", "D", "D"], False],
@@ -484,7 +425,13 @@ class TestAutoPDE(unittest.TestCase):
              ["D", "D", "D", "D"], False],
             [[0, 1, 0, 1], [12, 12],
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
-             ["D", "D", "D", "D"], True]
+             ["D", "D", "D", "D"], True],
+            [[0, 1, 0, 1], [12, 12],
+             ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
+             ["D", "D", "D", "D"], True, mesh_transforms],
+            [[0, 1, 0, 1], [12, 12],
+             ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
+             ["D", "D", "D", "N"], True, mesh_transforms]
         ]
         for test_case in test_cases:
             self._check_stokes_solver_mms(*test_case)
@@ -501,7 +448,7 @@ class TestAutoPDE(unittest.TestCase):
         q, C = 1, 1
         init_guess = C-bed_fun(x).requires_grad_(True)
         fun = partial(bernoulli_realtion, q, bed_fun, C, x)
-        sol = newton_solve(fun, init_guess, tol=1e-12, verbosity=2, maxiters=20)
+        sol = newton_solve(fun, init_guess, True, tol=1e-12, verbosity=2, maxiters=20)
         sol = sol.detach().numpy()
         assert np.allclose(sol, sol[0], atol=1e-12)
 
