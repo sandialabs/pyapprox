@@ -211,7 +211,9 @@ class TestAutoPDE(unittest.TestCase):
         #print(np.abs(solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])).max())
         #print(solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]))
         assert np.allclose(
-           solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]), 0) #TODO turn test back on
+           solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0]), 0)
+        assert np.allclose(
+           solver.residual._residual(sol_fun(mesh.mesh_pts)[:, 0]), 0)
         #print(torch.autograd.functional.jacobian(
         #    solver.residual._raw_residual,
         #    sol_fun(mesh.mesh_pts)[:, 0].requires_grad_(True), strict=True))
@@ -220,7 +222,6 @@ class TestAutoPDE(unittest.TestCase):
         t0 = time()
         sol = solver.solve()
         print(time()-t0, 'sec')
-        assert False
 
         # import matplotlib.pyplot as plt
         # ax = plt.subplots(1, 1, figsize=(8, 6))[1]

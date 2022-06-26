@@ -429,6 +429,76 @@ class CanonicalCollocationMesh():
         return residual
 
 
+    def _dmat(self, dd):
+        dmat = 0
+        for ii in range(self.nphys_vars):
+            if self._transform_inv_derivs[dd][ii] is not None:
+                scale = self._deriv_scale(dd, ii, None)
+                if scale is not None:
+                    dmat += scale[:, None]*self._canonical_deriv_mats[ii]
+        return dmat
+
+    def _apply_dirichlet_boundary_conditions(
+            self, bndry_conds, residual, jac, sol):
+        # needs to have indices as argument so this fucntion can be used
+        # when setting boundary conditions for forward and adjoint solves
+        for ii, bndry_cond in enumerate(bndry_conds):
+            if bndry_cond[1] != "D":
+                continue
+            idx = self._bndry_indices[ii]
+            jac[idx, :] = 0
+            jac[idx, idx] = 1
+            bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
+            residual[idx] = sol[idx]-bndry_vals
+        return residual, jac
+
+    def _apply_neumann_and_robin_boundary_conditions(
+            self, bndry_conds, residual, jac, sol):
+        for ii, bndry_cond in enumerate(bndry_conds):
+            if bndry_cond[1] != "N" and bndry_cond[1] != "R":
+                continue
+            idx = self._bndry_indices[ii]
+            normal_vals = self._bndrys[ii].normals(
+                self.mesh_pts[:, idx])
+            grad_vals = [normal_vals[:, dd:dd+1]*self._dmat(dd)[idx]
+                         for dd in range(self.nphys_vars)]
+            # print(sum(grad_vals))
+            # (D2*u)*n2+D2*u*n2
+            jac[idx] = sum(grad_vals)
+            bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
+            residual[idx] = torch.linalg.multi_dot((jac[idx], sol))-bndry_vals
+            if bndry_cond[1] == "R":
+                jac[idx, idx] += bndry_cond[2]
+                residual[idx] += bndry_cond[2]*sol[idx]
+        # assert False
+        return residual, jac
+
+    def _apply_periodic_boundary_conditions(
+            self, bndry_conds, residual, jac, sol):
+        for ii in range(len(bndry_conds)//2):
+            if (self._basis_types[ii] == "C" and bndry_conds[2*ii][1] == "P"):
+                idx1 = self._bndry_indices[2*ii]
+                idx2 = self._bndry_indices[2*ii+1]
+                jac[idx1, :] = 0
+                jac[idx1, idx1] = 1
+                jac[idx1, idx2] = -1
+                jac[idx2] = self._dmat(ii//2)[idx1]-self._dmat(ii//2)[idx2]
+                residual[idx1] = sol[idx1]-sol[idx2]
+                residual[idx2] = (
+                    torch.linalg.multi_dot((self._dmat(ii//2)[idx1], sol)) -
+                    torch.linalg.multi_dot((self._dmat(ii//2)[idx2], sol)))
+        return residual, jac
+
+    def _apply_boundary_conditions(self, bndry_conds, residual, jac, sol):
+        residual, jac = self._apply_dirichlet_boundary_conditions(
+                bndry_conds, residual, jac, sol)
+        residual, jac = self._apply_periodic_boundary_conditions(
+            bndry_conds, residual, jac, sol)
+        residual, jac = self._apply_neumann_and_robin_boundary_conditions(
+            bndry_conds, residual, jac, sol)
+        return residual, jac
+
+
 class TransformedCollocationMesh(CanonicalCollocationMesh):
     def __init__(self, orders, transform, transform_inv,
                  transform_inv_derivs, trans_bndry_normals, basis_types=None):
@@ -652,19 +722,22 @@ class AbstractSpectralCollocationResidual(ABC):
 class SteadyStatePDE():
     def __init__(self, residual):
         self.residual = residual
+        self._auto = isinstance(residual, AbstractSpectralCollocationResidual)
 
     def solve(self, init_guess=None, **newton_kwargs):
         if init_guess is None:
             init_guess = torch.ones(
-                (self.residual.mesh.nunknowns, 1), dtype=torch.double)
+                (self.residual.mesh.nunknowns), dtype=torch.double)
         init_guess = init_guess.squeeze()
+        requires_grad = self._auto
         if type(init_guess) == np.ndarray:
             sol = torch.tensor(
-                init_guess.clone(), requires_grad=True, dtype=torch.double)
+                init_guess.clone(), requires_grad=requires_grad,
+                dtype=torch.double)
         else:
-            sol = init_guess.clone().detach().requires_grad_(True)
+            sol = init_guess.clone().detach().requires_grad_(requires_grad)
         sol = newton_solve(
-            self.residual._residual, sol, **newton_kwargs)
+            self.residual._residual, sol, self._auto, **newton_kwargs)
         return sol.detach().numpy()[:, None]
 
 
