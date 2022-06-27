@@ -331,7 +331,7 @@ class TestAutoPDE(unittest.TestCase):
             [[0, 1, 0, 1], [3, 3], "(x-1)*x*(1+t)**2*y**2", "1", ["1", "1"],
             lambda x: 1*x**2, ["D", "N", "R", "D"], "im_crank2"]
         ]
-        for test_case in test_cases[:1]:
+        for test_case in test_cases:
             self._check_transient_advection_diffusion_reaction(*test_case)
 
     def _check_stokes_solver_mms(
@@ -358,12 +358,14 @@ class TestAutoPDE(unittest.TestCase):
             _get_boundary_funs(
                 nphys_vars, bndry_types,
                 partial(_vel_component_fun, vel_fun, ii),
-                vel_grad_funs[ii], boundary_normals) for ii in range(nphys_vars)]
+                vel_grad_funs[ii], boundary_normals)
+            for ii in range(nphys_vars)]
         bndry_conds = vel_bndry_conds + [[[None, None]]*(2*nphys_vars)]
 
         if mesh_transforms is None:
             vel_meshes = [
-                CartesianProductCollocationMesh(domain_bounds, orders)]*nphys_vars
+                CartesianProductCollocationMesh(
+                    domain_bounds, orders)]*nphys_vars
             pres_mesh = InteriorCartesianProductCollocationMesh(
                 domain_bounds, orders)
         else:
@@ -433,7 +435,7 @@ class TestAutoPDE(unittest.TestCase):
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
              ["D", "D", "D", "N"], True, mesh_transforms]
         ]
-        for test_case in test_cases:
+        for test_case in test_cases[:1]:
             self._check_stokes_solver_mms(*test_case)
 
     def test_shallow_water_solver_mms_setup(self):

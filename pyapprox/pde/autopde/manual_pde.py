@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 from abc import ABC, abstractmethod
 from functools import partial
@@ -64,3 +65,66 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         res -= self._react_fun(sol[:, None])[:, 0]
         res += self._forc_fun(self.mesh.mesh_pts)[:, 0]
         return res, jac
+
+
+class NavierStokes(AbstractSpectralCollocationPhysics):
+    def __init__(self, mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
+                 unique_pres_data=(0, 1)):
+        super().__init__(mesh, bndry_conds)
+
+        self._navier_stokes = True
+        self._vel_forc_fun = vel_forc_fun
+        self._pres_forc_fun = pres_forc_fun
+        self._unique_pres_data = unique_pres_data
+
+    def _raw_residual(self, sol):
+        split_sols = self.mesh.split_quantities(sol)
+        vel_sols = torch.hstack([s[:, None] for s in split_sols[:-1]])
+        vel_forc_vals = self._vel_forc_fun(self.mesh._meshes[0].mesh_pts)
+        residual = [None for ii in range(len(split_sols))]
+        jac = [[0 for jj in range(self.mesh.nphys_vars+1)]
+               for ii in range(len(split_sols))]
+        for dd in range(self.mesh.nphys_vars):
+            residual[dd] = (
+                -self.mesh._meshes[dd].laplace(split_sols[dd]) +
+                self.mesh._meshes[-1].partial_deriv(split_sols[-1], dd))
+            residual[dd] -= vel_forc_vals[:, dd]
+            for ii in range(self.mesh.nphys_vars):
+                dmat = self.mesh._meshes[dd]._dmat(ii)
+                jac[dd][dd] += -multi_dot((dmat, dmat))
+                if dd != ii:
+                    jac[dd][ii] = torch.zeros_like(dmat)
+            jac[dd][-1] += self.mesh._meshes[-1]._dmat(
+                split_sols[-1], dd)
+            if self._navier_stokes:
+                residual[dd] += self.mesh._meshes[0].dot(
+                    vel_sols, self.mesh._meshes[dd].grad(split_sols[dd]))
+                raise NotImplementedError
+            jac[dd] = torch.hstack(jac[dd])
+        residual[-1] = (
+            self.mesh._meshes[-1].div(vel_sols) -
+            self._pres_forc_fun(self.mesh._meshes[-1].mesh_pts)[:, 0])
+        for dd in range(self.mesh.nphys_vars):
+            jac[-1][dd] = self.mesh._meshes[-1]._dmat(split_sols[dd], dd)
+        jac[-1][-1] = torch.zeros(
+            (self.mesh._meshes[-1].nunknowns, self.mesh._meshes[-1].nunknowns))
+        jac[-1] = torch.hstack(jac[-1])
+        residual[-1][self._unique_pres_data[0]] = (
+            split_sols[-1][self._unique_pres_data[0]]-self._unique_pres_data[1])
+        jac[-1][self._unique_pres_data[0], :] = 0
+        jac[-1][self._unique_pres_data[0],
+                self.mesh._meshes[0].nunknowns*self.mesh.nphys_vars +
+                self._unique_pres_data[0]] = 1
+        print(jac[-1])
+        return torch.cat(residual), torch.vstack(jac)
+
+
+class LinearStokes(NavierStokes):
+    def __init__(self, mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
+                 unique_pres_data=(0, 1)):
+        super().__init__(mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
+                         unique_pres_data)
+        self._navier_stokes = False
+
+
+        

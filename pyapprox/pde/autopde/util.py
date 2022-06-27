@@ -33,8 +33,8 @@ def newton_solve(residual_fun, init_guess, auto, tol=1e-7, maxiters=10,
             jac = torch.autograd.functional.jacobian(
                 residual_fun, sol, strict=True)
         sol = sol-step_size*torch.linalg.solve(jac, residual)
-        # np.set_printoptions(linewidth=1000)
-        # print(np.round(jac.numpy(), decimals=2))
+        np.set_printoptions(linewidth=1000)
+        print(np.round(jac.numpy(), decimals=2))
         # print(residual.detach().numpy())
         # print(np.linalg.eigh(jac.numpy())[0])
         # print(np.linalg.cond(jac.numpy()))

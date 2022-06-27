@@ -1,20 +1,27 @@
 import unittest
 import torch
 import numpy as np
+from functools import partial
 
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
-    get_vertical_2d_mesh_transforms_from_string
+    get_vertical_2d_mesh_transforms_from_string,
+    setup_steady_stokes_manufactured_solution
 )
-from pyapprox.pde.autopde.test_autopde import _get_boundary_funs
+from pyapprox.pde.autopde.test_autopde import (
+    _get_boundary_funs, _vel_component_fun
+)
 from pyapprox.pde.autopde.autopde import (
     CartesianProductCollocationMesh,
-    TransformedCollocationMesh,
+    TransformedCollocationMesh, InteriorCartesianProductCollocationMesh,
+    TransformedInteriorCollocationMesh, VectorMesh,
     Function, TransientFunction, SteadyStatePDE, TransientPDE)
-from pyapprox.pde.autopde.manual_pde import AdvectionDiffusionReaction
+from pyapprox.pde.autopde.manual_pde import (
+    AdvectionDiffusionReaction, NavierStokes, LinearStokes
+)
 
 
-class TestAnalyticalPDE(unittest.TestCase):
+class TestManualPDE(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(1)
         np.random.seed(1)
@@ -174,8 +181,112 @@ class TestAnalyticalPDE(unittest.TestCase):
         for test_case in test_cases:
             self._check_transient_advection_diffusion_reaction(*test_case)
 
+    def _check_stokes_solver_mms(
+            self, domain_bounds, orders, vel_strings, pres_string, bndry_types,
+            navier_stokes, mesh_transforms=None):
+        (vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, vel_grad_funs,
+         pres_grad_fun) = setup_steady_stokes_manufactured_solution(
+                vel_strings, pres_string, navier_stokes)
+
+        vel_fun = Function(vel_fun)
+        pres_fun = Function(pres_fun)
+        vel_forc_fun = Function(vel_forc_fun)
+        pres_forc_fun = Function(pres_forc_fun)
+        pres_grad_fun = Function(pres_grad_fun)
+
+        # TODO Curently not test stokes with Neumann Boundary conditions
+        
+        nphys_vars = len(orders)
+        if mesh_transforms is None:
+            boundary_normals = None
+        else:
+            boundary_normals = mesh_transforms[-1]
+        vel_bndry_conds = [
+            _get_boundary_funs(
+                nphys_vars, bndry_types,
+                partial(_vel_component_fun, vel_fun, ii),
+                vel_grad_funs[ii], boundary_normals)
+            for ii in range(nphys_vars)]
+        bndry_conds = vel_bndry_conds + [[[None, None]]*(2*nphys_vars)]
+
+        if mesh_transforms is None:
+            vel_meshes = [
+                CartesianProductCollocationMesh(
+                    domain_bounds, orders)]*nphys_vars
+            pres_mesh = InteriorCartesianProductCollocationMesh(
+                domain_bounds, orders)
+        else:
+            vel_meshes = [TransformedCollocationMesh(
+                orders, *mesh_transforms)]*nphys_vars
+            pres_mesh = TransformedInteriorCollocationMesh(
+                orders, *mesh_transforms[:-1])
+        mesh = VectorMesh(vel_meshes + [pres_mesh])
+        pres_idx = 0
+        pres_val = pres_fun(pres_mesh.mesh_pts[:, pres_idx:pres_idx+1])
+        if not navier_stokes:
+            Residual = LinearStokes
+        else:
+            Residual = NavierStokes
+        solver = SteadyStatePDE(Residual(
+            mesh, bndry_conds, vel_forc_fun, pres_forc_fun, (pres_idx, pres_val)))
+        sol = solver.solve(maxiters=1)
+
+        exact_vel_vals = vel_fun(vel_meshes[0].mesh_pts).numpy()
+        exact_pres_vals = pres_fun(pres_mesh.mesh_pts).numpy()
+
+        split_sols = mesh.split_quantities(sol)
+
+        import matplotlib.pyplot as plt
+        fig, axs = plt.subplots(1, 3, figsize=(8*3, 6))
+        # plt_objs = mesh.plot(
+        #     [v[:, None] for v in exact_vel_vals.T]+[exact_pres_vals])
+        # plt_objs = mesh.plot(split_sols, axs=axs)
+        exact_sols = [v[:, None] for v in exact_vel_vals.T]+[exact_pres_vals]
+        # plt_objs = mesh.plot(
+        #     [v-u for v, u in zip(exact_sols, split_sols)])
+        # for ax, obj in zip(axs, plt_objs):
+        #     plt.colorbar(obj, ax=ax)
+        #     plt.show()
+
+        # check value used to enforce unique pressure is found correctly
+        assert np.allclose(
+            split_sols[-1][pres_idx], pres_val)
+
+        for exact_v, v in zip(exact_vel_vals.T, split_sols[:-1]):
+            assert np.allclose(exact_v, v[:, 0])
+            print(np.abs(exact_pres_vals-split_sols[-1]).max())
+            assert np.allclose(exact_pres_vals, split_sols[-1], atol=6e-8)
+
+    def test_stokes_solver_mms(self):
+        s0, depth, L, alpha = 2, .1, 1, 1e-1
+        mesh_transforms = get_vertical_2d_mesh_transforms_from_string(
+            [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
+        test_cases = [
+            [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "D"], False],
+            [[0, 1], [4], ["(1-x)**2"], "x**2", ["N", "D"], False],
+            [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "D"], True],
+            [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "N"], True],
+            [[0, 1, 0, 1], [20, 20],
+             ["-cos(pi*x)*sin(pi*y)", "sin(pi*x)*cos(pi*y)"], "x**3*y**3",
+             ["D", "D", "D", "D"], False],
+            [[0, 1, 0, 1], [6, 7],
+             ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
+             ["D", "D", "D", "D"], False],
+            [[0, 1, 0, 1], [12, 12],
+             ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
+             ["D", "D", "D", "D"], True],
+            [[0, 1, 0, 1], [12, 12],
+             ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
+             ["D", "D", "D", "D"], True, mesh_transforms],
+            [[0, 1, 0, 1], [12, 12],
+             ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
+             ["D", "D", "D", "N"], True, mesh_transforms]
+        ]
+        for test_case in test_cases[1:2]:
+            self._check_stokes_solver_mms(*test_case)
+
 
 if __name__ == "__main__":
-    analytical_pde_test_suite = \
-        unittest.TestLoader().loadTestsFromTestCase(TestAnalyticalPDE)
-    unittest.TextTestRunner(verbosity=2).run(analytical_pde_test_suite)
+    manual_pde_test_suite = \
+        unittest.TestLoader().loadTestsFromTestCase(TestManualPDE)
+    unittest.TextTestRunner(verbosity=2).run(manual_pde_test_suite)

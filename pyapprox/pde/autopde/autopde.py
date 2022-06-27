@@ -428,7 +428,6 @@ class CanonicalCollocationMesh():
             bndry_conds, residual, sol))
         return residual
 
-
     def _dmat(self, dd):
         dmat = 0
         for ii in range(self.nphys_vars):
@@ -898,6 +897,17 @@ class VectorMesh():
                 bndry_conds[ii], split_residual[ii], split_sols[ii])
         return torch.cat(split_residual)
 
+    def _apply_boundary_conditions(self, bndry_conds, residual, jac, sol):
+        split_sols = self.split_quantities(sol)
+        split_residual = self.split_quantities(residual)
+        split_jac = self.split_quantities(jac)
+        for ii, mesh in enumerate(self._meshes):
+            split_residual[ii], split_jac[ii] = (
+                mesh._apply_boundary_conditions(
+                    bndry_conds[ii], split_residual[ii], split_jac[ii],
+                    split_sols[ii]))
+        return torch.cat(split_residual), torch.vstack(split_jac)
+
     def interpolate(self, sol_vals, xx):
         Z = []
         for ii in range(len(self._meshes)):
@@ -1066,6 +1076,16 @@ class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
             if scale is not None:
                 vals += scale*super().partial_deriv(quantity, ii, idx)
         return vals
+
+    def _dmat(self, quantity1, dd):
+        dmat = 0
+        for ii in range(self.nphys_vars):
+            if self._transform_inv_derivs[dd][ii] is not None:
+                scale = self._deriv_scale(quantity1, dd, ii, None)
+                if scale is not None:
+                    dmat += scale[:, None]*self._get_canonical_deriv_mats(
+                        quantity1)[dd]
+        return dmat
     
     # def partial_deriv(self, quantity, dd, idx=None):
     #     # dq/du = dq/dx * dx/du + dq/dy * dy/du
@@ -1139,7 +1159,6 @@ class NavierStokes(AbstractSpectralCollocationResidual):
             if self._navier_stokes:
                 residual[dd] += self.mesh._meshes[0].dot(
                     vel_sols, self.mesh._meshes[dd].grad(split_sols[dd]))
-        nvel_unknowns = self.mesh._meshes[0].nunknowns
         residual[-1] = (
             self.mesh._meshes[-1].div(vel_sols) -
             self._pres_forc_fun(self.mesh._meshes[-1].mesh_pts)[:, 0])
