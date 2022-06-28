@@ -144,7 +144,7 @@ class TestAutoPDE(unittest.TestCase):
         #print(torch.autograd.functional.jacobian(
         #    solver.residual._raw_residual,
         #    sol_fun(mesh.mesh_pts)[:, 0].requires_grad_(True), strict=True))
-        
+
         from time import time
         t0 = time()
         sol = solver.solve()
@@ -348,7 +348,7 @@ class TestAutoPDE(unittest.TestCase):
         pres_grad_fun = Function(pres_grad_fun)
 
         # TODO Curently not test stokes with Neumann Boundary conditions
-        
+
         nphys_vars = len(orders)
         if mesh_transforms is None:
             boundary_normals = None
@@ -381,7 +381,32 @@ class TestAutoPDE(unittest.TestCase):
         else:
             Residual = NavierStokes
         solver = SteadyStatePDE(Residual(
-            mesh, bndry_conds, vel_forc_fun, pres_forc_fun, (pres_idx, pres_val)))
+            mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
+            (pres_idx, pres_val)))
+
+        exact_sol = torch.vstack(
+            [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]+
+            [pres_fun(pres_mesh.mesh_pts)])
+
+        print(solver.residual._raw_residual(exact_sol[:, 0])[0])
+        assert np.allclose(
+           solver.residual._raw_residual(exact_sol[:, 0])[0], 0, atol=7e-8)
+        assert np.allclose(
+           solver.residual._residual(exact_sol[:, 0])[0], 0, atol=7e-8)
+
+        from pyapprox.util.utilities import approx_jacobian
+        def fun(s):
+            return solver.residual._raw_residual(torch.as_tensor(s)).numpy()
+        j_auto = torch.autograd.functional.jacobian(
+            solver.residual._raw_residual,
+            exact_sol[:, 0].clone().requires_grad_(True), strict=True).numpy()
+
+        # np.set_printoptions(precision=6, suppress=True, threshold=100000, linewidth=1000)
+        # for eps in np.logspace(-1, -10, 10):
+        #     j_fd = approx_jacobian(fun, exact_sol[:, 0].numpy(), epsilon=eps)
+        #     print(eps, np.abs(j_auto-j_fd).max())
+        #     # assert np.allclose(j_auto, j_fd)
+
         sol = solver.solve()
 
         exact_vel_vals = vel_fun(vel_meshes[0].mesh_pts).numpy()
@@ -425,17 +450,17 @@ class TestAutoPDE(unittest.TestCase):
             [[0, 1, 0, 1], [6, 7],
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
              ["D", "D", "D", "D"], False],
-            [[0, 1, 0, 1], [12, 12],
+            [[0, 1, 0, 1], [4, 4], #[12, 12],
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
              ["D", "D", "D", "D"], True],
-            [[0, 1, 0, 1], [12, 12],
+            [[0, 1, 0, 1], [8, 8],
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
              ["D", "D", "D", "D"], True, mesh_transforms],
             [[0, 1, 0, 1], [12, 12],
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
              ["D", "D", "D", "N"], True, mesh_transforms]
         ]
-        for test_case in test_cases[:1]:
+        for test_case in test_cases:
             self._check_stokes_solver_mms(*test_case)
 
     def test_shallow_water_solver_mms_setup(self):
@@ -450,7 +475,8 @@ class TestAutoPDE(unittest.TestCase):
         q, C = 1, 1
         init_guess = C-bed_fun(x).requires_grad_(True)
         fun = partial(bernoulli_realtion, q, bed_fun, C, x)
-        sol = newton_solve(fun, init_guess, True, tol=1e-12, verbosity=2, maxiters=20)
+        sol = newton_solve(fun, init_guess, True, tol=1e-12, verbosity=2,
+                           maxiters=20)
         sol = sol.detach().numpy()
         assert np.allclose(sol, sol[0], atol=1e-12)
 
@@ -618,7 +644,7 @@ class TestAutoPDE(unittest.TestCase):
         ]
         for test_case in test_cases:
             self._check_shallow_water_transient_solver_mms(*test_case)
-            
+
     def _check_shallow_shelf_solver_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,
             beta_string, bndry_types, velocities_only):

@@ -228,11 +228,40 @@ class TestManualPDE(unittest.TestCase):
         else:
             Residual = NavierStokes
         solver = SteadyStatePDE(Residual(
-            mesh, bndry_conds, vel_forc_fun, pres_forc_fun, (pres_idx, pres_val)))
-        sol = solver.solve(maxiters=1)
+            mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
+            (pres_idx, pres_val)))
 
         exact_vel_vals = vel_fun(vel_meshes[0].mesh_pts).numpy()
         exact_pres_vals = pres_fun(pres_mesh.mesh_pts).numpy()
+        exact_sol = torch.vstack(
+            [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T] +
+            [pres_fun(pres_mesh.mesh_pts)])
+        
+        print(np.abs(solver.residual._raw_residual(exact_sol[:, 0])[0]).max())
+        assert np.allclose(
+            solver.residual._raw_residual(exact_sol[:, 0])[0], 0, atol=2e-8)
+        assert np.allclose(
+            solver.residual._residual(exact_sol[:, 0])[0], 0, atol=2e-8)
+
+        from pyapprox.util.utilities import approx_jacobian
+        def fun(s):
+            return solver.residual._raw_residual(torch.as_tensor(s))[0].numpy()
+        j_fd = approx_jacobian(fun, exact_sol[:, 0].numpy())
+        j_man = solver.residual._raw_residual(torch.as_tensor(exact_sol[:, 0]))[1].numpy()
+        j_auto = torch.autograd.functional.jacobian(
+            lambda s: solver.residual._raw_residual(s)[0],
+            exact_sol[:, 0].clone().requires_grad_(True), strict=True).numpy()
+        np.set_printoptions(precision=2, suppress=True, threshold=100000, linewidth=1000)
+        # print(j_auto[:16, 32:])
+        # # print(j_fd[:16, 32:])
+        # print(j_man[:16, 32:])
+        # # print((j_auto-j_fd)[:16, 32:])
+        # # print((j_auto-j_man)[:16, 32:])
+        # print(np.abs(j_auto-j_man).max())
+        # print(np.abs(j_auto-j_fd).max())
+        assert np.allclose(j_auto, j_man)
+        
+        sol = solver.solve(maxiters=10)
 
         split_sols = mesh.split_quantities(sol)
 
@@ -255,7 +284,7 @@ class TestManualPDE(unittest.TestCase):
         for exact_v, v in zip(exact_vel_vals.T, split_sols[:-1]):
             assert np.allclose(exact_v, v[:, 0])
             print(np.abs(exact_pres_vals-split_sols[-1]).max())
-            assert np.allclose(exact_pres_vals, split_sols[-1], atol=6e-8)
+            assert np.allclose(exact_pres_vals, split_sols[-1], atol=7e-8)
 
     def test_stokes_solver_mms(self):
         s0, depth, L, alpha = 2, .1, 1, 1e-1
@@ -272,17 +301,17 @@ class TestManualPDE(unittest.TestCase):
             [[0, 1, 0, 1], [6, 7],
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
              ["D", "D", "D", "D"], False],
-            [[0, 1, 0, 1], [12, 12],
+            [[0, 1, 0, 1], [4, 4], #[12, 12],
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
              ["D", "D", "D", "D"], True],
-            [[0, 1, 0, 1], [12, 12],
+            [[0, 1, 0, 1], [8, 8],
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
              ["D", "D", "D", "D"], True, mesh_transforms],
-            [[0, 1, 0, 1], [12, 12],
+            [[0, 1, 0, 1], [8, 8],
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
              ["D", "D", "D", "N"], True, mesh_transforms]
         ]
-        for test_case in test_cases[1:2]:
+        for test_case in test_cases[8:9]:
             self._check_stokes_solver_mms(*test_case)
 
 

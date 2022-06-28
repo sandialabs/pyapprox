@@ -461,7 +461,6 @@ class CanonicalCollocationMesh():
                 self.mesh_pts[:, idx])
             grad_vals = [normal_vals[:, dd:dd+1]*self._dmat(dd)[idx]
                          for dd in range(self.nphys_vars)]
-            # print(sum(grad_vals))
             # (D2*u)*n2+D2*u*n2
             jac[idx] = sum(grad_vals)
             bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
@@ -897,15 +896,28 @@ class VectorMesh():
                 bndry_conds[ii], split_residual[ii], split_sols[ii])
         return torch.cat(split_residual)
 
+    def _zero_boundary_equations(self, mesh, bndry_conds, jac):
+        for ii in range(len(bndry_conds)):
+            if bndry_conds[ii][1] is not None:
+                jac[mesh._bndry_indices[ii], :] = 0
+        return jac
+        
+
     def _apply_boundary_conditions(self, bndry_conds, residual, jac, sol):
         split_sols = self.split_quantities(sol)
         split_residual = self.split_quantities(residual)
         split_jac = self.split_quantities(jac)
         for ii, mesh in enumerate(self._meshes):
-            split_residual[ii], split_jac[ii] = (
+            split_jac[ii] = self._zero_boundary_equations(
+                mesh, bndry_conds[ii], split_jac[ii])
+            ssjac = self.split_quantities(split_jac[ii].T)
+            split_residual[ii], tmp = (
                 mesh._apply_boundary_conditions(
-                    bndry_conds[ii], split_residual[ii], split_jac[ii],
+                    bndry_conds[ii], split_residual[ii], ssjac[ii].T,
                     split_sols[ii]))
+            ssjac = [s.T for s in ssjac]
+            ssjac[ii] = tmp
+            split_jac[ii] = torch.hstack(ssjac)
         return torch.cat(split_residual), torch.vstack(split_jac)
 
     def interpolate(self, sol_vals, xx):
@@ -1084,7 +1096,7 @@ class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
                 scale = self._deriv_scale(quantity1, dd, ii, None)
                 if scale is not None:
                     dmat += scale[:, None]*self._get_canonical_deriv_mats(
-                        quantity1)[dd]
+                        quantity1)[ii]
         return dmat
     
     # def partial_deriv(self, quantity, dd, idx=None):

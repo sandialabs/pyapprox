@@ -84,22 +84,40 @@ class NavierStokes(AbstractSpectralCollocationPhysics):
         residual = [None for ii in range(len(split_sols))]
         jac = [[0 for jj in range(self.mesh.nphys_vars+1)]
                for ii in range(len(split_sols))]
+        # assumes x and y velocity meshes are the same
+        vel_dmats = [self.mesh._meshes[0]._dmat(dd)
+                 for dd in range(self.mesh.nphys_vars)]
         for dd in range(self.mesh.nphys_vars):
             residual[dd] = (
                 -self.mesh._meshes[dd].laplace(split_sols[dd]) +
                 self.mesh._meshes[-1].partial_deriv(split_sols[-1], dd))
             residual[dd] -= vel_forc_vals[:, dd]
             for ii in range(self.mesh.nphys_vars):
-                dmat = self.mesh._meshes[dd]._dmat(ii)
+                dmat = vel_dmats[ii] # self.mesh._meshes[dd]._dmat(ii)
                 jac[dd][dd] += -multi_dot((dmat, dmat))
                 if dd != ii:
                     jac[dd][ii] = torch.zeros_like(dmat)
-            jac[dd][-1] += self.mesh._meshes[-1]._dmat(
-                split_sols[-1], dd)
+            jac[dd][-1] = self.mesh._meshes[-1]._dmat(split_sols[-1], dd)
             if self._navier_stokes:
                 residual[dd] += self.mesh._meshes[0].dot(
                     vel_sols, self.mesh._meshes[dd].grad(split_sols[dd]))
-                raise NotImplementedError
+                # 1D
+                # residual[0] += v[0]*(D[0]v[0])
+                # d residual[0]/dv[0] += diag(D[0]v[dd]) + diag(v[0])*D[0]
+                # 2D
+                # residual[0] = v[0]*(D[0]v[0]) + v[1]*(D[1]v[0])
+                # d residual[0] /dv[0] = diag(D[0]v[0]) + diag(v[0])D[0] + diag(v[1])D[1]
+                # d residual[0] /dv[1] = diag(D[1]v[0])
+                # residual[1] = v[0]*(D[0]v[1]) + v[1]*(D[1]v[1])
+                # d residual[1] /dv[0] = diag(D[0]v[1])
+                # d residual[1] /dv[1] = diag(v[0])D[0] + diag(D[1]v[1]) + diag(v[1])D[1]
+                for ii in range(self.mesh.nphys_vars):
+                    if ii != dd:
+                        jac[dd][ii] += torch.diag(
+                            multi_dot((vel_dmats[ii], split_sols[dd])))
+                    jac[dd][dd] += split_sols[ii][:, None]*vel_dmats[ii]
+                jac[dd][dd] += torch.diag(
+                     multi_dot((vel_dmats[dd], split_sols[dd])))
             jac[dd] = torch.hstack(jac[dd])
         residual[-1] = (
             self.mesh._meshes[-1].div(vel_sols) -
@@ -115,7 +133,7 @@ class NavierStokes(AbstractSpectralCollocationPhysics):
         jac[-1][self._unique_pres_data[0],
                 self.mesh._meshes[0].nunknowns*self.mesh.nphys_vars +
                 self._unique_pres_data[0]] = 1
-        print(jac[-1])
+        # Todo reverse sign of residual for time integration
         return torch.cat(residual), torch.vstack(jac)
 
 
