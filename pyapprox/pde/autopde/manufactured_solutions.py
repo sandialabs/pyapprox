@@ -479,8 +479,8 @@ def get_vertical_2d_mesh_transforms_from_string(
 
 
 def setup_shallow_ice_manufactured_solution(
-        depth_string, bed_string, beta_string, A, rho, n, nphys_vars, transient):
-    g = 9.81
+        depth_string, bed_string, beta_string, A, rho, n, g,
+        nphys_vars, transient):
     sp_x, sp_y = sp.symbols(['x', 'y'])
     symbs = (sp_x, sp_y)[:nphys_vars]
     if transient:
@@ -508,11 +508,14 @@ def setup_shallow_ice_manufactured_solution(
     surface_grad_exprs = [surface_expr.diff(s, 1) for s in symbs]
 
     gamma = 2*A*(rho*g)**n/(n+2)
-    forc_expr = sum([
-        ((gamma*depth_expr**(n+2)*(gs)**((n-1)/2)+rho*g/beta_expr*depth_expr**2)*gs).diff(s, 1)
+    forc_expr = -sum([
+        ((gamma*depth_expr**(n+2)*(gs**2)**((n-1)/2)+rho*g/beta_expr*depth_expr**2)*gs).diff(s, 1)
         for s, gs in zip(symbs, surface_grad_exprs)])
     forc_lambda = sp.lambdify(symbs, forc_expr, "numpy")
     forc_fun = partial(_evaluate_sp_lambda, forc_lambda)
+
+    # dh/dt = N(u)+f
+    # f = dh/dt-N(u)
 
     if transient:
         forc_expr += depth_expr.diff(all_symbs[-1], 1)

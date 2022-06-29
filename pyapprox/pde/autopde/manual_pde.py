@@ -158,6 +158,7 @@ class ShallowIce(AbstractSpectralCollocationPhysics):
         self._n = n
         self._g = g
         self._gamma = 2*A*(rho*g)**n/(n+2)
+        self._eps = 1e-15 
 
         self._funs = [
             self._bed_fun, self._beta_fun, self._forc_fun]
@@ -165,10 +166,47 @@ class ShallowIce(AbstractSpectralCollocationPhysics):
     def _raw_residual(self, sol):
         bed_vals = self._bed_fun(self.mesh.mesh_pts)[:, 0]
         beta_vals = self._beta_fun(self.mesh.mesh_pts)[:, 0]
-        surface_grad = self.mesh.grad(bed_vals+sol)
-        res = self.mesh.div((self._gamma*sol[:, None]**(self._n+2)*(surface_grad)**((self._n-1)/2) +
-                             (1/(beta_vals)*self._rho*self._g*sol**2)[:, None])*surface_grad)
+        surf_grad = self.mesh.grad(bed_vals+sol)
+        res = self.mesh.div((self._gamma*sol[:, None]**(self._n+2)*(surf_grad**2+self._eps)**((self._n-1)/2) +
+                            (1/(beta_vals)*self._rho*self._g*sol**2)[:, None])*surf_grad)
+        # res1 = self.mesh.partial_deriv(
+        #     ((self._gamma*sol**(self._n+2)*(surf_grad[:, 0]**2+self._eps)**((self._n-1)/2))*surf_grad[:, 0]), 0)
+        # res2 = self.mesh.partial_deriv(((1/(beta_vals)*self._rho*self._g*sol**2))*surf_grad[:, 0], 0)
         res += self._forc_fun(self.mesh.mesh_pts)[:, 0]
-        return res
+        return res # res1+res2 + self._forc_fun(self.mesh.mesh_pts)[:, 0]
+
+    def _raw_jacobian(self, sol):
+        # C = g*h/beta
+        # g(h) = C*h**2*D[0](h+b)
+        # g(h) = C*h**2*D[0]h+C*h**2*D[0]b
+        h, b = sol, self._bed_fun(self.mesh.mesh_pts)[:, 0]
+        C = self._rho*self._g*h/self._beta_fun(self.mesh.mesh_pts)[:, 0]
+        dmats = [self.mesh._dmat(dd) for dd in range(self.mesh.nphys_vars)]
+        jac1, jac2 = 0, 0
+        for dd in range(self.mesh.nphys_vars):
+            jac2 += (2*C*multi_dot(
+                (dmats[dd], torch.diag(h*multi_dot((dmats[dd], (h+b)))))) +
+                     C*multi_dot((dmats[dd], (h[:, None]**2*(dmats[dd])))))
+            surf_grad = self.mesh.grad(b+h)
+            # multiplying A*b[:, None] is equivlanet to dot(diag(b), A)
+            # multiplying A*b[None, :] is equivlanet to dot(A, diag(b))
+            jac1 += (self._n+2)*self._gamma*dmats[dd]*((
+                (h**(self._n+1)*(surf_grad[:, dd]**2+self._eps)**((self._n-1)/2)*surf_grad[:, dd]))[None, :])
+            # d/dx((h(x)^2)^((n - 1)/2)) = (n - 1) h(x) (h(x)^2)^((n - 3)/2) h'(x)
+            tmp = (surf_grad[:, dd]*(
+                self._n-1)*surf_grad[:, dd]*(surf_grad[:, dd]**2+self._eps)**(
+                    (self._n-3)/2))[:, None]*(dmats[dd])
+            tmp += ((surf_grad[:, dd]**2+self._eps)**((self._n-1)/2))[:, None]*dmats[dd]
+            jac1 += self._gamma*multi_dot((dmats[dd], (h[:, None]**(self._n+2)*(tmp))))
+        jac = jac1 + jac2
+        return jac
 
 
+
+    # useful checks for computing jacobians
+    # res = multi_dot((dmats[0], sol**2))
+    # jac = 2*multi_dot((dmats[0], torch.diag(h))) = 2*dmats[0]*h[None, :]
+    # res = multi_dot((dmats[0], sol**2*multi_dot((dmats[0], sol))))
+    # jac = (
+    #     2*multi_dot((dmats[0], torch.diag(h[:, None]*multi_dot((dmats[0], h)))))
+    #     +multi_dot((dmats[0], (h[:, None]**2*(dmats[0])))))

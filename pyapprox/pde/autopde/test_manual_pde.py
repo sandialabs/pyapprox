@@ -21,6 +21,7 @@ from pyapprox.pde.autopde.manual_pde import (
     AdvectionDiffusionReaction, IncompressibleNavierStokes,
     LinearIncompressibleStokes, ShallowIce
 )
+from pyapprox.util.utilities import approx_jacobian
 
 
 class TestManualPDE(unittest.TestCase):
@@ -245,7 +246,6 @@ class TestManualPDE(unittest.TestCase):
         assert np.allclose(
             solver.residual._residual(exact_sol[:, 0])[0], 0, atol=2e-8)
 
-        from pyapprox.util.utilities import approx_jacobian
         def fun(s):
             return solver.residual._raw_residual(torch.as_tensor(s))[0].numpy()
         j_fd = approx_jacobian(fun, exact_sol[:, 0].numpy())
@@ -318,12 +318,12 @@ class TestManualPDE(unittest.TestCase):
 
     def _check_shallow_ice_solver_mms(
             self, domain_bounds, orders, depth_string, bed_string, beta_string,
-            bndry_types, A, rho, n, transient):
+            bndry_types, A, rho, n, g, transient):
         nphys_vars = len(orders)
         depth_fun, bed_fun, beta_fun, forc_fun, flux_funs = (
             setup_shallow_ice_manufactured_solution(
-                depth_string, bed_string, beta_string, A, rho, n, nphys_vars,
-                transient))
+                depth_string, bed_string, beta_string, A, rho, n,
+                g, nphys_vars, transient))
 
         depth_fun = Function(depth_fun)
         bed_fun = Function(bed_fun)
@@ -337,10 +337,26 @@ class TestManualPDE(unittest.TestCase):
             domain_bounds, orders)
 
         solver = SteadyStatePDE(ShallowIce(
-            mesh, bndry_conds, bed_fun, beta_fun, forc_fun, A, rho, n))
+            mesh, bndry_conds, bed_fun, beta_fun, forc_fun, A, rho, n, g))
 
         exact_sol = depth_fun(mesh.mesh_pts)
         print(np.abs(solver.residual._raw_residual(exact_sol[:, 0])[0]).max())
+        print(np.abs(solver.residual._raw_residual(exact_sol[:, 0])))
+
+        def fun(s):
+            return solver.residual._raw_residual(torch.as_tensor(s)).numpy()
+        j_fd = approx_jacobian(fun, exact_sol[:, 0].numpy())
+        # j_man = solver.residual._raw_residual(torch.as_tensor(exact_sol[:, 0]))[1].numpy()
+        j_auto = torch.autograd.functional.jacobian(
+            lambda s: solver.residual._raw_residual(s),
+            exact_sol[:, 0].clone().requires_grad_(True), strict=True).numpy()
+        j_man = solver.residual._raw_jacobian(exact_sol[:, 0].clone()).numpy()
+        np.set_printoptions(precision=2, suppress=True, threshold=100000, linewidth=1000)
+        print(j_fd)
+        print(j_auto)
+        print(j_man)
+        assert np.allclose(j_auto, j_man)
+        
         assert np.allclose(
             solver.residual._raw_residual(exact_sol[:, 0])[0], 0, atol=2e-8)
         assert np.allclose(
@@ -351,8 +367,10 @@ class TestManualPDE(unittest.TestCase):
     def test_shallow_ice_solver_mms(self):
         s0, depth, alpha = 2, .1, 1e-1
         test_cases = [
-            [[-1, 1], [4], "1", f"{s0}-{alpha}*x**2-{depth}", "1",
-             ["D", "D"], 1, 1, 3, False]
+            # [[-1, 1], [4], "1", f"{s0}-{alpha}*x**2-{depth}", "1",
+            #  ["D", "D"], 1, 1, 1, 1, False]
+            [[-1, 1, -1, 1], [4, 4], "1", f"{s0}-{alpha}*x**2-{depth}-(1+y)", "1",
+             ["D", "D", "D", "D"], 1, 1, 1, 1, False]
         ]
         for test_case in test_cases:
             self._check_shallow_ice_solver_mms(*test_case)
