@@ -67,7 +67,7 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         return res, jac
 
 
-class NavierStokes(AbstractSpectralCollocationPhysics):
+class IncompressibleNavierStokes(AbstractSpectralCollocationPhysics):
     def __init__(self, mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
                  unique_pres_data=(0, 1)):
         super().__init__(mesh, bndry_conds)
@@ -137,7 +137,7 @@ class NavierStokes(AbstractSpectralCollocationPhysics):
         return torch.cat(residual), torch.vstack(jac)
 
 
-class LinearStokes(NavierStokes):
+class LinearIncompressibleStokes(IncompressibleNavierStokes):
     def __init__(self, mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
                  unique_pres_data=(0, 1)):
         super().__init__(mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
@@ -145,4 +145,30 @@ class LinearStokes(NavierStokes):
         self._navier_stokes = False
 
 
-        
+class ShallowIce(AbstractSpectralCollocationPhysics):
+    def __init__(self, mesh, bndry_conds, bed_fun, beta_fun, forc_fun,
+                 A, rho, n=3, g=9.81):
+        super().__init__(mesh, bndry_conds)
+
+        self._bed_fun = bed_fun
+        self._beta_fun = beta_fun
+        self._forc_fun = forc_fun
+        self._A = A
+        self._rho = rho
+        self._n = n
+        self._g = g
+        self._gamma = 2*A*(rho*g)**n/(n+2)
+
+        self._funs = [
+            self._bed_fun, self._beta_fun, self._forc_fun]
+
+    def _raw_residual(self, sol):
+        bed_vals = self._bed_fun(self.mesh.mesh_pts)[:, 0]
+        beta_vals = self._beta_fun(self.mesh.mesh_pts)[:, 0]
+        surface_grad = self.mesh.grad(bed_vals+sol)
+        res = self.mesh.div((self._gamma*sol[:, None]**(self._n+2)*(surface_grad)**((self._n-1)/2) +
+                             (1/(beta_vals)*self._rho*self._g*sol**2)[:, None])*surface_grad)
+        res += self._forc_fun(self.mesh.mesh_pts)[:, 0]
+        return res
+
+

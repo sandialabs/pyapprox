@@ -476,3 +476,59 @@ def get_vertical_2d_mesh_transforms_from_string(
              [Function(transform_inv_dxdv, oned=True),
               Function(transform_inv_dydv, oned=True)]],
             bndry_normals)
+
+
+def setup_shallow_ice_manufactured_solution(
+        depth_string, bed_string, beta_string, A, rho, n, nphys_vars, transient):
+    g = 9.81
+    sp_x, sp_y = sp.symbols(['x', 'y'])
+    symbs = (sp_x, sp_y)[:nphys_vars]
+    if transient:
+        all_symbs = symbs + (sp.symbols('t'),)
+        eval_sp_lambda = _evaluate_transient_sp_lambda
+        eval_list_of_sp_lambda = _evaluate_list_of_transient_sp_lambda
+    else:
+        all_symbs = symbs
+        eval_sp_lambda = _evaluate_sp_lambda
+        eval_list_of_sp_lambda = _evaluate_list_of_sp_lambda
+
+    bed_expr = sp.sympify(bed_string)
+    bed_lambda = sp.lambdify(symbs, bed_expr, "numpy")
+    bed_fun = partial(_evaluate_sp_lambda, bed_lambda)
+
+    depth_expr = sp.sympify(depth_string)
+    depth_lambda = sp.lambdify(all_symbs, depth_expr, "numpy")
+    depth_fun = partial(eval_sp_lambda, depth_lambda)
+
+    beta_expr = sp.sympify(beta_string)
+    beta_lambda = sp.lambdify(symbs, beta_expr, "numpy")
+    beta_fun = partial(eval_sp_lambda, beta_lambda)
+
+    surface_expr = bed_expr+depth_expr
+    surface_grad_exprs = [surface_expr.diff(s, 1) for s in symbs]
+
+    gamma = 2*A*(rho*g)**n/(n+2)
+    forc_expr = sum([
+        ((gamma*depth_expr**(n+2)*(gs)**((n-1)/2)+rho*g/beta_expr*depth_expr**2)*gs).diff(s, 1)
+        for s, gs in zip(symbs, surface_grad_exprs)])
+    forc_lambda = sp.lambdify(symbs, forc_expr, "numpy")
+    forc_fun = partial(_evaluate_sp_lambda, forc_lambda)
+
+    if transient:
+        forc_expr += depth_expr.diff(all_symbs[-1], 1)
+
+    flux_exprs = [depth_expr.diff(symb, 1) for symb in symbs]
+    flux_lambdas = [
+        sp.lambdify(all_symbs, flux_expr, "numpy") for flux_expr in flux_exprs]
+    if transient:
+        flux_funs = partial(
+            _evaluate_list_of_transient_sp_lambda, flux_lambdas)
+    else:
+        flux_funs = partial(_evaluate_list_of_sp_lambda, flux_lambdas)
+
+    print(depth_expr)
+    print(bed_expr)
+    print(forc_expr)
+
+    return depth_fun, bed_fun, beta_fun, forc_fun, flux_funs
+

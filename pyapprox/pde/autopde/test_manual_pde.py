@@ -6,7 +6,8 @@ from functools import partial
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
     get_vertical_2d_mesh_transforms_from_string,
-    setup_steady_stokes_manufactured_solution
+    setup_steady_stokes_manufactured_solution,
+    setup_shallow_ice_manufactured_solution
 )
 from pyapprox.pde.autopde.test_autopde import (
     _get_boundary_funs, _vel_component_fun
@@ -17,7 +18,8 @@ from pyapprox.pde.autopde.autopde import (
     TransformedInteriorCollocationMesh, VectorMesh,
     Function, TransientFunction, SteadyStatePDE, TransientPDE)
 from pyapprox.pde.autopde.manual_pde import (
-    AdvectionDiffusionReaction, NavierStokes, LinearStokes
+    AdvectionDiffusionReaction, IncompressibleNavierStokes,
+    LinearIncompressibleStokes, ShallowIce
 )
 
 
@@ -195,7 +197,7 @@ class TestManualPDE(unittest.TestCase):
         pres_grad_fun = Function(pres_grad_fun)
 
         # TODO Curently not test stokes with Neumann Boundary conditions
-        
+
         nphys_vars = len(orders)
         if mesh_transforms is None:
             boundary_normals = None
@@ -224,9 +226,9 @@ class TestManualPDE(unittest.TestCase):
         pres_idx = 0
         pres_val = pres_fun(pres_mesh.mesh_pts[:, pres_idx:pres_idx+1])
         if not navier_stokes:
-            Residual = LinearStokes
+            Residual = LinearIncompressibleStokes
         else:
-            Residual = NavierStokes
+            Residual = IncompressibleNavierStokes
         solver = SteadyStatePDE(Residual(
             mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
             (pres_idx, pres_val)))
@@ -236,7 +238,7 @@ class TestManualPDE(unittest.TestCase):
         exact_sol = torch.vstack(
             [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T] +
             [pres_fun(pres_mesh.mesh_pts)])
-        
+
         print(np.abs(solver.residual._raw_residual(exact_sol[:, 0])[0]).max())
         assert np.allclose(
             solver.residual._raw_residual(exact_sol[:, 0])[0], 0, atol=2e-8)
@@ -260,7 +262,7 @@ class TestManualPDE(unittest.TestCase):
         # print(np.abs(j_auto-j_man).max())
         # print(np.abs(j_auto-j_fd).max())
         assert np.allclose(j_auto, j_man)
-        
+
         sol = solver.solve(maxiters=10)
 
         split_sols = mesh.split_quantities(sol)
@@ -311,8 +313,52 @@ class TestManualPDE(unittest.TestCase):
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
              ["D", "D", "D", "N"], True, mesh_transforms]
         ]
-        for test_case in test_cases[8:9]:
+        for test_case in test_cases:
             self._check_stokes_solver_mms(*test_case)
+
+    def _check_shallow_ice_solver_mms(
+            self, domain_bounds, orders, depth_string, bed_string, beta_string,
+            bndry_types, A, rho, n, transient):
+        nphys_vars = len(orders)
+        depth_fun, bed_fun, beta_fun, forc_fun, flux_funs = (
+            setup_shallow_ice_manufactured_solution(
+                depth_string, bed_string, beta_string, A, rho, n, nphys_vars,
+                transient))
+
+        depth_fun = Function(depth_fun)
+        bed_fun = Function(bed_fun)
+        beta_fun = Function(beta_fun)
+        forc_fun = Function(forc_fun)
+        flux_funs = Function(flux_funs)
+
+        bndry_conds = _get_boundary_funs(
+            nphys_vars, bndry_types, depth_fun, flux_funs)
+        mesh = CartesianProductCollocationMesh(
+            domain_bounds, orders)
+
+        solver = SteadyStatePDE(ShallowIce(
+            mesh, bndry_conds, bed_fun, beta_fun, forc_fun, A, rho, n))
+
+        exact_sol = depth_fun(mesh.mesh_pts)
+        print(np.abs(solver.residual._raw_residual(exact_sol[:, 0])[0]).max())
+        assert np.allclose(
+            solver.residual._raw_residual(exact_sol[:, 0])[0], 0, atol=2e-8)
+        assert np.allclose(
+            solver.residual._residual(exact_sol[:, 0])[0], 0, atol=2e-8)
+
+
+
+    def test_shallow_ice_solver_mms(self):
+        s0, depth, alpha = 2, .1, 1e-1
+        test_cases = [
+            [[-1, 1], [4], "1", f"{s0}-{alpha}*x**2-{depth}", "1",
+             ["D", "D"], 1, 1, 3, False]
+        ]
+        for test_case in test_cases:
+            self._check_shallow_ice_solver_mms(*test_case)
+
+
+
 
 
 if __name__ == "__main__":
