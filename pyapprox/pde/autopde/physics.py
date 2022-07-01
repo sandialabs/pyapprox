@@ -1,27 +1,33 @@
 import torch
 from abc import ABC, abstractmethod
-import numpy as np
+from torch.linalg import multi_dot
+from pyapprox.pde.autopde.mesh import VectorMesh
 from functools import partial
-from pyapprox.pde.autopde.util import newton_solve
-from pyapprox.pde.autopde.time_integration import ImplicitRungeKutta
 
 
-class AbstractSpectralCollocationResidual(ABC):
+class AbstractSpectralCollocationPhysics(ABC):
     def __init__(self, mesh, bndry_conds):
         self.mesh = mesh
         self._funs = None
         self._bndry_conds = self._set_boundary_conditions(
             bndry_conds)
+        self._auto_jac = True
+
+    def _set_boundary_conditions(self, bndry_conds):
+        # TODO add input checks
+        return bndry_conds
 
     @abstractmethod
     def _raw_residual(self, sol):
         raise NotImplementedError()
 
     def _residual(self, sol):
-        # correct equations for boundary conditions
-        raw_residual = self._raw_residual(sol)
-        return self.mesh._apply_boundary_conditions_to_residual(
-            self._bndry_conds, raw_residual, sol)
+        res, jac = self._raw_residual(sol)
+        if jac is None:
+            assert self._auto_jac
+        res, jac = self.mesh._apply_boundary_conditions(
+            self._bndry_conds, res, jac, sol)
+        return res, jac
 
     def _transient_residual(self, sol, time):
         # correct equations for boundary conditions
@@ -34,68 +40,197 @@ class AbstractSpectralCollocationResidual(ABC):
         else:
             bndry_conds = self._bndry_conds
         for bndry_cond in bndry_conds:
-            # print(time, hasattr(bndry_cond[0], "set_time"), bndry_cond[0], bndry_cond[0]._name)
             if hasattr(bndry_cond[0], "set_time"):
                 bndry_cond[0].set_time(time)
-        return self._raw_residual(sol)
-
-    def _set_boundary_conditions(self, bndry_conds):
-        # if len(self._bndrys) != len(bndry_conds):
-        #     raise ValueError(
-        #         "Incorrect number of boundary conditions provided")
-        # for bndry_cond in bndry_conds:
-        #     if bndry_cond[1] not in ["D", "R", "P", None]:
-        #         raise ValueError(
-        #             "Boundary condition {bndry_cond[1} not supported")
-        #     if (bndry_cond[1] not in [None, "P"] and
-        #         not callable(bndry_cond[0])):
-        #         raise ValueError("Boundary condition must be callable")
-        return bndry_conds
+        res, jac = self._raw_residual(sol)
+        if jac is None:
+            assert self._auto_jac
+        return res, jac
 
 
-class AdvectionDiffusionReaction(AbstractSpectralCollocationResidual):
-    def __init__(self, mesh, bndry_conds, diff_fun, vel_fun, react_fun, forc_fun):
+class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
+    def __init__(self, mesh, bndry_conds, diff_fun, vel_fun, react_fun,
+                 forc_fun, react_jac):
         super().__init__(mesh, bndry_conds)
 
         self._diff_fun = diff_fun
         self._vel_fun = vel_fun
         self._react_fun = react_fun
         self._forc_fun = forc_fun
+        self._react_jac = react_jac
 
         self._funs = [
             self._diff_fun, self._vel_fun, self._react_fun, self._forc_fun]
 
-    @staticmethod
-    def _check_shape(vals, ncols, name=None):
-        if vals.ndim != 2 or vals.shape[1] != ncols:
-            if name is not None:
-                msg = name
-            else:
-                msg = "The ndarray"
-            msg += f' has the wrong shape {vals.shape}'
-            raise ValueError(msg)
+        self._raw_jacobian = True
 
     def _raw_residual(self, sol):
-        # torch requires 1d sol to be a 1D tensor so Jacobian can be
-        # computed correctly. But each other quantity must be a 2D tensor
-        # with 1 column
-        # To make sure sol is applied to both velocity components use
-        # sol[:, None]
         diff_vals = self._diff_fun(self.mesh.mesh_pts)
         vel_vals = self._vel_fun(self.mesh.mesh_pts)
-        forc_vals = self._forc_fun(self.mesh.mesh_pts)
-        react_vals = self._react_fun(sol[:, None])
-        self._check_shape(diff_vals, 1, "diff_vals")
-        self._check_shape(forc_vals, 1, "forc_vals")
-        self._check_shape(vel_vals, self.mesh.nphys_vars, "vel_vals")
-        self._check_shape(react_vals, 1, "react_vals")
-        residual = (self.mesh.div(diff_vals*self.mesh.grad(sol)) -
-                    self.mesh.div(vel_vals*sol[:, None]) -
-                    react_vals[:, 0]+forc_vals[:, 0])
-        return residual
+        linear_jac = 0
+        for dd in range(self.mesh.nphys_vars):
+            linear_jac += (
+                multi_dot(
+                    (self.mesh._dmat(dd), diff_vals*self.mesh._dmat(dd))) -
+                vel_vals[:, dd:dd+1]*self.mesh._dmat(dd))
+        res = multi_dot((linear_jac, sol))
+        jac = linear_jac - self._react_jac(sol[:, None])
+        res -= self._react_fun(sol[:, None])[:, 0]
+        res += self._forc_fun(self.mesh.mesh_pts)[:, 0]
+        return res, jac
 
 
-class EulerBernoulliBeam(AbstractSpectralCollocationResidual):
+class IncompressibleNavierStokes(AbstractSpectralCollocationPhysics):
+    def __init__(self, mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
+                 unique_pres_data=(0, 1)):
+        super().__init__(mesh, bndry_conds)
+
+        self._navier_stokes = True
+        self._vel_forc_fun = vel_forc_fun
+        self._pres_forc_fun = pres_forc_fun
+        self._unique_pres_data = unique_pres_data
+
+    def _raw_residual(self, sol):
+        split_sols = self.mesh.split_quantities(sol)
+        vel_sols = torch.hstack([s[:, None] for s in split_sols[:-1]])
+        vel_forc_vals = self._vel_forc_fun(self.mesh._meshes[0].mesh_pts)
+        residual = [None for ii in range(len(split_sols))]
+        # assumes x and y velocity meshes are the same
+        for dd in range(self.mesh.nphys_vars):
+            residual[dd] = (
+                -self.mesh._meshes[dd].laplace(split_sols[dd]) +
+                self.mesh._meshes[-1].partial_deriv(split_sols[-1], dd))
+            residual[dd] -= vel_forc_vals[:, dd]
+            if self._navier_stokes:
+                residual[dd] += self.mesh._meshes[0].dot(
+                    vel_sols, self.mesh._meshes[dd].grad(split_sols[dd]))
+        residual[-1] = (
+            self.mesh._meshes[-1].div(vel_sols) -
+            self._pres_forc_fun(self.mesh._meshes[-1].mesh_pts)[:, 0])
+        residual[-1][self._unique_pres_data[0]] = (
+            split_sols[-1][self._unique_pres_data[0]]-self._unique_pres_data[1])
+        # Todo reverse sign of residual for time integration
+        return torch.cat(residual), self._raw_jacobian(sol)
+
+    def _raw_jacobian(self, sol):
+        split_sols = self.mesh.split_quantities(sol)
+        vel_sols = torch.hstack([s[:, None] for s in split_sols[:-1]])
+        vel_forc_vals = self._vel_forc_fun(self.mesh._meshes[0].mesh_pts)
+        jac = [[0 for jj in range(self.mesh.nphys_vars+1)]
+               for ii in range(len(split_sols))]
+        # assumes x and y velocity meshes are the same
+        vel_dmats = [self.mesh._meshes[0]._dmat(dd)
+                 for dd in range(self.mesh.nphys_vars)]
+        for dd in range(self.mesh.nphys_vars):
+            for ii in range(self.mesh.nphys_vars):
+                dmat = vel_dmats[ii] # self.mesh._meshes[dd]._dmat(ii)
+                jac[dd][dd] += -multi_dot((dmat, dmat))
+                if dd != ii:
+                    jac[dd][ii] = torch.zeros_like(dmat)
+            jac[dd][-1] = self.mesh._meshes[-1]._dmat(split_sols[-1], dd)
+            if self._navier_stokes:
+                # 1D
+                # residual[0] += v[0]*(D[0]v[0])
+                # d residual[0]/dv[0] += diag(D[0]v[dd]) + diag(v[0])*D[0]
+                # 2D
+                # residual[0] = v[0]*(D[0]v[0]) + v[1]*(D[1]v[0])
+                # d residual[0] /dv[0] = diag(D[0]v[0]) + diag(v[0])D[0] + diag(v[1])D[1]
+                # d residual[0] /dv[1] = diag(D[1]v[0])
+                # residual[1] = v[0]*(D[0]v[1]) + v[1]*(D[1]v[1])
+                # d residual[1] /dv[0] = diag(D[0]v[1])
+                # d residual[1] /dv[1] = diag(v[0])D[0] + diag(D[1]v[1]) + diag(v[1])D[1]
+                for ii in range(self.mesh.nphys_vars):
+                    if ii != dd:
+                        jac[dd][ii] += torch.diag(
+                            multi_dot((vel_dmats[ii], split_sols[dd])))
+                    jac[dd][dd] += split_sols[ii][:, None]*vel_dmats[ii]
+                jac[dd][dd] += torch.diag(
+                     multi_dot((vel_dmats[dd], split_sols[dd])))
+            jac[dd] = torch.hstack(jac[dd])
+        for dd in range(self.mesh.nphys_vars):
+            jac[-1][dd] = self.mesh._meshes[-1]._dmat(split_sols[dd], dd)
+        jac[-1][-1] = torch.zeros(
+            (self.mesh._meshes[-1].nunknowns, self.mesh._meshes[-1].nunknowns))
+        jac[-1] = torch.hstack(jac[-1])
+        jac[-1][self._unique_pres_data[0], :] = 0
+        jac[-1][self._unique_pres_data[0],
+                self.mesh._meshes[0].nunknowns*self.mesh.nphys_vars +
+                self._unique_pres_data[0]] = 1
+        # Todo reverse sign of residual for time integration
+        return torch.vstack(jac)
+
+
+class LinearIncompressibleStokes(IncompressibleNavierStokes):
+    def __init__(self, mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
+                 unique_pres_data=(0, 1)):
+        super().__init__(mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
+                         unique_pres_data)
+        self._navier_stokes = False
+
+
+class ShallowIce(AbstractSpectralCollocationPhysics):
+    def __init__(self, mesh, bndry_conds, bed_fun, beta_fun, forc_fun,
+                 A, rho, n=3, g=9.81):
+        super().__init__(mesh, bndry_conds)
+
+        self._bed_fun = bed_fun
+        self._beta_fun = beta_fun
+        self._forc_fun = forc_fun
+        self._A = A
+        self._rho = rho
+        self._n = n
+        self._g = g
+        self._gamma = 2*A*(rho*g)**n/(n+2)
+        self._eps = 1e-15
+
+        self._funs = [
+            self._bed_fun, self._beta_fun, self._forc_fun]
+
+    def _raw_residual(self, sol):
+        bed_vals = self._bed_fun(self.mesh.mesh_pts)[:, 0]
+        beta_vals = self._beta_fun(self.mesh.mesh_pts)[:, 0]
+        surf_grad = self.mesh.grad(bed_vals+sol)
+        res = self.mesh.div((self._gamma*sol[:, None]**(self._n+2)*(surf_grad**2+self._eps)**((self._n-1)/2) +
+                            (1/(beta_vals)*self._rho*self._g*sol**2)[:, None])*surf_grad)
+        res += self._forc_fun(self.mesh.mesh_pts)[:, 0]
+        return res, self._raw_jacobian(sol)
+
+    def _raw_jacobian(self, sol):
+        # C = g*h/beta
+        # g(h) = C*h**2*D[0](h+b)
+        # g(h) = C*h**2*D[0]h+C*h**2*D[0]b
+        h, b = sol, self._bed_fun(self.mesh.mesh_pts)[:, 0]
+        C = self._rho*self._g*h/self._beta_fun(self.mesh.mesh_pts)[:, 0]
+        dmats = [self.mesh._dmat(dd) for dd in range(self.mesh.nphys_vars)]
+        jac1, jac2 = 0, 0
+        for dd in range(self.mesh.nphys_vars):
+            jac2 += (2*C*multi_dot(
+                (dmats[dd], torch.diag(h*multi_dot((dmats[dd], (h+b)))))) +
+                     C*multi_dot((dmats[dd], (h[:, None]**2*(dmats[dd])))))
+            surf_grad = self.mesh.grad(b+h)
+            # multiplying A*b[:, None] is equivlanet to dot(diag(b), A)
+            # multiplying A*b[None, :] is equivlanet to dot(A, diag(b))
+            jac1 += (self._n+2)*self._gamma*dmats[dd]*((
+                (h**(self._n+1)*(surf_grad[:, dd]**2+self._eps)**((self._n-1)/2)*surf_grad[:, dd]))[None, :])
+            # d/dx((h(x)^2)^((n - 1)/2)) = (n - 1) h(x) (h(x)^2)^((n - 3)/2) h'(x)
+            tmp = (surf_grad[:, dd]*(
+                self._n-1)*surf_grad[:, dd]*(surf_grad[:, dd]**2+self._eps)**(
+                    (self._n-3)/2))[:, None]*(dmats[dd])
+            tmp += ((surf_grad[:, dd]**2+self._eps)**((self._n-1)/2))[:, None]*dmats[dd]
+            jac1 += self._gamma*multi_dot((dmats[dd], (h[:, None]**(self._n+2)*(tmp))))
+        jac = jac1 + jac2
+        return jac
+
+    # useful checks for computing jacobians
+    # res = multi_dot((dmats[0], sol**2))
+    # jac = 2*multi_dot((dmats[0], torch.diag(h))) = 2*dmats[0]*h[None, :]
+    # res = multi_dot((dmats[0], sol**2*multi_dot((dmats[0], sol))))
+    # jac = (
+    #     2*multi_dot((dmats[0], torch.diag(h[:, None]*multi_dot((dmats[0], h)))))
+    #     +multi_dot((dmats[0], (h[:, None]**2*(dmats[0])))))
+
+
+class EulerBernoulliBeam(AbstractSpectralCollocationPhysics):
     def __init__(self, mesh, bndry_conds, emod_fun, smom_fun, forc_fun):
         if mesh.nphys_vars > 1:
             raise ValueError("Only 1D meshes supported")
@@ -123,22 +258,22 @@ class EulerBernoulliBeam(AbstractSpectralCollocationResidual):
         residual = pderiv(pderiv(
             emod_vals[:, 0]*smom_vals[:, 0]*pderiv(pderiv(sol, 0), 0), 0), 0)
         residual -= forc_vals[:, 0]
-        return residual
+        return residual, None
 
     def _residual(self, sol):
         pderiv = self.mesh.partial_deriv
         pderiv2 = partial(self.mesh.high_order_partial_deriv, 2)
         pderiv3 = partial(self.mesh.high_order_partial_deriv, 3)
         # correct equations for boundary conditions
-        raw_residual = self._raw_residual(sol)
+        raw_residual, raw_jac = self._raw_residual(sol)
         raw_residual[0] = sol[0]-0
         raw_residual[1] = pderiv(sol, 0, [0])-0
         raw_residual[-1] = pderiv2(sol, 0, [-1])-0
         raw_residual[-2] = pderiv3(sol, 0, [-1])-0
-        return raw_residual
+        return raw_residual, raw_jac
 
 
-class Helmholtz(AbstractSpectralCollocationResidual):
+class Helmholtz(AbstractSpectralCollocationPhysics):
     def __init__(self, mesh, bndry_conds, wnum_fun, forc_fun):
         super().__init__(mesh, bndry_conds)
 
@@ -150,49 +285,10 @@ class Helmholtz(AbstractSpectralCollocationResidual):
         forc_vals = self._forc_fun(self.mesh.mesh_pts)
         residual = (self.mesh.laplace(sol) + wnum_vals[:, 0]*sol -
                     forc_vals[:, 0])
-        return residual
+        return residual, None
 
 
-class NavierStokes(AbstractSpectralCollocationResidual):
-    def __init__(self, mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
-                 unique_pres_data=(0, 1)):
-        super().__init__(mesh, bndry_conds)
-
-        self._navier_stokes = True
-        self._vel_forc_fun = vel_forc_fun
-        self._pres_forc_fun = pres_forc_fun
-        self._unique_pres_data = unique_pres_data
-
-    def _raw_residual(self, sol):
-        split_sols = self.mesh.split_quantities(sol)
-        vel_sols = torch.hstack([s[:, None] for s in split_sols[:-1]])
-        vel_forc_vals = self._vel_forc_fun(self.mesh._meshes[0].mesh_pts)
-        residual = [None for ii in range(len(split_sols))]
-        for dd in range(self.mesh.nphys_vars):
-            residual[dd] = (
-                -self.mesh._meshes[dd].laplace(split_sols[dd]) +
-                self.mesh._meshes[-1].partial_deriv(split_sols[-1], dd))
-            residual[dd] -= vel_forc_vals[:, dd]
-            if self._navier_stokes:
-                residual[dd] += self.mesh._meshes[0].dot(
-                    vel_sols, self.mesh._meshes[dd].grad(split_sols[dd]))
-        residual[-1] = (
-            self.mesh._meshes[-1].div(vel_sols) -
-            self._pres_forc_fun(self.mesh._meshes[-1].mesh_pts)[:, 0])
-        residual[-1][self._unique_pres_data[0]] = (
-            split_sols[-1][self._unique_pres_data[0]]-self._unique_pres_data[1])
-        return torch.cat(residual)
-
-
-class LinearStokes(NavierStokes):
-    def __init__(self, mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
-                 unique_pres_data=(0, 1)):
-        super().__init__(mesh, bndry_conds, vel_forc_fun, pres_forc_fun,
-                         unique_pres_data)
-        self._navier_stokes = False
-
-
-class ShallowWaterWave(AbstractSpectralCollocationResidual):
+class ShallowWaterWave(AbstractSpectralCollocationPhysics):
     def __init__(self, mesh, bndry_conds, depth_forc_fun, vel_forc_fun,
                  bed_fun):
         super().__init__(mesh, bndry_conds)
@@ -214,7 +310,7 @@ class ShallowWaterWave(AbstractSpectralCollocationResidual):
         print(self._g*depth*pderiv(self._bed_vals[:, 0], 0))
         print(depth_forc_vals[:, 0], 'd')
         print(vel_forc_vals[:, 0], 'v')
-        return torch.cat(residual)
+        return torch.cat(residual), None
 
     def _raw_residual_2d(self, depth, vels, depth_forc_vals, vel_forc_vals):
         pderiv = self.mesh._meshes[0].partial_deriv
@@ -233,7 +329,7 @@ class ShallowWaterWave(AbstractSpectralCollocationResidual):
         residual[2] -= pderiv(depth*vels[:, 1]**2+self._g*depth**2/2, 1)
         residual[2] -= self._g*depth*pderiv(self._bed_vals[:, 0], 1)
         residual[2] += vel_forc_vals[:, 1]
-        return torch.cat(residual)
+        return torch.cat(residual), None
 
     def _raw_residual(self, sol):
         split_sols = self.mesh.split_quantities(sol)
@@ -252,33 +348,8 @@ class ShallowWaterWave(AbstractSpectralCollocationResidual):
         return self._raw_residual_2d(
                 depth, vels, depth_forc_vals, vel_forc_vals)
 
-        # residual = [0 for ii in range(len(split_sols))]
-        # # depth equation (mass balance)
-        # for dd in range(self.mesh.nphys_vars):
-        #     # split_sols = [q1, q2] = [h, u, v]
-        #     residual[0] += self.mesh._meshes[0].partial_deriv(
-        #         depth*vels[:, dd], dd)
-        # residual[0] -= depth_forc_vals[:, 0]
-        # # velocity equations (momentum equations)
-        # for dd in range(self.mesh.nphys_vars):
-        #     # split_sols = [q1, q2] = [h, u, v]
-        #     residual[dd+1] += self.mesh._meshes[dd].partial_deriv(
-        #         depth*vels[:, dd]**2+self._g*depth**2/2, dd)
-        #     # split_sols = [q1, q2] = [h, uh, vh]
-        #     # residual[dd+1] += self.mesh._meshes[dd].partial_deriv(
-        #     #     vels[:, dd]**2/depth+self._g*depth**2/2, dd)
-        #     residual[dd+1] += self._g*depth*self.mesh._meshes[dd].partial_deriv(
-        #         self._bed_vals[:, 0], dd)
-        #     residual[dd+1] -= vel_forc_vals[:, dd]
-        # if self.mesh.nphys_vars > 1:
-        #     residual[1] += self.mesh._meshes[1].partial_deriv(
-        #         depth*torch.prod(vels, dim=1), 1)
-        #     residual[2] += self.mesh._meshes[2].partial_deriv(
-        #         depth*torch.prod(vels, dim=1), 0)
-        # return torch.cat(residual)
 
-
-class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
+class ShallowShelfVelocities(AbstractSpectralCollocationPhysics):
     def __init__(self, mesh, bndry_conds, forc_fun, bed_fun, beta_fun,
                  depth_fun, A, rho, homotopy_val=0):
         super().__init__(mesh, bndry_conds)
@@ -351,7 +422,7 @@ class ShallowShelfVelocities(AbstractSpectralCollocationResidual):
     def _raw_residual(self, sol):
         depth_vals = self._depth_fun(self.mesh._meshes[0].mesh_pts)
         split_sols = self.mesh.split_quantities(sol)
-        return self._raw_residual_nD(split_sols, depth_vals)
+        return self._raw_residual_nD(split_sols, depth_vals), None
 
 
 class ShallowShelf(ShallowShelfVelocities):
@@ -376,70 +447,10 @@ class ShallowShelf(ShallowShelfVelocities):
             depth_vals[:, None]*vel_vals)
         depth_residual += self._depth_forc_fun(
             self.mesh._meshes[self.mesh.nphys_vars].mesh_pts)[:, 0]
-        return torch.cat((residual, depth_residual))
+        return torch.cat((residual, depth_residual)), None
 
 
-class NaviersLinearElasticity(AbstractSpectralCollocationResidual):
-    def __init__(self, mesh, bndry_conds, forc_fun, lambda_fun, mu_fun, rho):
-        super().__init__(mesh, bndry_conds)
-
-        self._rho = rho
-        self._forc_fun = forc_fun
-        self._lambda_fun = lambda_fun
-        self._mu_fun = mu_fun
-
-        # only needs to be time dependent funs
-        self._funs = [self._forc_fun]
-
-        # assumed to be time independent
-        self._lambda_vals = self._lambda_fun(self.mesh._meshes[0].mesh_pts)
-        self._mu_vals = self._mu_fun(self.mesh._meshes[0].mesh_pts)
-
-        # sol is the displacement field
-        # beam length L box cross section with width W
-        # lambda = Lamae elasticity parameter
-        # mu = Lamae elasticity parameter
-        # rho density of beam
-        # g acceleartion due to gravity
-
-    def _raw_residual_1d(self, sol_vals, forc_vals):
-        pderiv = self.mesh.meshes[0].partial_deriv
-        residual = -pderiv(
-            (self._lambda_vals[:, 0]+2*self._mu_vals[:, 0]) *
-            pderiv(sol_vals[:, 0], 0), 0) - self._rho*forc_vals[:, 0]
-        return residual
-
-    def _raw_residual_2d(self, sol_vals, forc_vals):
-        pderiv = self.mesh.meshes[0].partial_deriv
-        residual = [0, 0]
-        mu = self._mu_vals[:, 0]
-        lam = self._lambda_vals[:, 0]
-        lp2mu = lam+2*mu
-        # strains
-        exx = pderiv(sol_vals[:, 0], 0)
-        eyy = pderiv(sol_vals[:, 1], 1)
-        exy = 0.5*(pderiv(sol_vals[:, 0], 1)+pderiv(sol_vals[:, 1], 0))
-        # stresses
-        tauxy = 2*mu*exy
-        tauxx = lp2mu*exx+lam*eyy
-        tauyy = lam*exx+lp2mu*eyy
-        residual[0] = pderiv(tauxx, 0)+pderiv(tauxy, 1)
-        residual[0] += self._rho*forc_vals[:, 0]
-        residual[1] = pderiv(tauxy, 0)+pderiv(tauyy, 1)
-        residual[1] += self._rho*forc_vals[:, 1]
-        return torch.cat(residual)
-
-    def _raw_residual(self, sol):
-        split_sols = self.mesh.split_quantities(sol)
-        sol_vals = torch.hstack(
-            [s[:, None] for s in split_sols[:self.mesh.nphys_vars]])
-        forc_vals = self._forc_fun(self.mesh._meshes[0].mesh_pts)
-        if self.mesh.nphys_vars == 1:
-            return self._raw_residual_1d(sol_vals, forc_vals)
-        return self._raw_residual_2d(sol_vals, forc_vals)
-
-
-class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
+class FirstOrderStokesIce(AbstractSpectralCollocationPhysics):
     def __init__(self, mesh, bndry_conds, forc_fun, bed_fun, beta_fun,
                  depth_fun, A, rho, homotopy_val=0):
         super().__init__(mesh, bndry_conds)
@@ -524,7 +535,7 @@ class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
         depth_vals = self._depth_fun(self.mesh._meshes[0].mesh_pts[:-1])
         self._surface_vals = self._bed_vals+depth_vals
         split_sols = self.mesh.split_quantities(sol)
-        return self._raw_residual_nD(split_sols, depth_vals)
+        return self._raw_residual_nD(split_sols, depth_vals), None
 
     def _strain_boundary_conditions(self, sol, idx, mesh, bndry_index):
         normal_vals = mesh._bndrys[bndry_index].normals(mesh.mesh_pts[:, idx])
@@ -539,47 +550,3 @@ class FirstOrderStokesIce(AbstractSpectralCollocationResidual):
         return vals
 
 
-def vertical_transform_2D_mesh(xdomain_bounds, bed_fun, surface_fun,
-                               canonical_samples):
-    samples = np.empty_like(canonical_samples)
-    xx, yy = canonical_samples[0], canonical_samples[1]
-    samples[0] = (xx+1)/2*(
-        xdomain_bounds[1]-xdomain_bounds[0])+xdomain_bounds[0]
-    bed_vals = bed_fun(samples[0:1])[:, 0]
-    samples[1] = (yy+1)/2*(surface_fun(samples[0:1])[:, 0]-bed_vals)+bed_vals
-    return samples
-
-
-def vertical_transform_2D_mesh_inv(xdomain_bounds, bed_fun, surface_fun,
-                                   samples):
-    canonical_samples = np.empty_like(samples)
-    uu, vv = samples[0], samples[1]
-    canonical_samples[0] = 2*(uu-xdomain_bounds[0])/(
-        xdomain_bounds[1]-xdomain_bounds[0])-1
-    bed_vals = bed_fun(samples[0:1])[:, 0]
-    canonical_samples[1] = 2*(samples[1]-bed_vals)/(
-        surface_fun(samples[0:1])[:, 0]-bed_vals)-1
-    return canonical_samples
-
-
-def vertical_transform_2D_mesh_inv_dxdu(xdomain_bounds, samples):
-    return np.full(samples.shape[1], 2/(xdomain_bounds[1]-xdomain_bounds[0]))
-
-
-def vertical_transform_2D_mesh_inv_dydu(
-        bed_fun, surface_fun, bed_grad_u, surf_grad_u, samples):
-    surf_vals = surface_fun(samples[:1])[:, 0]
-    bed_vals = bed_fun(samples[:1])[:, 0]
-    return 2*(bed_grad_u(samples[:1])[:, 0]*(samples[1]-surf_vals) +
-              surf_grad_u(samples[:1])[:, 0]*(bed_vals-samples[1]))/(
-                  surf_vals-bed_vals)**2
-
-
-def vertical_transform_2D_mesh_inv_dxdv(samples):
-    return np.zeros(samples.shape[1])
-
-
-def vertical_transform_2D_mesh_inv_dydv(bed_fun, surface_fun, samples):
-    surf_vals = surface_fun(samples[:1])[:, 0]
-    bed_vals = bed_fun(samples[:1])[:, 0]
-    return 2/(surf_vals-bed_vals)

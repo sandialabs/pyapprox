@@ -282,14 +282,8 @@ def diag_runge_kutta_stage_solution(
         active_stage_sol += a_coef[ii, jj]/b_coef[jj]*(
             stage_unknowns[jj*ndof:(jj+1)*ndof]-sol)
     # shrs : k_i = f(active_stage_time, u(z_i))
-    srhs = rhs(active_stage_sol, active_stage_time)
-    jac = None
-    if type(srhs) == tuple:
-        srhs, jac = srhs[0], srhs[1]
-    # print(ii, sol, active_stage_sol, srhs, stage_unknowns)
+    srhs, jac = rhs(active_stage_sol, active_stage_time)
     new_active_stage_unknowns = (sol+srhs*b_coef[ii]*deltat)
-    if jac is None:
-        return new_active_stage_unknowns, srhs
     return new_active_stage_unknowns, srhs, jac
 
 
@@ -303,15 +297,12 @@ def diag_runge_kutta_residual(
     new_active_stage_unknowns = out[0]
     residual = stage_unknowns[ii*ndof:(ii+1)*ndof]-new_active_stage_unknowns
     stage_time = time+butcher_tableau[2][ii]*deltat
-    if len(out) == 2:
-        if constraints is not None:
-            residual = constraints(
-                residual, stage_unknowns[ii*ndof:(ii+1)*ndof], stage_time)
-        return residual
-
-    stage_jac = butcher_tableau[1][ii]*deltat*out[2]
-    jac = torch.eye(ndof)-(
-        butcher_tableau[0][ii, ii]/butcher_tableau[1][ii]*stage_jac)
+    if out[2] is not None:
+        stage_jac = butcher_tableau[1][ii]*deltat*out[2]
+        jac = torch.eye(ndof)-(
+            butcher_tableau[0][ii, ii]/butcher_tableau[1][ii]*stage_jac)
+    else:
+        jac = None
     if constraints is not None:
         residual, jac = constraints(
             residual, jac, stage_unknowns[ii*ndof:(ii+1)*ndof], stage_time)
@@ -354,6 +345,7 @@ class ImplicitRungeKutta():
             constraints=self._constraints_fun)
 
     def _full_runge_kutta_update(self, sol, time, deltat, init_guesses):
+        # Does not currently support manually computed jacobian of residual
         self._res_time = time
         # different to self._delta only at final time step if
         # final_time is not an integer multiple of self._deltat
@@ -362,7 +354,7 @@ class ImplicitRungeKutta():
         init_guess = torch.cat(init_guesses)
         init_guess.requires_grad = True
         stage_unknowns = newton_solve(
-            self._residual_fun, init_guess, True).detach()
+            self._residual_fun, init_guess).detach()
         return implicit_runge_kutta_update_wildey(
             self._res_sol, stage_unknowns, self._res_deltat, self._res_time,
             self._rhs, self._butcher_tableau)
@@ -394,7 +386,7 @@ class ImplicitRungeKutta():
             self._active_stage_idx = ii
             init_guess.requires_grad = self._auto
             active_stage_unknown = newton_solve(
-                self._diag_residual_fun, init_guess, self._auto,
+                self._diag_residual_fun, init_guess,
                 **self._newton_opts)
             init_guess = active_stage_unknown.detach()
             self._computed_stage_unknowns.append(init_guess.clone())

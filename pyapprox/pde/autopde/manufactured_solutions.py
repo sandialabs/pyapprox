@@ -410,14 +410,14 @@ def setup_first_order_stokes_ice_manufactured_solution(
     return depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun, bndry_funs
 
 
-from pyapprox.pde.autopde.autopde import (
+from pyapprox.pde.autopde.mesh import (
     vertical_transform_2D_mesh, vertical_transform_2D_mesh_inv,
     vertical_transform_2D_mesh_inv_dxdu,
     vertical_transform_2D_mesh_inv_dxdv,
     vertical_transform_2D_mesh_inv_dydu,
-    vertical_transform_2D_mesh_inv_dydv,
-    Function
+    vertical_transform_2D_mesh_inv_dydv
 )
+from pyapprox.pde.autopde.solvers import Function
 def get_vertical_2d_mesh_transforms_from_string(
         xdomain_bounds, surface_string, bed_string):
     sp_x, sp_y = sp.symbols(['x', 'y'])

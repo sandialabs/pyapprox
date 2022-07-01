@@ -12,14 +12,19 @@ from pyapprox.pde.autopde.manufactured_solutions import (
     setup_first_order_stokes_ice_manufactured_solution,
     get_vertical_2d_mesh_transforms_from_string
 )
-from pyapprox.pde.autopde.autopde import (
-    CartesianProductCollocationMesh, AdvectionDiffusionReaction,
-    Function, EulerBernoulliBeam, Helmholtz,
-    TransientFunction, TransientPDE, LinearStokes, NavierStokes,
+from pyapprox.pde.autopde.mesh import (
+    CartesianProductCollocationMesh,
     InteriorCartesianProductCollocationMesh, VectorMesh,
-    SteadyStatePDE, ShallowWaterWave, ShallowShelfVelocities, ShallowShelf,
-    FirstOrderStokesIce, TransformedCollocationMesh,
+    TransformedCollocationMesh,
     TransformedInteriorCollocationMesh
+)
+from pyapprox.pde.autopde.solvers import (
+    Function, TransientFunction, TransientPDE, SteadyStatePDE
+)
+from pyapprox.pde.autopde.autopde import (
+    AdvectionDiffusionReaction, EulerBernoulliBeam, Helmholtz, NavierStokes,
+    LinearStokes, ShallowWaterWave, ShallowShelfVelocities, ShallowShelf,
+    FirstOrderStokesIce
 )
 
 
@@ -93,8 +98,9 @@ def _get_boundary_funs(nphys_vars, bndry_types, sol_fun, flux_funs,
             #                     (-1)**(dd+1), alpha)
             if hasattr(sol_fun, "set_time") or hasattr(flux_funs, "set_time"):
                 bndry_fun = TransientFunction(bndry_fun)
-                bndry_conds.append([bndry_fun, "R", alpha])
-        bndry_conds[-1][0]._name = f"bndry_{dd}"
+            bndry_conds.append([bndry_fun, "R", alpha])
+        if bndry_conds[-1][0] is not None:
+            bndry_conds[-1][0]._name = f"bndry_{dd}"
     return bndry_conds
 
 
