@@ -7,7 +7,7 @@ from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
     setup_helmholtz_manufactured_solution,
     setup_steady_stokes_manufactured_solution,
-    setup_shallow_wave_equations_manufactured_solution,
+    setup_shallow_water_wave_equations_manufactured_solution,
     setup_shallow_shelf_manufactured_solution,
     setup_first_order_stokes_ice_manufactured_solution,
     get_vertical_2d_mesh_transforms_from_string
@@ -17,7 +17,7 @@ from pyapprox.pde.autopde.autopde import (
     Function, EulerBernoulliBeam, Helmholtz,
     TransientFunction, TransientPDE, LinearStokes, NavierStokes,
     InteriorCartesianProductCollocationMesh, VectorMesh,
-    SteadyStatePDE, ShallowWater, ShallowShelfVelocities, ShallowShelf,
+    SteadyStatePDE, ShallowWaterWave, ShallowShelfVelocities, ShallowShelf,
     FirstOrderStokesIce, TransformedCollocationMesh,
     TransformedInteriorCollocationMesh
 )
@@ -48,7 +48,7 @@ def _normal_flux_old(flux_funs, active_var, sign, xx):
 
 
 def _robin_bndry_fun_old(sol_fun, flux_funs, active_var, sign, alpha, xx,
-                     time=None):
+                         time=None):
     if time is not None:
         if hasattr(sol_fun, "set_time"):
             sol_fun.set_time(time)
@@ -71,7 +71,8 @@ def _get_boundary_funs(nphys_vars, bndry_types, sol_fun, flux_funs,
     bndry_conds = []
     for dd in range(2*nphys_vars):
         if bndry_types[dd] == "D":
-            bndry_conds.append([sol_fun, "D"])
+            import copy
+            bndry_conds.append([copy.deepcopy(sol_fun), "D"])
         elif bndry_types[dd] == "P":
             bndry_conds.append([None, "P"])
         else:
@@ -92,13 +93,27 @@ def _get_boundary_funs(nphys_vars, bndry_types, sol_fun, flux_funs,
             #                     (-1)**(dd+1), alpha)
             if hasattr(sol_fun, "set_time") or hasattr(flux_funs, "set_time"):
                 bndry_fun = TransientFunction(bndry_fun)
-            bndry_conds.append([bndry_fun, "R", alpha])
+                bndry_conds.append([bndry_fun, "R", alpha])
+        bndry_conds[-1][0]._name = f"bndry_{dd}"
     return bndry_conds
 
 
-def _vel_component_fun(vel_fun, ii, x):
+def _vel_component_fun(vel_fun, ii, x, time=None):
+    if time is not None:
+        if hasattr(vel_fun, "set_time"):
+            vel_fun.set_time(time)
     vals = vel_fun(x)
     return vals[:, ii:ii+1]
+
+
+def _sww_momentum_component_fun(vel_fun, depth_fun, ii, x, time=None):
+    if time is not None:
+        if hasattr(vel_fun, "set_time"):
+            vel_fun.set_time(time)
+        if hasattr(depth_fun, "set_time"):
+            depth_fun.set_time(time)
+    vals = depth_fun(x)*vel_fun(x)[:, ii:ii+1]
+    return vals
 
 
 class TestAutoPDE(unittest.TestCase):
@@ -463,7 +478,7 @@ class TestAutoPDE(unittest.TestCase):
         for test_case in test_cases:
             self._check_stokes_solver_mms(*test_case)
 
-    def test_shallow_water_solver_mms_setup(self):
+    def test_shallow_water_wave_solver_mms_setup(self):
         # or Analytical solutions see
         # https://hal.archives-ouvertes.fr/hal-00628246v6/document
         def bernoulli_realtion(q, bed_fun, C, x, h):
@@ -489,7 +504,7 @@ class TestAutoPDE(unittest.TestCase):
         bed_string = "0"
         depth_string = "%f"%sol[0]
         depth_fun, vel_fun, depth_forc_fun, vel_forc_fun, bed_fun = (
-            setup_shallow_wave_equations_manufactured_solution(
+            setup_shallow_water_wave_equations_manufactured_solution(
                 vel_strings, depth_string, bed_string))
         xx = torch.linspace(0, 1, 11)[None, :]
         assert np.allclose(depth_forc_fun(xx), 0, atol=1e-12)
@@ -500,7 +515,7 @@ class TestAutoPDE(unittest.TestCase):
             bndry_types):
         nphys_vars = len(vel_strings)
         depth_fun, vel_fun, depth_forc_fun, vel_forc_fun, bed_fun = (
-            setup_shallow_wave_equations_manufactured_solution(
+            setup_shallow_water_wave_equations_manufactured_solution(
                 vel_strings, depth_string, bed_string))
 
         bed_fun = Function(bed_fun)
@@ -517,7 +532,7 @@ class TestAutoPDE(unittest.TestCase):
             nphys_vars, bndry_types, depth_fun, flux_funs)
         vel_bndry_conds = [_get_boundary_funs(
             nphys_vars, bndry_types,
-            partial(_vel_component_fun, vel_fun, ii),
+            partial(_sww_momentum_component_fun, vel_fun, depth_fun, ii),
             flux_funs) for ii in range(nphys_vars)]
         bndry_conds = [depth_bndry_conds]+vel_bndry_conds
 
@@ -528,12 +543,12 @@ class TestAutoPDE(unittest.TestCase):
         mesh = VectorMesh([depth_mesh]+vel_meshes)
 
         solver = SteadyStatePDE(
-            ShallowWater(
+            ShallowWaterWave(
                 mesh, bndry_conds, depth_forc_fun, vel_forc_fun, bed_fun))
         exact_depth_vals = depth_fun(depth_mesh.mesh_pts)
-        exact_vel_vals = [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]
+        exact_mom_vals = [exact_depth_vals*v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T]
         # split_sols = [q1, q2] = [h, u, v]
-        init_guess = torch.cat([exact_depth_vals] + exact_vel_vals)
+        init_guess = torch.cat([exact_depth_vals] + exact_mom_vals)
         # split_sols = [q1, q2] = [h, uh, vh]
         # init_guess = torch.cat(
         #     [exact_depth_vals] +[v*depth_fun(vel_meshes[0].mesh_pts)
@@ -543,15 +558,15 @@ class TestAutoPDE(unittest.TestCase):
         res_vals = solver.residual._raw_residual(init_guess.squeeze())
         assert np.allclose(res_vals, 0)
 
-        init_guess = init_guess+torch.randn(init_guess.shape)*1e-3
+        init_guess = init_guess+torch.randn(init_guess.shape)*1e-2
         sol = solver.solve(init_guess, tol=1e-8)
         split_sols = mesh.split_quantities(sol)
         assert np.allclose(exact_depth_vals, split_sols[0])
-        for exact_v, v in zip(exact_vel_vals, split_sols[1:]):
-            print(exact_v[:, 0]-v[:, 0])
+        for exact_v, v in zip(exact_mom_vals, split_sols[1:]):
+            # print(exact_v[:, 0]-v[:, 0])
             assert np.allclose(exact_v[:, 0], v[:, 0])
 
-    def test_shallow_water_solver_mms(self):
+    def test_shallow_water_wave_solver_mms(self):
         # order must be odd or Jacobian will be almost uninvertable and
         # newton solve will diverge
         test_cases = [
@@ -560,14 +575,14 @@ class TestAutoPDE(unittest.TestCase):
              ["D", "D", "D", "D"]]
         ]
         for test_case in test_cases:
-            self._check_shallow_water_solver_mms(*test_case)
+            self._check_shallow_water_wave_solver_mms(*test_case)
 
-    def _check_shallow_water_transient_solver_mms(
+    def _check_shallow_water_wave_transient_solver_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,
             bndry_types, tableau_name):
         nphys_vars = len(vel_strings)
         depth_fun, vel_fun, depth_forc_fun, vel_forc_fun, bed_fun = (
-            setup_shallow_wave_equations_manufactured_solution(
+            setup_shallow_water_wave_equations_manufactured_solution(
                 vel_strings, depth_string, bed_string, True))
 
         bed_fun = Function(bed_fun)
@@ -577,73 +592,85 @@ class TestAutoPDE(unittest.TestCase):
         depth_fun = TransientFunction(depth_fun)
         vel_fun = TransientFunction(vel_fun)
 
+        depth_forc_fun._name = 'depth_f'
+        vel_forc_fun._name = 'vel_f'
+        bed_fun._name = 'bed'
+        vel_fun._name = 'vel'
+        depth_fun._name = 'depth'
+
         # TODO test neumann boundary conditions so need flux funs
         # returned by MMS
         flux_funs = None
         depth_bndry_conds = _get_boundary_funs(
             nphys_vars, bndry_types, depth_fun, flux_funs)
-        vel_bndry_conds = [_get_boundary_funs(
+        mom_bndry_conds = [_get_boundary_funs(
             nphys_vars, bndry_types,
-            partial(_vel_component_fun, vel_fun, ii),
+            TransientFunction(partial(
+                _sww_momentum_component_fun, vel_fun, depth_fun, ii)),
             flux_funs) for ii in range(nphys_vars)]
-        bndry_conds = [depth_bndry_conds]+vel_bndry_conds
+        bndry_conds = [depth_bndry_conds]+mom_bndry_conds
 
         depth_mesh = CartesianProductCollocationMesh(domain_bounds, orders)
-        vel_meshes = [
+        mom_meshes = [
             CartesianProductCollocationMesh(domain_bounds, orders)]*nphys_vars
-        mesh = VectorMesh([depth_mesh]+vel_meshes)
+        mesh = VectorMesh([depth_mesh]+mom_meshes)
 
         depth_fun.set_time(0)
         vel_fun.set_time(0)
         depth_forc_fun.set_time(0)
         vel_forc_fun.set_time(0)
 
-        deltat = 0.05
+        deltat = 0.1
         final_time = deltat
         solver = TransientPDE(
-            ShallowWater(mesh, bndry_conds, depth_forc_fun, vel_forc_fun,
-                         bed_fun), deltat,
+            ShallowWaterWave(mesh, bndry_conds, depth_forc_fun, vel_forc_fun,
+                             bed_fun), deltat,
             tableau_name)
+        init_depth_vals = depth_fun(depth_mesh.mesh_pts)
         init_sol = torch.cat(
-            [depth_fun(depth_mesh.mesh_pts)] +
-            [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T])
+            [init_depth_vals] +
+            [init_depth_vals*v[:, None] for v in vel_fun(mom_meshes[0].mesh_pts).T])
         sols, times = solver.solve(
             init_sol, 0, final_time, newton_opts={"tol": 1e-8})
 
-        # import matplotlib.pyplot as plt
-        # fig, axs = plt.subplots(
-        #     1, mesh.nphys_vars+1, figsize=(8*(mesh.nphys_vars+1), 6))
+        import matplotlib.pyplot as plt
         for ii, time in enumerate(times):
             depth_fun.set_time(time)
             vel_fun.set_time(time)
-            exact_sol_t = np.vstack([
-                depth_fun(depth_mesh.mesh_pts).numpy()]+
-                [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts)])
+            depth_vals = depth_fun(depth_mesh.mesh_pts)
+            exact_sol_t = np.vstack(
+                [depth_vals] +
+                [depth_vals*v[:, None] for v in vel_fun(mom_meshes[0].mesh_pts).T])
             model_sol_t = sols[:, ii:ii+1]
             # print(np.hstack((mesh.split_quantities(
             #     exact_sol_t)[2], mesh.split_quantities(model_sol_t)[2])))
             # print(np.hstack((exact_sol_t, model_sol_t)))
             # print(mesh.split_quantities((exact_sol_t-model_sol_t))[1])
-            # mesh.plot(mesh.split_quantities(exact_sol_t), axs=axs)
-            # mesh.plot(mesh.split_quantities(model_sol_t), axs=axs, ls='--')
+            if ii >= 0:
+                fig, axs = plt.subplots(
+                    1, mesh.nphys_vars+1, figsize=(8*(mesh.nphys_vars+1), 6))
+                # mesh.plot(mesh.split_quantities(exact_sol_t), axs=axs)
+                mesh.plot(mesh.split_quantities(model_sol_t), axs=axs, ls='--')
+            print(exact_sol_t.shape)
+            print(model_sol_t.shape)
             L2_error = np.sqrt(
                 mesh.integrate(
                     mesh.split_quantities((exact_sol_t-model_sol_t)**2)))
             print(time, L2_error, 'l')
+            plt.show()
             assert np.all(L2_error < 1e-8)
-            # plt.show()
 
-    def test_shallow_water_transient_solver_mms(self):
+    def test_shallow_water_wave_transient_solver_mms(self):
         # order must be odd or Jacobian will be almost uninvertable and
         # newton solve will diverge
 
         test_cases = [
-             [[0, 1], [5], ["-x**2*(t+1)"], "1+x", "0", ["D", "D"], "im_crank2"],
-            #[[0, 1, 0, 1], [4, 4], ["-x**2", "-y**2"], "1+x+y", "0",
-            #  ["D", "D", "D", "D"], "im_beuler1"]
+            # [[0, 1], [5], ["-x**2*(t+1)"], "(1+x)*(t+1)**2", "0", ["D", "D"], "im_crank2"],
+            [[0, 1, 0, 1], [5, 5], ["-x**2*(t+1)", "-y**2*(t+1)"], "(1+x+y)*(t+1)", "0",
+             ["D", "D", "D", "D"], "im_crank2"]
         ]
         for test_case in test_cases:
-            self._check_shallow_water_transient_solver_mms(*test_case)
+            self._check_shallow_water_wave_transient_solver_mms(*test_case)
 
     def _check_shallow_shelf_solver_mms(
             self, domain_bounds, orders, vel_strings, depth_string, bed_string,

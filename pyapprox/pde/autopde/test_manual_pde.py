@@ -141,7 +141,7 @@ class TestManualPDE(unittest.TestCase):
             nphys_vars, bndry_types, sol_fun, flux_funs)
 
         deltat = 0.1
-        final_time = deltat*5
+        final_time = deltat*1# 5
         mesh = CartesianProductCollocationMesh(domain_bounds, orders)
         solver = TransientPDE(
             AdvectionDiffusionReaction(
@@ -155,6 +155,8 @@ class TestManualPDE(unittest.TestCase):
             sol_fun.set_time(time)
             exact_sol_t = sol_fun(solver.residual.mesh.mesh_pts).numpy()
             model_sol_t = sols[:, ii:ii+1]
+            print(exact_sol_t)
+            print(model_sol_t)
             L2_error = np.sqrt(
                 solver.residual.mesh.integrate((exact_sol_t-model_sol_t)**2))
             factor = np.sqrt(
@@ -164,6 +166,10 @@ class TestManualPDE(unittest.TestCase):
 
     def test_transient_advection_diffusion_reaction(self):
         test_cases = [
+            [[0, 1], [3], "x**2*(1+t)", "1", ["0"],
+             [lambda sol: 0*sol,
+              lambda sol: np.zeros((sol.shape[0], sol.shape[0]))],
+             ["D", "D"], "ex_feuler1"],
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["0"],
              [lambda sol: 0*sol,
               lambda sol: np.zeros((sol.shape[0], sol.shape[0]))],
@@ -181,7 +187,7 @@ class TestManualPDE(unittest.TestCase):
               lambda sol: np.diag(2*sol[:, 0])],
              ["D", "N", "R", "D"], "im_crank2"]
         ]
-        for test_case in test_cases:
+        for test_case in test_cases[:1]:
             self._check_transient_advection_diffusion_reaction(*test_case)
 
     def _check_stokes_solver_mms(

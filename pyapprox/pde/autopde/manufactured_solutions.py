@@ -73,6 +73,7 @@ def setup_advection_diffusion_reaction_manufactured_solution(
 
     reaction_expr = react_fun(sol_expr)
 
+    # du/dt - diff + advec + react = forc
     forc_expr = -diffusion_expr+advection_expr+reaction_expr
     if transient:
         forc_expr += sol_expr.diff(all_symbs[-1], 1)
@@ -171,7 +172,7 @@ def setup_steady_stokes_manufactured_solution(
             pres_grad_fun)
 
 
-def setup_shallow_wave_equations_manufactured_solution(
+def setup_shallow_water_wave_equations_manufactured_solution(
         vel_strings, depth_string, bed_string, transient=False):
     # Conservative form
     g = 9.81
@@ -200,6 +201,7 @@ def setup_shallow_wave_equations_manufactured_solution(
     bed_lambda = sp.lambdify(symbs, bed_expr, "numpy")
     bed_fun = partial(_evaluate_sp_lambda, bed_lambda)
 
+    # dh/dt + d(uh)/dx = f
     depth_forc_expr = sum(
         [(u*depth_expr).diff(s, 1) for u, s in zip(vel_expr, symbs)])
     if transient:
@@ -207,6 +209,7 @@ def setup_shallow_wave_equations_manufactured_solution(
     depth_forc_lambda = sp.lambdify(all_symbs, depth_forc_expr, "numpy")
     depth_forc_fun = partial(eval_sp_lambda, depth_forc_lambda)
 
+    # du/dt + d(hu**2+gh**2/2) + gh db/dx = f
     vel_forc_expr = [(vel_expr[0]**2*depth_expr+g*depth_expr**2/2).diff(
         symbs[0], 1)]
     if nphys_vars > 1:

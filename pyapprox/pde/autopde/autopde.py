@@ -670,9 +670,11 @@ class TransientFunction(AbstractFunction):
         self._time = None
 
     def _eval(self, samples):
+        # print(self._time, self._name)
         return self._partial_fun(samples)
 
     def set_time(self, time):
+        self._time = time
         self._partial_fun = partial(self._fun, time=time)
 
 
@@ -698,7 +700,13 @@ class AbstractSpectralCollocationResidual(ABC):
         for fun in self._funs:
             if hasattr(fun, "set_time"):
                 fun.set_time(time)
-        for bndry_cond in self._bndry_conds:
+        if type(self.mesh) == VectorMesh:
+            import itertools
+            bndry_conds = itertools.chain(*self._bndry_conds)
+        else:
+            bndry_conds = self._bndry_conds
+        for bndry_cond in bndry_conds:
+            # print(time, hasattr(bndry_cond[0], "set_time"), bndry_cond[0], bndry_cond[0]._name)
             if hasattr(bndry_cond[0], "set_time"):
                 bndry_cond[0].set_time(time)
         return self._raw_residual(sol)
@@ -1187,8 +1195,9 @@ class LinearStokes(NavierStokes):
         self._navier_stokes = False
 
 
-class ShallowWater(AbstractSpectralCollocationResidual):
-    def __init__(self, mesh, bndry_conds, depth_forc_fun, vel_forc_fun, bed_fun):
+class ShallowWaterWave(AbstractSpectralCollocationResidual):
+    def __init__(self, mesh, bndry_conds, depth_forc_fun, vel_forc_fun,
+                 bed_fun):
         super().__init__(mesh, bndry_conds)
 
         self._depth_forc_fun = depth_forc_fun
@@ -1201,10 +1210,13 @@ class ShallowWater(AbstractSpectralCollocationResidual):
     def _raw_residual_1d(self, depth, vels, depth_forc_vals, vel_forc_vals):
         pderiv = self.mesh._meshes[0].partial_deriv
         residual = [0, 0]
-        residual[0] = pderiv(depth*vels[:, 0], 0)-depth_forc_vals[:, 0]
-        residual[1] = pderiv(depth*vels[:, 0]**2+self._g*depth**2/2, 0)
-        residual[1] += self._g*depth*pderiv(self._bed_vals[:, 0], 0)
-        residual[1] -= vel_forc_vals[:, 0]
+        residual[0] = -pderiv(depth*vels[:, 0], 0)+depth_forc_vals[:, 0]
+        residual[1] = -pderiv(depth*vels[:, 0]**2+self._g*depth**2/2, 0)
+        residual[1] -= self._g*depth*pderiv(self._bed_vals[:, 0], 0)
+        residual[1] += vel_forc_vals[:, 0]
+        print(self._g*depth*pderiv(self._bed_vals[:, 0], 0))
+        print(depth_forc_vals[:, 0], 'd')
+        print(vel_forc_vals[:, 0], 'v')
         return torch.cat(residual)
 
     def _raw_residual_2d(self, depth, vels, depth_forc_vals, vel_forc_vals):
@@ -1212,58 +1224,61 @@ class ShallowWater(AbstractSpectralCollocationResidual):
         residual = [0, 0, 0]
          # depth equation (mass balance)
         for dd in range(self.mesh.nphys_vars):
-            residual[0] += self.mesh._meshes[0].partial_deriv(
+            residual[0] -= self.mesh._meshes[0].partial_deriv(
                 depth*vels[:, dd], dd)
-        residual[0] -= depth_forc_vals[:, 0]
+        residual[0] += depth_forc_vals[:, 0]
         # velocity equations (momentum equations)
-        residual[1] = pderiv(depth*vels[:, 0]**2+self._g*depth**2/2, 0)
-        residual[1] += pderiv(depth*torch.prod(vels, dim=1), 1)
-        residual[1] += self._g*depth*pderiv(self._bed_vals[:, 0], 0)
-        residual[1] -= vel_forc_vals[:, 0]
-        residual[2] = pderiv(depth*torch.prod(vels, dim=1), 0)
-        residual[2] += pderiv(depth*vels[:, 1]**2+self._g*depth**2/2, 1)
-        residual[2] += self._g*depth*pderiv(self._bed_vals[:, 0], 1)
-        residual[2] -= vel_forc_vals[:, 1]
+        residual[1] = -pderiv(depth*vels[:, 0]**2+self._g*depth**2/2, 0)
+        residual[1] -= pderiv(depth*torch.prod(vels, dim=1), 1)
+        residual[1] -= self._g*depth*pderiv(self._bed_vals[:, 0], 0)
+        residual[1] += vel_forc_vals[:, 0]
+        residual[2] = -pderiv(depth*torch.prod(vels, dim=1), 0)
+        residual[2] -= pderiv(depth*vels[:, 1]**2+self._g*depth**2/2, 1)
+        residual[2] -= self._g*depth*pderiv(self._bed_vals[:, 0], 1)
+        residual[2] += vel_forc_vals[:, 1]
         return torch.cat(residual)
 
     def _raw_residual(self, sol):
         split_sols = self.mesh.split_quantities(sol)
         depth = split_sols[0]
-        vels = torch.hstack([s[:, None] for s in split_sols[1:]])
+        #vels = torch.hstack([s[:, None] for s in split_sols[1:]])
+        vels = torch.hstack([(s/depth)[:, None] for s in split_sols[1:]])
         depth_forc_vals = self._depth_forc_fun(self.mesh._meshes[0].mesh_pts)
         vel_forc_vals = self._vel_forc_fun(self.mesh._meshes[1].mesh_pts)
 
         if self.mesh.nphys_vars == 1:
+            # return self._raw_residual_1d(
+            #     depth, vels, depth_forc_vals, vel_forc_vals)
             return self._raw_residual_1d(
                 depth, vels, depth_forc_vals, vel_forc_vals)
 
         return self._raw_residual_2d(
                 depth, vels, depth_forc_vals, vel_forc_vals)
 
-        residual = [0 for ii in range(len(split_sols))]
-        # depth equation (mass balance)
-        for dd in range(self.mesh.nphys_vars):
-            # split_sols = [q1, q2] = [h, u, v]
-            residual[0] += self.mesh._meshes[0].partial_deriv(
-                depth*vels[:, dd], dd)
-        residual[0] -= depth_forc_vals[:, 0]
-        # velocity equations (momentum equations)
-        for dd in range(self.mesh.nphys_vars):
-            # split_sols = [q1, q2] = [h, u, v]
-            residual[dd+1] += self.mesh._meshes[dd].partial_deriv(
-                depth*vels[:, dd]**2+self._g*depth**2/2, dd)
-            # split_sols = [q1, q2] = [h, uh, vh]
-            # residual[dd+1] += self.mesh._meshes[dd].partial_deriv(
-            #     vels[:, dd]**2/depth+self._g*depth**2/2, dd)
-            residual[dd+1] += self._g*depth*self.mesh._meshes[dd].partial_deriv(
-                self._bed_vals[:, 0], dd)
-            residual[dd+1] -= vel_forc_vals[:, dd]
-        if self.mesh.nphys_vars > 1:
-            residual[1] += self.mesh._meshes[1].partial_deriv(
-                depth*torch.prod(vels, dim=1), 1)
-            residual[2] += self.mesh._meshes[2].partial_deriv(
-                depth*torch.prod(vels, dim=1), 0)
-        return torch.cat(residual)
+        # residual = [0 for ii in range(len(split_sols))]
+        # # depth equation (mass balance)
+        # for dd in range(self.mesh.nphys_vars):
+        #     # split_sols = [q1, q2] = [h, u, v]
+        #     residual[0] += self.mesh._meshes[0].partial_deriv(
+        #         depth*vels[:, dd], dd)
+        # residual[0] -= depth_forc_vals[:, 0]
+        # # velocity equations (momentum equations)
+        # for dd in range(self.mesh.nphys_vars):
+        #     # split_sols = [q1, q2] = [h, u, v]
+        #     residual[dd+1] += self.mesh._meshes[dd].partial_deriv(
+        #         depth*vels[:, dd]**2+self._g*depth**2/2, dd)
+        #     # split_sols = [q1, q2] = [h, uh, vh]
+        #     # residual[dd+1] += self.mesh._meshes[dd].partial_deriv(
+        #     #     vels[:, dd]**2/depth+self._g*depth**2/2, dd)
+        #     residual[dd+1] += self._g*depth*self.mesh._meshes[dd].partial_deriv(
+        #         self._bed_vals[:, 0], dd)
+        #     residual[dd+1] -= vel_forc_vals[:, dd]
+        # if self.mesh.nphys_vars > 1:
+        #     residual[1] += self.mesh._meshes[1].partial_deriv(
+        #         depth*torch.prod(vels, dim=1), 1)
+        #     residual[2] += self.mesh._meshes[2].partial_deriv(
+        #         depth*torch.prod(vels, dim=1), 0)
+        # return torch.cat(residual)
 
 
 class ShallowShelfVelocities(AbstractSpectralCollocationResidual):

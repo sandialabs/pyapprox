@@ -34,7 +34,7 @@ def newton_solve(residual_fun, init_guess, auto, tol=1e-7, maxiters=10,
                 residual_fun, sol, strict=True)
         sol = sol-step_size*torch.linalg.solve(jac, residual)
         # np.set_printoptions(precision=2, suppress=True)
-        # print('j', jac.numpy()[:16, :16])
+        # print('j', jac.numpy())
         # print(residual.detach().numpy())
         # print(np.linalg.eigh(jac.numpy())[0])
         # print(np.linalg.cond(jac.numpy()))

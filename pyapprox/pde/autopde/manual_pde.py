@@ -3,6 +3,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from functools import partial
 from torch.linalg import multi_dot
+from pyapprox.pde.autopde.autopde import VectorMesh
 
 
 class AbstractSpectralCollocationPhysics(ABC):
@@ -31,7 +32,13 @@ class AbstractSpectralCollocationPhysics(ABC):
         for fun in self._funs:
             if hasattr(fun, "set_time"):
                 fun.set_time(time)
-        for bndry_cond in self._bndry_conds:
+        if type(self.mesh) == VectorMesh:
+            import itertools
+            bndry_conds = itertools.chain(*self._bndry_conds)
+        else:
+            bndry_conds = self._bndry_conds
+        for bndry_cond in bndry_conds:
+            print(time, hasattr(bndry_cond[0], "set_time"), bndry_cond[0])
             if hasattr(bndry_cond[0], "set_time"):
                 bndry_cond[0].set_time(time)
         return self._raw_residual(sol)
