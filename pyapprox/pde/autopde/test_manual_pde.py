@@ -157,6 +157,7 @@ class TestManualPDE(unittest.TestCase):
         solver = SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
             react_funs[1]))
+        solver.residual._auto_jac = True
 
         assert np.allclose(
             solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
@@ -610,19 +611,24 @@ class TestManualPDE(unittest.TestCase):
         exact_depth_vals = depth_fun(depth_mesh.mesh_pts)
         exact_mom_vals = [exact_depth_vals*v[:, None]
                           for v in vel_fun(vel_meshes[0].mesh_pts).T]
-        # split_sols = [q1, q2] = [h, u, v]
+        # split_sols = [q1, q2, q3] = [h, uh, vh]
         init_guess = torch.cat([exact_depth_vals] + exact_mom_vals)
-        # split_sols = [q1, q2] = [h, uh, vh]
-        # init_guess = torch.cat(
-        #     [exact_depth_vals] +[v*depth_fun(vel_meshes[0].mesh_pts)
-        #                    for v in exact_vel_vals])
 
-        # print(init_guess, 'i')
+        # solver.residual._auto_jac = True
         res_vals = solver.residual._raw_residual(init_guess.squeeze())[0]
         assert np.allclose(res_vals, 0)
 
-        init_guess = init_guess+torch.randn(init_guess.shape)*1e-2
-        sol = solver.solve(init_guess, tol=1e-8)
+        init_guess = init_guess+torch.randn(init_guess.shape)*1e-3
+        np.set_printoptions(precision=2, suppress=True, threshold=100000, linewidth=1000)
+        j_man = solver.residual._raw_residual(init_guess.squeeze())[1]
+        j_auto = torch.autograd.functional.jacobian(
+            lambda s: solver.residual._raw_residual(s)[0],
+            init_guess[:, 0].clone().requires_grad_(True), strict=True).numpy()
+        # print((j_man.numpy()-j_auto)[32:, 32:])
+        assert np.allclose(j_man, j_auto)
+
+        init_guess = init_guess+torch.randn(init_guess.shape)*1e-3
+        sol = solver.solve(init_guess, tol=1e-8, maxiters=10, verbosity=0)
         split_sols = mesh.split_quantities(sol)
         assert np.allclose(exact_depth_vals, split_sols[0])
         for exact_v, v in zip(exact_mom_vals, split_sols[1:]):

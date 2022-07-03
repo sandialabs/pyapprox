@@ -1,4 +1,5 @@
 import torch
+import itertools
 from abc import ABC, abstractmethod
 from torch.linalg import multi_dot
 from pyapprox.pde.autopde.mesh import VectorMesh
@@ -35,7 +36,6 @@ class AbstractSpectralCollocationPhysics(ABC):
             if hasattr(fun, "set_time"):
                 fun.set_time(time)
         if type(self.mesh) == VectorMesh:
-            import itertools
             bndry_conds = itertools.chain(*self._bndry_conds)
         else:
             bndry_conds = self._bndry_conds
@@ -77,7 +77,9 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         jac = linear_jac - self._react_jac(sol[:, None])
         res -= self._react_fun(sol[:, None])[:, 0]
         res += self._forc_fun(self.mesh.mesh_pts)[:, 0]
-        return res, jac
+        if not self._auto_jac:
+            return res, jac
+        return res, None
 
 
 class IncompressibleNavierStokes(AbstractSpectralCollocationPhysics):
@@ -300,6 +302,8 @@ class ShallowWaterWave(AbstractSpectralCollocationPhysics):
         self._funs = [self._depth_forc_fun, self._vel_forc_fun]
         self._bed_vals = bed_fun(self.mesh._meshes[0].mesh_pts)
 
+        self._auto_jac = False
+
     def _raw_residual_1d(self, depth, vels, depth_forc_vals, vel_forc_vals):
         pderiv = self.mesh._meshes[0].partial_deriv
         residual = [0, 0]
@@ -307,10 +311,22 @@ class ShallowWaterWave(AbstractSpectralCollocationPhysics):
         residual[1] = -pderiv(depth*vels[:, 0]**2+self._g*depth**2/2, 0)
         residual[1] -= self._g*depth*pderiv(self._bed_vals[:, 0], 0)
         residual[1] += vel_forc_vals[:, 0]
-        print(self._g*depth*pderiv(self._bed_vals[:, 0], 0))
-        print(depth_forc_vals[:, 0], 'd')
-        print(vel_forc_vals[:, 0], 'v')
+        if not self._auto_jac:
+            return torch.cat(residual), self._raw_jacobian_1d(depth, vels)
         return torch.cat(residual), None
+
+    def _raw_jacobian_1d(self, depth, vels):
+        dmats = [self.mesh._meshes[0]._dmat(dd)
+                 for dd in range(self.mesh.nphys_vars)]
+        jac = [0, 0]
+        # recall taking jac with respect to u and uh
+        jac[0] = [-dmats[0]*0, -dmats[0]]
+        # r[1] = -D[0](uh**2/h) - g*D[0]*h*2/2
+        jac[1] = [dmats[0]*(vels[:, 0][None, :]**2)-dmats[0]*(self._g*depth[None, :]),
+                  -2*dmats[0]*((vels[:, 0])[None, :])]
+        jac[1][0] -= self._g*self.mesh._meshes[0].partial_deriv(
+            self._bed_vals[:, 0], 0)
+        return torch.vstack([torch.hstack(j) for j in jac])
 
     def _raw_residual_2d(self, depth, vels, depth_forc_vals, vel_forc_vals):
         pderiv = self.mesh._meshes[0].partial_deriv
@@ -329,7 +345,30 @@ class ShallowWaterWave(AbstractSpectralCollocationPhysics):
         residual[2] -= pderiv(depth*vels[:, 1]**2+self._g*depth**2/2, 1)
         residual[2] -= self._g*depth*pderiv(self._bed_vals[:, 0], 1)
         residual[2] += vel_forc_vals[:, 1]
+        if not self._auto_jac:
+            return torch.cat(residual), self._raw_jacobian_2d(depth, vels)
         return torch.cat(residual), None
+
+    def _raw_jacobian_2d(self, depth, vels):
+        dmats = [self.mesh._meshes[0]._dmat(dd)
+                 for dd in range(self.mesh.nphys_vars)]
+        jac = [0, 0, 0]
+        # recall taking jac with respect to u and uh
+        jac[0] = [-dmats[0]*0, -dmats[0], -dmats[1]]
+        # r[1] = -D[0](uh**2/h) - g*D[0]*h*2/2 - D[1]*(uh*vh/h)
+        jac[1] = [dmats[0]*(vels[:, 0][None, :]**2)-dmats[0]*(self._g*depth[None, :])
+                  + dmats[1]*((vels[:, 0]*vels[:, 1])[None, :]),
+                  -2*dmats[0]*((vels[:, 0])[None, :])-dmats[1]*(vels[:, 1][None, :]),
+                  -dmats[1]*(vels[:, 0][None, :])]
+        jac[2] = [dmats[0]*((vels[:, 0]*vels[:, 1])[None, :])+dmats[1]*(vels[:, 1][None, :]**2)
+                  - dmats[1]*(self._g*depth[None, :]),
+                  -dmats[0]*(vels[:, 1][None, :]),
+                  -2*dmats[1]*((vels[:, 1])[None, :])-dmats[0]*(vels[:, 0][None, :])]
+        jac[1][0] -= self._g*self.mesh._meshes[0].partial_deriv(
+            self._bed_vals[:, 0], 0)
+        jac[2][0] -= self._g*self.mesh._meshes[0].partial_deriv(
+            self._bed_vals[:, 0], 1)
+        return torch.vstack([torch.hstack(j) for j in jac])
 
     def _raw_residual(self, sol):
         split_sols = self.mesh.split_quantities(sol)
@@ -340,8 +379,6 @@ class ShallowWaterWave(AbstractSpectralCollocationPhysics):
         vel_forc_vals = self._vel_forc_fun(self.mesh._meshes[1].mesh_pts)
 
         if self.mesh.nphys_vars == 1:
-            # return self._raw_residual_1d(
-            #     depth, vels, depth_forc_vals, vel_forc_vals)
             return self._raw_residual_1d(
                 depth, vels, depth_forc_vals, vel_forc_vals)
 
