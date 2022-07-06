@@ -354,11 +354,13 @@ class TestManualPDE(unittest.TestCase):
         def fun(s):
             return solver.residual._raw_residual(torch.as_tensor(s))[0].numpy()
         j_fd = approx_jacobian(fun, exact_sol[:, 0].numpy())
-        j_man = solver.residual._raw_residual(torch.as_tensor(exact_sol[:, 0]))[1].numpy()
+        j_man = solver.residual._raw_residual(
+            torch.as_tensor(exact_sol[:, 0]))[1].numpy()
         j_auto = torch.autograd.functional.jacobian(
             lambda s: solver.residual._raw_residual(s)[0],
             exact_sol[:, 0].clone().requires_grad_(True), strict=True).numpy()
-        np.set_printoptions(precision=2, suppress=True, threshold=100000, linewidth=1000)
+        np.set_printoptions(precision=2, suppress=True, threshold=100000,
+                            linewidth=1000)
         # print(j_auto[:16, 32:])
         # # print(j_fd[:16, 32:])
         # print(j_man[:16, 32:])
@@ -708,7 +710,8 @@ class TestManualPDE(unittest.TestCase):
             depth_vals = depth_fun(depth_mesh.mesh_pts)
             exact_sol_t = np.vstack(
                 [depth_vals] +
-                [depth_vals*v[:, None] for v in vel_fun(mom_meshes[0].mesh_pts).T])
+                [depth_vals*v[:, None]
+                 for v in vel_fun(mom_meshes[0].mesh_pts).T])
             model_sol_t = sols[:, ii:ii+1]
             # print(np.hstack((mesh.split_quantities(
             #     exact_sol_t)[2], mesh.split_quantities(model_sol_t)[2])))
@@ -733,8 +736,10 @@ class TestManualPDE(unittest.TestCase):
         # newton solve will diverge
 
         test_cases = [
-            # [[0, 1], [5], ["-x**2*(t+1)"], "(1+x)*(t+1)**2", "0", ["D", "D"], "im_crank2"],
-            [[0, 1, 0, 1], [5, 5], ["-x**2*(t+1)", "-y**2*(t+1)"], "(1+x+y)*(t+1)", "0",
+            [[0, 1], [5], ["-x**2*(t+1)"], "(1+x)*(t+1)**2", "0", ["D", "D"],
+             "im_crank2"],
+            [[0, 1, 0, 1], [5, 5], ["-x**2*(t+1)", "-y**2*(t+1)"],
+             "(1+x+y)*(t+1)", "0",
              ["D", "D", "D", "D"], "im_crank2"]
         ]
         for test_case in test_cases:
@@ -792,26 +797,29 @@ class TestManualPDE(unittest.TestCase):
                              depth_forc_fun, A, rho, 1e-15))
             init_guess = torch.cat(exact_vel_vals+[exact_depth_vals])
 
+        np.set_printoptions(
+            precision=2, suppress=True, threshold=100000, linewidth=1000)
         # print(init_guess, 'i')
         res_vals = solver.residual._raw_residual(init_guess.squeeze())[0]
         print(np.abs(res_vals.detach().numpy()).max(), 'r')
         # assert np.allclose(res_vals, 0, atol=5e-8)
 
         if velocities_only:
-            init_guess = torch.randn(init_guess.shape, dtype=torch.double)*0
+            init_guess = torch.randn(init_guess.shape, dtype=torch.double)*0.1
         else:
             init_guess = (init_guess+torch.randn(init_guess.shape)*5e-3)
 
-        np.set_printoptions(precision=2, suppress=True, threshold=100000, linewidth=1000)
         dudx_ij = solver.residual._derivs(mesh.split_quantities(init_guess[:, 0]))
-        j_visc_man = torch.hstack(solver.residual._viscosity_jac(dudx_ij))
+        j_visc_man = torch.hstack(solver.residual._effective_strain_rate_jac(dudx_ij))
         j_visc_auto = torch.autograd.functional.jacobian(
-            lambda s: solver.residual._viscosity(
+            lambda s: solver.residual._effective_strain_rate(
                 solver.residual._derivs(mesh.split_quantities(s))),
             init_guess[:, 0].clone().requires_grad_(True), strict=True).numpy()
-        # print(j_visc_man.numpy())
-        # print(j_visc_auto)
-        assert np.allclose(j_visc_auto, j_visc_man.numpy())
+        # print(j_visc_man.numpy()[:16, :16]-j_visc_auto[:16, :16])
+        # print(j_visc_man.numpy()[:16, 16:]-j_visc_auto[:16, 16:32])
+        # print(j_visc_man.shape, j_visc_auto.shape)
+        assert np.allclose(
+            j_visc_auto[:, :j_visc_man.shape[1]], j_visc_man.numpy())
 
         j_man = solver.residual._vector_components_jac(dudx_ij)
         for ii in range(nphys_vars):
@@ -832,6 +840,11 @@ class TestManualPDE(unittest.TestCase):
             lambda s: solver.residual._raw_residual(s)[0],
             init_guess[:, 0].clone().requires_grad_(True), strict=True).numpy()
         assert np.allclose(j_man, j_auto)
+
+        if velocities_only:
+            init_guess = torch.randn(init_guess.shape, dtype=torch.double)*0+1
+        else:
+            init_guess = (init_guess+torch.randn(init_guess.shape)*5e-3)
 
         sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=100)
         split_sols = mesh.split_quantities(sol)
@@ -855,14 +868,17 @@ class TestManualPDE(unittest.TestCase):
              ["D", "D"], True],
             [[0, 1], [9], ["(x+2)**2"], "1+x**2", "-x**2", "1",
              ["D", "D"], False],
-            [[0, 1, 0, 1], [10, 10],
+            [[0, 1, 0, 1], [9, 9],
              ["(x+1)**2*(y+1)", "(y+1)*(x+1)"], "1+x+y",
              "1+x+y**2", "1", ["D", "D", "D", "D"], True],
-            [[0, 2, 0, 2], [15, 15], ["(x+1)**2", "(y+1)**2"], "1+x+y",
+            # odd order for at least one direction is needed for this example
+            # for newton solver to converge. I think this has to do
+            # with adding advection of depth, same happens for shallow water
+            [[0, 1, 0, 1], [5, 5], ["(x+1)**2", "(y+1)**2"], "1+x+y",
              "0-x-y", "1", ["D", "D", "D", "D"], False]
         ]
         # may need to setup backtracking for Newtons method
-        for test_case in test_cases[::2]:
+        for test_case in test_cases:
             self._check_shallow_shelf_solver_mms(*test_case)
 
     def test_first_order_stokes_ice_mms(self):

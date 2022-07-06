@@ -369,7 +369,8 @@ class CanonicalCollocationMesh():
                 residual[idx] = (bndry_lhs-bndry_vals)
         return residual
 
-    def _apply_dirichlet_boundary_conditions_to_residual(self, bndry_conds, residual, sol):
+    def _apply_dirichlet_boundary_conditions_to_residual(
+            self, bndry_conds, residual, sol):
         for ii, bndry_cond in enumerate(bndry_conds):
             if bndry_cond[1] == "D":
                 if self._basis_types[ii//2] == "F":

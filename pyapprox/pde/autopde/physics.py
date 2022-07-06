@@ -192,8 +192,10 @@ class ShallowIce(AbstractSpectralCollocationPhysics):
         bed_vals = self._bed_fun(self.mesh.mesh_pts)[:, 0]
         beta_vals = self._beta_fun(self.mesh.mesh_pts)[:, 0]
         surf_grad = self.mesh.grad(bed_vals+sol)
-        res = self.mesh.div((self._gamma*sol[:, None]**(self._n+2)*(surf_grad**2+self._eps)**((self._n-1)/2) +
-                            (1/(beta_vals)*self._rho*self._g*sol**2)[:, None])*surf_grad)
+        res = self.mesh.div(
+            (self._gamma*sol[:, None]**(self._n+2)*(surf_grad**2+self._eps)**(
+                (self._n-1)/2) +
+             (1/(beta_vals)*self._rho*self._g*sol**2)[:, None])*surf_grad)
         res += self._forc_fun(self.mesh.mesh_pts)[:, 0]
         return res, self._raw_jacobian(sol)
 
@@ -356,14 +358,18 @@ class ShallowWaterWave(AbstractSpectralCollocationPhysics):
         # recall taking jac with respect to u and uh
         jac[0] = [-dmats[0]*0, -dmats[0], -dmats[1]]
         # r[1] = -D[0](uh**2/h) - g*D[0]*h*2/2 - D[1]*(uh*vh/h)
-        jac[1] = [dmats[0]*(vels[:, 0][None, :]**2)-dmats[0]*(self._g*depth[None, :])
-                  + dmats[1]*((vels[:, 0]*vels[:, 1])[None, :]),
-                  -2*dmats[0]*((vels[:, 0])[None, :])-dmats[1]*(vels[:, 1][None, :]),
-                  -dmats[1]*(vels[:, 0][None, :])]
-        jac[2] = [dmats[0]*((vels[:, 0]*vels[:, 1])[None, :])+dmats[1]*(vels[:, 1][None, :]**2)
-                  - dmats[1]*(self._g*depth[None, :]),
-                  -dmats[0]*(vels[:, 1][None, :]),
-                  -2*dmats[1]*((vels[:, 1])[None, :])-dmats[0]*(vels[:, 0][None, :])]
+        jac[1] = [
+            dmats[0]*(vels[:, 0][None, :]**2)-dmats[0]*(self._g*depth[None, :])
+            + dmats[1]*((vels[:, 0]*vels[:, 1])[None, :]),
+            - 2*dmats[0]*((vels[:, 0])[None, :])
+            - dmats[1]*(vels[:, 1][None, :]),
+            - dmats[1]*(vels[:, 0][None, :])]
+        jac[2] = [
+            dmats[0]*((vels[:, 0]*vels[:, 1])[None, :])
+            + dmats[1]*(vels[:, 1][None, :]**2)
+            - dmats[1]*(self._g*depth[None, :]),
+            -dmats[0]*(vels[:, 1][None, :]),
+            -2*dmats[1]*((vels[:, 1])[None, :])-dmats[0]*(vels[:, 0][None, :])]
         jac[1][0] -= self._g*self.mesh._meshes[0].partial_deriv(
             self._bed_vals[:, 0], 0)
         jac[2][0] -= self._g*self.mesh._meshes[0].partial_deriv(
@@ -373,7 +379,6 @@ class ShallowWaterWave(AbstractSpectralCollocationPhysics):
     def _raw_residual(self, sol):
         split_sols = self.mesh.split_quantities(sol)
         depth = split_sols[0]
-        #vels = torch.hstack([s[:, None] for s in split_sols[1:]])
         vels = torch.hstack([(s/depth)[:, None] for s in split_sols[1:]])
         depth_forc_vals = self._depth_forc_fun(self.mesh._meshes[0].mesh_pts)
         vel_forc_vals = self._vel_forc_fun(self.mesh._meshes[1].mesh_pts)
@@ -434,14 +439,15 @@ class ShallowShelfVelocities(AbstractSpectralCollocationPhysics):
         # d/du (ux**2 + vy**2 + ux*vy + 0.25*(uy+vx)**2)**(1/2)
         # = 0.5*srate**(-0.5)*d/du(ux**2+...)
         srate = self._effective_strain_rate(dudx_ij)
-        dmats = [self.mesh._meshes[0]._dmat(dd) for dd in range(self.mesh.nphys_vars)]
+        dmats = [self.mesh._meshes[0]._dmat(dd)
+                 for dd in range(self.mesh.nphys_vars)]
         tmp = [2*dudx_ij[dd][dd][:, None]*dmats[dd]
                for dd in range(self.mesh.nphys_vars)]
         if self.mesh.nphys_vars == 2:
             tmp[0] += (
                 (dudx_ij[1][1][:, None])*dmats[0] +
                 0.25*(2*(dudx_ij[0][1]+dudx_ij[1][0])[:, None]*dmats[1]))
-            tmp[1] += dmats[1]*(dudx_ij[0][0][None, :])+0.25*(2*(
+            tmp[1] += (dudx_ij[0][0][:, None])*dmats[1]+0.25*(2*(
                 dudx_ij[1][0]+dudx_ij[0][1])[:, None]*dmats[0])
         return [.5/srate[:, None]*t for t in tmp]
 
@@ -533,7 +539,7 @@ class ShallowShelf(ShallowShelfVelocities):
         self._depth_forc_fun = depth_forc_fun
 
     def _raw_residual(self, sol):
-         # depth is 3rd mesh
+        # depth is 3rd mesh
         split_sols = self.mesh.split_quantities(sol)
         depth_vals = split_sols[-1]
         residual, jac = super()._raw_residual_nD(
@@ -544,7 +550,36 @@ class ShallowShelf(ShallowShelfVelocities):
             depth_vals[:, None]*vel_vals)
         depth_residual += self._depth_forc_fun(
             self.mesh._meshes[self.mesh.nphys_vars].mesh_pts)[:, 0]
-        return torch.cat((residual, depth_residual)), None
+        return (torch.cat((residual, depth_residual)),
+                self._raw_jacobian(split_sols[:-1], depth_vals))
+
+    def _raw_jacobian(self, vel_vals, depth_vals):
+        pderiv = self.mesh._meshes[0].partial_deriv
+        dmats = [self.mesh._meshes[0]._dmat(dd)
+                 for dd in range(self.mesh.nphys_vars)]
+        vel_jac = super()._raw_jacobian_nD(
+            vel_vals, depth_vals[:, None])
+        dudx_ij = self._derivs(vel_vals)
+        visc = self._viscosity(dudx_ij)
+        vecs = self._vector_components(dudx_ij)
+        dvdh_jac = []
+        for ii in range(self.mesh.nphys_vars):
+            dvdh_jac.append(0)
+            for dd in range(self.mesh.nphys_vars):
+                dvdh_jac[ii] -= dmats[dd]*((2*visc*vecs[ii][:, dd])[None, :])
+            dvdh_jac[ii] += (
+                (self._rho*self._g*depth_vals)[:, None]*dmats[ii] +
+                self._rho*self._g*torch.diag(pderiv(
+                    self._bed_vals[:, 0]+depth_vals, ii)))
+        jac = torch.hstack((vel_jac, torch.vstack(dvdh_jac)))
+        depth_jacs = []
+        for ii in range(self.mesh.nphys_vars):
+            depth_jacs.append(-dmats[ii]*depth_vals[None, :])
+        depth_jacs.append(0)
+        for ii in range(self.mesh.nphys_vars):
+            depth_jacs[-1] -= dmats[ii]*vel_vals[ii][None, :]
+        jac = torch.vstack((jac, torch.hstack(depth_jacs)))
+        return jac
 
 
 class FirstOrderStokesIce(AbstractSpectralCollocationPhysics):
