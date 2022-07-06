@@ -200,7 +200,7 @@ class ShallowIce(AbstractSpectralCollocationPhysics):
     def _raw_jacobian(self, sol):
         # C = g*h/beta
         # g(h) = C*h**2*D[0](h+b)
-        # g(h) = C*h**2*D[0]h+C*h**2*D[0]b
+        # g(h) = 2C*h*D[0]*h + C*h**2*D[0]
         h, b = sol, self._bed_fun(self.mesh.mesh_pts)[:, 0]
         C = self._rho*self._g*h/self._beta_fun(self.mesh.mesh_pts)[:, 0]
         dmats = [self.mesh._dmat(dd) for dd in range(self.mesh.nphys_vars)]
@@ -404,6 +404,8 @@ class ShallowShelfVelocities(AbstractSpectralCollocationPhysics):
         self._beta_vals = beta_fun(self.mesh._meshes[0].mesh_pts)
         self._forc_vals = self._forc_fun(self.mesh._meshes[0].mesh_pts)
 
+        self._auto_jac = False
+
     def _derivs(self, split_sols):
         pderiv = self.mesh._meshes[0].partial_deriv
         dudx_ij = []
@@ -418,8 +420,8 @@ class ShallowShelfVelocities(AbstractSpectralCollocationPhysics):
 
     def _effective_strain_rate_2d(self, dudx_ij):
         return (dudx_ij[0][0]**2 + dudx_ij[1][1]**2+dudx_ij[0][0]*dudx_ij[1][1]
-                + dudx_ij[0][1]**2/4+self._homotopy_val)**(1/2)
-
+               + (dudx_ij[0][1]+dudx_ij[1][0])**2/4+self._homotopy_val)**(1/2)
+        
     def _effective_strain_rate(self, dudx_ij):
         if self.mesh.nphys_vars == 2:
             return self._effective_strain_rate_2d(dudx_ij)
@@ -427,9 +429,32 @@ class ShallowShelfVelocities(AbstractSpectralCollocationPhysics):
             return self._effective_strain_rate_1d(dudx_ij)
         raise NotImplementedError()
 
+    def _effective_strain_rate_jac(self, dudx_ij):
+        # d/dx sqrt(g(x)) =dg/df(g(x)) df/dx(x)
+        # d/du (ux**2 + vy**2 + ux*vy + 0.25*(uy+vx)**2)**(1/2)
+        # = 0.5*srate**(-0.5)*d/du(ux**2+...)
+        srate = self._effective_strain_rate(dudx_ij)
+        dmats = [self.mesh._meshes[0]._dmat(dd) for dd in range(self.mesh.nphys_vars)] 
+        tmp = [2*dudx_ij[dd][dd][:, None]*dmats[dd]
+               for dd in range(self.mesh.nphys_vars)]
+        if self.mesh.nphys_vars == 2:
+            tmp[0] += (
+                (dudx_ij[1][1][:, None])*dmats[0] +
+                0.25*(2*(dudx_ij[0][1]+dudx_ij[1][0])[:, None]*dmats[1]))
+            tmp[1] += dmats[1]*(dudx_ij[0][0][None, :])+0.25*(2*(
+                dudx_ij[1][0]+dudx_ij[0][1])[:, None]*dmats[0])
+        return [.5/srate[:, None]*t for t in tmp]
+
     def _viscosity(self, dudx_ij):
         return (1/2*self._A**(-1/self._n) *
                 self._effective_strain_rate(dudx_ij)**((1-self._n)/(self._n)))
+
+    def _viscosity_jac(self, dudx_ij):
+        sjac = self._effective_strain_rate_jac(dudx_ij)
+        tmp = (1/2*self._A**(-1/self._n) *
+               self._effective_strain_rate(dudx_ij)**((1-2*self._n)/(self._n)))
+        jac = [(1-self._n)/(self._n)*tmp[:, None]*j for j in sjac]
+        return jac
 
     def _vector_components(self, dudx_ij):
         if self.mesh.nphys_vars == 2:
@@ -440,6 +465,15 @@ class ShallowShelfVelocities(AbstractSpectralCollocationPhysics):
             return vec1, vec2
         return (2*dudx_ij[0][0][:, None],)
 
+    def _vector_components_jac(self, dudx_ij):
+        dmats = [self.mesh._meshes[0]._dmat(dd)
+                 for dd in range(self.mesh.nphys_vars)]
+        if self.mesh.nphys_vars == 1:
+            return [[2*dmats[0]]]
+        vec1_jac = [2*dmats[0], dmats[1]/2]
+        vec2_jac = [dmats[0], 2*dmats[1]]
+        return vec1_jac, vec2_jac
+        
     def _raw_residual_nD(self, split_sols, depth_vals):
         pderiv = self.mesh._meshes[0].partial_deriv
         div = self.mesh._meshes[0].div
@@ -454,12 +488,34 @@ class ShallowShelfVelocities(AbstractSpectralCollocationPhysics):
             residual[ii] += self._rho*self._g*depth_vals[:, 0]*pderiv(
                 self._bed_vals[:, 0]+depth_vals[:, 0], ii)
             residual[ii] -= self._forc_vals[:, ii]
-        return torch.cat(residual)
+        if self._auto_jac is True:
+            return torch.cat(residual), None
+        return torch.cat(residual), self._raw_jacobian_nD(
+            split_sols, depth_vals)
+
+    def _raw_jacobian_nD(self, split_sols, depth_vals):
+        dudx_ij = self._derivs(split_sols)
+        visc = self._viscosity(dudx_ij)
+        visc_jac = self._viscosity_jac(dudx_ij)
+        vecs = self._vector_components(dudx_ij)
+        vecs_jac = self._vector_components_jac(dudx_ij)
+        dmats = [self.mesh._meshes[0]._dmat(dd)
+                 for dd in range(self.mesh.nphys_vars)]
+        jac = []
+        for dd in range(self.mesh.nphys_vars): # loop over jacobian row blocks
+            jac.append([0 for ii in range(self.mesh.nphys_vars)])
+            for jj in range(self.mesh.nphys_vars): # compute columns of jacobian row block
+                for ii in range(self.mesh.nphys_vars): # compute divergence
+                    jac[dd][jj] += -multi_dot((dmats[ii], (
+                        (2*depth_vals[:, 0:1]*vecs[dd][:, ii:ii+1]*visc_jac[jj]) +
+                        ((2*visc*depth_vals[:, 0])[:, None])*vecs_jac[dd][jj])))
+            jac[dd][dd] += torch.diag(self._beta_vals[:, 0])
+        return torch.vstack([torch.hstack(j) for j in jac])
 
     def _raw_residual(self, sol):
         depth_vals = self._depth_fun(self.mesh._meshes[0].mesh_pts)
         split_sols = self.mesh.split_quantities(sol)
-        return self._raw_residual_nD(split_sols, depth_vals), None
+        return self._raw_residual_nD(split_sols, depth_vals)
 
 
 class ShallowShelf(ShallowShelfVelocities):
@@ -476,7 +532,7 @@ class ShallowShelf(ShallowShelfVelocities):
          # depth is 3rd mesh
         split_sols = self.mesh.split_quantities(sol)
         depth_vals = split_sols[-1]
-        residual = super()._raw_residual_nD(
+        residual, jac = super()._raw_residual_nD(
             split_sols[:-1], depth_vals[:, None])
         vel_vals = torch.hstack(
             [s[:, None] for s in split_sols[:self.mesh.nphys_vars]])

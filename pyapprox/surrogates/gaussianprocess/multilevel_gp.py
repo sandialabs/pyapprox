@@ -8,6 +8,9 @@ from sklearn.gaussian_process.kernels import (
 from pyapprox.surrogates.gaussianprocess.gradient_enhanced_gp import (
     plot_gp_1d, kernel_ff, get_gp_samples_kernel
 )
+from pyapprox.surrogates.gaussianprocess.gaussian_process import (
+    GaussianProcess
+)
 
 
 def multilevel_diagonal_covariance_block(XX1, XX2, hyperparams, mm):
@@ -235,50 +238,123 @@ class MultilevelGP(GaussianProcessRegressor):
                  copy_X_train=True, random_state=None):
         normalize_y = False
         super(MultilevelGP, self).__init__(
-            kernel, alpha,
-            optimizer, n_restarts_optimizer,
-            normalize_y, copy_X_train, random_state)
+            kernel=kernel, alpha=alpha,
+            optimizer=optimizer, n_restarts_optimizer=n_restarts_optimizer,
+            normalize_y=normalize_y, copy_X_train=copy_X_train,
+            random_state=random_state)
+        self._samples = None
+        self._values = None
 
     def set_data(self, samples, values):
         self.nmodels = len(samples)
         assert len(values) == self.nmodels
-        self.samples = samples
-        self.values = values
+        self._samples = samples
+        self._values = values
         assert samples[0].ndim == 2
-        self.values[0] = self.values[0].squeeze()
-        assert self.values[0].ndim == 1
+        assert self._values[0].ndim == 2
+        assert self._values[0].shape[1] == 1
         self.nvars = samples[0].shape[0]
         for ii in range(1, self.nmodels):
             assert samples[ii].ndim == 2
             assert samples[ii].shape[0] == self.nvars
-            self.values[ii] = self.values[ii].squeeze()
-            assert self.values[ii].ndim == 1
-            assert self.values[ii].shape[0] == samples[ii].shape[1]
+            assert self._values[ii].ndim == 2
+            assert self._values[ii].shape[1] == 1
+            assert self._values[ii].shape[0] == samples[ii].shape[1]
 
     def fit(self):
-        XX_train = np.hstack(self.samples).T
-        YY_train = np.hstack(self.values)
+        XX_train = np.hstack(self._samples).T
+        # YY_train = np.hstack(self._values)
+        YY_train = np.vstack(self._values)
         super().fit(XX_train, YY_train)
 
-    def predict(self, XX_test, return_std=False, return_cov=False):
+    def __call__(self, XX_test, return_std=False, return_cov=False):
         gp_kernel = get_gp_samples_kernel(self)
         return_code = gp_kernel.return_code
         gp_kernel.return_code = 'values'
-        predictions = super().predict(XX_test, return_std, return_cov)
+        result = super().predict(XX_test.T, return_std, return_cov)
         gp_kernel.return_code = return_code
-        return predictions
+        if type(result) != tuple:
+            return result
+        # when returning prior stdev covariance then must reshape vals
+        if result[0].ndim == 1:
+            result = [result[0][:, None]] + [r for r in result[1:]]
+            result = tuple(result)
+        return result
 
     def plot_1d(self, num_XX_test, bounds, axs, num_stdev=2, function=None,
                 gp_label=None, function_label=None, model_id=None):
         assert self.nvars == 1
         assert self.nvars == len(bounds)//2
         if model_id is None:
-            model_id = len(self.samples)-1
+            model_id = len(self._samples)-1
 
         # sklearn requires samples to (nsamples, nvars)
-        XX_train = self.samples[model_id].T
-        YY_train = self.values[model_id]
+        XX_train = self._samples[model_id].T
+        YY_train = self._values[model_id]
         plot_gp_1d(
             axs, self.predict, num_XX_test, bounds, XX_train, YY_train,
             num_stdev, function, gp_label=gp_label,
             function_label=function_label)
+
+
+class SequentialMultiLevelGP(MultilevelGP):
+    def __init__(self, kernels, alpha=1e-10,
+                 optimizer="fmin_l_bfgs_b", n_restarts_optimizer=0,
+                 copy_X_train=True, random_state=None):
+        self._raw_kernels = kernels
+        self._alpha = alpha
+        self._n_restarts_optimizer = n_restarts_optimizer
+        self._copy_X_train = copy_X_train
+        self._random_state = random_state
+
+        self._gps = None
+        self._rho = None
+
+    def fit(self, rho):
+        nmodels = len(self._samples)
+        self._rho = rho
+        self._kernels = [self._raw_kernels[0]]
+        for ii in range(1, nmodels):
+            self._kernels.append(
+                self._rho[ii-1]**2*self._kernels[ii-1]+self._raw_kernels[ii])
+        
+        self._gps = []
+        for ii in range(nmodels):
+            # length_scale=.1, length_scale_bounds='fixed')
+            # gp_kernel += WhiteKernel( # optimize gp noise
+            #    noise_level=noise_level,
+            #    noise_level_bounds=noise_level_bounds)
+            gp = GaussianProcess(
+                kernel=self._kernels[ii],
+                n_restarts_optimizer=self._n_restarts_optimizer,
+                alpha=self._alpha, random_state=self._random_state,
+                copy_X_train=self._copy_X_train)
+            if ii > 0:
+                shift = rho[ii-1]*self._gps[ii-1](self._samples[ii])
+                print(self._values[ii]-shift)
+            else:
+                shift = 0
+            gp.fit(self._samples[ii], self._values[ii]-shift)
+            self._gps.append(gp)
+
+    def __call__(self, samples, model_idx=None):
+        nmodels = len(self._gps)
+        means, variances = [], []
+        if model_idx is None:
+            model_idx = [nmodels-1]
+        ml_mean, ml_var = 0, 0
+        for ii in range(nmodels):
+            discrepancy, std = self._gps[ii](samples, return_std=True)
+            if ii > 0:
+                ml_mean = self._rho[ii-1]*ml_mean + discrepancy
+                ml_var = self._rho[ii-1]**2*ml_var + std**2
+            else:
+                ml_mean = discrepancy
+                ml_var = std**2
+            means.append(ml_mean)
+            variances.append(ml_var)
+        if len(model_idx) == 1:
+            return (means[model_idx[0]],
+                    np.sqrt(variances[model_idx[0]]).squeeze())
+        return ([means[idx] for idx in model_idx],
+                [np.sqrt(variances[idx]).squeeze() for idx in model_idx])

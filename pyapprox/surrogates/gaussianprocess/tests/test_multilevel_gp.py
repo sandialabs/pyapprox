@@ -2,14 +2,16 @@ import unittest
 import numpy as np
 from functools import partial
 
-from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF
 
-from pyapprox.surrogates.gaussianprocess.gradient_enhanced_gp import kernel_ff
-from pyapprox.surrogates.gaussianprocess.multilevel_gp import (
-    MultilevelGPKernel, MultilevelGP
+from pyapprox.surrogates.gaussianprocess.gaussian_process import (
+    GaussianProcess
 )
-
+from pyapprox.surrogates.gaussianprocess.gradient_enhanced_gp import (
+    kernel_ff, get_gp_samples_kernel)
+from pyapprox.surrogates.gaussianprocess.multilevel_gp import (
+    MultilevelGPKernel, MultilevelGP, SequentialMultiLevelGP,
+)
 
 class TestMultilevelGP(unittest.TestCase):
     def test_multilevel_kernel(self):
@@ -91,7 +93,6 @@ class TestMultilevelGP(unittest.TestCase):
             K[:, XX1.shape[0]:], p12**2*kernel1(XX1, XX2)+kernel2(XX1, XX2))
         print(K)
 
-    @unittest.skip(reason="capability not complete")
     def test_2_models(self):
         # TODO Add Test which builds gp on two models data separately when
         # data2 is subset data and hyperparameters are fixed.
@@ -113,76 +114,39 @@ class TestMultilevelGP(unittest.TestCase):
         # def f1(x): return (1*f2(x)+x.T**2)  # change 1* to some non unitary rho
         # def f2(x): return np.cos(2*np.pi*x).T
 
-        true_rho = 2
+        true_rho = [2]
 
         def f1(x):
             return ((x.T*6-2)**2)*np.sin((x.T*6-2)*2)
 
         def f2(x):
-            return true_rho*((x.T*6-2)**2)*np.sin((x.T*6-2)*2)+(x.T-0.5)*1. - 5
+            return true_rho[0]*f1(x)+(x.T-0.5)*1. - 5
 
         # def f2(x):
         #     return ((x.T*6-2)**2)*np.sin((x.T*6-2)*2)
         # def f1(x):
-        #     return 1/true_rho*((x.T*6-2)**2)*np.sin((x.T*6-2)*2)+(x.T-0.5)*1. - 5
+        #     return 1/true_rho[0]*((x.T*6-2)**2)*np.sin((x.T*6-2)*2)+(x.T-0.5)*1. - 5
 
-        x2 = np.array([[0.0], [0.4], [0.6], [1.0]]).T
+        # non-nested
+        # x2 = np.array([[0.0], [0.4], [0.6], [1.0]]).T
+        # x1 = np.array([[0.1], [0.2], [0.3], [0.5], [0.7],
+        #                [0.8], [0.9], [0.0], [0.4], [0.6], [1.0]]).T
+        # nested
         x1 = np.array([[0.1], [0.2], [0.3], [0.5], [0.7],
                        [0.8], [0.9], [0.0], [0.4], [0.6], [1.0]]).T
+        x2 = x1[:, [0, 2, 4, 6]]
         lb, ub = 0, 1
         # x1 = np.linspace(lb,ub,31)[np.newaxis,:]
         print(x1)
 
         samples = [x1, x2]
-        print(samples[0].shape)
         values = [f(x) for f, x in zip([f1, f2], samples)]
         nsamples_per_model = [s.shape[1] for s in samples]
 
-        rho = np.ones(nmodels-1)
-
         n_restarts_optimizer = 10
 
-        def efficient_recursive_multilevel_gp(samples, values):
-            nmodels = len(samples)
-            shift = 0
-            gps = []
-            for ii in range(nmodels):
-                gp_kernel = RBF(
-                    length_scale=.1, length_scale_bounds='fixed')  # (1e-1, 1e2))
-                # gp_kernel += WhiteKernel( # optimize gp noise
-                #    noise_level=noise_level,
-                #    noise_level_bounds=noise_level_bounds)
-                gp = GaussianProcessRegressor(
-                    kernel=gp_kernel,
-                    n_restarts_optimizer=n_restarts_optimizer, alpha=0.0)
-                gp.fit(samples[ii].T, values[ii]-shift)
-                gps.append(gp)
-                print('eml ii', gp.kernel_)
-                if ii < nmodels-1:
-                    shift = rho[ii]*gps[-1].predict(samples[ii+1].T)
-            return gps
-
-        def multilevel_predict(gps, xx):
-            nmodels = len(gps)
-            mean, std = gps[0].predict(xx.T, return_std=True)
-            ml_mean = mean
-            ml_var = std**2
-            prior_var = np.diag(gps[0].kernel_(xx.T))
-            # print(0,ml_var[0])
-            for ii in range(1, nmodels):
-                mean, std = gps[ii].predict(xx.T, return_std=True)
-                ml_mean = rho[ii-1]*ml_mean + mean
-                # print(gps[ii].kernel_.diag(xx.T))
-                # print(std[0]**2)
-                ml_var = rho[ii-1]**2*ml_var + std**2
-                # prior_var = gps[ii].kernel_.diag(xx.T)+rho[ii-1]**2*prior_var
-            print('prior var', prior_var)
-            return ml_mean.squeeze(), np.sqrt(ml_var).squeeze()
-
-        gps = efficient_recursive_multilevel_gp(samples, values)
-
-        # length_scale=[1]*(nmodels*(nvars+1)-1);
-        length_scale = [gp.kernel_.length_scale for gp in gps]+list(rho)
+        rho = np.ones(nmodels-1)
+        length_scale=[1]*(nmodels*(nvars))+list(rho);
         # print(length_scale)
         length_scale_bounds = [(1e-1, 10)] * \
             (nmodels*nvars)+[(1e-1, 10)]*(nmodels-1)
@@ -200,61 +164,48 @@ class TestMultilevelGP(unittest.TestCase):
         gp.set_data(samples, values)
         gp.fit()
 
-        print('ml', gp.kernel_)
-        print(gp.kernel_.length_scale[-1], true_rho)
-        assert np.allclose(gp.kernel_.length_scale[-1], true_rho)
+        sml_kernels = [
+            RBF(length_scale=get_gp_samples_kernel(gp).length_scale[
+                nvars*ii:nvars*(ii+1)],
+                length_scale_bounds=(1e-1, 10)) for ii in range(nmodels)]
+        print(sml_kernels)
+        print(get_gp_samples_kernel(gp).length_scale)
 
-        # fig,axs = plt.subplots(1,1); axs=[axs]
+        sml_gp = SequentialMultiLevelGP(sml_kernels)
+        sml_gp.set_data(samples, values)
+        sml_gp.fit(true_rho)
+
+        print('ml', )
+        print(get_gp_samples_kernel(gp).length_scale[-1], true_rho)
+        assert np.allclose(gp.kernel_.length_scale[-1], true_rho, atol=1e-3)
+        xx = np.linspace(lb, ub, 2**8+1)[np.newaxis, :]
+        # import matplotlib.pyplot as plt
+        # fig, axs = plt.subplots(1, 1)
+        # axs = [axs]
         # gp.plot_1d(2**8+1,[lb,ub],axs[0])
         # #xx = np.linspace(lb,ub,2**8+1)[np.newaxis,:]
-        # xx = np.linspace(lb,ub,2**8+1)[np.newaxis,:]
         # axs[0].plot(xx[0,:],f2(xx),'r')
         # #axs[0].plot(xx[0,:],f1(xx),'g--')
         # axs[0].plot(x1[0,:],f1(x1),'gs')
+        # plt.show()
 
         # print('when n1=17,n2=9 Warning answer seems to be off by np.sqrt(5) on most of the domain. This changes depending on number of ')
-        # emlgp_mean, emlgp_std = multilevel_predict(gps,xx)
-        # axs[0].plot(xx[0,:],emlgp_mean,'b-')
-        # # for ii in range(len(gps)):
-        # #     m,s=gp.predict(xx.T,return_std=True)
-        # #     axs[0].plot(xx[0,:],m+2*s,'y-')
-        # num_stdev=2
-        # gp_mean, gp_std = gp.predict(xx.T,return_std=True)
-        # gp_cov = gp.predict(xx.T,return_cov=True)[1]
-        # #print(gp_cov-gp_std**2)
-        # #assert np.allclose(gp_cov,gp_std**2,atol=1e-4)
-        # #assert np.allclose(emlgp_mean,gp_mean)
-        # #print(emlgp_mean,gp_mean)
-        # #print('s1',emlgp_std)
-        # #print('s2',gp_std)
-        # print(emlgp_std/gp_std)
-        # plt.plot(xx[0,:],2*gp_std+gp_mean,'-y')
-        # #assert np.allclose(emlgp_std,gp_std)
-        # axs[0].fill_between(
-        #    xx[0,:], emlgp_mean - num_stdev*emlgp_std,
-        #    emlgp_mean + num_stdev*emlgp_std,alpha=0.25, color='b')
-        # axs[0].plot(
-        #     xx[0,:], emlgp_mean + num_stdev*emlgp_std,color='b')
-        # # axs[0].plot(
-        # #     xx[0,:], emlgp_mean - num_stdev*emlgp_std,color='b')
-
-        # # length_scale = [1]
-        # # hfgp_kernel = RBF(
-        # #     length_scale=length_scale, length_scale_bounds=(1e-1, 1e2))
-        # # hfgp_kernel += WhiteKernel( # optimize gp noise
-        # #     noise_level=noise_level, noise_level_bounds=noise_level_bounds)
-        # # hfgp = GaussianProcessRegressor(
-        # #     kernel=hfgp_kernel,n_restarts_optimizer=n_restarts_optimizer,
-        # #     alpha=0.0)
-        # # hfgp.fit(samples[-1].T,values[-1])
-        # # print('hf',hfgp.kernel_)
-        # # hfgp_mean, hfgp_std = hfgp.predict(xx.T,return_std=True)
-        # # axs[0].plot(xx[0,:],hfgp_mean,'y-.')
-
+        sml_gp_mean, sml_gp_std = sml_gp(xx)
+        gp_mean, gp_std = gp(xx, return_std=True)
+        # axs[0].plot(samples[1][0, :], values[1], 'ko')
+        # axs[0].plot(xx[0, :], f2(xx), 'k-', label='f2')
+        # axs[0].plot(xx[0, :], sml_gp_mean, 'b--')
+        # axs[0].plot(xx[0, :], gp_mean, 'r:')
+        # plt.legend()
         # plt.show()
+        gp_cov = gp(xx, return_cov=True)[1]
+        # assert np.allclose(gp_cov, gp_std**2, atol=1e-4)
+        print(np.abs(sml_gp_mean - gp_mean).max())
+        assert np.allclose(sml_gp_mean, gp_mean, atol=5e-3)
 
 
 if __name__ == "__main__":
     multilevel_gp_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestMultilevelGP)
     unittest.TextTestRunner(verbosity=2).run(multilevel_gp_test_suite)
+    
