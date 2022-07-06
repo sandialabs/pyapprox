@@ -846,7 +846,7 @@ class TestManualPDE(unittest.TestCase):
         else:
             init_guess = (init_guess+torch.randn(init_guess.shape)*5e-3)
 
-        sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=100)
+        sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=10)
         split_sols = mesh.split_quantities(sol)
         for exact_v, v in zip(exact_vel_vals, split_sols):
             # print(exact_v[:, 0]-v[:, 0])

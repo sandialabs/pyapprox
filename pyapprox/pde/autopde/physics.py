@@ -100,14 +100,14 @@ class IncompressibleNavierStokes(AbstractSpectralCollocationPhysics):
         # assumes x and y velocity meshes are the same
         for dd in range(self.mesh.nphys_vars):
             residual[dd] = (
-                -self.mesh._meshes[dd].laplace(split_sols[dd]) +
+                self.mesh._meshes[dd].laplace(split_sols[dd]) -
                 self.mesh._meshes[-1].partial_deriv(split_sols[-1], dd))
-            residual[dd] -= vel_forc_vals[:, dd]
+            residual[dd] += vel_forc_vals[:, dd]
             if self._navier_stokes:
-                residual[dd] += self.mesh._meshes[0].dot(
+                residual[dd] -= self.mesh._meshes[0].dot(
                     vel_sols, self.mesh._meshes[dd].grad(split_sols[dd]))
         residual[-1] = (
-            self.mesh._meshes[-1].div(vel_sols) -
+            -self.mesh._meshes[-1].div(vel_sols) +
             self._pres_forc_fun(self.mesh._meshes[-1].mesh_pts)[:, 0])
         residual[-1][self._unique_pres_data[0]] = (
             split_sols[-1][self._unique_pres_data[0]]-self._unique_pres_data[1])
@@ -126,10 +126,10 @@ class IncompressibleNavierStokes(AbstractSpectralCollocationPhysics):
         for dd in range(self.mesh.nphys_vars):
             for ii in range(self.mesh.nphys_vars):
                 dmat = vel_dmats[ii] # self.mesh._meshes[dd]._dmat(ii)
-                jac[dd][dd] += -multi_dot((dmat, dmat))
+                jac[dd][dd] += multi_dot((dmat, dmat))
                 if dd != ii:
                     jac[dd][ii] = torch.zeros_like(dmat)
-            jac[dd][-1] = self.mesh._meshes[-1]._dmat(split_sols[-1], dd)
+            jac[dd][-1] = -self.mesh._meshes[-1]._dmat(split_sols[-1], dd)
             if self._navier_stokes:
                 # 1D
                 # residual[0] += v[0]*(D[0]v[0])
@@ -143,14 +143,14 @@ class IncompressibleNavierStokes(AbstractSpectralCollocationPhysics):
                 # d residual[1] /dv[1] = diag(v[0])D[0] + diag(D[1]v[1]) + diag(v[1])D[1]
                 for ii in range(self.mesh.nphys_vars):
                     if ii != dd:
-                        jac[dd][ii] += torch.diag(
+                        jac[dd][ii] -= torch.diag(
                             multi_dot((vel_dmats[ii], split_sols[dd])))
-                    jac[dd][dd] += split_sols[ii][:, None]*vel_dmats[ii]
-                jac[dd][dd] += torch.diag(
+                    jac[dd][dd] -= split_sols[ii][:, None]*vel_dmats[ii]
+                jac[dd][dd] -= torch.diag(
                      multi_dot((vel_dmats[dd], split_sols[dd])))
             jac[dd] = torch.hstack(jac[dd])
         for dd in range(self.mesh.nphys_vars):
-            jac[-1][dd] = self.mesh._meshes[-1]._dmat(split_sols[dd], dd)
+            jac[-1][dd] = -self.mesh._meshes[-1]._dmat(split_sols[dd], dd)
         jac[-1][-1] = torch.zeros(
             (self.mesh._meshes[-1].nunknowns, self.mesh._meshes[-1].nunknowns))
         jac[-1] = torch.hstack(jac[-1])
@@ -490,11 +490,11 @@ class ShallowShelfVelocities(AbstractSpectralCollocationPhysics):
         vecs = self._vector_components(dudx_ij)
         residual = [0 for ii in range(self.mesh.nphys_vars)]
         for ii in range(self.mesh.nphys_vars):
-            residual[ii] = -div(C[:, None]*vecs[ii])
-            residual[ii] += self._beta_vals[:, 0]*split_sols[ii]
-            residual[ii] += self._rho*self._g*depth_vals[:, 0]*pderiv(
+            residual[ii] = div(C[:, None]*vecs[ii])
+            residual[ii] -= self._beta_vals[:, 0]*split_sols[ii]
+            residual[ii] -= self._rho*self._g*depth_vals[:, 0]*pderiv(
                 self._bed_vals[:, 0]+depth_vals[:, 0], ii)
-            residual[ii] -= self._forc_vals[:, ii]
+            residual[ii] += self._forc_vals[:, ii]
         if self._auto_jac is True:
             return torch.cat(residual), None
         return torch.cat(residual), self._raw_jacobian_nD(
@@ -516,10 +516,10 @@ class ShallowShelfVelocities(AbstractSpectralCollocationPhysics):
             for jj in range(self.mesh.nphys_vars):
                 # loop over phys_vars to compute divergence
                 for dd in range(self.mesh.nphys_vars):
-                    jac[ii][jj] += -multi_dot((dmats[dd], (
+                    jac[ii][jj] += multi_dot((dmats[dd], (
                         (2*depth_vals[:, :1]*vecs[ii][:, dd:dd+1]*visc_jac[jj]) +
                         ((2*visc*depth_vals[:, 0])[:, None])*vecs_jac[ii][jj][dd])))
-            jac[ii][ii] += torch.diag(self._beta_vals[:, 0])
+            jac[ii][ii] -= torch.diag(self._beta_vals[:, 0])
         return torch.vstack([torch.hstack(j) for j in jac])
 
     def _raw_residual(self, sol):
@@ -566,8 +566,8 @@ class ShallowShelf(ShallowShelfVelocities):
         for ii in range(self.mesh.nphys_vars):
             dvdh_jac.append(0)
             for dd in range(self.mesh.nphys_vars):
-                dvdh_jac[ii] -= dmats[dd]*((2*visc*vecs[ii][:, dd])[None, :])
-            dvdh_jac[ii] += (
+                dvdh_jac[ii] += dmats[dd]*((2*visc*vecs[ii][:, dd])[None, :])
+            dvdh_jac[ii] -= (
                 (self._rho*self._g*depth_vals)[:, None]*dmats[ii] +
                 self._rho*self._g*torch.diag(pderiv(
                     self._bed_vals[:, 0]+depth_vals, ii)))
