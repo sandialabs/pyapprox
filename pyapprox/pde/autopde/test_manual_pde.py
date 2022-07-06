@@ -221,7 +221,6 @@ class TestManualPDE(unittest.TestCase):
         for test_case in test_cases:
             self._check_advection_diffusion_reaction(*test_case)
 
-
     def _check_transient_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_string,
             diff_string, vel_strings, react_funs, bndry_types,
@@ -462,7 +461,7 @@ class TestManualPDE(unittest.TestCase):
         # print(j_auto)
         # print(j_man)
         assert np.allclose(j_auto, j_man)
-        
+
         assert np.allclose(
             solver.residual._raw_residual(exact_sol[:, 0])[0], 0, atol=2e-8)
         assert np.allclose(
@@ -802,7 +801,7 @@ class TestManualPDE(unittest.TestCase):
             init_guess = torch.randn(init_guess.shape, dtype=torch.double)*0
         else:
             init_guess = (init_guess+torch.randn(init_guess.shape)*5e-3)
-        
+
         np.set_printoptions(precision=2, suppress=True, threshold=100000, linewidth=1000)
         dudx_ij = solver.residual._derivs(mesh.split_quantities(init_guess[:, 0]))
         j_visc_man = torch.hstack(solver.residual._viscosity_jac(dudx_ij))
@@ -814,19 +813,26 @@ class TestManualPDE(unittest.TestCase):
         # print(j_visc_auto)
         assert np.allclose(j_visc_auto, j_visc_man.numpy())
 
-        j_man = solver.residual._vector_components_jac(dudx_ij)[0][0]
-        j_auto = torch.autograd.functional.jacobian(
-            lambda s: solver.residual._vector_components(solver.residual._derivs(mesh.split_quantities(s)))[0][:, 0],
-            init_guess[:, 0].clone().requires_grad_(True), strict=True).numpy()
-        assert np.allclose(j_man, j_auto[:, :j_man.shape[1]])
+        j_man = solver.residual._vector_components_jac(dudx_ij)
+        for ii in range(nphys_vars):
+            for jj in range(nphys_vars):
+                j_auto = torch.autograd.functional.jacobian(
+                    lambda s: solver.residual._vector_components(
+                        solver.residual._derivs(
+                            mesh.split_quantities(s)))[ii][:, jj],
+                    init_guess[:, 0].clone().requires_grad_(True),
+                    strict=True).numpy()
+                for dd in range(nphys_vars):
+                    cnt = j_man[ii][dd][jj].shape[1]
+                    assert np.allclose(j_man[ii][dd][jj].numpy(),
+                                       j_auto[:, dd*cnt:(dd+1)*cnt])
 
         j_man = solver.residual._raw_residual(init_guess.squeeze())[1]
         j_auto = torch.autograd.functional.jacobian(
             lambda s: solver.residual._raw_residual(s)[0],
             init_guess[:, 0].clone().requires_grad_(True), strict=True).numpy()
-        print((j_man-j_auto).numpy()[:16, :16])
         assert np.allclose(j_man, j_auto)
-        
+
         sol = solver.solve(init_guess, tol=1e-7, verbosity=2, maxiters=100)
         split_sols = mesh.split_quantities(sol)
         for exact_v, v in zip(exact_vel_vals, split_sols):
@@ -849,13 +855,14 @@ class TestManualPDE(unittest.TestCase):
              ["D", "D"], True],
             [[0, 1], [9], ["(x+2)**2"], "1+x**2", "-x**2", "1",
              ["D", "D"], False],
-            [[0, 1, 0, 1], [3, 3], ["(x+1)**2", "(y+1)*(x+1)"], "1+x+y", # [10, 10]
+            [[0, 1, 0, 1], [10, 10],
+             ["(x+1)**2*(y+1)", "(y+1)*(x+1)"], "1+x+y",
              "1+x+y**2", "1", ["D", "D", "D", "D"], True],
             [[0, 2, 0, 2], [15, 15], ["(x+1)**2", "(y+1)**2"], "1+x+y",
              "0-x-y", "1", ["D", "D", "D", "D"], False]
         ]
         # may need to setup backtracking for Newtons method
-        for test_case in test_cases[2:3]:
+        for test_case in test_cases[::2]:
             self._check_shallow_shelf_solver_mms(*test_case)
 
     def test_first_order_stokes_ice_mms(self):

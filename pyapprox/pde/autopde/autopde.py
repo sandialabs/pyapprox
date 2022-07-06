@@ -2,8 +2,7 @@ import torch
 from abc import ABC, abstractmethod
 import numpy as np
 from functools import partial
-from pyapprox.pde.autopde.util import newton_solve
-from pyapprox.pde.autopde.time_integration import ImplicitRungeKutta
+from pyapprox.pde.autopde.mesh import VectorMesh
 
 
 class AbstractSpectralCollocationResidual(ABC):
