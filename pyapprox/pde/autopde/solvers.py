@@ -1,4 +1,5 @@
 import torch
+import copy
 from abc import ABC, abstractmethod
 from functools import partial
 import numpy as np
@@ -103,3 +104,32 @@ class TransientPDE():
         sols = self.time_integrator.integrate(
             init_sol, init_time, final_time, verbosity, newton_opts)
         return sols
+
+
+class SteadyStateAdjointPDE(SteadyStatePDE):
+    def __init__(self, residual, functional):
+        super().__init__(residual)
+        self._functional = functional
+
+    def solve_adjoint(self, forward_sol, parameter_vals, **newton_kwargs):
+        # if not parameter_vals.requires_grad:
+        #     raise ValueError("parameter_vals must have requires_grad=True")
+        res, jac = self.residual._raw_residual(forward_sol)
+        if jac is None:
+            torch.autograd.functional.jacobian(
+                lambda s: self.residual._raw_residual(s)[0], forward_sol,
+                strict=True, create_graph=True)
+        adj_bndry_conds = copy.deepcopy(self.residual._bndry_conds)
+        for bndry_cond in adj_bndry_conds:
+            # for now only support dirichlet boundary conds
+            assert bndry_cond[1] == "D"
+            bndry_cond[0] = lambda xx: np.zeros((xx.shape[1], 1))
+        jac_adjoint = self.residual.mesh._apply_boundary_conditions(
+            adj_bndry_conds, res, jac.T, forward_sol)[1]
+        fwd_sol_copy = torch.clone(forward_sol).requires_grad_(True)
+        functional_vals = self._functional(
+            fwd_sol_copy, parameter_vals)
+        functional_vals.backward()
+        dqdu = fwd_sol_copy.grad.detach()
+        adjoint_sol = torch.linalg.solve(jac_adjoint, -dqdu)
+        return adjoint_sol

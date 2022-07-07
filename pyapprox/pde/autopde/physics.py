@@ -62,7 +62,13 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         self._funs = [
             self._diff_fun, self._vel_fun, self._react_fun, self._forc_fun]
 
-        self._raw_jacobian = True
+        self._auto_jac = False
+
+    # def _parameterized_raw_residual(self, sol, params):
+    #     ndof = sol.shape[0]
+    #     diff_vals = params[:ndof]
+    #     forc_vals = params[ndof:2*ndof]
+    #     vel_vals = params[2*ndof:].reshape((ndof, 2))
 
     def _raw_residual(self, sol):
         diff_vals = self._diff_fun(self.mesh.mesh_pts)

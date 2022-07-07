@@ -19,7 +19,9 @@ from pyapprox.pde.autopde.mesh import (
     TransformedInteriorCollocationMesh, VectorMesh
     )
 from pyapprox.pde.autopde.solvers import (
-    Function, TransientFunction, SteadyStatePDE, TransientPDE)
+    Function, TransientFunction, SteadyStatePDE, TransientPDE,
+    SteadyStateAdjointPDE
+)
 from pyapprox.pde.autopde.physics import (
     AdvectionDiffusionReaction, IncompressibleNavierStokes,
     LinearIncompressibleStokes, ShallowIce, EulerBernoulliBeam,
@@ -157,7 +159,6 @@ class TestManualPDE(unittest.TestCase):
         solver = SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
             react_funs[1]))
-        solver.residual._auto_jac = True
 
         assert np.allclose(
             solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
@@ -169,6 +170,22 @@ class TestManualPDE(unittest.TestCase):
             sol_fun(mesh.mesh_pts)-sol))
         assert np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol) < 1e-9
+
+        functional = lambda sol, params: sol.sum()
+        adj_solver = SteadyStateAdjointPDE(AdvectionDiffusionReaction(
+            mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
+            react_funs[1]), functional)
+        adj_solver.solve_adjoint(torch.tensor(sol[:, 0]), None)
+
+        # def parameterized_residual(residual, forward_sol, params):
+        #     residual.diff_fun = mesh.get_lagr()
+        #     residual._residual(forward_sol)
+            
+        # param_vals = diff_fun(mesh.mesh_pts).requires_grad_(True)
+        # dFdp = torch.autograd.functional.jacobian(
+        #         lambda p: parameterized_residual(p)[0], param_vals,
+        #         strict=True, create_graph=True)
+        # grad = torch.linalg.multi_dot((adj_sol.T, dFdp)
 
     def test_advection_diffusion_reaction(self):
         s0, depth, L, alpha = 2, .1, 1, 1e-1
@@ -218,7 +235,7 @@ class TestManualPDE(unittest.TestCase):
              ["D", "D", "D", "N"], ["C", "C"],
              mesh_transforms]
         ]
-        for test_case in test_cases:
+        for test_case in test_cases[:1]:
             self._check_advection_diffusion_reaction(*test_case)
 
     def _check_transient_advection_diffusion_reaction(
@@ -736,7 +753,7 @@ class TestManualPDE(unittest.TestCase):
         # newton solve will diverge
 
         test_cases = [
-            [[0, 1], [5], ["-x**2*(t+1)"], "(1+x)*(t+1)**2", "0", ["D", "D"],
+            [[0, 1], [5], ["-x**2*(t+1)"], "(1+x)*(t+1)", "0", ["D", "D"],
              "im_crank2"],
             [[0, 1, 0, 1], [5, 5], ["-x**2*(t+1)", "-y**2*(t+1)"],
              "(1+x+y)*(t+1)", "0",

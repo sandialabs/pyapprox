@@ -250,8 +250,6 @@ class CanonicalCollocationMesh():
         return self._interpolate(values, eval_samples)
 
     def _interpolate(self, values, canonical_eval_samples):
-        if type(values) != np.ndarray:
-            values = values.detach().numpy()
         if np.all([t == "C" for t in self._basis_types]):
             return self._cheby_interpolate(
                 self._canonical_mesh_pts_1d,
@@ -261,16 +259,33 @@ class CanonicalCollocationMesh():
             return self._fourier_interpolate(values, canonical_eval_samples)
         raise ValueError("Mixed basis not currently supported")
 
+    def _get_lagrange_basis_mat(self, canonical_abscissa_1d,
+                                canonical_eval_samples):
+        if self.nphys_vars == 1:
+            return torch.as_tensor(lagrange_polynomial_derivative_matrix_1d(
+                canonical_eval_samples[0, :], canonical_abscissa_1d[0])[1])
+
+        return torch.as_tensor(lagrange_polynomial_derivative_matrix_2d(
+            canonical_eval_samples, canonical_abscissa_1d)[1])
+
     def _cheby_interpolate(self, canonical_abscissa_1d,
                            canonical_barycentric_weights_1d, values,
                            canonical_eval_samples):
-        interp_vals = multivariate_barycentric_lagrange_interpolation(
-            canonical_eval_samples, canonical_abscissa_1d,
-            canonical_barycentric_weights_1d, values,
-            np.arange(self.nphys_vars))
+        # if type(values) != np.ndarray:
+        #     values = values.detach().numpy()
+        # interp_vals = multivariate_barycentric_lagrange_interpolation(
+        #     canonical_eval_samples, canonical_abscissa_1d,
+        #     canonical_barycentric_weights_1d, values,
+        #     np.arange(self.nphys_vars))
+        values = torch.as_tensor(values)
+        basis_mat = self._get_lagrange_basis_mat(
+            canonical_abscissa_1d, canonical_eval_samples)
+        interp_vals = torch.linalg.multi_dot((basis_mat, values))
         return interp_vals
 
     def _fourier_interpolate(self, values, canonical_eval_samples):
+        if type(values) != np.ndarray:
+            values = values.detach().numpy()
         basis_vals = [
             fourier_basis(o, s)
             for o, s in zip(self._orders, canonical_eval_samples)]
@@ -331,7 +346,8 @@ class CanonicalCollocationMesh():
 
     def integrate(self, mesh_values):
         xquad, wquad = self._get_quadrature_rule()
-        return self.interpolate(mesh_values, xquad)[:, 0].dot(wquad)
+        return self.interpolate(mesh_values, xquad)[:, 0].dot(
+            torch.tensor(wquad))
 
     def laplace(self, quantity):
         return laplace(self._partial_derivs, quantity)
@@ -701,7 +717,7 @@ class VectorMesh():
     def plot(self, sol_vals, nplot_pts_1d=50, axs=None, **kwargs):
         if axs is None:
             fig, axs = plt.subplots(
-                1, self.nphys_vars+1, figsize=(8*(self.nphys_vars+1), 6))
+                1, self.nphys_vars+1, figsize=(8*(len(sol_vals)), 6))
         if self._meshes[0].nphys_vars == 1:
             xx = np.linspace(
                 *self._meshes[0]._domain_bounds, nplot_pts_1d)[None, :]
@@ -715,7 +731,7 @@ class VectorMesh():
             self._meshes[0]._domain_bounds, nplot_pts_1d)
         Z = self.interpolate(sol_vals, pts)
         objs = []
-        for ii in range(3):
+        for ii in range(len(Z)):
             obj = axs[ii].contourf(
                 X, Y, Z[ii].reshape(X.shape),
                 levels=np.linspace(Z[ii].min(), Z[ii].max(), 20))
