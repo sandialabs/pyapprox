@@ -156,20 +156,20 @@ class TestManualPDE(unittest.TestCase):
             mesh = TransformedCollocationMesh(
                 orders, *mesh_transforms)
 
-        # solver = SteadyStatePDE(AdvectionDiffusionReaction(
-        #     mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
-        #     react_funs[1]))
+        solver = SteadyStatePDE(AdvectionDiffusionReaction(
+            mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
+            react_funs[1]))
 
-        # assert np.allclose(
-        #     solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
-        # assert np.allclose(
-        #     solver.residual._residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
-        # sol = solver.solve(tol=1e-8)
+        assert np.allclose(
+            solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
+        assert np.allclose(
+            solver.residual._residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
+        sol = solver.solve(tol=1e-8)[:, None]
 
-        # print(np.linalg.norm(
-        #     sol_fun(mesh.mesh_pts)-sol))
-        # assert np.linalg.norm(
-        #     sol_fun(mesh.mesh_pts)-sol) < 1e-9
+        print(np.linalg.norm(
+            sol_fun(mesh.mesh_pts)-sol))
+        assert np.linalg.norm(
+            sol_fun(mesh.mesh_pts)-sol) < 1e-9
 
         for bndry_cond in bndry_conds:
             # adjoint gradient currently only works for all dirichlet boundaries
@@ -181,37 +181,50 @@ class TestManualPDE(unittest.TestCase):
         def functional(sol, params):
             # this qoi does not make any sense but tests the code adequately
             return sol.sum()#+params[0]
-        def forc_fun(x): return torch.zeros((x.shape[1], 1)) # hack
-        param_vals = diff_fun(mesh.mesh_pts)[:, 0]
-        assert param_vals.ndim == 1
-        diff_fun = partial(
-            mesh.interpolate, param_vals)
+        # param_vals = diff_fun(mesh.mesh_pts)[:, 0]
+        param_vals = diff_fun(mesh.mesh_pts)[0:1, 0]
         adj_solver = SteadyStateAdjointPDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
             react_funs[1]), functional)
+        
         def set_param_values(residual, param_vals):
-            assert param_vals.ndim == 1
+            # assert param_vals.ndim == 1
+            mesh_vals = torch.tile(param_vals, (mesh.mesh_pts.shape[1], ))
             residual._diff_fun = partial(
-                residual.mesh.interpolate, param_vals)
+                residual.mesh.interpolate, mesh_vals)            
         grad = adj_solver.compute_gradient(
             set_param_values, param_vals, tol=1e-8)
         # assert False
-        from pyapprox.util.utilities import approx_fprime, approx_jacobian, check_gradients
+        from pyapprox.util.utilities import (
+            approx_fprime, approx_jacobian, check_gradients)
         def fun(params):
-            set_param_values(adj_solver.residual, params[:, 0])
+            set_param_values(
+                adj_solver.residual, torch.as_tensor(params[:, 0]))
             # newton tol must be smaller than finite difference step size
             fd_sol = adj_solver.solve(tol=1e-8, verbosity=0)
             qoi = np.asarray([functional(fd_sol, params[:, 0])])
             return qoi
-        fd_grad = approx_fprime(param_vals.detach().numpy()[:, None], fun)
-        print(grad.numpy())
-        print(fd_grad.T)
-        assert np.allclose(grad.numpy().T, fd_grad, atol=1e-6)
 
-        # errors = check_gradients(
-        #     fun, lambda p: adj_solver.compute_gradient(
-        #         torch.as_tensor(sol[:, 0]), set_param_values, torch.as_tensor(p)[:, 0]).numpy(),
-        #     param_vals.numpy()[:, None])
+        # pp = torch.clone(param_vals).requires_grad_(True)
+        # set_param_values(adj_solver.residual, pp)
+        # sol = adj_solver.solve()
+        # qoi = functional(sol, pp)
+        # qoi.backward()
+        # grad_pure_ad = pp.grad
+        # print(grad_pure_ad.numpy())
+        
+        # fd_grad = approx_fprime(param_vals.detach().numpy()[:, None], fun)
+        # print(grad.numpy())
+        # print(fd_grad.T)
+        # assert np.allclose(grad.numpy().T, fd_grad, atol=1e-6)
+
+        errors = check_gradients(
+            fun, lambda p: adj_solver.compute_gradient(
+                set_param_values, torch.as_tensor(p)[:, 0]).numpy(),
+            param_vals.numpy()[:, None], plot=False,
+            fd_eps=3*np.logspace(-13, 0, 14)[::-1])
+        print(errors.min()/errors.max())
+        assert errors.min()/errors.max() < 1e-6
 
     def test_advection_diffusion_reaction(self):
         s0, depth, L, alpha = 2, .1, 1, 1e-1
@@ -227,7 +240,7 @@ class TestManualPDE(unittest.TestCase):
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "D"], ["C"]],
-            [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
+            [[0, 1], [4], "0.5*(x-3)*x", "1", ["1"],
              # [lambda sol: sol**2, lambda sol: torch.diag(2*sol[:, 0])],
              [lambda sol: 1*sol, lambda sol: 1*torch.eye(sol.shape[0])],
              ["D", "D"], ["C"]],
@@ -266,8 +279,11 @@ class TestManualPDE(unittest.TestCase):
              ["D", "D", "D", "N"], ["C", "C"],
              mesh_transforms]
         ]
-        for test_case in test_cases[2:3]:
+        ii = 0
+        for test_case in test_cases:
+            np.random.seed(2)  # controls direction of finite difference
             self._check_advection_diffusion_reaction(*test_case)
+            ii += 1
 
     def _check_transient_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_string,

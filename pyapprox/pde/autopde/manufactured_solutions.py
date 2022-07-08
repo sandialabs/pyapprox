@@ -96,6 +96,7 @@ def setup_advection_diffusion_reaction_manufactured_solution(
     print("solu", sol_expr)
     print("diff", diff_expr)
     print("forc", forc_expr)
+    print("vel", vel_exprs)
 
     return sol_fun, diff_fun, vel_fun, forc_fun, flux_funs
 

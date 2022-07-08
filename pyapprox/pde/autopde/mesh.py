@@ -430,7 +430,8 @@ class CanonicalCollocationMesh():
                     residual[idx] += bndry_cond[2]*sol[idx]
         return residual
 
-    def _apply_boundary_conditions_to_residual(self, bndry_conds, residual, sol):
+    def _apply_boundary_conditions_to_residual(
+            self, bndry_conds, residual, sol):
         residual = self._apply_dirichlet_boundary_conditions_to_residual(
             bndry_conds, residual, sol)
         residual = (
@@ -524,7 +525,8 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
         self._transform_inv = transform_inv
         self._transform_inv_derivs = transform_inv_derivs
         if len(trans_bndry_normals) != 2*self.nphys_vars:
-            raise ValueError("Must provide normals for each transformed boundary")
+            raise ValueError(
+                "Must provide normals for each transformed boundary")
         self._trans_bndry_normals = trans_bndry_normals
 
         self.mesh_pts = self._map_samples_from_canonical_domain(

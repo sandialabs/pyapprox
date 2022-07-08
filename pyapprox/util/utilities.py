@@ -916,7 +916,7 @@ def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps)):
 
 
 def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
-                    direction=None, jacp=None):
+                    direction=None, jacp=None, fd_eps=None):
     """
     Compare a user specified jacobian with the jacobian computed with finite
     difference with multiple step sizes.
@@ -960,6 +960,10 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
         Direction to which Jacobian is applied. Default is None in which
         case random direction is chosen.
 
+    fd_eps : np.ndarray (nstep_sizes)
+        The finite difference step sizes used to compute the gradient. 
+        If None then fd_eps=np.logspace(-13, 0, 14)[::-1]
+
     Returns
     -------
     errors : np.ndarray (14, nqoi)
@@ -990,7 +994,8 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
     else:
         raise Exception
 
-    fd_eps = np.logspace(-13, 0, 14)[::-1]
+    if fd_eps is None:
+        fd_eps = np.logspace(-13, 0, 14)[::-1]
     errors = []
     row_format = "{:<12} {:<25} {:<25} {:<25}"
     if disp:
@@ -1003,6 +1008,7 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
             print(row_format.format(
                 "Eps", "norm(jv)", "norm(jv_fd)",
                 "Abs. Errors"))
+    row_format = "{:<12.2e} {:<25} {:<25} {:<25}"
     for ii in range(fd_eps.shape[0]):
         zz_perturbed = zz.copy()+fd_eps[ii]*direction
         perturbed_function_val = fun(zz_perturbed)

@@ -81,7 +81,7 @@ class SteadyStatePDE():
             sol = init_guess.clone().detach().requires_grad_(auto_jac)
         sol = newton_solve(
             self.residual._residual, sol, **newton_kwargs)
-        return sol.detach()
+        return sol
 
 
 class TransientPDE():
@@ -111,26 +111,34 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
         super().__init__(residual)
         self._functional = functional
 
-    def solve_adjoint(self, forward_sol, param_vals, **newton_kwargs):
-        res, jac = self.residual._raw_residual(forward_sol)
+    def solve_adjoint(self, fwd_sol, param_vals, **newton_kwargs):
+        jac = self.residual._raw_residual(fwd_sol)[1]
         if jac is None:
-            torch.autograd.functional.jacobian(
-                lambda s: self.residual._raw_residual(s)[0], forward_sol,
-                strict=True, create_graph=True)
+            fwd_sol.requires_grad_(True)
+            assert fwd_sol.requires_grad
+            jac = torch.autograd.functional.jacobian(
+                lambda s: self.residual._raw_residual(s)[0], fwd_sol,
+                strict=True)
+            fwd_sol.requires_grad_(False)
         adj_bndry_conds = copy.deepcopy(self.residual._bndry_conds)
         for bndry_cond in adj_bndry_conds:
             # for now only support dirichlet boundary conds
             assert bndry_cond[1] == "D"
             # bndry_cond[1] = "D"
             bndry_cond[0] = lambda xx: np.zeros((xx.shape[1], 1))
-        jac_adjoint = self.residual.mesh._apply_boundary_conditions(
-            adj_bndry_conds, res, jac.T, forward_sol)[1]
-        fwd_sol_copy = torch.clone(forward_sol).requires_grad_(True)
-        functional_vals = self._functional(fwd_sol_copy, param_vals)
+        fwd_sol_copy = torch.clone(fwd_sol).requires_grad_(True)
+        param_vals_copy = torch.clone(param_vals).requires_grad_(True)
+        functional_vals = self._functional(fwd_sol_copy, param_vals_copy)
         functional_vals.backward()
         dqdu = fwd_sol_copy.grad
-        # print(dqdu)
-        adjoint_sol = torch.linalg.solve(jac_adjoint, -dqdu)
+        # need to pass in 0 instead of fwd_sol to apply boundary conditions
+        # because we are not updating a residual rhs=sol-bndry_vals
+        # but rather just want rhs=bndry_vals.
+        # Techincally passing in we should be passing in negative bndry_vals
+        # but since for dirichlet boundaries bndry_vals = 0 this is fine
+        rhs, jac_adjoint = self.residual.mesh._apply_boundary_conditions(
+            adj_bndry_conds, -dqdu, jac.T, fwd_sol*0)
+        adjoint_sol = torch.linalg.solve(jac_adjoint, rhs)
         return adjoint_sol
 
     def _parameterized_raw_residual(
@@ -140,17 +148,15 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
 
     def compute_gradient(self, set_param_values, param_vals,
                          **newton_kwargs):
-        set_param_values(self.residual, param_vals)
-        sol = self.solve(**newton_kwargs)
-        if not torch.is_tensor(sol) or not sol.ndim == 1:
-            raise ValueError("sol must be a 1D tensor")
-        adj_sol = self.solve_adjoint(sol, param_vals)
+        # use etachso that fwd_sol is not part of AD-graph
+        set_param_values(self.residual, param_vals.detach())
+        fwd_sol = self.solve(**newton_kwargs)
+        adj_sol = self.solve_adjoint(fwd_sol, param_vals.detach())
         dFdp = torch.autograd.functional.jacobian(
-            partial(self._parameterized_raw_residual, sol, set_param_values),
-            param_vals, strict=True)
-        # print(dFdp)
+            partial(self._parameterized_raw_residual, fwd_sol,
+                    set_param_values), param_vals, strict=True)
         param_vals_copy = torch.clone(param_vals).requires_grad_(True)
-        fwd_sol_copy = torch.clone(sol).requires_grad_(True)
+        fwd_sol_copy = torch.clone(fwd_sol).requires_grad_(True)
         functional_vals = self._functional(fwd_sol_copy, param_vals_copy)
         functional_vals.backward()
         dqdp = param_vals_copy.grad
