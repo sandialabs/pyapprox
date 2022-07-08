@@ -30,7 +30,6 @@ class TestTimeIntegration(unittest.TestCase):
         deltat = 0.1
         time = 0
         sol = torch.tensor(exact_sol(0), dtype=torch.double)
-        sols = [sol.detach().numpy()]
         ex_butcher_tableau = create_butcher_tableau(
             tableau_name, return_tensors=False)
         im_butcher_tableau = create_butcher_tableau(

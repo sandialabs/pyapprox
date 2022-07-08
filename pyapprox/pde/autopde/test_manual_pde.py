@@ -20,7 +20,7 @@ from pyapprox.pde.autopde.mesh import (
     )
 from pyapprox.pde.autopde.solvers import (
     Function, TransientFunction, SteadyStatePDE, TransientPDE,
-    SteadyStateAdjointPDE
+    SteadyStateAdjointPDE, TransientAdjointPDE
 )
 from pyapprox.pde.autopde.physics import (
     AdvectionDiffusionReaction, IncompressibleNavierStokes,
@@ -175,8 +175,8 @@ class TestManualPDE(unittest.TestCase):
             # adjoint gradient currently only works for all dirichlet boundaries
             if bndry_cond[1] != "D":
                 return
-    
-            
+
+
         print("#######")
         def functional(sol, params):
             # this qoi does not make any sense but tests the code adequately
@@ -186,12 +186,12 @@ class TestManualPDE(unittest.TestCase):
         adj_solver = SteadyStateAdjointPDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
             react_funs[1]), functional)
-        
+
         def set_param_values(residual, param_vals):
             # assert param_vals.ndim == 1
             mesh_vals = torch.tile(param_vals, (mesh.mesh_pts.shape[1], ))
             residual._diff_fun = partial(
-                residual.mesh.interpolate, mesh_vals)            
+                residual.mesh.interpolate, mesh_vals)
         grad = adj_solver.compute_gradient(
             set_param_values, param_vals, tol=1e-8)
         # assert False
@@ -212,7 +212,7 @@ class TestManualPDE(unittest.TestCase):
         # qoi.backward()
         # grad_pure_ad = pp.grad
         # print(grad_pure_ad.numpy())
-        
+
         # fd_grad = approx_fprime(param_vals.detach().numpy()[:, None], fun)
         # print(grad.numpy())
         # print(fd_grad.T)
@@ -311,8 +311,10 @@ class TestManualPDE(unittest.TestCase):
                 mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
                 react_funs[1]), deltat, tableau_name)
         sol_fun.set_time(0)
+        init_sol = sol_fun(mesh.mesh_pts)
         sols, times = solver.solve(
-            sol_fun(mesh.mesh_pts), 0, final_time, newton_opts={"tol": 1e-8})
+            init_sol, 0, final_time,
+            newton_kwargs={"tol": 1e-8})
 
         for ii, time in enumerate(times):
             sol_fun.set_time(time)
@@ -327,15 +329,57 @@ class TestManualPDE(unittest.TestCase):
             # print(time, L2_error, 1e-8*factor)
             assert L2_error < 1e-8*factor
 
+        for bndry_cond in bndry_conds:
+            # adjoint gradient currently only works for all dirichlet boundarie
+            if bndry_cond[1] != "D":
+                return
+        if tableau_name != "im_beuler1":
+            return
+
+        print("#######")
+        def functional(sols, params):
+            return sols[:, -1].sum()
+        # param_vals = diff_fun(mesh.mesh_pts)[:, 0]
+        param_vals = diff_fun(mesh.mesh_pts)[0:1, 0]
+        adj_solver = TransientAdjointPDE(AdvectionDiffusionReaction(
+            mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
+            react_funs[1]), deltat, tableau_name, functional)
+
+        def set_param_values(residual, param_vals):
+            # assert param_vals.ndim == 1
+            mesh_vals = torch.tile(param_vals, (mesh.mesh_pts.shape[1], ))
+            residual._diff_fun = partial(
+                residual.mesh.interpolate, mesh_vals)
+        grad = adj_solver.compute_gradient(
+            init_sol, 0, final_time,
+            set_param_values, param_vals, tol=1e-8)
+        print(grad)
+        assert False
+        from pyapprox.util.utilities import (
+            approx_fprime, approx_jacobian, check_gradients)
+        def fun(params):
+            set_param_values(
+                adj_solver.residual, torch.as_tensor(params[:, 0]))
+            # newton tol must be smaller than finite difference step size
+            fd_sols = adj_solver.solve(init_sol, 0, final_time)[0]
+            qoi = np.asarray([functional(fd_sols, params[:, 0])])
+            return qoi
+
+        fd_grad = approx_fprime(param_vals.detach().numpy()[:, None], fun)
+        print(grad.numpy())
+        print(fd_grad.T)
+        assert np.allclose(grad.numpy().T, fd_grad, atol=1e-6)
+
+
     def test_transient_advection_diffusion_reaction(self):
         test_cases = [
             [[0, 1], [3], "x**2*(1+t)", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: np.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "D"], "im_beuler1"],
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: np.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "D"], "im_crank2"],
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
              [lambda sol: 1*sol**2,
@@ -350,7 +394,7 @@ class TestManualPDE(unittest.TestCase):
               lambda sol: torch.diag(2*sol[:, 0])],
              ["D", "N", "R", "D"], "im_crank2"]
         ]
-        for test_case in test_cases:
+        for test_case in test_cases[:1]:
             self._check_transient_advection_diffusion_reaction(*test_case)
 
     def _check_stokes_solver_mms(
@@ -432,7 +476,7 @@ class TestManualPDE(unittest.TestCase):
         # print(np.abs(j_auto-j_fd).max())
         assert np.allclose(j_auto, j_man)
 
-        sol = solver.solve(maxiters=10)[:, None].numpy()
+        sol = solver.solve(maxiters=10)[:, None].detach().numpy()
 
         split_sols = mesh.split_quantities(sol)
 
@@ -563,9 +607,10 @@ class TestManualPDE(unittest.TestCase):
 
         exact_sol_vals = sol_fun(mesh.mesh_pts)
         assert np.allclose(
-            solver.residual._raw_residual(torch.tensor(exact_sol_vals[:, 0]))[0], 0)
+            solver.residual._raw_residual(
+                torch.tensor(exact_sol_vals[:, 0]))[0], 0)
 
-        sol = solver.solve()[:, None]
+        sol = solver.solve().detach()[:, None]
         assert np.allclose(sol, exact_sol_vals)
 
     def _check_helmholtz(self, domain_bounds, orders, sol_string, wnum_string,
@@ -586,7 +631,7 @@ class TestManualPDE(unittest.TestCase):
             domain_bounds, orders)
         solver = SteadyStatePDE(
             Helmholtz(mesh, bndry_conds, wnum_fun, forc_fun))
-        sol = solver.solve()
+        sol = solver.solve().detach()
 
         print(np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol[:, None]))
@@ -757,9 +802,10 @@ class TestManualPDE(unittest.TestCase):
         init_depth_vals = depth_fun(depth_mesh.mesh_pts)
         init_sol = torch.cat(
             [init_depth_vals] +
-            [init_depth_vals*v[:, None] for v in vel_fun(mom_meshes[0].mesh_pts).T])
+            [init_depth_vals*v[:, None]
+             for v in vel_fun(mom_meshes[0].mesh_pts).T])
         sols, times = solver.solve(
-            init_sol, 0, final_time, newton_opts={"tol": 1e-8})
+            init_sol, 0, final_time, newton_kwargs={"tol": 1e-8})
         sols = sols.numpy()
 
         import matplotlib.pyplot as plt
@@ -1080,7 +1126,7 @@ class TestManualPDE(unittest.TestCase):
         # solver.residual._n = 1
         # init_guess = torch.randn(init_guess.shape, dtype=torch.double)
         sol = solver.solve(
-            init_guess, tol=1e-5, verbosity=2, maxiters=20)[:, None]
+            init_guess, tol=1e-5, verbosity=2, maxiters=20).detach()[:, None]
         split_sols = mesh.split_quantities(sol)
 
         # print(exact_vel_vals[0][:, 0].numpy())
