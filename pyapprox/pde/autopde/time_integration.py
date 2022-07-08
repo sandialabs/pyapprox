@@ -410,7 +410,7 @@ class ImplicitRungeKutta():
             sol = init_sol.clone()
         if sol.ndim == 2:
             sol = sol[:, 0]
-        sols.append(sol.detach().numpy())
+        sols.append(sol.detach())
         while time < final_time:
             if verbosity > 0:
                 print("Time", time)
@@ -418,8 +418,8 @@ class ImplicitRungeKutta():
             sol = self.update(
                 sol, time, deltat,
                 [sol.clone()]*self._butcher_tableau[0].shape[0])
-            sols.append(sol.detach().numpy())
+            sols.append(sol.detach())
             time += deltat
             times.append(time)
-        sols = np.array(sols).T
+        sols = torch.stack(sols, dim=1)
         return sols, times

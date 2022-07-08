@@ -81,7 +81,7 @@ class SteadyStatePDE():
             sol = init_guess.clone().detach().requires_grad_(auto_jac)
         sol = newton_solve(
             self.residual._residual, sol, **newton_kwargs)
-        return sol.detach().numpy()[:, None]
+        return sol.detach()
 
 
 class TransientPDE():
@@ -133,11 +133,15 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
         adjoint_sol = torch.linalg.solve(jac_adjoint, -dqdu)
         return adjoint_sol
 
-    def _parameterized_raw_residual(self, sol, set_param_values, param_vals):
+    def _parameterized_raw_residual(
+            self, sol, set_param_values, param_vals):
         set_param_values(self.residual, param_vals)
         return self.residual._raw_residual(sol)[0]
-    
-    def compute_gradient(self, sol, set_param_values, param_vals):
+
+    def compute_gradient(self, set_param_values, param_vals,
+                         **newton_kwargs):
+        set_param_values(self.residual, param_vals)
+        sol = self.solve(**newton_kwargs)
         if not torch.is_tensor(sol) or not sol.ndim == 1:
             raise ValueError("sol must be a 1D tensor")
         adj_sol = self.solve_adjoint(sol, param_vals)
