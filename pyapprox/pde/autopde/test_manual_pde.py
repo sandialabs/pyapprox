@@ -164,28 +164,53 @@ class TestManualPDE(unittest.TestCase):
             solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
         assert np.allclose(
             solver.residual._residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
-        sol = solver.solve()
+        sol = solver.solve(tol=1e-8)
 
         print(np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol))
         assert np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol) < 1e-9
 
-        functional = lambda sol, params: sol.sum()
+        for bndry_cond in bndry_conds:
+            # adjoint gradient currently only works for all dirichlet boundaries
+            if bndry_cond[1] != "D":
+                return
+    
+            
+        print("#######")
+        def functional(sol, params):
+            # this qoi does not make any sense but tests the code adequately
+            return sol.sum()#+params[0]
+        def forc_fun(x): return torch.zeros((x.shape[1], 1)) # hack
         adj_solver = SteadyStateAdjointPDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
             react_funs[1]), functional)
-        adj_solver.solve_adjoint(torch.tensor(sol[:, 0]), None)
+        sol = adj_solver.solve(tol=1e-8, verbosity=0)
+        # adj_solver.residual._auto_jac = True
+        param_vals = diff_fun(mesh.mesh_pts)[:, 0]
+        def set_param_values(residual, param_vals):
+            assert param_vals.ndim == 1
+            residual._diff_fun = partial(
+                residual.mesh.interpolate, param_vals)
+        grad = adj_solver.compute_gradient(
+            torch.as_tensor(sol[:, 0]), set_param_values, param_vals)
+        # assert False
+        from pyapprox.util.utilities import approx_fprime, approx_jacobian, check_gradients
+        def fun(params):
+            set_param_values(adj_solver.residual, params[:, 0])
+            # newton tol must be smaller than finite difference step size
+            fd_sol = adj_solver.solve(tol=1e-8, verbosity=0)
+            qoi = np.asarray([functional(fd_sol, params[:, 0])])
+            return qoi
+        fd_grad = approx_fprime(param_vals.detach().numpy()[:, None], fun)
+        print(grad.numpy())
+        print(fd_grad.T)
+        assert np.allclose(grad.numpy().T, fd_grad, atol=1e-6)
 
-        # def parameterized_residual(residual, forward_sol, params):
-        #     residual.diff_fun = mesh.get_lagr()
-        #     residual._residual(forward_sol)
-            
-        # param_vals = diff_fun(mesh.mesh_pts).requires_grad_(True)
-        # dFdp = torch.autograd.functional.jacobian(
-        #         lambda p: parameterized_residual(p)[0], param_vals,
-        #         strict=True, create_graph=True)
-        # grad = torch.linalg.multi_dot((adj_sol.T, dFdp)
+        # errors = check_gradients(
+        #     fun, lambda p: adj_solver.compute_gradient(
+        #         torch.as_tensor(sol[:, 0]), set_param_values, torch.as_tensor(p)[:, 0]).numpy(),
+        #     param_vals.numpy()[:, None])
 
     def test_advection_diffusion_reaction(self):
         s0, depth, L, alpha = 2, .1, 1, 1e-1
@@ -195,39 +220,44 @@ class TestManualPDE(unittest.TestCase):
         test_cases = [
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: np.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+             ["D", "D"], ["C"]],
+            [[0, 1], [4], "0.5*(x-3)*x", "1", ["1"],
+             [lambda sol: 0*sol,
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+             ["D", "D"], ["C"]],
+            [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
+             # [lambda sol: sol**2, lambda sol: torch.diag(2*sol[:, 0])],
+             [lambda sol: 1*sol, lambda sol: 1*torch.eye(sol.shape[0])],
              ["D", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
                 [lambda sol: 0*sol,
-                lambda sol: np.zeros((sol.shape[0], sol.shape[0]))],
+                lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["N", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: np.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["R", "D"], ["C"]],
-            [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
-             [lambda sol: sol**2, lambda sol: torch.diag(2*sol[:, 0])],
-             ["D", "D"], ["C"]],
             # When using periodic bcs must have reaction term to have a
             # unique solution
-            [[0, 2*np.pi], [30], "sin(x)", "1", ["0"],
-             [lambda sol: 1*sol, lambda sol: np.eye(sol.shape[0])],
+            [[0, 2*torch.pi], [30], "sin(x)", "1", ["0"],
+             [lambda sol: 1*sol, lambda sol: torch.eye(sol.shape[0])],
              ["P", "P"], ["C"]],
             [[0, 1, 0, 1], [3, 3], "y**2*x**2", "1", ["0", "0"], #[4, 4]
              [lambda sol: 0*sol,
-              lambda sol: np.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "N", "N", "D"], ["C", "C"]],
             [[0, .5, 0, 1], [14, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: np.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "N", "N", "D"], ["C", "C"]],
             [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: np.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "R", "D", "D"], ["C", "C"]],
             [None, [6, 6], "y**2*x**2", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: np.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "D", "D", "D"], ["C", "C"], mesh_transforms],
             [None, [6, 6], "y**2*x**2", "1", ["1", "0"],
              [lambda sol: 1*sol**2,
@@ -235,7 +265,7 @@ class TestManualPDE(unittest.TestCase):
              ["D", "D", "D", "N"], ["C", "C"],
              mesh_transforms]
         ]
-        for test_case in test_cases[:1]:
+        for test_case in test_cases[2:3]:
             self._check_advection_diffusion_reaction(*test_case)
 
     def _check_transient_advection_diffusion_reaction(

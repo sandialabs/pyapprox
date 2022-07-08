@@ -431,7 +431,9 @@ def approx_fprime(x, func, eps=np.sqrt(np.finfo(float).eps)):
     assert x.shape[1] == 1
     nvars = x.shape[0]
     fprime = []
-    func_at_x = func(x).squeeze()
+    func_at_x = func(x)
+    if func_at_x.ndim == 2:
+        func_at_x = func_at_x[:, 0]
     assert func_at_x.ndim == 1
     for ii in range(nvars):
         x_plus_eps = x.copy()

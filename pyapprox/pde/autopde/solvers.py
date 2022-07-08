@@ -111,9 +111,7 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
         super().__init__(residual)
         self._functional = functional
 
-    def solve_adjoint(self, forward_sol, parameter_vals, **newton_kwargs):
-        # if not parameter_vals.requires_grad:
-        #     raise ValueError("parameter_vals must have requires_grad=True")
+    def solve_adjoint(self, forward_sol, param_vals, **newton_kwargs):
         res, jac = self.residual._raw_residual(forward_sol)
         if jac is None:
             torch.autograd.functional.jacobian(
@@ -123,13 +121,35 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
         for bndry_cond in adj_bndry_conds:
             # for now only support dirichlet boundary conds
             assert bndry_cond[1] == "D"
+            # bndry_cond[1] = "D"
             bndry_cond[0] = lambda xx: np.zeros((xx.shape[1], 1))
         jac_adjoint = self.residual.mesh._apply_boundary_conditions(
             adj_bndry_conds, res, jac.T, forward_sol)[1]
         fwd_sol_copy = torch.clone(forward_sol).requires_grad_(True)
-        functional_vals = self._functional(
-            fwd_sol_copy, parameter_vals)
+        functional_vals = self._functional(fwd_sol_copy, param_vals)
         functional_vals.backward()
-        dqdu = fwd_sol_copy.grad.detach()
+        dqdu = fwd_sol_copy.grad
+        # print(dqdu)
         adjoint_sol = torch.linalg.solve(jac_adjoint, -dqdu)
         return adjoint_sol
+
+    def _parameterized_raw_residual(self, sol, set_param_values, param_vals):
+        set_param_values(self.residual, param_vals)
+        return self.residual._raw_residual(sol)[0]
+    
+    def compute_gradient(self, sol, set_param_values, param_vals):
+        if not torch.is_tensor(sol) or not sol.ndim == 1:
+            raise ValueError("sol must be a 1D tensor")
+        adj_sol = self.solve_adjoint(sol, param_vals)
+        dFdp = torch.autograd.functional.jacobian(
+            partial(self._parameterized_raw_residual, sol, set_param_values),
+            param_vals, strict=True)
+        # print(dFdp)
+        param_vals_copy = torch.clone(param_vals).requires_grad_(True)
+        fwd_sol_copy = torch.clone(sol).requires_grad_(True)
+        functional_vals = self._functional(fwd_sol_copy, param_vals_copy)
+        functional_vals.backward()
+        dqdp = param_vals_copy.grad
+        if dqdp is None:
+            dqdp = 0
+        return dqdp+torch.linalg.multi_dot((adj_sol[None, :], dFdp))

@@ -23,6 +23,8 @@ class AbstractSpectralCollocationPhysics(ABC):
         raise NotImplementedError()
 
     def _residual(self, sol):
+        if sol.ndim != 1:
+            raise ValueError("sol must be 1D tensor")
         res, jac = self._raw_residual(sol)
         if jac is None:
             assert self._auto_jac
@@ -83,6 +85,7 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         jac = linear_jac - self._react_jac(sol[:, None])
         res -= self._react_fun(sol[:, None])[:, 0]
         res += self._forc_fun(self.mesh.mesh_pts)[:, 0]
+        print(self._forc_fun(self.mesh.mesh_pts)[:, 0])
         if not self._auto_jac:
             return res, jac
         return res, None
