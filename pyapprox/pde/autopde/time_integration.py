@@ -201,7 +201,7 @@ def implicit_runge_kutta_update_trad(
         sol, stage_unknowns, deltat, time, rhs, butcher_tableau):
     b_coef = butcher_tableau[1]
     nstages = stage_unknowns.shape[0]//sol.shape[0]
-    stage_rhs = implicit_runge_kutta_stage_solution(
+    stage_rhs = implicit_runge_kutta_stage_solution_trad(
         sol, deltat, time, rhs, butcher_tableau,
         stage_unknowns)[1]
     new_sol = (sol + deltat*torch.sum(
@@ -222,7 +222,8 @@ def implicit_runge_kutta_stage_solution_wildey(
         for jj in range(nstages):
             stage_sol += a_coef[ii, jj]/b_coef[jj]*(
                 stage_unknowns[jj*ndof:(jj+1)*ndof]-sol)
-        srhs = rhs(stage_sol, stage_time)
+        # assume rhs returns jac but ignore it
+        srhs = rhs(stage_sol, stage_time)[0]
         stage_rhs.append(srhs)
         new_stage_unknowns.append(sol+srhs*b_coef[ii]*deltat)
     stage_rhs = torch.cat(stage_rhs)
@@ -267,7 +268,7 @@ def implicit_runge_kutta_residual(
         residual = stage_constraints_fun(
             butcher_tableau, stage_unknowns, time, deltat, constraints,
             residual, sol)
-    return residual
+    return residual, None
 
 
 def diag_runge_kutta_stage_solution(
@@ -299,7 +300,7 @@ def diag_runge_kutta_residual(
     stage_time = time+butcher_tableau[2][ii]*deltat
     if out[2] is not None:
         stage_jac = butcher_tableau[1][ii]*deltat*out[2]
-        jac = torch.eye(ndof)-(
+        jac = torch.eye(ndof, dtype=torch.double)-(
             butcher_tableau[0][ii, ii]/butcher_tableau[1][ii]*stage_jac)
     else:
         jac = None
@@ -319,7 +320,7 @@ class ImplicitRungeKutta():
         self._deltat = deltat
         self._rhs = rhs
         self._constraints_fun = constraints_fun
-        self._newton_opts = {}
+        self._newton_kwargs = {}
         self._auto = auto
 
         self._res_sol = None
@@ -387,7 +388,7 @@ class ImplicitRungeKutta():
             init_guess.requires_grad = self._auto
             active_stage_unknown = newton_solve(
                 self._diag_residual_fun, init_guess,
-                **self._newton_opts)
+                **self._newton_kwargs)
             init_guess = active_stage_unknown.detach()
             self._computed_stage_unknowns.append(init_guess.clone())
         return implicit_runge_kutta_update_wildey(
@@ -399,8 +400,8 @@ class ImplicitRungeKutta():
         return self._update(sol, time, deltat, init_guess)
 
     def integrate(self, init_sol, init_time, final_time, verbosity=0,
-                  newton_opts={}):
-        self._newton_opts = newton_opts
+                  newton_kwargs={}):
+        self._newton_kwargs = newton_kwargs
         sols, times = [], []
         time = init_time
         times.append(time)

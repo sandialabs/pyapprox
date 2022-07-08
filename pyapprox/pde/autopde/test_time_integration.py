@@ -11,8 +11,8 @@ from pyapprox.pde.autopde.time_integration import (
 
 class TestTimeIntegration(unittest.TestCase):
     def setUp(self):
-      torch.manual_seed(1)
-      np.random.seed(1)
+        torch.manual_seed(1)
+        np.random.seed(1)
 
     def test_implicit_runge_kutta_residual(self):
         degree, ndof = 2, 2
@@ -25,7 +25,7 @@ class TestTimeIntegration(unittest.TestCase):
             return torch.cat(
                 [sol[ii:ii+1]*degree/(ii+1+time) for ii in range(ndof)])
 
-        tableau_name = "ex_mid2"
+        tableau_name = "ex_rk4"
         # tableau_name = "ex_feuler1"
         deltat = 0.1
         time = 0
@@ -44,7 +44,7 @@ class TestTimeIntegration(unittest.TestCase):
             sol, deltat, time, rhs, im_butcher_tableau, tmp2)
         res = implicit_runge_kutta_residual(
             implicit_runge_kutta_stage_solution_trad, None,
-            sol, deltat, time, rhs, im_butcher_tableau, tmp2, None)
+            sol, deltat, time, rhs, im_butcher_tableau, tmp2, None)[0]
         assert np.allclose(res, 0)
         assert np.allclose(tmp2, tmp4)
         assert np.allclose(tmp3, tmp5)
@@ -58,6 +58,7 @@ class TestTimeIntegration(unittest.TestCase):
 
         print(degree, tableau_name, deltat)
         ndof = 2
+
         def exact_sol(time):
             return np.array([(ii+1+time)**degree for ii in range(ndof)])
 
@@ -65,13 +66,15 @@ class TestTimeIntegration(unittest.TestCase):
             # dy/dt = y0*p*(t+1)**(p-1) = y0*(t+1)**p*p/(t+1)
             vals = torch.cat(
                 [sol[ii:ii+1]*degree/(ii+1+time) for ii in range(ndof)])
-            return vals
+            return vals, None
 
         init_time = 0
         final_time = init_time + deltat
         init_sol = torch.tensor(exact_sol(0), dtype=torch.double)
         time_integrator = ImplicitRungeKutta(deltat, rhs, tableau_name)
-        sols = time_integrator.integrate(init_sol, init_time, final_time)[0]
+        sols = time_integrator.integrate(
+            init_sol, init_time, final_time,
+            newton_kwargs={"verbosity": 2})[0]
         exact_sols = exact_sol(np.arange(sols.shape[1])*deltat)
         # print(sols)
         # print(exact_sols)
@@ -79,7 +82,8 @@ class TestTimeIntegration(unittest.TestCase):
         assert np.allclose(exact_sols, sols, atol=1e-14)
 
     def test_implicit_runge_kutta_update(self):
-        # Do not test im_beuler with degree=1 an deltat=1. This is a pathalogical
+        # Do not test im_beuler with degree=1 an deltat=1.
+        # This is a pathalogical
         # case that causes jacobian to be zero
         # Warning gauss-p rules do not recover degree-p solution exactly.
         # They do recover degree-(n) solutions exactly (
