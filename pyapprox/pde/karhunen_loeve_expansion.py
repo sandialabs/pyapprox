@@ -274,10 +274,11 @@ class MeshKLE(object):
     """
 
     def __init__(self, mesh_coords, mean_field=0, use_log=False,
-                 matern_nu=np.inf):
+                 matern_nu=np.inf, use_torch=False):
         assert mesh_coords.shape[0] <= 2
         self.mesh_coords = mesh_coords
         self.use_log = use_log
+        self.use_torch = use_torch
 
         if np.isscalar(mean_field):
             mean_field = np.ones(self.mesh_coords.shape[1])*mean_field
@@ -348,9 +349,17 @@ class MeshKLE(object):
         assert coef.ndim == 2
         assert coef.shape[0] == self.nterms
         if self.use_log:
-            return np.exp(self.mean_field[:, None]+self.eig_vecs.dot(coef))
-        else:
+            if not self.use_torch:
+                return np.exp(self.mean_field[:, None]+self.eig_vecs.dot(coef))
+            import torch
+            return torch.exp(
+                torch.as_tensor(self.mean_field[:, None])+
+                torch.linalg.multi_dot((torch.as_tensor(self.eig_vecs), coef)))
+        if not use_torch:
             return self.mean_field[:, None] + self.eig_vecs.dot(coef)
+        import torch
+        return (torch.as_tensor(self.mean_field[:, None]) +
+                torch.linalg.multi_dot((torch.as_tensor(self.eig_vecs), coef)))
 
 
 def multivariate_chain_rule(jac_yu, jac_ux):

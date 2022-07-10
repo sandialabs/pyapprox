@@ -217,6 +217,8 @@ class TestManualPDE(unittest.TestCase):
         # print(grad.numpy())
         # print(fd_grad.T)
         # assert np.allclose(grad.numpy().T, fd_grad, atol=1e-6)
+        print(grad)
+        print(sol)
 
         errors = check_gradients(
             fun, lambda p: adj_solver.compute_gradient(
@@ -280,7 +282,7 @@ class TestManualPDE(unittest.TestCase):
              mesh_transforms]
         ]
         ii = 0
-        for test_case in test_cases:
+        for test_case in test_cases[:1]:
             np.random.seed(2)  # controls direction of finite difference
             self._check_advection_diffusion_reaction(*test_case)
             ii += 1
@@ -304,7 +306,7 @@ class TestManualPDE(unittest.TestCase):
             nphys_vars, bndry_types, sol_fun, flux_funs)
 
         deltat = 0.1
-        final_time = deltat*1# 5
+        final_time = deltat*3# 5
         mesh = CartesianProductCollocationMesh(domain_bounds, orders)
         solver = TransientPDE(
             AdvectionDiffusionReaction(
@@ -337,6 +339,7 @@ class TestManualPDE(unittest.TestCase):
             return
 
         print("#######")
+        # init_sol *= 0
         def functional(sols, params):
             return sols[:, -1].sum()
         # param_vals = diff_fun(mesh.mesh_pts)[:, 0]
@@ -352,12 +355,13 @@ class TestManualPDE(unittest.TestCase):
                 residual.mesh.interpolate, mesh_vals)
         grad = adj_solver.compute_gradient(
             init_sol, 0, final_time,
-            set_param_values, param_vals, tol=1e-8)
-        print(grad)
-        assert False
+            set_param_values, param_vals, tol=1e-12)
+
         from pyapprox.util.utilities import (
             approx_fprime, approx_jacobian, check_gradients)
         def fun(params):
+            sol_fun.set_time(0)
+            init_sol = sol_fun(mesh.mesh_pts)
             set_param_values(
                 adj_solver.residual, torch.as_tensor(params[:, 0]))
             # newton tol must be smaller than finite difference step size
@@ -365,7 +369,19 @@ class TestManualPDE(unittest.TestCase):
             qoi = np.asarray([functional(fd_sols, params[:, 0])])
             return qoi
 
-        fd_grad = approx_fprime(param_vals.detach().numpy()[:, None], fun)
+        # def rfun(params):
+        #     set_param_values(
+        #         adj_solver.residual, torch.as_tensor(params[:, 0]))
+        #     # newton tol must be smaller than finite difference step size
+        #     res = adj_solver.residual._raw_residual(
+        #         init_sol[:, 0])[0]
+        #     return res
+
+        # res_jac = approx_jacobian(rfun, param_vals.detach().numpy()[:, None])
+        # print('jac', res_jac)
+
+        fd_grad = approx_fprime(
+            param_vals.detach().numpy()[:, None], fun, eps=1e-6)
         print(grad.numpy())
         print(fd_grad.T)
         assert np.allclose(grad.numpy().T, fd_grad, atol=1e-6)
@@ -373,6 +389,10 @@ class TestManualPDE(unittest.TestCase):
 
     def test_transient_advection_diffusion_reaction(self):
         test_cases = [
+            [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
+             [lambda sol: 0*sol,
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+             ["D", "D"], "im_beuler1"],
             [[0, 1], [3], "x**2*(1+t)", "1", ["0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],

@@ -146,7 +146,7 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
         set_param_values(self.residual, param_vals)
         return self.residual._raw_residual(sol)[0]
 
-    def compute_gradient(self, set_param_values, param_vals,
+    def compute_gradient(self, set_param_values, param_vals, return_obj=False,
                          **newton_kwargs):
         # use etachso that fwd_sol is not part of AD-graph
         set_param_values(self.residual, param_vals.detach())
@@ -164,8 +164,12 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
         dFdp = torch.autograd.functional.jacobian(
             partial(self._parameterized_raw_residual, fwd_sol,
                     set_param_values), param_vals, strict=True)
-
-        return dqdp+torch.linalg.multi_dot((adj_sol[None, :], dFdp))
+        # print(dFdp, 'dFdp')
+        # print(adj_sol)
+        grad = dqdp+torch.linalg.multi_dot((adj_sol[None, :], dFdp))
+        if not return_obj:
+            return grad
+        return functional_vals.detach(), grad.detach()
 
 
 class TransientAdjointPDE(TransientPDE):
@@ -194,22 +198,28 @@ class TransientAdjointPDE(TransientPDE):
         adj_sols = torch.empty_like(fwd_sols)
         ndof, ntimes = fwd_sols.shape
         dqdu = self._dqdu(fwd_sols, ntimes-1, param_vals)
-        adj_sols[:, ntimes-1] = -dqdu[:, ntimes-1]
+        adj_sols[:, ntimes-1] = dqdu[:, ntimes-1]
         Id = torch.eye(adj_sols.shape[0])
         for ii in range(ntimes-2, -1, -1):
             print(ii, times[ii])
             jac = self.residual._transient_residual(
                 fwd_sols[:, ii], times[ii])[1]
             deltat = times[ii+1]-times[ii]
-            rhs = adj_sols[:, ii+1]+deltat*(-dqdu[:, ii])
+            rhs = adj_sols[:, ii+1]+deltat*(dqdu[:, ii])
+            # rhs = adj_sols[:, ii+1]+(-dqdu[:, ii])
             # need to pass in 0 instead of fwd_sol to apply boundary conditions
             # because we are not updating a residual rhs=sol-bndry_vals
             # but rather just want rhs=bndry_vals.
             # Techincally passing in we should be passing in negative bndry_vals
             # but since for dirichlet boundaries bndry_vals = 0 this is fine
+            print(dqdu[:, ii], 'dqdu')
+            if ii < ntimes-2:
+                rhs *= 0 # hack
             rhs, jac_adjoint = self.residual.mesh._apply_boundary_conditions(
                 self._adj_bndry_conds, rhs, Id-deltat*jac.T, fwd_sols[:, ii]*0)
             adj_sols[:, ii] = torch.linalg.solve(jac_adjoint, rhs)
+            print(rhs, 'rhs')
+            print(adj_sols[:, ii], 'phi', adj_sols[:, ii].sum())
         return adj_sols
 
     def _parameterized_transient_raw_residual(
@@ -233,12 +243,23 @@ class TransientAdjointPDE(TransientPDE):
             dqdp = 0
 
         phi_dFdp = 0
-        for ii in range(fwd_sols.shape[1]):
+        # skip initial time step because residual not effected by params
+        # because we simply use the initial condition. TOTO:
+        # Need to check what happens
+        # when initial condition is effected by params
+        for ii in range(fwd_sols.shape[1]-1):
             dFdp_ii = torch.autograd.functional.jacobian(
                 partial(self._parameterized_transient_raw_residual,
                         fwd_sols[:, ii], times[ii], set_param_values),
                 param_vals, strict=True)
-            print(dFdp_ii)
+            # print(dFdp_ii, 'dFdp')
             phi_dFdp += torch.linalg.multi_dot(
                 (adj_sols[:, ii:ii+1].T, dFdp_ii))
-        return dqdp + phi_dFdp
+            #print(phi_dFdp, torch.linalg.multi_dot(
+            #    (adj_sols[:, ii:ii+1].T, dFdp_ii)))
+        # assumes deltat is constant throughout simulation
+        # must compute int_0^T dqdx*dudx+dqp dt so multiply sum by delta t
+        deltat = times[1]-times[0]
+        grad = dqdp + deltat*phi_dFdp
+        print(grad)
+        return grad
