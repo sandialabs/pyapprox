@@ -107,12 +107,18 @@ class TransientPDE():
 
 
 class SteadyStateAdjointPDE(SteadyStatePDE):
-    def __init__(self, residual, functional):
-        super().__init__(residual)
+    def __init__(self, fwd_solver, functional, dqdu=None, dqdp=None,
+                 dRdp=None):
+        if type(fwd_solver) != SteadyStatePDE:
+            raise ValueError("fwd_solver must be of type SteadyStatePDE")
+        self._fwd_solver = fwd_solver
         self._functional = functional
+        self._dqdu = dqdu
+        self._dqdp = dqdp
+        self._dRdp = dRdp
 
     def solve_adjoint(self, fwd_sol, param_vals, **newton_kwargs):
-        jac = self.residual._raw_residual(fwd_sol)[1]
+        jac = self._fwd_solver.residual._raw_residual(fwd_sol)[1]
         if jac is None:
             fwd_sol.requires_grad_(True)
             assert fwd_sol.requires_grad
@@ -120,53 +126,70 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
                 lambda s: self.residual._raw_residual(s)[0], fwd_sol,
                 strict=True)
             fwd_sol.requires_grad_(False)
-        adj_bndry_conds = copy.deepcopy(self.residual._bndry_conds)
+        adj_bndry_conds = copy.deepcopy(self._fwd_solver.residual._bndry_conds)
         for bndry_cond in adj_bndry_conds:
             # for now only support dirichlet boundary conds
             assert bndry_cond[1] == "D"
             # bndry_cond[1] = "D"
             bndry_cond[0] = lambda xx: np.zeros((xx.shape[1], 1))
-        fwd_sol_copy = torch.clone(fwd_sol).requires_grad_(True)
-        param_vals_copy = torch.clone(param_vals).requires_grad_(True)
-        functional_vals = self._functional(fwd_sol_copy, param_vals_copy)
-        functional_vals.backward()
-        dqdu = fwd_sol_copy.grad
+        fwd_sol_copy = torch.clone(fwd_sol)
+        param_vals_copy = torch.clone(param_vals)
+        if self._dqdu is None:
+            functional_vals = self._functional(
+                fwd_sol_copy.requires_grad_(True),
+                param_vals_copy.requires_grad_(True))
+            functional_vals.backward()
+            dqdu = fwd_sol_copy.grad
+        else:
+            functional_vals = self._functional(fwd_sol_copy, param_vals_copy)
+            dqdu = self._dqdu(fwd_sol_copy, param_vals_copy)
         # need to pass in 0 instead of fwd_sol to apply boundary conditions
         # because we are not updating a residual rhs=sol-bndry_vals
         # but rather just want rhs=bndry_vals.
         # Techincally passing in we should be passing in negative bndry_vals
         # but since for dirichlet boundaries bndry_vals = 0 this is fine
-        rhs, jac_adjoint = self.residual.mesh._apply_boundary_conditions(
-            adj_bndry_conds, -dqdu, jac.T, fwd_sol*0)
+        rhs, jac_adjoint = (
+            self._fwd_solver.residual.mesh._apply_boundary_conditions(
+                adj_bndry_conds, -dqdu, jac.T, fwd_sol*0))
         adjoint_sol = torch.linalg.solve(jac_adjoint, rhs)
         return adjoint_sol
 
     def _parameterized_raw_residual(
             self, sol, set_param_values, param_vals):
-        set_param_values(self.residual, param_vals)
-        return self.residual._raw_residual(sol)[0]
+        set_param_values(self._fwd_solver.residual, param_vals)
+        return self._fwd_solver.residual._raw_residual(sol)[0]
 
     def compute_gradient(self, set_param_values, param_vals, return_obj=False,
                          **newton_kwargs):
         # use etachso that fwd_sol is not part of AD-graph
-        set_param_values(self.residual, param_vals.detach())
-        fwd_sol = self.solve(**newton_kwargs)
+        set_param_values(self._fwd_solver.residual, param_vals.detach())
+        fwd_sol = self._fwd_solver.solve(**newton_kwargs)
         adj_sol = self.solve_adjoint(fwd_sol, param_vals.detach())
 
-        param_vals_copy = torch.clone(param_vals).requires_grad_(True)
-        fwd_sol_copy = torch.clone(fwd_sol).requires_grad_(True)
-        functional_vals = self._functional(fwd_sol_copy, param_vals_copy)
-        functional_vals.backward()
-        dqdp = param_vals_copy.grad
-        if dqdp is None:
-            dqdp = 0
+        param_vals_copy = torch.clone(param_vals)
+        fwd_sol_copy = torch.clone(fwd_sol)
+        if self._dqdp is None:
+            functional_vals = self._functional(
+                fwd_sol_copy.requires_grad_(True),
+                param_vals_copy).requires_grad_(True)
+            functional_vals.backward()
+            dqdp = param_vals_copy.grad
+            if dqdp is None:
+                dqdp = 0
+        else:
+            functional_vals = self._functional(fwd_sol_copy, param_vals_copy)
+            dqdp = self._dqdp(fwd_sol_copy, param_vals_copy)
 
-        dFdp = torch.autograd.functional.jacobian(
-            partial(self._parameterized_raw_residual, fwd_sol,
-                    set_param_values), param_vals, strict=True)
-        # print(dFdp, 'dFdp')
+        if self._dRdp is None:
+            dRdp = torch.autograd.functional.jacobian(
+                partial(self._parameterized_raw_residual, fwd_sol,
+                        set_param_values), param_vals, strict=True)
+        else:
+            dRdp = self._dRdp(
+                self._fwd_solver.residual, fwd_sol_copy, param_vals)
+        # print(dRdp, 'dRdp')
         # print(adj_sol)
-        grad = dqdp+torch.linalg.multi_dot((adj_sol[None, :], dFdp))
+        grad = dqdp+torch.linalg.multi_dot((adj_sol[None, :], dRdp))
         if not return_obj:
             return grad
         return functional_vals.detach(), grad.detach()
@@ -242,24 +265,24 @@ class TransientAdjointPDE(TransientPDE):
         if dqdp is None:
             dqdp = 0
 
-        phi_dFdp = 0
+        phi_dRdp = 0
         # skip initial time step because residual not effected by params
         # because we simply use the initial condition. TOTO:
         # Need to check what happens
         # when initial condition is effected by params
         for ii in range(fwd_sols.shape[1]-1):
-            dFdp_ii = torch.autograd.functional.jacobian(
+            dRdp_ii = torch.autograd.functional.jacobian(
                 partial(self._parameterized_transient_raw_residual,
                         fwd_sols[:, ii], times[ii], set_param_values),
                 param_vals, strict=True)
-            # print(dFdp_ii, 'dFdp')
-            phi_dFdp += torch.linalg.multi_dot(
-                (adj_sols[:, ii:ii+1].T, dFdp_ii))
-            #print(phi_dFdp, torch.linalg.multi_dot(
-            #    (adj_sols[:, ii:ii+1].T, dFdp_ii)))
+            # print(dRdp_ii, 'dRdp')
+            phi_dRdp += torch.linalg.multi_dot(
+                (adj_sols[:, ii:ii+1].T, dRdp_ii))
+            #print(phi_dRdp, torch.linalg.multi_dot(
+            #    (adj_sols[:, ii:ii+1].T, dRdp_ii)))
         # assumes deltat is constant throughout simulation
         # must compute int_0^T dqdx*dudx+dqp dt so multiply sum by delta t
         deltat = times[1]-times[0]
-        grad = dqdp + deltat*phi_dFdp
+        grad = dqdp + deltat*phi_dRdp
         print(grad)
         return grad

@@ -19,10 +19,10 @@ from pyapprox.util.utilities import check_gradients
 
 
 def fwd_solver_finite_difference_wrapper(
-        solver, functional, set_params, params, **newton_kwargs):
+        fwd_solver, functional, set_params, params, **newton_kwargs):
     # Warning newton tol must be smaller than finite difference step size
-    set_params(solver.residual, torch.as_tensor(params[:, 0]))
-    fd_sol = solver.solve(**newton_kwargs)
+    set_params(fwd_solver.residual, torch.as_tensor(params[:, 0]))
+    fd_sol = fwd_solver.solve(**newton_kwargs)
     qoi = np.asarray([functional(fd_sol, torch.as_tensor(params[:, 0]))])
     return qoi
 
@@ -33,9 +33,37 @@ def loglike_functional(obs, obs_indices, noise_std, sol, params):
     tmp = 1/(2*noise_std**2)
     ll = 0.5*np.log(tmp/np.pi)*nobs
     pred_obs = sol[obs_indices]
-    tmp, ll = 1, 0     # hack
     ll += -torch.sum((obs-pred_obs)**2*tmp)
     return ll
+
+
+def loglike_functional_dqdu(obs, obs_indices, noise_std, sol, params):
+    tmp = 1/(2*noise_std**2)
+    pred_obs = sol[obs_indices]
+    grad = torch.zeros_like(sol)
+    grad[obs_indices] = (obs-pred_obs)*2*tmp
+    return grad
+
+
+def loglike_functional_dqdp(obs, obs_indices, noise_std, sol, params):
+    return params*0
+
+
+def advection_diffusion_reaction_kle_dRdp(kle, residual, sol, param_vals):
+    mesh = residual.mesh
+    dmats = [residual.mesh._dmat(dd) for dd in range(mesh.nphys_vars)]
+    if kle.use_log:
+        # compute gradient of diffusivity with respect to KLE coeff
+        assert param_vals.ndim == 1
+        kle_vals = kle(param_vals[:, None])
+        assert kle_vals.ndim == 2
+        dkdp = kle_vals*kle.eig_vecs
+    Du = [torch.linalg.multi_dot((dmats[dd], sol))
+          for dd in range(mesh.nphys_vars)]
+    kDu = [Du[dd][:, None]*dkdp for dd in range(mesh.nphys_vars)]
+    dRdp = sum([torch.linalg.multi_dot((dmats[dd], kDu[dd]))
+               for dd in range(mesh.nphys_vars)])
+    return dRdp
 
 
 def zeros_fun_axis_1(x):
@@ -53,11 +81,13 @@ def advection_diffusion():
     true_kle_params = torch.tensor([0.3, 0.3], dtype=torch.double)
     true_noise_std = 0.01  # make sure it does not dominate observed values
     true_params = true_kle_params
-    obs_indices = np.array([200, 225, 300])
     length_scale = .5
     nrandom_vars = 2
 
     orders = [20, 20]
+    obs_indices = np.array([200, 225, 300])
+    # orders = [3, 3]
+    # obs_indices = np.array([6, 7, 10])
     domain_bounds = [0, 1, 0, 1]
     mesh = CartesianProductCollocationMesh(domain_bounds, orders)
 
@@ -86,12 +116,12 @@ def advection_diffusion():
 
     newton_kwargs = {"maxiters": 1}
     diff_fun = partial(mesh.interpolate, kle(true_kle_params[:, None]))
-    adj_solver = SteadyStateAdjointPDE(AdvectionDiffusionReaction(
+    fwd_solver = SteadyStatePDE(AdvectionDiffusionReaction(
         mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
-        react_funs[1]), None)
+        react_funs[1]))
 
     noise = np.random.normal(0, true_noise_std, (obs_indices.shape[0]))
-    true_sol = adj_solver.solve(**newton_kwargs)
+    true_sol = fwd_solver.solve(**newton_kwargs)
 
     # p = mesh.plot(true_sol[:, None], nplot_pts_1d=50)
     # plt.colorbar(p)
@@ -100,7 +130,10 @@ def advection_diffusion():
     
     obs = true_sol[obs_indices] + noise
     functional = partial(loglike_functional, obs, obs_indices, true_noise_std)
-    adj_solver._functional = functional
+    dqdu = partial(loglike_functional_dqdu, obs, obs_indices, true_noise_std)
+    dqdp = partial(loglike_functional_dqdp, obs, obs_indices, true_noise_std)
+    dRdp =partial(advection_diffusion_reaction_kle_dRdp, kle)
+    adj_solver = SteadyStateAdjointPDE(fwd_solver, functional, dqdu, dqdp, dRdp)
     set_params = partial(set_kle_diff_params, kle)
 
     def objective_single_sample(
@@ -131,7 +164,7 @@ def advection_diffusion():
         true_params[:, None] +
         np.random.normal(0, 1, (true_params.shape[0], 1)))
     errors = check_gradients(
-        partial(fwd_solver_finite_difference_wrapper, adj_solver,
+        partial(fwd_solver_finite_difference_wrapper, fwd_solver,
                 functional, set_params),
         lambda p: adj_solver.compute_gradient(
             set_params, torch.as_tensor(p)[:, 0], **newton_kwargs).numpy(),

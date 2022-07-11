@@ -185,12 +185,13 @@ def lagrange_polynomial_basis_matrix_2d(eval_samples, abscissa_1d):
             indices = np.delete(np.arange(nabscissa_1d[dd]), jj)
             numer[dd].append(samples_diff[dd][:, indices].prod(axis=1))
             denom[dd].append(abscissa_diff[jj, indices].prod(axis=0))
+        numer[dd] = np.asarray(numer[dd])
+        denom[dd] = np.asarray(denom[dd])
     cnt = 0
     for jj in range(nabscissa_1d[1]):
-        for ii in range(nabscissa_1d[0]):
-            basis_vals[:, cnt] = (
-                numer[0][ii]/denom[0][ii]*numer[1][jj]/denom[1][jj])
-            cnt += 1
+        basis_vals[:, cnt:cnt+nabscissa_1d[0]] = (
+            numer[0][:]/denom[0][:, None]*numer[1][jj]/denom[1][jj]).T
+        cnt += nabscissa_1d[0]
     return basis_vals
 
 
