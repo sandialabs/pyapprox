@@ -33,8 +33,8 @@ def loglike_functional(obs, obs_indices, noise_std, sol, params):
     tmp = 1/(2*noise_std**2)
     ll = 0.5*np.log(tmp/np.pi)*nobs
     pred_obs = sol[obs_indices]
-    ll += torch.sum(-(obs-pred_obs)**2*tmp)
-    print(pred_obs.detach().numpy(), 'pobs')
+    tmp, ll = 1, 0     # hack
+    ll += -torch.sum((obs-pred_obs)**2*tmp)
     return ll
 
 
@@ -42,19 +42,19 @@ def zeros_fun_axis_1(x):
     # axis_1 used when x is mesh points
     return np.zeros((x.shape[1], 1))
 
+
 def set_kle_diff_params(kle, residual, params):
     kle_vals = kle(params[:kle.nterms, None])
-    print(kle_vals[:3, 0], 'kle')
     residual._diff_fun = partial(residual.mesh.interpolate, kle_vals)
 
 
 def advection_diffusion():
 
-    true_kle_params = torch.tensor([1.0, 1.0], dtype=torch.double)
-    true_noise_std = 0.1
+    true_kle_params = torch.tensor([0.3, 0.3], dtype=torch.double)
+    true_noise_std = 0.01  # make sure it does not dominate observed values
     true_params = true_kle_params
     obs_indices = np.array([200, 225, 300])
-    length_scale = 0.1
+    length_scale = .5
     nrandom_vars = 2
 
     orders = [20, 20]
@@ -62,7 +62,7 @@ def advection_diffusion():
     mesh = CartesianProductCollocationMesh(domain_bounds, orders)
 
     kle = MeshKLE(mesh.mesh_pts, use_log=True, use_torch=True)
-    kle.compute_basis(length_scale, nterms=nrandom_vars)
+    kle.compute_basis(length_scale, sigma=1, nterms=nrandom_vars)
 
     def vel_fun(xx):
         return torch.hstack((
@@ -73,7 +73,7 @@ def advection_diffusion():
         lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))]
 
     def forc_fun(xx):
-        amp, scale = 1.0, 0.1
+        amp, scale = 100.0, 0.1
         loc = torch.tensor([0.25, 0.75])[:, None]
         return amp*torch.exp(
             -torch.sum((torch.as_tensor(xx)-loc)**2/scale**2, axis=0))[:, None]
@@ -84,22 +84,47 @@ def advection_diffusion():
         [zeros_fun_axis_1, "D"],
         [zeros_fun_axis_1, "D"]]
 
+    newton_kwargs = {"maxiters": 1}
     diff_fun = partial(mesh.interpolate, kle(true_kle_params[:, None]))
     adj_solver = SteadyStateAdjointPDE(AdvectionDiffusionReaction(
         mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
         react_funs[1]), None)
 
     noise = np.random.normal(0, true_noise_std, (obs_indices.shape[0]))
-    true_sol = adj_solver.solve()
+    true_sol = adj_solver.solve(**newton_kwargs)
 
-    mesh.plot(true_sol[:, None], nplot_pts_1d=50)
-    plt.plot(mesh.mesh_pts[0, obs_indices], mesh.mesh_pts[1, obs_indices], 'ko')
-    plt.show()
+    # p = mesh.plot(true_sol[:, None], nplot_pts_1d=50)
+    # plt.colorbar(p)
+    # plt.plot(mesh.mesh_pts[0, obs_indices], mesh.mesh_pts[1, obs_indices], 'ko')
+    # plt.show() 
     
     obs = true_sol[obs_indices] + noise
     functional = partial(loglike_functional, obs, obs_indices, true_noise_std)
     adj_solver._functional = functional
     set_params = partial(set_kle_diff_params, kle)
+
+    def objective_single_sample(
+            adj_solver, functional, params, **newton_kwargs):
+        set_params(adj_solver.residual, torch.as_tensor(params))
+        sol = adj_solver.solve(**newton_kwargs)
+        obj = functional(sol, params)
+        return obj
+
+    from pyapprox.interface.wrappers import (
+        evaluate_1darray_function_on_2d_array)
+    objective = partial(
+        evaluate_1darray_function_on_2d_array, partial(
+            objective_single_sample, adj_solver, functional, **newton_kwargs))
+    from pyapprox.util.visualization import get_meshgrid_function_data
+    # X, Y, Z = get_meshgrid_function_data(objective, [0, 1, 0, 1], 10)
+    # p = plt.contourf(X, Y, Z, np.linspace(Z.min(), Z.max(), 20))
+    # X, Y, Z = get_meshgrid_function_data(
+    #     adj_solver.residual._diff_fun, domain_bounds, 50)
+    # X, Y, Z = get_meshgrid_function_data(
+    #     partial(mesh.interpolate, kle.eig_vecs[:, 1]), domain_bounds, 50)
+    # p = plt.contourf(X, Y, Z, np.linspace(Z.min(), Z.max(), 20))
+    # plt.colorbar(p)
+    # plt.show()
 
     # TODO add std to params list
     init_guess = (
@@ -109,7 +134,7 @@ def advection_diffusion():
         partial(fwd_solver_finite_difference_wrapper, adj_solver,
                 functional, set_params),
         lambda p: adj_solver.compute_gradient(
-            set_params, torch.as_tensor(p)[:, 0]).numpy(),
+            set_params, torch.as_tensor(p)[:, 0], **newton_kwargs).numpy(),
         init_guess.numpy(), plot=False,
         fd_eps=np.logspace(-13, 0, 14)[::-1])
 
@@ -121,8 +146,8 @@ def advection_diffusion():
         if obj.ndim == 0:
             obj = torch.as_tensor([obj])
         print(p, obj.item())
-        print(jac.numpy())
-        return obj.numpy(), jac[0, :].numpy()
+        # print(jac.numpy())
+        return -obj.numpy(), -jac[0, :].numpy()
     opt_result = pyapprox_minimize(
         objective, init_guess, method="trust-constr", jac=True)
 

@@ -172,6 +172,28 @@ def lagrange_polynomial_derivative_matrix_1d(eval_samples, abscissa):
     return deriv_mat, basis_vals
 
 
+def lagrange_polynomial_basis_matrix_2d(eval_samples, abscissa_1d):
+    nabscissa_1d = [a.shape[0] for a in abscissa_1d]
+    basis_vals = np.ones((eval_samples.shape[1], np.prod(nabscissa_1d)))
+    numer = [[], []]
+    denom = [[], []]
+    samples_diff = [None, None]
+    for dd in range(2):
+        samples_diff[dd] = eval_samples[dd][:, None]-abscissa_1d[dd][None, :]
+        abscissa_diff = abscissa_1d[dd][:, None]-abscissa_1d[dd][None, :]
+        for jj in range(nabscissa_1d[dd]):
+            indices = np.delete(np.arange(nabscissa_1d[dd]), jj)
+            numer[dd].append(samples_diff[dd][:, indices].prod(axis=1))
+            denom[dd].append(abscissa_diff[jj, indices].prod(axis=0))
+    cnt = 0
+    for jj in range(nabscissa_1d[1]):
+        for ii in range(nabscissa_1d[0]):
+            basis_vals[:, cnt] = (
+                numer[0][ii]/denom[0][ii]*numer[1][jj]/denom[1][jj])
+            cnt += 1
+    return basis_vals
+
+
 def lagrange_polynomial_derivative_matrix_2d(eval_samples, abscissa_1d):
     nabscissa_1d = [a.shape[0] for a in abscissa_1d]
     basis_vals = np.ones((eval_samples.shape[1], np.prod(nabscissa_1d)))

@@ -265,8 +265,10 @@ class CanonicalCollocationMesh():
             return torch.as_tensor(lagrange_polynomial_derivative_matrix_1d(
                 canonical_eval_samples[0, :], canonical_abscissa_1d[0])[1])
 
-        return torch.as_tensor(lagrange_polynomial_derivative_matrix_2d(
-            canonical_eval_samples, canonical_abscissa_1d)[1])
+        from pyapprox.pde.spectralcollocation.spectral_collocation import (
+            lagrange_polynomial_basis_matrix_2d)
+        return torch.as_tensor(lagrange_polynomial_basis_matrix_2d(
+            canonical_eval_samples, canonical_abscissa_1d))
 
     def _cheby_interpolate(self, canonical_abscissa_1d,
                            canonical_barycentric_weights_1d, values,
