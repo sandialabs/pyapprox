@@ -106,7 +106,7 @@ def get_sobol_indices(coefficients, indices, max_order=2):
                 interaction_terms.append(non_constant_vars)
                 kk += 1
 
-    interaction_terms = np.asarray(interaction_terms).T
+    # interaction_terms = np.asarray(interaction_terms).T
     interaction_values = np.asarray(interaction_values)
 
     return interaction_terms, interaction_values/variance
@@ -666,16 +666,16 @@ def gpc_sobol_sensitivities(pce, variable, max_order=2):
     result : :class:`pyapprox.analysis.sensitivity_analysis.SensitivityResult`
          Result object with the following attributes
 
-    main_effects : np.ndarray (nvars)
+    main_effects : np.ndarray (nvars, nqoi)
         The variance based main effect sensitivity indices
 
-    total_effects : np.ndarray (nvars)
+    total_effects : np.ndarray (nvars, nqoi)
         The variance based total effect sensitivity indices
 
-    sobol_indices : np.ndarray (nchoosek(nvars+max_order,nvars),nqoi)
+    sobol_indices : np.ndarray (nchoosek(nvars+max_order,nvars), nqoi)
         The variance based Sobol sensitivity indices
 
-    sobol_interaction_indices : np.ndarray(nvars,nchoosek(nvars+max_order,nvars))
+    sobol_interaction_indices : np.ndarray(nvars, nchoosek(nvars+max_order, nvars))
         Indices specifying the variables in each interaction in
         ``sobol_indices``
     """

@@ -195,13 +195,38 @@ def advection_diffusion():
 
 
 from pyapprox.benchmarks import setup_benchmark
+from pyapprox.surrogates import approximate
+from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
+from pyapprox.analysis.sensitivity_analysis import run_sensitivity_analysis
 def ecology():
+    time = np.linspace(0., 100, 101)
     benchmark = setup_benchmark("hastings_ecology",
-                                qoi_functional=lambda sol: sol[:, -2])
+                                qoi_functional=lambda sol: sol[:, -2],
+                                time=time)
     nsamples = 10
-    samples = benchmark.variable.rvs(nsamples)
-    values = benchmark.fun(samples)
-    print(values.shape)
+    train_samples = benchmark.variable.rvs(nsamples)
+    train_values = benchmark.fun(train_samples)
+
+    degree = 1
+    indices = compute_hyperbolic_indices(
+        benchmark.variable.num_vars(), degree)
+    print(indices)
+    pce = approximate(
+        train_samples, train_values, 'polynomial_chaos',
+        {'basis_type': 'fixed', 'variable': benchmark.variable,
+         'options': {'indices': indices, "solver_type": "lstsq"}}).approx
+
+    res = run_sensitivity_analysis("pce_sobol", pce, benchmark.variable)
+    print(res.main_effects.shape)
+
+    bottom = 0
+    for ii in range(res.main_effects.shape[0]):
+        top = bottom + res.main_effects[ii, :]
+        plt.fill_between(time, bottom, top)
+        bottom += top
+    plt.show()
+
+    
 
 if __name__ == "__main__":
     np.random.seed(1)
