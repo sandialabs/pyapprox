@@ -15,10 +15,10 @@ from pyapprox.variables.sampling import (
 )
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     _compute_expected_sobol_indices, generate_gp_realizations,
-    extract_gaussian_process_attributes_for_integration
+    extract_gaussian_process_attributes_for_integration, GaussianProcess
 )
 from pyapprox.surrogates.polychaos.gpc import (
-    define_poly_options_from_variable_transformation
+    define_poly_options_from_variable_transformation, PolynomialChaosExpansion
 )
 from pyapprox.surrogates.polychaos.sparse_grid_to_gpc import (
     convert_sparse_grid_to_polynomial_chaos_expansion
@@ -521,7 +521,7 @@ class SensitivityResult(OptimizeResult):
     pass
 
 
-def morris_sensitivities(fun, univariate_variables, ntrajectories,
+def morris_sensitivities(fun, variable, ntrajectories,
                          nlevels=4):
     r"""
     Compute sensitivity indices by constructing an adaptive polynomial chaos
@@ -536,6 +536,11 @@ def morris_sensitivities(fun, univariate_variables, ntrajectories,
 
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nsamples,nqoi)
+
+    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`
+         Object containing information of the joint density of the inputs z
+         which is the tensor product of independent and identically distributed
+         uniform variables.
 
     ntrajectories : integer
         The number of Morris trajectories requested
@@ -567,8 +572,9 @@ def morris_sensitivities(fun, univariate_variables, ntrajectories,
         The values of ``fun`` at each sample in ``samples``
     """
 
-    nvars = len(univariate_variables)
-    samples = get_morris_samples(nvars, nlevels, ntrajectories)
+    nvars = variable.num_vars()
+    icdfs = [v.ppf for v in variable.marginals()]
+    samples = get_morris_samples(nvars, nlevels, ntrajectories, icdfs=icdfs)
     values = fun(samples)
     elem_effects = get_morris_elementary_effects(samples, values)
     mu, sigma = get_morris_sensitivity_indices(elem_effects)
@@ -637,7 +643,7 @@ def sparse_grid_sobol_sensitivities(sparse_grid, max_order=2):
          'pce': pce})
 
 
-def gpc_sobol_sensitivities(pce, max_order=2):
+def gpc_sobol_sensitivities(pce, variable, max_order=2):
     r"""
     Compute variance based sensitivity metrics from a polynomial chaos
     expansion
@@ -673,6 +679,15 @@ def gpc_sobol_sensitivities(pce, max_order=2):
         Indices specifying the variables in each interaction in
         ``sobol_indices``
     """
+    if type(pce) != PolynomialChaosExpansion:
+        raise ValueError("Must provide a PCE")
+    
+    if variable.marginals() != pce.var_trans.variable.marginals():
+        msg = "variable is inconsistent with PCE. "
+        msg += "Can only compute sensitivities with respect to variable "
+        msg += "used to build the PCE"
+        raise ValueError(msg)
+    
     pce_main_effects, pce_total_effects =\
         get_main_and_total_effect_indices_from_pce(
             pce.get_coefficients(), pce.get_indices())
@@ -866,6 +881,9 @@ def analytic_sobol_indices_from_gaussian_process(
         ninterpolation_samples=500, nvalidation_samples=100,
         ncandidate_samples=1000, nquad_samples=50, use_cholesky=True, alpha=0):
 
+    if type(gp) != GaussianProcess:
+        raise ValueError ("Argument gp must be a Gaussian process")
+
     x_train, y_train, K_inv, lscale, kernel_var, transform_quad_rules = \
         extract_gaussian_process_attributes_for_integration(gp)
 
@@ -1011,3 +1029,38 @@ def sampling_based_sobol_indices_from_gaussian_process(
         subdict['values'] = item
         result[name] = subdict
     return result
+
+
+def run_sensitivity_analysis(method, fun, variable, *args, **kwargs):
+    """
+    Compute sensitivity indices for a model.
+
+    Parameters
+    ----------
+    method : string
+        The name of the sensitivity method
+
+    args: kwargs
+        optional keyword arguments
+
+    kwargs: kwargs
+        optional keyword arguments
+
+    Returns
+    -------
+    result : SensitivityResult
+       Object containing the sensitivity indices
+    """
+    methods = {
+        "sobol": sampling_based_sobol_indices,
+        "morris": morris_sensitivities,
+        "pce_sobol": gpc_sobol_sensitivities,
+        "gp_sobol": analytic_sobol_indices_from_gaussian_process}
+
+    if method not in methods:
+        msg = f'Method "{method}" not found.\n Available methods are:\n'
+        for key in methods.keys():
+            msg += f"\t{key}\n"
+        raise Exception(msg)
+
+    return methods[method](fun, variable, *args, **kwargs)

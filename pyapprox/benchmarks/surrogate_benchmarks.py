@@ -10,7 +10,8 @@ from pyapprox.variables.joint import (
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array
 )
-from pyapprox.pde.spectral_diffusion import zeros_fun_axis_1
+from pyapprox.pde.spectralcollocation.spectral_collocation import (
+    zeros_fun_axis_1)
 
 
 def rosenbrock_function(samples):

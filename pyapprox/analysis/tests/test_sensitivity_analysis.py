@@ -11,7 +11,8 @@ from pyapprox.analysis.sensitivity_analysis import (
     gpc_sobol_sensitivities, sparse_grid_sobol_sensitivities,
     sampling_based_sobol_indices, repeat_sampling_based_sobol_indices,
     sampling_based_sobol_indices_from_gaussian_process,
-    analytic_sobol_indices_from_gaussian_process
+    analytic_sobol_indices_from_gaussian_process,
+    run_sensitivity_analysis
 )
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 from pyapprox.benchmarks.sensitivity_benchmarks import (
@@ -233,12 +234,9 @@ class TestSensitivityAnalysis(unittest.TestCase):
         elem_effects = get_morris_elementary_effects(samples, values)
         mu, sigma = get_morris_sensitivity_indices(elem_effects)
         print_morris_sensitivity_indices(mu, sigma)
-        # ix1 = 0
-        # for ii in range(ntrajectories):
-        #     ix2 = ix1+nvars+1
-        #     plt.plot(samples[0,ix1:ix2],samples[1,ix1:ix2],'-o')
-        #     ix1=ix2
-        # plt.xlim([0,1]); plt.ylim([0,1]); plt.show()
+
+        variable = IndependentMarginalsVariable([stats.beta(2, 3)]*nvars)
+        result = run_sensitivity_analysis("morris", function, variable, 10)
 
     def test_gpc_sobol_sensitivities(self):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
@@ -252,7 +250,10 @@ class TestSensitivityAnalysis(unittest.TestCase):
             {'basis_type': 'hyperbolic_cross', 'variable': benchmark.variable,
              'options': {'max_degree': 8}}).approx
 
-        res = gpc_sobol_sensitivities(pce)
+        res = gpc_sobol_sensitivities(pce, benchmark.variable)
+        assert np.allclose(res.main_effects, benchmark.main_effects, atol=2e-3)
+
+        res = run_sensitivity_analysis("pce_sobol", pce, benchmark.variable)
         assert np.allclose(res.main_effects, benchmark.main_effects, atol=2e-3)
 
     def test_sparse_grid_sobol_sensitivities(self):
@@ -305,6 +306,12 @@ class TestSensitivityAnalysis(unittest.TestCase):
                 benchmark.sobol_interaction_indices[ii])
         assert np.allclose(sobol_indices, benchmark.sobol_indices,
                            rtol=5e-3, atol=1e-3)
+
+        result = run_sensitivity_analysis(
+            "sobol", benchmark.fun, benchmark.variable,
+            interaction_terms, nsamples, sampling_method, qmc_start_index=100)
+        assert np.allclose(main_effects, benchmark.main_effects, atol=2e-3)
+        
 
     def test_repeat_qmc_sobol_sensitivity_analysis_ishigami(self):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
@@ -518,6 +525,10 @@ class TestSensitivityAnalysis(unittest.TestCase):
         assert np.allclose(
             mean_sobol_indices,
             benchmark.sobol_indices[:-1, 0], rtol=1e-3, atol=3e-3)
+
+        result = run_sensitivity_analysis(
+            "gp_sobol", approx, benchmark.variable, interaction_terms)
+        assert np.allclose(mean_mean, benchmark.mean, rtol=1e-3, atol=3e-3)
 
     def test_marginalize_polynomial_chaos_expansions(self):
         univariate_variables = [

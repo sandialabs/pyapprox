@@ -36,7 +36,7 @@ from pyapprox.variables.transforms import (
 from pyapprox.interface.wrappers import (
     TimerModel, PoolModel, WorkTrackingModel
 )
-from pyapprox.pde.spectral_diffusion import (
+from pyapprox.pde.spectralcollocation.diffusion import (
     TransientAdvectionDiffusion, SteadyStateAdvectionDiffusion
 )
 

@@ -78,11 +78,13 @@ def set_kle_diff_params(kle, residual, params):
 
 def advection_diffusion():
 
-    true_kle_params = torch.tensor([0.3, 0.3], dtype=torch.double)
-    true_noise_std = 0.01  # make sure it does not dominate observed values
-    true_params = true_kle_params
+    true_noise_std = 1e-5 #0.01  # make sure it does not dominate observed values
     length_scale = .5
     nrandom_vars = 2
+    true_kle_params = torch.as_tensor(
+        np.random.normal(0, 1, (nrandom_vars)), dtype=torch.double)
+    true_params = true_kle_params
+    print(true_params.numpy())
 
     orders = [20, 20]
     obs_indices = np.array([200, 225, 300])
@@ -93,6 +95,8 @@ def advection_diffusion():
 
     kle = MeshKLE(mesh.mesh_pts, use_log=True, use_torch=True)
     kle.compute_basis(length_scale, sigma=1, nterms=nrandom_vars)
+
+    plt.plot(np.arange(kle.nterms), kle.eig_vals, 'o')
 
     def vel_fun(xx):
         return torch.hstack((
@@ -114,7 +118,7 @@ def advection_diffusion():
         [zeros_fun_axis_1, "D"],
         [zeros_fun_axis_1, "D"]]
 
-    newton_kwargs = {"maxiters": 1}
+    newton_kwargs = {"maxiters": 1, "tol": 1e-8}
     diff_fun = partial(mesh.interpolate, kle(true_kle_params[:, None]))
     fwd_solver = SteadyStatePDE(AdvectionDiffusionReaction(
         mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
@@ -132,8 +136,9 @@ def advection_diffusion():
     functional = partial(loglike_functional, obs, obs_indices, true_noise_std)
     dqdu = partial(loglike_functional_dqdu, obs, obs_indices, true_noise_std)
     dqdp = partial(loglike_functional_dqdp, obs, obs_indices, true_noise_std)
-    dRdp =partial(advection_diffusion_reaction_kle_dRdp, kle)
-    adj_solver = SteadyStateAdjointPDE(fwd_solver, functional, dqdu, dqdp, dRdp)
+    dRdp = partial(advection_diffusion_reaction_kle_dRdp, kle)
+    adj_solver = SteadyStateAdjointPDE(
+        fwd_solver, functional, dqdu, dqdp, dRdp)
     set_params = partial(set_kle_diff_params, kle)
 
     def objective_single_sample(
@@ -175,15 +180,30 @@ def advection_diffusion():
     def objective(p):
         # scioy will pass in 1D variable
         obj, jac = adj_solver.compute_gradient(
-            set_params, torch.as_tensor(p), return_obj=True)
+            set_params, torch.as_tensor(p), return_obj=True,
+            **newton_kwargs)
         if obj.ndim == 0:
             obj = torch.as_tensor([obj])
-        print(p, obj.item())
+        # print(p, obj.item())
         # print(jac.numpy())
+        print(obj.item())
         return -obj.numpy(), -jac[0, :].numpy()
     opt_result = pyapprox_minimize(
         objective, init_guess, method="trust-constr", jac=True)
+    print(opt_result.x)
+    print(true_params.numpy())
+
+
+from pyapprox.benchmarks import setup_benchmark
+def ecology():
+    benchmark = setup_benchmark("hastings_ecology",
+                                qoi_functional=lambda sol: sol[:, -2])
+    nsamples = 10
+    samples = benchmark.variable.rvs(nsamples)
+    values = benchmark.fun(samples)
+    print(values.shape)
 
 if __name__ == "__main__":
     np.random.seed(1)
-    advection_diffusion()
+    # advection_diffusion()
+    ecology()
