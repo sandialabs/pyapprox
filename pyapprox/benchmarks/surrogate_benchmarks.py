@@ -535,10 +535,10 @@ def define_nondim_hastings_ecology_random_variables():
     ranges = np.zeros((2*len(nominal_sample)), np.double)
     ranges[::2] = nominal_sample*0.95
     ranges[1::2] = nominal_sample*1.05
-    ranges[:2] = 4.9, 5.1
-    ranges[12:14] = 0, 1
-    ranges[14:16] = 0, 1
-    ranges[16:18] = 5, 12
+    # ranges[:2] = 4.9, 5.1
+    # ranges[12:14] = 0, 1
+    # ranges[14:16] = 0, 1
+    # ranges[16:18] = 5, 12
     univariate_variables = [
         stats.uniform(ranges[2*ii], ranges[2*ii+1]-ranges[2*ii])
         for ii in range(len(ranges)//2)]
