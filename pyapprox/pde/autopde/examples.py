@@ -195,11 +195,17 @@ def advection_diffusion():
 
 
 from pyapprox.benchmarks import setup_benchmark
-from pyapprox.surrogates import approximate
+from pyapprox.surrogates import adaptive_approximate, approximate
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
 from pyapprox.analysis.sensitivity_analysis import run_sensitivity_analysis
+from pyapprox.surrogates.polychaos.gpc import (
+    define_poly_options_from_variable_transformation, PolynomialChaosExpansion
+)
+from pyapprox.surrogates.polychaos.sparse_grid_to_gpc import (
+    convert_sparse_grid_to_polynomial_chaos_expansion
+)
 def ecology():
-    time = np.linspace(0., 100, 101)
+    time = np.linspace(0., 10, 101)
     benchmark = setup_benchmark("hastings_ecology",
                                 qoi_functional=lambda sol: sol[:, -2],
                                 time=time)
@@ -211,19 +217,41 @@ def ecology():
     indices = compute_hyperbolic_indices(
         benchmark.variable.num_vars(), degree)
     print(indices)
-    pce = approximate(
-        train_samples, train_values, 'polynomial_chaos',
-        {'basis_type': 'fixed', 'variable': benchmark.variable,
-         'options': {'indices': indices, "solver_type": "lstsq"}}).approx
+    # pce = approximate(
+    #     train_samples, train_values, 'polynomial_chaos',
+    #     {'basis_type': 'fixed', 'variable': benchmark.variable,
+    #      'options': {'indices': indices, "solver_type": "lstsq"}}).approx
+    sparse_grid = adaptive_approximate(
+        benchmark.fun, benchmark.variable, 'sparse_grid',
+        {"max_nsamples": 1000}).approx
+    samples = benchmark.variable.rvs(100)
+    sg_vals = sparse_grid(samples)
+    vals = benchmark.fun(samples)
+    error = np.linalg.norm(sg_vals-vals, axis=0)/np.linalg.norm(vals, axis=0)
+    #print(error)
+    #assert False
 
+    #from pyapprox.analysis.visualize import plot_1d_cross_sections
+    #plot_1d_cross_sections(benchmark.fun, benchmark.variable, nsamples_1d = 20)
+    #plt.show()
+
+    from pyapprox import analysis
+    fig, axs = analysis.generate_parameter_sweeps_and_plot_from_variable(
+        benchmark.fun, benchmark.variable, num_samples_per_sweep=20, num_sweeps=3,
+        qoi_indices=np.array([-1]))
+    plt.show()
+
+    pce_opts = define_poly_options_from_variable_transformation(
+        sparse_grid.var_trans)
+    pce = convert_sparse_grid_to_polynomial_chaos_expansion(
+        sparse_grid, pce_opts)
     res = run_sensitivity_analysis("pce_sobol", pce, benchmark.variable)
-    print(res.main_effects.shape)
 
     bottom = 0
     for ii in range(res.main_effects.shape[0]):
         top = bottom + res.main_effects[ii, :]
         plt.fill_between(time, bottom, top)
-        bottom += top
+        bottom = top
     plt.show()
 
     
