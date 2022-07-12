@@ -15,7 +15,18 @@ class AbstractSpectralCollocationPhysics(ABC):
         self._auto_jac = True
 
     def _set_boundary_conditions(self, bndry_conds):
-        # TODO add input checks
+        if type(self.mesh) == VectorMesh:
+            if len(bndry_conds) != len(self.mesh._meshes):
+                msg = "Boundary conditions must be provided for each mesh"
+                raise ValueError(msg)
+            meshes = self.mesh._meshes
+        else:
+            meshes = [self.mesh]
+        for ii in range(len(meshes)):
+            if len(bndry_conds[ii]) != len(meshes[ii]._bndrys):
+                msg = "Boundary conditions must be provided for each "
+                msg += "boundary"
+                raise ValueError(msg)
         return bndry_conds
 
     @abstractmethod
@@ -182,7 +193,7 @@ class LinearIncompressibleStokes(IncompressibleNavierStokes):
 
 class ShallowIce(AbstractSpectralCollocationPhysics):
     def __init__(self, mesh, bndry_conds, bed_fun, beta_fun, forc_fun,
-                 A, rho, n=3, g=9.81):
+                 A, rho, n=3, g=9.81, eps=1e-15):
         super().__init__(mesh, bndry_conds)
 
         self._bed_fun = bed_fun
@@ -193,12 +204,15 @@ class ShallowIce(AbstractSpectralCollocationPhysics):
         self._n = n
         self._g = g
         self._gamma = 2*A*(rho*g)**n/(n+2)
-        self._eps = 1e-15
+        self._eps = eps
 
         self._funs = [
             self._bed_fun, self._beta_fun, self._forc_fun]
 
     def _raw_residual(self, sol):
+        if torch.any(sol <= 0):
+            print(sol.detach().numpy())
+            raise RuntimeError("Depth is negative")
         bed_vals = self._bed_fun(self.mesh.mesh_pts)[:, 0]
         beta_vals = self._beta_fun(self.mesh.mesh_pts)[:, 0]
         surf_grad = self.mesh.grad(bed_vals+sol)
@@ -389,6 +403,8 @@ class ShallowWaterWave(AbstractSpectralCollocationPhysics):
     def _raw_residual(self, sol):
         split_sols = self.mesh.split_quantities(sol)
         depth = split_sols[0]
+        if torch.any(depth <= 0):
+            raise RuntimeError("Depth is negative")
         vels = torch.hstack([(s/depth)[:, None] for s in split_sols[1:]])
         depth_forc_vals = self._depth_forc_fun(self.mesh._meshes[0].mesh_pts)
         vel_forc_vals = self._vel_forc_fun(self.mesh._meshes[1].mesh_pts)

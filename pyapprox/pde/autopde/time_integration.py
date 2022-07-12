@@ -24,7 +24,6 @@ def explicit_runge_kutta_update(sol, deltat, time, rhs, butcher_tableau):
         stage_rhs[ii] = rhs(
             sol+stage_deltas[ii], time+c_coef[ii]*deltat)
         new_sol += deltat*b_coef[ii]*stage_rhs[ii]
-        # print(ii, stage_rhs[ii], '$')
     return new_sol, stage_deltas, stage_rhs
 
 
@@ -406,7 +405,7 @@ class ImplicitRungeKutta():
         time = init_time
         times.append(time)
         if type(init_sol) == np.ndarray:
-            sol = torch.tensor(init_sol)
+            sol = torch.as_tensor(init_sol)
         else:
             sol = init_sol.clone()
         if sol.ndim == 2:

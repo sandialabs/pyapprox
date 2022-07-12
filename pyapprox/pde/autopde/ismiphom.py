@@ -94,17 +94,17 @@ class ISMIPHOMBenchmark():
     def thickness_fun(self, x):
         return self.surface_fun(x)-self.bed_fun(x)
 
-import torch
-from pyapprox.pde.autopde.autopde import (
-    CartesianProductCollocationMesh, VectorMesh, SteadyStatePDE,
-    Function, ShallowShelfVelocities)
-import matplotlib.pyplot as plt
-
 
 if __name__ == "__main__":
+    import torch
+    from pyapprox.pde.autopde.autopde import (
+        CartesianProductCollocationMesh, VectorMesh, SteadyStatePDE,
+        Function, ShallowShelfVelocities)
+    import matplotlib.pyplot as plt
+
     Lx = 80  # km
     orders = [21]
-    
+
     benchmark = ISMIPHOMBenchmark("D", Lx=Lx)
 
     nphys_vars = len(orders)
@@ -112,7 +112,7 @@ if __name__ == "__main__":
         [[None, "P"] for ii in range(nphys_vars*2)]
         for jj in range(nphys_vars)]
     print(vel_bndry_conds)
-    
+
     nphys_vars = len(orders)
     domain_bounds = np.zeros(nphys_vars*2)
     domain_bounds[1::2] = Lx

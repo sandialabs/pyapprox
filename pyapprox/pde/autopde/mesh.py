@@ -243,7 +243,7 @@ class CanonicalCollocationMesh():
     def interpolate(self, values, eval_samples):
         if eval_samples.ndim == 1:
             eval_samples = eval_samples[None, :]
-            assert eval_samples.shape[0] == self.nunknowns
+            assert eval_samples.shape[1] == self.nunknowns
         if values.ndim == 1:
             values = values[:, None]
             assert values.ndim == 2
@@ -288,8 +288,8 @@ class CanonicalCollocationMesh():
     def _fourier_interpolate(self, values, canonical_eval_samples):
         if type(values) != np.ndarray:
             values = values.detach().numpy()
-        basis_vals = [
-            fourier_basis(o, s)
+            basis_vals = [
+                fourier_basis(o, s)
             for o, s in zip(self._orders, canonical_eval_samples)]
         if self.nphys_vars == 1:
             return basis_vals[0].dot(values)
@@ -304,8 +304,8 @@ class CanonicalCollocationMesh():
 
     def _plot_1d(self, mesh_values, nplot_pts_1d=None, ax=None,
                  **kwargs):
-        plot_mesh = self._create_plot_mesh_1d(self, nplot_pts_1d)
-        interp_vals = self.interpolate(mesh_values, plot_mesh)
+        plot_mesh = self._create_plot_mesh_1d(nplot_pts_1d)
+        interp_vals = self.interpolate(mesh_values, plot_mesh[None, :])
         return ax.plot(plot_mesh, interp_vals, **kwargs)
 
     def _create_plot_mesh_2d(self, nplot_pts_1d):
@@ -587,6 +587,12 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
                 vals += scale*super().partial_deriv(quantity, ii, idx)
         return vals
 
+    def _create_plot_mesh_1d(self, nplot_pts_1d):
+        if nplot_pts_1d is None:
+            return self.mesh_pts[0, :]
+        return np.linspace(
+            self._domain_bounds[0], self._domain_bounds[1], nplot_pts_1d)
+
     def _create_plot_mesh_2d(self, nplot_pts_1d):
         X, Y, pts = super()._create_plot_mesh_2d(nplot_pts_1d)
         pts = self._map_samples_from_canonical_domain(pts)
@@ -725,10 +731,10 @@ class VectorMesh():
         if self._meshes[0].nphys_vars == 1:
             xx = np.linspace(
                 *self._meshes[0]._domain_bounds, nplot_pts_1d)[None, :]
-            Z =  self.interpolate(sol_vals, xx)
+            Z = self.interpolate(sol_vals, xx)
             objs = []
             for ii in range(2):
-                obj = axs[ii].plot(xx[0, :], Z[ii], **kwargs)
+                obj, = axs[ii].plot(xx[0, :], Z[ii], **kwargs)
                 objs.append(obj)
             return objs
         X, Y, pts = get_meshgrid_samples(
