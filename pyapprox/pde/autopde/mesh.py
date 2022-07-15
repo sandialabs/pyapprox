@@ -12,6 +12,14 @@ from pyapprox.surrogates.interp.barycentric_interpolation import (
 from pyapprox.util.visualization import plt, get_meshgrid_samples
 
 
+def full_fun_axis_1(fill_val, xx, oned=True):
+    vals = torch.full((xx.shape[1], ), fill_val, dtype=torch.double)
+    if oned:
+        return vals
+    else:
+        return vals[:, None]
+
+
 def chebyshev_derivative_matrix(order):
     if order == 0:
         pts = np.array([1], float)
@@ -741,6 +749,8 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
             self._canonical_mesh_pts)
 
         self._bndrys = self._transform_boundaries()
+
+        self._dmats = [self._dmat(dd) for dd in range(self.nphys_vars)]
 
     def _transform_boundaries(self):
         if self.nphys_vars == 1:

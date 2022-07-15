@@ -36,9 +36,6 @@ from pyapprox.variables.transforms import (
 from pyapprox.interface.wrappers import (
     TimerModel, PoolModel, WorkTrackingModel
 )
-from pyapprox.pde.spectralcollocation.diffusion import (
-    TransientAdvectionDiffusion, SteadyStateAdvectionDiffusion
-)
 
 
 class Benchmark(OptimizeResult):

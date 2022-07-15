@@ -132,6 +132,12 @@ class TestBenchmarks(unittest.TestCase):
             g1 = pickle.load(f)
         tmp_dir.cleanup()
 
+    def test_setup_multi_index_advection_diffusion_benchmark(self):
+        nvars, corr_len, degree = 2, 1, 10
+        benchmark = setup_benchmark(
+            "multi_index_advection_diffusion", nvars=nvars, corr_len=corr_len,
+            degree=degree)
+
 
 if __name__ == "__main__":
     benchmarks_test_suite = unittest.TestLoader().loadTestsFromTestCase(

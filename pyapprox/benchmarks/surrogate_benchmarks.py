@@ -2,6 +2,7 @@ from scipy import stats
 import numpy as np
 from scipy.optimize import rosen, rosen_der, rosen_hess_prod
 from scipy import integrate
+from functools import partial
 
 from pyapprox.util.pya_numba import njit
 from pyapprox.variables.joint import (
@@ -10,8 +11,7 @@ from pyapprox.variables.joint import (
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array
 )
-from pyapprox.pde.spectralcollocation.spectral_collocation import (
-    zeros_fun_axis_1)
+from pyapprox.pde.autopde.mesh import full_fun_axis_1
 
 
 def rosenbrock_function(samples):
@@ -656,10 +656,10 @@ class HastingsEcology(object):
 
 class NobileBenchmarkFunctions(object):
     def __init__(self, nvars, corr_len):
-        self.bndry_conds = [[zeros_fun_axis_1, "D"],
-                            [zeros_fun_axis_1, "D"],
-                            [zeros_fun_axis_1, "D"],
-                            [zeros_fun_axis_1, "D"]]
+        self.bndry_conds = [[partial(full_fun_axis_1, 0), "D"],
+                            [partial(full_fun_axis_1, 0), "D"],
+                            [partial(full_fun_axis_1, 0), "D"],
+                            [partial(full_fun_axis_1, 0), "D"]]
 
         domain_len = 1
         self.corr_len, self.nvars = corr_len, nvars

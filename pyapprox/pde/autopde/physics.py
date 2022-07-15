@@ -93,8 +93,8 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         for dd in range(self.mesh.nphys_vars):
             linear_jac += (
                 multi_dot(
-                    (self.mesh._dmat(dd), diff_vals*self.mesh._dmat(dd))) -
-                vel_vals[:, dd:dd+1]*self.mesh._dmat(dd))
+                    (self.mesh._dmats[dd], diff_vals*self.mesh._dmats[dd])) -
+                vel_vals[:, dd:dd+1]*self.mesh._dmats[dd])
         res = multi_dot((linear_jac, sol))
         jac = linear_jac - self._react_jac(sol[:, None])
         res -= self._react_fun(sol[:, None])[:, 0]
@@ -145,8 +145,9 @@ class IncompressibleNavierStokes(AbstractSpectralCollocationPhysics):
         jac = [[0 for jj in range(self.mesh.nphys_vars+1)]
                for ii in range(len(split_sols))]
         # assumes x and y velocity meshes are the same
-        vel_dmats = [self.mesh._meshes[0]._dmat(dd)
-                 for dd in range(self.mesh.nphys_vars)]
+        vel_dmats = self.mesh._meshes[0]._dmats
+        #[self.mesh._meshes[0]._dmat(dd)
+        #for dd in range(self.mesh.nphys_vars)]
         for dd in range(self.mesh.nphys_vars):
             for ii in range(self.mesh.nphys_vars):
                 dmat = vel_dmats[ii] # self.mesh._meshes[dd]._dmat(ii)
@@ -232,7 +233,8 @@ class ShallowIce(AbstractSpectralCollocationPhysics):
         # g(h) = 2C*h*D[0]*h + C*h**2*D[0]
         h, b = sol, self._bed_fun(self.mesh.mesh_pts)[:, 0]
         C = self._rho*self._g*h/self._beta_fun(self.mesh.mesh_pts)[:, 0]
-        dmats = [self.mesh._dmat(dd) for dd in range(self.mesh.nphys_vars)]
+        # dmats = [self.mesh._dmat(dd) for dd in range(self.mesh.nphys_vars)]
+        dmats = self.mesh._dmats
         jac1, jac2 = 0, 0
         for dd in range(self.mesh.nphys_vars):
             jac2 += (2*C*multi_dot(
@@ -345,8 +347,9 @@ class ShallowWaterWave(AbstractSpectralCollocationPhysics):
         return torch.cat(residual), None
 
     def _raw_jacobian_1d(self, depth, vels):
-        dmats = [self.mesh._meshes[0]._dmat(dd)
-                 for dd in range(self.mesh.nphys_vars)]
+        # dmats = [self.mesh._meshes[0]._dmat(dd)
+        #          for dd in range(self.mesh.nphys_vars)]
+        dmats = self.mesh._meshes[0]._dmats
         jac = [0, 0]
         # recall taking jac with respect to u and uh
         jac[0] = [-dmats[0]*0, -dmats[0]]
@@ -379,8 +382,9 @@ class ShallowWaterWave(AbstractSpectralCollocationPhysics):
         return torch.cat(residual), None
 
     def _raw_jacobian_2d(self, depth, vels):
-        dmats = [self.mesh._meshes[0]._dmat(dd)
-                 for dd in range(self.mesh.nphys_vars)]
+        # dmats = [self.mesh._meshes[0]._dmat(dd)
+        #          for dd in range(self.mesh.nphys_vars)]
+        dmats = self.mesh._meshes[0]._dmats
         jac = [0, 0, 0]
         # recall taking jac with respect to u and uh
         jac[0] = [-dmats[0]*0, -dmats[0], -dmats[1]]
@@ -468,8 +472,9 @@ class ShallowShelfVelocities(AbstractSpectralCollocationPhysics):
         # d/du (ux**2 + vy**2 + ux*vy + 0.25*(uy+vx)**2)**(1/2)
         # = 0.5*srate**(-0.5)*d/du(ux**2+...)
         srate = self._effective_strain_rate(dudx_ij)
-        dmats = [self.mesh._meshes[0]._dmat(dd)
-                 for dd in range(self.mesh.nphys_vars)]
+        # dmats = [self.mesh._meshes[0]._dmat(dd)
+        #          for dd in range(self.mesh.nphys_vars)]
+        dmats = self.mesh._meshes[0]._dmats
         tmp = [2*dudx_ij[dd][dd][:, None]*dmats[dd]
                for dd in range(self.mesh.nphys_vars)]
         if self.mesh.nphys_vars == 2:
@@ -501,8 +506,9 @@ class ShallowShelfVelocities(AbstractSpectralCollocationPhysics):
         return (2*dudx_ij[0][0][:, None],)
 
     def _vector_components_jac(self, dudx_ij):
-        dmats = [self.mesh._meshes[0]._dmat(dd)
-                 for dd in range(self.mesh.nphys_vars)]
+        # dmats = [self.mesh._meshes[0]._dmat(dd)
+        #          for dd in range(self.mesh.nphys_vars)]
+        dmats = self.mesh._meshes[0]._dmats
         if self.mesh.nphys_vars == 1:
             return ([[2*dmats[0]]], )
         # vec1_jac = [[dv1[0]/du, dv1[1]/du], dv1[0]/dv, dv[1]/dv]
@@ -535,8 +541,9 @@ class ShallowShelfVelocities(AbstractSpectralCollocationPhysics):
         visc_jac = self._viscosity_jac(dudx_ij)
         vecs = self._vector_components(dudx_ij)
         vecs_jac = self._vector_components_jac(dudx_ij)
-        dmats = [self.mesh._meshes[0]._dmat(dd)
-                 for dd in range(self.mesh.nphys_vars)]
+        # dmats = [self.mesh._meshes[0]._dmat(dd)
+        #          for dd in range(self.mesh.nphys_vars)]
+        dmats = self.mesh._meshes[0]._dmats
         jac = []
         # loop over jacobian rows (blocks)
         for ii in range(self.mesh.nphys_vars):
@@ -584,8 +591,9 @@ class ShallowShelf(ShallowShelfVelocities):
 
     def _raw_jacobian(self, vel_vals, depth_vals):
         pderiv = self.mesh._meshes[0].partial_deriv
-        dmats = [self.mesh._meshes[0]._dmat(dd)
-                 for dd in range(self.mesh.nphys_vars)]
+        # dmats = [self.mesh._meshes[0]._dmat(dd)
+        #          for dd in range(self.mesh.nphys_vars)]
+        dmats = self.mesh._meshes[0]._dmats
         vel_jac = super()._raw_jacobian_nD(
             vel_vals, depth_vals[:, None])
         dudx_ij = self._derivs(vel_vals)
