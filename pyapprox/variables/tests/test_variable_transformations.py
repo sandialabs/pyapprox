@@ -65,6 +65,12 @@ class TestVariableTransformations(unittest.TestCase):
             stats.uniform(-1, 2), stats.beta(2, 1, -2, 3)]
         var_trans = AffineTransform(univariate_variables)
 
+        # from pyapprox.variables.sampling import print_statistics
+        # print_statistics(IndependentMarginalsVariable(
+        #     univariate_variables).rvs(3))
+        # print_statistics(IndependentMarginalsVariable(
+        #     univariate_variables).rvs(3), np.ones((3, 1)))
+
         # first sample is on left boundary of all bounded variables
         # and one standard deviation to left of mean for gaussian variable
         # second sample is on right boundary of all bounded variables

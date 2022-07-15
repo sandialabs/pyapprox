@@ -3,7 +3,7 @@ import numpy as np
 from pyapprox.variables.joint import IndependentMarginalsVariable
 
 
-def print_statistics(samples, values, sample_labels=None, value_labels=None):
+def print_statistics(samples, values=None, sample_labels=None, value_labels=None):
     """
     Print statistics about a set of samples and associated values
 
@@ -17,21 +17,23 @@ def print_statistics(samples, values, sample_labels=None, value_labels=None):
 
     Examples
     --------
-    >>> num_vars=2
+    >>> num_vars = 2
     >>> np.random.seed(1)
-    >>> samples = np.random.normal(0,1,(num_vars,100))
-    >>> values = np.array([np.sum(samples**2,axis=0),2*np.sum(samples**2,axis=0)]).T
-    >>> print_statistics(samples,values)
-               z0         z1         y0         y1    
+    >>> samples = np.random.normal(0, 1, (num_vars, 100))
+    >>> values = np.array([np.sum(samples**2, axis=0), 2*np.sum(samples**2, axis=0)]).T
+    >>> print_statistics(samples, values)
+               z0         z1         y0         y1
     count  100.000000 100.000000 100.000000 100.000000
     mean     0.060583   0.152795   1.679132   3.358265
     std      0.885156   0.931995   1.705877   3.411753
     min     -2.301539  -2.434838   0.031229   0.062458
     max      2.185575   2.528326   9.575905  19.151810
     """
+    num_vars, nsamples = samples.shape
+    if values is None:
+        values = np.empty((nsamples, 0))
     if values.ndim == 1:
         values = values[:, np.newaxis]
-    num_vars, nsamples = samples.shape
     num_qoi = values.shape[1]
     assert nsamples == values.shape[0]
     if sample_labels is None:

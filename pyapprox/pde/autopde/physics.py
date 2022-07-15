@@ -19,14 +19,17 @@ class AbstractSpectralCollocationPhysics(ABC):
             if len(bndry_conds) != len(self.mesh._meshes):
                 msg = "Boundary conditions must be provided for each mesh"
                 raise ValueError(msg)
-            meshes = self.mesh._meshes
-        else:
-            meshes = [self.mesh]
-        for ii in range(len(meshes)):
-            if len(bndry_conds[ii]) != len(meshes[ii]._bndrys):
-                msg = "Boundary conditions must be provided for each "
-                msg += "boundary"
-                raise ValueError(msg)
+            for ii in range(len(self.mesh._meshes)):
+                if len(bndry_conds[ii]) != len(self.mesh._meshes[ii]._bndrys):
+                    msg = "Boundary conditions must be provided for each "
+                    msg += "boundary"
+                    raise ValueError(msg)
+            return bndry_conds
+
+        if len(bndry_conds) != len(self.mesh._bndrys):
+            msg = "Boundary conditions must be provided for each "
+            msg += "boundary"
+            raise ValueError(msg)
         return bndry_conds
 
     @abstractmethod

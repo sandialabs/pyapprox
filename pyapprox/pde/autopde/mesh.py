@@ -7,17 +7,226 @@ from pyapprox.util.utilities import cartesian_product, outer_product
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.variables.transforms import _map_hypercube_samples
 from pyapprox.surrogates.interp.barycentric_interpolation import (
-    compute_barycentric_weights_1d, barycentric_interpolation_1d,
-    multivariate_barycentric_lagrange_interpolation
+    compute_barycentric_weights_1d, barycentric_interpolation_1d
 )
-from pyapprox.pde.spectralcollocation.spectral_collocation import (
-    chebyshev_derivative_matrix, lagrange_polynomial_derivative_matrix_2d,
-    lagrange_polynomial_derivative_matrix_1d, fourier_derivative_matrix,
-    fourier_basis
-)
-from pyapprox.util.visualization import (
-    get_meshgrid_function_data, plt, get_meshgrid_samples
-)
+from pyapprox.util.visualization import plt, get_meshgrid_samples
+
+
+def chebyshev_derivative_matrix(order):
+    if order == 0:
+        pts = np.array([1], float)
+        derivative_matrix = np.array([0], float)
+    else:
+        # this is reverse order used by matlab cheb function
+        pts = -np.cos(np.linspace(0., np.pi, order+1))
+        scalars = np.ones((order+1), float)
+        scalars[0] = 2.
+        scalars[order] = 2.
+        scalars[1:order+1:2] *= -1
+        derivative_matrix = np.empty((order+1, order+1), float)
+        for ii in range(order+1):
+            row_sum = 0.
+            for jj in range(order+1):
+                if (ii == jj):
+                    denominator = 1.
+                else:
+                    denominator = pts[ii]-pts[jj]
+                numerator = scalars[ii] / scalars[jj]
+                derivative_matrix[ii, jj] = numerator / denominator
+                row_sum += derivative_matrix[ii, jj]
+            derivative_matrix[ii, ii] -= row_sum
+
+    # I return points and calculate derivatives using reverse order of points
+    # compared to what is used by Matlab cheb function thus the
+    # derivative matrix I return will be the negative of the matlab version
+    return pts, derivative_matrix
+
+
+def _chebyshev_second_derivative_matrix_entry(degree, pts, ii, jj):
+    if (ii == 0 and jj == 0) or (ii == degree and jj == degree):
+        return (degree**4-1)/15
+
+    if (ii == jj and ((ii > 0) and (ii < degree))):
+        return -((degree**2-1)*(1-pts[ii]**2)+3)/(
+            3*(1-pts[ii]**2)**2)
+
+    if (ii != jj and (ii > 0 and ii < degree)):
+        deriv = (-1)**(ii+jj)*(
+            pts[ii]**2+pts[ii]*pts[jj]-2)/(
+                (1-pts[ii]**2)*(pts[ii]-pts[jj])**2)
+        if jj == 0 or jj == degree:
+            deriv /= 2
+        return deriv
+
+    # because I define pts from left to right instead of right to left
+    # the next two formulas are different to those in the book
+    # Roger Peyret. Spectral Methods for Incompressible Viscous Flow
+    # I.e. pts  = -x
+    if (ii == 0 and jj > 0):
+        deriv = 2/3*(-1)**jj*(
+            (2*degree**2+1)*(1+pts[jj])-6)/(1+pts[jj])**2
+        if jj == degree:
+            deriv /= 2
+        return deriv
+
+    if ii == degree and jj < degree:
+        deriv = 2/3*(-1)**(jj+degree)*(
+            (2*degree**2+1)*(1-pts[jj])-6)/(1-pts[jj])**2
+        if jj == 0:
+            deriv /= 2
+        return deriv
+
+    raise RuntimeError("Will not happen")
+
+
+def fourier_derivative_matrix(order):
+    assert order % 2 == 1
+    npts = (order+1)
+    h = 2*np.pi/npts
+    indices = np.arange(1, npts)
+    col = np.hstack([0, .5*(-1)**indices*(1/np.tan(indices*h/2))])
+    row = col[np.hstack([0, indices[::-1]])]
+    pts = h*np.arange(1, npts+1)
+    return pts, toeplitz(col, row)
+
+
+def fourier_second_order_derivative_matrix(order):
+    assert order % 2 == 1
+    npts = (order+1)
+    h = 2*np.pi/npts
+    indices = np.arange(1, npts)
+    col = np.hstack(
+        [-np.pi**2/(3*h**2)-1/6, -.5*(-1)**indices/(np.sin(indices*h/2)**2)])
+    pts = h*np.arange(1, npts+1)
+    return pts, toeplitz(col)
+
+
+def fourier_basis(order, samples):
+    npts = (order+1)
+    h = 2*np.pi/npts
+    pts = h*np.arange(1, npts+1)
+    II = np.where(samples==2*np.pi)[0]
+    samples[II] = 0
+    xx = samples[:, None]-pts[None, :]
+    vals = np.sin(np.pi*xx/h)/(2*np.pi/h*np.tan(xx/2))
+    return vals
+
+
+def chebyshev_second_derivative_matrix(degree):
+    # this is reverse order used in book
+    pts = -np.cos(np.linspace(0., np.pi, degree+1))
+    derivative_matrix = np.empty((degree+1, degree+1))
+    for ii in range(degree+1):
+        for jj in range(degree+1):
+            derivative_matrix[ii, jj] = \
+                _chebyshev_second_derivative_matrix_entry(degree, pts, ii, jj)
+    return pts, derivative_matrix
+
+
+def lagrange_polynomial_derivative_matrix_1d(eval_samples, abscissa):
+    nabscissa = abscissa.shape[0]
+    samples_diff = eval_samples[:, None]-abscissa[None, :]
+    abscissa_diff = abscissa[:, None]-abscissa[None, :]
+    basis_vals = np.ones((eval_samples.shape[0], nabscissa))
+    deriv_mat = np.empty_like(basis_vals)
+    for ii in range(nabscissa):
+        indices = np.delete(np.arange(nabscissa), ii)
+        numer = samples_diff[:, indices].prod(axis=1)
+        denom = abscissa_diff[ii, indices].prod(axis=0)
+        basis_vals[:, ii] = numer/denom
+        numer_deriv = 0
+        for jj in range(nabscissa):
+            if ii != jj:
+                numer_deriv += np.delete(
+                    samples_diff, (ii, jj), axis=1).prod(axis=1)
+        deriv_mat[:, ii] = numer_deriv/denom
+    return deriv_mat, basis_vals
+
+
+def lagrange_polynomial_basis_matrix_2d(eval_samples, abscissa_1d):
+    nabscissa_1d = [a.shape[0] for a in abscissa_1d]
+    basis_vals = np.ones((eval_samples.shape[1], np.prod(nabscissa_1d)))
+    numer = [[], []]
+    denom = [[], []]
+    samples_diff = [None, None]
+    for dd in range(2):
+        samples_diff[dd] = eval_samples[dd][:, None]-abscissa_1d[dd][None, :]
+        abscissa_diff = abscissa_1d[dd][:, None]-abscissa_1d[dd][None, :]
+        for jj in range(nabscissa_1d[dd]):
+            indices = np.delete(np.arange(nabscissa_1d[dd]), jj)
+            numer[dd].append(samples_diff[dd][:, indices].prod(axis=1))
+            denom[dd].append(abscissa_diff[jj, indices].prod(axis=0))
+        numer[dd] = np.asarray(numer[dd])
+        denom[dd] = np.asarray(denom[dd])
+    cnt = 0
+    for jj in range(nabscissa_1d[1]):
+        basis_vals[:, cnt:cnt+nabscissa_1d[0]] = (
+            numer[0][:]/denom[0][:, None]*numer[1][jj]/denom[1][jj]).T
+        cnt += nabscissa_1d[0]
+    return basis_vals
+
+
+def lagrange_polynomial_derivative_matrix_2d(eval_samples, abscissa_1d):
+    nabscissa_1d = [a.shape[0] for a in abscissa_1d]
+    basis_vals = np.ones((eval_samples.shape[1], np.prod(nabscissa_1d)))
+    deriv_mat = np.empty((2, eval_samples.shape[1], np.prod(nabscissa_1d)))
+    numer = [[], []]
+    denom = [[], []]
+    samples_diff = [None, None]
+    for dd in range(2):
+        samples_diff[dd] = eval_samples[dd][:, None]-abscissa_1d[dd][None, :]
+        abscissa_diff = abscissa_1d[dd][:, None]-abscissa_1d[dd][None, :]
+        for jj in range(nabscissa_1d[dd]):
+            indices = np.delete(np.arange(nabscissa_1d[dd]), jj)
+            numer[dd].append(samples_diff[dd][:, indices].prod(axis=1))
+            denom[dd].append(abscissa_diff[jj, indices].prod(axis=0))
+
+    cnt = 0
+    for jj in range(nabscissa_1d[1]):
+        for ii in range(nabscissa_1d[0]):
+            basis_vals[:, cnt] = (
+                numer[0][ii]/denom[0][ii]*numer[1][jj]/denom[1][jj])
+            numer_deriv_0 = 0
+            for kk in range(nabscissa_1d[0]):
+                if ii != kk:
+                    numer_deriv_0 += np.delete(
+                        samples_diff[0], (ii, kk), axis=1).prod(axis=1)
+            deriv_mat[0, :, cnt] = (
+                numer_deriv_0/denom[0][ii]*numer[1][jj]/denom[1][jj])
+
+            numer_deriv_1 = 0
+            for kk in range(nabscissa_1d[1]):
+                if jj != kk:
+                    numer_deriv_1 += np.delete(
+                        samples_diff[1], (jj, kk), axis=1).prod(axis=1)
+            deriv_mat[1, :, cnt] = (
+                numer[0][ii]/denom[0][ii]*numer_deriv_1/denom[1][jj])
+            cnt += 1
+    abscissa = cartesian_product(abscissa_1d)
+    return deriv_mat, basis_vals, abscissa
+
+
+def kronecker_product_2d(matrix1, matrix2):
+    """
+    TODO: I can store kroneker as a sparse matrix see ( scipy.kron )
+    """
+    assert matrix1.shape == matrix2.shape
+    assert matrix1.ndim == 2
+    block_num_rows = matrix1.shape[0]
+    matrix_num_rows = block_num_rows**2
+    matrix = np.empty((matrix_num_rows, matrix_num_rows), float)
+
+    # loop through blocks
+    start_col = 0
+    for jj in range(block_num_rows):
+        start_row = 0
+        for ii in range(block_num_rows):
+            matrix[start_row:start_row+block_num_rows,
+                   start_col:start_col+block_num_rows] = \
+                matrix2*matrix1[ii, jj]
+            start_row += block_num_rows
+        start_col += block_num_rows
+    return matrix
 
 
 class Canonical1DMeshBoundary():
@@ -264,9 +473,6 @@ class CanonicalCollocationMesh():
         if self.nphys_vars == 1:
             return torch.as_tensor(lagrange_polynomial_derivative_matrix_1d(
                 canonical_eval_samples[0, :], canonical_abscissa_1d[0])[1])
-
-        from pyapprox.pde.spectralcollocation.spectral_collocation import (
-            lagrange_polynomial_basis_matrix_2d)
         return torch.as_tensor(lagrange_polynomial_basis_matrix_2d(
             canonical_eval_samples, canonical_abscissa_1d))
 

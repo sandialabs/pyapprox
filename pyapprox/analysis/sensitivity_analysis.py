@@ -681,13 +681,13 @@ def gpc_sobol_sensitivities(pce, variable, max_order=2):
     """
     if type(pce) != PolynomialChaosExpansion:
         raise ValueError("Must provide a PCE")
-    
+
     if variable.marginals() != pce.var_trans.variable.marginals():
         msg = "variable is inconsistent with PCE. "
         msg += "Can only compute sensitivities with respect to variable "
         msg += "used to build the PCE"
         raise ValueError(msg)
-    
+
     pce_main_effects, pce_total_effects =\
         get_main_and_total_effect_indices_from_pce(
             pce.get_coefficients(), pce.get_indices())
@@ -1031,6 +1031,87 @@ def sampling_based_sobol_indices_from_gaussian_process(
     return result
 
 
+def _borgonovo_estimation(
+        samples, values, marginal_icdfs, nbins=None):
+
+    nvars, nsamples = samples.shape
+    nqoi = values.shape[1]
+    assert values.shape[0] == nsamples
+
+    if nbins is None:
+        nbins = max(2, int(1/3*(nsamples)**(1./3)))
+        print('Number of bins', nbins)
+    mean = values.mean(axis=0)
+    variance = values.var(axis=0)
+    sa_indices = np.zeros((nvars, nqoi))
+    for ii in range(nvars):
+        bin_bounds = marginal_icdfs[ii](np.linspace(0, 1, nbins+1))
+        for jj in range(nbins):
+            inds = np.where((samples[ii, :] >= bin_bounds[jj]) &
+                            (samples[ii, :] < bin_bounds[jj+1]))[0]
+            nsamples_ii = inds.shape[0]
+            sa_indices[ii] += nsamples_ii/nsamples*(
+                values[inds, :].mean()-mean)**2
+        sa_indices[ii] /= variance
+    return sa_indices
+
+
+def bootstrapped_borgonovo_sensivities(
+        fun, variable, nsamples, nbins=None, nbootstraps=10):
+    """
+    Compute main-effect sensitivity indices for a model using
+    algorithm from [BHPRA2016]_
+
+    Parameters
+    ----------
+        fun : callable
+        The function to be approximated
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars, nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples, nqoi)
+
+    variable : pya.IndependentMarginalsVariable
+        Object containing information of the joint density of the inputs z.
+        This is used to generate random samples from this join density
+
+    nsamples : integer
+        The number of samples used to compute the sensitivity indices
+
+    nbins : integer
+        The number of bins used to divide the domain of each marginal variable
+
+    nbootstraps : integer
+        The number of bootstraps used to obtain estimates of error in the
+        sensitivity indices
+
+    Returns
+    -------
+    result : SensitivityResult
+       Object containing the sensitivity indices
+
+    References
+    ----------
+    `Borgonovo, E., Hazen, G. and Plischke, E. A Common Rationale for Global Sensitivity Measures and Their Estimation. 36(10):1871-1895, 2016. <https://doi.org/10.1111/risa.12555>`_
+    """
+    nvars = variable.num_vars()
+    samples = variable.rvs(nsamples)
+    values = fun(samples)
+    nqoi = values.shape[1]
+    sa_indices = np.zeros((nbootstraps+1, nvars, nqoi))
+    marginal_icdfs = [v.ppf for v in variable.marginals()]
+    sa_indices[0, :] = _borgonovo_estimation(
+        samples, values, marginal_icdfs, nbins)
+    for kk in range(1, nbootstraps+1):
+        permuted_inds = np.random.choice(np.arange(nsamples), nsamples)
+        psamples = samples[:, permuted_inds]
+        pvalues = values[permuted_inds, :]
+        sa_indices[kk, :] = _borgonovo_estimation(
+            psamples, pvalues, marginal_icdfs, nbins)
+    return sa_indices
+
+
 def run_sensitivity_analysis(method, fun, variable, *args, **kwargs):
     """
     Compute sensitivity indices for a model.
@@ -1040,11 +1121,36 @@ def run_sensitivity_analysis(method, fun, variable, *args, **kwargs):
     method : string
         The name of the sensitivity method
 
+    fun : callable
+        The function to be approximated
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars, nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples, nqoi)
+
+
+    variable : pya.IndependentMarginalsVariable
+        Object containing information of the joint density of the inputs z.
+        This is used to generate random samples from this join density
+
     args: kwargs
         optional keyword arguments
 
     kwargs: kwargs
         optional keyword arguments
+
+    For more details on method specfici args, kwargs and results attributes see
+
+        - :func:`pyapprox.analysis.sensitivity_analysis.sampling_based_sobol_indices`
+
+        - :func:`pyapprox.analysis.sensitivity_analysis.bootstrapped_borgonovo_sensivities`
+
+        - :func:`pyapprox.analysis.sensitivity_analysis.morris_sensitivities`
+
+        - :func:`pyapprox.analysis.sensitivity_analysis.gpc_sobol_sensitivities`
+
+        - :func:`pyapprox.analysis.sensitivity_analysis.analytic_sobol_indices_from_gaussian_process`
 
     Returns
     -------
@@ -1053,6 +1159,7 @@ def run_sensitivity_analysis(method, fun, variable, *args, **kwargs):
     """
     methods = {
         "sobol": sampling_based_sobol_indices,
+        "bin_sobol": bootstrapped_borgonovo_sensivities,
         "morris": morris_sensitivities,
         "pce_sobol": gpc_sobol_sensitivities,
         "gp_sobol": analytic_sobol_indices_from_gaussian_process}

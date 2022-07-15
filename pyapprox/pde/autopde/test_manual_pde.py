@@ -183,9 +183,11 @@ class TestManualPDE(unittest.TestCase):
             return sol.sum()#+params[0]
         # param_vals = diff_fun(mesh.mesh_pts)[:, 0]
         param_vals = diff_fun(mesh.mesh_pts)[0:1, 0]
-        adj_solver = SteadyStateAdjointPDE(AdvectionDiffusionReaction(
+        residual = AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
-            react_funs[1]), functional)
+            react_funs[1])
+        fwd_solver = SteadyStatePDE(residual)
+        adj_solver = SteadyStateAdjointPDE(fwd_solver, functional)
 
         def set_param_values(residual, param_vals):
             # assert param_vals.ndim == 1
@@ -199,9 +201,9 @@ class TestManualPDE(unittest.TestCase):
             approx_fprime, approx_jacobian, check_gradients)
         def fun(params):
             set_param_values(
-                adj_solver.residual, torch.as_tensor(params[:, 0]))
+                fwd_solver.residual, torch.as_tensor(params[:, 0]))
             # newton tol must be smaller than finite difference step size
-            fd_sol = adj_solver.solve(tol=1e-8, verbosity=0)
+            fd_sol = fwd_solver.solve(tol=1e-8, verbosity=0)
             qoi = np.asarray([functional(fd_sol, params[:, 0])])
             return qoi
 
@@ -282,7 +284,7 @@ class TestManualPDE(unittest.TestCase):
              mesh_transforms]
         ]
         ii = 0
-        for test_case in test_cases[:1]:
+        for test_case in test_cases:
             np.random.seed(2)  # controls direction of finite difference
             self._check_advection_diffusion_reaction(*test_case)
             ii += 1
@@ -331,60 +333,60 @@ class TestManualPDE(unittest.TestCase):
             # print(time, L2_error, 1e-8*factor)
             assert L2_error < 1e-8*factor
 
-        for bndry_cond in bndry_conds:
-            # adjoint gradient currently only works for all dirichlet boundarie
-            if bndry_cond[1] != "D":
-                return
-        if tableau_name != "im_beuler1":
-            return
+        # for bndry_cond in bndry_conds:
+        #     # adjoint gradient currently only works for all dirichlet boundarie
+        #     if bndry_cond[1] != "D":
+        #         return
+        # if tableau_name != "im_beuler1":
+        #     return
 
-        print("#######")
-        # init_sol *= 0
-        def functional(sols, params):
-            return sols[:, -1].sum()
-        # param_vals = diff_fun(mesh.mesh_pts)[:, 0]
-        param_vals = diff_fun(mesh.mesh_pts)[0:1, 0]
-        adj_solver = TransientAdjointPDE(AdvectionDiffusionReaction(
-            mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
-            react_funs[1]), deltat, tableau_name, functional)
+        # print("#######")
+        # # init_sol *= 0
+        # def functional(sols, params):
+        #     return sols[:, -1].sum()
+        # # param_vals = diff_fun(mesh.mesh_pts)[:, 0]
+        # param_vals = diff_fun(mesh.mesh_pts)[0:1, 0]
+        # adj_solver = TransientAdjointPDE(AdvectionDiffusionReaction(
+        #     mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
+        #     react_funs[1]), deltat, tableau_name, functional)
 
-        def set_param_values(residual, param_vals):
-            # assert param_vals.ndim == 1
-            mesh_vals = torch.tile(param_vals, (mesh.mesh_pts.shape[1], ))
-            residual._diff_fun = partial(
-                residual.mesh.interpolate, mesh_vals)
-        grad = adj_solver.compute_gradient(
-            init_sol, 0, final_time,
-            set_param_values, param_vals, tol=1e-12)
+        # def set_param_values(residual, param_vals):
+        #     # assert param_vals.ndim == 1
+        #     mesh_vals = torch.tile(param_vals, (mesh.mesh_pts.shape[1], ))
+        #     residual._diff_fun = partial(
+        #         residual.mesh.interpolate, mesh_vals)
+        # grad = adj_solver.compute_gradient(
+        #     init_sol, 0, final_time,
+        #     set_param_values, param_vals, tol=1e-12)
 
-        from pyapprox.util.utilities import (
-            approx_fprime, approx_jacobian, check_gradients)
-        def fun(params):
-            sol_fun.set_time(0)
-            init_sol = sol_fun(mesh.mesh_pts)
-            set_param_values(
-                adj_solver.residual, torch.as_tensor(params[:, 0]))
-            # newton tol must be smaller than finite difference step size
-            fd_sols = adj_solver.solve(init_sol, 0, final_time)[0]
-            qoi = np.asarray([functional(fd_sols, params[:, 0])])
-            return qoi
-
-        # def rfun(params):
+        # from pyapprox.util.utilities import (
+        #     approx_fprime, approx_jacobian, check_gradients)
+        # def fun(params):
+        #     sol_fun.set_time(0)
+        #     init_sol = sol_fun(mesh.mesh_pts)
         #     set_param_values(
         #         adj_solver.residual, torch.as_tensor(params[:, 0]))
         #     # newton tol must be smaller than finite difference step size
-        #     res = adj_solver.residual._raw_residual(
-        #         init_sol[:, 0])[0]
-        #     return res
+        #     fd_sols = adj_solver.solve(init_sol, 0, final_time)[0]
+        #     qoi = np.asarray([functional(fd_sols, params[:, 0])])
+        #     return qoi
 
-        # res_jac = approx_jacobian(rfun, param_vals.detach().numpy()[:, None])
-        # print('jac', res_jac)
+        # # def rfun(params):
+        # #     set_param_values(
+        # #         adj_solver.residual, torch.as_tensor(params[:, 0]))
+        # #     # newton tol must be smaller than finite difference step size
+        # #     res = adj_solver.residual._raw_residual(
+        # #         init_sol[:, 0])[0]
+        # #     return res
 
-        fd_grad = approx_fprime(
-            param_vals.detach().numpy()[:, None], fun, eps=1e-6)
-        print(grad.numpy())
-        print(fd_grad.T)
-        assert np.allclose(grad.numpy().T, fd_grad, atol=1e-6)
+        # # res_jac = approx_jacobian(rfun, param_vals.detach().numpy()[:, None])
+        # # print('jac', res_jac)
+
+        # fd_grad = approx_fprime(
+        #     param_vals.detach().numpy()[:, None], fun, eps=1e-6)
+        # print(grad.numpy())
+        # print(fd_grad.T)
+        # assert np.allclose(grad.numpy().T, fd_grad, atol=1e-6)
 
 
     def test_transient_advection_diffusion_reaction(self):
@@ -414,7 +416,7 @@ class TestManualPDE(unittest.TestCase):
               lambda sol: torch.diag(2*sol[:, 0])],
              ["D", "N", "R", "D"], "im_crank2"]
         ]
-        for test_case in test_cases[:1]:
+        for test_case in test_cases:
             self._check_transient_advection_diffusion_reaction(*test_case)
 
     def _check_stokes_solver_mms(
@@ -998,7 +1000,7 @@ class TestManualPDE(unittest.TestCase):
             [[0, 1, 0, 1], [11, 11], ["(x+1)**2", "(y+1)**2"], "1+x+y",
              "0-x-y", "1", ["D", "D", "D", "D"], False]
         ]
-        for test_case in test_cases[-1:]:
+        for test_case in test_cases:
             self._check_shallow_shelf_solver_mms(*test_case)
 
     def test_first_order_stokes_ice_mms(self):
