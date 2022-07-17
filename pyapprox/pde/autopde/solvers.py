@@ -161,7 +161,7 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
 
     def compute_gradient(self, set_param_values, param_vals, return_obj=False,
                          **newton_kwargs):
-        # use etachso that fwd_sol is not part of AD-graph
+        # use detach so that fwd_sol is not part of AD-graph
         set_param_values(self._fwd_solver.residual, param_vals.detach())
         fwd_sol = self._fwd_solver.solve(**newton_kwargs)
         adj_sol = self.solve_adjoint(fwd_sol, param_vals.detach())

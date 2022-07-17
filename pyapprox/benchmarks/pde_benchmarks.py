@@ -3,6 +3,7 @@ from functools import partial
 from scipy import stats
 import numpy as np
 
+from pyapprox.util.utilities import cartesian_product
 from pyapprox.pde.autopde.solvers import (
     SteadyStatePDE, SteadyStateAdjointPDE
 )
@@ -14,7 +15,8 @@ from pyapprox.pde.autopde.mesh import (
 )
 from pyapprox.variables import IndependentMarginalsVariable
 from pyapprox.pde.karhunen_loeve_expansion import MeshKLE
-from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
+from pyapprox.interface.wrappers import (
+    evaluate_1darray_function_on_2d_array, ModelEnsemble)
 from pyapprox.variables.transforms import ConfigureVariableTransformation
 
 
@@ -74,6 +76,17 @@ def advection_diffusion_reaction_kle_dRdp(kle, residual, sol, param_vals):
 class AdvectionDiffusionReactionKLEModel():
     def __init__(self, mesh, bndry_conds, kle, vel_fun, react_funs, forc_fun,
                  functional, functional_deriv_funs=[None, None]):
+
+        import inspect
+        if "mesh" == inspect.getargspec(functional).args[0]:
+            functional = partial(functional, mesh)
+        for ii in range(len(functional_deriv_funs)):
+            if (functional_deriv_funs[ii] is not None and
+                    "mesh" == inspect.getargspec(
+                    functional_deriv_funs[ii]).args[0]):
+                functional_deriv_funs[ii] = partial(
+                    functional_deriv_funs[ii], mesh)
+    
         self._kle = kle
         # TODO pass in parameterized functions for diffusiviy and forcing and
         # reaction and use same process as used for KLE currently
@@ -115,18 +128,19 @@ class AdvectionDiffusionReactionKLEModel():
         qoi = self._functional(sol, torch.as_tensor(sample)).numpy()
         if not jac:
             return qoi
-        return qoi, self._adj_solver.compute_gradient(
+        grad = self._adj_solver.compute_gradient(
             lambda r, p: None, torch.as_tensor(sample),
-            **newton_kwargs).numpy().squeeze()
+            **newton_kwargs)
+        return qoi, grad.detach().numpy().squeeze()
 
     def __call__(self, samples):
         return evaluate_1darray_function_on_2d_array(self._eval, samples)
 
 
-def _setup_inverse_advection_diffusion_benchmark(
-        nobs, noise_std, length_scale, sigma, nvars, orders, kle=None):
+def _setup_advection_diffusion_benchmark(
+        length_scale, sigma, nvars, orders, functional,
+        functional_deriv_funs=[None, None], kle_args=None):
     variable = IndependentMarginalsVariable([stats.norm(0, 1)]*nvars)
-    true_kle_params = variable.rvs(1)
 
     domain_bounds = [0, 1, 0, 1]
     mesh = CartesianProductCollocationMesh(domain_bounds, orders)
@@ -141,20 +155,59 @@ def _setup_inverse_advection_diffusion_benchmark(
     forc_fun = partial(gauss_forc_fun, amp, scale, loc)
     vel_fun = partial(constant_vel_fun, [5, 0])
 
-    if kle is None:
+    if kle_args is None:
         kle = MeshKLE(mesh.mesh_pts, use_log=True, use_torch=True)
         kle.compute_basis(
             length_scale, sigma=sigma, nterms=nvars)
+    else:
+        kle = InterpolatedMeshKLE(kle_args[0], kle_args[1], mesh)
 
-    print(np.unique(np.hstack(mesh._bndry_indices)))
-    obs_indices = np.random.permutation(
-        np.delete(
-            np.arange(mesh.mesh_pts.shape[1]),
-            np.unique(np.hstack(mesh._bndry_indices))))[:nobs]
-    obs_functional = partial(mesh_locations_obs_functional, obs_indices)
-    obs_model = AdvectionDiffusionReactionKLEModel(
+    model = AdvectionDiffusionReactionKLEModel(
         mesh, bndry_conds, kle, vel_fun, react_funs, forc_fun,
-        obs_functional)
+        functional, functional_deriv_funs)
+
+    return model, variable
+
+
+class InterpolatedMeshKLE(MeshKLE):
+    def __init__(self, kle_mesh, kle, mesh):
+        self._kle_mesh = kle_mesh
+        self._kle = kle
+        self._mesh = mesh
+
+        self._basis_mat = self._kle_mesh._get_lagrange_basis_mat(
+            self._kle_mesh._canonical_mesh_pts_1d,
+            mesh._map_samples_to_canonical_domain(self._mesh.mesh_pts))
+
+    def _fast_interpolate(self, values, xx):
+        assert xx.shape[1] == self._mesh.mesh_pts.shape[1]
+        assert np.allclose(xx, self._mesh.mesh_pts)
+        interp_vals = torch.linalg.multi_dot((self._basis_mat, values))
+        assert np.allclose(interp_vals, self._kle_mesh.interpolate(values, xx))
+        return interp_vals
+
+    def __call__(self, coef):
+        use_log = self._kle.use_log
+        self._kle.use_log = False
+        vals = self._kle(coef)
+        interp_vals = self._fast_interpolate(vals, self._mesh.mesh_pts)
+        if use_log:
+            interp_vals = np.exp(interp_vals)
+        self._kle._use_log = use_log
+        return interp_vals
+
+
+def _setup_inverse_advection_diffusion_benchmark(
+        nobs, noise_std, length_scale, sigma, nvars, orders):
+
+    ndof = np.prod(np.asarray(orders)+1)
+    obs_indices = np.random.permutation(
+        np.delete(np.arange(ndof), [0]))[:nobs]
+    obs_functional = partial(mesh_locations_obs_functional, obs_indices)
+    obs_model, variable = _setup_advection_diffusion_benchmark(
+        length_scale, sigma, nvars, orders, obs_functional)
+
+    true_kle_params = variable.rvs(1)
     noise = np.random.normal(0, noise_std, (obs_indices.shape[0]))
     noiseless_obs = obs_model(true_kle_params)
     obs = noiseless_obs[0, :] + noise
@@ -167,33 +220,44 @@ def _setup_inverse_advection_diffusion_benchmark(
     dqdp = partial(loglike_functional_dqdp,  torch.as_tensor(obs),
                    obs_indices, noise_std)
     inv_functional_deriv_funs = [dqdu, dqdp]
-    inv_model = AdvectionDiffusionReactionKLEModel(
-        mesh, bndry_conds, kle, vel_fun, react_funs, forc_fun,
-        inv_functional, inv_functional_deriv_funs)
+    inv_model, variable = _setup_advection_diffusion_benchmark(
+        length_scale, sigma, nvars, orders, inv_functional,
+        inv_functional_deriv_funs)
 
     return inv_model, variable, true_kle_params, noiseless_obs, obs
 
 
+def _subdomain_integral_functional(subdomain_bounds, mesh, sol, params):
+    xx_quad, ww_quad = mesh._get_quadrature_rule()
+    domain_lens = (mesh._domain_bounds[1::2]-mesh._domain_bounds[0::2])
+    subdomain_lens = (subdomain_bounds[1::2]-subdomain_bounds[0::2])
+    xx_quad = ((xx_quad-mesh._domain_bounds[::2])*subdomain_lens/domain_lens
+               + subdomain_bounds[::2])
+    ww_quad = ww_quad*subdomain_lens/domain_lens
+    vals = mesh.interpolate(xx_quad)
+    return vals.dot(ww_quad)
+
+
 def _setup_multi_index_advection_diffusion_benchmark(
-        nobs, noise_std, length_scale, sigma, nvars, hf_orders):
+        length_scale, sigma, nvars, hf_orders):
 
     setup_model = partial(
-        _setup_advection_diffusion_benchmark(
-            nobs, noise_std, length_scale, sigma, nvars, kle=None))
+        _setup_advection_diffusion_benchmark, length_scale, sigma, nvars,
+        functional=_subdomain_integral_functional)
 
-    inv_model, variable, true_kle_params, noiseless_obs, obs = (
-        _setup_advection_diffusion_benchmark(
-            nobs, noise_std, length_scale, sigma, nvars, kle=None))
-
-    def setup_model(orders):
-        pass
+    hf_model, variable = setup_model(hf_orders)
 
     config_values = [2*np.arange(1, 11)+1, 2*np.arange(1, 11)+1]
     config_var_trans = ConfigureVariableTransformation(config_values)
 
     config_samples = cartesian_product(config_values)
     models = []
-    for ii in reange(config_samples):
+    for ii in range(config_samples.shape[1]):
         assert np.all(config_samples[:, ii] <= hf_orders)
-        models.append(setup_model(config_samples[:, ii]))
+        models.append(setup_model(
+            config_samples[:, ii],
+            kle_args=[hf_model._fwd_solver.residual.mesh, hf_model._kle]))
     ModelEnsemble(models)
+
+    # basis_vals(hf_mesh).dot(kle_vals_hf_mesh)
+    # basis_vals(lf_mesh)

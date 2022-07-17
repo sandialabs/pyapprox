@@ -16,7 +16,8 @@ from pyapprox.pde.autopde.manufactured_solutions import (
 from pyapprox.pde.autopde.mesh import (
     CartesianProductCollocationMesh,
     TransformedCollocationMesh, InteriorCartesianProductCollocationMesh,
-    TransformedInteriorCollocationMesh, VectorMesh
+    TransformedInteriorCollocationMesh, VectorMesh,
+    subdomain_integral_functional
     )
 from pyapprox.pde.autopde.solvers import (
     Function, TransientFunction, SteadyStatePDE, TransientPDE,
@@ -129,6 +130,42 @@ class TestManualPDE(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(1)
         np.random.seed(1)
+
+    def _check_mesh_integrate(self, domain_bounds, orders, fun,
+                              exact_integral):
+        mesh = CartesianProductCollocationMesh(
+            domain_bounds, orders)
+        integral = mesh.integrate(fun(mesh.mesh_pts))
+        # print(integral, exact_integral)
+        assert np.allclose(integral, exact_integral)
+
+    def test_mesh_integrate(self):
+        test_cases = [
+            [[0, 1], [20], lambda xx: (xx[0, :]**2)[:, None],
+             1/3],
+            [[0, 1, 0, 1], [20, 20], lambda xx: (xx**2).sum(axis=0)[:, None],
+             2/3]]
+        for test_case in test_cases:
+            self._check_mesh_integrate(*test_case)
+
+    def _check_subdomain_integral_functional(
+            self, domain_bounds, subdomain_bounds, orders, fun,
+            exact_integral):
+        mesh = CartesianProductCollocationMesh(
+            domain_bounds, orders)
+        integral = subdomain_integral_functional(
+            np.asarray(subdomain_bounds), mesh, fun(mesh.mesh_pts), None)
+        # print(integral, exact_integral)
+        assert np.allclose(integral, exact_integral)
+
+    def test_subdomain_integral_functional(self):
+        test_cases = [
+            [[0, 1], [0.5, 1], [20], lambda xx: (xx[0, :]**2)[:, None],
+             7/24],
+            [[0, 1, 0, 1], [0.5, 1, 0, 0.25], [20, 20],
+             lambda xx: (xx**2).sum(axis=0)[:, None], 29/384]]
+        for test_case in test_cases:
+            self._check_subdomain_integral_functional(*test_case)
 
     def _check_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_string, diff_string, vel_strings,

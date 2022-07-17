@@ -557,7 +557,7 @@ class CanonicalCollocationMesh():
         quad_rules = [
             gauss_jacobi_pts_wts_1D(o+2, 0, 0) for o in self._orders]
         canonical_xquad = cartesian_product([q[0] for q in quad_rules])
-        canonical_wquad = outer_product([q[1] for q in quad_rules])
+        canonical_wquad = outer_product([q[1]*2 for q in quad_rules])
         return canonical_xquad, canonical_wquad
 
     def integrate(self, mesh_values):
@@ -862,8 +862,8 @@ class CartesianProductCollocationMesh(TransformedCollocationMesh):
     def _get_quadrature_rule(self):
         canonical_xquad, canonical_wquad = super()._get_quadrature_rule()
         xquad = self._map_samples_from_canonical_domain(canonical_xquad)
-        wquad = canonical_wquad/np.prod(
-            self._domain_bounds[1::2]-self._domain_bounds[::2])
+        wquad = canonical_wquad*np.prod(
+            (self._domain_bounds[1::2]-self._domain_bounds[::2])/2)
         return xquad, wquad
 
 
@@ -1199,3 +1199,16 @@ def vertical_transform_2D_mesh_inv_dydv(bed_fun, surface_fun, samples):
     surf_vals = surface_fun(samples[:1])[:, 0]
     bed_vals = bed_fun(samples[:1])[:, 0]
     return 2/(surf_vals-bed_vals)
+
+
+def subdomain_integral_functional(subdomain_bounds, mesh, sol, params):
+    xx_quad, ww_quad = mesh._get_quadrature_rule()
+    domain_lens = (mesh._domain_bounds[1::2]-mesh._domain_bounds[0::2])
+    subdomain_lens = (subdomain_bounds[1::2]-subdomain_bounds[0::2])
+    xx_quad = (
+        subdomain_bounds[::2, None] +
+        (-mesh._domain_bounds[::2, None]+xx_quad)*(
+            subdomain_lens/domain_lens)[:, None])
+    ww_quad = ww_quad*np.prod(subdomain_lens/domain_lens, axis=0)
+    vals = mesh.interpolate(sol, xx_quad)[:, 0]
+    return vals.dot(torch.as_tensor(ww_quad))
