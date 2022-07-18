@@ -11,13 +11,13 @@ from pyapprox.pde.autopde.physics import (
     AdvectionDiffusionReaction
 )
 from pyapprox.pde.autopde.mesh import (
-    full_fun_axis_1, CartesianProductCollocationMesh
+    full_fun_axis_1, CartesianProductCollocationMesh,
+    subdomain_integral_functional
 )
 from pyapprox.variables import IndependentMarginalsVariable
 from pyapprox.pde.karhunen_loeve_expansion import MeshKLE
 from pyapprox.interface.wrappers import (
-    evaluate_1darray_function_on_2d_array, ModelEnsemble)
-from pyapprox.variables.transforms import ConfigureVariableTransformation
+    evaluate_1darray_function_on_2d_array, MultiIndexModel)
 
 
 def constant_vel_fun(vels, xx):
@@ -75,18 +75,20 @@ def advection_diffusion_reaction_kle_dRdp(kle, residual, sol, param_vals):
 
 class AdvectionDiffusionReactionKLEModel():
     def __init__(self, mesh, bndry_conds, kle, vel_fun, react_funs, forc_fun,
-                 functional, functional_deriv_funs=[None, None]):
+                 functional, functional_deriv_funs=[None, None],
+                 newton_kwargs={}):
 
         import inspect
-        if "mesh" == inspect.getargspec(functional).args[0]:
+        if "mesh" == inspect.getfullargspec(functional).args[0]:
             functional = partial(functional, mesh)
         for ii in range(len(functional_deriv_funs)):
             if (functional_deriv_funs[ii] is not None and
-                    "mesh" == inspect.getargspec(
+                "mesh" == inspect.getfullargspec(
                     functional_deriv_funs[ii]).args[0]):
                 functional_deriv_funs[ii] = partial(
                     functional_deriv_funs[ii], mesh)
-    
+
+        self._newton_kwargs = newton_kwargs
         self._kle = kle
         # TODO pass in parameterized functions for diffusiviy and forcing and
         # reaction and use same process as used for KLE currently
@@ -123,14 +125,13 @@ class AdvectionDiffusionReactionKLEModel():
         self._fwd_solver.residual._diff_fun = partial(
             self._fast_interpolate,
             self._kle(torch.as_tensor(sample[:, None])))
-        newton_kwargs = {"maxiters": 1, "tol": 1e-8}
-        sol = self._fwd_solver.solve(**newton_kwargs)
+        sol = self._fwd_solver.solve(**self._newton_kwargs)
         qoi = self._functional(sol, torch.as_tensor(sample)).numpy()
         if not jac:
             return qoi
         grad = self._adj_solver.compute_gradient(
             lambda r, p: None, torch.as_tensor(sample),
-            **newton_kwargs)
+            **self._newton_kwargs)
         return qoi, grad.detach().numpy().squeeze()
 
     def __call__(self, samples):
@@ -139,8 +140,10 @@ class AdvectionDiffusionReactionKLEModel():
 
 def _setup_advection_diffusion_benchmark(
         length_scale, sigma, nvars, orders, functional,
-        functional_deriv_funs=[None, None], kle_args=None):
+        functional_deriv_funs=[None, None], kle_args=None,
+        newton_kwargs={}):
     variable = IndependentMarginalsVariable([stats.norm(0, 1)]*nvars)
+    orders = np.asarray(orders, dtype=int)
 
     domain_bounds = [0, 1, 0, 1]
     mesh = CartesianProductCollocationMesh(domain_bounds, orders)
@@ -164,7 +167,7 @@ def _setup_advection_diffusion_benchmark(
 
     model = AdvectionDiffusionReactionKLEModel(
         mesh, bndry_conds, kle, vel_fun, react_funs, forc_fun,
-        functional, functional_deriv_funs)
+        functional, functional_deriv_funs, newton_kwargs)
 
     return model, variable
 
@@ -183,7 +186,7 @@ class InterpolatedMeshKLE(MeshKLE):
         assert xx.shape[1] == self._mesh.mesh_pts.shape[1]
         assert np.allclose(xx, self._mesh.mesh_pts)
         interp_vals = torch.linalg.multi_dot((self._basis_mat, values))
-        assert np.allclose(interp_vals, self._kle_mesh.interpolate(values, xx))
+        # assert np.allclose(interp_vals, self._kle_mesh.interpolate(values, xx))
         return interp_vals
 
     def __call__(self, coef):
@@ -193,7 +196,7 @@ class InterpolatedMeshKLE(MeshKLE):
         interp_vals = self._fast_interpolate(vals, self._mesh.mesh_pts)
         if use_log:
             interp_vals = np.exp(interp_vals)
-        self._kle._use_log = use_log
+        self._kle.use_log = use_log
         return interp_vals
 
 
@@ -227,37 +230,24 @@ def _setup_inverse_advection_diffusion_benchmark(
     return inv_model, variable, true_kle_params, noiseless_obs, obs
 
 
-def _subdomain_integral_functional(subdomain_bounds, mesh, sol, params):
-    xx_quad, ww_quad = mesh._get_quadrature_rule()
-    domain_lens = (mesh._domain_bounds[1::2]-mesh._domain_bounds[0::2])
-    subdomain_lens = (subdomain_bounds[1::2]-subdomain_bounds[0::2])
-    xx_quad = ((xx_quad-mesh._domain_bounds[::2])*subdomain_lens/domain_lens
-               + subdomain_bounds[::2])
-    ww_quad = ww_quad*subdomain_lens/domain_lens
-    vals = mesh.interpolate(xx_quad)
-    return vals.dot(ww_quad)
-
-
 def _setup_multi_index_advection_diffusion_benchmark(
-        length_scale, sigma, nvars, hf_orders):
+        length_scale, sigma, nvars, config_values=None):
 
-    setup_model = partial(
-        _setup_advection_diffusion_benchmark, length_scale, sigma, nvars,
-        functional=_subdomain_integral_functional)
+    newton_kwargs = {"maxiters": 1, "rel_error": False}
+    if config_values is None:
+        config_values = [2*np.arange(1, 11)+1, 2*np.arange(1, 11)+1]
 
-    hf_model, variable = setup_model(hf_orders)
+    subdomain_bounds = np.array([0.75, 1, 0, 0.25])
+    functional = partial(subdomain_integral_functional, subdomain_bounds)
+    hf_orders = np.array([config_values[0][-1], config_values[1][-1]])
+    hf_model, variable = _setup_advection_diffusion_benchmark(
+        length_scale, sigma, nvars, hf_orders, functional,
+        newton_kwargs=newton_kwargs)
+    kle_args = [hf_model._fwd_solver.residual.mesh, hf_model._kle]
 
-    config_values = [2*np.arange(1, 11)+1, 2*np.arange(1, 11)+1]
-    config_var_trans = ConfigureVariableTransformation(config_values)
-
-    config_samples = cartesian_product(config_values)
-    models = []
-    for ii in range(config_samples.shape[1]):
-        assert np.all(config_samples[:, ii] <= hf_orders)
-        models.append(setup_model(
-            config_samples[:, ii],
-            kle_args=[hf_model._fwd_solver.residual.mesh, hf_model._kle]))
-    ModelEnsemble(models)
-
-    # basis_vals(hf_mesh).dot(kle_vals_hf_mesh)
-    # basis_vals(lf_mesh)
+    def setup_model(orders):
+        return _setup_advection_diffusion_benchmark(
+            length_scale, sigma, nvars, orders, functional,
+            kle_args=kle_args, newton_kwargs=newton_kwargs)[0]
+    model = MultiIndexModel(setup_model, config_values)
+    return model, variable

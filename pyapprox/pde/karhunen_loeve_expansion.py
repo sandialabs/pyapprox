@@ -355,7 +355,7 @@ class MeshKLE(object):
             return torch.exp(
                 torch.as_tensor(self.mean_field[:, None])+
                 torch.linalg.multi_dot((torch.as_tensor(self.eig_vecs), coef)))
-        if not use_torch:
+        if not self.use_torch:
             return self.mean_field[:, None] + self.eig_vecs.dot(coef)
         import torch
         return (torch.as_tensor(self.mean_field[:, None]) +

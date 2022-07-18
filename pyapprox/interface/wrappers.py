@@ -8,9 +8,10 @@ from multiprocessing import Pool
 import sys
 
 from pyapprox.util.utilities import (
-    get_all_sample_combinations, hash_array
+    get_all_sample_combinations, hash_array, cartesian_product
 )
 from pyapprox.util.sys_utilities import get_num_args
+from pyapprox.variables.transforms import ConfigureVariableTransformation
 
 
 def evaluate_1darray_function_on_2d_array(
@@ -949,3 +950,32 @@ class ModelEnsemble(object):
             II = np.where(model_ids == active_model_id)[0]
             values[II] = self.functions[active_model_id](samples[:-1, II])
         return values
+
+
+class MultiIndexModel():
+    def __init__(self, setup_model, config_values):
+        self._nconfig_vars = len(config_values)
+        self._model_ensemble, self._multi_index_to_model_id_map = (
+            self._create_model_ensemble(setup_model, config_values))
+
+    def _create_model_ensemble(self, setup_model, config_values):
+        print(config_values)
+        config_var_trans = ConfigureVariableTransformation(config_values)
+        config_samples = cartesian_product(config_values).astype(np.double)
+        models = [None for ii in range(config_samples.shape[1])]
+        multi_index_to_model_id_map = {}
+        for ii in range(config_samples.shape[1]):
+            models[ii] = setup_model(config_samples[:, ii])
+            multi_index_to_model_id_map[hash_array(config_samples[:, ii])] = ii
+        return ModelEnsemble(models), multi_index_to_model_id_map
+
+    def __call__(self, samples):
+        nsamples = samples.shape[1]
+        config_samples = samples[-self._nconfig_vars:, :]
+        print(config_samples.shape)
+        model_ids = np.empty((1, nsamples))
+        for ii in range(nsamples):
+            model_ids[0, ii] = self._multi_index_to_model_id_map[
+                hash_array(config_samples[:, ii])]
+        return self._model_ensemble(
+            np.vstack((samples[:-self._nconfig_vars, :], model_ids)))

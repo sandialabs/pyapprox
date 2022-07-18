@@ -6,7 +6,8 @@ from pyapprox.optimization.pya_minimize import pyapprox_minimize
 from pyapprox.benchmarks.pde_benchmarks import (
     _setup_inverse_advection_diffusion_benchmark,
     _setup_multi_index_advection_diffusion_benchmark)
-from pyapprox.util.utilities import check_gradients
+from pyapprox.util.utilities import check_gradients, get_all_sample_combinations
+
 
 class TestPDEBenchmarks(unittest.TestCase):
 
@@ -46,12 +47,52 @@ class TestPDEBenchmarks(unittest.TestCase):
         assert np.allclose(opt_result.x, true_params.T, atol=2e-5)
 
     def test_setup_multi_index_advection_diffusion_benchmark(self):
-        length_scale = .5
+        length_scale = .1
         sigma = 1
-        nvars = 10
-        hf_orders = [20, 20]
+        nvars = 5
+
+        config_values = [2*np.arange(1, 11), 2*np.arange(1, 11)]
         model, variable = _setup_multi_index_advection_diffusion_benchmark(
-            length_scale, sigma, nvars, hf_orders)
+            length_scale, sigma, nvars, config_values)
+        print(variable.num_vars())
+
+        nrandom_samples = 10
+        random_samples = variable.rvs(nrandom_samples)
+
+        import matplotlib.pyplot as plt
+        # import torch
+        # pde1 = model._model_ensemble.functions[-1]
+        # mesh1 = pde1._fwd_solver.residual.mesh
+        # kle_vals1 = pde1._kle(torch.as_tensor(random_samples[:, :1]))
+        # pde2 = model._model_ensemble.functions[0]
+        # mesh2 = pde2._fwd_solver.residual.mesh
+        # kle_vals2 = pde2._kle(torch.as_tensor(random_samples[:, :1]))
+        # kle_vals2 = mesh2.interpolate(kle_vals2, mesh1.mesh_pts)
+        # im = mesh1.plot(
+        #     kle_vals1-kle_vals2, 50,  ncontour_levels=30)
+        # plt.colorbar(im)
+        # fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
+        # im1 = mesh1.plot(
+        #     kle_vals1, 50,  ncontour_levels=30, ax=axs[0])
+        # im2 = mesh1.plot(
+        #     kle_vals2, 50,  ncontour_levels=30, ax=axs[1])
+        # plt.colorbar(im1, ax=axs[0])
+        # plt.colorbar(im2, ax=axs[1])
+        # plt.show()
+        
+        config_samples = np.vstack([c[None, :] for c in config_values])
+        samples = get_all_sample_combinations(random_samples, config_samples)
+        values = model(samples)
+        np.set_printoptions(precision=16)
+        values = values.reshape((nrandom_samples, config_samples.shape[1]))
+        qoi_means = values.mean(axis=0)
+        rel_diffs = np.abs((qoi_means[-1]-qoi_means[:-1])/qoi_means[-1])
+        print(rel_diffs)
+        assert (rel_diffs.max() > 1e-1 and rel_diffs.min() < 3e-5)
+        # ndof = (config_samples+1).prod(axis=0)
+        # plt.loglog(
+        #     ndof[:-1], np.abs((qoi_means[-1]-qoi_means[:-1])/qoi_means[-1]))
+        # plt.show()
         
 
 if __name__ == "__main__":

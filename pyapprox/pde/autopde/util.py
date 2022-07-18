@@ -2,7 +2,7 @@ import torch
 
 
 def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
-                 verbosity=0, step_size=1):
+                 verbosity=0, step_size=1, rel_error=False):
     if not init_guess.ndim == 1:
         raise ValueError("init_guess must be 1D tensor so AD can be used")
 
@@ -15,8 +15,11 @@ def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
         residual_norms.append(residual_norm)
         if verbosity > 1:
             print("Iter", it, "rnorm", residual_norm.detach().numpy())
-        if residual_norm < tol:
+        if not rel_error and residual_norm < tol:
             exit_msg = f"Tolerance {tol} reached"
+            break
+        if rel_error and residual_norm < tol*residual_norms[0]:
+            exit_msg = f"Relative tolerance {tol} reached"
             break
         if it >= maxiters:
             exit_msg = f"Max iterations {maxiters} reached.\n"
