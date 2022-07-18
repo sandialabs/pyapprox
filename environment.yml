@@ -7,7 +7,6 @@ dependencies:
   - numpy>=1.20 # numba requires numpy >1.17, <=1.20 but pandas requires >= 1.20
   - matplotlib
   - scipy
-#  - numba
   - jupyter
   - pytest
   - pytest-cov
@@ -15,13 +14,13 @@ dependencies:
   - setuptools
   - scikit-learn
   - Cython
-#  - seaborn
   - sympy
   - networkx
-  - torch
+  - pytorch
   # make html in docs folder
   - sphinx
 #  - sphinx-gallery # requires conda-forge
+#  - pymc requires conda-forge
   - pip:
     - sphinx-gallery
     - sphinx_copybutton
