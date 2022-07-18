@@ -83,3 +83,20 @@ def get_num_args(function):
     #    num_args += len(args[3])
     return num_args
 
+
+
+# Keyword-only arguments are not the same as normal keyword arguments.
+# Keyword-only arguments are arguments that come after *args and
+# before **kwargs in a function call. e.g.
+# def func(arg, *args, kwonly, **kwargs):
+
+
+def has_kwarg(fun, name):
+    info = inspect.getfullargspec(fun)
+    if name in info.args:
+        return True
+    if info.varkw is not None and name in info.varkw:
+        return True
+    if info.kwonlydefaults is not None and name in info.kwonlydefaults:
+        return True
+    return False

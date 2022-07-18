@@ -36,6 +36,9 @@ from pyapprox.variables.transforms import (
 from pyapprox.interface.wrappers import (
     TimerModel, PoolModel, WorkTrackingModel
 )
+from pyapprox.benchmarks.pde_benchmarks import (
+    _setup_inverse_advection_diffusion_benchmark
+)
 
 
 class Benchmark(OptimizeResult):
@@ -517,6 +520,8 @@ def setup_benchmark(name, **kwargs):
         'hastings_ecology': setup_hastings_ecology_benchmark,
         'multi_index_advection_diffusion':
         setup_multi_index_advection_diffusion_benchmark,
+        'advection_diffusion_kle_inversion':
+        setup_advection_diffusion_kle_inversion_benchmark,
         'polynomial_ensemble': setup_polynomial_ensemble,
         'tunable_model_ensemble': setup_tunable_model_ensemble,
         'short_column_ensemble': setup_short_column_ensemble,
@@ -538,7 +543,7 @@ def setup_benchmark(name, **kwargs):
         msg = f'Benchmark "{name}" not found.\n Available benchmarks are:\n'
         for key in benchmarks.keys():
             msg += f"\t{key}\n"
-        raise Exception(msg)
+        raise ValueError(msg)
 
     return benchmarks[name](**kwargs)
 
@@ -827,7 +832,7 @@ def setup_multi_index_advection_diffusion_benchmark(
 def setup_polynomial_ensemble():
     r"""
     Return an ensemble of 5 univariate models of the form
- 
+
     .. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4
 
     where :mat:`z\sim\mathcal{U}[0, 1]`
@@ -881,3 +886,239 @@ def setup_parameterized_nonlinear_model():
     variable = IndependentMarginalsVariable(marginals)
     return Benchmark(
         {'fun': model, 'variable': variable})
+
+
+def setup_advection_diffusion_benchmark(nvars, corr_len,
+                                        max_eval_concurrency=1):
+    r"""
+    Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)
+
+    .. math::
+
+       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
+       \mathcal{B}(x,t,\rv)&=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
+       u(x,t,\rv)&=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom
+
+    Following [NTWSIAMNA2008]_, [JEGGIJNME2020]_ we set
+
+    .. math:: g(x,t)=(1.5+\cos(2\pi t))\cos(x_1),
+
+    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero dirichlet boundary conditions.
+
+    and we model the diffusivity :math:`k` as a random field represented by the
+    Karhunen-Loeve (like) expansion (KLE)
+
+    .. math::
+
+       \log(k(x,\rv)-0.5)=1+\rv_1\left(\frac{\sqrt{\pi L}}{2}\right)^{1/2}+\sum_{k=2}^d \lambda_k\phi(x)\rv_k,
+
+    with
+
+    .. math::
+
+       \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k>1,  \qquad\qquad  \phi(x)=
+       \begin{cases}
+       \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ even}\,,\\
+       \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ odd}\,.
+       \end{cases}
+
+    where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}`.
+
+    The quantity of interest :math:`f(z)` is the measurement of the solution at a location :math:`x_k` at the final time :math:`T=1` obtained via the linear functional
+
+    .. math:: f(z)=\int_D u(x,T,z)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x_k \rVert^2_2}{\sigma^2}\right) dx
+
+
+    Parameters
+    ----------
+    nvars : integer
+        The number of variables of the KLE
+
+    corr_len : float
+        The correlation length :math:`L_c` of the covariance kernel
+
+    max_eval_concurrency : integer
+        The maximum number of simulations that can be run in parallel. Should be         no more than the maximum number of cores on the computer being used
+
+    Returns
+    -------
+    benchmark : pyapprox.benchmarks.benchmarks.Benchmark
+       Object containing the benchmark attributes documented below
+
+    fun : callable
+
+        The quantity of interest :math:`f(w)` with signature
+
+        ``fun(w) -> np.ndarray``
+
+        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars``
+        rows of ``w`` are realizations of the random variables. The last 3 rows
+        are configuration variables specifying the numerical discretization of
+        the PDE model. Specifically the first and second configuration variables
+        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate
+        the resolution of the FEM mesh in the directions :math:`{x_1}` and
+        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}`
+        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration
+        variable specifies the level :math:`l_t` of the temporal discretization.
+        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep
+        size is and :math:`T/2^{l_{t}+2}`.
+
+    variable : pya.IndependentMarginalsVariable
+        Object containing information of the joint density of the inputs z
+        which is the tensor product of independent and identically distributed
+        uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.
+
+    Examples
+    --------
+    >>> from pyapprox_dev.benchmarks.benchmarks import setup_benchmark
+    >>> benchmark=setup_benchmark('advection-diffusion',nvars=2)
+    >>> print(benchmark.keys())
+    dict_keys(['fun', 'variable'])
+    """
+
+    from scipy import stats
+    from pyapprox.interface.wrappers import TimerModel, PoolModel, \
+        WorkTrackingModel
+    from pyapprox.interface.wrappers import PoolModel
+    from pyapprox.variables.marginals import IndependentMarginalsVariable
+    from pyapprox.benchmarks.benchmarks import Benchmark
+    univariate_variables = [stats.uniform(-np.sqrt(3), 2*np.sqrt(3))]*nvars
+    variable = IndependentMarginalsVariable(univariate_variables)
+    final_time, degree = 1.0, 1
+    options = {'corr_len': corr_len}
+    base_model = AdvectionDiffusionModel(
+        final_time, degree, qoi_functional_misc, second_order_timestepping=False,
+        options=options, qoi_functional_grad=qoi_functional_grad_misc)
+    # add wrapper to allow execution times to be captured
+    timer_model = TimerModel(base_model, base_model)
+    pool_model = PoolModel(
+        timer_model, max_eval_concurrency, base_model=base_model)
+
+    # add wrapper that tracks execution times.
+    model = WorkTrackingModel(pool_model, base_model,
+                              base_model.num_config_vars)
+    attributes = {'fun': model, 'variable': variable}
+    return Benchmark(attributes)
+
+
+def setup_advection_diffusion_kle_inversion_benchmark(
+        source_loc=0.5, source_amp=1, source_width=0.1,
+        kle_length_scale=0.5, kle_stdev=1, kle_nvars=2, true_sample=None,
+        orders=[20, 20], noise_stdev=0.4, nobs=2, max_eval_concurrency=1):
+    r"""
+    Compute functionals of the following model of transient diffusion of
+    a contaminant
+
+    .. math::
+
+       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
+       \mathcal{B}(x,t,\rv)&=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
+       u(x,t,\rv)&=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom
+
+    Following [MNRJCP2006]_, [LMSISC2014]_ we set
+
+    .. math:: g(x,t)=\frac{s}{2\pi h^2}\exp\left(-\frac{\lvert x-x_\mathrm{src}\rvert^2}{2h^2}\right)
+
+    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero Neumann boundary conditions, i.e.
+
+    .. math:: \nabla u\cdot n = 0 \quad\mathrm{on} \quad\partial D
+
+    and we model the diffusivity :math:`k=1` as a constant.
+
+    The quantities of interest are point observations :math:`u(x_l)`
+    taken at :math:`P` points in time :math:`\{t_p\}_{p=1}^P` at :math:`L`
+    locations :math:`\{x_l\}_{l=1}^L`. The final time :math:`T` is the last
+    observation time.
+
+    These functionals can be used to define the posterior distribution
+
+    .. math::  \pi_{\text{post}}(\rv)=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom} \pi(\V{y}|\rv)\pi(\rv)d\rv}
+
+    where the prior is the tensor product of independent and identically
+    distributed uniform variables on :math:`[0,1]` i.e.
+    :math:`\pi(\rv)=1`, and the likelihood is given by
+
+    .. math:: \pi(\V{y}|\rv)=\frac{1}{(2\pi)^{d/2}\sigma}\exp\left(-\frac{1}{2}\frac{(y-f(\rv))^T(y-f(\rv))}{\sigma^2}\right)
+
+    and :math:`y` are noisy observations of the solution `u` at the 9
+    points of a uniform :math:`3\times 3` grid covering the physical domain
+    :math:`D` at successive times :math:`\{t_p\}_{p=1}^P`. Here the noise is
+    indepenent and Normally distrbuted with mean
+    zero and variance :math:`\sigma^2`.
+
+    Parameters
+    ----------
+    source_loc : np.ndarray (2)
+        The center of the source
+
+    source_amp : float
+        The source strength :math:`s`
+
+    source_width : float
+        The source width :math:`h`
+
+    true_sample : np.ndarray (2)
+        The true location of the source used to generate the observations
+        used in the likelihood function
+
+    noise_stdev : float
+        The standard deviation :math:`sigma` of the observational noise
+
+    max_eval_concurrency : integer
+        The maximum number of simulations that can be run in parallel. Should
+        be no more than the maximum number of cores on the computer being used
+
+    Returns
+    -------
+    benchmark : pya.Benchmark
+       Object containing the benchmark attributes documented below
+
+    fun : callable
+
+        The quantity of interest :math:`f(w)` with signature
+
+        ``fun(w) -> np.ndarray``
+
+        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars``
+        rows of ``w`` are realizations of the random variables. The last 3 rows
+        are configuration variables specifying the numerical discretization of
+        the PDE model. Specifically the first and second configuration variables
+        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate
+        the resolution of the FEM mesh in the directions :math:`{x_1}` and
+        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}`
+        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration
+        variable specifies the level :math:`l_t` of the temporal discretization.
+        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep
+        size is and :math:`T/2^{l_{t}+2}`.
+
+    variable : py:class:`pyapprox.variabels.joint.IndependentMarginalsVariable`
+        Object containing information of the joint density of the inputs z
+        which is the tensor product of independent and identically distributed
+        uniform variables on :math:`[0,1]`.
+
+    Examples
+    --------
+    >>> from pyapprox_dev.benchmarks.benchmarks import setup_benchmark
+    >>> benchmark = setup_benchmark('advection_diffusion_kle_inversion', nvars=2)
+    >>> print(benchmark.keys())
+    dict_keys(['fun', 'variable'])
+    """
+
+    base_model, variable, true_sample, noiseless_obs, obs = (
+        _setup_inverse_advection_diffusion_benchmark(
+            source_amp, source_width, source_loc, nobs, noise_stdev,
+            kle_length_scale, kle_stdev, kle_nvars, orders))
+    # add wrapper to allow execution times to be captured
+    timer_model = TimerModel(base_model, base_model)
+    pool_model = PoolModel(
+        timer_model, max_eval_concurrency, base_model=base_model)
+
+    # add wrapper that tracks execution times.
+    model = WorkTrackingModel(pool_model, base_model)
+
+    attributes = {'fun': model, 'variable': variable,
+                  "noiseless_obs": noiseless_obs, "obs": obs,
+                  "true_sample": true_sample}
+    return Benchmark(attributes)

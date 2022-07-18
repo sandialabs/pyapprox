@@ -10,7 +10,7 @@ import sys
 from pyapprox.util.utilities import (
     get_all_sample_combinations, hash_array, cartesian_product
 )
-from pyapprox.util.sys_utilities import get_num_args
+from pyapprox.util.sys_utilities import get_num_args, has_kwarg
 from pyapprox.variables.transforms import ConfigureVariableTransformation
 
 
@@ -178,6 +178,7 @@ class DataFunctionModel(object):
         self.data = dict()
         self.samples = np.zeros((0, 0))
         self.values = None
+        self.grads = None
         self.num_evaluations_ran = 0
         self.num_evaluations = 0
         self.digits = digits
@@ -199,7 +200,10 @@ class DataFunctionModel(object):
                 self.add_new_data(file_data)
 
         if data is not None:
-            self.samples, self.values = data
+            if len(data) == 2:
+                self.samples, self.values = data
+            elif len(data) == 3:
+                self.samples, self.values. self.grads = data
             assert self.samples.shape[1] == self.values.shape[0]
             self.add_new_data(data)
 
@@ -214,7 +218,11 @@ class DataFunctionModel(object):
         return key
 
     def add_new_data(self, data):
-        samples, values = data
+        if len(data) == 2:
+            samples, values = data
+            grads = None
+        else:
+            samples, values, grads = data
         for ii in range(samples.shape[1]):
             if self.use_hash:
                 key = self.hash_sample(samples[:, ii])
@@ -239,15 +247,19 @@ class DataFunctionModel(object):
                     self.samples = np.hstack(
                         [self.samples, samples[:, ii:ii+1]])
                     self.values = np.vstack([self.values, values[ii:ii+1, :]])
+                    if grads is not None:
+                        self.grads.append(grads)
                 else:
                     self.samples = samples[:, ii:ii+1]
                     self.values = values[ii:ii+1, :]
+                    if grads is not None:
+                        self.grads = [grads[ii]]
 
         # set counter so that next file takes into account all previously
         # ran samples
         self.num_evaluations_ran = self.samples.shape[1]
 
-    def _batch_call(self, samples):
+    def _batch_call(self, samples, jac):
         assert self.save_frequency > 0
         num_batch_samples = self.save_frequency
         lb = 0
@@ -255,7 +267,8 @@ class DataFunctionModel(object):
         while lb < samples.shape[1]:
             ub = min(lb+num_batch_samples, samples.shape[1])
             num_evaluations_ran = self.num_evaluations_ran
-            batch_vals, new_sample_indices = self._call(samples[:, lb:ub])
+            batch_vals, batch_grads, new_sample_indices = self._call(
+                samples[:, lb:ub], jac)
             data_filename = self.data_basename+'-%d-%d.npz' % (
                 num_evaluations_ran,
                 num_evaluations_ran+len(new_sample_indices)-1)
@@ -263,12 +276,22 @@ class DataFunctionModel(object):
                      samples=samples[:, lb:ub][:, new_sample_indices])
             if vals is None:
                 vals = batch_vals
+                grads = batch_grads
             else:
                 vals = np.vstack((vals, batch_vals))
+                if grads is not None:
+                    grads = grads.append(grads)
             lb = ub
-        return vals
+        if not jac:
+            return vals
+        return vals, grads
 
-    def _call(self, samples):
+    def _call(self, samples, jac):
+        has_jac = has_kwarg(self.function, "jac")
+        if jac and not has_jac:
+            msg = "jac set to true but function does not return jac"
+            raise ValueError(msg)
+
         evaluated_sample_indices = []
         new_sample_indices = []
         for ii in range(samples.shape[1]):
@@ -293,46 +316,63 @@ class DataFunctionModel(object):
         evaluated_sample_indices = np.asarray(evaluated_sample_indices)
         if len(new_sample_indices) > 0:
             new_samples = samples[:, new_sample_indices]
-            new_values = self.function(new_samples)
-            num_qoi = new_values.shape[1]
+            if not has_jac or not jac:
+                new_values = self.function(new_samples)
+                num_qoi = new_values.shape[1]
+                new_grads = None
+            else:
+                new_values, new_grads = self.function(new_samples, jac=jac)
+                num_qoi = new_values.shape[1]
+
         else:
             num_qoi = self.values.shape[1]
 
         values = np.empty((samples.shape[1], num_qoi), dtype=float)
+        grads = [None for ii in range(samples.shape[1])]
         if len(new_sample_indices) > 0:
             values[new_sample_indices, :] = new_values
+            if new_grads is not None:
+                for ii in range(len(new_sample_indices)):
+                    grads[new_sample_indices[ii]] = new_grads[ii]
         if len(new_sample_indices) < samples.shape[1]:
             values[evaluated_sample_indices[:, 0]] = \
                 self.values[evaluated_sample_indices[:, 1], :]
+            if self.grads is not None:
+                for ii in range(evaluated_sample_indices.shape[0]):
+                    grads[evaluated_sample_indices[ii, 0]] = self.grads[
+                        evaluated_sample_indices[:, 1]]
 
         if len(new_sample_indices) > 0:
             if self.samples.shape[1] == 0:
                 jj = 0
                 self.samples = samples
                 self.values = values
+                self.grads = grads
             else:
                 jj = self.samples.shape[0]
                 self.samples = np.hstack(
                     (self.samples, samples[:, new_sample_indices]))
                 self.values = np.vstack((self.values, new_values))
+                if self.grads is not None:
+                    self.grads.append(new_grads)
 
             for ii in range(len(new_sample_indices)):
                 key = hash_array(samples[:, new_sample_indices[ii]])
                 self.data[key] = jj+ii
 
             self.num_evaluations_ran += len(new_sample_indices)
-        # increment the number of samples pass to __call__ since object created
-        # includes samples drawn from arxiv and samples used to evaluate
-        # self.function
+            # increment the number of samples pass to __call__ since object created
+            # includes samples drawn from arxiv and samples used to evaluate
+            # self.function
         self.num_evaluations += samples.shape[1]
 
-        return values, new_sample_indices
+        return values, grads, new_sample_indices
 
-    def __call__(self, samples):
+    def __call__(self, samples, jac=False):
         if self.save_frequency is not None and self.save_frequency > 0:
-            values = self._batch_call(samples)
+            values = self._batch_call(samples, jac)
         else:
-            values = self._call(samples)[0]
+            values = self._call(samples, jac)[:-1]
         return values
 
 
@@ -367,25 +407,51 @@ def run_model_samples_in_parallel(model, max_eval_concurrency, samples,
     if pool_given is False:
         pool.close()
 
-    num_qoi = result[0].shape[1]
+    if type(result[0]) == tuple:
+        assert len(result[0]) == 2
+        num_qoi = result[0][0].shape[1]
+        jac = True
+        jacs = []
+    else:
+        num_qoi = result[0].shape[1]
+        jac = False
     values = np.empty((num_samples, num_qoi))
     for ii in range(len(result)):
-        values[ii, :] = result[ii][0, :]
-    return values
+        if not jac:
+            values[ii, :] = result[ii][0, :]
+        else:
+            values[ii, :] = result[ii][0][0, :]
+            jacs.append(result[ii][1])
+    if not jac:
+        return values
+    return values, jacs
 
 
-def time_function_evaluations(function, samples):
+def time_function_evaluations(function, samples, jac=False):
     vals = []
+    grads = []
     times = []
+    has_jac = has_kwarg(function, "jac")
     for ii in range(samples.shape[1]):
         t0 = time.time()
-        val = function(samples[:, ii:ii+1])[0, :]
+        if not has_jac or not jac:
+            val = function(samples[:, ii:ii+1])[0, :]
+        else:
+            out = function(samples[:, ii:ii+1])[0, :]
+            if type(out) != tuple:
+                val = out[0, :]
+            else:
+                val, grad = out
+                val = val[0, :]
+                grads.append(grad)
         t1 = time.time()
         vals.append(val)
         times.append([t1-t0])
     vals = np.asarray(vals)
     times = np.asarray(times)
-    return np.hstack([vals, times])
+    if len(grads) == 0:
+        return np.hstack([vals, times])
+    return np.hstack([vals, times]), grads
 
 
 class TimerModel(object):
@@ -445,8 +511,17 @@ class TimerModel(object):
     #     raise AttributeError(
     #         f" {self} or its member {self}.function has no attribute '{name}'")
 
-    def __call__(self, samples):
-        return time_function_evaluations(self.function_to_time, samples)
+    def __call__(self, samples, jac=False):
+        has_jac = has_kwarg(self.function_to_time, "jac")
+        if jac and not has_jac:
+            msg = "jac set to true but function does not return jac"
+            raise ValueError(msg)
+
+        if not has_jac or not jac:
+            return time_function_evaluations(self.function_to_time, samples)
+
+        return time_function_evaluations(
+            partial(self.function_to_time, jac=jac), samples)
 
 
 class WorkTracker(object):
@@ -533,7 +608,7 @@ class WorkTrackingModel(object):
         function : callable
             A function with signature
 
-            ``function(w) -> np.ndarray (nsamples,nqoi+1)``
+            ``function(w) -> np.ndarray (nsamples, nqoi+1)``
 
              where ``w`` is a np.ndarray of shape (nvars,nsamples).
              The last qoi returned by function (i.e. the last column of the
@@ -566,7 +641,7 @@ class WorkTrackingModel(object):
         self.base_model = base_model
         self.num_config_vars = num_config_vars
 
-    def __call__(self, samples):
+    def __call__(self, samples, jac=False):
         """
         Evaluate self.function
 
@@ -583,8 +658,16 @@ class WorkTrackingModel(object):
             is the cost of the simulation. This column is not included in
             values.
         """
+        has_jac = has_kwarg(self.wt_function, "jac")
+        if jac and not has_jac:
+            msg = "jac set to true but function does not return jac"
+            raise ValueError(msg)
+
         # data = eval(self.wt_function, samples)
-        data = self.wt_function(samples)
+        if not has_jac or not jac:
+            data = self.wt_function(samples)
+        else:
+            data, grads = self.wt_function(samples, jac=jac)
         values = data[:, :-1]
         work = data[:, -1]
         if self.num_config_vars > 0:
@@ -592,7 +675,9 @@ class WorkTrackingModel(object):
         else:
             config_samples = np.zeros((1, samples.shape[1]))
         self.work_tracker.update(config_samples, work)
-        return values
+        if not jac:
+            return values
+        return values, jac
 
     def cost_function(self, config_samples):
         """
@@ -680,7 +765,7 @@ class PoolModel(object):
         """
         self.max_eval_concurrency = max_eval_concurrency
 
-    def __call__(self, samples, verbose=True):
+    def __call__(self, samples, verbose=True, jac=False):
         """
         Evaluate a function at multiple samples in parallel using
         multiprocessing.Pool
@@ -690,9 +775,19 @@ class PoolModel(object):
         samples : np.ndarray (nvars,nsamples)
             Samples used to evaluate self.function
         """
+        has_jac = has_kwarg(self.pool_function, "jac")
+        if jac and not has_jac:
+            msg = "jac set to true but function does not return jac"
+            raise ValueError(msg)
+
+        if not has_jac or not jac:
+            fun = self.pool_function
+        else:
+            fun = partial(self.pool_function, jac=jac)
+
         t0 = time.time()
         vals = run_model_samples_in_parallel(
-            self.pool_function, self.max_eval_concurrency, samples,
+            fun, self.max_eval_concurrency, samples,
             pool=None, assert_omp=self.assert_omp)
         if verbose:
             msg = f"Evaluating all {samples.shape[1]} samples took "
@@ -935,7 +1030,6 @@ class ModelEnsemble(object):
             The values of the models at samples
         """
         model_ids = samples[-1, :]
-        # print(model_ids.max(),self.nmodels)
         assert model_ids.max() < self.nmodels
         active_model_ids = np.unique(model_ids).astype(int)
         active_model_id = active_model_ids[0]
@@ -959,7 +1053,6 @@ class MultiIndexModel():
             self._create_model_ensemble(setup_model, config_values))
 
     def _create_model_ensemble(self, setup_model, config_values):
-        print(config_values)
         config_var_trans = ConfigureVariableTransformation(config_values)
         config_samples = cartesian_product(config_values).astype(np.double)
         models = [None for ii in range(config_samples.shape[1])]
@@ -972,7 +1065,6 @@ class MultiIndexModel():
     def __call__(self, samples):
         nsamples = samples.shape[1]
         config_samples = samples[-self._nconfig_vars:, :]
-        print(config_samples.shape)
         model_ids = np.empty((1, nsamples))
         for ii in range(nsamples):
             model_ids[0, ii] = self._multi_index_to_model_id_map[

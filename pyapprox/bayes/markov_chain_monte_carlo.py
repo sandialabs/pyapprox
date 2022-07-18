@@ -7,19 +7,19 @@ from pyapprox.variables.marginals import get_distribution_info
 
 class GaussianLogLike(object):
     r"""
-    A Gaussian log-likelihood function for a model with parameters given in 
+    A Gaussian log-likelihood function for a model with parameters given in
     sample
     """
 
     def __init__(self, model, data, noise_covar):
         r"""
-        Initialise the Op with various things that our log-likelihood 
+        Initialise the Op with various things that our log-likelihood
         function requires.
 
         Parameters
         ----------
         model : callable
-            The model relating the data and noise 
+            The model relating the data and noise
 
         data : np.ndarray (nobs)
             The "observed" data
@@ -74,9 +74,9 @@ class GaussianLogLike(object):
 
 class LogLike(tt.Op):
     r"""
-    Specify what type of object will be passed and returned to the Op 
-    when it is called. In our case we will be passing it a vector of 
-    values (the parameters that define our model) and returning a 
+    Specify what type of object will be passed and returned to the Op
+    when it is called. In our case we will be passing it a vector of
+    values (the parameters that define our model) and returning a
     single "scalar" value (the log-likelihood)
     """
     itypes = [tt.dvector]  # expects a vector of parameter values when called
@@ -129,7 +129,7 @@ class LogLikeWithGrad(LogLike):
 class LogLikeGrad(tt.Op):
 
     r"""
-    This Op will be called with a vector of values and also return a 
+    This Op will be called with a vector of values and also return a
     vector of values - the gradients in each dimension.
     """
     itypes = [tt.dvector]
@@ -213,21 +213,22 @@ def get_pymc_variable(rv, pymc_var_name):
 
 def run_bayesian_inference_gaussian_error_model(
         loglike, variables, ndraws, nburn, njobs,
-        algorithm='nuts', get_map=False, print_summary=False, loglike_grad=None,
+        algorithm='nuts', get_map=False, print_summary=False,
+        loglike_grad=None,
         seed=None):
     r"""
-    Draw samples from the posterior distribution using Markov Chain Monte 
+    Draw samples from the posterior distribution using Markov Chain Monte
     Carlo for data that satisfies
 
     .. math:: y=f(z)+\epsilon
 
-    where :math:`y` is a vector of observations, :math:`z` are the 
+    where :math:`y` is a vector of observations, :math:`z` are the
     parameters of a function which are to be inferred, and :math:`\epsilon`
     is Gaussian noise.
 
     Parameters
     ----------
-    loglike : pyapprox_dev.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike
+    loglike : pyapprox.bayes.markov_chain_monte_carlo.GaussianLogLike
         A log-likelihood function associated with a Gaussian error model
 
     variables : pya.IndependentMarginalsVariable
@@ -264,7 +265,7 @@ def run_bayesian_inference_gaussian_error_model(
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples
 
     random_seed : int or list of ints
-        A list is accepted if ``cores`` is greater than one. PyMC3 does not 
+        A list is accepted if ``cores`` is greater than one. PyMC3 does not
         produce consistent results by setting numpy.random.seed instead
         seed must be passed in
     """

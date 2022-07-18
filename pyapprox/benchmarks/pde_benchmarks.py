@@ -139,7 +139,7 @@ class AdvectionDiffusionReactionKLEModel():
 
 
 def _setup_advection_diffusion_benchmark(
-        length_scale, sigma, nvars, orders, functional,
+        amp, scale, loc, length_scale, sigma, nvars, orders, functional,
         functional_deriv_funs=[None, None], kle_args=None,
         newton_kwargs={}):
     variable = IndependentMarginalsVariable([stats.norm(0, 1)]*nvars)
@@ -153,8 +153,6 @@ def _setup_advection_diffusion_benchmark(
         [partial(full_fun_axis_1, 0, oned=False), "D"],
         [partial(full_fun_axis_1, 0, oned=False), "D"]]
     react_funs = None
-    amp, scale = 100.0, 0.1
-    loc = torch.tensor([0.25, 0.75])[:, None]
     forc_fun = partial(gauss_forc_fun, amp, scale, loc)
     vel_fun = partial(constant_vel_fun, [5, 0])
 
@@ -201,14 +199,18 @@ class InterpolatedMeshKLE(MeshKLE):
 
 
 def _setup_inverse_advection_diffusion_benchmark(
-        nobs, noise_std, length_scale, sigma, nvars, orders):
+        amp, scale, loc, nobs, noise_std, length_scale, sigma, nvars, orders):
+
+    loc = torch.as_tensor(loc)
+    if loc.ndim == 1:
+        loc = loc[:, None]
 
     ndof = np.prod(np.asarray(orders)+1)
     obs_indices = np.random.permutation(
         np.delete(np.arange(ndof), [0]))[:nobs]
     obs_functional = partial(mesh_locations_obs_functional, obs_indices)
     obs_model, variable = _setup_advection_diffusion_benchmark(
-        length_scale, sigma, nvars, orders, obs_functional)
+        amp, scale, loc, length_scale, sigma, nvars, orders, obs_functional)
 
     true_kle_params = variable.rvs(1)
     noise = np.random.normal(0, noise_std, (obs_indices.shape[0]))
@@ -224,8 +226,8 @@ def _setup_inverse_advection_diffusion_benchmark(
                    obs_indices, noise_std)
     inv_functional_deriv_funs = [dqdu, dqdp]
     inv_model, variable = _setup_advection_diffusion_benchmark(
-        length_scale, sigma, nvars, orders, inv_functional,
-        inv_functional_deriv_funs)
+        amp, scale, loc, length_scale, sigma, nvars, orders,
+        inv_functional, inv_functional_deriv_funs)
 
     return inv_model, variable, true_kle_params, noiseless_obs, obs
 
@@ -233,6 +235,9 @@ def _setup_inverse_advection_diffusion_benchmark(
 def _setup_multi_index_advection_diffusion_benchmark(
         length_scale, sigma, nvars, config_values=None):
 
+    amp, scale = 100.0, 0.1
+    loc = torch.tensor([0.25, 0.75])[:, None]
+    
     newton_kwargs = {"maxiters": 1, "rel_error": False}
     if config_values is None:
         config_values = [2*np.arange(1, 11)+1, 2*np.arange(1, 11)+1]
@@ -241,13 +246,13 @@ def _setup_multi_index_advection_diffusion_benchmark(
     functional = partial(subdomain_integral_functional, subdomain_bounds)
     hf_orders = np.array([config_values[0][-1], config_values[1][-1]])
     hf_model, variable = _setup_advection_diffusion_benchmark(
-        length_scale, sigma, nvars, hf_orders, functional,
+        amp, scale, loc, length_scale, sigma, nvars, hf_orders, functional,
         newton_kwargs=newton_kwargs)
     kle_args = [hf_model._fwd_solver.residual.mesh, hf_model._kle]
 
     def setup_model(orders):
         return _setup_advection_diffusion_benchmark(
-            length_scale, sigma, nvars, orders, functional,
+            amp, scale, loc, length_scale, sigma, nvars, orders, functional,
             kle_args=kle_args, newton_kwargs=newton_kwargs)[0]
     model = MultiIndexModel(setup_model, config_values)
     return model, variable

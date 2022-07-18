@@ -6,7 +6,9 @@ from pyapprox.optimization.pya_minimize import pyapprox_minimize
 from pyapprox.benchmarks.pde_benchmarks import (
     _setup_inverse_advection_diffusion_benchmark,
     _setup_multi_index_advection_diffusion_benchmark)
-from pyapprox.util.utilities import check_gradients, get_all_sample_combinations
+from pyapprox.util.utilities import (
+    check_gradients, get_all_sample_combinations)
+from pyapprox.benchmarks.benchmarks import setup_benchmark
 
 
 class TestPDEBenchmarks(unittest.TestCase):
@@ -22,9 +24,17 @@ class TestPDEBenchmarks(unittest.TestCase):
         nvars = 10
         orders = [20, 20]
 
+        amp, scale, loc = 100.0, 0.1, [0.25, 0.75]
+
+        # inv_model, variable, true_params, noiseless_obs, obs = (
+        #     _setup_inverse_advection_diffusion_benchmark(
+        #         amp, scale, loc, nobs, noise_std, length_scale, sigma,
+        #         nvars, orders))
+        benchmark = setup_benchmark("advection_diffusion_kle_inversion")
         inv_model, variable, true_params, noiseless_obs, obs = (
-            _setup_inverse_advection_diffusion_benchmark(
-                nobs, noise_std, length_scale, sigma, nvars, orders))
+            benchmark.fun, benchmark.variable, benchmark.true_sample,
+            benchmark.noiseless_obs, benchmark.obs)
+        
 
         # TODO add std to params list
         init_guess = variable.rvs(1)
@@ -59,7 +69,7 @@ class TestPDEBenchmarks(unittest.TestCase):
         nrandom_samples = 10
         random_samples = variable.rvs(nrandom_samples)
 
-        import matplotlib.pyplot as plt
+        # import matplotlib.pyplot as plt
         # import torch
         # pde1 = model._model_ensemble.functions[-1]
         # mesh1 = pde1._fwd_solver.residual.mesh
@@ -79,7 +89,7 @@ class TestPDEBenchmarks(unittest.TestCase):
         # plt.colorbar(im1, ax=axs[0])
         # plt.colorbar(im2, ax=axs[1])
         # plt.show()
-        
+
         config_samples = np.vstack([c[None, :] for c in config_values])
         samples = get_all_sample_combinations(random_samples, config_samples)
         values = model(samples)
@@ -93,7 +103,7 @@ class TestPDEBenchmarks(unittest.TestCase):
         # plt.loglog(
         #     ndof[:-1], np.abs((qoi_means[-1]-qoi_means[:-1])/qoi_means[-1]))
         # plt.show()
-        
+
 
 if __name__ == "__main__":
     pde_benchmarks_test_suite = unittest.TestLoader().loadTestsFromTestCase(
