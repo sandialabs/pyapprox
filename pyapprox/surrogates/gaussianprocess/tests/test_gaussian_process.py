@@ -730,6 +730,70 @@ class TestGaussianProcess(unittest.TestCase):
                 marginalized_pces[ii](xx[None, :]),
                 marginalized_gps[ii](xx[None, :]), rtol=1e-2, atol=1.3e-2)
 
+    def test_compute_sobol_indices_gaussian_process_uniform_1d(self):
+        nvars = 1
+        univariate_variables = [stats.uniform(0, 1)]*nvars
+        variable = IndependentMarginalsVariable(
+            univariate_variables)
+
+        def func(xx):
+            return np.sum(xx, axis=0)[:, None]
+
+        ntrain_samples = 100
+        # train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
+        from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence
+        train_samples = sobol_sequence(
+            nvars, ntrain_samples, variable=variable, start_index=1)
+        train_vals = func(train_samples)
+
+        # var_trans = AffineTransform(variable)
+
+        nu = np.inf
+        kernel_var = 1.
+        length_scale = np.array([1]*nvars)
+        kernel = Matern(length_scale, length_scale_bounds=(1e-2, 10), nu=nu)
+        kernel = ConstantKernel(
+            constant_value=kernel_var, constant_value_bounds='fixed')*kernel
+        gp = GaussianProcess(kernel, n_restarts_optimizer=1, alpha=1e-6)
+        # gp.set_variable_transformation(var_trans)
+        gp.fit(train_samples, train_vals)
+
+        validation_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
+        validation_vals = func(validation_samples)
+        error = np.linalg.norm(validation_vals - gp(validation_samples)) / \
+            np.linalg.norm(validation_vals)
+        print(error)
+
+        nquad_samples = 30
+        expected_random_mean, variance_random_mean, expected_random_var,\
+            variance_random_var = integrate_gaussian_process(
+                gp, variable, nquad_samples=nquad_samples)
+        print('v', expected_random_var)
+
+        true_mean = 1/3
+        unnormalized_main_effect_0 = 1/5 -\
+            true_mean**2
+        true_unnormalized_main_effects = np.array(
+            [[unnormalized_main_effect_0]]).T
+        true_var = np.sum(true_unnormalized_main_effects)
+        print(expected_random_var[0, 0], true_var)
+        assert np.allclose(expected_random_var, true_var, atol=1e-4)
+
+        order = 1
+        interaction_terms = compute_hyperbolic_indices(nvars, order)
+        interaction_terms = interaction_terms[:, np.where(
+            interaction_terms.max(axis=0) == 1)[0]]
+
+        nquad_samples = 100
+        sobol_indices, total_effects, mean, variance = \
+            compute_expected_sobol_indices(
+                gp, variable, interaction_terms, nquad_samples=nquad_samples)
+
+        print(variance, true_var)
+        true_unnormalized_sobol_indices = true_unnormalized_main_effects
+        true_sobol_indices = true_unnormalized_sobol_indices/true_var
+        assert np.allclose(true_sobol_indices, sobol_indices)
+
     def test_compute_sobol_indices_gaussian_process_uniform_2d(self):
         nvars = 2
         a = np.array([1, 0.25])
@@ -847,7 +911,7 @@ class TestGaussianProcess(unittest.TestCase):
 
         interaction_terms = np.zeros(
             (nvars, len(pce_interaction_terms)), dtype=int)
-        for ii, idx in enumerate(pce_interaction_terms.T):
+        for ii, idx in enumerate(pce_interaction_terms):
             interaction_terms[idx, ii] = 1
 
         nquad_samples = 100

@@ -16,7 +16,7 @@ class JointVariable(ABC):
     r"""
     Base class for multivariate variables.
     """
-    
+
     @abstractmethod
     def rvs(self, num_samples):
         """
@@ -33,6 +33,9 @@ class JointVariable(ABC):
             Independent samples from the target distribution
         """
         raise NotImplementedError()
+
+    def __str__(self):
+        return "JointVariable"
 
 
 class IndependentMarginalsVariable(JointVariable):
@@ -224,6 +227,9 @@ class IndependentMarginalsVariable(JointVariable):
                 string += "\n"
         return string
 
+    def __repr__(self):
+        return self.__str__()
+
     def is_bounded_continuous_variable(self):
         """
         Are all 1D variables are continuous and bounded.
@@ -269,7 +275,7 @@ class GaussCopulaVariable(JointVariable):
     Multivariate random variable with Gaussian correlation and arbitrary
     marginals
     """
-    
+
     def __init__(self, marginals, x_correlation, bisection_opts={}):
         self.nvars = len(marginals)
         self._marginals = marginals

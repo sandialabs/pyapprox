@@ -97,7 +97,7 @@ def plot_1d_cross_section(fun, var, var_idx, nominal_sample, nsamples_1d,
 
 def plot_1d_cross_sections(fun, variable, nominal_sample=None,
                            nsamples_1d=100, subplot_tuple=None, qoi=0,
-                           plt_kwargs={}):
+                           plt_kwargs={}, axs=None):
     """
     Plot the 1D cross sections of a multivariate function.
     """
@@ -112,9 +112,13 @@ def plot_1d_cross_sections(fun, variable, nominal_sample=None,
     if nfig_rows*nfig_cols < variable.num_vars():
         raise ValueError("Number of subplots is insufficient")
 
-    fig, axs = plt.subplots(
-        nfig_rows, nfig_cols, figsize=(nfig_cols*8, nfig_rows*6))
-    axs = axs.flatten()
+    if axs is None:
+        fig, axs = plt.subplots(
+            nfig_rows, nfig_cols, figsize=(nfig_cols*8, nfig_rows*6))
+        if variable.num_vars() == 1:
+            axs = [axs]
+        else:
+            axs = axs.flatten()
     all_variables = variable.marginals()
     for ii, var in enumerate(all_variables):
         axs[ii].set_title(r"$Z_{%d}$" % (ii+1))
@@ -125,7 +129,7 @@ def plot_1d_cross_sections(fun, variable, nominal_sample=None,
     for ii in range(variable.num_vars(), nfig_rows*nfig_cols):
         axs[ii].axis("off")
 
-    return fig, axs
+    return axs
 
 
 def plot_2d_cross_sections(fun, variable, nominal_sample=None,

@@ -2,9 +2,10 @@ import numpy as np
 from scipy.optimize import OptimizeResult
 from scipy.spatial.distance import cdist
 from itertools import combinations
+from functools import partial
 
 from pyapprox.surrogates.interp.indexing import (
-    hash_array, argsort_indices_leixographically
+    hash_array, argsort_indices_leixographically, compute_hyperbolic_indices
 )
 from pyapprox.util.utilities import nchoosek
 from pyapprox.expdesign.low_discrepancy_sequences import (
@@ -679,7 +680,7 @@ def gpc_sobol_sensitivities(pce, variable, max_order=2):
         Indices specifying the variables in each interaction in
         ``sobol_indices``
     """
-    if type(pce) != PolynomialChaosExpansion:
+    if not issubclass(pce.__class__, PolynomialChaosExpansion):
         raise ValueError("Must provide a PCE")
 
     if variable.marginals() != pce.var_trans.variable.marginals():
@@ -876,13 +877,37 @@ def repeat_sampling_based_sobol_indices(fun, variables, interaction_terms,
 
 
 def analytic_sobol_indices_from_gaussian_process(
-        gp, variable, interaction_terms, ngp_realizations=1,
-        stat_functions=(np.mean, np.median, np.min, np.max),
+        gp, variable, interaction_terms=None, ngp_realizations=1,
+        summary_stats=["mean", "median", "min", "max", "quantile-0.25",
+                       "quantile-0.75"],
         ninterpolation_samples=500, nvalidation_samples=100,
         ncandidate_samples=1000, nquad_samples=50, use_cholesky=True, alpha=0):
 
-    if type(gp) != GaussianProcess:
-        raise ValueError ("Argument gp must be a Gaussian process")
+    if not issubclass(gp.__class__, GaussianProcess):
+        raise ValueError("Argument gp must be a Gaussian process")
+
+    quantile_stats = []
+    for q in [0.25, 0.75]:
+        sfun = partial(np.quantile, q=q)
+        sfun.__name__ = f'quantile-{q}'
+        quantile_stats.append(sfun)
+    stat_functions_dict = {"mean": np.mean,
+                           "median": np.median,
+                           "min": np.min,
+                           "max": np.max,
+                           "std": np.std,
+                           "quantile-0.25": quantile_stats[0],
+                           "quantile-0.75": quantile_stats[1]}
+    for name in summary_stats:
+        if name not in stat_functions_dict:
+            msg = f"Summary stats {name} not supported\n"
+            msg += f"Select from {list(stat_functions_dict.keys())}"
+            raise ValueError(msg)
+    stat_functions = [stat_functions_dict[name] for name in summary_stats]
+
+    if interaction_terms is None:
+        interaction_terms = get_isotropic_anova_indices(
+            variable.num_vars(), 2)
 
     x_train, y_train, K_inv, lscale, kernel_var, transform_quad_rules = \
         extract_gaussian_process_attributes_for_integration(gp)
@@ -897,7 +922,7 @@ def analytic_sobol_indices_from_gaussian_process(
             variable, 1000)
         mean_vals, std = gp(validation_samples, return_std=True)
         realization_vals = gp_realizations(validation_samples)
-        print(mean_vals[:, 0].mean())
+        # print(mean_vals[:, 0].mean())
         # print(std,realization_vals.std(axis=1))
         print('std of realizations error',
               np.linalg.norm(std-realization_vals.std(axis=1))/np.linalg.norm(
@@ -1171,3 +1196,31 @@ def run_sensitivity_analysis(method, fun, variable, *args, **kwargs):
         raise Exception(msg)
 
     return methods[method](fun, variable, *args, **kwargs)
+
+
+def get_isotropic_anova_indices(nvars, order):
+    interaction_terms = compute_hyperbolic_indices(nvars, order)
+    interaction_terms = interaction_terms[:, np.where(
+        interaction_terms.max(axis=0) == 1)[0]]
+    return interaction_terms
+
+
+def plot_sensitivity_indices_with_confidence_intervals_from_result(
+        result, axs=None, include_vars=None):
+    nvars = len(result['total_effects']['median'])
+    if include_vars is None:
+        include_vars = np.arange(nvars, dtype=int)
+
+    import matplotlib.pyplot as plt
+    if axs is None:
+        fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
+
+    im0 = plot_sensitivity_indices_with_confidence_intervals(
+        [r'$z_{%d}$' % (ii+1) for ii in include_vars], axs[0],
+        result["sobol_indices"]["median"][:nvars][include_vars],
+        result["sobol_indices"]["quantile-0.25"][:nvars][include_vars],
+        result["sobol_indices"]["quantile-0.75"][:nvars][include_vars],
+        result["sobol_indices"]["amin"][:nvars][include_vars],
+        result["sobol_indices"]["amax"][:nvars][include_vars])
+
+    return [im0]

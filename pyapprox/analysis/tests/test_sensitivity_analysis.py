@@ -476,13 +476,22 @@ class TestSensitivityAnalysis(unittest.TestCase):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
         from pyapprox.surrogates.approximate import approximate
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
-        nvars = benchmark.variable.num_vars()
 
-        ntrain_samples = 500
+        def fun(xx):
+            vals = np.sum(xx, axis=0)[:, None]
+            return vals
+        benchmark.variable = IndependentMarginalsVariable(
+            #[stats.norm(0, 1)]*1)
+            [stats.uniform(0, 1)]*1)
+        benchmark.fun = fun
+
+        nvars = benchmark.variable.num_vars()
+        ntrain_samples = 100# 500
         train_samples = sobol_sequence(
-            nvars, ntrain_samples, variable=benchmark.variable)
+            nvars, ntrain_samples, variable=benchmark.variable, start_index=1)
 
         train_vals = benchmark.fun(train_samples)
+        # print(train_vals)
         approx = approximate(
             train_samples, train_vals, 'gaussian_process', {
                 'nu': np.inf, 'normalize_y': True, 'alpha': 1e-10}).approx
@@ -492,7 +501,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         error = compute_l2_error(
             approx, benchmark.fun, benchmark.variable,
             nsobol_samples, rel=True)
-        print(error)
+        print('error', error)
 
         order = 2
         interaction_terms = compute_hyperbolic_indices(nvars, order)
@@ -501,16 +510,19 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
         result = analytic_sobol_indices_from_gaussian_process(
             approx, benchmark.variable, interaction_terms,
-            ngp_realizations=1000, stat_functions=(np.mean, np.std),
+            ngp_realizations=0,
+            # ngp_realizations=1000,
+            summary_stats=["mean", "std"],
             ninterpolation_samples=2000, ncandidate_samples=3000,
-            use_cholesky=False, alpha=1e-8)
+            use_cholesky=False, alpha=1e-8,
+            nquad_samples=50)
 
         mean_mean = result['mean']['mean']
         mean_sobol_indices = result['sobol_indices']['mean']
         mean_total_effects = result['total_effects']['mean']
         mean_main_effects = mean_sobol_indices[:nvars]
-
-        print(result['sobol_indices']['std'])
+        print(mean_sobol_indices, 's')
+        assert False
 
         # print(result['mean']['values'][-1])
         # print(result['variance']['values'][-1])

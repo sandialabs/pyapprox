@@ -695,7 +695,11 @@ def adaptive_approximate_gaussian_process(
         gp.set_variable_transformation(var_trans)
 
     if checkpoints is None:
-        checkpoints = np.linspace(10, max_nsamples, 10).astype(int)
+        nsteps = 10
+        if max_nsamples-10 < nsteps:
+            nsteps = max_nsamples-10
+        checkpoints = np.linspace(10, max_nsamples, nsteps).astype(int)
+    checkpoints = np.unique(checkpoints.astype(int))
     assert checkpoints[-1] <= max_nsamples
 
     nsteps = len(checkpoints)

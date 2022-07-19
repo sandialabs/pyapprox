@@ -90,7 +90,6 @@ class Benchmark(OptimizeResult):
     attributes for a specific benchmark
     """
 
-
 def setup_sobol_g_function(nvars):
     r"""
     Setup the Sobol-G function benchmark

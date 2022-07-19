@@ -2463,7 +2463,7 @@ def _compute_expected_sobol_indices(
             x_train, lscale, variable, transform_quad_rules,
             nquad_samples=nquad_samples, skip_xi_1=True)
 
-    # ntrain_samples = x_train.shape[1]
+    lscale = np.atleast_1d(lscale)  # for 1D gps
     nvars = variable.num_vars()
     degrees = [nquad_samples]*nvars
     univariate_quad_rules = get_univariate_quadrature_rules_from_variable(
@@ -2551,6 +2551,8 @@ def _compute_expected_sobol_indices(
                 for key in indices:
                     unnormalized_sobol_indices[II[ii]] -= \
                         unnormalized_sobol_indices[sobol_indices_dict[key]]
+
+    print(expected_random_var, unnormalized_sobol_indices, 'sobol')
 
     return unnormalized_sobol_indices/expected_random_var, \
         1-unnormalized_total_effect_values/expected_random_var, \
