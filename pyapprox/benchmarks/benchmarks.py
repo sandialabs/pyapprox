@@ -37,7 +37,8 @@ from pyapprox.interface.wrappers import (
     TimerModel, PoolModel, WorkTrackingModel
 )
 from pyapprox.benchmarks.pde_benchmarks import (
-    _setup_inverse_advection_diffusion_benchmark
+    _setup_inverse_advection_diffusion_benchmark,
+    _setup_multi_index_advection_diffusion_benchmark
 )
 
 
@@ -526,18 +527,6 @@ def setup_benchmark(name, **kwargs):
         'tunable_model_ensemble': setup_tunable_model_ensemble,
         'short_column_ensemble': setup_short_column_ensemble,
         "parameterized_nonlinear_model": setup_parameterized_nonlinear_model}
-    if PYA_DEV_AVAILABLE:
-        # will fail if fenics is not installed and the import of the fenics
-        # benchmarks fail
-        fenics_benchmarks = {
-            'multi_index_advection_diffusion':
-            setup_advection_diffusion_benchmark,
-            'multi_index_advection_diffusion_source_inversion':
-            setup_advection_diffusion_source_inversion_benchmark,
-            'multi_level_advection_diffusion':
-            setup_multi_level_advection_diffusion_benchmark,
-            'mfnets_helmholtz': setup_mfnets_helmholtz_benchmark}
-        benchmarks.update(fenics_benchmarks)
 
     if name not in benchmarks:
         msg = f'Benchmark "{name}" not found.\n Available benchmarks are:\n'
@@ -703,132 +692,6 @@ def setup_hastings_ecology_benchmark(qoi_functional=None, time=None):
     return Benchmark(attributes)
 
 
-def setup_multi_index_advection_diffusion_benchmark(
-        nvars, corr_len, degree, final_time=1, time_step_size=1e-2,
-        max_eval_concurrency=1):
-    r"""
-    Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)
-
-    .. math::
-
-       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
-       \mathcal{B}(x,t,\rv)&=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
-       u(x,t,\rv)&=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom
-
-    Following [NTWSIAMNA2008]_, [JEGGIJNME2020]_ we set
-
-    .. math:: g(x,t)=(1.5+\cos(2\pi t))\cos(x_1),
-
-    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero dirichlet boundary conditions.
-
-    and we model the diffusivity :math:`k` as a random field represented by the
-    Karhunen-Loeve (like) expansion (KLE)
-
-    .. math::
-
-       \log(k(x,\rv)-0.5)=1+\rv_1\left(\frac{\sqrt{\pi L}}{2}\right)^{1/2}+\sum_{k=2}^d \lambda_k\phi(x)\rv_k,
-
-    with
-
-    .. math::
-
-       \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k>1,  \qquad\qquad  \phi(x)=
-       \begin{cases}
-       \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ even}\,,\\
-       \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ odd}\,.
-       \end{cases}
-
-    where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}`.
-
-    The quantity of interest :math:`f(z)` is the measurement of the solution at a location :math:`x_k` at the final time :math:`T=1` obtained via the linear functional
-
-    .. math:: f(z)=\int_D u(x,T,z)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x_k \rVert^2_2}{\sigma^2}\right) dx
-
-
-    Parameters
-    ----------
-    nvars : integer
-        The number of variables of the KLE
-
-    corr_len : float
-        The correlation length :math:`L_c` of the covariance kernel
-
-    max_eval_concurrency : integer
-        The maximum number of simulations that can be run in parallel. Should be         no more than the maximum number of cores on the computer being used
-
-    Returns
-    -------
-    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
-       Object containing the benchmark attributes documented below
-
-    fun : callable
-
-        The quantity of interest :math:`f(w)` with signature
-
-        ``fun(w) -> np.ndarray``
-
-        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the
-        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars``
-        rows of ``w`` are realizations of the random variables. The last 3 rows
-        are configuration variables specifying the numerical discretization of
-        the PDE model. Specifically the first and second configuration variables
-        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate
-        the resolution of the FEM mesh in the directions :math:`{x_1}` and
-        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}`
-        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration
-        variable specifies the level :math:`l_t` of the temporal discretization.
-        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep
-        size is and :math:`T/2^{l_{t}+2}`.
-
-    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`
-        Object containing information of the joint density of the inputs z
-        which is the tensor product of independent and identically distributed
-        uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.
-
-    Examples
-    --------
-    >>> from pyapprox_dev.benchmarks.benchmarks import setup_benchmark
-    >>> benchmark = setup_benchmark('advection-diffusion', nvars=2)
-    >>> print(benchmark.keys())
-    dict_keys(['fun', 'variable'])
-    """
-    univariate_variables = [stats.uniform(-np.sqrt(3), 2*np.sqrt(3))]*nvars
-    variable = IndependentMarginalsVariable(univariate_variables)
-    pde_funs = NobileBenchmarkFunctions(nvars, corr_len)
-    config_values = [2*np.arange(1, 11)+1, 2*np.arange(1, 11)+1]
-    if final_time is not None:
-        base_model = TransientAdvectionDiffusion()
-        base_model.initialize(
-            pde_funs.bndry_conds, pde_funs.diffusivity_fun,
-            pde_funs.time_dependent_forcing_fun, pde_funs.velocity_fun,
-            degree, [0, 1, 0, 1], final_time, time_step_size,
-            pde_funs.initial_condition_fun)
-        config_values.append(final_time/(2*(2*np.arange(1, 11))**2))
-    else:
-        base_model = SteadyStateAdvectionDiffusion()
-        base_model.initialize(pde_funs.bndry_conds, pde_funs.diffusivity_fun,
-                              pde_funs.forcing_fun, pde_funs.velocity_fun,
-                              degree, [0, 1, 0, 1])
-    multi_index_model = SpectralPDEMultiIndexWrapper(
-        base_model, variable.num_vars())
-    config_var_trans = ConfigureVariableTransformation(config_values)
-
-    # add wrapper to allow execution times to be captured
-    timer_model = TimerModel(multi_index_model, multi_index_model)
-    pool_model = PoolModel(
-       timer_model, max_eval_concurrency, base_model=base_model)
-    # pool_model = timer_model
-
-    # add wrapper that tracks execution times.
-    model = WorkTrackingModel(pool_model, multi_index_model,
-                              multi_index_model.num_config_vars)
-    attributes = {
-        'fun': model, 'variable': variable,
-        "get_num_degrees_of_freedom": base_model.get_num_degrees_of_freedom,
-        "config_var_trans": config_var_trans}
-    return Benchmark(attributes)
-
-
 def setup_polynomial_ensemble():
     r"""
     Return an ensemble of 5 univariate models of the form
@@ -888,8 +751,9 @@ def setup_parameterized_nonlinear_model():
         {'fun': model, 'variable': variable})
 
 
-def setup_advection_diffusion_benchmark(nvars, corr_len,
-                                        max_eval_concurrency=1):
+def setup_multi_index_advection_diffusion_benchmark(
+        nvars, kle_length_scale, kle_sigma,
+        max_eval_concurrency=1, config_values=None):
     r"""
     Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)
 
@@ -934,8 +798,11 @@ def setup_advection_diffusion_benchmark(nvars, corr_len,
     nvars : integer
         The number of variables of the KLE
 
-    corr_len : float
+    kle_length_scale : float
         The correlation length :math:`L_c` of the covariance kernel
+
+    kle_sigma : float
+        The standard deviation of the KLE kernel
 
     max_eval_concurrency : integer
         The maximum number of simulations that can be run in parallel. Should be         no more than the maximum number of cores on the computer being used
@@ -972,32 +839,17 @@ def setup_advection_diffusion_benchmark(nvars, corr_len,
     Examples
     --------
     >>> from pyapprox_dev.benchmarks.benchmarks import setup_benchmark
-    >>> benchmark=setup_benchmark('advection-diffusion',nvars=2)
+    >>> benchmark = setup_benchmark('multi_index_advection_diffusion', nvars=2)
     >>> print(benchmark.keys())
     dict_keys(['fun', 'variable'])
     """
-
-    from scipy import stats
-    from pyapprox.interface.wrappers import TimerModel, PoolModel, \
-        WorkTrackingModel
-    from pyapprox.interface.wrappers import PoolModel
-    from pyapprox.variables.marginals import IndependentMarginalsVariable
-    from pyapprox.benchmarks.benchmarks import Benchmark
-    univariate_variables = [stats.uniform(-np.sqrt(3), 2*np.sqrt(3))]*nvars
-    variable = IndependentMarginalsVariable(univariate_variables)
-    final_time, degree = 1.0, 1
-    options = {'corr_len': corr_len}
-    base_model = AdvectionDiffusionModel(
-        final_time, degree, qoi_functional_misc, second_order_timestepping=False,
-        options=options, qoi_functional_grad=qoi_functional_grad_misc)
-    # add wrapper to allow execution times to be captured
+    base_model, variable = _setup_multi_index_advection_diffusion_benchmark(
+        kle_length_scale, kle_sigma, nvars, config_values=config_values)
     timer_model = TimerModel(base_model, base_model)
     pool_model = PoolModel(
         timer_model, max_eval_concurrency, base_model=base_model)
-
-    # add wrapper that tracks execution times.
     model = WorkTrackingModel(pool_model, base_model,
-                              base_model.num_config_vars)
+                              base_model._nconfig_vars)
     attributes = {'fun': model, 'variable': variable}
     return Benchmark(attributes)
 
