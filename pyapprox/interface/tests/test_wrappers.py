@@ -7,7 +7,7 @@ import tempfile
 
 from pyapprox.interface.wrappers import (
     ActiveSetVariableModel, PoolModel, DataFunctionModel,
-    combine_saved_model_data
+    combine_saved_model_data, TimerModel, WorkTrackingModel
 )
 
 
@@ -61,6 +61,36 @@ class TestModelwrappers(unittest.TestCase):
         values = model(reduced_samples)
         exact_values = function(samples)
         assert np.allclose(values, exact_values)
+
+        model = ActiveSetVariableModel(
+            function_with_jac, num_vars, nominal_var_values,
+            active_var_indices)
+        values, grads = model(reduced_samples, jac=True)
+        exact_values, exact_grads = function_with_jac(samples, jac=True)
+        assert np.allclose(values, exact_values)
+        assert np.allclose(grads, exact_grads)
+
+    def test_work_tracking_model(self):
+        nvars, nsamples = 3, 4
+        max_eval_concurrency = 2
+        base_model = function_with_jac
+        timer_model = TimerModel(base_model, base_model)
+        pool_model = PoolModel(
+            timer_model, max_eval_concurrency, base_model=base_model,
+            assert_omp=False)
+        # pool_model = timer_model
+        model = WorkTrackingModel(pool_model, base_model)
+
+        samples = np.random.normal(0, 1, (nvars, nsamples))
+        values = model(samples)
+        exact_values, exact_grads = function_with_jac(samples, jac=True)
+        assert np.allclose(values, exact_values)
+        values, grads = model(samples, jac=True)
+        assert np.allclose(values, exact_values)
+        print(grads)
+        print(np.vstack(grads))
+        print(exact_grads)
+        assert np.allclose(np.vstack(grads), exact_grads)
 
     def test_pool_model(self):
         num_vars = 3

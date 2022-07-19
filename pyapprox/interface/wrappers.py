@@ -379,7 +379,6 @@ class DataFunctionModel(object):
     @staticmethod
     def _grads_valid(grads):
         for g in grads:
-            print(g)
             if g is None:
                 # TODO remove exception and rerun samples to get grads
                 msg = "jac=True but previous samples evaluated did not have grads"
@@ -445,13 +444,21 @@ def run_model_samples_in_parallel(model, max_eval_concurrency, samples,
             values[ii, :] = result[ii][0, :]
         else:
             values[ii, :] = result[ii][0][0, :]
-            jacs.append(result[ii][1])
+            if type(result[ii][1]) == list:
+                jacs += result[ii][1]
+            else:
+                jacs += [result[ii][1]]
     if not jac:
         return values
     return values, jacs
 
 
 def time_function_evaluations(function, samples, jac=False):
+    has_jac = has_kwarg(function, "jac")
+    if jac and not has_jac:
+        msg = "jac set to true but function does not return jac"
+        raise ValueError(msg)
+
     vals = []
     grads = []
     times = []
@@ -461,13 +468,9 @@ def time_function_evaluations(function, samples, jac=False):
         if not has_jac or not jac:
             val = function(samples[:, ii:ii+1])[0, :]
         else:
-            out = function(samples[:, ii:ii+1])[0, :]
-            if type(out) != tuple:
-                val = out[0, :]
-            else:
-                val, grad = out
-                val = val[0, :]
-                grads.append(grad)
+            out = function(samples[:, ii:ii+1], jac=jac)
+            val = out[0][0, :]
+            grads.append(out[1])
         t1 = time.time()
         vals.append(val)
         times.append([t1-t0])
@@ -536,16 +539,8 @@ class TimerModel(object):
     #         f" {self} or its member {self}.function has no attribute '{name}'")
 
     def __call__(self, samples, jac=False):
-        has_jac = has_kwarg(self.function_to_time, "jac")
-        if jac and not has_jac:
-            msg = "jac set to true but function does not return jac"
-            raise ValueError(msg)
-
-        if not has_jac or not jac:
-            return time_function_evaluations(self.function_to_time, samples)
-
         return time_function_evaluations(
-            partial(self.function_to_time, jac=jac), samples)
+            self.function_to_time, samples, jac=jac)
 
 
 class WorkTracker(object):
@@ -687,7 +682,6 @@ class WorkTrackingModel(object):
             msg = "jac set to true but function does not return jac"
             raise ValueError(msg)
 
-        # data = eval(self.wt_function, samples)
         if not has_jac or not jac:
             data = self.wt_function(samples)
         else:
@@ -701,7 +695,7 @@ class WorkTrackingModel(object):
         self.work_tracker.update(config_samples, work)
         if not jac:
             return values
-        return values, jac
+        return values, grads
 
     def cost_function(self, config_samples):
         """
@@ -853,7 +847,12 @@ class ActiveSetVariableModel(object):
         self.inactive_var_indices = np.delete(
             np.arange(self.num_vars), active_var_indices)
 
-    def __call__(self, reduced_samples):
+    def __call__(self, reduced_samples, jac=False):
+        has_jac = has_kwarg(self.function, "jac")
+        if jac and not has_jac:
+            msg = "jac set to true but function does not return jac"
+            raise ValueError(msg)
+
         raw_samples = get_all_sample_combinations(
             self.inactive_var_values, reduced_samples)
         samples = np.empty_like(raw_samples)
@@ -861,7 +860,9 @@ class ActiveSetVariableModel(object):
                 :] = raw_samples[:self.inactive_var_indices.shape[0]]
         samples[self.active_var_indices,
                 :] = raw_samples[self.inactive_var_indices.shape[0]:]
-        return self.function(samples)
+        if not has_jac:
+            return self.function(samples)
+        return self.function(samples, jac)
 
     def num_active_vars(self):
         return len(self.inactive_var_indices)
