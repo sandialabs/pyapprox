@@ -7,7 +7,8 @@ import tempfile
 
 from pyapprox.interface.wrappers import (
     ActiveSetVariableModel, PoolModel, DataFunctionModel,
-    combine_saved_model_data, TimerModel, WorkTrackingModel
+    combine_saved_model_data, TimerModel, WorkTrackingModel,
+    evaluate_1darray_function_on_2d_array
 )
 
 
@@ -27,6 +28,25 @@ class TestModelwrappers(unittest.TestCase):
 
     def setUp(self):
         np.random.seed(1)
+
+    def test_evaluate_1darray_function_on_2d_array(self):
+        num_vars, num_samples = 3, 10
+        samples = np.random.uniform(0., 1., (num_vars, num_samples))
+
+        def fun(sample, jac=False):
+            assert sample.ndim == 1
+            if not jac:
+                return function_with_jac(sample[:, None], jac)[:, 0]
+            val, grad = function_with_jac(sample[:, None], jac)
+            return val[:, 0], grad[0, :]
+
+        exact_values, exact_grads = function_with_jac(samples, jac=True)
+        values = evaluate_1darray_function_on_2d_array(fun, samples)
+        assert np.allclose(values, exact_values)
+        values, grads = evaluate_1darray_function_on_2d_array(
+            fun, samples, jac=True)
+        assert np.allclose(values, exact_values)
+        assert np.allclose(grads, exact_grads)
 
     def test_active_set_model(self):
         num_vars = 3

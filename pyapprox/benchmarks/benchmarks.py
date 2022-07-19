@@ -1003,7 +1003,7 @@ def setup_advection_diffusion_benchmark(nvars, corr_len,
 
 
 def setup_advection_diffusion_kle_inversion_benchmark(
-        source_loc=0.5, source_amp=1, source_width=0.1,
+        source_loc=[0.25, 0.75], source_amp=100, source_width=0.1,
         kle_length_scale=0.5, kle_stdev=1, kle_nvars=2, true_sample=None,
         orders=[20, 20], noise_stdev=0.4, nobs=2, max_eval_concurrency=1):
     r"""

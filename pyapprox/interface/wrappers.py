@@ -17,7 +17,7 @@ from pyapprox.variables.transforms import ConfigureVariableTransformation
 
 
 def evaluate_1darray_function_on_2d_array(
-        function, samples, opts=None, statusbar=False):
+        function, samples, statusbar=False, jac=False):
     """
     Evaluate a function at a set of samples using a function that only takes
     one sample at a time
@@ -36,45 +36,60 @@ def evaluate_1darray_function_on_2d_array(
     samples : np.ndarray (num_vars, num_samples)
         The samples at which to evaluate the model
 
-    opts : dictionary
-        A set of options that are needed to evaluate the model
-
     statusbar : boolean
         True - print status bar showing progress to stdout
         False - do not print
+
+    jac : boolean
+        True - values and return gradient
+        False - return just gradient
+        If function does not accept the jac kwarg an exception wil be raised
 
     Returns
     -------
     values : np.ndarray (num_samples, num_qoi)
         The value of each requested QoI of the model for each sample
     """
-    num_args = get_num_args(function)
+    has_jac = has_kwarg(function, "jac")
+    if jac and not has_jac:
+        msg = "jac set to true but function does not return jac"
+        raise ValueError(msg)
+
     assert samples.ndim == 2
     num_samples = samples.shape[1]
-    if num_args == 2:
-        values_0 = function(samples[:, 0], opts)
-    else:
+    grads = []
+    if not has_jac or jac is False:
         values_0 = function(samples[:, 0])
+    else:
+        values_0, grad_0 = function(samples[:, 0], jac=jac)
+        assert grad_0.ndim == 1
+        grads.append(grad_0)
     values_0 = np.atleast_1d(values_0)
     assert values_0.ndim == 1
     num_qoi = values_0.shape[0]
     values = np.empty((num_samples, num_qoi), float)
     values[0, :] = values_0
-    for i in range(1, num_samples):
-        if num_args == 2:
-            values[i, :] = function(samples[:, i], opts)
+    for ii in range(1, num_samples):
+        if not has_jac or jac is False:
+            values[ii, :] = function(samples[:, ii])
         else:
-            values[i, :] = function(samples[:, i])
+            val_ii, grad_ii = function(samples[:, ii], jac=jac)
+            values[ii, :] = val_ii
+            grads.append(grad_ii)
         if statusbar:
             sys.stdout.write('\r')
             sys.stdout.write("[{:{}}] {:.1f}%".format(
-                "="*int(i/(num_samples-1)*10), 10, (100/(num_samples-1)*i)))
+                "="*int(ii/(num_samples-1)*10), 10, (100/(num_samples-1)*ii)))
             sys.stdout.flush()
     if statusbar:
         sys.stdout.write('\n')
         sys.stdout.flush()
 
-    return values
+    if not jac:
+        return values
+    if num_qoi == 1:
+        return values, np.vstack(grads)
+    return values, grads
 
 
 class PyFunction(object):
@@ -478,6 +493,8 @@ def time_function_evaluations(function, samples, jac=False):
     times = np.asarray(times)
     if len(grads) == 0:
         return np.hstack([vals, times])
+    if vals.shape[1] == 1:
+        grads = np.vstack(grads)
     return np.hstack([vals, times]), grads
 
 
@@ -783,7 +800,7 @@ class PoolModel(object):
         """
         self.max_eval_concurrency = max_eval_concurrency
 
-    def __call__(self, samples, verbose=True, jac=False):
+    def __call__(self, samples, verbose=False, jac=False):
         """
         Evaluate a function at multiple samples in parallel using
         multiprocessing.Pool

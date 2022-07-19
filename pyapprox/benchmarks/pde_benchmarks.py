@@ -34,18 +34,26 @@ def mesh_locations_obs_functional(obs_indices, sol, params):
     return sol[obs_indices]
 
 
-def negloglike_functional(obs, obs_indices, noise_std, sol, params):
+def negloglike_functional(obs, obs_indices, noise_std, sol, params,
+                          ignore_constants=True):
     assert obs.ndim == 1 and sol.ndim == 1
     nobs = obs_indices.shape[0]
-    tmp = 1/(2*noise_std**2)
-    ll = 0.5*np.log(tmp/np.pi)*nobs
+    if not ignore_constants:
+        tmp = 1/(2*noise_std**2)
+        ll = 0.5*np.log(tmp/np.pi)*nobs
+    else:
+        ll, tmp = 0, 1
     pred_obs = sol[obs_indices]
     ll += -torch.sum((obs-pred_obs)**2*tmp)
     return -ll
 
 
-def negloglike_functional_dqdu(obs, obs_indices, noise_std, sol, params):
-    tmp = 1/(2*noise_std**2)
+def negloglike_functional_dqdu(obs, obs_indices, noise_std, sol, params,
+                               ignore_constants=True):
+    if not ignore_constants:
+        tmp = 1/(2*noise_std**2)
+    else:
+        tmp = 1
     pred_obs = sol[obs_indices]
     grad = torch.zeros_like(sol)
     grad[obs_indices] = (obs-pred_obs)*2*tmp
@@ -134,8 +142,9 @@ class AdvectionDiffusionReactionKLEModel():
             **self._newton_kwargs)
         return qoi, grad.detach().numpy().squeeze()
 
-    def __call__(self, samples):
-        return evaluate_1darray_function_on_2d_array(self._eval, samples)
+    def __call__(self, samples, jac=False):
+        return evaluate_1darray_function_on_2d_array(
+            self._eval, samples, jac=jac)
 
 
 def _setup_advection_diffusion_benchmark(
@@ -237,7 +246,7 @@ def _setup_multi_index_advection_diffusion_benchmark(
 
     amp, scale = 100.0, 0.1
     loc = torch.tensor([0.25, 0.75])[:, None]
-    
+
     newton_kwargs = {"maxiters": 1, "rel_error": False}
     if config_values is None:
         config_values = [2*np.arange(1, 11)+1, 2*np.arange(1, 11)+1]

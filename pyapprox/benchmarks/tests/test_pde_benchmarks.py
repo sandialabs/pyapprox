@@ -17,11 +17,11 @@ class TestPDEBenchmarks(unittest.TestCase):
         np.random.seed(1)
 
     def test_setup_inverse_advection_diffusion_benchmark(self):
-        nobs = 20
+        nobs = 10
         noise_std = 1e-8 #0.01  # make sure it does not dominate observed values
         length_scale = .5
         sigma = 1
-        nvars = 10
+        nvars = 5
         orders = [20, 20]
 
         amp, scale, loc = 100.0, 0.1, [0.25, 0.75]
@@ -30,31 +30,34 @@ class TestPDEBenchmarks(unittest.TestCase):
         #     _setup_inverse_advection_diffusion_benchmark(
         #         amp, scale, loc, nobs, noise_std, length_scale, sigma,
         #         nvars, orders))
-        benchmark = setup_benchmark("advection_diffusion_kle_inversion")
+        benchmark = setup_benchmark(
+            "advection_diffusion_kle_inversion", kle_nvars=nvars,
+            noise_stdev=noise_std, nobs=nobs)
         inv_model, variable, true_params, noiseless_obs, obs = (
             benchmark.fun, benchmark.variable, benchmark.true_sample,
             benchmark.noiseless_obs, benchmark.obs)
-        
 
         # TODO add std to params list
         init_guess = variable.rvs(1)
-        # init_guess = true_params
         errors = check_gradients(
-            lambda zz: inv_model._eval(zz[:, 0], jac=True),
+            partial(inv_model, jac=True),
             True, init_guess, plot=False,
-            fd_eps=np.logspace(-13, 0, 14)[::-1])
-        assert errors[0] > 5e-2 and errors.min() < 3e-6
+            fd_eps=np.logspace(-12, 1, 14)[::-1])
+        assert errors[0] > 5e-1 and errors.min() < 3e-7
+
+        def scipy_obj(sample):
+            vals, grad = inv_model(sample[:, None], jac=jac)
+            return vals[:, 0], grad[0, :]
 
         jac = True
         opt_result = pyapprox_minimize(
-            partial(inv_model._eval, jac=jac),
-            init_guess,
+            scipy_obj, init_guess,
             method="trust-constr", jac=jac,
-            options={"verbose": 0, "gtol": 1e-6, "xtol": 1e-16})
+            options={"verbose": 0, "gtol": 1e-8, "xtol": 1e-16})
         # print(opt_result.x)
         # print(true_params.T)
-        print(opt_result.x-true_params.T)
-        assert np.allclose(opt_result.x, true_params.T, atol=2e-5)
+        # print(opt_result.x-true_params.T)
+        assert np.allclose(opt_result.x, true_params.T, atol=2e-6)
 
     def test_setup_multi_index_advection_diffusion_benchmark(self):
         length_scale = .1
