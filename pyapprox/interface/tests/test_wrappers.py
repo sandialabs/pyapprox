@@ -25,6 +25,9 @@ def function_with_jac(x, jac=False):
 
 class TestModelwrappers(unittest.TestCase):
 
+    def setUp(self):
+        np.random.seed(1)
+
     def test_active_set_model(self):
         num_vars = 3
 
@@ -79,8 +82,6 @@ class TestModelwrappers(unittest.TestCase):
         values, jacs = model(samples, jac=True)
         exact_values, exact_jacs = function_with_jac(samples, jac=True)
         assert np.allclose(values, exact_values)
-        print(np.hstack([j[:, None] for j in jacs]))
-        print(exact_jacs)
         assert np.allclose(np.hstack([j[:, None] for j in jacs]), exact_jacs)
 
     def test_data_function_model(self):
@@ -98,15 +99,16 @@ class TestModelwrappers(unittest.TestCase):
         model = DataFunctionModel(
             pool_model, None, data_basename, save_frequency)
 
-        num_samples = 3 #102
+        num_samples = 25
         samples = np.random.uniform(0., 1., (num_vars, num_samples))
 
         values = model(samples)
         exact_values = function(samples)
         assert np.allclose(values, exact_values)
+        print(model.num_evaluations, samples.shape[1])
         assert model.num_evaluations == samples.shape[1]
 
-        filenames = glob.glob(data_basename+'*.npz')
+        filenames = glob.glob(data_basename+'*.pkl')
         num_files = len(filenames)
         assert num_files == num_samples//(save_frequency)+min(
             num_samples % (save_frequency), 1)
@@ -115,9 +117,8 @@ class TestModelwrappers(unittest.TestCase):
             function, None, data_basename, save_frequency)
         samples_1 = np.random.uniform(0., 1., (num_vars, num_samples*2))
         # set half of new samples to be replicates from previous study
-        I = np.random.permutation(np.arange(num_samples*2))[:num_samples]
-        print(I)
-        samples_1[:, I] = samples
+        II = np.random.permutation(np.arange(num_samples*2))[:num_samples]
+        samples_1[:, II] = samples
         values = model_1(samples_1)
         exact_values = function(samples_1)
         assert np.allclose(values, exact_values)
@@ -141,6 +142,11 @@ class TestModelwrappers(unittest.TestCase):
         assert data[0].shape[1] == num_samples*3
         assert unique_matrix_rows(data[0].T).T.shape[1] == 3*num_samples
 
+        # test requesting values and grads when function does not return grads
+        self.assertRaises(ValueError, model_2, samples_2, jac=True)
+
+        num_samples = 4 #102
+        samples = np.random.uniform(0., 1., (num_vars, num_samples))
         data_basename = 'grad-data-function-model-data'
         data_basename = os.path.join(tmp_dir.name, data_basename)
         model_3 = DataFunctionModel(
@@ -150,24 +156,32 @@ class TestModelwrappers(unittest.TestCase):
         exact_values, exact_grads = function_with_jac(samples, jac=True)
         assert np.allclose(values, exact_values)
         assert model_3.num_evaluations == samples.shape[1]
-        print(grads)
-        print(exact_grads)
-        print(np.hstack([j[:, None] for j in grads]))
-        assert np.allclose(np.hstack([j[:, None] for j in grads]), exact_grads)
+        assert np.allclose(np.vstack(grads), exact_grads)
 
+        print("##")
         model_4 = DataFunctionModel(
-            function_with_jac, None, data_basename, save_frequency)
+            function_with_jac, None, data_basename, save_frequency, use_hash=False)
         samples_4 = np.random.uniform(0., 1., (num_vars, num_samples*2))
         # set half of new samples to be replicates from previous study
-        I = np.random.permutation(np.arange(num_samples*2))[:num_samples]
-        print(I)
-        samples_4[:, I] = samples
+        II = np.random.permutation(np.arange(num_samples*2))[:num_samples]
+        samples_4[:, II] = samples
         values, grads = model_4(samples_4, jac=True)
         exact_values, exact_grads = function_with_jac(samples_4, jac=True)
         assert np.allclose(values, exact_values)
         assert model_4.num_evaluations == samples_4.shape[1]
-        assert np.allclose(np.hstack([j[:, None] for j in grads]), exact_grads)
-        
+        assert np.allclose(np.vstack(grads), exact_grads)
+
+        # test requesting only values when stored samples also have grads
+        samples_5 = np.random.uniform(0., 1., (num_vars, num_samples*2))
+        samples_5[:, II] = samples
+        values = model_4(samples_5)
+        assert np.allclose(values, function_with_jac(samples_5, jac=False))
+
+        # test requesting values and grads when stored samples do not have grads
+        samples_6 = np.random.uniform(0., 1., (num_vars, num_samples))
+        model_4(samples_6)
+        self.assertRaises(ValueError, model_4, samples_6, jac=True)
+
         tmp_dir.cleanup()
 
 if __name__ == "__main__":

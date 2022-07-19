@@ -6,6 +6,8 @@ import glob
 from functools import partial
 from multiprocessing import Pool
 import sys
+import pickle
+import copy
 
 from pyapprox.util.utilities import (
     get_all_sample_combinations, hash_array, cartesian_product
@@ -200,10 +202,7 @@ class DataFunctionModel(object):
                 self.add_new_data(file_data)
 
         if data is not None:
-            if len(data) == 2:
-                self.samples, self.values = data
-            elif len(data) == 3:
-                self.samples, self.values. self.grads = data
+            self.samples, self.values, self.grads = data
             assert self.samples.shape[1] == self.values.shape[0]
             self.add_new_data(data)
 
@@ -218,11 +217,7 @@ class DataFunctionModel(object):
         return key
 
     def add_new_data(self, data):
-        if len(data) == 2:
-            samples, values = data
-            grads = None
-        else:
-            samples, values, grads = data
+        samples, values, grads = data
         for ii in range(samples.shape[1]):
             if self.use_hash:
                 key = self.hash_sample(samples[:, ii])
@@ -247,13 +242,11 @@ class DataFunctionModel(object):
                     self.samples = np.hstack(
                         [self.samples, samples[:, ii:ii+1]])
                     self.values = np.vstack([self.values, values[ii:ii+1, :]])
-                    if grads is not None:
-                        self.grads.append(grads)
+                    self.grads += grads[ii:ii+1]
                 else:
                     self.samples = samples[:, ii:ii+1]
                     self.values = values[ii:ii+1, :]
-                    if grads is not None:
-                        self.grads = [grads[ii]]
+                    self.grads = grads[ii:ii+1]
 
         # set counter so that next file takes into account all previously
         # ran samples
@@ -264,23 +257,34 @@ class DataFunctionModel(object):
         num_batch_samples = self.save_frequency
         lb = 0
         vals = None
+        grads = None
         while lb < samples.shape[1]:
             ub = min(lb+num_batch_samples, samples.shape[1])
             num_evaluations_ran = self.num_evaluations_ran
             batch_vals, batch_grads, new_sample_indices = self._call(
                 samples[:, lb:ub], jac)
-            data_filename = self.data_basename+'-%d-%d.npz' % (
+            data_filename = self.data_basename+'-%d-%d.pkl' % (
                 num_evaluations_ran,
                 num_evaluations_ran+len(new_sample_indices)-1)
-            np.savez(data_filename, vals=batch_vals[new_sample_indices],
-                     samples=samples[:, lb:ub][:, new_sample_indices])
+            if jac:
+                grads_4_save = [batch_grads[ii] for ii in new_sample_indices]
+            else:
+                grads_4_save = [None for ii in new_sample_indices]
+            # I think this code will work only if function always does or does
+            # not return grads
+            # np.savez(data_filename, vals=batch_vals[new_sample_indices],
+            #          samples=samples[:, lb:ub][:, new_sample_indices],
+            #          grads=grads_4_save)
+            with open(data_filename, "wb") as f:
+                pickle.dump((
+                    batch_vals[new_sample_indices],
+                    samples[:, lb:ub][:, new_sample_indices], grads_4_save), f)
             if vals is None:
                 vals = batch_vals
-                grads = batch_grads
+                grads = copy.deepcopy(batch_grads)
             else:
                 vals = np.vstack((vals, batch_vals))
-                if grads is not None:
-                    grads = grads.append(grads)
+                grads += copy.deepcopy(batch_grads)
             lb = ub
         if not jac:
             return vals
@@ -331,30 +335,34 @@ class DataFunctionModel(object):
         grads = [None for ii in range(samples.shape[1])]
         if len(new_sample_indices) > 0:
             values[new_sample_indices, :] = new_values
+            new_grads_list = [None for ii in range(len(new_sample_indices))]
             if new_grads is not None:
                 for ii in range(len(new_sample_indices)):
-                    grads[new_sample_indices[ii]] = new_grads[ii]
+                    # TODO need to make sure fun(sampels, jac)=True
+                    # can return list of grads for each sample
+                    # or a 2d array if nqoi=1
+                    new_grads_list[ii] = np.atleast_2d(new_grads[ii]).copy()
+                    grads[new_sample_indices[ii]] = copy.deepcopy(new_grads[ii])
+            new_grads = new_grads_list
+
         if len(new_sample_indices) < samples.shape[1]:
             values[evaluated_sample_indices[:, 0]] = \
                 self.values[evaluated_sample_indices[:, 1], :]
-            if self.grads is not None:
-                for ii in range(evaluated_sample_indices.shape[0]):
-                    grads[evaluated_sample_indices[ii, 0]] = self.grads[
-                        evaluated_sample_indices[:, 1]]
-
+            for ii in range(evaluated_sample_indices.shape[0]):
+                grads[evaluated_sample_indices[ii, 0]] = copy.deepcopy(self.grads[
+                    evaluated_sample_indices[ii, 1]])
         if len(new_sample_indices) > 0:
             if self.samples.shape[1] == 0:
                 jj = 0
                 self.samples = samples
                 self.values = values
-                self.grads = grads
+                self.grads = copy.deepcopy(grads)
             else:
                 jj = self.samples.shape[0]
                 self.samples = np.hstack(
                     (self.samples, samples[:, new_sample_indices]))
                 self.values = np.vstack((self.values, new_values))
-                if self.grads is not None:
-                    self.grads.append(new_grads)
+                self.grads += copy.deepcopy(new_grads)
 
             for ii in range(len(new_sample_indices)):
                 key = hash_array(samples[:, new_sample_indices[ii]])
@@ -368,11 +376,27 @@ class DataFunctionModel(object):
 
         return values, grads, new_sample_indices
 
+    @staticmethod
+    def _grads_valid(grads):
+        for g in grads:
+            print(g)
+            if g is None:
+                # TODO remove exception and rerun samples to get grads
+                msg = "jac=True but previous samples evaluated did not have grads"
+                raise ValueError(msg)
+
     def __call__(self, samples, jac=False):
         if self.save_frequency is not None and self.save_frequency > 0:
-            values = self._batch_call(samples, jac)
-        else:
-            values = self._call(samples, jac)[:-1]
+            out = self._batch_call(samples, jac)
+            if not jac:
+                return out
+            self._grads_valid(out[1])
+            return out
+
+        values, grads = self._call(samples, jac)[:-1]
+        if jac:
+            self._grads_valid(grads)
+            return values, grads
         return values
 
 
@@ -844,21 +868,28 @@ class ActiveSetVariableModel(object):
 
 
 def combine_saved_model_data(saved_data_basename):
-    filenames = glob.glob(saved_data_basename+'*.npz')
+    filenames = glob.glob(saved_data_basename+'*.pkl')
     ii = 0
+    grads = None
     for filename in filenames:
-        data = np.load(filename)
+        # data = np.load(filename, allow_pickle=True)
+        # data_vals, data_samples, data_grads = (
+        #     data["vals"], data["samples"], data["grads"]
+        with open(filename, "rb") as f:
+            data_vals, data_samples, data_grads = pickle.load(f)
         if ii == 0:
-            vals = data['vals']
-            samples = data['samples']
+            vals = data_vals
+            samples = data_samples
+            grads = data_grads
         else:
-            vals = np.vstack((vals, data['vals']))
-            samples = np.hstack((samples, data['samples']))
+            vals = np.vstack((vals, data_vals))
+            samples = np.hstack((samples, data_samples))
+            grads += data_grads
         ii += 1
     if len(filenames) == 0:
-        return None, None
+        return None, None, None
 
-    return samples, vals
+    return samples, vals, grads
 
 
 class SingleFidelityWrapper(object):
