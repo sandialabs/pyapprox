@@ -475,18 +475,18 @@ class TestSensitivityAnalysis(unittest.TestCase):
     def test_analytic_sobol_indices_from_gaussian_process(self):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
         from pyapprox.surrogates.approximate import approximate
-        benchmark = setup_benchmark("ishigami", a=7, b=0.1)
+        benchmark = setup_benchmark("ishigami", a=.1, b=0.1)
 
-        def fun(xx):
-            vals = np.sum(xx, axis=0)[:, None]
-            return vals
-        benchmark.variable = IndependentMarginalsVariable(
-            #[stats.norm(0, 1)]*1)
-            [stats.uniform(0, 1)]*1)
-        benchmark.fun = fun
+        # def fun(xx):
+        #     vals = np.sum(xx, axis=0)[:, None]
+        #     return vals
+        # benchmark.variable = IndependentMarginalsVariable(
+        #     [stats.norm(0, 1)]*1)
+        #     #[stats.uniform(0, 1)]*1)
+        # benchmark.fun = fun
 
         nvars = benchmark.variable.num_vars()
-        ntrain_samples = 100# 500
+        ntrain_samples = 500
         train_samples = sobol_sequence(
             nvars, ntrain_samples, variable=benchmark.variable, start_index=1)
 
@@ -494,7 +494,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         # print(train_vals)
         approx = approximate(
             train_samples, train_vals, 'gaussian_process', {
-                'nu': np.inf, 'normalize_y': True, 'alpha': 1e-10}).approx
+                'nu': np.inf, 'normalize_y': False, 'alpha': 1e-6}).approx
 
         nsobol_samples = int(1e4)
         from pyapprox.surrogates.approximate import compute_l2_error
@@ -510,19 +510,19 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
         result = analytic_sobol_indices_from_gaussian_process(
             approx, benchmark.variable, interaction_terms,
-            ngp_realizations=0,
-            # ngp_realizations=1000,
+            # ngp_realizations=0,
+            ngp_realizations=1000,
             summary_stats=["mean", "std"],
             ninterpolation_samples=2000, ncandidate_samples=3000,
-            use_cholesky=False, alpha=1e-8,
+            use_cholesky=False, alpha=1e-7,
             nquad_samples=50)
 
         mean_mean = result['mean']['mean']
         mean_sobol_indices = result['sobol_indices']['mean']
         mean_total_effects = result['total_effects']['mean']
         mean_main_effects = mean_sobol_indices[:nvars]
-        print(mean_sobol_indices, 's')
-        assert False
+        # print(mean_sobol_indices[:nvars], 's')
+        # print(benchmark.main_effects[:, 0])
 
         # print(result['mean']['values'][-1])
         # print(result['variance']['values'][-1])

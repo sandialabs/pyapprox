@@ -47,11 +47,14 @@ class ExponentialQuarticLogLikelihoodModel(object):
                           4.*x[1]-2.*x[0]**2])
         return grad
 
-    def __call__(self, x):
-        return np.array([self.loglikelihood_function(x)]).T
+    def __call__(self, x, jac=False):
+        vals = np.array([self.loglikelihood_function(x)]).T
+        if not jac:
+            return vals
+        return vals, self.gradient(x)
 
 
-class TestMCMC(unittest.TestCase):
+class TestMCMC(unittest.TestCase):    
 
     def test_linear_gaussian_inference(self):
         # set random seed, so the data is reproducible each time
@@ -125,14 +128,16 @@ class TestMCMC(unittest.TestCase):
             univariate_variables)
 
         loglike = ExponentialQuarticLogLikelihoodModel()
-        loglike = PYMC3LogLikeWrapper(loglike, loglike.gradient)
+        loglike_grad = loglike.gradient
+        # loglike_grad = True
+        loglike = PYMC3LogLikeWrapper(loglike, loglike_grad)
 
-        # number of draws from the distribution
-        ndraws = 500
-        # number of "burn-in points" (which we'll discard)
-        nburn = min(1000, int(ndraws*0.1))
         # number of parallel chains
         njobs = 4
+        # number of draws from the distribution
+        ndraws = 2000//njobs
+        # number of "burn-in points" (which we'll discard)
+        nburn = min(1000, int(ndraws*0.1))
 
         def unnormalized_posterior(x):
             # avoid use of pymc3 wrapper which only evaluates samples 1 at
@@ -156,12 +161,12 @@ class TestMCMC(unittest.TestCase):
         # print(exact_mean)
 
         algorithm = 'nuts'
-        #algorithm = 'smc'
+        # algorithm = 'smc'
         samples, effective_sample_size, map_sample = \
             run_bayesian_inference_gaussian_error_model(
                 loglike, variables, ndraws, nburn, njobs,
                 algorithm=algorithm, get_map=True, print_summary=True,
-                loglike_grad=loglike.gradient, seed=2)
+                loglike_grad=loglike_grad, seed=2)
 
         # from pyapprox.util.visualization import get_meshgrid_function_data
         # import matplotlib
@@ -187,3 +192,9 @@ if __name__ == "__main__":
     mcmc_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestMCMC)
     unittest.TextTestRunner(verbosity=2).run(mcmc_test_suite)
+
+    # sometimes pymc3 will not install properly on osx so must use
+    # conda install -c conda-forge arviz=0.11.0
+
+    # ArviZ 0.11.2 is not compatible with pymc3 3.8,
+    # either upgrade pymc3 to the latest version or downgrade arviz to 0.11.0

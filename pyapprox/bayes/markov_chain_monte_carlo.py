@@ -89,7 +89,9 @@ class LogLike(tt.Op):
     def perform(self, node, inputs, outputs):
         samples, = inputs  # important
         # call the log-likelihood function
-        logl = self.likelihood(samples)
+        if samples.ndim == 1:
+            samples = samples[:, None]
+        logl = self.likelihood(samples).squeeze()
         outputs[0][0] = np.array(logl)  # output the log-likelihood
 
 # define a theano Op for our likelihood function
@@ -155,12 +157,19 @@ class LogLikeGrad(tt.Op):
         if self.likelihood_grad is None:
             # define version of likelihood function to pass to
             # derivative function
-            def lnlike(values):
-                return self.likelihood(values)
+            def lnlike(ss):
+                if ss.ndim == 1:
+                    ss = ss[:, None]
+                return self.likelihood(ss).squeeze()
             grads = approx_fprime(
                 samples, lnlike, 2*np.sqrt(np.finfo(float).eps))
         else:
-            grads = self.likelihood_grad(samples)
+            if samples.ndim == 1:
+                samples = samples[:, None]
+            if self.likelihood_grad == True:
+                grads = self.likelihood(samples, jac=True)[1].squeeze()
+            else:
+                grads = self.likelihood_grad(samples).squeeze()
         outputs[0][0] = grads
 
 
@@ -286,8 +295,9 @@ def run_bayesian_inference_gaussian_error_model(
         theta = tt.as_tensor_variable(pymc_variables)
 
         # use a DensityDist (use a lamdba function to "call" the Op)
-        pm.DensityDist(
-            'likelihood', lambda v: logl(v), observed={'v': theta})
+        #pm.DensityDist(
+        #    'likelihood', lambda v: logl(v), observed={'v': theta})
+        pm.Potential('likelihood', logl(theta))
 
         if get_map:
             map_sample_dict = pm.find_MAP()
@@ -336,15 +346,22 @@ class PYMC3LogLikeWrapper():
         self.loglike = loglike
         self.loglike_grad = loglike_grad
 
-    def __call__(self, x):
+    def __call__(self, x, jac=False):
         if x.ndim == 1:
             xr = x[:, np.newaxis]
         else:
             xr = x
-        vals = self.loglike(xr)
-        return vals.squeeze()
+        if jac is False:
+            vals = self.loglike(xr)
+            return vals.squeeze()
+        if self.loglike_grad == True:
+            return self.loglike(xr, jac=True)
+        return self.loglike(xr).squeeze(), self.gradient(xr)
 
     def gradient(self, x):
+        if self.loglike_grad is None:
+            msg = "Cannot compute gradient. loglikegrad is set to None"
+            raise ValueError(msg)
         if x.ndim == 1:
             xr = x[:, np.newaxis]
         else:

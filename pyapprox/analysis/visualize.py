@@ -173,7 +173,6 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
 
     for ii, pair in enumerate(variable_pairs):
         var1, var2 = all_variables[pair[0]], all_variables[pair[1]]
-        # print(pair)
         axs[pair[1], pair[0]].axis("off")
         lb1, ub1 = get_truncated_range(var1)
         lb2, ub2 = get_truncated_range(var2)

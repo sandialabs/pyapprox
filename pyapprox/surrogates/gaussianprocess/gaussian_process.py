@@ -2480,6 +2480,14 @@ def _compute_expected_sobol_indices(
             xx_1d = var_trans.map_from_canonical_1d(xx_1d, ii)
         P_mod_list.append(compute_conditional_P(xx_1d, ww_1d, xtr, lscale[ii]))
 
+    cond_num = np.linalg.cond(K_inv)
+    print(np.log10(cond_num))
+    if cond_num > 1e11:
+        msg = "Condition number of kernel matrix is to high."
+        msg += f" Log10 condition number is {np.log10(cond_num)}. "
+        msg += "Increase alpha"
+        # raise RuntimeError(msg)
+
     A_inv = K_inv*kernel_var
     # print('cond num', np.linalg.cond(A_inv))
     tau = np.prod(np.array(tau_list), axis=0)
@@ -2552,7 +2560,27 @@ def _compute_expected_sobol_indices(
                     unnormalized_sobol_indices[II[ii]] -= \
                         unnormalized_sobol_indices[sobol_indices_dict[key]]
 
-    print(expected_random_var, unnormalized_sobol_indices, 'sobol')
+    # print(unnormalized_sobol_indices.shape)
+    # print(np.sum(unnormalized_sobol_indices, axis=0))
+    # print(expected_random_var)
+
+    if np.any(unnormalized_sobol_indices < 0):
+        msg = "Some Sobol indices were negative. "
+        msg += "Likely due to ill conditioning "
+        msg += "of GP kernel. Try increaseing alpha"
+        raise RuntimeError(msg)
+
+    if np.any(expected_random_var < 0):
+        msg = "Some expected variances were negative. "
+        msg += "Likely due to ill conditioning "
+        msg += "of GP kernel. Try increaseing alpha"
+        raise RuntimeError(msg)
+
+    if np.any(unnormalized_sobol_indices.max(axis=0) > expected_random_var):
+        msg = "Some Sobol indices were larger than the variance. "
+        msg += "Likely due to ill conditioning "
+        msg += "of GP kernel. Try increaseing alpha"
+        raise RuntimeError(msg)
 
     return unnormalized_sobol_indices/expected_random_var, \
         1-unnormalized_total_effect_values/expected_random_var, \

@@ -736,14 +736,16 @@ class TestGaussianProcess(unittest.TestCase):
         variable = IndependentMarginalsVariable(
             univariate_variables)
 
+        degree = 2
         def func(xx):
-            return np.sum(xx, axis=0)[:, None]
+            return np.sum(xx**degree, axis=0)[:, None]
 
-        ntrain_samples = 100
+        ntrain_samples = 21
         # train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
-        from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence
-        train_samples = sobol_sequence(
-            nvars, ntrain_samples, variable=variable, start_index=1)
+        # from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence
+        # train_samples = sobol_sequence(
+        #     nvars, ntrain_samples, variable=variable, start_index=1)
+        train_samples = np.linspace(0, 1, ntrain_samples)[None, :]
         train_vals = func(train_samples)
 
         # var_trans = AffineTransform(variable)
@@ -752,11 +754,23 @@ class TestGaussianProcess(unittest.TestCase):
         kernel_var = 1.
         length_scale = np.array([1]*nvars)
         kernel = Matern(length_scale, length_scale_bounds=(1e-2, 10), nu=nu)
+        # kernel = Matern(length_scale, length_scale_bounds='fixed', nu=nu)
+        # condition number of kernel at training data significantly effects
+        # accuracy. Making alpha larger can help
         kernel = ConstantKernel(
             constant_value=kernel_var, constant_value_bounds='fixed')*kernel
-        gp = GaussianProcess(kernel, n_restarts_optimizer=1, alpha=1e-6)
+        gp = GaussianProcess(kernel, n_restarts_optimizer=1, alpha=1e-7)
         # gp.set_variable_transformation(var_trans)
         gp.fit(train_samples, train_vals)
+        print(gp.kernel_)
+
+        # import matplotlib.pyplot as plt
+        xx = np.linspace(0, 1, 21)
+        print(gp(xx[None, :], return_std=True)[1], 's')
+        # plt.plot(xx, gp(xx[None, :]))
+        # plt.plot(train_samples[0, :], train_vals[:, 0], 'o')
+        # plt.plot(xx, func(xx[None, :]), '--')
+        # plt.show()
 
         validation_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
         validation_vals = func(validation_samples)
@@ -764,14 +778,14 @@ class TestGaussianProcess(unittest.TestCase):
             np.linalg.norm(validation_vals)
         print(error)
 
-        nquad_samples = 30
+        nquad_samples = 10
         expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var = integrate_gaussian_process(
                 gp, variable, nquad_samples=nquad_samples)
-        print('v', expected_random_var)
+        print('v', expected_random_var, expected_random_mean)
 
-        true_mean = 1/3
-        unnormalized_main_effect_0 = 1/5 -\
+        true_mean = 1/(degree+1)
+        unnormalized_main_effect_0 = 1/(2*degree+1) -\
             true_mean**2
         true_unnormalized_main_effects = np.array(
             [[unnormalized_main_effect_0]]).T
@@ -792,7 +806,7 @@ class TestGaussianProcess(unittest.TestCase):
         print(variance, true_var)
         true_unnormalized_sobol_indices = true_unnormalized_main_effects
         true_sobol_indices = true_unnormalized_sobol_indices/true_var
-        assert np.allclose(true_sobol_indices, sobol_indices)
+        assert np.allclose(true_sobol_indices, sobol_indices, atol=1e-4)
 
     def test_compute_sobol_indices_gaussian_process_uniform_2d(self):
         nvars = 2

@@ -215,7 +215,7 @@ def setup_ishigami_function(a, b):
     univariate_variables = [stats.uniform(-np.pi, 2*np.pi)]*3
     variable = IndependentMarginalsVariable(univariate_variables)
     mean, variance, main_effects, total_effects, sobol_indices, \
-        sobol_interaction_indices = get_ishigami_funciton_statistics()
+        sobol_interaction_indices = get_ishigami_funciton_statistics(a, b)
     return Benchmark(
         {'fun': partial(ishigami_function, a=a, b=b),
          'jac': partial(ishigami_function_jacobian, a=a, b=b),

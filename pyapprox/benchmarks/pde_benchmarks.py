@@ -102,9 +102,7 @@ class AdvectionDiffusionReactionKLEModel():
         # reaction and use same process as used for KLE currently
 
         if react_funs is None:
-            react_funs = [
-                lambda sol: 0*sol,
-                lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))]
+            react_funs = [self._default_react_fun, self._default_react_fun_jac]
 
         self._fwd_solver = SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, partial(full_fun_axis_1, 1), vel_fun,
@@ -119,6 +117,12 @@ class AdvectionDiffusionReactionKLEModel():
         self._mesh_basis_mat = mesh._get_lagrange_basis_mat(
             mesh._canonical_mesh_pts_1d,
             mesh._map_samples_to_canonical_domain(mesh.mesh_pts))
+
+    def _default_react_fun(self, sol):
+        return 0*sol
+
+    def _default_react_fun_jac(self, sol):
+        return torch.zeros((sol.shape[0], sol.shape[0]))
 
     def _fast_interpolate(self, values, xx):
         # interpolate assuming need to evaluate all mesh points
@@ -234,9 +238,11 @@ def _setup_inverse_advection_diffusion_benchmark(
     dqdp = partial(loglike_functional_dqdp,  torch.as_tensor(obs),
                    obs_indices, noise_std)
     inv_functional_deriv_funs = [dqdu, dqdp]
+
+    newton_kwargs = {"maxiters": 1, "rel_error": True, "verbosity": 0}
     inv_model, variable = _setup_advection_diffusion_benchmark(
         amp, scale, loc, length_scale, sigma, nvars, orders,
-        inv_functional, inv_functional_deriv_funs)
+        inv_functional, inv_functional_deriv_funs, newton_kwargs=newton_kwargs)
 
     return inv_model, variable, true_kle_params, noiseless_obs, obs
 

@@ -210,6 +210,7 @@ def plot_sensitivity_indices_with_confidence_intervals(
                 meanprops=dict(marker='o', markerfacecolor='blue',
                                markeredgecolor='blue', markersize=12),
                 medianprops=dict(color='red'))
+    ax.tick_params(axis='x', labelrotation=45)
 
     colors = ['gray']*nindices
     for patch, color in zip(bp['boxes'], colors):
@@ -881,7 +882,8 @@ def analytic_sobol_indices_from_gaussian_process(
         summary_stats=["mean", "median", "min", "max", "quantile-0.25",
                        "quantile-0.75"],
         ninterpolation_samples=500, nvalidation_samples=100,
-        ncandidate_samples=1000, nquad_samples=50, use_cholesky=True, alpha=0):
+        ncandidate_samples=1000, nquad_samples=50, use_cholesky=True,
+        alpha=1e-8):
 
     if not issubclass(gp.__class__, GaussianProcess):
         raise ValueError("Argument gp must be a Gaussian process")
@@ -952,6 +954,7 @@ def analytic_sobol_indices_from_gaussian_process(
     total_values = total_values.T
 
     result = dict()
+    result["sobol_interaction_indices"] = interaction_terms
     data = [sobol_values, total_values, variances, means]
     data_names = ['sobol_indices', 'total_effects', 'variance', 'mean']
     for item, name in zip(data, data_names):
@@ -1213,14 +1216,44 @@ def plot_sensitivity_indices_with_confidence_intervals_from_result(
 
     import matplotlib.pyplot as plt
     if axs is None:
-        fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
+        fig, axs = plt.subplots(1, 3, figsize=(3*8, 6), sharey=True)
 
+    rv = 'z'
     im0 = plot_sensitivity_indices_with_confidence_intervals(
-        [r'$z_{%d}$' % (ii+1) for ii in include_vars], axs[0],
+        [r'$%s_{%d}$' % (rv, ii+1) for ii in include_vars], axs[0],
         result["sobol_indices"]["median"][:nvars][include_vars],
         result["sobol_indices"]["quantile-0.25"][:nvars][include_vars],
         result["sobol_indices"]["quantile-0.75"][:nvars][include_vars],
         result["sobol_indices"]["amin"][:nvars][include_vars],
         result["sobol_indices"]["amax"][:nvars][include_vars])
 
-    return [im0]
+    im1 = plot_sensitivity_indices_with_confidence_intervals(
+        [r'$%s_{%d}$' % (rv, ii+1) for ii in include_vars], axs[1],
+        result["total_effects"]["median"][include_vars],
+        result["total_effects"]["quantile-0.25"][include_vars],
+        result["total_effects"]["quantile-0.75"][include_vars],
+        result["total_effects"]["amin"][include_vars],
+        result["total_effects"]["amax"][include_vars])
+
+    labels = []
+    # sort sobol indices largest to smallest values left to right
+    II = np.argsort(result["sobol_indices"]["median"])[-10:][::-1]
+    interaction_terms = [
+        np.where(index > 0)[0]
+        for index in result["sobol_interaction_indices"].T]
+    for ii in range(len(interaction_terms)):
+        ll = '($'
+        for jj in range(len(interaction_terms[ii])-1):
+            ll += '%s_{%d},' % (rv, interaction_terms[ii][jj]+1)
+        ll += '%s_{%d}$)' % (rv, interaction_terms[ii][-1]+1)
+        labels.append(ll)
+    labels = [labels[ii] for ii in II]
+    median_sobol_indices = result["sobol_indices"]["median"][II]
+    q1_sobol_indices = result["sobol_indices"]["quantile-0.25"][II]
+    q3_sobol_indices = result["sobol_indices"]["quantile-0.75"][II]
+    min_sobol_indices = result["sobol_indices"]["amin"][II]
+    max_sobol_indices = result["sobol_indices"]["amax"][II]
+    im2 = plot_sensitivity_indices_with_confidence_intervals(
+        labels, axs[2], median_sobol_indices, q1_sobol_indices,
+        q3_sobol_indices, min_sobol_indices, max_sobol_indices)
+    return [im0, im1, im2], axs
