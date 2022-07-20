@@ -35,12 +35,13 @@ def mesh_locations_obs_functional(obs_indices, sol, params):
 
 
 def negloglike_functional(obs, obs_indices, noise_std, sol, params,
-                          ignore_constants=True):
+                          ignore_constants=False):
     assert obs.ndim == 1 and sol.ndim == 1
     nobs = obs_indices.shape[0]
     if not ignore_constants:
         tmp = 1/(2*noise_std**2)
-        ll = 0.5*np.log(tmp/np.pi)*nobs
+        # ll = 0.5*np.log(tmp/np.pi)*nobs
+        ll = -nobs/2*np.log(2*noise_std**2*np.pi)
     else:
         ll, tmp = 0, 1
     pred_obs = sol[obs_indices]
@@ -49,7 +50,7 @@ def negloglike_functional(obs, obs_indices, noise_std, sol, params,
 
 
 def negloglike_functional_dqdu(obs, obs_indices, noise_std, sol, params,
-                               ignore_constants=True):
+                               ignore_constants=False):
     if not ignore_constants:
         tmp = 1/(2*noise_std**2)
     else:
@@ -134,16 +135,16 @@ class AdvectionDiffusionReactionKLEModel():
         return interp_vals
 
     def _eval(self, sample, jac=False):
+        sample_copy = torch.as_tensor(sample.copy())
         self._fwd_solver.residual._diff_fun = partial(
             self._fast_interpolate,
-            self._kle(torch.as_tensor(sample[:, None])))
+            self._kle(sample_copy[:, None]))
         sol = self._fwd_solver.solve(**self._newton_kwargs)
-        qoi = self._functional(sol, torch.as_tensor(sample)).numpy()
+        qoi = self._functional(sol, sample_copy).numpy()
         if not jac:
             return qoi
         grad = self._adj_solver.compute_gradient(
-            lambda r, p: None, torch.as_tensor(sample),
-            **self._newton_kwargs)
+            lambda r, p: None, sample_copy, **self._newton_kwargs)
         return qoi, grad.detach().numpy().squeeze()
 
     def __call__(self, samples, jac=False):
@@ -212,15 +213,22 @@ class InterpolatedMeshKLE(MeshKLE):
 
 
 def _setup_inverse_advection_diffusion_benchmark(
-        amp, scale, loc, nobs, noise_std, length_scale, sigma, nvars, orders):
+        amp, scale, loc, nobs, noise_std, length_scale, sigma, nvars, orders,
+        obs_indices=None):
 
     loc = torch.as_tensor(loc)
     if loc.ndim == 1:
         loc = loc[:, None]
 
     ndof = np.prod(np.asarray(orders)+1)
-    obs_indices = np.random.permutation(
-        np.delete(np.arange(ndof), [0]))[:nobs]
+    if obs_indices is None:
+        bndry_indices = np.hstack(
+            [np.arange(0, orders[0]+1),
+             np.arange(ndof-orders[0]-1, ndof)] +
+            [jj*(orders[0]+1) for jj in range(1, orders[1])] +
+            [jj*(orders[0]+1)+orders[0] for jj in range(1, orders[1])])
+        obs_indices = np.random.permutation(
+            np.delete(np.arange(ndof), bndry_indices))[:nobs]
     obs_functional = partial(mesh_locations_obs_functional, obs_indices)
     obs_model, variable = _setup_advection_diffusion_benchmark(
         amp, scale, loc, length_scale, sigma, nvars, orders, obs_functional)
@@ -244,7 +252,8 @@ def _setup_inverse_advection_diffusion_benchmark(
         amp, scale, loc, length_scale, sigma, nvars, orders,
         inv_functional, inv_functional_deriv_funs, newton_kwargs=newton_kwargs)
 
-    return inv_model, variable, true_kle_params, noiseless_obs, obs
+    return (inv_model, variable, true_kle_params, noiseless_obs, obs,
+            obs_indices, obs_model)
 
 
 def _setup_multi_index_advection_diffusion_benchmark(

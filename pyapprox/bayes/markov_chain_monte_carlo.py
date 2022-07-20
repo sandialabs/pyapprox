@@ -279,12 +279,11 @@ def run_bayesian_inference_gaussian_error_model(
         seed must be passed in
     """
 
-    # create our Op
-    if algorithm != 'nuts':
+    if loglike_grad is None:
         logl = LogLike(loglike)
     else:
         logl = LogLikeWithGrad(loglike, loglike_grad)
-
+        
     # use PyMC3 to sampler from log-likelihood
     with pm.Model():
         # must be defined inside with pm.Model() block
@@ -295,7 +294,7 @@ def run_bayesian_inference_gaussian_error_model(
         theta = tt.as_tensor_variable(pymc_variables)
 
         # use a DensityDist (use a lamdba function to "call" the Op)
-        #pm.DensityDist(
+        # pm.DensityDist(
         #    'likelihood', lambda v: logl(v), observed={'v': theta})
         pm.Potential('likelihood', logl(theta))
 
@@ -310,11 +309,15 @@ def run_bayesian_inference_gaussian_error_model(
                 step = pm.Metropolis(pymc_variables)
             elif algorithm == 'nuts':
                 step = pm.NUTS(pymc_variables)
+            else:
+                msg = f"Algorithm {algorithm} not supported"
+                raise ValueError(msg)
 
             trace = pm.sample(
                 ndraws, tune=nburn, discard_tuned_samples=True,
                 start=None, cores=njobs, step=step,
-                compute_convergence_checks=False, random_seed=seed)
+                compute_convergence_checks=False, random_seed=seed,
+                return_inferencedata=False)
             # compute_convergence_checks=False avoids bugs in theano
 
         if print_summary:
@@ -330,7 +333,7 @@ def run_bayesian_inference_gaussian_error_model(
             map_sample = extract_map_sample_from_pymc3_dict(
                 map_sample_dict, pymc_var_names)
         else:
-            map_samples = None
+            map_sample = None
 
     return samples, effective_sample_size, map_sample
 

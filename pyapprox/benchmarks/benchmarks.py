@@ -856,7 +856,8 @@ def setup_multi_index_advection_diffusion_benchmark(
 def setup_advection_diffusion_kle_inversion_benchmark(
         source_loc=[0.25, 0.75], source_amp=100, source_width=0.1,
         kle_length_scale=0.5, kle_stdev=1, kle_nvars=2, true_sample=None,
-        orders=[20, 20], noise_stdev=0.4, nobs=2, max_eval_concurrency=1):
+        orders=[20, 20], noise_stdev=0.4, nobs=2, max_eval_concurrency=1,
+        obs_indices=None):
     r"""
     Compute functionals of the following model of transient diffusion of
     a contaminant
@@ -957,10 +958,10 @@ def setup_advection_diffusion_kle_inversion_benchmark(
     dict_keys(['fun', 'variable'])
     """
 
-    base_model, variable, true_sample, noiseless_obs, obs = (
-        _setup_inverse_advection_diffusion_benchmark(
-            source_amp, source_width, source_loc, nobs, noise_stdev,
-            kle_length_scale, kle_stdev, kle_nvars, orders))
+    (base_model, variable, true_sample, noiseless_obs, obs, obs_indices,
+     obs_model) = _setup_inverse_advection_diffusion_benchmark(
+         source_amp, source_width, source_loc, nobs, noise_stdev,
+         kle_length_scale, kle_stdev, kle_nvars, orders, obs_indices)
     # add wrapper to allow execution times to be captured
     timer_model = TimerModel(base_model, base_model)
     pool_model = PoolModel(
@@ -969,7 +970,8 @@ def setup_advection_diffusion_kle_inversion_benchmark(
     # add wrapper that tracks execution times.
     model = WorkTrackingModel(pool_model, base_model)
 
-    attributes = {'fun': model, 'variable': variable,
+    attributes = {'negloglike': model, 'variable': variable,
                   "noiseless_obs": noiseless_obs, "obs": obs,
-                  "true_sample": true_sample}
+                  "true_sample": true_sample, "obs_indices": obs_indices,
+                  "obs_fun": obs_model}
     return Benchmark(attributes)

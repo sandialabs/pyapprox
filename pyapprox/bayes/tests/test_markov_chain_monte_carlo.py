@@ -54,7 +54,7 @@ class ExponentialQuarticLogLikelihoodModel(object):
         return vals, self.gradient(x)
 
 
-class TestMCMC(unittest.TestCase):    
+class TestMCMC(unittest.TestCase):
 
     def test_linear_gaussian_inference(self):
         # set random seed, so the data is reproducible each time
@@ -124,7 +124,7 @@ class TestMCMC(unittest.TestCase):
         np.random.seed(2)
 
         univariate_variables = [uniform(-2, 4), uniform(-2, 4)]
-        variables = IndependentMarginalsVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
 
         loglike = ExponentialQuarticLogLikelihoodModel()
@@ -143,8 +143,8 @@ class TestMCMC(unittest.TestCase):
             # avoid use of pymc3 wrapper which only evaluates samples 1 at
             # a time
             vals = np.exp(loglike.loglike(x))
-            rvs = variables.marginals()
-            for ii in range(variables.num_vars()):
+            rvs = variable.marginals()
+            for ii in range(variable.num_vars()):
                 vals[:, 0] *= rvs[ii].pdf(x[ii, :])
             return vals
 
@@ -153,7 +153,7 @@ class TestMCMC(unittest.TestCase):
             x *= 2
             return x, w
         x, w = get_tensor_product_quadrature_rule(
-            100, variables.num_vars(), univariate_quadrature_rule)
+            100, variable.num_vars(), univariate_quadrature_rule)
         evidence = unnormalized_posterior(x)[:, 0].dot(w)
         # print('evidence',evidence)
 
@@ -164,31 +164,33 @@ class TestMCMC(unittest.TestCase):
         # algorithm = 'smc'
         samples, effective_sample_size, map_sample = \
             run_bayesian_inference_gaussian_error_model(
-                loglike, variables, ndraws, nburn, njobs,
+                loglike, variable, ndraws, nburn, njobs,
                 algorithm=algorithm, get_map=True, print_summary=True,
                 loglike_grad=loglike_grad, seed=2)
 
-        # from pyapprox.util.visualization import get_meshgrid_function_data
-        # import matplotlib
-        # X,Y,Z = get_meshgrid_function_data(
-        #     lambda x: unnormalized_posterior(x)/evidence, plot_range, 50)
-        # plt.contourf(
-        #     X, Y, Z, levels=np.linspace(Z.min(),Z.max(),30),
-        #     cmap=matplotlib.cm.coolwarm)
-        # plt.plot(samples[0,:],samples[1,:],'ko')
-        # plt.show()
+        from pyapprox.analysis.visualize import (
+            get_meshgrid_function_data_from_variable, plt)
+        X, Y, Z = get_meshgrid_function_data_from_variable(
+            lambda x: unnormalized_posterior(x)/evidence, variable, 50)
+        plt.contourf(
+            X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 30),
+            cmap="coolwarm")
+        plt.plot(samples[0, :], samples[1, :], 'ko')
+        plt.show()
 
         print('mcmc mean error', samples.mean(axis=1)-exact_mean)
         print('MAP sample', map_sample)
         print('exact mean', exact_mean.squeeze())
         print('MCMC mean', samples.mean(axis=1))
-        assert np.allclose(map_sample, np.zeros((variables.num_vars(), 1)))
+        assert np.allclose(map_sample, np.zeros((variable.num_vars(), 1)))
         # tolerance 3e-2 can be exceeded for certain random runs
         assert np.allclose(
             exact_mean.squeeze(), samples.mean(axis=1), atol=3e-2)
 
 
 if __name__ == "__main__":
+    import warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
     mcmc_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestMCMC)
     unittest.TextTestRunner(verbosity=2).run(mcmc_test_suite)

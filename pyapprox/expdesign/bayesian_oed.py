@@ -419,6 +419,7 @@ def precompute_expected_kl_utility_data(
     # generate samples and values for the outer loop
     outer_loop_prior_samples = generate_outer_prior_samples(
         nouter_loop_samples)[0]
+    print(f"Running {outer_loop_prior_samples.shape[1]} model evaluations")
     outer_loop_pred_obs = obs_fun(outer_loop_prior_samples)
 
     if outer_loop_pred_obs.shape[0] != outer_loop_prior_samples.shape[1]:

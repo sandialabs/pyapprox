@@ -408,8 +408,12 @@ class PolynomialChaosExpansion(object):
     def num_vars(self):
         return self.var_trans.num_vars()
 
-    def __call__(self, samples):
-        return self.value(samples)
+    def __call__(self, samples, jac=False):
+        vals = self.value(samples)
+        if not jac:
+            return vals
+        jacs = [self.jacobian(sample) for sample in samples]
+        return vals, jacs
 
     def mean(self):
         """
