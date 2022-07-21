@@ -99,8 +99,8 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         jac = linear_jac - self._react_jac(sol[:, None])
         res -= self._react_fun(sol[:, None])[:, 0]
         res += self._forc_fun(self.mesh.mesh_pts)[:, 0]
-        # print(res)
-        # print(self._forc_fun(self.mesh.mesh_pts)[:, 0])
+        # print('res',res)
+        # print('f', self._forc_fun(self.mesh.mesh_pts)[:, 0])
         if not self._auto_jac:
             return res, jac
         return res, None
