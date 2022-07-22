@@ -212,21 +212,18 @@ class TestManualPDE(unittest.TestCase):
         assert np.allclose(
             solver.residual._residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
         sol = solver.solve(tol=1e-8)[:, None]
-
-        # print(np.linalg.norm(
-        #     sol_fun(mesh.mesh_pts)-sol))
         assert np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol) < 1e-9
 
-        # for bndry_cond in bndry_conds:
-        #     # adjoint gradient currently only works for all dirichlet boundaries
-        #     if bndry_cond[1] != "D":
-        #         return
+        for bndry_cond in bndry_conds:
+            # adjoint gradient currently only works for all dirichlet boundaries
+            if bndry_cond[1] != "D":
+                return
 
         def functional(sol, params):
-            # return sol.sum()  # +params[0]
-            return sol[sol.shape[0]//2].sum()#+params[0]
-        # param_vals = diff_fun(mesh.mesh_pts)[:, 0]
+            return sol.sum()
+            # return sol[sol.shape[0]//2]
+
         param_vals = diff_fun(mesh.mesh_pts)[0:1, 0]
         residual = AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
@@ -241,7 +238,7 @@ class TestManualPDE(unittest.TestCase):
                 residual.mesh.interpolate, mesh_vals)
         grad = adj_solver.compute_gradient(
             set_param_values, param_vals, tol=1e-8)
-        # assert False
+
         from pyapprox.util.utilities import (
             approx_fprime, approx_jacobian, check_gradients)
         def fun(params):
@@ -252,29 +249,32 @@ class TestManualPDE(unittest.TestCase):
             qoi = np.asarray([functional(fd_sol, params[:, 0])])
             return qoi
 
-        pp = torch.clone(param_vals).requires_grad_(True)
-        set_param_values(fwd_solver.residual, pp)
-        sol = fwd_solver.solve()
-        qoi = functional(sol, pp)
-        qoi.backward()
-        grad_pure_ad = pp.grad
-        print(grad_pure_ad.numpy(), 'pg')
+        # pp = torch.clone(param_vals).requires_grad_(True)
+        # set_param_values(fwd_solver.residual, pp)
+        # sol = fwd_solver.solve()
+        # qoi = functional(sol, pp)
+        # qoi.backward()
+        # grad_pure_ad = pp.grad
+        # print(grad_pure_ad.numpy(), 'pg')
 
-        fd_grad = approx_fprime(param_vals.detach().numpy()[:, None], fun)
-        print(grad.numpy(), 'g')
-        print(fd_grad.T, 'fd')
-        print(grad.numpy()[0]/fd_grad[0, 0])
-        print(grad.numpy()[0]-fd_grad[0, 0])
-        def tmp_fun(x):
-            # compute sum dudk at mesh points
-            # tmp = x*(x-1)/2  # u(0)=u(1)=0
-            tmp = x*(x/2-1)  # u(0)=0 u'(1)=mms(1)
-            k = residual._diff_fun(np.zeros((1, 1)))
-            f = residual._forc_fun(np.zeros((1, 1)))
-            return tmp*(f/k**2).numpy()
-        # true grad when constant forc and diff and qoi = sum(u)
-        print(tmp_fun(mesh.mesh_pts[0, :]).sum(), "hack g")
-        assert np.allclose(grad.numpy().T, fd_grad, atol=1e-6)
+        # fd_grad = approx_fprime(param_vals.detach().numpy()[:, None], fun)
+        # print(grad.numpy(), 'g')
+        # print(fd_grad.T, 'fd')
+        # print(grad.numpy()[0]/fd_grad[0, 0])
+        # print(grad.numpy()[0]-fd_grad[0, 0])
+        # def tmp_fun(x):
+        #     # compute sum dudk at mesh points
+        #     if bndry_conds[1][1] == "R" or  bndry_conds[1][1] == "N":
+        #         tmp = x*(x/2-1)  # u(0)=0 u'(1)=mms(1)
+        #     else:
+        #         tmp = x*(x-1)/2  # u(0)=u(1)=0
+        #     k = residual._diff_fun(np.zeros((1, 1)))
+        #     f = residual._forc_fun(np.zeros((1, 1)))
+        #     return tmp*(f/k**2).numpy()
+        # # true grad when constant forc and diff and qoi = sum(u)
+        # print(tmp_fun(mesh.mesh_pts[0, :]).sum(), "hack g")
+        # print(tmp_fun(mesh.mesh_pts[0, mesh.mesh_pts.shape[1]//2]), "hack g")
+        # assert np.allclose(grad.numpy().T, fd_grad, atol=1e-6)
         # assert False
 
         errors = check_gradients(
@@ -291,11 +291,11 @@ class TestManualPDE(unittest.TestCase):
             [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
 
         test_cases = [
-            #[[0, 1], [4], "-(x-2)*x/4", "1", ["0"],
-            [[0, 1], [6], "-(x-1)*x/2-1", "1", ["0"],
+            #[[0, 1], [40], "-(x/2-1)*x", "1", ["0"],  # sol.sum()
+            [[0, 1], [4], "-(x-1)*x/2", "1", ["0"],  # sol[sol.shape[0]//2]
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
-             ["D", "N"], ["C"]],
+             ["D", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
@@ -321,7 +321,7 @@ class TestManualPDE(unittest.TestCase):
             [[0, 2*torch.pi], [30], "sin(x)", "1", ["0"],
              [lambda sol: 1*sol, lambda sol: torch.eye(sol.shape[0])],
              ["P", "P"], ["C"]],
-            [[0, 1, 0, 1], [3, 3], "y**2*x**2", "1", ["0", "0"], #[4, 4]
+            [[0, 1, 0, 1], [3, 3], "y**2*x**2", "1", ["0", "0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "N", "N", "D"], ["C", "C"]],
@@ -344,7 +344,7 @@ class TestManualPDE(unittest.TestCase):
              mesh_transforms]
         ]
         ii = 0
-        for test_case in test_cases[:1]:
+        for test_case in test_cases:
             np.random.seed(2)  # controls direction of finite difference
             self._check_advection_diffusion_reaction(*test_case)
             ii += 1

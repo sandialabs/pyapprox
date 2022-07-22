@@ -46,8 +46,7 @@ class AbstractSpectralCollocationPhysics(ABC):
             self._bndry_conds, res, jac, sol)
         return res, jac
 
-    def _transient_residual(self, sol, time):
-        # correct equations for boundary conditions
+    def _set_time(self, time):
         for fun in self._funs:
             if hasattr(fun, "set_time"):
                 fun.set_time(time)
@@ -58,6 +57,10 @@ class AbstractSpectralCollocationPhysics(ABC):
         for bndry_cond in bndry_conds:
             if hasattr(bndry_cond[0], "set_time"):
                 bndry_cond[0].set_time(time)
+
+    def _transient_residual(self, sol, time):
+        # correct equations for boundary conditions
+        self._set_time(time)
         res, jac = self._raw_residual(sol)
         if jac is None:
             assert self._auto_jac
@@ -100,7 +103,8 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         res -= self._react_fun(sol[:, None])[:, 0]
         res += self._forc_fun(self.mesh.mesh_pts)[:, 0]
         # print('res',res)
-        # print('f', self._forc_fun(self.mesh.mesh_pts)[:, 0])
+        # print('f', self._forc_fun(self.mesh.mesh_pts)[:, 0].min(),
+        #       self._forc_fun(self.mesh.mesh_pts)[:, 0].max())
         if not self._auto_jac:
             return res, jac
         return res, None

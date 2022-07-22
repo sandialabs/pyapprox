@@ -9,8 +9,9 @@ from pyapprox.util.utilities import (
 
 def piecewise_quadratic_interpolation(samples, mesh, mesh_vals, ranges):
     assert mesh.shape[0] == mesh_vals.shape[0]
-    vals = np.zeros_like(samples)
+    vals = 0
     samples = (samples-ranges[0])/(ranges[1]-ranges[0])
+    assert mesh.shape[0] % 2 == 1
     for ii in range(0, mesh.shape[0]-2, 2):
         xl = mesh[ii]
         xr = mesh[ii+2]
@@ -20,9 +21,9 @@ def piecewise_quadratic_interpolation(samples, mesh, mesh_vals, ranges):
         # to avoid double counting we set left boundary of each interval to
         # zero except for first interval
         if ii == 0:
-            interval_vals[(x < 0) | (x > 1)] = 0.
+            interval_vals[(x < 0) | (x > 1), :] = 0.
         else:
-            interval_vals[(x <= 0) | (x > 1)] = 0.
+            interval_vals[(x <= 0) | (x > 1), :] = 0.
         vals += interval_vals
     return vals
 
@@ -34,8 +35,12 @@ def canonical_piecewise_quadratic_interpolation(x, nodal_vals):
     """
     assert x.ndim == 1
     assert nodal_vals.shape[0] == 3
-    vals = nodal_vals[0]*(1.0-3.0*x+2.0*x**2)+nodal_vals[1]*(4.0*x-4.0*x**2) +\
-        nodal_vals[2]*(-x+2.0*x**2)
+    if nodal_vals.ndim == 1:
+        nodal_vals = nodal_vals[:, None]
+    x = x[:, None]
+    vals = (nodal_vals[0]*(1.0-3.0*x+2.0*x**2) +
+            nodal_vals[1]*(4.0*x-4.0*x**2) +
+            nodal_vals[2]*(-x+2.0*x**2))
     return vals
 
 

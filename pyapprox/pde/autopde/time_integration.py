@@ -411,8 +411,8 @@ class ImplicitRungeKutta():
         if sol.ndim == 2:
             sol = sol[:, 0]
         sols.append(sol.detach())
-        while time < final_time:
-            if verbosity > 0:
+        while time < final_time-1e-12:
+            if verbosity >= 1:
                 print("Time", time)
             deltat = min(self._deltat, final_time-time)
             sol = self.update(
@@ -421,5 +421,7 @@ class ImplicitRungeKutta():
             sols.append(sol.detach())
             time += deltat
             times.append(time)
+        if verbosity >= 1:
+            print("Time", time)
         sols = torch.stack(sols, dim=1)
         return sols, times

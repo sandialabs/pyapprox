@@ -65,7 +65,7 @@ def evaluate_1darray_function_on_2d_array(
         assert grad_0.ndim == 1
         grads.append(grad_0)
     values_0 = np.atleast_1d(values_0)
-    assert values_0.ndim == 1
+    assert values_0.ndim == 1, values_0.shape
     num_qoi = values_0.shape[0]
     values = np.empty((num_samples, num_qoi), float)
     values[0, :] = values_0
@@ -1116,7 +1116,10 @@ class MultiIndexModel():
         config_samples = samples[-self._nconfig_vars:, :]
         model_ids = np.empty((1, nsamples))
         for ii in range(nsamples):
-            model_ids[0, ii] = self._multi_index_to_model_id_map[
-                hash_array(config_samples[:, ii])]
+            key = hash_array(config_samples[:, ii])
+            if key not in self._multi_index_to_model_id_map:
+                msg = f"Model ID: {config_samples[:, ii]} not found"
+                raise RuntimeError(msg)
+            model_ids[0, ii] = self._multi_index_to_model_id_map[key]
         return self._model_ensemble(
             np.vstack((samples[:-self._nconfig_vars, :], model_ids)))

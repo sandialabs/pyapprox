@@ -106,12 +106,12 @@ class TestTensorProd(unittest.TestCase):
         interp_mesh = np.linspace(0., 1., num_mesh_points)[:-1]
         interp_vals = canonical_piecewise_quadratic_interpolation(
             interp_mesh, mesh_vals)
-        assert np.allclose(interp_vals, interp_mesh**2)
+        assert np.allclose(interp_vals[:, 0], interp_mesh**2)
 
     def test_piecewise_quadratic_interpolation(self):
         def function(x):
             return (x-0.5)**3
-        num_mesh_points = 301
+        num_mesh_points = 11
         mesh = np.linspace(0., 1., num_mesh_points)
         mesh_vals = function(mesh)
         # interp_mesh = np.random.uniform(0.,1.,101)
@@ -119,17 +119,15 @@ class TestTensorProd(unittest.TestCase):
         ranges = [0, 1]
         interp_vals = piecewise_quadratic_interpolation(
             interp_mesh, mesh, mesh_vals, ranges)
-        # print np.linalg.norm(interp_vals-function(interp_mesh))
-        # import pylab as plt
-        # I= np.argsort(interp_mesh)
-        # plt.plot(interp_mesh[I],interp_vals[I],'k-')
-        # plt.plot(mesh,mesh_vals,'o')
-        # plt.show()
-        assert np.linalg.norm(interp_vals-function(interp_mesh)) < 1e-6
+        import pylab as plt
+        II = np.argsort(interp_mesh)
+        plt.plot(interp_mesh[II], interp_vals[II], 'k-')
+        plt.plot(mesh, mesh_vals, 'o')
+        plt.show()
+        assert np.linalg.norm(interp_vals[:, 0]-function(interp_mesh)) < 1e-6
 
 
 if __name__ == '__main__':
     tensorprod_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestTensorProd)
     unittest.TextTestRunner(verbosity=2).run(tensorprod_test_suite)
-    

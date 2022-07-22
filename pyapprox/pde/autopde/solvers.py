@@ -129,8 +129,7 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
         adj_bndry_conds = copy.deepcopy(self._fwd_solver.residual._bndry_conds)
         for bndry_cond in adj_bndry_conds:
             # for now only support dirichlet boundary conds
-            # assert bndry_cond[1] == "D"
-            # bndry_cond[1] = "D"
+            assert bndry_cond[1] == "D"
             bndry_cond[0] = lambda xx: np.zeros((xx.shape[1], 1))
         fwd_sol_copy = torch.clone(fwd_sol)
         param_vals_copy = torch.clone(param_vals)
@@ -148,39 +147,40 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
         # but rather just want rhs=bndry_vals.
         # Techincally passing in we should be passing in negative bndry_vals
         # but since for dirichlet boundaries bndry_vals = 0 this is fine
-        print("raw_adj_rhs", -dqdu)
         rhs, jac_adjoint = (
             self._fwd_solver.residual.mesh._apply_boundary_conditions(
                 adj_bndry_conds, -dqdu, jac.clone().T, fwd_sol*0))
-        print("adj_rhs", rhs)
+        adj_sol = torch.linalg.solve(jac_adjoint, rhs)
+        return adj_sol
+        # print("raw_adj_rhs", -dqdu)
+        # print("adj_rhs", rhs)
         # print(jac_adjoint, 'jac_adj')
-        adjoint_sol = torch.linalg.solve(jac_adjoint, rhs)
-        print("adj_sol", adjoint_sol)
-        # assert False
-        xx = self._fwd_solver.residual.mesh.mesh_pts[0, :]
-        tmp = -torch.as_tensor(xx*(xx/2-1))
-        # tmp = -torch.as_tensor(xx*(xx-1)/2)
-        # continous adjoint for pure diffusion
-        mesh = self._fwd_solver.residual.mesh
-        cont_jac = mesh._apply_boundary_conditions(
-                 adj_bndry_conds, -dqdu, jac, fwd_sol*0)[1]
-        cont_adjoint_sol = torch.linalg.solve(cont_jac, rhs)
-        print(cont_jac, 'continuous adj jac')
-        print(adjoint_sol, 'contuous adj')
-        #adjoint_sol = tmp
-        import matplotlib.pyplot as plt
-        ax = plt.subplots(1, 1)[1]
-        mesh.plot(adjoint_sol, nplot_pts_1d=51, ax=ax)
-        ax.plot(mesh.mesh_pts[0, :], adjoint_sol, 'o')
-        mesh.plot(cont_adjoint_sol, nplot_pts_1d=51, ax=ax)
-        #plt.show()
-        
-        return adjoint_sol
+        # print("adj_sol", adj_sol)
+
+        # # continous adjoint for pure diffusion
+        # mesh = self._fwd_solver.residual.mesh
+        # cont_jac = mesh._apply_boundary_conditions(
+        #          adj_bndry_conds, -dqdu, jac, fwd_sol*0)[1]
+        # cont_adj_sol = torch.linalg.solve(cont_jac, rhs)
+        # print(cont_jac, 'continuous adj jac')
+        # print(adj_sol, 'contuous adj')
+        # #adj_sol = tmp
+        # # import matplotlib.pyplot as plt
+        # # ax = plt.subplots(1, 1)[1]
+        # # mesh.plot(adj_sol, nplot_pts_1d=51, ax=ax, label="discrete")
+        # # ax.plot(mesh.mesh_pts[0, :], adj_sol, 'o')
+        # # mesh.plot(cont_adj_sol, nplot_pts_1d=51, ax=ax, label="cont")
+        # # plt.legend()
+        # # plt.show()
+        # # r= D.dot(sol)-sol
+        # # return adj_sol
+        # return cont_adj_sol
 
     def _parameterized_raw_residual(
             self, sol, set_param_values, param_vals):
         set_param_values(self._fwd_solver.residual, param_vals)
         return self._fwd_solver.residual._raw_residual(sol)[0]
+        #return self._fwd_solver.residual._residual(sol)[0]
 
     def compute_gradient(self, set_param_values, param_vals, return_obj=False,
                          **newton_kwargs):
@@ -210,10 +210,10 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
         else:
             dRdp = self._dRdp(
                 self._fwd_solver.residual, fwd_sol_copy, param_vals)
-        print("dqdp", dqdp)
-        print(dRdp[:, 0], 'dRdp')
-        print(adj_sol, 'asol')
-        print(fwd_sol, 'fsol')
+        # print("dqdp", dqdp)
+        # print(dRdp[:, 0], 'dRdp')
+        # print(adj_sol, 'asol')
+        # print(fwd_sol, 'fsol')
         grad = dqdp+torch.linalg.multi_dot((adj_sol[None, :], dRdp))
         if not return_obj:
             return grad

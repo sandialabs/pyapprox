@@ -1212,3 +1212,25 @@ def subdomain_integral_functional(subdomain_bounds, mesh, sol, params):
     ww_quad = ww_quad*np.prod(subdomain_lens/domain_lens, axis=0)
     vals = mesh.interpolate(sol, xx_quad)[:, 0]
     return vals.dot(torch.as_tensor(ww_quad))
+
+
+def final_time_functional(functional, mesh, sol, params):
+    return functional(mesh, sol[:, -1], params)
+
+
+def cartesian_mesh_solution_functional(
+        xx, mesh, sols, params, tt=None):
+    for ii in range(mesh.nphys_vars):
+        assert xx[ii, :].min() >= mesh._domain_bounds[2*ii]
+        assert xx[ii, :].max() <= mesh._domain_bounds[2*ii+1]
+    if tt is None:
+        assert sols.ndim == 1
+        return mesh.interpolate(sols, xx).flatten()
+    ## tt is normalized time assuming [T0, TN] -> [0, 1]
+    assert tt.min() >= 0 and tt.max() <= 1
+    vals0 = mesh.interpolate(sols, xx)
+    from pyapprox.surrogates.interp.tensorprod import (
+        piecewise_quadratic_interpolation)
+    time_mesh = np.linspace(0, 1, vals0.shape[1])
+    vals1 = piecewise_quadratic_interpolation(tt, time_mesh, vals0.T, [0, 1])
+    return vals1.flatten()  # append each row to last

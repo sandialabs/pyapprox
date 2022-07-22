@@ -752,7 +752,8 @@ def setup_parameterized_nonlinear_model():
 
 def setup_multi_index_advection_diffusion_benchmark(
         nvars, kle_length_scale, kle_sigma,
-        max_eval_concurrency=1, config_values=None):
+        max_eval_concurrency=1, time_scenario=None,
+        functional=None, config_values=None):
     r"""
     Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)
 
@@ -843,7 +844,8 @@ def setup_multi_index_advection_diffusion_benchmark(
     dict_keys(['fun', 'variable'])
     """
     base_model, variable = _setup_multi_index_advection_diffusion_benchmark(
-        kle_length_scale, kle_sigma, nvars, config_values=config_values)
+        kle_length_scale, kle_sigma, nvars, time_scenario=time_scenario,
+        functional=functional, config_values=config_values)
     timer_model = TimerModel(base_model, base_model)
     pool_model = PoolModel(
         timer_model, max_eval_concurrency, base_model=base_model)
