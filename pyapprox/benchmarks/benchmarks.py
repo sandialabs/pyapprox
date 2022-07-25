@@ -475,67 +475,6 @@ if PYA_DEV_AVAILABLE:
         setup_mfnets_helmholtz_benchmark
 
 
-def setup_benchmark(name, **kwargs):
-    """
-    Setup a PyApprox benchmark.
-
-    Parameters
-    ----------
-    name : string
-        The name of the benchmark
-
-    kwargs: kwargs
-     optional keyword arguments
-
-    Returns
-    -------
-    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
-       Object containing the benchmark attributes
-
-    The benchmark object must contain at least the following two attributes
-
-    fun : callable
-        A function with signature
-
-        fun(samples) -> np.ndarray(nsamples, nqoi)
-
-        where samples : np.ndarray(nvars, nsamples)
-
-    variable : :py:class:`pyapprox.variables.JointVariable`
-        Class containing information about each of the nvars inputs to fun
-
-    """
-    benchmarks = {
-        'sobol_g': setup_sobol_g_function,
-        'ishigami': setup_ishigami_function,
-        'oakley': setup_oakley_function,
-        'rosenbrock': setup_rosenbrock_function,
-        'genz': setup_genz_function,
-        'cantilever_beam': setup_cantilever_beam_benchmark,
-        'wing_weight': setup_wing_weight_benchmark,
-        'piston': setup_piston_benchmark,
-        'chemical_reaction': setup_chemical_reaction_benchmark,
-        'random_oscillator': setup_random_oscillator_benchmark,
-        'coupled_springs': setup_coupled_springs_benchmark,
-        'hastings_ecology': setup_hastings_ecology_benchmark,
-        'multi_index_advection_diffusion':
-        setup_multi_index_advection_diffusion_benchmark,
-        'advection_diffusion_kle_inversion':
-        setup_advection_diffusion_kle_inversion_benchmark,
-        'polynomial_ensemble': setup_polynomial_ensemble,
-        'tunable_model_ensemble': setup_tunable_model_ensemble,
-        'short_column_ensemble': setup_short_column_ensemble,
-        "parameterized_nonlinear_model": setup_parameterized_nonlinear_model}
-
-    if name not in benchmarks:
-        msg = f'Benchmark "{name}" not found.\n Available benchmarks are:\n'
-        for key in benchmarks.keys():
-            msg += f"\t{key}\n"
-        raise ValueError(msg)
-
-    return benchmarks[name](**kwargs)
-
-
 def setup_cantilever_beam_benchmark():
     variable, design_variable = define_beam_random_variables()
     attributes = {'fun': cantilever_beam_objective,
@@ -977,3 +916,79 @@ def setup_advection_diffusion_kle_inversion_benchmark(
                   "true_sample": true_sample, "obs_indices": obs_indices,
                   "obs_fun": obs_model}
     return Benchmark(attributes)
+
+
+_benchmarks = {
+    'sobol_g': setup_sobol_g_function,
+    'ishigami': setup_ishigami_function,
+    'oakley': setup_oakley_function,
+    'rosenbrock': setup_rosenbrock_function,
+    'genz': setup_genz_function,
+    'cantilever_beam': setup_cantilever_beam_benchmark,
+    'wing_weight': setup_wing_weight_benchmark,
+    'piston': setup_piston_benchmark,
+    'chemical_reaction': setup_chemical_reaction_benchmark,
+    'random_oscillator': setup_random_oscillator_benchmark,
+    'coupled_springs': setup_coupled_springs_benchmark,
+    'hastings_ecology': setup_hastings_ecology_benchmark,
+    'multi_index_advection_diffusion':
+    setup_multi_index_advection_diffusion_benchmark,
+    'advection_diffusion_kle_inversion':
+    setup_advection_diffusion_kle_inversion_benchmark,
+    'polynomial_ensemble': setup_polynomial_ensemble,
+    'tunable_model_ensemble': setup_tunable_model_ensemble,
+    'short_column_ensemble': setup_short_column_ensemble,
+    "parameterized_nonlinear_model": setup_parameterized_nonlinear_model}
+
+
+def setup_benchmark(name, **kwargs):
+    """
+    Setup a PyApprox benchmark.
+
+    Parameters
+    ----------
+    name : string
+        The name of the benchmark
+
+    kwargs: kwargs
+     optional keyword arguments
+
+    Returns
+    -------
+    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
+       Object containing the benchmark attributes
+
+    The benchmark object must contain at least the following two attributes
+
+    fun : callable
+        A function with signature
+
+        fun(samples) -> np.ndarray(nsamples, nqoi)
+
+        where samples : np.ndarray(nvars, nsamples)
+
+    variable : :py:class:`pyapprox.variables.JointVariable`
+        Class containing information about each of the nvars inputs to fun
+
+    """
+
+
+    if name not in _benchmarks:
+        msg = f'Benchmark "{name}" not found.\n Available benchmarks are:\n'
+        for key in _benchmarks.keys():
+            msg += f"\t{key}\n"
+        raise ValueError(msg)
+
+    return _benchmarks[name](**kwargs)
+
+
+def list_benchmarks():
+    """
+    List the names of all available benchmarks
+
+    Returns
+    -------
+    names : list
+        A list of the name of each benchmark implemented in PyApprox
+    """
+    return list(_benchmarks.keys())
