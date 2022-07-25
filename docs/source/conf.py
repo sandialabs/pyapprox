@@ -63,6 +63,7 @@ example_filenames_in_order = [
     'plot_monte_carlo.py',
     'plot_push_forward_based_inference.py',
     'plot_tensor_product_interpolation.py',
+    'plot_bayesian_inference.py',
     'plot_sensitivity_analysis.py',
     'plot_bayesian_networks.py',
     'plot_adaptive_leja_interpolation.py',

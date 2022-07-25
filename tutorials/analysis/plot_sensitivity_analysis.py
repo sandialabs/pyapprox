@@ -53,7 +53,7 @@ approx_res = approximate(
      'options': {'max_degree': 8}})
 pce = approx_res.approx
 
-res = analysis.gpc_sobol_sensitivities(pce)
+res = analysis.gpc_sobol_sensitivities(pce, benchmark.variable)
 
 #%%
 #Now lets compare the estimated values with the exact value

@@ -370,3 +370,10 @@ class PYMC3LogLikeWrapper():
         else:
             xr = x
         return self.loglike_grad(xr).squeeze()
+
+
+def loglike_from_negloglike(negloglike, samples, jac=False):
+    if not jac:
+        return -negloglike(samples)
+    vals, grads = negloglike(samples, jac=jac)
+    return -vals, -grads

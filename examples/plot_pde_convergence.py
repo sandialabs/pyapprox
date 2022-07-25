@@ -106,12 +106,24 @@ plt.show()
 
 from pyapprox.benchmarks import setup_benchmark
 np.random.seed(1)
-final_time = .01
-# final_time = None
+final_time = .1
+time_scenario = {
+    "final_time": final_time,
+    "butcher_tableau": "im_beuler1",
+    # "butcher_tableau": "im_crank2",
+    "deltat": final_time/100,  # will be overwritten
+    "init_sol_fun": None,
+    # "init_sol_fun": partial(full_fun_axis_1, 0),
+    "sink": [50, 0.1, [0.75, 0.75]]
+}
+
+N = 4
+config_values = [2*np.arange(1, N+2)+5, 2*np.arange(1, N+2)+5,
+                 final_time/((2**np.arange(1, N+2)))]
 benchmark = setup_benchmark(
-    "multi_index_advection_diffusion", nvars=3, corr_len=1, degree=10,
-    final_time=final_time)
-N = 5
+    "multi_index_advection_diffusion", nvars=3, kle_length_scale=1,
+    kle_sigma=1, time_scenario=time_scenario,
+    config_values=config_values)
 validation_levels = [N, N, N]
 coarsest_levels = [0, 0, 0]
 if final_time is None:
@@ -121,7 +133,7 @@ convergence_data = run_convergence_study(
     benchmark.fun, benchmark.variable, validation_levels,
     benchmark.get_num_degrees_of_freedom, benchmark.config_var_trans,
     num_samples=10, coarsest_levels=coarsest_levels)
-plot_convergence_data(convergence_data)
+plot_convergence_data(convergence_data, cost_type="time")
 plt.show()
 
 #%%

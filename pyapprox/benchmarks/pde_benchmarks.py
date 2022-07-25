@@ -16,6 +16,7 @@ from pyapprox.pde.autopde.mesh import (
     final_time_functional
 )
 from pyapprox.variables import IndependentMarginalsVariable
+from pyapprox.variables.transforms import ConfigureVariableTransformation
 from pyapprox.pde.karhunen_loeve_expansion import MeshKLE
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array, MultiIndexModel)
@@ -173,6 +174,14 @@ class AdvectionDiffusionReactionKLEModel():
         return evaluate_1darray_function_on_2d_array(
             self._eval, samples, jac=jac)
 
+    def get_num_degrees_of_freedom_cost(self, config_vals):
+        if (len(config_vals) !=
+                self._fwd_solver.residual.mesh.mesh_pts.shape[0]):
+            msg = "config_vals provided has an incorrect shape"
+            raise ValueError(msg)
+        orders = config_vals
+        return int(np.prod(np.asarray(orders)+1))**3
+
 
 class TransientAdvectionDiffusionReactionKLEModel(
         AdvectionDiffusionReactionKLEModel):
@@ -225,6 +234,18 @@ class TransientAdvectionDiffusionReactionKLEModel(
                 mesh, bndry_conds, partial(full_fun_axis_1, 1), vel_fun,
                 react_funs[0], forc_fun, react_funs[1]),
             self._deltat, self._butcher_tableau)
+
+    def get_num_degrees_of_freedom_cost(self, config_vals):
+        if (len(config_vals) !=
+                self._fwd_solver.residual.mesh.mesh_pts.shape[0]+1):
+            msg = "config_vals provided has an incorrect shape"
+            raise ValueError(msg)
+        ntsteps = int(self._final_time/config_vals[-1])
+        # valid for implicit backward euler and crank nicolson
+        assert (self._butcher_tableau == "im_beuler1" or
+                self._butcher_tableau == "im_crank2")
+        return super().get_num_degrees_of_freedom_cost(
+            config_vals[:-1])*ntsteps
 
 
 def _setup_advection_diffusion_benchmark(
@@ -354,6 +375,9 @@ def _setup_multi_index_advection_diffusion_benchmark(
     newton_kwargs = {"maxiters": 1, "rel_error": False}
     if config_values is None:
         config_values = [2*np.arange(1, 11)+1, 2*np.arange(1, 11)+1]
+        if time_scenario is not None:
+            config_values += [
+                time_scenario["final_time"]/(2**np.arange(1, 11))]
 
     if functional is None:
         subdomain_bounds = np.array([0.75, 1, 0, 0.25])
@@ -386,4 +410,5 @@ def _setup_multi_index_advection_diffusion_benchmark(
             kle_args=kle_args, newton_kwargs=newton_kwargs,
             time_scenario=time_scenario)[0]
     model = MultiIndexModel(setup_model, config_values)
-    return model, variable
+    config_var_trans = ConfigureVariableTransformation(config_values)
+    return model, variable, config_var_trans

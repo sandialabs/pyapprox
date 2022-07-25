@@ -1,7 +1,7 @@
 r"""
 Multi-fidelity Monte Carlo
 ==========================
-This tutorial builds on from :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and introduces an approximate control variate estimator called Multi-fidelity Monte Carlo (MFMC). Unlike MLMC this method does not assume a strict ordering of models.
+This tutorial builds on from :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and introduces an approximate control variate estimator called Multi-fidelity Monte Carlo (MFMC) [PWGSIAM2016]_. Unlike MLMC this method does not assume a strict ordering of models.
 
 Many Model MFMC
 ---------------
@@ -130,3 +130,9 @@ multifidelity.plot_acv_sample_allocation_comparison(
     optimized_estimators[0], model_labels, axs[1])
 plt.show()
 #fig # necessary for jupyter notebook to reshow plot in new cell
+
+
+#%%
+#References
+#^^^^^^^^^^
+#.. [PWGSIAM2016] `{Peherstorfer, B., Willcox, K.,  Gunzburger, M., Optimal Model Management for Multifidelity Monte Carlo Estimation, 2016. <https://doi.org/10.1137/15M1046472>`_

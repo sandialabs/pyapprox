@@ -10,7 +10,7 @@ When observational data are available, that data should be used to inform prior 
 Deterministic model calibration is an inverse problem that seeks to find a single parameter set that minimizes the misfit between the measurements and model predictions. A unique solution is found by simultaneously minimising the misfit and a regularization term which penalises certain characteristics of the model parameters.
 
 In the presence of uncertainty we typically do not want a single optimal solution, but rather a probabilistic description of the extent to which different realizations of parameters are consistent with the observations.
-Bayesian inference~\cite{Kaipo_S_book_2005} can be used to define a posterior density for the model parameters :math:`\rv` given
+Bayesian inference [KAIPO2005]_ can be used to define a posterior density for the model parameters :math:`\rv` given
 observational data :math:`\V{y}=(y_1,\ldots,y_{n_y})`:
 
 Bayes Rule
@@ -372,3 +372,8 @@ plt.show()
 exact_mean = ((x*unnormalized_posterior(x)[:, 0]).dot(w)/evidence)
 print('mcmc mean', samples.mean(axis=1))
 print('exact mean', exact_mean.squeeze())
+
+#%%
+#References
+#^^^^^^^^^^
+#.. [KAIPO2005] `J. Kaipio and E. Somersalo. Statistical and Computational Inverse Problems. 2005 <https://link.springer.com/book/10.1007/b138659>`_

@@ -782,15 +782,20 @@ def setup_multi_index_advection_diffusion_benchmark(
     >>> print(benchmark.keys())
     dict_keys(['fun', 'variable'])
     """
-    base_model, variable = _setup_multi_index_advection_diffusion_benchmark(
-        kle_length_scale, kle_sigma, nvars, time_scenario=time_scenario,
-        functional=functional, config_values=config_values)
+    base_model, variable, config_var_trans = (
+         _setup_multi_index_advection_diffusion_benchmark(
+            kle_length_scale, kle_sigma, nvars, time_scenario=time_scenario,
+            functional=functional, config_values=config_values))
     timer_model = TimerModel(base_model, base_model)
     pool_model = PoolModel(
         timer_model, max_eval_concurrency, base_model=base_model)
     model = WorkTrackingModel(pool_model, base_model,
                               base_model._nconfig_vars)
-    attributes = {'fun': model, 'variable': variable}
+    model0 = base_model._model_ensemble.functions[0]
+    attributes = {
+        'fun': model, 'variable': variable,
+        "get_num_degrees_of_freedom": model0.get_num_degrees_of_freedom_cost,
+        "config_var_trans": config_var_trans}
     return Benchmark(attributes)
 
 
