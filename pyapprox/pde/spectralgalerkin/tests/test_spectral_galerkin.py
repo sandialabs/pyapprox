@@ -4,7 +4,7 @@ import sympy as sp
 from functools import partial
 import matplotlib.pyplot as plt
 
-from pyapprox.pde.spectral_galerkin import (
+from pyapprox.pde.spectralgalerkin.spectral_galerkin import (
     CartesianProductSpectralGalerkinDomain,
     SpectralGalerkinAdvectionDiffusionSolver,
     SpectralGalerkinLinearDiffusionReactionSolver

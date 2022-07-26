@@ -17,10 +17,10 @@ dependencies:
   - sympy
   - networkx
   - pytorch
+  - pymc3 # requires conda-forge
   # make html in docs folder
   - sphinx
 #  - sphinx-gallery # requires conda-forge
-#  - pymc requires conda-forge
   - pip:
     - sphinx-gallery
     - sphinx_copybutton

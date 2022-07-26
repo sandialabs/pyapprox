@@ -46,9 +46,9 @@ Note that sometimes developers need to remove all files generated when installin
 
 Test
 ----
-To run all tests use::
+To run all tests run the following in the root directory of PyApprox::
   
-  python setup.py test
+  python -m unittest discover
 
 To test docstring examples use::
   

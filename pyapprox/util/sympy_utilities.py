@@ -32,8 +32,8 @@ def convert_sympy_equations_to_latex(equations,tex_filename,compile_pdf=True):
 
 if __name__== "__main__":    
     import sympy as sp
-    s0 = sp.Symbol('\sigma_0^2')
-    s1 = sp.Symbol('\sigma_1^2')
+    s0 = sp.Symbol(r'\sigma_0^2')
+    s1 = sp.Symbol(r'\sigma_1^2')
     a01 = sp.Symbol('a_{01}')
     a02 = sp.Symbol('a_{02}')
     a12 = sp.Symbol('a_{12}')
@@ -47,6 +47,6 @@ if __name__== "__main__":
     print((a.T*Sxx*a)[0,0])
     from pyapprox.sympy_utilities import convert_sympy_equations_to_latex
     convert_sympy_equations_to_latex([
-        sp.Eq(sp.MatrixSymbol('\Sigma_{xx}',2,2),Sxx),
+        sp.Eq(sp.MatrixSymbol(r'\Sigma_{xx}',2,2),Sxx),
         sp.Eq(y,(a.T*x)[0]),
         sp.simplify((a.T*Sxx*a)[0,0]),],'temp/temp.tex')

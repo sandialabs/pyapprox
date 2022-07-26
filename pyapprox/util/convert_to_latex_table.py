@@ -49,7 +49,7 @@ def convert_to_latex_table(table_data, latex_filename, column_labels,
     assert len(column_labels) == table_data.shape[1]
     assert len(row_labels) == table_data.shape[0]
 
-    table_string = '\hline '
+    table_string = r'\hline '
     if corner_labels is not None:
         if len(corner_labels) == 2:
             table_string += r' \backslashbox{%s}{%s} &' % (
@@ -60,34 +60,34 @@ def convert_to_latex_table(table_data, latex_filename, column_labels,
         table_string += '&'
     for i in range(1, table_data.shape[1]):
         table_string += '%s &' % column_labels[i-1]
-    table_string += '%s \\\ \n' % column_labels[-1]
+    table_string += r'%s \\\ \n' % column_labels[-1]
     for i in range(table_data.shape[0]):
-        table_string += '\hline '
+        table_string += r'\hline '
         table_string += '%s ' % row_labels[i]
         for j in range(table_data.shape[1]):
             table_string += convert_table_element_to_string(
                 table_data[i, j], bold_entries[i, j], underline_entries[i, j], precision)
-        table_string += "\\\ \n"
-    table_string += '\hline\n'
+        table_string += r"\\\ \n"
+    table_string += r'\hline\n'
 
-    file_string = """
+    file_string = r"""
 \documentclass{standalone}
-\\usepackage{amsfonts,amsmath,amssymb,caption}
-\\usepackage{slashbox}
-\\usepackage[margin=1in]{geometry}
+\usepackage{amsfonts,amsmath,amssymb,caption}
+\usepackage{slashbox}
+\usepackage[margin=1in]{geometry}
 \captionsetup{justification=centering,margin=0.05\\textwidth}
-\\addtolength{\\tabcolsep}{-0.5pt}
-\\begin{document}
-\\tiny
+\addtolength{\\tabcolsep}{-0.5pt}
+\begin{document}
+\tiny
 \minipage{%s}
 \centering
-\\begin{tabular}[htb]{%s}
+\begin{tabular}[htb]{%s}
 %s
 \end{tabular}
 """ % (width, table_spec, table_string)
     if caption is not None:
-        file_string += "\captionof*{table}{%s}" % (caption)
-    file_string += """
+        file_string += r"\captionof*{table}{%s}" % (caption)
+    file_string += r"""
         \endminipage
         \end{document}"""
 
@@ -125,5 +125,6 @@ def test_convert_to_latex_table():
     row_labels = ['row1', 'row2']
     bold_entries = get_min_entry_per_row(table_data)
     convert_to_latex_table(table_data, 'table.tex', column_labels, row_labels,
-                           'Table caption', output_dir='texdir', bold_entries=bold_entries)
+                           'Table caption', output_dir='texdir',
+                           bold_entries=bold_entries)
 
