@@ -10,7 +10,7 @@ from pyapprox.bayes.laplace import \
 
 from pyapprox.bayes.markov_chain_monte_carlo import (
     GaussianLogLike, PYMC3LogLikeWrapper,
-    run_bayesian_inference_gaussian_error_model)
+    run_bayesian_inference_gaussian_error_model, MCMCVariable)
 
 
 class LinearModel(object):
@@ -60,17 +60,16 @@ class TestMCMC(unittest.TestCase):
         # set random seed, so the data is reproducible each time
         np.random.seed(1)
 
-        nobs = 10  # number of observations
+        nobs = 3  # number of observations
         noise_stdev = .1  # standard deviation of noise
         x = np.linspace(0., 9., nobs)
         Amatrix = np.hstack([np.ones((nobs, 1)), x[:, np.newaxis]])
 
-        univariate_variables = [norm(1, 1), norm(0, 4)]
-        variables = IndependentMarginalsVariable(
-            univariate_variables)
+        marginals = [norm(1, 1), norm(0, 1)]
+        variable = IndependentMarginalsVariable(marginals)
 
-        mtrue = 0.4  # true gradient
-        ctrue = 2.   # true y-intercept
+        ctrue = 1.1  # true y-intercept
+        mtrue = 0.1  # true gradient
         true_sample = np.array([[ctrue, mtrue]]).T
 
         model = LinearModel(Amatrix)
@@ -81,23 +80,37 @@ class TestMCMC(unittest.TestCase):
         loglike = PYMC3LogLikeWrapper(loglike)
 
         # number of draws from the distribution
-        ndraws = 5000
+        nsamples = 5000
         # number of "burn-in points" (which we'll discard)
-        nburn = min(1000, int(ndraws*0.1))
+        nburn = min(1000, int(nsamples*0.1))
         # number of parallel chains
         njobs = 4
 
         # algorithm='nuts'
         algorithm = 'metropolis'
-        samples, effective_sample_size, map_sample = \
-            run_bayesian_inference_gaussian_error_model(
-                loglike, variables, ndraws, nburn, njobs,
-                algorithm=algorithm, get_map=True, print_summary=False)
+        # samples, effective_sample_size, map_sample = \
+        #     run_bayesian_inference_gaussian_error_model(
+        #         loglike, variable, nsamples, nburn, njobs,
+        #         algorithm=algorithm, get_map=True, print_summary=False)
+        mcmc_variable = MCMCVariable(variable, loglike, algorithm, njobs=njobs)
+        samples = mcmc_variable.rvs(nsamples)
+        map_sample = mcmc_variable.maximum_aposteriori_point()
+
+        # from pyapprox.util.visualization import (
+        #     get_meshgrid_function_data, plt)
+        # X, Y, Z = get_meshgrid_function_data(
+        #     mcmc_variable.unnormalized_pdf, [1, 1.4, 0, 0.2], 30)
+        # im = plt.contourf(
+        #    X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 20),
+        #    cmap="jet")
+        # plt.plot(samples[0, :100], samples[1, :100], 'ko', alpha=0.2)
+        # plt.plot(map_sample[0, :], map_sample[1, :], 'rX', ms=20)
+        # plt.show()
 
         prior_mean = np.asarray(
-            [rv.mean() for rv in variables.marginals()])
+            [rv.mean() for rv in variable.marginals()])
         prior_hessian = np.diag(
-            [1./rv.var() for rv in variables.marginals()])
+            [1./rv.var() for rv in variable.marginals()])
         noise_covariance_inv = 1./noise_stdev**2*np.eye(nobs)
 
         exact_mean, exact_covariance = \
@@ -123,9 +136,8 @@ class TestMCMC(unittest.TestCase):
         # set random seed, so the data is reproducible each time
         np.random.seed(2)
 
-        univariate_variables = [uniform(-2, 4), uniform(-2, 4)]
-        variable = IndependentMarginalsVariable(
-            univariate_variables)
+        marginals = [uniform(-2, 4), uniform(-2, 4)]
+        variable = IndependentMarginalsVariable(marginals)
 
         loglike = ExponentialQuarticLogLikelihoodModel()
         loglike_grad = loglike.gradient
@@ -135,9 +147,9 @@ class TestMCMC(unittest.TestCase):
         # number of parallel chains
         njobs = 4
         # number of draws from the distribution
-        ndraws = 2000//njobs
+        nsamples = 2000//njobs
         # number of "burn-in points" (which we'll discard)
-        nburn = min(1000, int(ndraws*0.1))
+        nburn = min(1000, int(nsamples*0.1))
 
         def unnormalized_posterior(x):
             # avoid use of pymc3 wrapper which only evaluates samples 1 at
@@ -164,19 +176,19 @@ class TestMCMC(unittest.TestCase):
         # algorithm = 'smc'
         samples, effective_sample_size, map_sample = \
             run_bayesian_inference_gaussian_error_model(
-                loglike, variable, ndraws, nburn, njobs,
+                loglike, variable, nsamples, nburn, njobs,
                 algorithm=algorithm, get_map=True, print_summary=True,
                 loglike_grad=loglike_grad, seed=2)
 
-        from pyapprox.analysis.visualize import (
-            get_meshgrid_function_data_from_variable, plt)
-        X, Y, Z = get_meshgrid_function_data_from_variable(
-            lambda x: unnormalized_posterior(x)/evidence, variable, 50)
-        plt.contourf(
-            X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 30),
-            cmap="coolwarm")
-        plt.plot(samples[0, :], samples[1, :], 'ko')
-        plt.show()
+        # from pyapprox.analysis.visualize import (
+        #     get_meshgrid_function_data_from_variable, plt)
+        # X, Y, Z = get_meshgrid_function_data_from_variable(
+        #     lambda x: unnormalized_posterior(x)/evidence, variable, 50)
+        # plt.contourf(
+        #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 30),
+        #     cmap="coolwarm")
+        # plt.plot(samples[0, :], samples[1, :], 'ko')
+        # plt.show()
 
         print('mcmc mean error', samples.mean(axis=1)-exact_mean)
         print('MAP sample', map_sample)

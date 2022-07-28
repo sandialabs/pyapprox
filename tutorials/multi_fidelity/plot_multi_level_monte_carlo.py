@@ -103,7 +103,8 @@ costs = model_costs[idx]
 # generate pilot samples to estimate correlation
 # npilot_samples = int(1e4)
 # cov = pya.estimate_model_ensemble_covariance(
-#    npilot_samples,short_column_model.generate_samples,model_ensemble)[0]
+#    npilot_samples, short_column_model.generate_samples, model_ensemble,
+#    model_ensemble.nmodels)[0]
 
 # define the sample allocation
 est = multifidelity.get_estimator("mlmc", cov, costs, benchmark.variable)
@@ -254,7 +255,8 @@ costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
 model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
 npilot_samples = 10
 cov_mc = multifidelity.estimate_model_ensemble_covariance(
-    npilot_samples, benchmark.variable.rvs, model_ensemble)[0]
+    npilot_samples, benchmark.variable.rvs, model_ensemble,
+    model_ensemble.nmodels)[0]
 
 from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
 estimators = [

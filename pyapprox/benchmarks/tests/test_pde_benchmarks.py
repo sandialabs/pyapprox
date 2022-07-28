@@ -57,8 +57,8 @@ class TestPDEBenchmarks(unittest.TestCase):
 
         config_values = [2*np.arange(1, 11), 2*np.arange(1, 11)]
         benchmark = setup_benchmark(
-            "multi_index_advection_diffusion", nvars=nvars,
-            kle_length_scale=length_scale, kle_sigma=sigma,
+            "multi_index_advection_diffusion", kle_nvars=nvars,
+            kle_length_scale=length_scale, kle_stdev=sigma,
             config_values=config_values)
         model, variable = benchmark.fun, benchmark.variable
         print(variable.num_vars())

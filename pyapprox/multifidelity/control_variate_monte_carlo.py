@@ -1190,8 +1190,11 @@ def get_generalized_approximate_control_variate_weights(
     CF, cf = get_acv_discrepancy_covariances(cov, Fmat, fvec)
     try:
         weights = get_approximate_control_variate_weights(CF, cf)
-        # print(np.linalg.cond(CF), nsamples_per_model)
-    except RuntimeError:
+
+    except np.linalg.LinAlgError as err:
+        print("acv weights failed")
+        weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
+    except RuntimeError as err:
         print("acv weights failed")
         weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
     return weights, cf
@@ -1470,7 +1473,7 @@ def get_rsquared_acv_KL_best(cov, nsample_ratios):
 
 
 def estimate_model_ensemble_covariance(npilot_samples, generate_samples,
-                                       model_ensemble):
+                                       model_ensemble, nmodels):
     r"""
     Estimate the covariance of a model ensemble from a set of pilot samples
 
@@ -1480,13 +1483,18 @@ def estimate_model_ensemble_covariance(npilot_samples, generate_samples,
         The number of samples used to estimate the covariance
 
     generate_samples : callable
-        Function used to generate realizations of the random variables with
+        Function used to generate realizations of the random variable with
         call signature samples = generate_samples(npilot_samples)
 
-    model_emsemble : callable
+    model_ensemble : callable or np.ndarray  (nvars, nsamples)
         Function that takes a set of samples and models ids and evaluates
         a set of models. See ModelEnsemble.
         call signature values = model_emsemble(samples)
+
+        relizations of the random variable
+
+    nmodels : integer
+        The number of models in the ensemble
 
     Returns
     -------
@@ -1501,64 +1509,22 @@ def estimate_model_ensemble_covariance(npilot_samples, generate_samples,
         The values of each model at the pilot samples
     """
     # generate pilot samples
-    pilot_random_samples = generate_samples(npilot_samples)
-    config_vars = np.arange(model_ensemble.nmodels)[np.newaxis, :]
+    if callable(generate_samples):
+        pilot_random_samples = generate_samples(npilot_samples)
+    else:
+        pilot_random_samples = generate_samples[:, :npilot_samples]
+    print(pilot_random_samples.shape)
+    config_vars = np.arange(nmodels)[np.newaxis, :]
     # append model ids to pilot smaples
     pilot_samples = get_all_sample_combinations(
         pilot_random_samples, config_vars)
     # evaluate models at pilot samples
     pilot_values = model_ensemble(pilot_samples)
     pilot_values = np.reshape(
-        pilot_values, (npilot_samples, model_ensemble.nmodels))
+        pilot_values, (npilot_samples, nmodels))
     # compute covariance
     cov = np.cov(pilot_values, rowvar=False)
     return cov, pilot_random_samples, pilot_values
-
-
-def get_pilot_covariance(nmodels, variable, model_ensemble, npilot_samples):
-    """
-    Parameters
-    ----------
-    nmodels : integer
-        The number of information sources
-
-    variable : :class:`pyapprox.variable.IndependentMarginalsVariable`
-        Object defining the nvar uncertain random variables.
-        Samples will be drawn from its joint density.
-
-    model_ensemble : callable
-        Function with signature
-
-        ``model_ensemble(samples) -> np.ndarray (nsamples,1)``
-
-        where samples is a np.ndarray with shape (nvars+1,nsamples)
-
-    npilot_samples : integer
-        The number of samples used to compute correlations
-
-    Returns
-    -------
-    cov_matrix : np.ndarray (nmodels,nmodels)
-        The covariance between each information source
-
-    pilot_samples : np.ndarray (nvars+1,nsamples)
-        The samples used to evaluate each information source when computing
-        correlations
-
-    pilot_values : np.ndarray (nsamples,nmodels)
-        The values of each information source at the pilot samples
-    """
-    pilot_samples = generate_independent_random_samples(
-        variable, npilot_samples)
-    config_vars = np.arange(nmodels)[np.newaxis, :]
-    pilot_samples = get_all_sample_combinations(
-        pilot_samples, config_vars)
-    pilot_values = model_ensemble(pilot_samples)
-    pilot_values = np.reshape(
-        pilot_values, (npilot_samples, model_ensemble.nmodels))
-    cov_matrix = np.cov(pilot_values, rowvar=False)
-    return cov_matrix, pilot_samples, pilot_values
-
 
 
 def compute_covariance_from_control_variate_samples(values):
@@ -1593,7 +1559,7 @@ def compute_covariance_from_control_variate_samples(values):
     return cov
 
 
-def plot_correlation_matrix(corr_matrix, ax=None, model_labels=None):
+def plot_correlation_matrix(corr_matrix, ax=None, model_names=None):
     """
     Plot a correlation matrix
 
@@ -1610,11 +1576,13 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_labels=None):
         ax.text(j, i, '{:1.3f}'.format(z), ha='center', va='center',
                 fontsize=12)
     plt.colorbar(im, ax=ax)
-    if model_labels is not None:
-        ax.set_xticks(np.arange(len(model_labels)))
-        ax.set_yticks(np.arange(len(model_labels)))
-        ax.set_yticklabels(model_labels)
-        ax.set_xticklabels(model_labels, rotation=60)
+    if model_names is None:
+        nmodels = corr_matrix.shape[0]
+        model_names = [r"$f_{%d}$" % ii for ii in range(nmodels)]
+    ax.set_xticks(np.arange(len(model_names)))
+    ax.set_yticks(np.arange(len(model_names)))
+    ax.set_yticklabels(model_names)
+    ax.set_xticklabels(model_names, rotation=60)
     return ax
 
 
@@ -2130,6 +2098,19 @@ def plot_sample_allocation(reorder_allocation_mat, npartition_samples, ax):
         xticklabels += [r"$z_%d^\star$" % ii, r"$z_%d$" % ii]
     ax.set_xticks(index)
     ax.set_xticklabels(xticklabels)
+
+
+def plot_model_costs(costs, model_names=None, ax=None):
+    from pyapprox.util.configure_plots import plt
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+    nmodels = len(costs)
+    if model_names is None:
+        model_names = [r"$f_{%d}$" % ii for ii in range(nmodels)]
+    ax.bar(np.arange(nmodels), costs)
+    ax.set_xticks(np.arange(nmodels))
+    ax.set_xticklabels(model_names)
+
 
 
 # Notes

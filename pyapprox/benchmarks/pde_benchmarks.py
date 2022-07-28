@@ -19,7 +19,7 @@ from pyapprox.variables import IndependentMarginalsVariable
 from pyapprox.variables.transforms import ConfigureVariableTransformation
 from pyapprox.pde.karhunen_loeve_expansion import MeshKLE
 from pyapprox.interface.wrappers import (
-    evaluate_1darray_function_on_2d_array, MultiIndexModel)
+    evaluate_1darray_function_on_2d_array, MultiIndexModel, ModelEnsemble)
 
 
 def constant_vel_fun(vels, xx):
@@ -386,11 +386,11 @@ def _setup_multi_index_advection_diffusion_benchmark(
             functional = partial(final_time_functional, functional)
     hf_orders = np.array([config_values[0][-1], config_values[1][-1]])
     if time_scenario is None and len(config_values) != 2:
-        msg = "Steady state scenario specified so must provide config_values"
+        msg = "Steady state scenario specified so must provide config_values "
         msg += "for each physical dimension"
         raise ValueError(msg)
     if time_scenario is not None and len(config_values) != 3:
-        msg = "Transient scenario specified so must provide config_values"
+        msg = "Transient scenario specified so must provide config_values "
         msg += "for each physical dimension and time-stepping"
         raise ValueError(msg)
     if time_scenario is not None:
@@ -409,6 +409,10 @@ def _setup_multi_index_advection_diffusion_benchmark(
             amp, scale, loc, length_scale, sigma, nvars, orders, functional,
             kle_args=kle_args, newton_kwargs=newton_kwargs,
             time_scenario=time_scenario)[0]
-    model = MultiIndexModel(setup_model, config_values)
+    multi_index_model = MultiIndexModel(setup_model, config_values)
     config_var_trans = ConfigureVariableTransformation(config_values)
-    return model, variable, config_var_trans
+    # order models from highest to lowest fidelity to match ACV MC convention
+    model_ensemble = ModelEnsemble(
+        multi_index_model._model_ensemble.functions[::-1])
+    return (multi_index_model, variable, config_var_trans,
+            model_ensemble)

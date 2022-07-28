@@ -690,7 +690,7 @@ def setup_parameterized_nonlinear_model():
 
 
 def setup_multi_index_advection_diffusion_benchmark(
-        nvars, kle_length_scale, kle_sigma,
+        kle_nvars=2, kle_length_scale=0.5, kle_stdev=1,
         max_eval_concurrency=1, time_scenario=None,
         functional=None, config_values=None):
     r"""
@@ -782,9 +782,9 @@ def setup_multi_index_advection_diffusion_benchmark(
     >>> print(benchmark.keys())
     dict_keys(['fun', 'variable'])
     """
-    base_model, variable, config_var_trans = (
+    base_model, variable, config_var_trans, model_ensemble = (
          _setup_multi_index_advection_diffusion_benchmark(
-            kle_length_scale, kle_sigma, nvars, time_scenario=time_scenario,
+            kle_length_scale, kle_stdev, kle_nvars, time_scenario=time_scenario,
             functional=functional, config_values=config_values))
     timer_model = TimerModel(base_model, base_model)
     pool_model = PoolModel(
@@ -795,7 +795,8 @@ def setup_multi_index_advection_diffusion_benchmark(
     attributes = {
         'fun': model, 'variable': variable,
         "get_num_degrees_of_freedom": model0.get_num_degrees_of_freedom_cost,
-        "config_var_trans": config_var_trans}
+        "config_var_trans": config_var_trans,
+        'model_ensemble': model_ensemble}
     return Benchmark(attributes)
 
 

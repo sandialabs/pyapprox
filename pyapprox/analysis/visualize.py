@@ -135,7 +135,7 @@ def plot_1d_cross_sections(fun, variable, nominal_sample=None,
 def plot_2d_cross_sections(fun, variable, nominal_sample=None,
                            nsamples_1d=100, variable_pairs=None,
                            subplot_tuple=None, qoi=0, num_contour_levels=20,
-                           plot_samples=None):
+                           plot_samples=None, marginals=False):
     """
     Plot the 2D cross sections of a multivariate function.
     """
@@ -165,14 +165,28 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
         nfig_rows, nfig_cols, figsize=(nfig_cols*8, nfig_rows*6))
     all_variables = variable.marginals()
 
+    if plot_samples is not None and type(plot_samples) == np.ndarray:
+        plot_samples = [[plot_samples, 'ko']]
+
     for ii, var in enumerate(all_variables):
         lb, ub = get_truncated_range(var)
-        samples = np.tile(nominal_sample, (1, nsamples_1d))
-        samples[ii, :] = np.linspace(lb, ub, nsamples_1d)
-        values = fun(samples)
-        axs[ii][ii].plot(samples[ii, :], values[:, qoi])
+        if not marginals:
+            samples = np.tile(nominal_sample, (1, nsamples_1d))
+            samples[ii, :] = np.linspace(lb, ub, nsamples_1d)
+            values = fun(samples)
+            axs[ii][ii].plot(samples[ii, :], values[:, qoi])
+        else:
+            quad_degrees = np.array([10])
+            samples_ii = np.linspace(lb, ub, nsamples_1d)
+            from pyapprox.surrogates.polychaos.gpc import (
+                _marginalize_function_1d)
+            values = _marginalize_function_1d(
+                fun, variable, quad_degrees, ii, samples_ii, qoi=0)
+            axs[ii][ii].plot(samples_ii, values)
+
         if plot_samples is not None:
-            axs[ii][ii].plot(plot_samples[ii, :], plot_samples[ii, :]*0, 'ko')
+            for s in plot_samples:
+                axs[ii][ii].plot(s[0][ii, :], s[0][ii, :]*0, s[1])
 
     for ii, pair in enumerate(variable_pairs):
         var1, var2 = all_variables[pair[0]], all_variables[pair[1]]
@@ -195,8 +209,9 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
             X, Y, Z, levels=np.linspace(Z.min(), Z.max(), num_contour_levels),
             cmap='jet')
         if plot_samples is not None:
-            axs[pair[0]][pair[1]].plot(
-                plot_samples[pair[0], :], plot_samples[pair[1], :], 'ko')
+            for s in plot_samples:
+                axs[pair[0]][pair[1]].plot(
+                    s[0][pair[0], :], s[0][pair[1], :], s[1])
 
     return fig, axs
 

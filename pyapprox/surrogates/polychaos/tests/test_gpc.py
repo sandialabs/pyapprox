@@ -1011,6 +1011,28 @@ class TestGPC(unittest.TestCase):
         assert np.allclose(x, x_exact)
         assert np.allclose(w, w_exact)
 
+    def test_marginalize_function_1d(self):
+        nsamples_1d = 10
+        variable = IndependentMarginalsVariable([stats.uniform(0, 1)]*2)
+        quad_degrees = np.array([10])
+        samples_ii = np.linspace(0, 1, nsamples_1d)
+        from pyapprox.surrogates.polychaos.gpc import (
+            _marginalize_function_1d)
+
+        def fun(samples):
+            return np.prod(samples**2, axis=0)[:, None]
+
+        values = _marginalize_function_1d(
+            fun, variable, quad_degrees, 0, samples_ii, qoi=0)
+        assert np.allclose(values, samples_ii**2*1/3)
+
+        def fun(samples):
+            return np.cos(np.sum(samples, axis=0))[:, None]
+
+        values = _marginalize_function_1d(
+            fun, variable, quad_degrees, 0, samples_ii, qoi=0)
+        assert np.allclose(values, np.sin(samples_ii+1)-np.sin(samples_ii))
+
 
 if __name__ == "__main__":
     gpc_test_suite = unittest.TestLoader().loadTestsFromTestCase(TestGPC)

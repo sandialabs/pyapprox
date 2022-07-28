@@ -2,7 +2,9 @@ import pymc3 as pm
 import numpy as np
 import theano.tensor as tt
 from scipy.optimize import approx_fprime
+
 from pyapprox.variables.marginals import get_distribution_info
+from pyapprox.variables.joint import JointVariable
 
 
 class GaussianLogLike(object):
@@ -31,18 +33,20 @@ class GaussianLogLike(object):
         self.data = data
         assert self.data.ndim == 1
         self.ndata = data.shape[0]
-        self.noise_covar_inv = self.noise_covariance_inverse(noise_covar)
+        self.noise_covar_inv, self.log_noise_covar_det = (
+            self.noise_covariance_inverse(noise_covar))
 
     def noise_covariance_inverse(self, noise_covar):
         if np.isscalar(noise_covar):
-            inv_covar = 1/noise_covar
-        elif noise_covar.ndim == 1:
+            return 1/noise_covar, np.log(noise_covar)
+        if noise_covar.ndim == 1:
             assert noise_covar.shape[0] == self.data.shape[0]
-            inv_covar = 1/noise_covar
+            return 1/noise_covar, np.log(np.prod(noise_covar))
         elif noise_covar.ndim == 2:
             assert noise_covar.shape == [self.ndata, self.ndata]
-            inv_covar = np.linalg.inv(noise_covar)
-        return inv_covar
+            return np.linalg.inv(noise_covar), np.log(
+                np.linalg.det(noise_covar))
+        raise ValueError("noise_covar has the wrong shape")
 
     # def noise_covariance_determinant(self, noise_covar):
     #     r"""The determinant is only necessary in log likelihood if the noise
@@ -68,6 +72,7 @@ class GaussianLogLike(object):
                 vals[ii] = (residual.T*self.noise_covar_inv).dot(residual)
             else:
                 vals[ii] = residual.T.dot(self.noise_covar_inv).dot(residual)
+        vals += self.ndata*np.log(2*np.pi) + self.log_noise_covar_det
         vals *= -0.5
         return vals
 
@@ -173,9 +178,10 @@ class LogLikeGrad(tt.Op):
         outputs[0][0] = grads
 
 
-def extract_mcmc_chain_from_pymc3_trace(trace, var_names, ndraws, nburn, njobs):
+def extract_mcmc_chain_from_pymc3_trace(
+        trace, var_names, nsamples, nburn, njobs):
     nvars = len(var_names)
-    samples = np.empty((nvars, (ndraws-nburn)*njobs))
+    samples = np.empty((nvars, (nsamples-nburn)*njobs))
     effective_sample_size = -np.ones(nvars)
     for ii in range(nvars):
         samples[ii, :] = trace.get_values(
@@ -220,11 +226,74 @@ def get_pymc_variable(rv, pymc_var_name):
     raise Exception(msg)
 
 
+class MCMCVariable(JointVariable):
+    def __init__(self, variable, loglike, algorithm, loglike_grad=None,
+                 burn_fraction=0.1, njobs=1):
+        self._variable = variable
+        self._loglike = loglike
+        self._loglike_grad = loglike_grad
+        self._njobs = njobs
+        self._algorithm = algorithm
+        self._burn_fraction = burn_fraction
+        self._njobs = njobs
+
+    def _sample(self, nsamples):
+        nburn = int(nsamples*self._burn_fraction)
+        return run_bayesian_inference_gaussian_error_model(
+            self._loglike, self._variable, nsamples, nburn, self._njobs,
+            algorithm=self._algorithm, get_map=False, print_summary=False,
+            loglike_grad=self._loglike_grad, seed=None)[0]
+
+    def maximum_aposteriori_point(self):
+        """
+        Find the point of maximum aposteriori probability (MAP)
+
+        Returns
+        -------
+        map_sample : np.ndarray (nvars, 1)
+            the MAP point
+        """
+        return run_bayesian_inference_gaussian_error_model(
+            self._loglike, self._variable, 0, 0, self._njobs,
+            algorithm=self._algorithm, get_map=True, print_summary=False,
+            loglike_grad=self._loglike_grad, seed=None)[2]
+
+    def rvs(self, num_samples):
+        """
+        Generate samples from a random variable.
+
+        Parameters
+        ----------
+        num_samples : integer
+            The number of samples to generate
+
+        Returns
+        -------
+        samples : np.ndarray (num_vars, num_samples)
+            Independent samples from the target distribution
+        """
+        return self._sample(num_samples)
+
+    def __str__(self):
+        string = "MCMCVariable with prior:\n"
+        string += self._variable.__str__()
+        return string
+
+    def unnormalized_pdf(self, samples):
+        pdf_vals = self._variable.pdf(samples).squeeze()
+        nll_vals = self._loglike(samples).squeeze()
+        # vals = np.exp(nll_vals)*pdf_vals
+        vals = np.exp(nll_vals+np.log(pdf_vals))
+        # make posterior 1 at map point
+        # vals /= (self._variable.pdf(map_sample)*np.exp(
+        #     -self._negloglike(map_sample)))
+        return vals[:, None]
+
+
 def run_bayesian_inference_gaussian_error_model(
-        loglike, variables, ndraws, nburn, njobs,
+        loglike, variable, nsamples, nburn, njobs,
         algorithm='nuts', get_map=False, print_summary=False,
-        loglike_grad=None,
-        seed=None):
+        loglike_grad=None, seed=None):
     r"""
     Draw samples from the posterior distribution using Markov Chain Monte
     Carlo for data that satisfies
@@ -240,11 +309,11 @@ def run_bayesian_inference_gaussian_error_model(
     loglike : pyapprox.bayes.markov_chain_monte_carlo.GaussianLogLike
         A log-likelihood function associated with a Gaussian error model
 
-    variables : pya.IndependentMarginalsVariable
+    variable : pya.IndependentMarginalsVariable
         Object containing information of the joint density of the inputs z.
         This is used to generate random samples from this join density
 
-    ndraws : integer
+    nsamples : integer
         The number of posterior samples
 
     nburn : integer
@@ -283,12 +352,12 @@ def run_bayesian_inference_gaussian_error_model(
         logl = LogLike(loglike)
     else:
         logl = LogLikeWithGrad(loglike, loglike_grad)
-        
+
     # use PyMC3 to sampler from log-likelihood
     with pm.Model():
         # must be defined inside with pm.Model() block
         pymc_variables, pymc_var_names = get_pymc_variables(
-            variables.marginals())
+            variable.marginals())
 
         # convert m and c to a tensor vector
         theta = tt.as_tensor_variable(pymc_variables)
@@ -300,10 +369,17 @@ def run_bayesian_inference_gaussian_error_model(
 
         if get_map:
             map_sample_dict = pm.find_MAP()
+            map_sample = extract_map_sample_from_pymc3_dict(
+                map_sample_dict, pymc_var_names)
+        else:
+            map_sample = None
+
+        if nsamples == 0:
+            return None, None, map_sample
 
         if algorithm == 'smc':
             assert njobs == 1  # njobs is always 1 when using smc
-            trace = pm.sample_smc(ndraws)
+            trace = pm.sample_smc(nsamples)
         else:
             if algorithm == 'metropolis':
                 step = pm.Metropolis(pymc_variables)
@@ -314,7 +390,7 @@ def run_bayesian_inference_gaussian_error_model(
                 raise ValueError(msg)
 
             trace = pm.sample(
-                ndraws, tune=nburn, discard_tuned_samples=True,
+                nsamples, tune=nburn, discard_tuned_samples=True,
                 start=None, cores=njobs, step=step,
                 compute_convergence_checks=False, random_seed=seed,
                 return_inferencedata=False)
@@ -327,13 +403,7 @@ def run_bayesian_inference_gaussian_error_model(
                 print('could not print summary. likely issue with theano')
 
         samples, effective_sample_size = extract_mcmc_chain_from_pymc3_trace(
-            trace, pymc_var_names, ndraws, nburn, njobs)
-
-        if get_map:
-            map_sample = extract_map_sample_from_pymc3_dict(
-                map_sample_dict, pymc_var_names)
-        else:
-            map_sample = None
+            trace, pymc_var_names, nsamples, nburn, njobs)
 
     return samples, effective_sample_size, map_sample
 

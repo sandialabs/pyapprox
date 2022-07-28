@@ -65,7 +65,8 @@ def setup_model_ensemble_short_column(
         # The number of pilot samples effects ability of numerical estimate
         # of variance reduction to match theoretical value
         cov, samples, weights = estimate_model_ensemble_covariance(
-            npilot_samples, generate_samples, model_ensemble)
+            npilot_samples, generate_samples, model_ensemble,
+            model_ensemble.nmodels)
     else:
         # it is difficult to create a quadrature rule for the lognormal
         # distribution so instead define the variable as normal and then
@@ -98,7 +99,7 @@ def setup_model_ensemble_polynomial():
     costs = np.asarray([100//2**ii for ii in range(example.nmodels)])
     # npilot_samples=int(1e6)
     # cov, samples, weights = estimate_model_ensemble_covariance(
-    #    npilot_samples,generate_samples,model_ensemble)
+    #    npilot_samples,generate_samples,model_ensemble, model_ensemble.nmodels)
     return model_ensemble, cov, costs, example.variable
 
 
@@ -857,7 +858,7 @@ class TestCVMC(unittest.TestCase):
             assert tindex in indices
 
         # from pyapprox.multifidelity.control_variate_monte_carlo import plot_model_recursion
-        # from pyapprox import plt
+        # from pyapprox.util.configure_plots import plt
         # ngraphs = len(indices)
         # nrows = int(np.ceil(ngraphs/8))
         # ncols = int(np.ceil(ngraphs/nrows))

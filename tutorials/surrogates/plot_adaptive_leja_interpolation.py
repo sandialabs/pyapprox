@@ -126,7 +126,7 @@ opts = {"method": "leja",
 #   #. Generate set of :math:`S\gg M` candidate samples :math:`\mathcal{Z}_S`
 #   #. Build :math:`\Phi`, :math:`\Phi_{m,n} =\phi_n(\V{\rv}^{(m)})`, :math:`m\in[S]`, :math:`n\in[N]`
 #   #. Compute preconditioning matrix :math:`V`, :math:`V_{mm}=v(\V{\rv}^{(m)})`
-#   #. Compute first M pivots of LU factorization, :math:`PLU=LU(V \Phi`,M)
+#   #. Compute first M pivots of LU factorization, :math:`PLU=LU(V \Phi,M)`
 #
 #Once a Leja sequence :math:`\mathcal{Z}_M` has been generated one can easily generate a polynomial interpolant with two simple steps. The first step evaluates the function at the samples in the sequence, i.e. :math:`y=f(\mathcal{Z})`. The coefficients of the PCE interpolant can then be computed via
 #

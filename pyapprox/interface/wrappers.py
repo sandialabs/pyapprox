@@ -1118,7 +1118,7 @@ class MultiIndexModel():
         for ii in range(nsamples):
             key = hash_array(config_samples[:, ii])
             if key not in self._multi_index_to_model_id_map:
-                msg = f"Model ID: {config_samples[:, ii]} not found"
+                msg = f"Model ID for : {config_samples[:, ii]} not found."
                 raise RuntimeError(msg)
             model_ids[0, ii] = self._multi_index_to_model_id_map[key]
         return self._model_ensemble(

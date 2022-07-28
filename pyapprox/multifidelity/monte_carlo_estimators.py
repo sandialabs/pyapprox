@@ -60,6 +60,7 @@ class AbstractMonteCarloEstimator(ABC):
             Supported types are ["random", "sobol", "halton"]
         """
         if cov.shape[0] != len(costs):
+            # print(cov.shape, costs.shape)
             raise ValueError("cov and costs are inconsistent")
 
         self.cov = cov.copy()
@@ -792,10 +793,15 @@ class ACVGMFEstimator(AbstractNumericalACVEstimator):
 
 
 class ACVGMFBEstimator(ACVGMFEstimator):
+    def __init__(self, cov, costs, variable, tree_depth=None,
+                 sampling_method="random"):
+        super().__init__(cov, costs, variable, sampling_method)
+        self._depth = tree_depth
+
     def allocate_samples(self, target_cost):
         best_variance = np.inf
         best_result = None
-        for index in get_acv_recursion_indices(self.nmodels):
+        for index in get_acv_recursion_indices(self.nmodels, self._depth):
             self.set_recursion_index(index)
             # print(index, target_cost)
             try:
@@ -915,11 +921,15 @@ def get_best_models_for_acv_estimator(
                 lf_model_indices, nsubset_lfmodels):
             idx = np.hstack(([0], lf_model_subset_indices)).astype(int)
             subset_cov, subset_costs = cov[np.ix_(idx, idx)], costs[idx]
-            print('####', idx)
+            # print('####', idx)
+            # print(kwargs)
+            if "tree_depth" in kwargs:
+                kwargs["tree_depth"] = min(
+                    kwargs["tree_depth"], nsubset_lfmodels)
             est = get_estimator(
                 estimator_type, subset_cov, subset_costs, variable, **kwargs)
             est.allocate_samples(target_cost)
-            print(idx, est.optimized_variance)
+            # print(idx, est.optimized_variance)
             if est.optimized_variance < best_variance:
                 best_est = est
                 best_model_indices = idx
@@ -1108,7 +1118,8 @@ def compare_estimator_variances(target_costs, estimators):
 
 
 def plot_estimator_variances(optimized_estimators,
-                             est_labels, ax, ylabel=None):
+                             est_labels, ax, ylabel=None,
+                             relative=True):
     """
     Plot variance as a function of the total cost for a set of estimators.
 
@@ -1119,19 +1130,23 @@ def plot_estimator_variances(optimized_estimators,
 
     est_labels : list (nestimators)
         String used to label each estimator
+
+    relative = True
     """
     linestyles = ['-', '--', ':', '-.', (0, (5, 10))]
     nestimators = len(est_labels)
+    est_variances = []
     for ii in range(nestimators):
         est_total_costs = np.array(
             [est.rounded_target_cost for est in optimized_estimators[ii]])
-        est_variances = np.array(
-            [est.optimized_variance for est in optimized_estimators[ii]])
-        ax.loglog(est_total_costs, est_variances, label=est_labels[ii],
-                  ls=linestyles[ii], marker='o')
+        est_variances.append(np.array(
+            [est.optimized_variance for est in optimized_estimators[ii]]))
+    for ii in range(nestimators):
+        ax.loglog(est_total_costs, est_variances[ii]/est_variances[0][0],
+                  label=est_labels[ii], ls=linestyles[ii], marker='o')
     if ylabel is None:
-        ylabel = r'$\mathrm{Estimator\;Variance}$'
-    ax.set_xlabel(r'$\mathrm{Target\;Cost}$')
+        ylabel = r'$\mathrm{Estimator\;variance}$'
+    ax.set_xlabel(r'$\mathrm{Target\;cost}$')
     ax.set_ylabel(ylabel)
     ax.legend()
 
@@ -1182,11 +1197,14 @@ def plot_acv_sample_allocation_comparison(
                 label=label, color=colors[ii])
             rects.append(rect)
             cnt += cost_ratio
+            # print(est.nsamples_per_model[ii], label)
         autolabel(ax, rects, ['$%d$' % int(est.nsamples_per_model[ii])
                               for ii in range(est.nmodels)])
     ax.set_xticks(xlocs)
+    # number of samples are rounded cost est_rounded cost,
+    # but target cost is not rounded
     ax.set_xticklabels(
-        ['$%f$' % est.rounded_target_cost for est in estimators])
+        ['$%1.2f$' % est.rounded_target_cost for est in estimators])
     ax.set_xlabel(mathrm_label("Total cost"))
     # / $N_\alpha$')
     ax.set_ylabel(
