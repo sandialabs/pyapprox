@@ -345,8 +345,8 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
 
         return num_new_subspace_samples
 
-    def __call__(self, samples):
-        return self.pce(samples)
+    def __call__(self, samples, jac=False):
+        return self.pce(samples, jac)
 
     def get_active_unique_poly_indices(self):
         II = get_active_poly_array_indices(self)
@@ -562,8 +562,8 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
 
         return num_new_subspace_samples
 
-    def __call__(self, samples):
-        return self.pce(samples)
+    def __call__(self, samples, jac=False):
+        return self.pce(samples, jac)
 
     def get_active_unique_poly_indices(self):
         II = get_active_poly_array_indices(self)

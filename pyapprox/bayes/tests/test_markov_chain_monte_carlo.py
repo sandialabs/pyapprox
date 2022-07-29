@@ -12,7 +12,6 @@ from pyapprox.bayes.markov_chain_monte_carlo import (
     GaussianLogLike, PYMC3LogLikeWrapper,
     run_bayesian_inference_gaussian_error_model, MCMCVariable)
 
-
 class LinearModel(object):
     def __init__(self, Amatrix):
         """
@@ -201,8 +200,6 @@ class TestMCMC(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    import warnings
-    warnings.filterwarnings("ignore", category=DeprecationWarning)
     mcmc_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestMCMC)
     unittest.TextTestRunner(verbosity=2).run(mcmc_test_suite)

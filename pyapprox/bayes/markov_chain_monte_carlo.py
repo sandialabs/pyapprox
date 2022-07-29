@@ -392,8 +392,8 @@ def run_bayesian_inference_gaussian_error_model(
             trace = pm.sample(
                 nsamples, tune=nburn, discard_tuned_samples=True,
                 start=None, cores=njobs, step=step,
-                compute_convergence_checks=False, random_seed=seed,
-                return_inferencedata=False)
+                compute_convergence_checks=False, random_seed=seed)
+                # return_inferencedata=False)
             # compute_convergence_checks=False avoids bugs in theano
 
         if print_summary:

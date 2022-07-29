@@ -1033,6 +1033,33 @@ class TestGPC(unittest.TestCase):
             fun, variable, quad_degrees, 0, samples_ii, qoi=0)
         assert np.allclose(values, np.sin(samples_ii+1)-np.sin(samples_ii))
 
+    def test_marginalize_function_nd(self):
+        from pyapprox.surrogates.polychaos.gpc import (
+            _marginalize_function_nd)
+
+        def fun(samples):
+            vals = np.prod(samples**2, axis=0)[:, None]
+            return vals
+
+        nsamples_1d = 11
+        variable = IndependentMarginalsVariable([stats.uniform(0, 1)]*3)
+        quad_degrees = np.array([3])
+        samples = np.array([np.linspace(0, 1, nsamples_1d)]*2)
+        indices = np.array([0, 1])
+        values = _marginalize_function_nd(
+            fun, variable, quad_degrees, indices, samples, qoi=0)
+        assert np.allclose(values[:, 0], np.prod(samples**2, axis=0)*1/3)
+
+        nsamples_1d = 11
+        variable = IndependentMarginalsVariable([stats.uniform(0, 1)]*3)
+        quad_degrees = np.array([3, 3])
+        samples = np.array([np.linspace(0, 1, nsamples_1d)]*1)
+        indices = np.array([1])
+        values = _marginalize_function_nd(
+            fun, variable, quad_degrees, indices, samples, qoi=0)
+        assert np.allclose(values[:, 0], np.prod(samples**2, axis=0)*1/9)
+
+
 
 if __name__ == "__main__":
     gpc_test_suite = unittest.TestLoader().loadTestsFromTestCase(TestGPC)

@@ -162,7 +162,7 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
         raise ValueError("Number of subplots is insufficient")
 
     fig, axs = plt.subplots(
-        nfig_rows, nfig_cols, figsize=(nfig_cols*8, nfig_rows*6))
+        nfig_rows, nfig_cols)#, figsize=(nfig_cols*8, nfig_rows*6))
     all_variables = variable.marginals()
 
     if plot_samples is not None and type(plot_samples) == np.ndarray:
@@ -176,10 +176,10 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
             values = fun(samples)
             axs[ii][ii].plot(samples[ii, :], values[:, qoi])
         else:
-            quad_degrees = np.array([10])
+            quad_degrees = np.array([20]*(variable.num_vars()-1))
             samples_ii = np.linspace(lb, ub, nsamples_1d)
             from pyapprox.surrogates.polychaos.gpc import (
-                _marginalize_function_1d)
+                _marginalize_function_1d, _marginalize_function_nd)
             values = _marginalize_function_1d(
                 fun, variable, quad_degrees, ii, samples_ii, qoi=0)
             axs[ii][ii].plot(samples_ii, values)
@@ -189,20 +189,28 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
                 axs[ii][ii].plot(s[0][ii, :], s[0][ii, :]*0, s[1])
 
     for ii, pair in enumerate(variable_pairs):
-        var1, var2 = all_variables[pair[0]], all_variables[pair[1]]
+        # use pair[1] for x and pair[0] for y because we reverse
+        # pairs above
+        var1, var2 = all_variables[pair[1]], all_variables[pair[0]]
         axs[pair[1], pair[0]].axis("off")
         lb1, ub1 = get_truncated_range(var1)
         lb2, ub2 = get_truncated_range(var2)
         X, Y, samples_2d = get_meshgrid_samples(
             [lb1, ub1, lb2, ub2], nsamples_1d)
-        samples = np.tile(nominal_sample, (1, samples_2d.shape[1]))
-        samples[[pair[0], pair[1]], :] = samples_2d
-        values = fun(samples)
-        Z = np.reshape(values[:, qoi], (X.shape[0], X.shape[1]))
+        if marginals:
+            quad_degrees = np.array([10]*(variable.num_vars()-2))
+            values = _marginalize_function_nd(
+                fun, variable, quad_degrees, np.array([pair[1], pair[0]]),
+                samples_2d, qoi=qoi)
+        else:
+            samples = np.tile(nominal_sample, (1, samples_2d.shape[1]))
+            samples[[pair[1], pair[0]], :] = samples_2d
+            values = fun(samples)[:, qoi]
+        Z = np.reshape(values, (X.shape[0], X.shape[1]))
         ax = axs[pair[0]][pair[1]]
         # place a text box in upper left in axes coords
         props = dict(boxstyle='round', facecolor='white', alpha=0.5)
-        ax.text(0.05, 0.95, r"$(\mathrm{%d, %d})$" % (pair[0], pair[1]),
+        ax.text(0.05, 0.95, r"$(\mathrm{%d, %d})$" % (pair[1], pair[0]),
                 transform=ax.transAxes, fontsize=14,
                 verticalalignment='top', bbox=props)
         ax.contourf(
@@ -210,8 +218,10 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
             cmap='jet')
         if plot_samples is not None:
             for s in plot_samples:
+                # use pair[1] for x and pair[0] for y because we reverse
+                # pairs above
                 axs[pair[0]][pair[1]].plot(
-                    s[0][pair[0], :], s[0][pair[1], :], s[1])
+                    s[0][pair[1], :], s[0][pair[0], :], s[1])
 
     return fig, axs
 
@@ -297,3 +307,4 @@ def plot_discrete_distribution_heatmap_2d(rv1, rv2, ax=None, zero_tol=1e-4):
     # ax.set_xticklabels([f"${x}$" for x in x_1d[0]])
     # ax.set_yticks((yy[:-1]+yy[1:])/2)
     # ax.set_yticklabels([f"${x}$" for x in x_1d[1]])
+    

@@ -412,7 +412,9 @@ class PolynomialChaosExpansion(object):
         vals = self.value(samples)
         if not jac:
             return vals
-        jacs = [self.jacobian(sample) for sample in samples]
+        jacs = [self.jacobian(sample[:, None]) for sample in samples.T]
+        if samples.shape[1] == 1:
+            return vals, jacs[0]
         return vals, jacs
 
     def mean(self):
@@ -911,10 +913,6 @@ def plot_pce_coefficients(ax, pces, ylim=[1e-6, 1], qoi_idx=0):
 
 
 def _marginalize_function_1d(fun, variable, quad_degrees, ii, samples_ii, qoi=0):
-    # from pyapprox.variables.joint import IndependentMarginalsVariable
-    # from pyapprox.surrogates.polychaos.gpc import (
-    #     get_polynomial_from_variable,
-    #     get_tensor_product_quadrature_rule_from_pce)
     assert samples_ii.ndim == 1
     all_variables = variable.marginals()
     sub_variable = IndependentMarginalsVariable(
@@ -931,4 +929,32 @@ def _marginalize_function_1d(fun, variable, quad_degrees, ii, samples_ii, qoi=0)
         samples[ii, :] = samples_ii[jj]
         values_jj = fun(samples)[:, qoi]
         values[jj] = values_jj.dot(wquad)
+    return values
+
+
+def _marginalize_function_nd(fun, variable, quad_degrees, sub_indices,
+                             sub_samples, qoi=0):
+    assert sub_samples.ndim == 2
+    assert sub_indices.shape[0] == sub_samples.shape[0]
+    assert quad_degrees.shape[0] == variable.num_vars() - sub_indices.shape[0]
+
+    if sub_indices.shape[0] == variable.num_vars():
+        return fun(sub_samples)[:, qoi]
+
+    all_variables = variable.marginals()
+    sub_variable = IndependentMarginalsVariable(
+        [all_variables[kk]
+         for kk in range(variable.num_vars()) if kk not in sub_indices])
+    pce = get_polynomial_from_variable(sub_variable)
+    xquad, wquad = get_tensor_product_quadrature_rule_from_pce(
+        pce, quad_degrees)
+    samples = np.empty((variable.num_vars(), xquad.shape[1]))
+    indices = np.delete(np.arange(variable.num_vars()), sub_indices)
+    samples[indices, :] = xquad
+    nsamples = sub_samples.shape[1]
+    values = np.empty((nsamples, 1))
+    for kk in range(nsamples):
+        samples[sub_indices, :] = sub_samples[:, kk:kk+1]
+        values_jj = fun(samples)[:, qoi]
+        values[kk, 0] = values_jj.dot(wquad)
     return values
