@@ -1059,6 +1059,52 @@ class TestGaussianProcess(unittest.TestCase):
         #     'y--')
         # plt.show()
 
+    def check_gp_with_matern_gradient_wrt_samples(self, nu):
+
+        nvars = 1
+        lb, ub = 0, 1
+        ntrain_samples = 20
+        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
+
+        train_samples = cartesian_product(
+            [np.linspace(lb, ub, ntrain_samples)]*nvars)
+        train_vals = func(train_samples)
+
+        kernel = Matern(0.4, length_scale_bounds='fixed', nu=nu)
+        kernel = ConstantKernel(
+            constant_value=2., constant_value_bounds='fixed')*kernel
+        gp = GaussianProcess(kernel)
+        gp.fit(train_samples, train_vals)
+
+        x0 = np.full((nvars, 1), 0.5)
+        errors = check_gradients(partial(gp, jac=True), True, x0, disp=False)
+        assert errors.min() < 5e-6 and errors.max() > 0.6
+
+        kernel = Matern(0.4, length_scale_bounds='fixed', nu=nu)
+        gp = GaussianProcess(kernel)
+        gp.fit(train_samples, train_vals)
+
+        x0 = np.full((nvars, 1), 0.5)
+        errors = check_gradients(partial(gp, jac=True), True, x0, disp=False)
+        assert errors.min() < 5e-6 and errors.max() > 0.6
+
+        if nu != np.inf:
+            return
+        kernel = RBF(0.4, length_scale_bounds='fixed')
+        kernel = ConstantKernel(
+            constant_value=2., constant_value_bounds='fixed')*kernel
+        gp = GaussianProcess(kernel)
+        gp.fit(train_samples, train_vals)
+
+        x0 = np.full((nvars, 1), 0.5)
+        errors = check_gradients(partial(gp, jac=True), True, x0, disp=False)
+        assert errors.min() < 5e-6 and errors.max() > 0.6
+
+    def test_gp_with_matern_gradient_wrt_samples(self):
+        self.check_gp_with_matern_gradient_wrt_samples(3/2)
+        self.check_gp_with_matern_gradient_wrt_samples(5/2)
+        self.check_gp_with_matern_gradient_wrt_samples(np.inf)
+
 
 class TestSamplers(unittest.TestCase):
     def setUp(self):
@@ -1347,6 +1393,7 @@ class TestSamplers(unittest.TestCase):
         self.check_matern_gradient_wrt_samples(3/2)
         self.check_matern_gradient_wrt_samples(5/2)
         self.check_matern_gradient_wrt_samples(np.inf)
+
 
     def test_RBF_posterior_variance_gradient_wrt_samples_subset(
             self):

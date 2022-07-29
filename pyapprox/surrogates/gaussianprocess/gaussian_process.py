@@ -70,7 +70,7 @@ class GaussianProcess(GaussianProcessRegressor):
         canonical_train_samples = self.map_to_canonical(train_samples)
         return super().fit(canonical_train_samples.T, train_values)
 
-    def __call__(self, samples, return_std=False, return_cov=False):
+    def __call__(self, samples, return_std=False, return_cov=False, jac=False):
         r"""
         A light weight wrapper of sklearn GaussianProcessRegressor.predict
         function. See sklearn documentation for more info. This wrapper
@@ -83,8 +83,32 @@ class GaussianProcess(GaussianProcessRegressor):
             Samples at which to evaluate the GP. Sklearn requires the
             transpose of this matrix, i.e a matrix with size (nsamples,nvars)
         """
+        if jac and (return_std or return_cov):
+            msg = "if jac is True then return_std and return_cov must be False"
+            raise ValueError(msg)
+
         canonical_samples = self.map_to_canonical(samples)
         result = self.predict(canonical_samples.T, return_std, return_cov)
+
+        if jac:
+            kernel = extract_covariance_kernel(self.kernel_, [Matern])
+            if kernel is None:
+                kernel = extract_covariance_kernel(self.kernel_, [RBF])
+                if kernel is None:
+                    msg = "jac only available when using the Matern kernel"
+                    raise ValueError(msg)
+                nu = np.inf
+            else:
+                nu = kernel.nu
+            assert samples.shape[1] == 1
+            gradK = matern_gradient_wrt_samples(
+                nu, samples, self.X_train_.T, kernel.length_scale)
+            grad = gradK.T.dot(self.alpha_)
+            kernel = extract_covariance_kernel(self.kernel_, [ConstantKernel])
+            if kernel is not None:
+                grad *= kernel.constant_value
+            return result, grad
+
         if type(result) == tuple:
             # when returning prior stdev covariance then must reshape vals
             if result[0].ndim == 1:
@@ -2084,7 +2108,7 @@ def matern_gradient_wrt_samples(nu, query_sample, other_samples, length_scale):
     ----------
     query_sample : np.ndarray (nvars, 1)
 
-    other_samples : np.ndarray (nvars, nquery_samples)
+    other_samples : np.ndarray (nvars, nother_samples)
 
     length_scale : np.ndarray (nvars)
     """
@@ -2106,7 +2130,7 @@ def matern_gradient_wrt_samples(nu, query_sample, other_samples, length_scale):
         tmp2 = (np.tile(
             query_sample.T, (other_samples.shape[1], 1))-other_samples.T)/(
                 length_scale**2)
-        grad = -5/3*K.T*tmp2*(np.sqrt(5)*dists+1)
+        grad = -5/3*K.T*tmp2*(np.sqrt(5)*dists.T+1)
     elif nu == np.inf:
         tmp2 = (np.tile(
             query_sample.T, (other_samples.shape[1], 1))-other_samples.T)/(
