@@ -97,7 +97,8 @@ example_filenames_in_order += [
     'plot_barycentric_interpolation.py',
     'plot_multivariate_piecewise_polynomial_interpolation.py',
     'plot_pde_convergence.py',
-    'plot_sparse_grid_uq.py']
+    'plot_sparse_grid_uq.py',
+    'plot_paper_demo.py']
 
 # print(installed_pkgs)
 # print(example_filenames_in_order)

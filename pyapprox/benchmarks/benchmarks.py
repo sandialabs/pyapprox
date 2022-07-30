@@ -906,7 +906,7 @@ def setup_advection_diffusion_kle_inversion_benchmark(
     """
 
     (base_model, variable, true_sample, noiseless_obs, obs, obs_indices,
-     obs_model) = _setup_inverse_advection_diffusion_benchmark(
+     obs_model, kle, mesh) = _setup_inverse_advection_diffusion_benchmark(
          source_amp, source_width, source_loc, nobs, noise_stdev,
          kle_length_scale, kle_stdev, kle_nvars, orders, obs_indices)
     # add wrapper to allow execution times to be captured
@@ -920,7 +920,7 @@ def setup_advection_diffusion_kle_inversion_benchmark(
     attributes = {'negloglike': model, 'variable': variable,
                   "noiseless_obs": noiseless_obs, "obs": obs,
                   "true_sample": true_sample, "obs_indices": obs_indices,
-                  "obs_fun": obs_model}
+                  "obs_fun": obs_model, "KLE": kle, "mesh": mesh}
     return Benchmark(attributes)
 
 

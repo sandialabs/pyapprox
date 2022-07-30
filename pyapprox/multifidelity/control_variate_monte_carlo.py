@@ -438,7 +438,7 @@ def allocate_samples_mlmc(cov, costs, target_cost):
 
     II = np.argsort(costs)[::-1]
     if not np.allclose(II, np.arange(nmodels)):
-        print(costs)
+        # print(costs)
         raise ValueError("Models cost do not decrease monotonically")
 
     # compute the variance of the discrepancy
@@ -1513,7 +1513,6 @@ def estimate_model_ensemble_covariance(npilot_samples, generate_samples,
         pilot_random_samples = generate_samples(npilot_samples)
     else:
         pilot_random_samples = generate_samples[:, :npilot_samples]
-    print(pilot_random_samples.shape)
     config_vars = np.arange(nmodels)[np.newaxis, :]
     # append model ids to pilot smaples
     pilot_samples = get_all_sample_combinations(
@@ -1678,7 +1677,7 @@ def round_nsample_ratios(target_cost, costs, nsample_ratios):
         target_cost, costs, nsample_ratios, False)
     nsamples_floor = nsamples_float.astype(int)
     if nsamples_floor[0] < 1 and nsamples_float[0] < 1-1e-8:
-        print(nsamples_floor[0], nsamples_float[0], nsamples_float[0]-1, costs)
+        # print(nsamples_floor[0], nsamples_float[0], nsamples_float[0]-1, costs)
         raise Exception("Rounding likely caused nhf samples to be zero")
     elif nsamples_floor[0] < 1:
         nsamples_floor[0] = 1

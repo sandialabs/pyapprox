@@ -131,8 +131,8 @@ class TestPDEBenchmarks(unittest.TestCase):
             cartesian_mesh_solution_functional, xx, tt=tt)
 
         benchmark = setup_benchmark(
-            "multi_index_advection_diffusion", nvars=nvars,
-            kle_length_scale=length_scale, kle_sigma=sigma,
+            "multi_index_advection_diffusion", kle_nvars=nvars,
+            kle_length_scale=length_scale, kle_stdev=sigma,
             config_values=config_values, time_scenario=time_scenario,
             functional=functional)
         model, variable = benchmark.fun, benchmark.variable
@@ -174,8 +174,8 @@ class TestPDEBenchmarks(unittest.TestCase):
         # plt.show()
 
         benchmark = setup_benchmark(
-            "multi_index_advection_diffusion", nvars=nvars,
-            kle_length_scale=length_scale, kle_sigma=sigma,
+            "multi_index_advection_diffusion", kle_nvars=nvars,
+            kle_length_scale=length_scale, kle_stdev=sigma,
             config_values=config_values, time_scenario=time_scenario,
             functional=None)
         model, variable = benchmark.fun, benchmark.variable

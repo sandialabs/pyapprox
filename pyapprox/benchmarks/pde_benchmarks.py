@@ -362,22 +362,35 @@ def _setup_inverse_advection_diffusion_benchmark(
         inv_functional, inv_functional_deriv_funs, newton_kwargs=newton_kwargs)
 
     return (inv_model, variable, true_kle_params, noiseless_obs, obs,
-            obs_indices, obs_model)
+            obs_indices, obs_model, obs_model._kle,
+            obs_model._fwd_solver.residual.mesh)
 
 
 def _setup_multi_index_advection_diffusion_benchmark(
         length_scale, sigma, nvars, time_scenario=None,
         functional=None, config_values=None):
 
+    if time_scenario is True:
+        time_scenario = {
+            "final_time": 0.2,
+            "butcher_tableau": "im_crank2",
+            "deltat": 0.1,  # default will be overwritten
+            "init_sol_fun": None,
+            "sink": [50, 0.1, [0.75, 0.75]]
+        }
+
     amp, scale = 100.0, 0.1
     loc = torch.tensor([0.25, 0.75])[:, None]
 
     newton_kwargs = {"maxiters": 1, "rel_error": False}
     if config_values is None:
-        config_values = [2*np.arange(1, 11)+1, 2*np.arange(1, 11)+1]
+        nlevels = 2
+        config_values = [
+            2+4*np.arange(1, 1+nlevels)+1,
+            2+4*np.arange(1, 1+nlevels)+1]
         if time_scenario is not None:
             config_values += [
-                time_scenario["final_time"]/(2**np.arange(1, 11))]
+                time_scenario["final_time"]/(4**np.arange(2, 2+nlevels))]
 
     if functional is None:
         subdomain_bounds = np.array([0.75, 1, 0, 0.25])

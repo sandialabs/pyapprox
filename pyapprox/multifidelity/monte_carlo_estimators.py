@@ -816,7 +816,7 @@ class ACVGMFBEstimator(ACVGMFEstimator):
                 best_variance = self.optimized_variance
         self.set_recursion_index(best_result[3])
         self.set_optimized_params(*best_result[:3])
-        # print("Best", self.recursion_index)
+        return best_result[:3]
 
 
 class ACVMFEstimator(AbstractNumericalACVEstimator):
