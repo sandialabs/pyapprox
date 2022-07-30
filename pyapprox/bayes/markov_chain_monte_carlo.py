@@ -289,6 +289,109 @@ class MCMCVariable(JointVariable):
         #     -self._negloglike(map_sample)))
         return vals[:, None]
 
+    def _unnormalized_pdf_for_marginalization(self, sub_indices, samples):
+        marginal_pdf_vals = self._variable.evaluate("pdf", samples)
+        sub_pdf_vals = marginal_pdf_vals[sub_indices, :].prod(axis=0)
+        nll_vals = self._loglike(samples).squeeze()
+        # only use sub_pdf_vals. The other vals will be accounted for
+        # with quadrature rule used to marginalize
+        return np.exp(nll_vals+np.log(sub_pdf_vals))[:, None]
+
+    def marginalize_unnormalized_pdf(self, sub_indices, sub_samples,
+                                     quad_degrees):
+        from pyapprox.surrogates.polychaos.gpc import _marginalize_function_nd
+        from functools import partial
+        return _marginalize_function_nd(
+            partial(self.unnormalized_pdf, sub_indices),
+            self._variable, quad_degrees, sub_indices, sub_samples)
+
+    def plot_2d_marginals(self, nsamples_1d=100, variable_pairs=None,
+                          subplot_tuple=None, qoi=0, num_contour_levels=20,
+                          plot_samples=None):
+        from pyapprox.variables.joint import get_truncated_range
+        from pyapprox.surrogates.interp.indexing import (
+            compute_anova_level_indices)
+        from pyapprox.util.configure_plots import plt
+        from pyapprox.util.visualization import get_meshgrid_samples
+        from functools import partial
+
+        if variable_pairs is None:
+            variable_pairs = np.array(
+                compute_anova_level_indices(self._variable.num_vars(), 2))
+            # make first column values vary fastest so we plot lower triangular
+            # matrix of subplots
+            variable_pairs[:, 0], variable_pairs[:, 1] = \
+                variable_pairs[:, 1].copy(), variable_pairs[:, 0].copy()
+
+        if variable_pairs.shape[1] != 2:
+            raise ValueError("Variable pairs has the wrong shape")
+
+        if subplot_tuple is None:
+            nfig_rows, nfig_cols = (
+                self._variable.num_vars(), self._variable.num_vars())
+        else:
+            nfig_rows, nfig_cols = subplot_tuple
+
+        if nfig_rows*nfig_cols < len(variable_pairs):
+            raise ValueError("Number of subplots is insufficient")
+
+        fig, axs = plt.subplots(
+            nfig_rows, nfig_cols)#, figsize=(nfig_cols*8, nfig_rows*6))
+        all_variables = self._variable.marginals()
+
+        if plot_samples is not None and type(plot_samples) == np.ndarray:
+            plot_samples = [[plot_samples, 'ko']]
+
+        for ii, var in enumerate(all_variables):
+            lb, ub = get_truncated_range(var)
+            quad_degrees = np.array([20]*(self._variable.num_vars()-1))
+            samples_ii = np.linspace(lb, ub, nsamples_1d)
+            from pyapprox.surrogates.polychaos.gpc import (
+                _marginalize_function_1d, _marginalize_function_nd)
+            values = _marginalize_function_1d(
+                partial(self._unnormalized_pdf_for_marginalization,
+                        np.array([ii])),
+                self._variable, quad_degrees, ii, samples_ii, qoi=0)
+            axs[ii][ii].plot(samples_ii, values)
+            if plot_samples is not None:
+                for s in plot_samples:
+                    axs[ii][ii].plot(s[0][ii, :], s[0][ii, :]*0, s[1])
+
+        for ii, pair in enumerate(variable_pairs):
+            # use pair[1] for x and pair[0] for y because we reverse
+            # pairs above
+            var1, var2 = all_variables[pair[1]], all_variables[pair[0]]
+            axs[pair[1], pair[0]].axis("off")
+            lb1, ub1 = get_truncated_range(var1)
+            lb2, ub2 = get_truncated_range(var2)
+            X, Y, samples_2d = get_meshgrid_samples(
+                [lb1, ub1, lb2, ub2], nsamples_1d)
+            quad_degrees = np.array([10]*(self._variable.num_vars()-2))
+            values = _marginalize_function_nd(
+                partial(self._unnormalized_pdf_for_marginalization,
+                        np.array([pair[1], pair[0]])),
+                self._variable, quad_degrees, np.array([pair[1], pair[0]]),
+                samples_2d, qoi=qoi)
+            Z = np.reshape(values, (X.shape[0], X.shape[1]))
+            ax = axs[pair[0]][pair[1]]
+            # place a text box in upper left in axes coords
+            props = dict(boxstyle='round', facecolor='white', alpha=0.5)
+            ax.text(0.05, 0.95, r"$(\mathrm{%d, %d})$" % (pair[1], pair[0]),
+                    transform=ax.transAxes, fontsize=14,
+                    verticalalignment='top', bbox=props)
+            ax.contourf(
+                X, Y, Z, levels=np.linspace(Z.min(), Z.max(),
+                                            num_contour_levels),
+                cmap='jet')
+            if plot_samples is not None:
+                for s in plot_samples:
+                    # use pair[1] for x and pair[0] for y because we reverse
+                    # pairs above
+                    axs[pair[0]][pair[1]].plot(
+                        s[0][pair[1], :], s[0][pair[0], :], s[1])
+
+        return fig, axs
+
 
 def run_bayesian_inference_gaussian_error_model(
         loglike, variable, nsamples, nburn, njobs,
