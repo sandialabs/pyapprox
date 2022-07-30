@@ -258,6 +258,8 @@ class RandomGaussianProcessRealizations:
                 Kmatrix, ninterpolation_samples,
                 init_pivots=init_pivots, pivot_weights=None,
                 error_on_small_tol=False, return_full=False, econ=True)
+            print("Realization log10 cond num",
+                  np.log10(np.linalg.cond(L.T.dot(L))))
             if chol_flag > 0:
                 pivots = pivots[:-1]
                 msg = "Number of samples used for interpolation "
@@ -877,7 +879,7 @@ def integrate_gaussian_process_squared_exponential_kernel(
 
 
 def generate_gp_candidate_samples(nvars, num_candidate_samples,
-                               generate_random_samples, variables):
+                                  generate_random_samples, variable):
     if generate_random_samples is not None:
         num_halton_candidates = num_candidate_samples//2
         num_random_candidates = num_candidate_samples//2
@@ -885,22 +887,25 @@ def generate_gp_candidate_samples(nvars, num_candidate_samples,
         num_halton_candidates = num_candidate_samples
         num_random_candidates = 0
 
-    if variables is None:
-        marginal_icdfs = None
-    else:
-        # marginal_icdfs = [v.ppf for v in self.variables]
-        from scipy import stats
-        marginal_icdfs = []
-        # spread QMC samples over entire domain. Range of variable
-        # is used but not its PDF
-        for v in variables.marginals():
-            lb, ub = v.interval(1)
-            if not np.isfinite(lb) or not np.isfinite(ub):
-                lb, ub = v.interval(1-1e-6)
-            marginal_icdfs.append(stats.uniform(lb, ub-lb).ppf)
+    # if variable is None:
+    #     marginal_icdfs = None
+    # else:
+    #     # marginal_icdfs = [v.ppf for v in self.variable]
+    #     from scipy import stats
+    #     marginal_icdfs = []
+    #     # spread QMC samples over entire domain. Range of variable
+    #     # is used but not its PDF
+    #     for v in variable.marginals():
+    #         lb, ub = v.interval(1)
+    #         if not np.isfinite(lb) or not np.isfinite(ub):
+    #             lb, ub = v.interval(1-1e-6)
+    #         marginal_icdfs.append(stats.uniform(lb, ub-lb).ppf)
 
-    candidate_samples = transformed_halton_sequence(
-        marginal_icdfs, nvars, num_halton_candidates)
+    # candidate_samples = transformed_halton_sequence(
+    #     marginal_icdfs, nvars, num_halton_candidates)
+    from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence
+    candidate_samples = sobol_sequence(nvars, num_halton_candidates, 1,
+                                       variable)
 
     if num_random_candidates > 0:
         candidate_samples = np.hstack((
@@ -954,20 +959,20 @@ class CholeskySampler(object):
         False - pivot to minimize trace norm of low-rank approximation
     """
 
-    def __init__(self, num_vars, num_candidate_samples, variables=None,
+    def __init__(self, num_vars, num_candidate_samples, variable=None,
                  generate_random_samples=None, init_pivots=None,
                  nugget=0, econ=True, gen_candidate_samples=None,
                  var_trans=None):
         self.nvars = num_vars
         self.kernel_theta = None
         self.chol_flag = None
-        self.variables = variables
+        self.variable = variable
         self.generate_random_samples = generate_random_samples
         if gen_candidate_samples is None:
             gen_candidate_samples = partial(
                 generate_gp_candidate_samples, self.nvars,
                 generate_random_samples=self.generate_random_samples,
-                variables=self.variables)
+                variable=self.variable)
         self.var_trans = var_trans
         self.set_candidate_samples(
             gen_candidate_samples(num_candidate_samples))
@@ -1486,7 +1491,7 @@ class IVARSampler(object):
         by this function and the other half of samples will be from a Halton
         sequence.
 
-    variables : :class:`pyapprox.variable.IndependentMarginalsVariable`
+    variable : :class:`pyapprox.variable.IndependentMarginalsVariable`
         A set of independent univariate random variables. The tensor-product
         of the 1D PDFs yields the joint density :math:`\rho`. The bounds and
         CDFs of these variables are used to transform the Halton sequence used
@@ -1509,7 +1514,7 @@ class IVARSampler(object):
     """
 
     def __init__(self, num_vars, nquad_samples,
-                 ncandidate_samples, generate_random_samples, variables=None,
+                 ncandidate_samples, generate_random_samples, variable=None,
                  greedy_method='ivar', use_gauss_quadrature=False,
                  nugget=0):
         self.nvars = num_vars
@@ -1518,7 +1523,7 @@ class IVARSampler(object):
         self.use_gauss_quadrature = use_gauss_quadrature
         self.pred_samples = generate_random_samples(self.nquad_samples)
         self.ncandidate_samples = ncandidate_samples
-        self.variables = variables
+        self.variable = variable
         self.generate_random_samples = generate_random_samples
         self.nugget = nugget
         self.ntraining_samples = 0
@@ -1532,7 +1537,7 @@ class IVARSampler(object):
             self.precompute_gauss_quadrature()
             self.objective = self.quadrature_objective
             self.objective_gradient = self.quadrature_objective_gradient
-            assert self.greedy_sampler.variables is not None
+            assert self.greedy_sampler.variable is not None
         else:
             self.objective = self.monte_carlo_objective
             self.objective_gradient = self.monte_carlo_objective_gradient
@@ -1540,12 +1545,12 @@ class IVARSampler(object):
     def initialize_greedy_sampler(self):
         if self.greedy_method == 'chol':
             self.greedy_sampler = CholeskySampler(
-                self.nvars, self.ncandidate_samples, self.variables,
+                self.nvars, self.ncandidate_samples, self.variable,
                 generate_random_samples=self.generate_random_samples)
         elif self.greedy_method == 'ivar':
             self.greedy_sampler = GreedyIntegratedVarianceSampler(
                 self.nvars, self.nquad_samples, self.ncandidate_samples,
-                self.generate_random_samples, self.variables,
+                self.generate_random_samples, self.variable,
                 use_gauss_quadrature=self.use_gauss_quadrature, econ=True,
                 nugget=self.nugget)
         else:
@@ -1556,7 +1561,7 @@ class IVARSampler(object):
         degrees = [min(100, self.nquad_samples)]*self.nvars
         self.univariate_quad_rules = \
             get_univariate_quadrature_rules_from_variable(
-                self.greedy_sampler.variables, np.asarray(degrees)+1, False)
+                self.greedy_sampler.variable, np.asarray(degrees)+1, False)
         self.quad_rules = []
         for ii in range(self.nvars):
             xx_1d, ww_1d = self.univariate_quad_rules[ii](degrees[ii]+1)
@@ -1648,10 +1653,10 @@ class IVARSampler(object):
         self.optim_opts = opts.copy()
 
     def set_bounds(self, nsamples):
-        if self.greedy_sampler.variables is None:
+        if self.greedy_sampler.variable is None:
             lbs, ubs = np.zeros(self.nvars), np.ones(self.nvars)
         else:
-            variables = self.greedy_sampler.variables.marginals()
+            variables = self.greedy_sampler.variable.marginals()
             lbs = [v.interval(1)[0] for v in variables]
             ubs = [v.interval(1)[1] for v in variables]
         lbs = np.repeat(lbs, nsamples)
@@ -1780,12 +1785,12 @@ class GreedyVarianceOfMeanSampler(object):
     """
 
     def __init__(self, num_vars, nquad_samples,
-                 ncandidate_samples, generate_random_samples, variables=None,
+                 ncandidate_samples, generate_random_samples, variable=None,
                  use_gauss_quadrature=False, econ=True,
                  compute_cond_nums=False, nugget=0):
         self.nvars = num_vars
         self.nquad_samples = nquad_samples
-        self.variables = variables
+        self.variable = variable
         self.ntraining_samples = 0
         self.training_samples = np.empty((num_vars, self.ntraining_samples))
         self.generate_random_samples = generate_random_samples
@@ -1794,7 +1799,7 @@ class GreedyVarianceOfMeanSampler(object):
 
         self.candidate_samples = generate_gp_candidate_samples(
             self.nvars, ncandidate_samples, generate_random_samples,
-            self.variables)
+            self.variable)
         self.nsamples_requested = []
         self.pivots = []
         self.cond_nums = []
@@ -1840,7 +1845,7 @@ class GreedyVarianceOfMeanSampler(object):
         return xx_1d, ww_1d
 
     def precompute_gauss_quadrature(self):
-        nvars = self.variables.num_vars()
+        nvars = self.variable.num_vars()
         length_scale = self.kernel.length_scale
         if np.isscalar(length_scale):
             length_scale = [length_scale]*nvars
@@ -1848,7 +1853,7 @@ class GreedyVarianceOfMeanSampler(object):
 
         self.univariate_quad_rules = \
             get_univariate_quadrature_rules_from_variable(
-                self.variables, np.asarray(self.degrees)+1, False)
+                self.variable, np.asarray(self.degrees)+1, False)
         # dist_func = partial(cdist, metric='sqeuclidean')
         self.tau = 1
 
@@ -2183,7 +2188,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
             length_scale = np.array([length_scale]*self.nvars)
         self.univariate_quad_rules = \
             get_univariate_quadrature_rules_from_variable(
-                self.variables, np.array(self.degrees)+1, False)
+                self.variable, np.array(self.degrees)+1, False)
         self.P = 1
         for ii in range(self.nvars):
             xx_1d, ww_1d = self.get_univariate_quadrature_rule(ii)
@@ -2505,7 +2510,7 @@ def _compute_expected_sobol_indices(
         P_mod_list.append(compute_conditional_P(xx_1d, ww_1d, xtr, lscale[ii]))
 
     cond_num = np.linalg.cond(K_inv)
-    print(np.log10(cond_num))
+    print("Kernel log10 Cond Num", np.log10(cond_num))
     if cond_num > 1e11:
         msg = "Condition number of kernel matrix is to high."
         msg += f" Log10 condition number is {np.log10(cond_num)}. "
@@ -2597,17 +2602,45 @@ def _compute_expected_sobol_indices(
     if np.any(expected_random_var < 0):
         msg = "Some expected variances were negative. "
         msg += "Likely due to ill conditioning "
-        msg += "of GP kernel. Try increaseing alpha"
+        msg += "of GP kernel. Samlpes used to generate GP realization "
+        msg += "are likely ill conditioned. Try increasing alpha "
+        msg += "(not used to fit gp) but used to generate realizations"
+        msg += "or reduce ninterpolation_samples"
         raise RuntimeError(msg)
 
-    if np.any(unnormalized_sobol_indices.max(axis=0) > expected_random_var):
+    if np.any(unnormalized_sobol_indices.max(axis=0) > expected_random_var+1e-6):
+        print('relative max diff',
+              ((unnormalized_sobol_indices.max(axis=0)-expected_random_var)/
+               expected_random_var).max())
         msg = "Some Sobol indices were larger than the variance. "
         msg += "Likely due to ill conditioning "
-        msg += "of GP kernel. Try increaseing alpha"
+        msg += "of GP kernel. Samlpes used to generate GP realization "
+        msg += "are likely ill conditioned. Try increasing alpha "
+        msg += "(not used to fit gp) but used to generate realizations"
+        msg += "or reduce ninterpolation_samples"
         raise RuntimeError(msg)
+        # import warnings
+        # warnings.warn(msg)
+
+    total_effect_indices = (
+        1-unnormalized_total_effect_values/expected_random_var)
+    if np.any(total_effect_indices < 0):
+        print('relative max diff',
+              ((unnormalized_total_effect_values.max(axis=0) -
+                expected_random_var)/expected_random_var).max())
+        print(total_effect_indices)
+        msg = "Some total effect values were negative. "
+        msg += "Likely due to ill conditioning "
+        msg += "of GP kernel. Samlpes used to generate GP realization "
+        msg += "are likely ill conditioned. Try increasing alpha "
+        msg += "(not used to fit gp) but used to generate realizations"
+        msg += "or reduce ninterpolation_samples"
+        raise RuntimeError(msg)
+        # import warnings
+        # warnings.warn(msg)
 
     return unnormalized_sobol_indices/expected_random_var, \
-        1-unnormalized_total_effect_values/expected_random_var, \
+        total_effect_indices, \
         expected_random_mean, expected_random_var
 
 
@@ -2623,7 +2656,8 @@ def generate_gp_realizations(gp, ngp_realizations, ninterpolation_samples,
             generate_independent_random_samples, variable)
     else:
         generate_random_samples = None
-    from pyapprox.surrogates.gaussianprocess.gaussian_process import generate_gp_candidate_samples
+    from pyapprox.surrogates.gaussianprocess.gaussian_process import (
+        generate_gp_candidate_samples)
     candidate_samples = generate_gp_candidate_samples(
         variable.num_vars(), ncandidate_samples, generate_random_samples,
         variable)

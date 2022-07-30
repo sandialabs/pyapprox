@@ -176,7 +176,6 @@ def plot_sensitivity_indices_with_confidence_intervals(
         labels, ax, sa_indices_median, sa_indices_q1, sa_indices_q3,
         sa_indices_min, sa_indices_max, reference_values=None, fliers=None):
     nindices = len(sa_indices_median)
-    assert len(sa_indices_median) == nindices
     assert len(labels) == nindices
     if reference_values is not None:
         assert len(reference_values) == nindices
@@ -222,7 +221,7 @@ def plot_sensitivity_indices_with_confidence_intervals(
 def plot_total_effects(total_effects, ax, truncation_pct=0.95,
                        rv='z', qoi=0):
     r"""
-    Plot the total effects in a pie chart showing relative size.
+    Plot the total effects in a bar chart showing relative size.
 
     Parameters
     ----------
@@ -847,9 +846,13 @@ def sampling_based_sobol_indices(
     return sobol_indices, total_effect_values, variance, mean
 
 
-def repeat_sampling_based_sobol_indices(fun, variables, interaction_terms,
-                                        nsamples, sampling_method,
-                                        nsobol_realizations):
+def repeat_sampling_based_sobol_indices(
+        fun, variable, interaction_terms=None,
+        nsamples=1000,
+        sampling_method="random",
+        nsobol_realizations=10,
+        summary_stats=["mean", "median", "min", "max", "quantile-0.25",
+                       "quantile-0.75"]):
     """
     Compute sobol indices for different sample sets. This allows estimation
     of error due to finite sample sizes. This function requires evaluting
@@ -859,11 +862,17 @@ def repeat_sampling_based_sobol_indices(fun, variables, interaction_terms,
     realization of a Gaussian process requires the Cholesky decomposition
     of a nsamples x nsamples matrix which becomes to costly for nsamples >1000
     """
+    if interaction_terms is None:
+        interaction_terms = get_isotropic_anova_indices(
+            variable.num_vars(), 2)
+
+    stat_functions = _get_stats_functions(summary_stats)
+
     means, variances, sobol_values,  total_values = [], [], [], []
     qmc_start_index = 0
     for ii in range(nsobol_realizations):
         sv, tv, vr, me = sampling_based_sobol_indices(
-            fun, variables, interaction_terms, nsamples,
+            fun, variable, interaction_terms, nsamples,
             sampling_method='sobol', qmc_start_index=qmc_start_index)
         means.append(me)
         variances.append(vr)
@@ -874,20 +883,27 @@ def repeat_sampling_based_sobol_indices(fun, variables, interaction_terms,
     variances = np.asarray(variances)
     sobol_values = np.asarray(sobol_values)
     total_values = np.asarray(total_values)
-    return sobol_values, total_values, variances, means
+
+    result = dict()
+    interaction_terms = [
+        np.where(index > 0)[0]
+        for index in interaction_terms.T]
+
+    result["sobol_interaction_indices"] = interaction_terms
+    data = [sobol_values, total_values, variances, means]
+    data_names = ['sobol_indices', 'total_effects', 'variance', 'mean']
+    for item, name in zip(data, data_names):
+        subdict = dict()
+        for ii, sfun in enumerate(stat_functions):
+            subdict[sfun.__name__] = sfun(item, axis=(0))
+        subdict['values'] = item
+        result[name] = subdict
+
+    # return sobol_values, total_values, variances, means
+    return result
 
 
-def analytic_sobol_indices_from_gaussian_process(
-        gp, variable, interaction_terms=None, ngp_realizations=1,
-        summary_stats=["mean", "median", "min", "max", "quantile-0.25",
-                       "quantile-0.75"],
-        ninterpolation_samples=500, nvalidation_samples=100,
-        ncandidate_samples=1000, nquad_samples=50, use_cholesky=True,
-        alpha=1e-8):
-
-    if not issubclass(gp.__class__, GaussianProcess):
-        raise ValueError("Argument gp must be a Gaussian process")
-
+def _get_stats_functions(summary_stats):
     quantile_stats = []
     for q in [0.25, 0.75]:
         sfun = partial(np.quantile, q=q)
@@ -906,6 +922,25 @@ def analytic_sobol_indices_from_gaussian_process(
             msg += f"Select from {list(stat_functions_dict.keys())}"
             raise ValueError(msg)
     stat_functions = [stat_functions_dict[name] for name in summary_stats]
+    return stat_functions
+
+
+def analytic_sobol_indices_from_gaussian_process(
+        gp, variable, interaction_terms=None, ngp_realizations=1000,
+        summary_stats=["mean", "median", "min", "max", "quantile-0.25",
+                       "quantile-0.75"],
+        ninterpolation_samples=None, nvalidation_samples=100,
+        ncandidate_samples=1000, nquad_samples=50, use_cholesky=True,
+        alpha=1e-8):
+
+    if ninterpolation_samples is None:
+        ninterpolation_samples = 5*gp.num_training_samples()
+    print(ninterpolation_samples)
+
+    if not issubclass(gp.__class__, GaussianProcess):
+        raise ValueError("Argument gp must be a Gaussian process")
+
+    stat_functions = _get_stats_functions(summary_stats)
 
     if interaction_terms is None:
         interaction_terms = get_isotropic_anova_indices(
@@ -926,6 +961,8 @@ def analytic_sobol_indices_from_gaussian_process(
         realization_vals = gp_realizations(validation_samples)
         # print(mean_vals[:, 0].mean())
         # print(std,realization_vals.std(axis=1))
+        # this checks the accuracy of the number of realizations.
+        # error will decrease with number of samples
         print('std of realizations error',
               np.linalg.norm(std-realization_vals.std(axis=1))/np.linalg.norm(
                   std))
@@ -954,6 +991,10 @@ def analytic_sobol_indices_from_gaussian_process(
     total_values = total_values.T
 
     result = dict()
+    interaction_terms = [
+        np.where(index > 0)[0]
+        for index in interaction_terms.T]
+
     result["sobol_interaction_indices"] = interaction_terms
     data = [sobol_values, total_values, variances, means]
     data_names = ['sobol_indices', 'total_effects', 'variance', 'mean']
@@ -1180,17 +1221,39 @@ def run_sensitivity_analysis(method, fun, variable, *args, **kwargs):
 
         - :func:`pyapprox.analysis.sensitivity_analysis.analytic_sobol_indices_from_gaussian_process`
 
+        - : func:`pyapprox.analysis.sensitivity_analysis.sparse_grid_sobol_sensitivities`
+
     Returns
     -------
     result : SensitivityResult
        Object containing the sensitivity indices
     """
+    from pyapprox.surrogates.polychaos.adaptive_polynomial_chaos import (
+        AdaptiveInducedPCE)
+    from pyapprox.surrogates.interp.adaptive_sparse_grid import (
+        CombinationSparseGrid)
+    if method == "surrogate_sobol":
+        if issubclass(type(fun), GaussianProcess):
+            method = "gp_sobol"
+        elif issubclass(type(fun), AdaptiveInducedPCE):
+            method = "pce_sobol"
+            fun = fun.pce
+        elif type(fun) == PolynomialChaosExpansion:
+            method = "pce_sobol"
+        elif type(fun) == CombinationSparseGrid:
+            method = "sg_sobol"
+        else:
+            msg = "Surrogate specific computation requested, but fun"
+            msg += "is not a type of surrogate supported"
+            raise ValueError(msg)
+
     methods = {
-        "sobol": sampling_based_sobol_indices,
+        "sobol": repeat_sampling_based_sobol_indices,
         "bin_sobol": bootstrapped_borgonovo_sensivities,
         "morris": morris_sensitivities,
         "pce_sobol": gpc_sobol_sensitivities,
-        "gp_sobol": analytic_sobol_indices_from_gaussian_process}
+        "gp_sobol": analytic_sobol_indices_from_gaussian_process,
+        "sg_sobol": sparse_grid_sobol_sensitivities}
 
     if method not in methods:
         msg = f'Method "{method}" not found.\n Available methods are:\n'
@@ -1208,17 +1271,60 @@ def get_isotropic_anova_indices(nvars, order):
     return interaction_terms
 
 
+def _plot_sensitivity_indices(labels, ax, sa_indices):
+    nindices = len(sa_indices)
+    assert len(labels) == nindices
+    locations = np.arange(sa_indices.shape[0])
+    bp = ax.bar(locations, sa_indices[:, 0])
+    ax.set_xticks(locations)
+    ax.set_xticklabels(labels, rotation=45)
+    return bp
+
+
+def _get_sobol_indices_labels(result):
+    interaction_terms = result["sobol_interaction_indices"]
+    rv = 'z'
+    labels = []
+    for ii in range(len(interaction_terms)):
+        ll = '($'
+        for jj in range(len(interaction_terms[ii])-1):
+            ll += '%s_{%d},' % (rv, interaction_terms[ii][jj]+1)
+        ll += '%s_{%d}$)' % (rv, interaction_terms[ii][-1]+1)
+        labels.append(ll)
+    print(interaction_terms)
+    print(labels)
+    return labels
+
+
 def plot_sensitivity_indices_with_confidence_intervals_from_result(
         result, axs=None, include_vars=None):
-    nvars = len(result['total_effects']['median'])
-    if include_vars is None:
-        include_vars = np.arange(nvars, dtype=int)
-
     import matplotlib.pyplot as plt
     if axs is None:
         fig, axs = plt.subplots(1, 3, figsize=(3*8, 6), sharey=True)
 
-    rv = 'z'
+    rv = "z"
+
+    if type(result["sobol_indices"]) == np.ndarray:
+        nvars = len(result['total_effects'])
+        if include_vars is None:
+            include_vars = np.arange(nvars, dtype=int)
+
+        labels = [r'$%s_{%d}$' % (rv, ii+1) for ii in include_vars]
+        im0 = _plot_sensitivity_indices(
+            labels, axs[0], result["sobol_indices"][:nvars][include_vars])
+        im1 = _plot_sensitivity_indices(
+            labels, axs[1], result["total_effects"][include_vars])
+        II = np.argsort(result["sobol_indices"][:, 0])[-10:][::-1]
+        labels = _get_sobol_indices_labels(result)
+        labels = [labels[ii] for ii in II]
+        im2 = _plot_sensitivity_indices(
+            labels, axs[2], result["sobol_indices"][II])
+        return [im0, im1, im2], axs
+
+    nvars = len(result['total_effects']['median'])
+    if include_vars is None:
+        include_vars = np.arange(nvars, dtype=int)
+
     im0 = plot_sensitivity_indices_with_confidence_intervals(
         [r'$%s_{%d}$' % (rv, ii+1) for ii in include_vars], axs[0],
         result["sobol_indices"]["median"][:nvars][include_vars],
@@ -1235,18 +1341,9 @@ def plot_sensitivity_indices_with_confidence_intervals_from_result(
         result["total_effects"]["amin"][include_vars],
         result["total_effects"]["amax"][include_vars])
 
-    labels = []
     # sort sobol indices largest to smallest values left to right
-    II = np.argsort(result["sobol_indices"]["median"])[-10:][::-1]
-    interaction_terms = [
-        np.where(index > 0)[0]
-        for index in result["sobol_interaction_indices"].T]
-    for ii in range(len(interaction_terms)):
-        ll = '($'
-        for jj in range(len(interaction_terms[ii])-1):
-            ll += '%s_{%d},' % (rv, interaction_terms[ii][jj]+1)
-        ll += '%s_{%d}$)' % (rv, interaction_terms[ii][-1]+1)
-        labels.append(ll)
+    II = np.argsort(result["sobol_indices"]["median"].squeeze())[-10:][::-1]
+    labels = _get_sobol_indices_labels(result)
     labels = [labels[ii] for ii in II]
     median_sobol_indices = result["sobol_indices"]["median"][II]
     q1_sobol_indices = result["sobol_indices"]["quantile-0.25"][II]

@@ -538,7 +538,7 @@ def adaptive_approximate_polynomial_chaos_leja(
 
 
 def adaptive_approximate_gaussian_process(
-        fun, variables, callback=None,
+        fun, variable, callback=None,
         max_nsamples=100, verbose=0, ncandidate_samples=1e4,
         checkpoints=None, nu=np.inf, n_restarts_optimizer=1,
         normalize_y=False, alpha=0,
@@ -577,7 +577,7 @@ def adaptive_approximate_gaussian_process(
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nsamples,nqoi)
 
-    variables : IndependentMarginalsVariable
+    variable : IndependentMarginalsVariable
         A set of independent univariate random variables
 
     callback : callable
@@ -668,10 +668,10 @@ def adaptive_approximate_gaussian_process(
     """
     assert max_nsamples <= ncandidate_samples
 
-    nvars = variables.num_vars()
+    nvars = variable.num_vars()
 
     if normalize_inputs:
-        var_trans = AffineTransform(variables)
+        var_trans = AffineTransform(variable)
     else:
         var_trans = None
 
@@ -681,7 +681,7 @@ def adaptive_approximate_gaussian_process(
         noise_level, noise_level_bounds, nu)
 
     sampler = CholeskySampler(
-        nvars, ncandidate_samples, variables,
+        nvars, ncandidate_samples, variable,
         gen_candidate_samples=generate_candidate_samples,
         var_trans=var_trans)
     sampler_kernel = copy.deepcopy(kernel)
@@ -689,7 +689,8 @@ def adaptive_approximate_gaussian_process(
     sampler.set_weight_function(weight_function)
 
     gp = AdaptiveGaussianProcess(
-        kernel, n_restarts_optimizer=n_restarts_optimizer, alpha=alpha)
+        kernel, n_restarts_optimizer=n_restarts_optimizer, alpha=alpha,
+        normalize_y=normalize_y)
     gp.setup(fun, sampler)
     if var_trans is not None:
         gp.set_variable_transformation(var_trans)
@@ -711,8 +712,8 @@ def adaptive_approximate_gaussian_process(
         if chol_flag != 0:
             msg = "Cannot add additional samples. "
             msg += "Kernel is now ill conditioned. "
-            msg += 'If more samples are really required increase alpha or'
-            msg += ' manually fix kernel_length to a smaller value'
+            msg += 'If more samples are really required increase alpha or '
+            msg += 'manually fix kernel_length to a smaller value'
             print('Exiting: ' + msg)
             break
     return ApproximateResult({'approx': gp})

@@ -197,6 +197,7 @@ def sobol_sequence(nvars, nsamples, start_index=0, variable=None):
     samples : np.ndarray (nvars, nsamples)
         The low-discrepancy samples
     """
+    nsamples = int(nsamples)
     samples = _sobol_sequence(nvars, nsamples+start_index)[:, start_index:]
     if variable is None:
         return samples
