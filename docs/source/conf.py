@@ -82,13 +82,6 @@ gallery_dirs = ['auto_tutorials', 'auto_examples']
 
 
 installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
-if 'pyapprox-dev' in installed_pkgs:
-    # add documentation for modules in pyapprox_dev
-    example_dirs += ['../../pyapprox_dev/tutorials']
-    gallery_dirs += ['auto_dev_tutorials']
-    example_filenames_in_order.insert(1, 'plot_advection_diffusion_model.py')
-    example_filenames_in_order.insert(3, 'plot_bayesian_inference.py')
-    example_filenames_in_order.insert(14, 'plot_multi_index_collocation.py')
 
 example_filenames_in_order += [
     'plot_variables.py', 'plot_setup_model.py',
@@ -302,7 +295,7 @@ warnings.filterwarnings("ignore")
 
 
 #-----
-# only document locally defined functios and classes and not imports
+# only document locally defined functions and classes and not imports
 def patch_automodapi(app):
     """Monkey-patch the automodapi extension to exclude imported members"""
     from sphinx_automodapi import automodsumm

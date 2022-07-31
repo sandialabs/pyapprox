@@ -4,7 +4,6 @@ import numpy as np
 from scipy import stats
 from scipy.optimize import OptimizeResult
 
-from pyapprox import PYA_DEV_AVAILABLE
 from pyapprox.benchmarks.sensitivity_benchmarks import (
     get_sobol_g_function_statistics, get_ishigami_funciton_statistics,
     oakley_function, oakley_function_statistics, sobol_g_function,
@@ -464,15 +463,6 @@ def setup_genz_function(nvars, test_name, coefficients=None):
     if test_name == 'corner-peak':
         attributes['variance'] = genz.variance()
     return Benchmark(attributes)
-
-
-if PYA_DEV_AVAILABLE:
-    from pyapprox_dev.fenics_models.advection_diffusion_wrappers import \
-        setup_advection_diffusion_benchmark,\
-        setup_advection_diffusion_source_inversion_benchmark,\
-        setup_multi_level_advection_diffusion_benchmark
-    from pyapprox_dev.fenics_models.helmholtz_benchmarks import \
-        setup_mfnets_helmholtz_benchmark
 
 
 def setup_cantilever_beam_benchmark():
