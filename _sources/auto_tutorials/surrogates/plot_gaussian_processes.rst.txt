@@ -103,7 +103,7 @@ Lets construct a GP with a fixed set of training samples and associated values w
  .. code-block:: none
 
 
-    <matplotlib.collections.PolyCollection object at 0x283ca0f10>
+    <matplotlib.collections.PolyCollection object at 0x289202ee0>
 
 
 

@@ -93,7 +93,7 @@ The :class:`pyapprox.interface.wrappers.WorkTrackingModel` has an attribute :cla
 
  .. code-block:: none
 
-    {(0.0,): [0.05295515060424805, 0.0392458438873291, 0.04218101501464844, 0.05422019958496094, 0.025912046432495117, 0.03179216384887695, 0.03925013542175293, 0.026505231857299805, 0.015564203262329102, 0.0067598819732666016]}
+    {(0.0,): [0.02132105827331543, 0.022835969924926758, 0.01914691925048828, 0.03522205352783203, 0.014729022979736328, 0.01850295066833496, 0.017922163009643555, 0.0004851818084716797, 0.024309873580932617, 0.003284931182861328]}
 
 
 
@@ -120,7 +120,7 @@ We can also call the work tracker to query the median cost for a model with a gi
 
  .. code-block:: none
 
-    [0.035519]
+    [0.01882493]
 
 
 
@@ -224,8 +224,8 @@ Again we can query the execution times of each model
 
  .. code-block:: none
 
-    {(0.0,): [0.01680612564086914, 0.04378080368041992, 0.03605318069458008, 0.04554915428161621, 0.02942800521850586], (1.0,): [0.06260919570922852, 0.08654308319091797, 0.06752204895019531, 0.05702018737792969, 0.10064888000488281]}
-    [0.03605318 0.06752205]
+    {(0.0,): [0.04898500442504883, 0.03916597366333008, 0.03520607948303223, 0.04252815246582031, 0.046154022216796875], (1.0,): [0.09010577201843262, 0.08031487464904785, 0.06099891662597656, 0.075347900390625, 0.08440995216369629]}
+    [0.04252815 0.08031487]
 
 
 
@@ -289,9 +289,9 @@ be used with WorkTrackingModel using the sequence of wrappers below.
 
  .. code-block:: none
 
-    With 1 threads that took 0.4695601463317871 seconds
+    With 1 threads that took 0.4999558925628662 seconds
     Warning set OMP_NUM_THREADS=1 for best performance
-    With 4 threads that took 1.2888720035552979 seconds
+    With 4 threads that took 1.3525471687316895 seconds
 
 
 
@@ -320,8 +320,8 @@ costs are still being recorded correctly
 
     WorkTracker Cost Summary
     Funtion ID Median Cost
-    (0.0,)     0.02170383930206299
-    (1.0,)     0.07232356071472168
+    (0.0,)     0.03349864482879639
+    (1.0,)     0.07781469821929932
 
 
 
@@ -355,7 +355,7 @@ PoolModel cannot be used with lambda functions. You will get error similar to pi
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  3.179 seconds)
+   **Total running time of the script:** ( 0 minutes  3.202 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_interface.py:

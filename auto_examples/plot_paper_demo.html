@@ -125,7 +125,6 @@ following the exposition in <a class="reference internal" href="#pyapprox2022" i
 <span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">IndependentMarginalsVariable</span><span class="p">,</span> <span class="n">print_statistics</span><span class="p">,</span> <span class="n">AffineTransform</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span><span class="p">,</span> <span class="n">list_benchmarks</span>
-<span class="kn">from</span> <span class="nn">__util</span> <span class="kn">import</span> <span class="n">pyapprox_fun_1</span><span class="p">,</span> <span class="n">pyapprox_fun_2</span>
 <span class="kn">from</span> <span class="nn">pyapprox.interface.wrappers</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">ModelEnsemble</span><span class="p">,</span> <span class="n">TimerModel</span><span class="p">,</span> <span class="n">WorkTrackingModel</span><span class="p">,</span>
     <span class="n">evaluate_1darray_function_on_2d_array</span><span class="p">)</span>
@@ -142,7 +141,7 @@ following the exposition in <a class="reference internal" href="#pyapprox2022" i
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;torch._C.Generator object at 0x168bb39b0&gt;
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;torch._C.Generator object at 0x153101b10&gt;
 </pre></div>
 </div>
 <p>The tutorial can save the figures to file if desired. If you do want the plots
@@ -185,11 +184,32 @@ max      0.707951   0.987704
 </pre></div>
 </div>
 <p>Pyapprox provides many utilities for interfacing with complex numerical codes
-Below we take two functions, see <a class="reference internal" href="plot_interface.html#sphx-glr-auto-examples-plot-interface-py"><span class="std std-ref">Model interfacing</span></a>
-for thier definitions and show how to use the ModelEnsemble and
+and show how to use the ModelEnsemble and
 WorkTrackingModel to evaluate two models at once and time the wall time
 of each evaluation of each model. The last print statement
-prints the median execution time of each model</p>
+prints the median execution time of each model. First lest defined
+two functions with different execution times that can be evaluated for multiple samples</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">fun_pause_1</span><span class="p">(</span><span class="n">sample</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">sample</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">.05</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sample</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">pyapprox_fun_1</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">evaluate_1darray_function_on_2d_array</span><span class="p">(</span><span class="n">fun_pause_1</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">fun_pause_2</span><span class="p">(</span><span class="n">sample</span><span class="p">):</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">.05</span><span class="p">,</span> <span class="mf">.1</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sample</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">pyapprox_fun_2</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">evaluate_1darray_function_on_2d_array</span><span class="p">(</span><span class="n">fun_pause_2</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now wrap these functions and run them as an ensemble while tracking
+their execution times</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model_ensemble</span> <span class="o">=</span> <span class="n">ModelEnsemble</span><span class="p">([</span><span class="n">pyapprox_fun_1</span><span class="p">,</span> <span class="n">pyapprox_fun_2</span><span class="p">])</span>
 <span class="n">timer_fun_ensemble</span> <span class="o">=</span> <span class="n">TimerModel</span><span class="p">(</span><span class="n">model_ensemble</span><span class="p">)</span>
 <span class="n">worktracking_fun_ensemble</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span>
@@ -203,7 +223,7 @@ prints the median execution time of each model</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.02584195 0.07549787]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.02768397 0.07392693]
 </pre></div>
 </div>
 <p>Pyapprox provide numerous benchmarks for verifying, validating and comparing
@@ -464,7 +484,7 @@ for each run</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance 1.0050816636949258e-10
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance 9.836751142547392e-11
 </pre></div>
 </div>
 <p>Now we can plot the relative performance of the single and multi-fidelity
@@ -507,7 +527,7 @@ is ready to actually estimate the mean QoI they can use</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Mean QoI 0.0009801703794253818
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Mean QoI 0.0010523528378532541
 </pre></div>
 </div>
 <section id="references">
@@ -517,7 +537,7 @@ is ready to actually estimate the mean QoI they can use</p>
 <dd><p><a href="#id2"><span class="problematic" id="id3">`Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022)`_</span></a></p>
 </dd>
 </dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 1 minutes  45.762 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 1 minutes  18.580 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-paper-demo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/4231eb2cab42df6435f116bfe8f5e15a/plot_paper_demo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_paper_demo.py</span></code></a></p>

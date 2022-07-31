@@ -439,7 +439,22 @@ Achieved ACV variance reduction 0.014882794078588198
 <span class="c1">#fig # necessary for jupyter notebook to reshow plot in new cell</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_004.png" srcset="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_004.png" alt="plot many model approximate control variate monte carlo" class = "sphx-glr-single-img"/><p>In this example ACVGMFB is the most efficient estimator, i.e. it has a smaller variance for a fixed cost. However this improvement is problem dependent. For other model ensembles another estimator may be more efficient. Modify the above example to use another model to explore this more. The left plot shows the relative costs of evaluating each model using the ACVMF sampling strategy. Compare this to the MLMC sample allocation. Also edit above code to plot the MFMC sample allocation.</p>
+<img src="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_004.png" srcset="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_004.png" alt="plot many model approximate control variate monte carlo" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;function acv_sample_allocation_nhf_samples_constraint at 0x153d765e0&gt; 29.69160634192939
+&lt;function acv_sample_allocation_gmf_ratio_constraint at 0x153d763a0&gt; 655.8962535637118
+&lt;function acv_sample_allocation_gmf_ratio_constraint at 0x153d763a0&gt; -3.609166299156641e-10
+&lt;function acv_sample_allocation_nlf_gt_nhf_ratio_constraint at 0x153d764c0&gt; 657.8962535433664
+&lt;function acv_sample_allocation_nlf_gt_nhf_ratio_constraint at 0x153d764c0&gt; -1.9984518928595207e-08
+&lt;function acv_sample_allocation_nlf_gt_nhf_ratio_constraint at 0x153d764c0&gt; 0.9999999796545644
+acv weights failed
+acv weights failed
+acv weights failed
+acv weights failed
+acv weights failed
+acv weights failed
+</pre></div>
+</div>
+<p>In this example ACVGMFB is the most efficient estimator, i.e. it has a smaller variance for a fixed cost. However this improvement is problem dependent. For other model ensembles another estimator may be more efficient. Modify the above example to use another model to explore this more. The left plot shows the relative costs of evaluating each model using the ACVMF sampling strategy. Compare this to the MLMC sample allocation. Also edit above code to plot the MFMC sample allocation.</p>
 <p>Before this tutorial ends it is worth noting that a section of the MLMC literature explores adaptive methods which do not assume there is a fixed high-fidelity model but rather attempt to balance the estimator variance with the deterministic bias. These methods add a higher-fidelity model, e.g. a finer finite element mesh, when the variance is made smaller than the bias. We will not explore this here, but an example of this is shown in the tutorial on multi-index collocation.</p>
 <section id="references">
 <h3>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h3>
@@ -451,7 +466,7 @@ Achieved ACV variance reduction 0.014882794078588198
 <dd><p><a class="reference external" href="https://doi.org/10.1016/j.jcp.2021.110882">On the optimization of approximate control variates with parametrically defined estimators, Journal of Computational Physics,451:110882, 2022</a></p>
 </dd>
 </dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  3.223 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  10.631 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-many-model-approximate-control-variate-monte-carlo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/07a14619e25e0504c2e7e19cde82ad9d/plot_many_model_approximate_control_variate_monte_carlo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_many_model_approximate_control_variate_monte_carlo.py</span></code></a></p>

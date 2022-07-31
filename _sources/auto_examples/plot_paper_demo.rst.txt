@@ -25,7 +25,7 @@ following the exposition in [PYAPPROX2022]_.
 
 First lets load all the necessary modules and set the random seeds for reproducibility.
 
-.. GENERATED FROM PYTHON SOURCE LINES 9-35
+.. GENERATED FROM PYTHON SOURCE LINES 9-34
 
 .. code-block:: default
 
@@ -40,7 +40,6 @@ First lets load all the necessary modules and set the random seeds for reproduci
     from pyapprox.variables import (
         IndependentMarginalsVariable, print_statistics, AffineTransform)
     from pyapprox.benchmarks import setup_benchmark, list_benchmarks
-    from __util import pyapprox_fun_1, pyapprox_fun_2
     from pyapprox.interface.wrappers import (
         ModelEnsemble, TimerModel, WorkTrackingModel,
         evaluate_1darray_function_on_2d_array)
@@ -66,16 +65,16 @@ First lets load all the necessary modules and set the random seeds for reproduci
  .. code-block:: none
 
 
-    <torch._C.Generator object at 0x168bb39b0>
+    <torch._C.Generator object at 0x153101b10>
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 36-38
+.. GENERATED FROM PYTHON SOURCE LINES 35-37
 
 The tutorial can save the figures to file if desired. If you do want the plots
 set savefig=True
 
-.. GENERATED FROM PYTHON SOURCE LINES 38-40
+.. GENERATED FROM PYTHON SOURCE LINES 37-39
 
 .. code-block:: default
 
@@ -88,11 +87,11 @@ set savefig=True
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 41-42
+.. GENERATED FROM PYTHON SOURCE LINES 40-41
 
 The following code shows how to create and sample from two independent uniform random variables defined on [−2, 2]. We use uniform variables here, but any marginal from the scipy.stats module can be used.
 
-.. GENERATED FROM PYTHON SOURCE LINES 42-48
+.. GENERATED FROM PYTHON SOURCE LINES 41-47
 
 .. code-block:: default
 
@@ -122,13 +121,13 @@ The following code shows how to create and sample from two independent uniform r
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 49-52
+.. GENERATED FROM PYTHON SOURCE LINES 48-51
 
 PyApprox supports various types of variable transformations. The following code
 shows how to use an affinte transformation to map samples from variables
 to samples from the variable's canonical form.
 
-.. GENERATED FROM PYTHON SOURCE LINES 52-56
+.. GENERATED FROM PYTHON SOURCE LINES 51-55
 
 .. code-block:: default
 
@@ -156,16 +155,50 @@ to samples from the variable's canonical form.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 57-63
+.. GENERATED FROM PYTHON SOURCE LINES 56-62
 
 Pyapprox provides many utilities for interfacing with complex numerical codes
-Below we take two functions, see :ref:`sphx_glr_auto_examples_plot_interface.py`
-for thier definitions and show how to use the ModelEnsemble and
+and show how to use the ModelEnsemble and
 WorkTrackingModel to evaluate two models at once and time the wall time
 of each evaluation of each model. The last print statement
-prints the median execution time of each model
+prints the median execution time of each model. First lest defined
+two functions with different execution times that can be evaluated for multiple samples
 
-.. GENERATED FROM PYTHON SOURCE LINES 63-74
+.. GENERATED FROM PYTHON SOURCE LINES 62-80
+
+.. code-block:: default
+
+    def fun_pause_1(sample):
+        assert sample.ndim == 1
+        time.sleep(np.random.uniform(0, .05))
+        return np.sum(sample**2)
+
+
+    def pyapprox_fun_1(samples):
+        return evaluate_1darray_function_on_2d_array(fun_pause_1, samples)
+
+
+    def fun_pause_2(sample):
+        time.sleep(np.random.uniform(.05, .1))
+        return np.sum(sample**2)
+
+
+    def pyapprox_fun_2(samples):
+        return evaluate_1darray_function_on_2d_array(fun_pause_2, samples)
+
+
+
+
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 81-83
+
+Now wrap these functions and run them as an ensemble while tracking
+their execution times
+
+.. GENERATED FROM PYTHON SOURCE LINES 83-94
 
 .. code-block:: default
 
@@ -190,12 +223,12 @@ prints the median execution time of each model
 
  .. code-block:: none
 
-    [0.02584195 0.07549787]
+    [0.02768397 0.07392693]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 75-82
+.. GENERATED FROM PYTHON SOURCE LINES 95-102
 
 Pyapprox provide numerous benchmarks for verifying, validating and comparing
 model analysis algorithms. The following list the names of all benchmarks and
@@ -205,7 +238,7 @@ determining the true coefficients of the Karhunene Loeve expansion (KLE)
 used to characterize the uncertain diffusivity field of an advection
 diffusion equation. See documentation of the benchmark for more details).
 
-.. GENERATED FROM PYTHON SOURCE LINES 82-89
+.. GENERATED FROM PYTHON SOURCE LINES 102-109
 
 .. code-block:: default
 
@@ -232,11 +265,11 @@ diffusion equation. See documentation of the benchmark for more details).
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 90-91
+.. GENERATED FROM PYTHON SOURCE LINES 110-111
 
 The following plots the modes of the KLE
 
-.. GENERATED FROM PYTHON SOURCE LINES 91-97
+.. GENERATED FROM PYTHON SOURCE LINES 111-117
 
 .. code-block:: default
 
@@ -258,7 +291,7 @@ The following plots the modes of the KLE
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 98-106
+.. GENERATED FROM PYTHON SOURCE LINES 118-126
 
 PyApprox provides many popular methods for constructing surrogates
 that once constructed can be evaluated in place of a computaionally
@@ -269,7 +302,7 @@ Here we use to compute the error of the surrogate as it is constructed using
 validation data. Uncomment the code to use a polynomial based surrogate instead
 of a GP. The user does not have to change any subsequent code
 
-.. GENERATED FROM PYTHON SOURCE LINES 106-128
+.. GENERATED FROM PYTHON SOURCE LINES 126-148
 
 .. code-block:: default
 
@@ -302,11 +335,11 @@ of a GP. The user does not have to change any subsequent code
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 129-130
+.. GENERATED FROM PYTHON SOURCE LINES 149-150
 
 We can plot the errors obtained from the callback with
 
-.. GENERATED FROM PYTHON SOURCE LINES 130-137
+.. GENERATED FROM PYTHON SOURCE LINES 150-157
 
 .. code-block:: default
 
@@ -329,7 +362,7 @@ We can plot the errors obtained from the callback with
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 138-147
+.. GENERATED FROM PYTHON SOURCE LINES 158-167
 
 Now we will perform a sensitivity analysis. Specifically we compute
 variance based sensitivity indices that measure the impact of each KLE mode
@@ -341,7 +374,7 @@ the drastic increase in computational cost. Warning: using the numerical model
 will take many minutes. The plots in the figure, generated from
 left to right are: main effect, largest Sobol indices and total effect indices.
 
-.. GENERATED FROM PYTHON SOURCE LINES 147-156
+.. GENERATED FROM PYTHON SOURCE LINES 167-176
 
 .. code-block:: default
 
@@ -366,7 +399,7 @@ left to right are: main effect, largest Sobol indices and total effect indices.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 157-166
+.. GENERATED FROM PYTHON SOURCE LINES 177-186
 
 Now we will use the surrogate with Bayesian inference to learn the
 coefficients of the KL. Specifically we will draw a set of samples from
@@ -378,7 +411,7 @@ and print out the error which can be compared to the errors previously plotted.
 The error of the original surrogate was kept low to demonstrate the ability
 to quantify error in the sensitivity indices from using a surrogate.
 
-.. GENERATED FROM PYTHON SOURCE LINES 166-172
+.. GENERATED FROM PYTHON SOURCE LINES 186-192
 
 .. code-block:: default
 
@@ -403,7 +436,7 @@ to quantify error in the sensitivity indices from using a surrogate.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 173-182
+.. GENERATED FROM PYTHON SOURCE LINES 193-202
 
 Now create a MCMCVariable to sample from the posterior. The benchmark
 has already formulated the negative log likelihood that is needed. Here
@@ -415,7 +448,7 @@ Uncomment the commented code to use the numerical model instead of the surrogate
 with the MCMC algorithm. Again note the significant increase in computational
 time
 
-.. GENERATED FROM PYTHON SOURCE LINES 182-191
+.. GENERATED FROM PYTHON SOURCE LINES 202-211
 
 .. code-block:: default
 
@@ -447,14 +480,14 @@ time
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 192-196
+.. GENERATED FROM PYTHON SOURCE LINES 212-216
 
 Now plot the posterior samples with the 2D Marginals of the posterior. Note
 do not do this with the numerical model as this would take an eternity due
 to the cost of evaluating the numerical model, which is much higher relative
 to the cost of running the surrogate.
 
-.. GENERATED FROM PYTHON SOURCE LINES 196-203
+.. GENERATED FROM PYTHON SOURCE LINES 216-223
 
 .. code-block:: default
 
@@ -477,7 +510,7 @@ to the cost of running the surrogate.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 204-210
+.. GENERATED FROM PYTHON SOURCE LINES 224-230
 
 In the Bayesian inference above we used a fixed number of observations
 at randomly chosen spatial locations. However choosing observation locations
@@ -486,7 +519,7 @@ in the parameters equally. Here we use Bayesian optimal experimental design
 to choose the 3 best design locations from the previously observed 10 pretending
 that we do not know the value of the observations.
 
-.. GENERATED FROM PYTHON SOURCE LINES 210-231
+.. GENERATED FROM PYTHON SOURCE LINES 230-251
 
 .. code-block:: default
 
@@ -532,7 +565,7 @@ that we do not know the value of the observations.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 232-242
+.. GENERATED FROM PYTHON SOURCE LINES 252-262
 
 Note that typically optimal
 experimental design (OED) would be used before conducting Bayesian inference.
@@ -545,7 +578,7 @@ calibrations used by OED must only be sufficient to distinguish between designs.
 This accuracy is typically much lower than the accuracy required in
 estimates of uncertainty in the parameters or predictions needed for decision making tasks such as risk assessment.
 
-.. GENERATED FROM PYTHON SOURCE LINES 244-255
+.. GENERATED FROM PYTHON SOURCE LINES 264-275
 
 Here we will set up a related benchmark to the one we have been using,
 which can be used to demonstrate the forward propagation of uncertainty.
@@ -559,7 +592,7 @@ and accuracy that use different discretizations of the spatial PDE mesh
 and number of time steps which can be used with multi-fideilty methods.
 To setup the benchmark use the following
 
-.. GENERATED FROM PYTHON SOURCE LINES 255-262
+.. GENERATED FROM PYTHON SOURCE LINES 275-282
 
 .. code-block:: default
 
@@ -577,7 +610,7 @@ To setup the benchmark use the following
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 263-268
+.. GENERATED FROM PYTHON SOURCE LINES 283-288
 
 Here we will use Multi-fidelity statistical estimation to compute the
 mean value of the QoI to account for the uncertainty in the KLE cofficients.
@@ -585,7 +618,7 @@ So first we must compute the covariance between the QoI returned by
 each of our models. We use samples from the posterior. But uncommenting
 the code below will use samples from the prior.
 
-.. GENERATED FROM PYTHON SOURCE LINES 268-275
+.. GENERATED FROM PYTHON SOURCE LINES 288-295
 
 .. code-block:: default
 
@@ -603,7 +636,7 @@ the code below will use samples from the prior.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 276-281
+.. GENERATED FROM PYTHON SOURCE LINES 296-301
 
 By using a WorkTrackingModel we can extract the median costs
 of evaluatin each model which is needed to predict the
@@ -611,7 +644,7 @@ error of the multi-fidelity estimate of the mean which we can
 compare to a prediction of the single fidelity estimate that only uses
 the highest fidelity model.
 
-.. GENERATED FROM PYTHON SOURCE LINES 281-286
+.. GENERATED FROM PYTHON SOURCE LINES 301-306
 
 .. code-block:: default
 
@@ -627,12 +660,12 @@ the highest fidelity model.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 287-289
+.. GENERATED FROM PYTHON SOURCE LINES 307-309
 
 Now visualize the correlation between the models and their computational
 cost relative to the highest-fidelity model cost
 
-.. GENERATED FROM PYTHON SOURCE LINES 289-296
+.. GENERATED FROM PYTHON SOURCE LINES 309-316
 
 .. code-block:: default
 
@@ -663,14 +696,14 @@ cost relative to the highest-fidelity model cost
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 297-301
+.. GENERATED FROM PYTHON SOURCE LINES 317-321
 
 Now find the best multi-fidelity estimator among all avialable option
 Note, he exact predicted variance will change from run to run even with the
 same seed because the computational time measured will change slightly
 for each run
 
-.. GENERATED FROM PYTHON SOURCE LINES 301-309
+.. GENERATED FROM PYTHON SOURCE LINES 321-329
 
 .. code-block:: default
 
@@ -692,17 +725,17 @@ for each run
 
  .. code-block:: none
 
-    Predicted variance 1.0050816636949258e-10
+    Predicted variance 9.836751142547392e-11
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 310-312
+.. GENERATED FROM PYTHON SOURCE LINES 330-332
 
 Now we can plot the relative performance of the single and multi-fidelity
 estimates of the mean before requiring any additional model evaluations
 
-.. GENERATED FROM PYTHON SOURCE LINES 312-334
+.. GENERATED FROM PYTHON SOURCE LINES 332-354
 
 .. code-block:: default
 
@@ -740,13 +773,13 @@ estimates of the mean before requiring any additional model evaluations
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 335-338
+.. GENERATED FROM PYTHON SOURCE LINES 355-358
 
 It is clear that the multi-fidelity estimator will be more computationally
 efficient for multiple computational budgets (target costs). Once the user
 is ready to actually estimate the mean QoI they can use
 
-.. GENERATED FROM PYTHON SOURCE LINES 338-348
+.. GENERATED FROM PYTHON SOURCE LINES 358-368
 
 .. code-block:: default
 
@@ -770,12 +803,12 @@ is ready to actually estimate the mean QoI they can use
 
  .. code-block:: none
 
-    Mean QoI 0.0009801703794253818
+    Mean QoI 0.0010523528378532541
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 349-352
+.. GENERATED FROM PYTHON SOURCE LINES 369-372
 
 References
 ^^^^^^^^^^
@@ -784,7 +817,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 1 minutes  45.762 seconds)
+   **Total running time of the script:** ( 1 minutes  18.580 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_paper_demo.py:

@@ -5,12 +5,12 @@
 
 Computation times
 =================
-**00:01.654** total execution time for **auto_tutorials_surrogates** files:
+**00:02.272** total execution time for **auto_tutorials_surrogates** files:
 
 +---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py` (``plot_adaptive_leja_interpolation.py``)   | 00:01.577 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py` (``plot_adaptive_leja_interpolation.py``)   | 00:01.498 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_surrogates_plot_tensor_product_interpolation.py` (``plot_tensor_product_interpolation.py``) | 00:00.696 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
 | :ref:`sphx_glr_auto_tutorials_surrogates_plot_gaussian_processes.py` (``plot_gaussian_processes.py``)                     | 00:00.077 | 0.0 MB |
-+---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_surrogates_plot_tensor_product_interpolation.py` (``plot_tensor_product_interpolation.py``) | 00:00.000 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
