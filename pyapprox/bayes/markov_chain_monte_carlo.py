@@ -471,7 +471,7 @@ def run_bayesian_inference_gaussian_error_model(
         pm.Potential('likelihood', logl(theta))
 
         if get_map:
-            map_sample_dict = pm.find_MAP()
+            map_sample_dict = pm.find_MAP(progressbar=False)
             map_sample = extract_map_sample_from_pymc3_dict(
                 map_sample_dict, pymc_var_names)
         else:
@@ -495,7 +495,8 @@ def run_bayesian_inference_gaussian_error_model(
             trace = pm.sample(
                 nsamples, tune=nburn, discard_tuned_samples=True,
                 start=None, cores=njobs, step=step,
-                compute_convergence_checks=False, random_seed=seed)
+                compute_convergence_checks=False, random_seed=seed,
+                progressbar=False)
                 # return_inferencedata=False)
             # compute_convergence_checks=False avoids bugs in theano
 

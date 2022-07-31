@@ -141,15 +141,15 @@ if savefig:
 #We use the negative log likelihood to characterize this mismatch.
 #Here we have used the surrogate to speed up the computation of the sensitivity
 #indices. Uncomment the commented code to use the numerical model. Note
-#the drastic increase in computational cost. Warning using the numerical model
-#will take many minutes,
+#the drastic increase in computational cost. Warning: using the numerical model
+#will take many minutes. The plots in the figure, generated from
+#left to right are: main effect, largest Sobol indices and total effect indices.
 sa_result = run_sensitivity_analysis(
     "surrogate_sobol", approx, inv_benchmark.variable)
 # sa_result = run_sensitivity_analysis(
 #     "sobol", benchmark.negloglike, inv_benchmark.variable)
 axs = plot_sensitivity_indices_with_confidence_intervals_from_result(
     sa_result)[1]
-plt.tight_layout()
 if savefig:
     plt.savefig("gp-sa-indices.pdf", bbox_inches="tight")
 
@@ -173,11 +173,13 @@ print("Surrogate", error)
 #Now create a MCMCVariable to sample from the posterior. The benchmark
 #has already formulated the negative log likelihood that is needed. Here
 #we will use the NUTS sampler from PyMC3. This can run many MCMC chains at once
-#by setting njobs > 1. However using njobs>1 cannot be used unless scipt invoked inside __name__ == __main__: and so is not used for this tutorial.
+#by setting njobs > 1. However using njobs>1 cannot be used unless the srcipt
+#is invoked inside if __name__ == __main__: and so njobs>1
+#is not used for this tutorial.
 #Uncomment the commented code to use the numerical model instead of the surrogate
 #with the MCMC algorithm. Again note the significant increase in computational
 #time
-algorithm, npost_samples, njobs = "metropolis", 200, 1
+algorithm, npost_samples, njobs = "nuts", 200, 1
 # loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)
 loglike = partial(loglike_from_negloglike, approx)
 mcmc_variable = MCMCVariable(

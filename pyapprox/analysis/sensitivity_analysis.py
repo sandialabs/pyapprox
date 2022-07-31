@@ -931,11 +931,10 @@ def analytic_sobol_indices_from_gaussian_process(
                        "quantile-0.75"],
         ninterpolation_samples=None, nvalidation_samples=100,
         ncandidate_samples=1000, nquad_samples=50, use_cholesky=True,
-        alpha=1e-8):
+        alpha=1e-8, verbosity=0):
 
     if ninterpolation_samples is None:
         ninterpolation_samples = 5*gp.num_training_samples()
-    print(ninterpolation_samples)
 
     if not issubclass(gp.__class__, GaussianProcess):
         raise ValueError("Argument gp must be a Gaussian process")
@@ -952,7 +951,7 @@ def analytic_sobol_indices_from_gaussian_process(
     if ngp_realizations > 0:
         gp_realizations = generate_gp_realizations(
             gp, ngp_realizations, ninterpolation_samples, nvalidation_samples,
-            ncandidate_samples, variable, use_cholesky, alpha)
+            ncandidate_samples, variable, use_cholesky, alpha, verbosity)
 
         # Check how accurate realizations
         validation_samples = generate_independent_random_samples(
@@ -963,16 +962,16 @@ def analytic_sobol_indices_from_gaussian_process(
         # print(std,realization_vals.std(axis=1))
         # this checks the accuracy of the number of realizations.
         # error will decrease with number of samples
-        print('std of realizations error',
-              np.linalg.norm(std-realization_vals.std(axis=1))/np.linalg.norm(
-                  std))
-        print('var of realizations error',
-              np.linalg.norm(std**2-realization_vals.var(axis=1)) /
-              np.linalg.norm(std**2))
-
-        print('mean interpolation error',
-              np.linalg.norm((mean_vals[:, 0]-realization_vals[:, -1])) /
-              np.linalg.norm(mean_vals[:, 0]))
+        if verbosity > 0:
+            print('std of realizations error',
+                  np.linalg.norm(std-realization_vals.std(axis=1)) /
+                  np.linalg.norm(std))
+            print('var of realizations error',
+                  np.linalg.norm(std**2-realization_vals.var(axis=1)) /
+                  np.linalg.norm(std**2))            
+            print('mean interpolation error',
+                  np.linalg.norm((mean_vals[:, 0]-realization_vals[:, -1])) /
+                  np.linalg.norm(mean_vals[:, 0]))
 
         x_train = gp_realizations.selected_canonical_samples
         # gp_realizations.train_vals is normalized so unnormalize
@@ -1291,8 +1290,6 @@ def _get_sobol_indices_labels(result):
             ll += '%s_{%d},' % (rv, interaction_terms[ii][jj]+1)
         ll += '%s_{%d}$)' % (rv, interaction_terms[ii][-1]+1)
         labels.append(ll)
-    print(interaction_terms)
-    print(labels)
     return labels
 
 

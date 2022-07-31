@@ -235,7 +235,8 @@ class RandomGaussianProcessRealizations:
         self.alpha = alpha
 
     def fit(self, candidate_samples, rand_noise=None,
-            ninterpolation_samples=500, nvalidation_samples=100):
+            ninterpolation_samples=500, nvalidation_samples=100,
+            verbosity=0):
         """
         Construct interpolants of random realizations evaluated at the
         training data and at a new set of additional points
@@ -258,8 +259,9 @@ class RandomGaussianProcessRealizations:
                 Kmatrix, ninterpolation_samples,
                 init_pivots=init_pivots, pivot_weights=None,
                 error_on_small_tol=False, return_full=False, econ=True)
-            print("Realization log10 cond num",
-                  np.log10(np.linalg.cond(L.T.dot(L))))
+            if verbosity > 0:
+                print("Realization log10 cond num",
+                      np.log10(np.linalg.cond(L.T.dot(L))))
             if chol_flag > 0:
                 pivots = pivots[:-1]
                 msg = "Number of samples used for interpolation "
@@ -327,8 +329,9 @@ class RandomGaussianProcessRealizations:
         # Error in interpolation of gp mean when
         # rand_noise[:, -1] = np.zeros((rand_noise.shape[0]))
         # print(np.linalg.norm((approx_validation_vals[:, -1]*self.gp._y_train_std+self.gp._y_train_mean)-self.gp(self.canonical_validation_samples)[:, 0])/np.linalg.norm(self.gp(self.canonical_validation_samples)[:, 0]))
-        print('Worst case relative interpolation error', error.max())
-        print('Median relative interpolation error', np.median(error))
+        if verbosity > 0:
+            print('Worst case relative interpolation error', error.max())
+            print('Median relative interpolation error', np.median(error))
 
     def __call__(self, samples):
         canonical_samples = self.gp.map_to_canonical(samples)
@@ -2510,7 +2513,7 @@ def _compute_expected_sobol_indices(
         P_mod_list.append(compute_conditional_P(xx_1d, ww_1d, xtr, lscale[ii]))
 
     cond_num = np.linalg.cond(K_inv)
-    print("Kernel log10 Cond Num", np.log10(cond_num))
+    # print("Kernel log10 Cond Num", np.log10(cond_num))
     if cond_num > 1e11:
         msg = "Condition number of kernel matrix is to high."
         msg += f" Log10 condition number is {np.log10(cond_num)}. "
@@ -2646,7 +2649,8 @@ def _compute_expected_sobol_indices(
 
 def generate_gp_realizations(gp, ngp_realizations, ninterpolation_samples,
                              nvalidation_samples, ncandidate_samples,
-                             variable, use_cholesky=True, alpha=0):
+                             variable, use_cholesky=True, alpha=0,
+                             verbosity=0):
     rand_noise = np.random.normal(
         0, 1, (ngp_realizations, ninterpolation_samples+nvalidation_samples)).T
     gp_realizations = RandomGaussianProcessRealizations(gp, use_cholesky,
@@ -2663,6 +2667,6 @@ def generate_gp_realizations(gp, ngp_realizations, ninterpolation_samples,
         variable)
     gp_realizations.fit(
         candidate_samples, rand_noise, ninterpolation_samples,
-        nvalidation_samples)
+        nvalidation_samples, verbosity)
     fun = gp_realizations
     return fun
