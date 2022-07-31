@@ -118,7 +118,7 @@ sphinx_gallery_conf = {
     'ignore_pattern': r'__', # any files with __ in the filename are ignored
 }
 # If want to specify user latex macrors to jupyter using sphinx-gallery go to
-# /miniconda3/envs/pyapprox/lib/python3.6/site-packages/sphinx_gallery/notebook.py
+# /miniconda3/envs/pyapprox-base/lib/python3.8/site-packages/sphinx_gallery/notebook.py
 # in function jupyter_notebook replace
 #     add_code_cell(work_notebook, first_cell)
 # with

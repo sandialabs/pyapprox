@@ -65,7 +65,6 @@ setuptools.setup(
     extras_require={
         'docs': ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
                  'sphinx-gallery', 'jupyter']
-        # 'mfnets':['MFNetsSurrogates @ git+https://github.com/goroda/MFNetsSurrogates@master']
     },
     ext_modules=extensions,
     license='MIT',

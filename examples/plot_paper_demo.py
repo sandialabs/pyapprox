@@ -17,7 +17,6 @@ from pyapprox.util.configure_plots import mathrm_label, mathrm_labels
 from pyapprox.variables import (
     IndependentMarginalsVariable, print_statistics, AffineTransform)
 from pyapprox.benchmarks import setup_benchmark, list_benchmarks
-from __util import pyapprox_fun_1, pyapprox_fun_2
 from pyapprox.interface.wrappers import (
     ModelEnsemble, TimerModel, WorkTrackingModel,
     evaluate_1darray_function_on_2d_array)
@@ -55,11 +54,32 @@ print_statistics(canonical_samples)
 
 #%%
 #Pyapprox provides many utilities for interfacing with complex numerical codes
-#Below we take two functions, see :ref:`sphx_glr_auto_examples_plot_interface.py`
-#for thier definitions and show how to use the ModelEnsemble and
+#and show how to use the ModelEnsemble and
 #WorkTrackingModel to evaluate two models at once and time the wall time
 #of each evaluation of each model. The last print statement
-#prints the median execution time of each model
+#prints the median execution time of each model. First lest defined
+#two functions with different execution times that can be evaluated for multiple samples
+def fun_pause_1(sample):
+    assert sample.ndim == 1
+    time.sleep(np.random.uniform(0, .05))
+    return np.sum(sample**2)
+
+
+def pyapprox_fun_1(samples):
+    return evaluate_1darray_function_on_2d_array(fun_pause_1, samples)
+
+
+def fun_pause_2(sample):
+    time.sleep(np.random.uniform(.05, .1))
+    return np.sum(sample**2)
+
+
+def pyapprox_fun_2(samples):
+    return evaluate_1darray_function_on_2d_array(fun_pause_2, samples)
+
+#%%
+#Now wrap these functions and run them as an ensemble while tracking
+#their execution times
 model_ensemble = ModelEnsemble([pyapprox_fun_1, pyapprox_fun_2])
 timer_fun_ensemble = TimerModel(model_ensemble)
 worktracking_fun_ensemble = WorkTrackingModel(
