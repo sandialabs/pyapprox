@@ -157,7 +157,7 @@
         <span class="n">canonical_train_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">map_to_canonical</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">canonical_train_samples</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">train_values</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="GaussianProcess.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.GaussianProcess.html#pyapprox.surrogates.GaussianProcess.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_std</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">return_cov</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<div class="viewcode-block" id="GaussianProcess.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.GaussianProcess.html#pyapprox.surrogates.GaussianProcess.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_std</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">return_cov</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A light weight wrapper of sklearn GaussianProcessRegressor.predict</span>
 <span class="sd">        function. See sklearn documentation for more info. This wrapper</span>
@@ -170,8 +170,32 @@
 <span class="sd">            Samples at which to evaluate the GP. Sklearn requires the</span>
 <span class="sd">            transpose of this matrix, i.e a matrix with size (nsamples,nvars)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">jac</span> <span class="ow">and</span> <span class="p">(</span><span class="n">return_std</span> <span class="ow">or</span> <span class="n">return_cov</span><span class="p">):</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;if jac is True then return_std and return_cov must be False&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
         <span class="n">canonical_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">map_to_canonical</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
         <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">canonical_samples</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">return_std</span><span class="p">,</span> <span class="n">return_cov</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">jac</span><span class="p">:</span>
+            <span class="n">kernel</span> <span class="o">=</span> <span class="n">extract_covariance_kernel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kernel_</span><span class="p">,</span> <span class="p">[</span><span class="n">Matern</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">kernel</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">kernel</span> <span class="o">=</span> <span class="n">extract_covariance_kernel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kernel_</span><span class="p">,</span> <span class="p">[</span><span class="n">RBF</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">kernel</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;jac only available when using the Matern kernel&quot;</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+                <span class="n">nu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">nu</span> <span class="o">=</span> <span class="n">kernel</span><span class="o">.</span><span class="n">nu</span>
+            <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+            <span class="n">gradK</span> <span class="o">=</span> <span class="n">matern_gradient_wrt_samples</span><span class="p">(</span>
+                <span class="n">nu</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">X_train_</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">kernel</span><span class="o">.</span><span class="n">length_scale</span><span class="p">)</span>
+            <span class="n">grad</span> <span class="o">=</span> <span class="n">gradK</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_</span><span class="p">)</span>
+            <span class="n">kernel</span> <span class="o">=</span> <span class="n">extract_covariance_kernel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kernel_</span><span class="p">,</span> <span class="p">[</span><span class="n">ConstantKernel</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">kernel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">grad</span> <span class="o">*=</span> <span class="n">kernel</span><span class="o">.</span><span class="n">constant_value</span>
+            <span class="k">return</span> <span class="n">result</span><span class="p">,</span> <span class="n">grad</span>
+
         <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">==</span> <span class="nb">tuple</span><span class="p">:</span>
             <span class="c1"># when returning prior stdev covariance then must reshape vals</span>
             <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
@@ -298,7 +322,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span> <span class="o">=</span> <span class="n">alpha</span>
 
     <span class="k">def</span> <span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">candidate_samples</span><span class="p">,</span> <span class="n">rand_noise</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">ninterpolation_samples</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">nvalidation_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">):</span>
+            <span class="n">ninterpolation_samples</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">nvalidation_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+            <span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Construct interpolants of random realizations evaluated at the</span>
 <span class="sd">        training data and at a new set of additional points</span>
@@ -321,6 +346,9 @@
                 <span class="n">Kmatrix</span><span class="p">,</span> <span class="n">ninterpolation_samples</span><span class="p">,</span>
                 <span class="n">init_pivots</span><span class="o">=</span><span class="n">init_pivots</span><span class="p">,</span> <span class="n">pivot_weights</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                 <span class="n">error_on_small_tol</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">return_full</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">econ</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Realization log10 cond num&quot;</span><span class="p">,</span>
+                      <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cond</span><span class="p">(</span><span class="n">L</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">L</span><span class="p">))))</span>
             <span class="k">if</span> <span class="n">chol_flag</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="n">pivots</span> <span class="o">=</span> <span class="n">pivots</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
                 <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Number of samples used for interpolation &quot;</span>
@@ -388,8 +416,9 @@
         <span class="c1"># Error in interpolation of gp mean when</span>
         <span class="c1"># rand_noise[:, -1] = np.zeros((rand_noise.shape[0]))</span>
         <span class="c1"># print(np.linalg.norm((approx_validation_vals[:, -1]*self.gp._y_train_std+self.gp._y_train_mean)-self.gp(self.canonical_validation_samples)[:, 0])/np.linalg.norm(self.gp(self.canonical_validation_samples)[:, 0]))</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Worst case relative interpolation error&#39;</span><span class="p">,</span> <span class="n">error</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Median relative interpolation error&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">error</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Worst case relative interpolation error&#39;</span><span class="p">,</span> <span class="n">error</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Median relative interpolation error&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">error</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
         <span class="n">canonical_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">map_to_canonical</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
@@ -940,7 +969,7 @@
 
 
 <span class="k">def</span> <span class="nf">generate_gp_candidate_samples</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">num_candidate_samples</span><span class="p">,</span>
-                               <span class="n">generate_random_samples</span><span class="p">,</span> <span class="n">variables</span><span class="p">):</span>
+                                  <span class="n">generate_random_samples</span><span class="p">,</span> <span class="n">variable</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">generate_random_samples</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">num_halton_candidates</span> <span class="o">=</span> <span class="n">num_candidate_samples</span><span class="o">//</span><span class="mi">2</span>
         <span class="n">num_random_candidates</span> <span class="o">=</span> <span class="n">num_candidate_samples</span><span class="o">//</span><span class="mi">2</span>
@@ -948,22 +977,25 @@
         <span class="n">num_halton_candidates</span> <span class="o">=</span> <span class="n">num_candidate_samples</span>
         <span class="n">num_random_candidates</span> <span class="o">=</span> <span class="mi">0</span>
 
-    <span class="k">if</span> <span class="n">variables</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">marginal_icdfs</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="c1"># marginal_icdfs = [v.ppf for v in self.variables]</span>
-        <span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
-        <span class="n">marginal_icdfs</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="c1"># spread QMC samples over entire domain. Range of variable</span>
-        <span class="c1"># is used but not its PDF</span>
-        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">variables</span><span class="o">.</span><span class="n">marginals</span><span class="p">():</span>
-            <span class="n">lb</span><span class="p">,</span> <span class="n">ub</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">interval</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">lb</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">ub</span><span class="p">):</span>
-                <span class="n">lb</span><span class="p">,</span> <span class="n">ub</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">interval</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="mf">1e-6</span><span class="p">)</span>
-            <span class="n">marginal_icdfs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span> <span class="n">ub</span><span class="o">-</span><span class="n">lb</span><span class="p">)</span><span class="o">.</span><span class="n">ppf</span><span class="p">)</span>
+    <span class="c1"># if variable is None:</span>
+    <span class="c1">#     marginal_icdfs = None</span>
+    <span class="c1"># else:</span>
+    <span class="c1">#     # marginal_icdfs = [v.ppf for v in self.variable]</span>
+    <span class="c1">#     from scipy import stats</span>
+    <span class="c1">#     marginal_icdfs = []</span>
+    <span class="c1">#     # spread QMC samples over entire domain. Range of variable</span>
+    <span class="c1">#     # is used but not its PDF</span>
+    <span class="c1">#     for v in variable.marginals():</span>
+    <span class="c1">#         lb, ub = v.interval(1)</span>
+    <span class="c1">#         if not np.isfinite(lb) or not np.isfinite(ub):</span>
+    <span class="c1">#             lb, ub = v.interval(1-1e-6)</span>
+    <span class="c1">#         marginal_icdfs.append(stats.uniform(lb, ub-lb).ppf)</span>
 
-    <span class="n">candidate_samples</span> <span class="o">=</span> <span class="n">transformed_halton_sequence</span><span class="p">(</span>
-        <span class="n">marginal_icdfs</span><span class="p">,</span> <span class="n">nvars</span><span class="p">,</span> <span class="n">num_halton_candidates</span><span class="p">)</span>
+    <span class="c1"># candidate_samples = transformed_halton_sequence(</span>
+    <span class="c1">#     marginal_icdfs, nvars, num_halton_candidates)</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.expdesign.low_discrepancy_sequences</span> <span class="kn">import</span> <span class="n">sobol_sequence</span>
+    <span class="n">candidate_samples</span> <span class="o">=</span> <span class="n">sobol_sequence</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">num_halton_candidates</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>
+                                       <span class="n">variable</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">num_random_candidates</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">candidate_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span>
@@ -1017,20 +1049,20 @@
 <span class="sd">        False - pivot to minimize trace norm of low-rank approximation</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_candidate_samples</span><span class="p">,</span> <span class="n">variables</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_candidate_samples</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">generate_random_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">init_pivots</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">nugget</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">econ</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">gen_candidate_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">var_trans</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span> <span class="o">=</span> <span class="n">num_vars</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">kernel_theta</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">chol_flag</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">variables</span> <span class="o">=</span> <span class="n">variables</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">variable</span> <span class="o">=</span> <span class="n">variable</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">generate_random_samples</span> <span class="o">=</span> <span class="n">generate_random_samples</span>
         <span class="k">if</span> <span class="n">gen_candidate_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">gen_candidate_samples</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
                 <span class="n">generate_gp_candidate_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">,</span>
                 <span class="n">generate_random_samples</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">generate_random_samples</span><span class="p">,</span>
-                <span class="n">variables</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">)</span>
+                <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span> <span class="o">=</span> <span class="n">var_trans</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">set_candidate_samples</span><span class="p">(</span>
             <span class="n">gen_candidate_samples</span><span class="p">(</span><span class="n">num_candidate_samples</span><span class="p">))</span>
@@ -1549,7 +1581,7 @@
 <span class="sd">        by this function and the other half of samples will be from a Halton</span>
 <span class="sd">        sequence.</span>
 
-<span class="sd">    variables : :class:`pyapprox.variable.IndependentMarginalsVariable`</span>
+<span class="sd">    variable : :class:`pyapprox.variable.IndependentMarginalsVariable`</span>
 <span class="sd">        A set of independent univariate random variables. The tensor-product</span>
 <span class="sd">        of the 1D PDFs yields the joint density :math:`\rho`. The bounds and</span>
 <span class="sd">        CDFs of these variables are used to transform the Halton sequence used</span>
@@ -1572,7 +1604,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">nquad_samples</span><span class="p">,</span>
-                 <span class="n">ncandidate_samples</span><span class="p">,</span> <span class="n">generate_random_samples</span><span class="p">,</span> <span class="n">variables</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">ncandidate_samples</span><span class="p">,</span> <span class="n">generate_random_samples</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">greedy_method</span><span class="o">=</span><span class="s1">&#39;ivar&#39;</span><span class="p">,</span> <span class="n">use_gauss_quadrature</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                  <span class="n">nugget</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span> <span class="o">=</span> <span class="n">num_vars</span>
@@ -1581,7 +1613,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">use_gauss_quadrature</span> <span class="o">=</span> <span class="n">use_gauss_quadrature</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pred_samples</span> <span class="o">=</span> <span class="n">generate_random_samples</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nquad_samples</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ncandidate_samples</span> <span class="o">=</span> <span class="n">ncandidate_samples</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">variables</span> <span class="o">=</span> <span class="n">variables</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">variable</span> <span class="o">=</span> <span class="n">variable</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">generate_random_samples</span> <span class="o">=</span> <span class="n">generate_random_samples</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nugget</span> <span class="o">=</span> <span class="n">nugget</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ntraining_samples</span> <span class="o">=</span> <span class="mi">0</span>
@@ -1595,7 +1627,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">precompute_gauss_quadrature</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">objective</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">quadrature_objective</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">objective_gradient</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">quadrature_objective_gradient</span>
-            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">greedy_sampler</span><span class="o">.</span><span class="n">variables</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">greedy_sampler</span><span class="o">.</span><span class="n">variable</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">objective</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">monte_carlo_objective</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">objective_gradient</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">monte_carlo_objective_gradient</span>
@@ -1603,12 +1635,12 @@
     <span class="k">def</span> <span class="nf">initialize_greedy_sampler</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">greedy_method</span> <span class="o">==</span> <span class="s1">&#39;chol&#39;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">greedy_sampler</span> <span class="o">=</span> <span class="n">CholeskySampler</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ncandidate_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ncandidate_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span>
                 <span class="n">generate_random_samples</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">generate_random_samples</span><span class="p">)</span>
         <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">greedy_method</span> <span class="o">==</span> <span class="s1">&#39;ivar&#39;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">greedy_sampler</span> <span class="o">=</span> <span class="n">GreedyIntegratedVarianceSampler</span><span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nquad_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ncandidate_samples</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">generate_random_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">generate_random_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span>
                 <span class="n">use_gauss_quadrature</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">use_gauss_quadrature</span><span class="p">,</span> <span class="n">econ</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                 <span class="n">nugget</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nugget</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -1619,7 +1651,7 @@
         <span class="n">degrees</span> <span class="o">=</span> <span class="p">[</span><span class="nb">min</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nquad_samples</span><span class="p">)]</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">nvars</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">univariate_quad_rules</span> <span class="o">=</span> \
             <span class="n">get_univariate_quadrature_rules_from_variable</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">greedy_sampler</span><span class="o">.</span><span class="n">variables</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">degrees</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">greedy_sampler</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">degrees</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">quad_rules</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">):</span>
             <span class="n">xx_1d</span><span class="p">,</span> <span class="n">ww_1d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">univariate_quad_rules</span><span class="p">[</span><span class="n">ii</span><span class="p">](</span><span class="n">degrees</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
@@ -1711,10 +1743,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">optim_opts</span> <span class="o">=</span> <span class="n">opts</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">set_bounds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">greedy_sampler</span><span class="o">.</span><span class="n">variables</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">greedy_sampler</span><span class="o">.</span><span class="n">variable</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">lbs</span><span class="p">,</span> <span class="n">ubs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">variables</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">greedy_sampler</span><span class="o">.</span><span class="n">variables</span><span class="o">.</span><span class="n">marginals</span><span class="p">()</span>
+            <span class="n">variables</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">greedy_sampler</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">marginals</span><span class="p">()</span>
             <span class="n">lbs</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span><span class="o">.</span><span class="n">interval</span><span class="p">(</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">variables</span><span class="p">]</span>
             <span class="n">ubs</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span><span class="o">.</span><span class="n">interval</span><span class="p">(</span><span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">variables</span><span class="p">]</span>
         <span class="n">lbs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">lbs</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">)</span>
@@ -1843,12 +1875,12 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">nquad_samples</span><span class="p">,</span>
-                 <span class="n">ncandidate_samples</span><span class="p">,</span> <span class="n">generate_random_samples</span><span class="p">,</span> <span class="n">variables</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">ncandidate_samples</span><span class="p">,</span> <span class="n">generate_random_samples</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">use_gauss_quadrature</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">econ</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                  <span class="n">compute_cond_nums</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">nugget</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span> <span class="o">=</span> <span class="n">num_vars</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nquad_samples</span> <span class="o">=</span> <span class="n">nquad_samples</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">variables</span> <span class="o">=</span> <span class="n">variables</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">variable</span> <span class="o">=</span> <span class="n">variable</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ntraining_samples</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">training_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_vars</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ntraining_samples</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">generate_random_samples</span> <span class="o">=</span> <span class="n">generate_random_samples</span>
@@ -1857,7 +1889,7 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">candidate_samples</span> <span class="o">=</span> <span class="n">generate_gp_candidate_samples</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">,</span> <span class="n">ncandidate_samples</span><span class="p">,</span> <span class="n">generate_random_samples</span><span class="p">,</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nsamples_requested</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pivots</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cond_nums</span> <span class="o">=</span> <span class="p">[]</span>
@@ -1903,7 +1935,7 @@
         <span class="k">return</span> <span class="n">xx_1d</span><span class="p">,</span> <span class="n">ww_1d</span>
 
     <span class="k">def</span> <span class="nf">precompute_gauss_quadrature</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">nvars</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+        <span class="n">nvars</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
         <span class="n">length_scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel</span><span class="o">.</span><span class="n">length_scale</span>
         <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">length_scale</span><span class="p">):</span>
             <span class="n">length_scale</span> <span class="o">=</span> <span class="p">[</span><span class="n">length_scale</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span>
@@ -1911,7 +1943,7 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">univariate_quad_rules</span> <span class="o">=</span> \
             <span class="n">get_univariate_quadrature_rules_from_variable</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">degrees</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">degrees</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
         <span class="c1"># dist_func = partial(cdist, metric=&#39;sqeuclidean&#39;)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tau</span> <span class="o">=</span> <span class="mi">1</span>
 
@@ -2171,7 +2203,7 @@
 <span class="sd">    ----------</span>
 <span class="sd">    query_sample : np.ndarray (nvars, 1)</span>
 
-<span class="sd">    other_samples : np.ndarray (nvars, nquery_samples)</span>
+<span class="sd">    other_samples : np.ndarray (nvars, nother_samples)</span>
 
 <span class="sd">    length_scale : np.ndarray (nvars)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -2193,7 +2225,7 @@
         <span class="n">tmp2</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span>
             <span class="n">query_sample</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="p">(</span><span class="n">other_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mi">1</span><span class="p">))</span><span class="o">-</span><span class="n">other_samples</span><span class="o">.</span><span class="n">T</span><span class="p">)</span><span class="o">/</span><span class="p">(</span>
                 <span class="n">length_scale</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
-        <span class="n">grad</span> <span class="o">=</span> <span class="o">-</span><span class="mi">5</span><span class="o">/</span><span class="mi">3</span><span class="o">*</span><span class="n">K</span><span class="o">.</span><span class="n">T</span><span class="o">*</span><span class="n">tmp2</span><span class="o">*</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span><span class="o">*</span><span class="n">dists</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">grad</span> <span class="o">=</span> <span class="o">-</span><span class="mi">5</span><span class="o">/</span><span class="mi">3</span><span class="o">*</span><span class="n">K</span><span class="o">.</span><span class="n">T</span><span class="o">*</span><span class="n">tmp2</span><span class="o">*</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span><span class="o">*</span><span class="n">dists</span><span class="o">.</span><span class="n">T</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">nu</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">:</span>
         <span class="n">tmp2</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span>
             <span class="n">query_sample</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="p">(</span><span class="n">other_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mi">1</span><span class="p">))</span><span class="o">-</span><span class="n">other_samples</span><span class="o">.</span><span class="n">T</span><span class="p">)</span><span class="o">/</span><span class="p">(</span>
@@ -2246,7 +2278,7 @@
             <span class="n">length_scale</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">length_scale</span><span class="p">]</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">univariate_quad_rules</span> <span class="o">=</span> \
             <span class="n">get_univariate_quadrature_rules_from_variable</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">degrees</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">degrees</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">P</span> <span class="o">=</span> <span class="mi">1</span>
         <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nvars</span><span class="p">):</span>
             <span class="n">xx_1d</span><span class="p">,</span> <span class="n">ww_1d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_univariate_quadrature_rule</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span>
@@ -2550,7 +2582,7 @@
             <span class="n">x_train</span><span class="p">,</span> <span class="n">lscale</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">transform_quad_rules</span><span class="p">,</span>
             <span class="n">nquad_samples</span><span class="o">=</span><span class="n">nquad_samples</span><span class="p">,</span> <span class="n">skip_xi_1</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
-    <span class="c1"># ntrain_samples = x_train.shape[1]</span>
+    <span class="n">lscale</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">lscale</span><span class="p">)</span>  <span class="c1"># for 1D gps</span>
     <span class="n">nvars</span> <span class="o">=</span> <span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
     <span class="n">degrees</span> <span class="o">=</span> <span class="p">[</span><span class="n">nquad_samples</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span>
     <span class="n">univariate_quad_rules</span> <span class="o">=</span> <span class="n">get_univariate_quadrature_rules_from_variable</span><span class="p">(</span>
@@ -2566,6 +2598,14 @@
         <span class="k">if</span> <span class="n">transform_quad_rules</span><span class="p">:</span>
             <span class="n">xx_1d</span> <span class="o">=</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">map_from_canonical_1d</span><span class="p">(</span><span class="n">xx_1d</span><span class="p">,</span> <span class="n">ii</span><span class="p">)</span>
         <span class="n">P_mod_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">compute_conditional_P</span><span class="p">(</span><span class="n">xx_1d</span><span class="p">,</span> <span class="n">ww_1d</span><span class="p">,</span> <span class="n">xtr</span><span class="p">,</span> <span class="n">lscale</span><span class="p">[</span><span class="n">ii</span><span class="p">]))</span>
+
+    <span class="n">cond_num</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cond</span><span class="p">(</span><span class="n">K_inv</span><span class="p">)</span>
+    <span class="c1"># print(&quot;Kernel log10 Cond Num&quot;, np.log10(cond_num))</span>
+    <span class="k">if</span> <span class="n">cond_num</span> <span class="o">&gt;</span> <span class="mf">1e11</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Condition number of kernel matrix is to high.&quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; Log10 condition number is </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">cond_num</span><span class="p">)</span><span class="si">}</span><span class="s2">. &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;Increase alpha&quot;</span>
+        <span class="c1"># raise RuntimeError(msg)</span>
 
     <span class="n">A_inv</span> <span class="o">=</span> <span class="n">K_inv</span><span class="o">*</span><span class="n">kernel_var</span>
     <span class="c1"># print(&#39;cond num&#39;, np.linalg.cond(A_inv))</span>
@@ -2639,14 +2679,65 @@
                     <span class="n">unnormalized_sobol_indices</span><span class="p">[</span><span class="n">II</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span> <span class="o">-=</span> \
                         <span class="n">unnormalized_sobol_indices</span><span class="p">[</span><span class="n">sobol_indices_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]]</span>
 
+    <span class="c1"># print(unnormalized_sobol_indices.shape)</span>
+    <span class="c1"># print(np.sum(unnormalized_sobol_indices, axis=0))</span>
+    <span class="c1"># print(expected_random_var)</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">unnormalized_sobol_indices</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Some Sobol indices were negative. &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;Likely due to ill conditioning &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;of GP kernel. Try increaseing alpha&quot;</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">expected_random_var</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Some expected variances were negative. &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;Likely due to ill conditioning &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;of GP kernel. Samlpes used to generate GP realization &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;are likely ill conditioned. Try increasing alpha &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;(not used to fit gp) but used to generate realizations&quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;or reduce ninterpolation_samples&quot;</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">unnormalized_sobol_indices</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">expected_random_var</span><span class="o">+</span><span class="mf">1e-6</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;relative max diff&#39;</span><span class="p">,</span>
+              <span class="p">((</span><span class="n">unnormalized_sobol_indices</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">-</span><span class="n">expected_random_var</span><span class="p">)</span><span class="o">/</span>
+               <span class="n">expected_random_var</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Some Sobol indices were larger than the variance. &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;Likely due to ill conditioning &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;of GP kernel. Samlpes used to generate GP realization &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;are likely ill conditioned. Try increasing alpha &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;(not used to fit gp) but used to generate realizations&quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;or reduce ninterpolation_samples&quot;</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="c1"># import warnings</span>
+        <span class="c1"># warnings.warn(msg)</span>
+
+    <span class="n">total_effect_indices</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="mi">1</span><span class="o">-</span><span class="n">unnormalized_total_effect_values</span><span class="o">/</span><span class="n">expected_random_var</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">total_effect_indices</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;relative max diff&#39;</span><span class="p">,</span>
+              <span class="p">((</span><span class="n">unnormalized_total_effect_values</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">-</span>
+                <span class="n">expected_random_var</span><span class="p">)</span><span class="o">/</span><span class="n">expected_random_var</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">total_effect_indices</span><span class="p">)</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Some total effect values were negative. &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;Likely due to ill conditioning &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;of GP kernel. Samlpes used to generate GP realization &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;are likely ill conditioned. Try increasing alpha &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;(not used to fit gp) but used to generate realizations&quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;or reduce ninterpolation_samples&quot;</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="c1"># import warnings</span>
+        <span class="c1"># warnings.warn(msg)</span>
+
     <span class="k">return</span> <span class="n">unnormalized_sobol_indices</span><span class="o">/</span><span class="n">expected_random_var</span><span class="p">,</span> \
-        <span class="mi">1</span><span class="o">-</span><span class="n">unnormalized_total_effect_values</span><span class="o">/</span><span class="n">expected_random_var</span><span class="p">,</span> \
+        <span class="n">total_effect_indices</span><span class="p">,</span> \
         <span class="n">expected_random_mean</span><span class="p">,</span> <span class="n">expected_random_var</span>
 
 
 <span class="k">def</span> <span class="nf">generate_gp_realizations</span><span class="p">(</span><span class="n">gp</span><span class="p">,</span> <span class="n">ngp_realizations</span><span class="p">,</span> <span class="n">ninterpolation_samples</span><span class="p">,</span>
                              <span class="n">nvalidation_samples</span><span class="p">,</span> <span class="n">ncandidate_samples</span><span class="p">,</span>
-                             <span class="n">variable</span><span class="p">,</span> <span class="n">use_cholesky</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+                             <span class="n">variable</span><span class="p">,</span> <span class="n">use_cholesky</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                             <span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
     <span class="n">rand_noise</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span>
         <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="n">ngp_realizations</span><span class="p">,</span> <span class="n">ninterpolation_samples</span><span class="o">+</span><span class="n">nvalidation_samples</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
     <span class="n">gp_realizations</span> <span class="o">=</span> <span class="n">RandomGaussianProcessRealizations</span><span class="p">(</span><span class="n">gp</span><span class="p">,</span> <span class="n">use_cholesky</span><span class="p">,</span>
@@ -2656,13 +2747,14 @@
             <span class="n">generate_independent_random_samples</span><span class="p">,</span> <span class="n">variable</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">generate_random_samples</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="kn">from</span> <span class="nn">pyapprox.surrogates.gaussianprocess.gaussian_process</span> <span class="kn">import</span> <span class="n">generate_gp_candidate_samples</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.surrogates.gaussianprocess.gaussian_process</span> <span class="kn">import</span> <span class="p">(</span>
+        <span class="n">generate_gp_candidate_samples</span><span class="p">)</span>
     <span class="n">candidate_samples</span> <span class="o">=</span> <span class="n">generate_gp_candidate_samples</span><span class="p">(</span>
         <span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span> <span class="n">ncandidate_samples</span><span class="p">,</span> <span class="n">generate_random_samples</span><span class="p">,</span>
         <span class="n">variable</span><span class="p">)</span>
     <span class="n">gp_realizations</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span>
         <span class="n">candidate_samples</span><span class="p">,</span> <span class="n">rand_noise</span><span class="p">,</span> <span class="n">ninterpolation_samples</span><span class="p">,</span>
-        <span class="n">nvalidation_samples</span><span class="p">)</span>
+        <span class="n">nvalidation_samples</span><span class="p">,</span> <span class="n">verbosity</span><span class="p">)</span>
     <span class="n">fun</span> <span class="o">=</span> <span class="n">gp_realizations</span>
     <span class="k">return</span> <span class="n">fun</span>
 </pre></div>

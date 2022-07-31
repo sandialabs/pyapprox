@@ -111,7 +111,7 @@
 <h1>evaluate_1darray_function_on_2d_array<a class="headerlink" href="#evaluate-1darray-function-on-2d-array" title="Permalink to this headline"></a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="pyapprox.interface.evaluate_1darray_function_on_2d_array">
-<span class="sig-prename descclassname"><span class="pre">pyapprox.interface.</span></span><span class="sig-name descname"><span class="pre">evaluate_1darray_function_on_2d_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">function</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">statusbar</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/interface/wrappers.html#evaluate_1darray_function_on_2d_array"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.interface.evaluate_1darray_function_on_2d_array" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">pyapprox.interface.</span></span><span class="sig-name descname"><span class="pre">evaluate_1darray_function_on_2d_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">function</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">statusbar</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jac</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/interface/wrappers.html#evaluate_1darray_function_on_2d_array"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.interface.evaluate_1darray_function_on_2d_array" title="Permalink to this definition"></a></dt>
 <dd><p>Evaluate a function at a set of samples using a function that only takes
 one sample at a time</p>
 <dl class="field-list">
@@ -125,10 +125,12 @@ scalar</p>
 </dd>
 <dt><strong>samples</strong><span class="classifier">np.ndarray (num_vars, num_samples)</span></dt><dd><p>The samples at which to evaluate the model</p>
 </dd>
-<dt><strong>opts</strong><span class="classifier">dictionary</span></dt><dd><p>A set of options that are needed to evaluate the model</p>
-</dd>
 <dt><strong>statusbar</strong><span class="classifier">boolean</span></dt><dd><p>True - print status bar showing progress to stdout
 False - do not print</p>
+</dd>
+<dt><strong>jac</strong><span class="classifier">boolean</span></dt><dd><p>True - values and return gradient
+False - return just gradient
+If function does not accept the jac kwarg an exception wil be raised</p>
 </dd>
 </dl>
 </dd>

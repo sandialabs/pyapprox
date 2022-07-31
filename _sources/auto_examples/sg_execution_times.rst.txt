@@ -5,26 +5,28 @@
 
 Computation times
 =================
-**00:13.063** total execution time for **auto_examples** files:
+**01:45.762** total execution time for **auto_examples** files:
 
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_pde_convergence.py` (``plot_pde_convergence.py``)                                                                 | 00:07.514 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_paper_demo.py` (``plot_paper_demo.py``)                                                                           | 01:45.762 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_interface.py` (``plot_interface.py``)                                                                             | 00:02.883 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_barycentric_interpolation.py` (``plot_barycentric_interpolation.py``)                                             | 00:00.000 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_variables.py` (``plot_variables.py``)                                                                             | 00:01.743 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_gaussian_quadrature.py` (``plot_gaussian_quadrature.py``)                                                         | 00:00.000 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_sparse_grid_uq.py` (``plot_sparse_grid_uq.py``)                                                                   | 00:00.506 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_interface.py` (``plot_interface.py``)                                                                             | 00:00.000 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_parameter_sweeps.py` (``plot_parameter_sweeps.py``)                                                               | 00:00.142 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_low_discrepancy_quadrature.py` (``plot_low_discrepancy_quadrature.py``)                                           | 00:00.000 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_multivariate_piecewise_polynomial_interpolation.py` (``plot_multivariate_piecewise_polynomial_interpolation.py``) | 00:00.098 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_multivariate_piecewise_polynomial_interpolation.py` (``plot_multivariate_piecewise_polynomial_interpolation.py``) | 00:00.000 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_gaussian_quadrature.py` (``plot_gaussian_quadrature.py``)                                                         | 00:00.084 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_parameter_sweeps.py` (``plot_parameter_sweeps.py``)                                                               | 00:00.000 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_barycentric_interpolation.py` (``plot_barycentric_interpolation.py``)                                             | 00:00.047 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_pde_convergence.py` (``plot_pde_convergence.py``)                                                                 | 00:00.000 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_low_discrepancy_quadrature.py` (``plot_low_discrepancy_quadrature.py``)                                           | 00:00.036 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_setup_model.py` (``plot_setup_model.py``)                                                                         | 00:00.000 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_setup_model.py` (``plot_setup_model.py``)                                                                         | 00:00.010 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_sparse_grid_uq.py` (``plot_sparse_grid_uq.py``)                                                                   | 00:00.000 | 0.0 MB |
++-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_examples_plot_variables.py` (``plot_variables.py``)                                                                             | 00:00.000 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+

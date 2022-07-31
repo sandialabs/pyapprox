@@ -70,6 +70,8 @@
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.analysis.plot_main_effects.html">plot_main_effects</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.analysis.plot_total_effects.html">plot_total_effects</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.analysis.plot_interaction_values.html">plot_interaction_values</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.analysis.run_sensitivity_analysis.html">run_sensitivity_analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.analysis.plot_sensitivity_indices.html">plot_sensitivity_indices</a></li>
 </ul>
 </li>
 </ul>
@@ -116,7 +118,7 @@
 <h1>gpc_sobol_sensitivities<a class="headerlink" href="#gpc-sobol-sensitivities" title="Permalink to this headline"></a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="pyapprox.analysis.gpc_sobol_sensitivities">
-<span class="sig-prename descclassname"><span class="pre">pyapprox.analysis.</span></span><span class="sig-name descname"><span class="pre">gpc_sobol_sensitivities</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pce</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/analysis/sensitivity_analysis.html#gpc_sobol_sensitivities"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.analysis.gpc_sobol_sensitivities" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">pyapprox.analysis.</span></span><span class="sig-name descname"><span class="pre">gpc_sobol_sensitivities</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pce</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/analysis/sensitivity_analysis.html#gpc_sobol_sensitivities"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.analysis.gpc_sobol_sensitivities" title="Permalink to this definition"></a></dt>
 <dd><p>Compute variance based sensitivity metrics from a polynomial chaos
 expansion</p>
 <dl class="field-list">
@@ -137,13 +139,13 @@ max_order.</p>
 <dd class="field-even"><dl>
 <dt><strong>result</strong><span class="classifier"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.analysis.sensitivity_analysis.SensitivityResult</span></code></span></dt><dd><p>Result object with the following attributes</p>
 </dd>
-<dt><strong>main_effects</strong><span class="classifier">np.ndarray (nvars)</span></dt><dd><p>The variance based main effect sensitivity indices</p>
+<dt><strong>main_effects</strong><span class="classifier">np.ndarray (nvars, nqoi)</span></dt><dd><p>The variance based main effect sensitivity indices</p>
 </dd>
-<dt><strong>total_effects</strong><span class="classifier">np.ndarray (nvars)</span></dt><dd><p>The variance based total effect sensitivity indices</p>
+<dt><strong>total_effects</strong><span class="classifier">np.ndarray (nvars, nqoi)</span></dt><dd><p>The variance based total effect sensitivity indices</p>
 </dd>
-<dt><strong>sobol_indices</strong><span class="classifier">np.ndarray (nchoosek(nvars+max_order,nvars),nqoi)</span></dt><dd><p>The variance based Sobol sensitivity indices</p>
+<dt><strong>sobol_indices</strong><span class="classifier">np.ndarray (nchoosek(nvars+max_order,nvars), nqoi)</span></dt><dd><p>The variance based Sobol sensitivity indices</p>
 </dd>
-<dt><strong>sobol_interaction_indices</strong><span class="classifier">np.ndarray(nvars,nchoosek(nvars+max_order,nvars))</span></dt><dd><p>Indices specifying the variables in each interaction in
+<dt><strong>sobol_interaction_indices</strong><span class="classifier">np.ndarray(nvars, nchoosek(nvars+max_order, nvars))</span></dt><dd><p>Indices specifying the variables in each interaction in
 <code class="docutils literal notranslate"><span class="pre">sobol_indices</span></code></p>
 </dd>
 </dl>

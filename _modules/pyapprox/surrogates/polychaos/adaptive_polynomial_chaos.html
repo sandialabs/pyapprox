@@ -432,8 +432,8 @@
 
         <span class="k">return</span> <span class="n">num_new_subspace_samples</span></div>
 
-<div class="viewcode-block" id="AdaptiveInducedPCE.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span></div>
+<div class="viewcode-block" id="AdaptiveInducedPCE.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="AdaptiveInducedPCE.get_active_unique_poly_indices"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.get_active_unique_poly_indices">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_unique_poly_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">II</span> <span class="o">=</span> <span class="n">get_active_poly_array_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
@@ -649,8 +649,8 @@
 
         <span class="k">return</span> <span class="n">num_new_subspace_samples</span></div>
 
-<div class="viewcode-block" id="AdaptiveLejaPCE.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span></div>
+<div class="viewcode-block" id="AdaptiveLejaPCE.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="AdaptiveLejaPCE.get_active_unique_poly_indices"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.get_active_unique_poly_indices">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_unique_poly_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">II</span> <span class="o">=</span> <span class="n">get_active_poly_array_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>

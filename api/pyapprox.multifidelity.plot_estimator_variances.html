@@ -74,6 +74,9 @@
 <li class="toctree-l4 current"><a class="current reference internal" href="#">plot_estimator_variances</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_acv_sample_allocation_comparison.html">plot_acv_sample_allocation_comparison</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.estimate_model_ensemble_covariance.html">estimate_model_ensemble_covariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_correlation_matrix.html">plot_correlation_matrix</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_model_costs.html">plot_model_costs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.get_best_models_for_acv_estimator.html">get_best_models_for_acv_estimator</a></li>
 </ul>
 </li>
 </ul>
@@ -115,7 +118,7 @@
 <h1>plot_estimator_variances<a class="headerlink" href="#plot-estimator-variances" title="Permalink to this headline"></a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="pyapprox.multifidelity.plot_estimator_variances">
-<span class="sig-prename descclassname"><span class="pre">pyapprox.multifidelity.</span></span><span class="sig-name descname"><span class="pre">plot_estimator_variances</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">optimized_estimators</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">est_labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylabel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/multifidelity/monte_carlo_estimators.html#plot_estimator_variances"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.multifidelity.plot_estimator_variances" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">pyapprox.multifidelity.</span></span><span class="sig-name descname"><span class="pre">plot_estimator_variances</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">optimized_estimators</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">est_labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylabel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">relative</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/multifidelity/monte_carlo_estimators.html#plot_estimator_variances"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.multifidelity.plot_estimator_variances" title="Permalink to this definition"></a></dt>
 <dd><p>Plot variance as a function of the total cost for a set of estimators.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -124,6 +127,7 @@
 </dd>
 <dt><strong>est_labels</strong><span class="classifier">list (nestimators)</span></dt><dd><p>String used to label each estimator</p>
 </dd>
+<dt><strong>relative = True</strong></dt><dd></dd>
 </dl>
 </dd>
 </dl>

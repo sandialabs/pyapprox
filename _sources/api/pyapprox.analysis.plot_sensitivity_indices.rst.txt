@@ -1,0 +1,6 @@
+plot_sensitivity_indices
+========================
+
+.. currentmodule:: pyapprox.analysis
+
+.. autofunction:: plot_sensitivity_indices

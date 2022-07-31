@@ -112,7 +112,7 @@ to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="monte-carlo-quadrature">
 <span id="sphx-glr-auto-tutorials-multi-fidelity-plot-monte-carlo-py"></span><h1>Monte Carlo Quadrature<a class="headerlink" href="#monte-carlo-quadrature" title="Permalink to this headline"></a></h1>
-<p>This tutorial describes how to use Monte Carlo sampling to compute the expectations of the output of an model. Specifically, given a function <span class="math notranslate nohighlight">\(f_\alpha(\rv):\reals^{d}\to\reals\)</span> parameterized by a set of variables <span class="math notranslate nohighlight">\(\rv=[\rv_1,\ldots,\rv_d]^T\)</span> with joint density given by <span class="math notranslate nohighlight">\(\rho(\rv):\reals^{d}\to\reals\)</span>, our goal is to approximate the integral</p>
+<p>This tutorial describes how to use Monte Carlo sampling to compute the expectations of the output of a model. Specifically, given a function <span class="math notranslate nohighlight">\(f_\alpha(\rv):\reals^{d}\to\reals\)</span> parameterized by a set of variables <span class="math notranslate nohighlight">\(\rv=[\rv_1,\ldots,\rv_d]^T\)</span> with joint density given by <span class="math notranslate nohighlight">\(\rho(\rv):\reals^{d}\to\reals\)</span>, our goal is to approximate the integral</p>
 <div class="math notranslate nohighlight">
 \[Q_\alpha=\int_\rvdom f_\alpha(\rv)\pdf(\rv)\dx{\rv}\]</div>
 <p>We can approximate the integral <span class="math notranslate nohighlight">\(Q_\alpha\)</span> using Monte Carlo quadrature by drawing <span class="math notranslate nohighlight">\(N\)</span> random samples of <span class="math notranslate nohighlight">\(\rv\)</span> from <span class="math notranslate nohighlight">\(\pdf\)</span> and evaluating the function at each of these samples to obtain the data pairs <span class="math notranslate nohighlight">\(\{(\rv^{(n)},f^{(n)}_\alpha)\}_{n=1}^N\)</span>, where <span class="math notranslate nohighlight">\(f^{(n)}_\alpha=f_\alpha(\rv^{(n)})\)</span> and computing</p>
@@ -270,7 +270,7 @@ MC f1 MSE = 0.0155221837033295
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_monte_carlo_003.png" srcset="../../_images/sphx_glr_plot_monte_carlo_003.png" alt="plot monte carlo" class = "sphx-glr-single-img"/><p>In a series of tutorials starting with <a class="reference internal" href="plot_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-control-variate-monte-carlo-py"><span class="std std-ref">Control Variate Monte Carlo</span></a> we show how to produce an unbiased estimator with small variance using both these models.</p>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.669 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.791 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-monte-carlo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/30eb96755241ed28302cd3119dee8cce/plot_monte_carlo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_monte_carlo.py</span></code></a></p>

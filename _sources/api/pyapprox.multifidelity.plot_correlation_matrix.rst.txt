@@ -1,0 +1,6 @@
+plot_correlation_matrix
+=======================
+
+.. currentmodule:: pyapprox.multifidelity
+
+.. autofunction:: plot_correlation_matrix

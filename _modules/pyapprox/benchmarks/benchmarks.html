@@ -91,7 +91,6 @@
 <span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
 <span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="kn">import</span> <span class="n">OptimizeResult</span>
 
-<span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">PYA_DEV_AVAILABLE</span>
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks.sensitivity_benchmarks</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">get_sobol_g_function_statistics</span><span class="p">,</span> <span class="n">get_ishigami_funciton_statistics</span><span class="p">,</span>
     <span class="n">oakley_function</span><span class="p">,</span> <span class="n">oakley_function_statistics</span><span class="p">,</span> <span class="n">sobol_g_function</span><span class="p">,</span>
@@ -123,8 +122,9 @@
 <span class="kn">from</span> <span class="nn">pyapprox.interface.wrappers</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">TimerModel</span><span class="p">,</span> <span class="n">PoolModel</span><span class="p">,</span> <span class="n">WorkTrackingModel</span>
 <span class="p">)</span>
-<span class="kn">from</span> <span class="nn">pyapprox.pde.spectral_diffusion</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">TransientAdvectionDiffusion</span><span class="p">,</span> <span class="n">SteadyStateAdvectionDiffusion</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks.pde_benchmarks</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_setup_inverse_advection_diffusion_benchmark</span><span class="p">,</span>
+    <span class="n">_setup_multi_index_advection_diffusion_benchmark</span>
 <span class="p">)</span>
 
 
@@ -175,7 +175,6 @@
 <span class="sd">    Use the `keys()` method to see a list of the available</span>
 <span class="sd">    attributes for a specific benchmark</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
-
 
 <div class="viewcode-block" id="setup_sobol_g_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_sobol_g_function.html#pyapprox.benchmarks.setup_sobol_g_function">[docs]</a><span class="k">def</span> <span class="nf">setup_sobol_g_function</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
@@ -302,7 +301,7 @@
     <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)]</span><span class="o">*</span><span class="mi">3</span>
     <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
     <span class="n">mean</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">main_effects</span><span class="p">,</span> <span class="n">total_effects</span><span class="p">,</span> <span class="n">sobol_indices</span><span class="p">,</span> \
-        <span class="n">sobol_interaction_indices</span> <span class="o">=</span> <span class="n">get_ishigami_funciton_statistics</span><span class="p">()</span>
+        <span class="n">sobol_interaction_indices</span> <span class="o">=</span> <span class="n">get_ishigami_funciton_statistics</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span>
         <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">ishigami_function</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="n">b</span><span class="p">),</span>
          <span class="s1">&#39;jac&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">ishigami_function_jacobian</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="n">b</span><span class="p">),</span>
@@ -553,86 +552,6 @@
     <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span></div>
 
 
-<span class="k">if</span> <span class="n">PYA_DEV_AVAILABLE</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">pyapprox_dev.fenics_models.advection_diffusion_wrappers</span> <span class="kn">import</span> \
-        <span class="n">setup_advection_diffusion_benchmark</span><span class="p">,</span>\
-        <span class="n">setup_advection_diffusion_source_inversion_benchmark</span><span class="p">,</span>\
-        <span class="n">setup_multi_level_advection_diffusion_benchmark</span>
-    <span class="kn">from</span> <span class="nn">pyapprox_dev.fenics_models.helmholtz_benchmarks</span> <span class="kn">import</span> \
-        <span class="n">setup_mfnets_helmholtz_benchmark</span>
-
-
-<div class="viewcode-block" id="setup_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_benchmark.html#pyapprox.benchmarks.setup_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_benchmark</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Setup a PyApprox benchmark.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    name : string</span>
-<span class="sd">        The name of the benchmark</span>
-
-<span class="sd">    kwargs: kwargs</span>
-<span class="sd">     optional keyword arguments</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
-<span class="sd">       Object containing the benchmark attributes</span>
-
-<span class="sd">    The benchmark object must contain at least the following two attributes</span>
-
-<span class="sd">    fun : callable</span>
-<span class="sd">        A function with signature</span>
-
-<span class="sd">        fun(samples) -&gt; np.ndarray(nsamples, nqoi)</span>
-
-<span class="sd">        where samples : np.ndarray(nvars, nsamples)</span>
-
-<span class="sd">    variable : :py:class:`pyapprox.variables.JointVariable`</span>
-<span class="sd">        Class containing information about each of the nvars inputs to fun</span>
-
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">benchmarks</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s1">&#39;sobol_g&#39;</span><span class="p">:</span> <span class="n">setup_sobol_g_function</span><span class="p">,</span>
-        <span class="s1">&#39;ishigami&#39;</span><span class="p">:</span> <span class="n">setup_ishigami_function</span><span class="p">,</span>
-        <span class="s1">&#39;oakley&#39;</span><span class="p">:</span> <span class="n">setup_oakley_function</span><span class="p">,</span>
-        <span class="s1">&#39;rosenbrock&#39;</span><span class="p">:</span> <span class="n">setup_rosenbrock_function</span><span class="p">,</span>
-        <span class="s1">&#39;genz&#39;</span><span class="p">:</span> <span class="n">setup_genz_function</span><span class="p">,</span>
-        <span class="s1">&#39;cantilever_beam&#39;</span><span class="p">:</span> <span class="n">setup_cantilever_beam_benchmark</span><span class="p">,</span>
-        <span class="s1">&#39;wing_weight&#39;</span><span class="p">:</span> <span class="n">setup_wing_weight_benchmark</span><span class="p">,</span>
-        <span class="s1">&#39;piston&#39;</span><span class="p">:</span> <span class="n">setup_piston_benchmark</span><span class="p">,</span>
-        <span class="s1">&#39;chemical_reaction&#39;</span><span class="p">:</span> <span class="n">setup_chemical_reaction_benchmark</span><span class="p">,</span>
-        <span class="s1">&#39;random_oscillator&#39;</span><span class="p">:</span> <span class="n">setup_random_oscillator_benchmark</span><span class="p">,</span>
-        <span class="s1">&#39;coupled_springs&#39;</span><span class="p">:</span> <span class="n">setup_coupled_springs_benchmark</span><span class="p">,</span>
-        <span class="s1">&#39;hastings_ecology&#39;</span><span class="p">:</span> <span class="n">setup_hastings_ecology_benchmark</span><span class="p">,</span>
-        <span class="s1">&#39;multi_index_advection_diffusion&#39;</span><span class="p">:</span>
-        <span class="n">setup_multi_index_advection_diffusion_benchmark</span><span class="p">,</span>
-        <span class="s1">&#39;polynomial_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_polynomial_ensemble</span><span class="p">,</span>
-        <span class="s1">&#39;tunable_model_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_tunable_model_ensemble</span><span class="p">,</span>
-        <span class="s1">&#39;short_column_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_short_column_ensemble</span><span class="p">,</span>
-        <span class="s2">&quot;parameterized_nonlinear_model&quot;</span><span class="p">:</span> <span class="n">setup_parameterized_nonlinear_model</span><span class="p">}</span>
-    <span class="k">if</span> <span class="n">PYA_DEV_AVAILABLE</span><span class="p">:</span>
-        <span class="c1"># will fail if fenics is not installed and the import of the fenics</span>
-        <span class="c1"># benchmarks fail</span>
-        <span class="n">fenics_benchmarks</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s1">&#39;multi_index_advection_diffusion&#39;</span><span class="p">:</span>
-            <span class="n">setup_advection_diffusion_benchmark</span><span class="p">,</span>
-            <span class="s1">&#39;multi_index_advection_diffusion_source_inversion&#39;</span><span class="p">:</span>
-            <span class="n">setup_advection_diffusion_source_inversion_benchmark</span><span class="p">,</span>
-            <span class="s1">&#39;multi_level_advection_diffusion&#39;</span><span class="p">:</span>
-            <span class="n">setup_multi_level_advection_diffusion_benchmark</span><span class="p">,</span>
-            <span class="s1">&#39;mfnets_helmholtz&#39;</span><span class="p">:</span> <span class="n">setup_mfnets_helmholtz_benchmark</span><span class="p">}</span>
-        <span class="n">benchmarks</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">fenics_benchmarks</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">benchmarks</span><span class="p">:</span>
-        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Benchmark &quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">&quot; not found.</span><span class="se">\n</span><span class="s1"> Available benchmarks are:</span><span class="se">\n</span><span class="s1">&#39;</span>
-        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">benchmarks</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-            <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
-        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">benchmarks</span><span class="p">[</span><span class="n">name</span><span class="p">](</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
-
-
 <span class="k">def</span> <span class="nf">setup_cantilever_beam_benchmark</span><span class="p">():</span>
     <span class="n">variable</span><span class="p">,</span> <span class="n">design_variable</span> <span class="o">=</span> <span class="n">define_beam_random_variables</span><span class="p">()</span>
     <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">cantilever_beam_objective</span><span class="p">,</span>
@@ -788,136 +707,10 @@
     <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">setup_multi_index_advection_diffusion_benchmark</span><span class="p">(</span>
-        <span class="n">nvars</span><span class="p">,</span> <span class="n">corr_len</span><span class="p">,</span> <span class="n">degree</span><span class="p">,</span> <span class="n">final_time</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">time_step_size</span><span class="o">=</span><span class="mf">1e-2</span><span class="p">,</span>
-        <span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)</span>
-
-<span class="sd">    .. math::</span>
-
-<span class="sd">       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &amp;=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\</span>
-<span class="sd">       \mathcal{B}(x,t,\rv)&amp;=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\</span>
-<span class="sd">       u(x,t,\rv)&amp;=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom</span>
-
-<span class="sd">    Following [NTWSIAMNA2008]_, [JEGGIJNME2020]_ we set</span>
-
-<span class="sd">    .. math:: g(x,t)=(1.5+\cos(2\pi t))\cos(x_1),</span>
-
-<span class="sd">    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero dirichlet boundary conditions.</span>
-
-<span class="sd">    and we model the diffusivity :math:`k` as a random field represented by the</span>
-<span class="sd">    Karhunen-Loeve (like) expansion (KLE)</span>
-
-<span class="sd">    .. math::</span>
-
-<span class="sd">       \log(k(x,\rv)-0.5)=1+\rv_1\left(\frac{\sqrt{\pi L}}{2}\right)^{1/2}+\sum_{k=2}^d \lambda_k\phi(x)\rv_k,</span>
-
-<span class="sd">    with</span>
-
-<span class="sd">    .. math::</span>
-
-<span class="sd">       \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k&gt;1,  \qquad\qquad  \phi(x)=</span>
-<span class="sd">       \begin{cases}</span>
-<span class="sd">       \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) &amp; k \text{ even}\,,\\</span>
-<span class="sd">       \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) &amp; k \text{ odd}\,.</span>
-<span class="sd">       \end{cases}</span>
-
-<span class="sd">    where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}`.</span>
-
-<span class="sd">    The quantity of interest :math:`f(z)` is the measurement of the solution at a location :math:`x_k` at the final time :math:`T=1` obtained via the linear functional</span>
-
-<span class="sd">    .. math:: f(z)=\int_D u(x,T,z)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x_k \rVert^2_2}{\sigma^2}\right) dx</span>
-
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    nvars : integer</span>
-<span class="sd">        The number of variables of the KLE</span>
-
-<span class="sd">    corr_len : float</span>
-<span class="sd">        The correlation length :math:`L_c` of the covariance kernel</span>
-
-<span class="sd">    max_eval_concurrency : integer</span>
-<span class="sd">        The maximum number of simulations that can be run in parallel. Should be         no more than the maximum number of cores on the computer being used</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
-<span class="sd">       Object containing the benchmark attributes documented below</span>
-
-<span class="sd">    fun : callable</span>
-
-<span class="sd">        The quantity of interest :math:`f(w)` with signature</span>
-
-<span class="sd">        ``fun(w) -&gt; np.ndarray``</span>
-
-<span class="sd">        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the</span>
-<span class="sd">        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars``</span>
-<span class="sd">        rows of ``w`` are realizations of the random variables. The last 3 rows</span>
-<span class="sd">        are configuration variables specifying the numerical discretization of</span>
-<span class="sd">        the PDE model. Specifically the first and second configuration variables</span>
-<span class="sd">        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate</span>
-<span class="sd">        the resolution of the FEM mesh in the directions :math:`{x_1}` and</span>
-<span class="sd">        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}`</span>
-<span class="sd">        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration</span>
-<span class="sd">        variable specifies the level :math:`l_t` of the temporal discretization.</span>
-<span class="sd">        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep</span>
-<span class="sd">        size is and :math:`T/2^{l_{t}+2}`.</span>
-
-<span class="sd">    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`</span>
-<span class="sd">        Object containing information of the joint density of the inputs z</span>
-<span class="sd">        which is the tensor product of independent and identically distributed</span>
-<span class="sd">        uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.</span>
-
-<span class="sd">    Examples</span>
-<span class="sd">    --------</span>
-<span class="sd">    &gt;&gt;&gt; from pyapprox_dev.benchmarks.benchmarks import setup_benchmark</span>
-<span class="sd">    &gt;&gt;&gt; benchmark = setup_benchmark(&#39;advection-diffusion&#39;, nvars=2)</span>
-<span class="sd">    &gt;&gt;&gt; print(benchmark.keys())</span>
-<span class="sd">    dict_keys([&#39;fun&#39;, &#39;variable&#39;])</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">3</span><span class="p">))]</span><span class="o">*</span><span class="n">nvars</span>
-    <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
-    <span class="n">pde_funs</span> <span class="o">=</span> <span class="n">NobileBenchmarkFunctions</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">corr_len</span><span class="p">)</span>
-    <span class="n">config_values</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">11</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">11</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
-    <span class="k">if</span> <span class="n">final_time</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">base_model</span> <span class="o">=</span> <span class="n">TransientAdvectionDiffusion</span><span class="p">()</span>
-        <span class="n">base_model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span>
-            <span class="n">pde_funs</span><span class="o">.</span><span class="n">bndry_conds</span><span class="p">,</span> <span class="n">pde_funs</span><span class="o">.</span><span class="n">diffusivity_fun</span><span class="p">,</span>
-            <span class="n">pde_funs</span><span class="o">.</span><span class="n">time_dependent_forcing_fun</span><span class="p">,</span> <span class="n">pde_funs</span><span class="o">.</span><span class="n">velocity_fun</span><span class="p">,</span>
-            <span class="n">degree</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">final_time</span><span class="p">,</span> <span class="n">time_step_size</span><span class="p">,</span>
-            <span class="n">pde_funs</span><span class="o">.</span><span class="n">initial_condition_fun</span><span class="p">)</span>
-        <span class="n">config_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">final_time</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">11</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">base_model</span> <span class="o">=</span> <span class="n">SteadyStateAdvectionDiffusion</span><span class="p">()</span>
-        <span class="n">base_model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">pde_funs</span><span class="o">.</span><span class="n">bndry_conds</span><span class="p">,</span> <span class="n">pde_funs</span><span class="o">.</span><span class="n">diffusivity_fun</span><span class="p">,</span>
-                              <span class="n">pde_funs</span><span class="o">.</span><span class="n">forcing_fun</span><span class="p">,</span> <span class="n">pde_funs</span><span class="o">.</span><span class="n">velocity_fun</span><span class="p">,</span>
-                              <span class="n">degree</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
-    <span class="n">multi_index_model</span> <span class="o">=</span> <span class="n">SpectralPDEMultiIndexWrapper</span><span class="p">(</span>
-        <span class="n">base_model</span><span class="p">,</span> <span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">())</span>
-    <span class="n">config_var_trans</span> <span class="o">=</span> <span class="n">ConfigureVariableTransformation</span><span class="p">(</span><span class="n">config_values</span><span class="p">)</span>
-
-    <span class="c1"># add wrapper to allow execution times to be captured</span>
-    <span class="n">timer_model</span> <span class="o">=</span> <span class="n">TimerModel</span><span class="p">(</span><span class="n">multi_index_model</span><span class="p">,</span> <span class="n">multi_index_model</span><span class="p">)</span>
-    <span class="n">pool_model</span> <span class="o">=</span> <span class="n">PoolModel</span><span class="p">(</span>
-       <span class="n">timer_model</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">,</span> <span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span><span class="p">)</span>
-    <span class="c1"># pool_model = timer_model</span>
-
-    <span class="c1"># add wrapper that tracks execution times.</span>
-    <span class="n">model</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span><span class="n">pool_model</span><span class="p">,</span> <span class="n">multi_index_model</span><span class="p">,</span>
-                              <span class="n">multi_index_model</span><span class="o">.</span><span class="n">num_config_vars</span><span class="p">)</span>
-    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">,</span>
-        <span class="s2">&quot;get_num_degrees_of_freedom&quot;</span><span class="p">:</span> <span class="n">base_model</span><span class="o">.</span><span class="n">get_num_degrees_of_freedom</span><span class="p">,</span>
-        <span class="s2">&quot;config_var_trans&quot;</span><span class="p">:</span> <span class="n">config_var_trans</span><span class="p">}</span>
-    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span>
-
-
 <div class="viewcode-block" id="setup_polynomial_ensemble"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_polynomial_ensemble.html#pyapprox.benchmarks.setup_polynomial_ensemble">[docs]</a><span class="k">def</span> <span class="nf">setup_polynomial_ensemble</span><span class="p">():</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return an ensemble of 5 univariate models of the form</span>
-<span class="sd"> </span>
+
 <span class="sd">    .. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4</span>
 
 <span class="sd">    where :mat:`z\sim\mathcal{U}[0, 1]`</span>
@@ -971,6 +764,317 @@
     <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">marginals</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span>
         <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">})</span>
+
+
+<span class="k">def</span> <span class="nf">setup_multi_index_advection_diffusion_benchmark</span><span class="p">(</span>
+        <span class="n">kle_nvars</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">kle_length_scale</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">kle_stdev</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">time_scenario</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">functional</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">config_values</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &amp;=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\</span>
+<span class="sd">       \mathcal{B}(x,t,\rv)&amp;=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\</span>
+<span class="sd">       u(x,t,\rv)&amp;=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom</span>
+
+<span class="sd">    Following [NTWSIAMNA2008]_, [JEGGIJNME2020]_ we set</span>
+
+<span class="sd">    .. math:: g(x,t)=(1.5+\cos(2\pi t))\cos(x_1),</span>
+
+<span class="sd">    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero dirichlet boundary conditions.</span>
+
+<span class="sd">    and we model the diffusivity :math:`k` as a random field represented by the</span>
+<span class="sd">    Karhunen-Loeve (like) expansion (KLE)</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       \log(k(x,\rv)-0.5)=1+\rv_1\left(\frac{\sqrt{\pi L}}{2}\right)^{1/2}+\sum_{k=2}^d \lambda_k\phi(x)\rv_k,</span>
+
+<span class="sd">    with</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k&gt;1,  \qquad\qquad  \phi(x)=</span>
+<span class="sd">       \begin{cases}</span>
+<span class="sd">       \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) &amp; k \text{ even}\,,\\</span>
+<span class="sd">       \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) &amp; k \text{ odd}\,.</span>
+<span class="sd">       \end{cases}</span>
+
+<span class="sd">    where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}`.</span>
+
+<span class="sd">    The quantity of interest :math:`f(z)` is the measurement of the solution at a location :math:`x_k` at the final time :math:`T=1` obtained via the linear functional</span>
+
+<span class="sd">    .. math:: f(z)=\int_D u(x,T,z)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x_k \rVert^2_2}{\sigma^2}\right) dx</span>
+
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    nvars : integer</span>
+<span class="sd">        The number of variables of the KLE</span>
+
+<span class="sd">    kle_length_scale : float</span>
+<span class="sd">        The correlation length :math:`L_c` of the covariance kernel</span>
+
+<span class="sd">    kle_sigma : float</span>
+<span class="sd">        The standard deviation of the KLE kernel</span>
+
+<span class="sd">    max_eval_concurrency : integer</span>
+<span class="sd">        The maximum number of simulations that can be run in parallel. Should be         no more than the maximum number of cores on the computer being used</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    benchmark : pyapprox.benchmarks.benchmarks.Benchmark</span>
+<span class="sd">       Object containing the benchmark attributes documented below</span>
+
+<span class="sd">    fun : callable</span>
+
+<span class="sd">        The quantity of interest :math:`f(w)` with signature</span>
+
+<span class="sd">        ``fun(w) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars``</span>
+<span class="sd">        rows of ``w`` are realizations of the random variables. The last 3 rows</span>
+<span class="sd">        are configuration variables specifying the numerical discretization of</span>
+<span class="sd">        the PDE model. Specifically the first and second configuration variables</span>
+<span class="sd">        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate</span>
+<span class="sd">        the resolution of the FEM mesh in the directions :math:`{x_1}` and</span>
+<span class="sd">        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}`</span>
+<span class="sd">        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration</span>
+<span class="sd">        variable specifies the level :math:`l_t` of the temporal discretization.</span>
+<span class="sd">        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep</span>
+<span class="sd">        size is and :math:`T/2^{l_{t}+2}`.</span>
+
+<span class="sd">    variable : pya.IndependentMarginalsVariable</span>
+<span class="sd">        Object containing information of the joint density of the inputs z</span>
+<span class="sd">        which is the tensor product of independent and identically distributed</span>
+<span class="sd">        uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from pyapprox_dev.benchmarks.benchmarks import setup_benchmark</span>
+<span class="sd">    &gt;&gt;&gt; benchmark = setup_benchmark(&#39;multi_index_advection_diffusion&#39;, nvars=2)</span>
+<span class="sd">    &gt;&gt;&gt; print(benchmark.keys())</span>
+<span class="sd">    dict_keys([&#39;fun&#39;, &#39;variable&#39;])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">base_model</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">config_var_trans</span><span class="p">,</span> <span class="n">model_ensemble</span> <span class="o">=</span> <span class="p">(</span>
+         <span class="n">_setup_multi_index_advection_diffusion_benchmark</span><span class="p">(</span>
+            <span class="n">kle_length_scale</span><span class="p">,</span> <span class="n">kle_stdev</span><span class="p">,</span> <span class="n">kle_nvars</span><span class="p">,</span> <span class="n">time_scenario</span><span class="o">=</span><span class="n">time_scenario</span><span class="p">,</span>
+            <span class="n">functional</span><span class="o">=</span><span class="n">functional</span><span class="p">,</span> <span class="n">config_values</span><span class="o">=</span><span class="n">config_values</span><span class="p">))</span>
+    <span class="n">timer_model</span> <span class="o">=</span> <span class="n">TimerModel</span><span class="p">(</span><span class="n">base_model</span><span class="p">,</span> <span class="n">base_model</span><span class="p">)</span>
+    <span class="n">pool_model</span> <span class="o">=</span> <span class="n">PoolModel</span><span class="p">(</span>
+        <span class="n">timer_model</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">,</span> <span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span><span class="p">)</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span><span class="n">pool_model</span><span class="p">,</span> <span class="n">base_model</span><span class="p">,</span>
+                              <span class="n">base_model</span><span class="o">.</span><span class="n">_nconfig_vars</span><span class="p">)</span>
+    <span class="n">model0</span> <span class="o">=</span> <span class="n">base_model</span><span class="o">.</span><span class="n">_model_ensemble</span><span class="o">.</span><span class="n">functions</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">,</span>
+        <span class="s2">&quot;get_num_degrees_of_freedom&quot;</span><span class="p">:</span> <span class="n">model0</span><span class="o">.</span><span class="n">get_num_degrees_of_freedom_cost</span><span class="p">,</span>
+        <span class="s2">&quot;config_var_trans&quot;</span><span class="p">:</span> <span class="n">config_var_trans</span><span class="p">,</span>
+        <span class="s1">&#39;model_ensemble&#39;</span><span class="p">:</span> <span class="n">model_ensemble</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">setup_advection_diffusion_kle_inversion_benchmark</span><span class="p">(</span>
+        <span class="n">source_loc</span><span class="o">=</span><span class="p">[</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">],</span> <span class="n">source_amp</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">source_width</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">kle_length_scale</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">kle_stdev</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">kle_nvars</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">true_sample</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">orders</span><span class="o">=</span><span class="p">[</span><span class="mi">20</span><span class="p">,</span> <span class="mi">20</span><span class="p">],</span> <span class="n">noise_stdev</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">nobs</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">obs_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute functionals of the following model of transient diffusion of</span>
+<span class="sd">    a contaminant</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &amp;=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\</span>
+<span class="sd">       \mathcal{B}(x,t,\rv)&amp;=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\</span>
+<span class="sd">       u(x,t,\rv)&amp;=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom</span>
+
+<span class="sd">    Following [MNRJCP2006]_, [LMSISC2014]_ we set</span>
+
+<span class="sd">    .. math:: g(x,t)=\frac{s}{2\pi h^2}\exp\left(-\frac{\lvert x-x_\mathrm{src}\rvert^2}{2h^2}\right)</span>
+
+<span class="sd">    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero Neumann boundary conditions, i.e.</span>
+
+<span class="sd">    .. math:: \nabla u\cdot n = 0 \quad\mathrm{on} \quad\partial D</span>
+
+<span class="sd">    and we model the diffusivity :math:`k=1` as a constant.</span>
+
+<span class="sd">    The quantities of interest are point observations :math:`u(x_l)`</span>
+<span class="sd">    taken at :math:`P` points in time :math:`\{t_p\}_{p=1}^P` at :math:`L`</span>
+<span class="sd">    locations :math:`\{x_l\}_{l=1}^L`. The final time :math:`T` is the last</span>
+<span class="sd">    observation time.</span>
+
+<span class="sd">    These functionals can be used to define the posterior distribution</span>
+
+<span class="sd">    .. math::  \pi_{\text{post}}(\rv)=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom} \pi(\V{y}|\rv)\pi(\rv)d\rv}</span>
+
+<span class="sd">    where the prior is the tensor product of independent and identically</span>
+<span class="sd">    distributed uniform variables on :math:`[0,1]` i.e.</span>
+<span class="sd">    :math:`\pi(\rv)=1`, and the likelihood is given by</span>
+
+<span class="sd">    .. math:: \pi(\V{y}|\rv)=\frac{1}{(2\pi)^{d/2}\sigma}\exp\left(-\frac{1}{2}\frac{(y-f(\rv))^T(y-f(\rv))}{\sigma^2}\right)</span>
+
+<span class="sd">    and :math:`y` are noisy observations of the solution `u` at the 9</span>
+<span class="sd">    points of a uniform :math:`3\times 3` grid covering the physical domain</span>
+<span class="sd">    :math:`D` at successive times :math:`\{t_p\}_{p=1}^P`. Here the noise is</span>
+<span class="sd">    indepenent and Normally distrbuted with mean</span>
+<span class="sd">    zero and variance :math:`\sigma^2`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    source_loc : np.ndarray (2)</span>
+<span class="sd">        The center of the source</span>
+
+<span class="sd">    source_amp : float</span>
+<span class="sd">        The source strength :math:`s`</span>
+
+<span class="sd">    source_width : float</span>
+<span class="sd">        The source width :math:`h`</span>
+
+<span class="sd">    true_sample : np.ndarray (2)</span>
+<span class="sd">        The true location of the source used to generate the observations</span>
+<span class="sd">        used in the likelihood function</span>
+
+<span class="sd">    noise_stdev : float</span>
+<span class="sd">        The standard deviation :math:`sigma` of the observational noise</span>
+
+<span class="sd">    max_eval_concurrency : integer</span>
+<span class="sd">        The maximum number of simulations that can be run in parallel. Should</span>
+<span class="sd">        be no more than the maximum number of cores on the computer being used</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    benchmark : pya.Benchmark</span>
+<span class="sd">       Object containing the benchmark attributes documented below</span>
+
+<span class="sd">    fun : callable</span>
+
+<span class="sd">        The quantity of interest :math:`f(w)` with signature</span>
+
+<span class="sd">        ``fun(w) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars``</span>
+<span class="sd">        rows of ``w`` are realizations of the random variables. The last 3 rows</span>
+<span class="sd">        are configuration variables specifying the numerical discretization of</span>
+<span class="sd">        the PDE model. Specifically the first and second configuration variables</span>
+<span class="sd">        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate</span>
+<span class="sd">        the resolution of the FEM mesh in the directions :math:`{x_1}` and</span>
+<span class="sd">        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}`</span>
+<span class="sd">        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration</span>
+<span class="sd">        variable specifies the level :math:`l_t` of the temporal discretization.</span>
+<span class="sd">        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep</span>
+<span class="sd">        size is and :math:`T/2^{l_{t}+2}`.</span>
+
+<span class="sd">    variable : py:class:`pyapprox.variabels.joint.IndependentMarginalsVariable`</span>
+<span class="sd">        Object containing information of the joint density of the inputs z</span>
+<span class="sd">        which is the tensor product of independent and identically distributed</span>
+<span class="sd">        uniform variables on :math:`[0,1]`.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from pyapprox_dev.benchmarks.benchmarks import setup_benchmark</span>
+<span class="sd">    &gt;&gt;&gt; benchmark = setup_benchmark(&#39;advection_diffusion_kle_inversion&#39;, nvars=2)</span>
+<span class="sd">    &gt;&gt;&gt; print(benchmark.keys())</span>
+<span class="sd">    dict_keys([&#39;fun&#39;, &#39;variable&#39;])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="p">(</span><span class="n">base_model</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">true_sample</span><span class="p">,</span> <span class="n">noiseless_obs</span><span class="p">,</span> <span class="n">obs</span><span class="p">,</span> <span class="n">obs_indices</span><span class="p">,</span>
+     <span class="n">obs_model</span><span class="p">,</span> <span class="n">kle</span><span class="p">,</span> <span class="n">mesh</span><span class="p">)</span> <span class="o">=</span> <span class="n">_setup_inverse_advection_diffusion_benchmark</span><span class="p">(</span>
+         <span class="n">source_amp</span><span class="p">,</span> <span class="n">source_width</span><span class="p">,</span> <span class="n">source_loc</span><span class="p">,</span> <span class="n">nobs</span><span class="p">,</span> <span class="n">noise_stdev</span><span class="p">,</span>
+         <span class="n">kle_length_scale</span><span class="p">,</span> <span class="n">kle_stdev</span><span class="p">,</span> <span class="n">kle_nvars</span><span class="p">,</span> <span class="n">orders</span><span class="p">,</span> <span class="n">obs_indices</span><span class="p">)</span>
+    <span class="c1"># add wrapper to allow execution times to be captured</span>
+    <span class="n">timer_model</span> <span class="o">=</span> <span class="n">TimerModel</span><span class="p">(</span><span class="n">base_model</span><span class="p">,</span> <span class="n">base_model</span><span class="p">)</span>
+    <span class="n">pool_model</span> <span class="o">=</span> <span class="n">PoolModel</span><span class="p">(</span>
+        <span class="n">timer_model</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">,</span> <span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span><span class="p">)</span>
+
+    <span class="c1"># add wrapper that tracks execution times.</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span><span class="n">pool_model</span><span class="p">,</span> <span class="n">base_model</span><span class="p">)</span>
+
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;negloglike&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">,</span>
+                  <span class="s2">&quot;noiseless_obs&quot;</span><span class="p">:</span> <span class="n">noiseless_obs</span><span class="p">,</span> <span class="s2">&quot;obs&quot;</span><span class="p">:</span> <span class="n">obs</span><span class="p">,</span>
+                  <span class="s2">&quot;true_sample&quot;</span><span class="p">:</span> <span class="n">true_sample</span><span class="p">,</span> <span class="s2">&quot;obs_indices&quot;</span><span class="p">:</span> <span class="n">obs_indices</span><span class="p">,</span>
+                  <span class="s2">&quot;obs_fun&quot;</span><span class="p">:</span> <span class="n">obs_model</span><span class="p">,</span> <span class="s2">&quot;KLE&quot;</span><span class="p">:</span> <span class="n">kle</span><span class="p">,</span> <span class="s2">&quot;mesh&quot;</span><span class="p">:</span> <span class="n">mesh</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span>
+
+
+<span class="n">_benchmarks</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;sobol_g&#39;</span><span class="p">:</span> <span class="n">setup_sobol_g_function</span><span class="p">,</span>
+    <span class="s1">&#39;ishigami&#39;</span><span class="p">:</span> <span class="n">setup_ishigami_function</span><span class="p">,</span>
+    <span class="s1">&#39;oakley&#39;</span><span class="p">:</span> <span class="n">setup_oakley_function</span><span class="p">,</span>
+    <span class="s1">&#39;rosenbrock&#39;</span><span class="p">:</span> <span class="n">setup_rosenbrock_function</span><span class="p">,</span>
+    <span class="s1">&#39;genz&#39;</span><span class="p">:</span> <span class="n">setup_genz_function</span><span class="p">,</span>
+    <span class="s1">&#39;cantilever_beam&#39;</span><span class="p">:</span> <span class="n">setup_cantilever_beam_benchmark</span><span class="p">,</span>
+    <span class="s1">&#39;wing_weight&#39;</span><span class="p">:</span> <span class="n">setup_wing_weight_benchmark</span><span class="p">,</span>
+    <span class="s1">&#39;piston&#39;</span><span class="p">:</span> <span class="n">setup_piston_benchmark</span><span class="p">,</span>
+    <span class="s1">&#39;chemical_reaction&#39;</span><span class="p">:</span> <span class="n">setup_chemical_reaction_benchmark</span><span class="p">,</span>
+    <span class="s1">&#39;random_oscillator&#39;</span><span class="p">:</span> <span class="n">setup_random_oscillator_benchmark</span><span class="p">,</span>
+    <span class="s1">&#39;coupled_springs&#39;</span><span class="p">:</span> <span class="n">setup_coupled_springs_benchmark</span><span class="p">,</span>
+    <span class="s1">&#39;hastings_ecology&#39;</span><span class="p">:</span> <span class="n">setup_hastings_ecology_benchmark</span><span class="p">,</span>
+    <span class="s1">&#39;multi_index_advection_diffusion&#39;</span><span class="p">:</span>
+    <span class="n">setup_multi_index_advection_diffusion_benchmark</span><span class="p">,</span>
+    <span class="s1">&#39;advection_diffusion_kle_inversion&#39;</span><span class="p">:</span>
+    <span class="n">setup_advection_diffusion_kle_inversion_benchmark</span><span class="p">,</span>
+    <span class="s1">&#39;polynomial_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_polynomial_ensemble</span><span class="p">,</span>
+    <span class="s1">&#39;tunable_model_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_tunable_model_ensemble</span><span class="p">,</span>
+    <span class="s1">&#39;short_column_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_short_column_ensemble</span><span class="p">,</span>
+    <span class="s2">&quot;parameterized_nonlinear_model&quot;</span><span class="p">:</span> <span class="n">setup_parameterized_nonlinear_model</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="setup_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_benchmark.html#pyapprox.benchmarks.setup_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_benchmark</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Setup a PyApprox benchmark.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name : string</span>
+<span class="sd">        The name of the benchmark</span>
+
+<span class="sd">    kwargs: kwargs</span>
+<span class="sd">     optional keyword arguments</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`</span>
+<span class="sd">       Object containing the benchmark attributes</span>
+
+<span class="sd">    The benchmark object must contain at least the following two attributes</span>
+
+<span class="sd">    fun : callable</span>
+<span class="sd">        A function with signature</span>
+
+<span class="sd">        fun(samples) -&gt; np.ndarray(nsamples, nqoi)</span>
+
+<span class="sd">        where samples : np.ndarray(nvars, nsamples)</span>
+
+<span class="sd">    variable : :py:class:`pyapprox.variables.JointVariable`</span>
+<span class="sd">        Class containing information about each of the nvars inputs to fun</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+    <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_benchmarks</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Benchmark &quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">&quot; not found.</span><span class="se">\n</span><span class="s1"> Available benchmarks are:</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_benchmarks</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">_benchmarks</span><span class="p">[</span><span class="n">name</span><span class="p">](</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="list_benchmarks"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.list_benchmarks.html#pyapprox.benchmarks.list_benchmarks">[docs]</a><span class="k">def</span> <span class="nf">list_benchmarks</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    List the names of all available benchmarks</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    names : list</span>
+<span class="sd">        A list of the name of each benchmark implemented in PyApprox</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">_benchmarks</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span></div>
 </pre></div>
 
            </div>

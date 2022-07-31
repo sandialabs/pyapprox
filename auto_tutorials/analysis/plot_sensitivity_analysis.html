@@ -151,7 +151,7 @@ to download the full example code</p>
      <span class="s1">&#39;options&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;max_degree&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">}})</span>
 <span class="n">pce</span> <span class="o">=</span> <span class="n">approx_res</span><span class="o">.</span><span class="n">approx</span>
 
-<span class="n">res</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">gpc_sobol_sensitivities</span><span class="p">(</span><span class="n">pce</span><span class="p">)</span>
+<span class="n">res</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">gpc_sobol_sensitivities</span><span class="p">(</span><span class="n">pce</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Now lets compare the estimated values with the exact value</p>
@@ -160,7 +160,7 @@ to download the full example code</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[3.13745022e-01 4.42700090e-01 3.79118390e-07]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[3.14453417e-01 4.42302275e-01 1.28148188e-07]
 [0.31390519 0.44241114 0.        ]
 </pre></div>
 </div>
@@ -191,7 +191,7 @@ to download the full example code</p>
 <dd><p><a class="reference external" href="https://doi.org/10.1080/00401706.1991.10484804">M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991</a></p>
 </dd>
 </dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.925 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.700 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-analysis-plot-sensitivity-analysis-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/721a21f1cd1e267ca0bb95e75a2842b8/plot_sensitivity_analysis.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_sensitivity_analysis.py</span></code></a></p>

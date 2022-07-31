@@ -1,0 +1,6 @@
+plot_model_costs
+================
+
+.. currentmodule:: pyapprox.multifidelity
+
+.. autofunction:: plot_model_costs

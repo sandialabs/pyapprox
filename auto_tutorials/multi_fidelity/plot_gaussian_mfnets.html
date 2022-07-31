@@ -171,7 +171,7 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_gaussian_mfnets_001.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_001.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.legend.Legend object at 0x127df98b0&gt;
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.legend.Legend object at 0x168d951c0&gt;
 </pre></div>
 </div>
 <p>Now setup the polynomial approximations of each information source</p>
@@ -242,7 +242,7 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_gaussian_mfnets_002.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_002.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[&lt;matplotlib.lines.Line2D object at 0x127d14040&gt;]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[&lt;matplotlib.lines.Line2D object at 0x168be7df0&gt;]
 </pre></div>
 </div>
 <p>Unfortunately by assuming that the coefficients of each information source are independent the lower fidelity data is not informing the estimation of the coefficients of the high-fidelity approximation. This statement can be verified by computing an approximation with only the high-fidelity data</p>
@@ -291,7 +291,7 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_gaussian_mfnets_003.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_003.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.image.AxesImage object at 0x127a94550&gt;
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.image.AxesImage object at 0x168d6b100&gt;
 </pre></div>
 </div>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">post_mean</span><span class="p">,</span> <span class="n">post_cov</span> <span class="o">=</span> <span class="n">laplace_posterior_approximation_for_linear_models</span><span class="p">(</span>
@@ -318,7 +318,7 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_gaussian_mfnets_004.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_004.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[&lt;matplotlib.lines.Line2D object at 0x126647af0&gt;]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[&lt;matplotlib.lines.Line2D object at 0x168dfabe0&gt;]
 </pre></div>
 </div>
 <p>Depsite using only a very small number of samples of the high-fidelity information source, the multi-fidelity approximation has smaller variance and the mean more closely approximates the true high-fidelity information source, when compared to the single fidelity strategy.</p>
@@ -476,7 +476,7 @@ f_3(\rv) &amp;= f_2(\rv)+\cos(3\pi\rv_1)\end{split}\]</div>
 <p>Noting that <span class="math notranslate nohighlight">\(\left(A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}\)</span> is the posterior covariance we obtain the usual expression for the posterior mean</p>
 <div class="math notranslate nohighlight">
 \[\mu^\mathrm{post}=\Sigma^\mathrm{post}\left(A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right)\]</div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.300 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.871 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/61a19ff484b6fbbccbed5bda217b6b9b/plot_gaussian_mfnets.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_gaussian_mfnets.py</span></code></a></p>

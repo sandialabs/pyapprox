@@ -20,7 +20,7 @@
 
 Multi-fidelity Monte Carlo
 ==========================
-This tutorial builds on from :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and introduces an approximate control variate estimator called Multi-fidelity Monte Carlo (MFMC). Unlike MLMC this method does not assume a strict ordering of models.
+This tutorial builds on from :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and introduces an approximate control variate estimator called Multi-fidelity Monte Carlo (MFMC) [PWGSIAM2016]_. Unlike MLMC this method does not assume a strict ordering of models.
 
 Many Model MFMC
 ---------------
@@ -142,7 +142,7 @@ where :math:`\V{w}=[w_0,w_M]^T` are the relative costs of each model, and :math:
 
 Now lets us compare MC with MFMC using optimal sample allocations
 
-.. GENERATED FROM PYTHON SOURCE LINES 104-133
+.. GENERATED FROM PYTHON SOURCE LINES 104-136
 
 .. code-block:: default
 
@@ -156,7 +156,8 @@ Now lets us compare MC with MFMC using optimal sample allocations
     model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
     npilot_samples = 10
     cov_mc = multifidelity.estimate_model_ensemble_covariance(
-        npilot_samples, benchmark.variable.rvs, model_ensemble)[0]
+        npilot_samples, benchmark.variable.rvs, model_ensemble,
+        model_ensemble.nmodels)[0]
 
     from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
     estimators = [
@@ -178,6 +179,8 @@ Now lets us compare MC with MFMC using optimal sample allocations
 
 
 
+
+
 .. image-sg:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_multi_fidelity_monte_carlo_001.png
    :alt: plot multi fidelity monte carlo
    :srcset: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_multi_fidelity_monte_carlo_001.png
@@ -187,10 +190,16 @@ Now lets us compare MC with MFMC using optimal sample allocations
 
 
 
+.. GENERATED FROM PYTHON SOURCE LINES 137-140
+
+References
+^^^^^^^^^^
+.. [PWGSIAM2016] `{Peherstorfer, B., Willcox, K.,  Gunzburger, M., Optimal Model Management for Multifidelity Monte Carlo Estimation, 2016. <https://doi.org/10.1137/15M1046472>`_
+
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.590 seconds)
+   **Total running time of the script:** ( 0 minutes  0.603 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py:

@@ -20,7 +20,7 @@
 
 Monte Carlo Quadrature
 ======================
-This tutorial describes how to use Monte Carlo sampling to compute the expectations of the output of an model. Specifically, given a function :math:`f_\alpha(\rv):\reals^{d}\to\reals` parameterized by a set of variables :math:`\rv=[\rv_1,\ldots,\rv_d]^T` with joint density given by :math:`\rho(\rv):\reals^{d}\to\reals`, our goal is to approximate the integral
+This tutorial describes how to use Monte Carlo sampling to compute the expectations of the output of a model. Specifically, given a function :math:`f_\alpha(\rv):\reals^{d}\to\reals` parameterized by a set of variables :math:`\rv=[\rv_1,\ldots,\rv_d]^T` with joint density given by :math:`\rho(\rv):\reals^{d}\to\reals`, our goal is to approximate the integral
 
 .. math:: Q_\alpha=\int_\rvdom f_\alpha(\rv)\pdf(\rv)\dx{\rv}
 
@@ -322,7 +322,7 @@ In a series of tutorials starting with :ref:`sphx_glr_auto_tutorials_multi_fidel
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.669 seconds)
+   **Total running time of the script:** ( 0 minutes  0.791 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_monte_carlo.py:

@@ -90,7 +90,7 @@
 <span class="kn">from</span> <span class="nn">pyapprox.variables.joint</span> <span class="kn">import</span> <span class="n">IndependentMarginalsVariable</span>
 
 
-<div class="viewcode-block" id="print_statistics"><a class="viewcode-back" href="../../../api/pyapprox.variables.print_statistics.html#pyapprox.variables.print_statistics">[docs]</a><span class="k">def</span> <span class="nf">print_statistics</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">sample_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">value_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="print_statistics"><a class="viewcode-back" href="../../../api/pyapprox.variables.print_statistics.html#pyapprox.variables.print_statistics">[docs]</a><span class="k">def</span> <span class="nf">print_statistics</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">value_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Print statistics about a set of samples and associated values</span>
 
@@ -104,21 +104,23 @@
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
-<span class="sd">    &gt;&gt;&gt; num_vars=2</span>
+<span class="sd">    &gt;&gt;&gt; num_vars = 2</span>
 <span class="sd">    &gt;&gt;&gt; np.random.seed(1)</span>
-<span class="sd">    &gt;&gt;&gt; samples = np.random.normal(0,1,(num_vars,100))</span>
-<span class="sd">    &gt;&gt;&gt; values = np.array([np.sum(samples**2,axis=0),2*np.sum(samples**2,axis=0)]).T</span>
-<span class="sd">    &gt;&gt;&gt; print_statistics(samples,values)</span>
-<span class="sd">               z0         z1         y0         y1    </span>
+<span class="sd">    &gt;&gt;&gt; samples = np.random.normal(0, 1, (num_vars, 100))</span>
+<span class="sd">    &gt;&gt;&gt; values = np.array([np.sum(samples**2, axis=0), 2*np.sum(samples**2, axis=0)]).T</span>
+<span class="sd">    &gt;&gt;&gt; print_statistics(samples, values)</span>
+<span class="sd">               z0         z1         y0         y1</span>
 <span class="sd">    count  100.000000 100.000000 100.000000 100.000000</span>
 <span class="sd">    mean     0.060583   0.152795   1.679132   3.358265</span>
 <span class="sd">    std      0.885156   0.931995   1.705877   3.411753</span>
 <span class="sd">    min     -2.301539  -2.434838   0.031229   0.062458</span>
 <span class="sd">    max      2.185575   2.528326   9.575905  19.151810</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">num_vars</span><span class="p">,</span> <span class="n">nsamples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span>
+    <span class="k">if</span> <span class="n">values</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nsamples</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
     <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
         <span class="n">values</span> <span class="o">=</span> <span class="n">values</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
-    <span class="n">num_vars</span><span class="p">,</span> <span class="n">nsamples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span>
     <span class="n">num_qoi</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
     <span class="k">assert</span> <span class="n">nsamples</span> <span class="o">==</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="k">if</span> <span class="n">sample_labels</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>

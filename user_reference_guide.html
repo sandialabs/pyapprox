@@ -70,6 +70,8 @@
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.analysis.plot_main_effects.html">plot_main_effects</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.analysis.plot_total_effects.html">plot_total_effects</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.analysis.plot_interaction_values.html">plot_interaction_values</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.analysis.run_sensitivity_analysis.html">run_sensitivity_analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.analysis.plot_sensitivity_indices.html">plot_sensitivity_indices</a></li>
 </ul>
 </li>
 </ul>
@@ -96,6 +98,7 @@
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_piston_benchmark.html">setup_piston_benchmark</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_wing_weight_benchmark.html">setup_wing_weight_benchmark</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_polynomial_ensemble.html">setup_polynomial_ensemble</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.list_benchmarks.html">list_benchmarks</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#id3">Classes</a><ul>
@@ -150,6 +153,9 @@
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.plot_estimator_variances.html">plot_estimator_variances</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.plot_acv_sample_allocation_comparison.html">plot_acv_sample_allocation_comparison</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.estimate_model_ensemble_covariance.html">estimate_model_ensemble_covariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.plot_correlation_matrix.html">plot_correlation_matrix</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.plot_model_costs.html">plot_model_costs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.get_best_models_for_acv_estimator.html">get_best_models_for_acv_estimator</a></li>
 </ul>
 </li>
 </ul>
@@ -260,23 +266,29 @@ model analysis.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.analysis.generate_parameter_sweeps_and_plot_from_variable.html#pyapprox.analysis.generate_parameter_sweeps_and_plot_from_variable" title="pyapprox.analysis.generate_parameter_sweeps_and_plot_from_variable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_parameter_sweeps_and_plot_from_variable</span></code></a>(...)</p></td>
 <td><p>Plot parameter sweeps of a function.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.analysis.gpc_sobol_sensitivities.html#pyapprox.analysis.gpc_sobol_sensitivities" title="pyapprox.analysis.gpc_sobol_sensitivities"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpc_sobol_sensitivities</span></code></a>(pce[, max_order])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.analysis.gpc_sobol_sensitivities.html#pyapprox.analysis.gpc_sobol_sensitivities" title="pyapprox.analysis.gpc_sobol_sensitivities"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpc_sobol_sensitivities</span></code></a>(pce, variable[, ...])</p></td>
 <td><p>Compute variance based sensitivity metrics from a polynomial chaos expansion</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.analysis.sparse_grid_sobol_sensitivities.html#pyapprox.analysis.sparse_grid_sobol_sensitivities" title="pyapprox.analysis.sparse_grid_sobol_sensitivities"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sparse_grid_sobol_sensitivities</span></code></a>(sparse_grid)</p></td>
 <td><p>Compute sensitivity indices from a sparse grid by converting it to a polynomial chaos expansion</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.analysis.morris_sensitivities.html#pyapprox.analysis.morris_sensitivities" title="pyapprox.analysis.morris_sensitivities"><code class="xref py py-obj docutils literal notranslate"><span class="pre">morris_sensitivities</span></code></a>(fun, ...[, nlevels])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.analysis.morris_sensitivities.html#pyapprox.analysis.morris_sensitivities" title="pyapprox.analysis.morris_sensitivities"><code class="xref py py-obj docutils literal notranslate"><span class="pre">morris_sensitivities</span></code></a>(fun, variable, ...[, ...])</p></td>
 <td><p>Compute sensitivity indices by constructing an adaptive polynomial chaos expansion.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.analysis.plot_main_effects.html#pyapprox.analysis.plot_main_effects" title="pyapprox.analysis.plot_main_effects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_main_effects</span></code></a>(main_effects, ax[, ...])</p></td>
 <td><p>Plot the main effects in a pie chart showing relative size.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.analysis.plot_total_effects.html#pyapprox.analysis.plot_total_effects" title="pyapprox.analysis.plot_total_effects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_total_effects</span></code></a>(total_effects, ax[, ...])</p></td>
-<td><p>Plot the total effects in a pie chart showing relative size.</p></td>
+<td><p>Plot the total effects in a bar chart showing relative size.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.analysis.plot_interaction_values.html#pyapprox.analysis.plot_interaction_values" title="pyapprox.analysis.plot_interaction_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_interaction_values</span></code></a>(interaction_values, ...)</p></td>
 <td><p>Plot sobol indices in a pie chart showing relative size.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.analysis.run_sensitivity_analysis.html#pyapprox.analysis.run_sensitivity_analysis" title="pyapprox.analysis.run_sensitivity_analysis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">run_sensitivity_analysis</span></code></a>(method, fun, ...)</p></td>
+<td><p>Compute sensitivity indices for a model.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.analysis.plot_sensitivity_indices.html#pyapprox.analysis.plot_sensitivity_indices" title="pyapprox.analysis.plot_sensitivity_indices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_sensitivity_indices</span></code></a>(result[, axs, ...])</p></td>
+<td><p></p></td>
 </tr>
 </tbody>
 </table>
@@ -357,6 +369,9 @@ the modeling literature.</p>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_polynomial_ensemble.html#pyapprox.benchmarks.setup_polynomial_ensemble" title="pyapprox.benchmarks.setup_polynomial_ensemble"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_polynomial_ensemble</span></code></a>()</p></td>
 <td><p>Return an ensemble of 5 univariate models of the form</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.list_benchmarks.html#pyapprox.benchmarks.list_benchmarks" title="pyapprox.benchmarks.list_benchmarks"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list_benchmarks</span></code></a>()</p></td>
+<td><p>List the names of all available benchmarks</p></td>
 </tr>
 </tbody>
 </table>
@@ -512,7 +527,7 @@ models of varying cost and fidelity.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.compare_estimator_variances.html#pyapprox.multifidelity.compare_estimator_variances" title="pyapprox.multifidelity.compare_estimator_variances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compare_estimator_variances</span></code></a>(target_costs, ...)</p></td>
 <td><p>Compute the variances of different Monte-Carlo like estimators.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_estimator_variances.html#pyapprox.multifidelity.plot_estimator_variances" title="pyapprox.multifidelity.plot_estimator_variances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_estimator_variances</span></code></a>(...[, ylabel])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_estimator_variances.html#pyapprox.multifidelity.plot_estimator_variances" title="pyapprox.multifidelity.plot_estimator_variances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_estimator_variances</span></code></a>(...[, ylabel, relative])</p></td>
 <td><p>Plot variance as a function of the total cost for a set of estimators.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_acv_sample_allocation_comparison.html#pyapprox.multifidelity.plot_acv_sample_allocation_comparison" title="pyapprox.multifidelity.plot_acv_sample_allocation_comparison"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_acv_sample_allocation_comparison</span></code></a>(...)</p></td>
@@ -520,6 +535,15 @@ models of varying cost and fidelity.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.estimate_model_ensemble_covariance.html#pyapprox.multifidelity.estimate_model_ensemble_covariance" title="pyapprox.multifidelity.estimate_model_ensemble_covariance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">estimate_model_ensemble_covariance</span></code></a>(...)</p></td>
 <td><p>Estimate the covariance of a model ensemble from a set of pilot samples</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_correlation_matrix.html#pyapprox.multifidelity.plot_correlation_matrix" title="pyapprox.multifidelity.plot_correlation_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_correlation_matrix</span></code></a>(corr_matrix[, ax, ...])</p></td>
+<td><p>Plot a correlation matrix</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_model_costs.html#pyapprox.multifidelity.plot_model_costs" title="pyapprox.multifidelity.plot_model_costs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_model_costs</span></code></a>(costs[, model_names, ax])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.get_best_models_for_acv_estimator.html#pyapprox.multifidelity.get_best_models_for_acv_estimator" title="pyapprox.multifidelity.get_best_models_for_acv_estimator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_best_models_for_acv_estimator</span></code></a>(...[, ...])</p></td>
+<td><p></p></td>
 </tr>
 </tbody>
 </table>
@@ -657,7 +681,7 @@ transforming multivariate random variables.</p>
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.variables.print_statistics.html#pyapprox.variables.print_statistics" title="pyapprox.variables.print_statistics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">print_statistics</span></code></a>(samples, values[, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.variables.print_statistics.html#pyapprox.variables.print_statistics" title="pyapprox.variables.print_statistics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">print_statistics</span></code></a>(samples[, values, ...])</p></td>
 <td><p>Print statistics about a set of samples and associated values</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.variables.combine_uncertain_and_bounded_design_variables.html#pyapprox.variables.combine_uncertain_and_bounded_design_variables" title="pyapprox.variables.combine_uncertain_and_bounded_design_variables"><code class="xref py py-obj docutils literal notranslate"><span class="pre">combine_uncertain_and_bounded_design_variables</span></code></a>(...)</p></td>

@@ -1,0 +1,6 @@
+list_benchmarks
+===============
+
+.. currentmodule:: pyapprox.benchmarks
+
+.. autofunction:: list_benchmarks

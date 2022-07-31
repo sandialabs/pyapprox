@@ -64,6 +64,7 @@
 <li class="toctree-l2"><a class="reference internal" href="plot_multivariate_piecewise_polynomial_interpolation.html">Multivariate Piecewise Polynomial Interpolation</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Convergence studies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_sparse_grid_uq.html">Sparse Grid Interpolation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_paper_demo.html">End-to-End Model Analysis</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
@@ -194,19 +195,35 @@ Now define this integrand and the true value as a function of the random samples
     <span class="n">num_samples</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">coarsest_levels</span><span class="o">=</span><span class="n">coarsest_levels</span><span class="p">,</span>
     <span class="n">reference_model</span><span class="o">=</span><span class="n">true_value</span><span class="p">)</span>
 <span class="n">plot_convergence_data</span><span class="p">(</span><span class="n">convergence_data</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_pde_convergence_001.png" srcset="../_images/sphx_glr_plot_pde_convergence_001.png" alt="plot pde convergence" class = "sphx-glr-single-img"/><p>The left plots depicts the convergence of the estimated integral as <span class="math notranslate nohighlight">\(n_1\)</span> is increased for varying values of <span class="math notranslate nohighlight">\(n_1\)</span> and vice-versa for the right plot. These plots confirm that the Integrator converges as the expected linear rate. Until the error introduced by fixing the other configuration variables dominates.</p>
+<img src="../_images/sphx_glr_plot_pde_convergence_001.png" srcset="../_images/sphx_glr_plot_pde_convergence_001.png" alt="plot pde convergence" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>(&lt;Figure size 1600x600 with 2 Axes&gt;, array([&lt;AxesSubplot:xlabel=&#39;$\\mathrm{Work\\;}$$W_{\\alpha}$&#39;, ylabel=&#39;$\\left| \\mathbb{E}[f]-\\mathbb{E}[f_{\\alpha}]\\right| / \\left| \\mathbb{E}[f]\\right|$&#39;&gt;,
+       &lt;AxesSubplot:xlabel=&#39;$\\mathrm{Work\\;}$$W_{\\alpha}$&#39;&gt;],
+      dtype=object))
+</pre></div>
+</div>
+<p>The left plots depicts the convergence of the estimated integral as <span class="math notranslate nohighlight">\(n_1\)</span> is increased for varying values of <span class="math notranslate nohighlight">\(n_1\)</span> and vice-versa for the right plot. These plots confirm that the Integrator converges as the expected linear rate. Until the error introduced by fixing the other configuration variables dominates.</p>
 <p>We can also generate similar plots for methods used to solve parameterized partial differential equations. I the following we will assess convergence of a spectral collocation method used to solve the transient advection diffusion equation on a rectangle.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
 <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-<span class="n">final_time</span> <span class="o">=</span> <span class="mf">.01</span>
-<span class="c1"># final_time = None</span>
+<span class="n">final_time</span> <span class="o">=</span> <span class="mf">.1</span>
+<span class="n">time_scenario</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;final_time&quot;</span><span class="p">:</span> <span class="n">final_time</span><span class="p">,</span>
+    <span class="s2">&quot;butcher_tableau&quot;</span><span class="p">:</span> <span class="s2">&quot;im_beuler1&quot;</span><span class="p">,</span>
+    <span class="c1"># &quot;butcher_tableau&quot;: &quot;im_crank2&quot;,</span>
+    <span class="s2">&quot;deltat&quot;</span><span class="p">:</span> <span class="n">final_time</span><span class="o">/</span><span class="mi">100</span><span class="p">,</span>  <span class="c1"># will be overwritten</span>
+    <span class="s2">&quot;init_sol_fun&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="c1"># &quot;init_sol_fun&quot;: partial(full_fun_axis_1, 0),</span>
+    <span class="s2">&quot;sink&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">50</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="p">[</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">]]</span>
+<span class="p">}</span>
+
+<span class="n">N</span> <span class="o">=</span> <span class="mi">4</span>
+<span class="n">config_values</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">N</span><span class="o">+</span><span class="mi">2</span><span class="p">)</span><span class="o">+</span><span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">N</span><span class="o">+</span><span class="mi">2</span><span class="p">)</span><span class="o">+</span><span class="mi">5</span><span class="p">,</span>
+                 <span class="n">final_time</span><span class="o">/</span><span class="p">((</span><span class="mi">2</span><span class="o">**</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">N</span><span class="o">+</span><span class="mi">2</span><span class="p">)))]</span>
 <span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span>
-    <span class="s2">&quot;multi_index_advection_diffusion&quot;</span><span class="p">,</span> <span class="n">nvars</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">corr_len</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
-    <span class="n">final_time</span><span class="o">=</span><span class="n">final_time</span><span class="p">)</span>
-<span class="n">N</span> <span class="o">=</span> <span class="mi">5</span>
+    <span class="s2">&quot;multi_index_advection_diffusion&quot;</span><span class="p">,</span> <span class="n">kle_nvars</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">kle_length_scale</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">kle_stdev</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">time_scenario</span><span class="o">=</span><span class="n">time_scenario</span><span class="p">,</span> <span class="n">config_values</span><span class="o">=</span><span class="n">config_values</span><span class="p">)</span>
 <span class="n">validation_levels</span> <span class="o">=</span> <span class="p">[</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">]</span>
 <span class="n">coarsest_levels</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
 <span class="k">if</span> <span class="n">final_time</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -216,22 +233,16 @@ Now define this integrand and the true value as a function of the random samples
     <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">validation_levels</span><span class="p">,</span>
     <span class="n">benchmark</span><span class="o">.</span><span class="n">get_num_degrees_of_freedom</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">config_var_trans</span><span class="p">,</span>
     <span class="n">num_samples</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">coarsest_levels</span><span class="o">=</span><span class="n">coarsest_levels</span><span class="p">)</span>
-<span class="n">plot_convergence_data</span><span class="p">(</span><span class="n">convergence_data</span><span class="p">)</span>
+<span class="n">plot_convergence_data</span><span class="p">(</span><span class="n">convergence_data</span><span class="p">,</span> <span class="n">cost_type</span><span class="o">=</span><span class="s2">&quot;time&quot;</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_pde_convergence_002.png" srcset="../_images/sphx_glr_plot_pde_convergence_002.png" alt="plot pde convergence" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Evaluating all 10 samples took 0.35254812240600586 seconds
-Evaluating all 10 samples took 0.3919870853424072 seconds
-Evaluating all 1250 samples took 6.070962905883789 seconds
-</pre></div>
-</div>
-<p>Note when because the benchmark fun is run using multiprocessing.Pool
+<img src="../_images/sphx_glr_plot_pde_convergence_002.png" srcset="../_images/sphx_glr_plot_pde_convergence_002.png" alt="plot pde convergence" class = "sphx-glr-single-img"/><p>Note when because the benchmark fun is run using multiprocessing.Pool
 The .py script of this tutorial cannot be run with max_eval_concurrency &gt; 1
 via the shell command using python plot_pde_convergence.py because Pool
 must be called inside</p>
 <p><a href="#id1"><span class="problematic" id="id2">`</span></a>if __name__ == “__main__”:</p>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  7.514 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  8.389 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-pde-convergence-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/21ce9dbc867b1de2b77eedf7a0f6529e/plot_pde_convergence.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_pde_convergence.py</span></code></a></p>

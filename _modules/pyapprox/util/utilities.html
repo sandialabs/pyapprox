@@ -518,7 +518,9 @@
     <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
     <span class="n">nvars</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">fprime</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">func_at_x</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+    <span class="n">func_at_x</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">func_at_x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">func_at_x</span> <span class="o">=</span> <span class="n">func_at_x</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
     <span class="k">assert</span> <span class="n">func_at_x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
     <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
         <span class="n">x_plus_eps</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
@@ -1001,7 +1003,7 @@
 
 
 <div class="viewcode-block" id="check_gradients"><a class="viewcode-back" href="../../../api/pyapprox.util.check_gradients.html#pyapprox.util.check_gradients">[docs]</a><span class="k">def</span> <span class="nf">check_gradients</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span> <span class="n">jac</span><span class="p">,</span> <span class="n">zz</span><span class="p">,</span> <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">disp</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">rel</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                    <span class="n">direction</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">jacp</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                    <span class="n">direction</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">jacp</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fd_eps</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compare a user specified jacobian with the jacobian computed with finite</span>
 <span class="sd">    difference with multiple step sizes.</span>
@@ -1045,6 +1047,10 @@
 <span class="sd">        Direction to which Jacobian is applied. Default is None in which</span>
 <span class="sd">        case random direction is chosen.</span>
 
+<span class="sd">    fd_eps : np.ndarray (nstep_sizes)</span>
+<span class="sd">        The finite difference step sizes used to compute the gradient. </span>
+<span class="sd">        If None then fd_eps=np.logspace(-13, 0, 14)[::-1]</span>
+
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    errors : np.ndarray (14, nqoi)</span>
@@ -1075,7 +1081,8 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">Exception</span>
 
-    <span class="n">fd_eps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logspace</span><span class="p">(</span><span class="o">-</span><span class="mi">13</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">14</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">fd_eps</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">fd_eps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logspace</span><span class="p">(</span><span class="o">-</span><span class="mi">13</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">14</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
     <span class="n">errors</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">row_format</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{:&lt;12}</span><span class="s2"> </span><span class="si">{:&lt;25}</span><span class="s2"> </span><span class="si">{:&lt;25}</span><span class="s2"> </span><span class="si">{:&lt;25}</span><span class="s2">&quot;</span>
     <span class="k">if</span> <span class="n">disp</span><span class="p">:</span>
@@ -1088,6 +1095,7 @@
             <span class="nb">print</span><span class="p">(</span><span class="n">row_format</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
                 <span class="s2">&quot;Eps&quot;</span><span class="p">,</span> <span class="s2">&quot;norm(jv)&quot;</span><span class="p">,</span> <span class="s2">&quot;norm(jv_fd)&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;Abs. Errors&quot;</span><span class="p">))</span>
+    <span class="n">row_format</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{:&lt;12.2e}</span><span class="s2"> </span><span class="si">{:&lt;25}</span><span class="s2"> </span><span class="si">{:&lt;25}</span><span class="s2"> </span><span class="si">{:&lt;25}</span><span class="s2">&quot;</span>
     <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">fd_eps</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
         <span class="n">zz_perturbed</span> <span class="o">=</span> <span class="n">zz</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">+</span><span class="n">fd_eps</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">direction</span>
         <span class="n">perturbed_function_val</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">zz_perturbed</span><span class="p">)</span>

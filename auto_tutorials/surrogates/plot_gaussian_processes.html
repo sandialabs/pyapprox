@@ -116,7 +116,7 @@ to download the full example code</p>
 <p>Constructing a GP requires specifying a prior mean <span class="math notranslate nohighlight">\(m(\rv)\)</span> and covariance kernel <span class="math notranslate nohighlight">\(C(\rv, \rv^\star)\)</span>. The GP leverages the correlation between training samples to approximate the residuals between the training data and the mean function. In the following we set the mean to zero. The covariance kernel should be tailored to the smoothness of the class of functions under consideration.</p>
 <div class="math notranslate nohighlight">
 \[C(\rv, \rv^\star; \ell)=\sigma^2 \frac{2^{1-\nu}}{\mathsf{\Gamma}(\nu)}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right)^{\nu}K_{\nu}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right).\]</div>
-<p>Here <span class="math notranslate nohighlight">\(d(\rv,\rv^\star; \ell)\)</span> is the weighted Euclidean distance between two points parameterized by the  vector hyper-parameters <span class="math notranslate nohighlight">\(\ell=[\ell_1,\ldots,\ell_d]^\top\)</span> is. The variance of the kernel is determined by :mathL`sigma^2` and we define <span class="math notranslate nohighlight">\(K_{\nu}\)</span> as the modified Bessel function of the second
+<p>Here <span class="math notranslate nohighlight">\(d(\rv,\rv^\star; \ell)\)</span> is the weighted Euclidean distance between two points parameterized by the  vector hyper-parameters <span class="math notranslate nohighlight">\(\ell=[\ell_1,\ldots,\ell_d]^\top\)</span> is. The variance of the kernel is determined by <span class="math notranslate nohighlight">\(\sigma^2\)</span> and we define <span class="math notranslate nohighlight">\(K_{\nu}\)</span> as the modified Bessel function of the second
 kind of order <span class="math notranslate nohighlight">\(\nu\)</span> and <span class="math notranslate nohighlight">\(\mathsf{\Gamma}\)</span> as the gamma function.
 Note that the parameter <span class="math notranslate nohighlight">\(\nu\)</span> dictates for the smoothness of the
 kernel function. The analytic squared-exponential kernel can be obtained as
@@ -130,10 +130,10 @@ Given a set of training samples <span class="math notranslate nohighlight">\(\ma
 \[f(\cdot) \mid \theta,y \sim \mathcal{N}\left(m^\star(\cdot),C^\star(\cdot,\cdot;\theta)+\epsilon^2I\right)\]</div>
 <p>where</p>
 <div class="math notranslate nohighlight">
-\[m^\star(\rv)=t(\rv)^TA^{-1}y \quad\quad C^\star(\rv,\rv^\prime)=C(\rv,\rv^\prime)-t(\rv)^TA^{-1}t(\rv^\prime)\]</div>
+\[m^\star(\rv)=t(\rv)^\top A^{-1}y \quad\quad C^\star(\rv,\rv^\prime)=C(\rv,\rv^\prime)-t(\rv)^\top A^{-1}t(\rv^\prime)\]</div>
 <p>with</p>
 <div class="math notranslate nohighlight">
-\[t(\rv)=[C(\rv,\rv^{(1)}),\ldots,C(\rv,\rv^{(N)})]^T\]</div>
+\[t(\rv)=[C(\rv,\rv^{(1)}),\ldots,C(\rv,\rv^{(N)})]^\top\]</div>
 <p>and <span class="math notranslate nohighlight">\(A\)</span> is a matrix with with elements <span class="math notranslate nohighlight">\(A_{ij}=C(\rv^{(i)},\rv^{(j)})\)</span> for <span class="math notranslate nohighlight">\(i,j=1,\ldots,M\)</span>. Here we dropped the dependence on the hyper-parameters <span class="math notranslate nohighlight">\(\theta\)</span> for convenience.</p>
 <section id="supervised-learning">
 <h2>Supervised Learning<a class="headerlink" href="#supervised-learning" title="Permalink to this headline"></a></h2>
@@ -164,7 +164,7 @@ Given a set of training samples <span class="math notranslate nohighlight">\(\ma
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_gaussian_processes_001.png" srcset="../../_images/sphx_glr_plot_gaussian_processes_001.png" alt="plot gaussian processes" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.collections.PolyCollection object at 0x127306fa0&gt;
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.collections.PolyCollection object at 0x283ca0f10&gt;
 </pre></div>
 </div>
 <p>the posterior mean and variance.</p>
@@ -246,7 +246,7 @@ Given a set of training samples <span class="math notranslate nohighlight">\(\ma
 <dd><p><a class="reference external" href="https://doi.org/10.1016/j.cam.2011.05.021">M. Pazouki and R. Schaback. Bases for kernel-based spaces. J. Comput. Appl. Math., 236:575–588 (2011).</a></p>
 </dd>
 </dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.073 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.077 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-surrogates-plot-gaussian-processes-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/c6ebc6c0c54620076e8ff48cb4cca67e/plot_gaussian_processes.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_gaussian_processes.py</span></code></a></p>

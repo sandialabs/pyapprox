@@ -116,7 +116,7 @@ to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="multi-fidelity-monte-carlo">
 <span id="sphx-glr-auto-tutorials-multi-fidelity-plot-multi-fidelity-monte-carlo-py"></span><h1>Multi-fidelity Monte Carlo<a class="headerlink" href="#multi-fidelity-monte-carlo" title="Permalink to this headline"></a></h1>
-<p>This tutorial builds on from <a class="reference internal" href="plot_multi_level_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py"><span class="std std-ref">Multi-level Monte Carlo</span></a> and <a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-approximate-control-variate-monte-carlo-py"><span class="std std-ref">Approximate Control Variate Monte Carlo</span></a> and introduces an approximate control variate estimator called Multi-fidelity Monte Carlo (MFMC). Unlike MLMC this method does not assume a strict ordering of models.</p>
+<p>This tutorial builds on from <a class="reference internal" href="plot_multi_level_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py"><span class="std std-ref">Multi-level Monte Carlo</span></a> and <a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-approximate-control-variate-monte-carlo-py"><span class="std std-ref">Approximate Control Variate Monte Carlo</span></a> and introduces an approximate control variate estimator called Multi-fidelity Monte Carlo (MFMC) <a class="reference internal" href="#pwgsiam2016" id="id1"><span>[PWGSIAM2016]</span></a>. Unlike MLMC this method does not assume a strict ordering of models.</p>
 <section id="many-model-mfmc">
 <h2>Many Model MFMC<a class="headerlink" href="#many-model-mfmc" title="Permalink to this headline"></a></h2>
 <p>To derive the MFMC estimator first recall the two model ACV estimator</p>
@@ -130,17 +130,17 @@ to download the full example code</p>
 <col style="width: 50%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><figure class="align-center" id="id2">
+<tr class="row-odd"><td><figure class="align-center" id="id3">
 <span id="mfmc-sample-allocation"></span><a class="reference internal image-reference" href="../../_images/mfmc.png"><img alt="../../_images/mfmc.png" src="../../_images/mfmc.png" style="width: 100%;" /></a>
 <figcaption>
-<p><span class="caption-text">MFMC sampling strategy</span><a class="headerlink" href="#id2" title="Permalink to this image"></a></p>
+<p><span class="caption-text">MFMC sampling strategy</span><a class="headerlink" href="#id3" title="Permalink to this image"></a></p>
 </figcaption>
 </figure>
 </td>
-<td><figure class="align-center" id="id3">
+<td><figure class="align-center" id="id4">
 <span id="mlmc-sample-allocation-mfmc-comparison"></span><a class="reference internal image-reference" href="../../_images/mlmc.png"><img alt="../../_images/mlmc.png" src="../../_images/mlmc.png" style="width: 100%;" /></a>
 <figcaption>
-<p><span class="caption-text">MLMC sampling strategy</span><a class="headerlink" href="#id3" title="Permalink to this image"></a></p>
+<p><span class="caption-text">MLMC sampling strategy</span><a class="headerlink" href="#id4" title="Permalink to this image"></a></p>
 </figcaption>
 </figure>
 </td>
@@ -201,7 +201,7 @@ MFMC error 0.017509111944310596
 </section>
 <section id="optimal-sample-allocation">
 <h2>Optimal Sample Allocation<a class="headerlink" href="#optimal-sample-allocation" title="Permalink to this headline"></a></h2>
-<p>Similarly to MLMC, the optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically (see <span id="id1">[PWGSIAM2016]</span>). Recalling that <span class="math notranslate nohighlight">\(C_\mathrm{tot}\)</span> is the total budget then the optimal number of high fidelity samples is</p>
+<p>Similarly to MLMC, the optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically (see <a class="reference internal" href="#pwgsiam2016" id="id2"><span>[PWGSIAM2016]</span></a>). Recalling that <span class="math notranslate nohighlight">\(C_\mathrm{tot}\)</span> is the total budget then the optimal number of high fidelity samples is</p>
 <div class="math notranslate nohighlight">
 \[N_0 = \frac{C_\mathrm{tot}}{\V{w}^T\V{r}}\]</div>
 <p>where <span class="math notranslate nohighlight">\(\V{r}=[r_0,\ldots,r_M]^T\)</span> are the sample ratios defining the number of samples assigned to each level, i.e. <span class="math notranslate nohighlight">\(N_\alpha=r_\alpha N_0\)</span>. The sample ratios are</p>
@@ -219,7 +219,8 @@ MFMC error 0.017509111944310596
 <span class="n">model_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$f_0$&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$f_1$&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$f_2$&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$f_3$&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$f_4$&#39;</span><span class="p">]</span>
 <span class="n">npilot_samples</span> <span class="o">=</span> <span class="mi">10</span>
 <span class="n">cov_mc</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">estimate_model_ensemble_covariance</span><span class="p">(</span>
-    <span class="n">npilot_samples</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span> <span class="n">model_ensemble</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">npilot_samples</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span> <span class="n">model_ensemble</span><span class="p">,</span>
+    <span class="n">model_ensemble</span><span class="o">.</span><span class="n">nmodels</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 
 <span class="kn">from</span> <span class="nn">pyapprox.util.configure_plots</span> <span class="kn">import</span> <span class="n">mathrm_labels</span><span class="p">,</span> <span class="n">mathrm_label</span>
 <span class="n">estimators</span> <span class="o">=</span> <span class="p">[</span>
@@ -240,7 +241,14 @@ MFMC error 0.017509111944310596
 <span class="c1">#fig # necessary for jupyter notebook to reshow plot in new cell</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_multi_fidelity_monte_carlo_001.png" srcset="../../_images/sphx_glr_plot_multi_fidelity_monte_carlo_001.png" alt="plot multi fidelity monte carlo" class = "sphx-glr-single-img"/><p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.590 seconds)</p>
+<img src="../../_images/sphx_glr_plot_multi_fidelity_monte_carlo_001.png" srcset="../../_images/sphx_glr_plot_multi_fidelity_monte_carlo_001.png" alt="plot multi fidelity monte carlo" class = "sphx-glr-single-img"/><section id="references">
+<h3>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h3>
+<dl class="citation">
+<dt class="label" id="pwgsiam2016"><span class="brackets">PWGSIAM2016</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>)</span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1137/15M1046472">{Peherstorfer, B., Willcox, K.,  Gunzburger, M., Optimal Model Management for Multifidelity Monte Carlo Estimation, 2016.</a></p>
+</dd>
+</dl>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.603 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multi-fidelity-monte-carlo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/bfab875d6c43c07fdca70c9667b3fca3/plot_multi_fidelity_monte_carlo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multi_fidelity_monte_carlo.py</span></code></a></p>
@@ -250,6 +258,7 @@ MFMC error 0.017509111944310596
 </div>
 </div>
 <p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
 </section>
 </section>
 

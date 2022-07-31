@@ -128,7 +128,7 @@ multiprocessing.Pool</p>
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.interface.PoolModel.__call__" title="pyapprox.interface.PoolModel.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(samples[, verbose])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.interface.PoolModel.__call__" title="pyapprox.interface.PoolModel.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(samples[, verbose, jac])</p></td>
 <td><p>Evaluate a function at multiple samples in parallel using multiprocessing.Pool</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.interface.PoolModel.set_max_eval_concurrency" title="pyapprox.interface.PoolModel.set_max_eval_concurrency"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_max_eval_concurrency</span></code></a>(max_eval_concurrency)</p></td>
@@ -139,7 +139,7 @@ multiprocessing.Pool</p>
 <p class="rubric">Methods Documentation</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="pyapprox.interface.PoolModel.__call__">
-<span class="sig-name descname"><span class="pre">__call__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/interface/wrappers.html#PoolModel.__call__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.interface.PoolModel.__call__" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">__call__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jac</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/interface/wrappers.html#PoolModel.__call__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.interface.PoolModel.__call__" title="Permalink to this definition"></a></dt>
 <dd><p>Evaluate a function at multiple samples in parallel using
 multiprocessing.Pool</p>
 <dl class="field-list simple">

@@ -208,7 +208,7 @@ Algorithm 1:
    #. Generate set of :math:`S\gg M` candidate samples :math:`\mathcal{Z}_S`
    #. Build :math:`\Phi`, :math:`\Phi_{m,n} =\phi_n(\V{\rv}^{(m)})`, :math:`m\in[S]`, :math:`n\in[N]`
    #. Compute preconditioning matrix :math:`V`, :math:`V_{mm}=v(\V{\rv}^{(m)})`
-   #. Compute first M pivots of LU factorization, :math:`PLU=LU(V \Phi`,M)
+   #. Compute first M pivots of LU factorization, :math:`PLU=LU(V \Phi,M)`
 
 Once a Leja sequence :math:`\mathcal{Z}_M` has been generated one can easily generate a polynomial interpolant with two simple steps. The first step evaluates the function at the samples in the sequence, i.e. :math:`y=f(\mathcal{Z})`. The coefficients of the PCE interpolant can then be computed via
 
@@ -304,7 +304,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.314 seconds)
+   **Total running time of the script:** ( 0 minutes  1.577 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py:

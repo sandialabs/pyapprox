@@ -625,7 +625,7 @@
 
 
 <span class="k">def</span> <span class="nf">adaptive_approximate_gaussian_process</span><span class="p">(</span>
-        <span class="n">fun</span><span class="p">,</span> <span class="n">variables</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">fun</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">max_nsamples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ncandidate_samples</span><span class="o">=</span><span class="mf">1e4</span><span class="p">,</span>
         <span class="n">checkpoints</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">nu</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">n_restarts_optimizer</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
         <span class="n">normalize_y</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
@@ -664,7 +664,7 @@
 <span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the</span>
 <span class="sd">        output is a 2D np.ndarray with shape (nsamples,nqoi)</span>
 
-<span class="sd">    variables : IndependentMarginalsVariable</span>
+<span class="sd">    variable : IndependentMarginalsVariable</span>
 <span class="sd">        A set of independent univariate random variables</span>
 
 <span class="sd">    callback : callable</span>
@@ -755,10 +755,10 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">assert</span> <span class="n">max_nsamples</span> <span class="o">&lt;=</span> <span class="n">ncandidate_samples</span>
 
-    <span class="n">nvars</span> <span class="o">=</span> <span class="n">variables</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+    <span class="n">nvars</span> <span class="o">=</span> <span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
 
     <span class="k">if</span> <span class="n">normalize_inputs</span><span class="p">:</span>
-        <span class="n">var_trans</span> <span class="o">=</span> <span class="n">AffineTransform</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span>
+        <span class="n">var_trans</span> <span class="o">=</span> <span class="n">AffineTransform</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">var_trans</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -768,7 +768,7 @@
         <span class="n">noise_level</span><span class="p">,</span> <span class="n">noise_level_bounds</span><span class="p">,</span> <span class="n">nu</span><span class="p">)</span>
 
     <span class="n">sampler</span> <span class="o">=</span> <span class="n">CholeskySampler</span><span class="p">(</span>
-        <span class="n">nvars</span><span class="p">,</span> <span class="n">ncandidate_samples</span><span class="p">,</span> <span class="n">variables</span><span class="p">,</span>
+        <span class="n">nvars</span><span class="p">,</span> <span class="n">ncandidate_samples</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span>
         <span class="n">gen_candidate_samples</span><span class="o">=</span><span class="n">generate_candidate_samples</span><span class="p">,</span>
         <span class="n">var_trans</span><span class="o">=</span><span class="n">var_trans</span><span class="p">)</span>
     <span class="n">sampler_kernel</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">kernel</span><span class="p">)</span>
@@ -776,13 +776,18 @@
     <span class="n">sampler</span><span class="o">.</span><span class="n">set_weight_function</span><span class="p">(</span><span class="n">weight_function</span><span class="p">)</span>
 
     <span class="n">gp</span> <span class="o">=</span> <span class="n">AdaptiveGaussianProcess</span><span class="p">(</span>
-        <span class="n">kernel</span><span class="p">,</span> <span class="n">n_restarts_optimizer</span><span class="o">=</span><span class="n">n_restarts_optimizer</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">)</span>
+        <span class="n">kernel</span><span class="p">,</span> <span class="n">n_restarts_optimizer</span><span class="o">=</span><span class="n">n_restarts_optimizer</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">,</span>
+        <span class="n">normalize_y</span><span class="o">=</span><span class="n">normalize_y</span><span class="p">)</span>
     <span class="n">gp</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span> <span class="n">sampler</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">var_trans</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">gp</span><span class="o">.</span><span class="n">set_variable_transformation</span><span class="p">(</span><span class="n">var_trans</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">checkpoints</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">checkpoints</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">max_nsamples</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">nsteps</span> <span class="o">=</span> <span class="mi">10</span>
+        <span class="k">if</span> <span class="n">max_nsamples</span><span class="o">-</span><span class="mi">10</span> <span class="o">&lt;</span> <span class="n">nsteps</span><span class="p">:</span>
+            <span class="n">nsteps</span> <span class="o">=</span> <span class="n">max_nsamples</span><span class="o">-</span><span class="mi">10</span>
+        <span class="n">checkpoints</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">max_nsamples</span><span class="p">,</span> <span class="n">nsteps</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">checkpoints</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">checkpoints</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">))</span>
     <span class="k">assert</span> <span class="n">checkpoints</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">max_nsamples</span>
 
     <span class="n">nsteps</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">checkpoints</span><span class="p">)</span>
@@ -794,8 +799,8 @@
         <span class="k">if</span> <span class="n">chol_flag</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Cannot add additional samples. &quot;</span>
             <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;Kernel is now ill conditioned. &quot;</span>
-            <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;If more samples are really required increase alpha or&#39;</span>
-            <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39; manually fix kernel_length to a smaller value&#39;</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;If more samples are really required increase alpha or &#39;</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;manually fix kernel_length to a smaller value&#39;</span>
             <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Exiting: &#39;</span> <span class="o">+</span> <span class="n">msg</span><span class="p">)</span>
             <span class="k">break</span>
     <span class="k">return</span> <span class="n">ApproximateResult</span><span class="p">({</span><span class="s1">&#39;approx&#39;</span><span class="p">:</span> <span class="n">gp</span><span class="p">})</span>

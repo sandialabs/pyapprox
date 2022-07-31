@@ -1,0 +1,6 @@
+run_sensitivity_analysis
+========================
+
+.. currentmodule:: pyapprox.analysis
+
+.. autofunction:: run_sensitivity_analysis

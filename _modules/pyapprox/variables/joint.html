@@ -103,7 +103,7 @@
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Base class for multivariate variables.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    
+
 <div class="viewcode-block" id="JointVariable.rvs"><a class="viewcode-back" href="../../../api/pyapprox.variables.JointVariable.html#pyapprox.variables.JointVariable.rvs">[docs]</a>    <span class="nd">@abstractmethod</span>
     <span class="k">def</span> <span class="nf">rvs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -119,7 +119,10 @@
 <span class="sd">        samples : np.ndarray (num_vars, num_samples)</span>
 <span class="sd">            Independent samples from the target distribution</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span></div></div>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span></div>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;JointVariable&quot;</span></div>
 
 
 <div class="viewcode-block" id="IndependentMarginalsVariable"><a class="viewcode-back" href="../../../api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable">[docs]</a><span class="k">class</span> <span class="nc">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">JointVariable</span><span class="p">):</span>
@@ -311,6 +314,9 @@
                 <span class="n">string</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
         <span class="k">return</span> <span class="n">string</span>
 
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__str__</span><span class="p">()</span>
+
 <div class="viewcode-block" id="IndependentMarginalsVariable.is_bounded_continuous_variable"><a class="viewcode-back" href="../../../api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable.is_bounded_continuous_variable">[docs]</a>    <span class="k">def</span> <span class="nf">is_bounded_continuous_variable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Are all 1D variables are continuous and bounded.</span>
@@ -356,7 +362,7 @@
 <span class="sd">    Multivariate random variable with Gaussian correlation and arbitrary</span>
 <span class="sd">    marginals</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    
+
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">marginals</span><span class="p">,</span> <span class="n">x_correlation</span><span class="p">,</span> <span class="n">bisection_opts</span><span class="o">=</span><span class="p">{}):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">marginals</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_marginals</span> <span class="o">=</span> <span class="n">marginals</span>

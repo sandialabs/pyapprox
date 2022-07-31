@@ -7,7 +7,7 @@ This tutorial demonstrats how to use model wrappers to time function calls and e
 #%%
 #Timing function evaluations
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#It is often useful to be able to track the time needed to evaluate a function. We can track this using the :class:`pyapprox.interface.wrappers.TimerModel` and :class:`pyapprox.interface.wrappers.WorkTrackingModel` objects which are designed to work together. The former time each evaluation of a function that returns output of shape (nsampels,qoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,qoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsmaples,nqoi) of the user function.
+#It is often useful to be able to track the time needed to evaluate a function. We can track this using the :class:`pyapprox.interface.wrappers.TimerModel` and :class:`pyapprox.interface.wrappers.WorkTrackingModel` objects which are designed to work together. The former times each evaluation of a function that returns output of shape (nsamples,nqoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,nqoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsamples,nqoi) of the user function.
 #
 #Lets use the class with a function that takes a random amount of time. We will use the previous function but add a random pause between 0 and .1 seconds. Lets import some functions and define a multi-variate random variable
 #

@@ -76,7 +76,7 @@ Sobol indices can be computed different ways. In the following we will use polyn
          'options': {'max_degree': 8}})
     pce = approx_res.approx
 
-    res = analysis.gpc_sobol_sensitivities(pce)
+    res = analysis.gpc_sobol_sensitivities(pce, benchmark.variable)
 
 
 
@@ -106,7 +106,7 @@ Now lets compare the estimated values with the exact value
 
  .. code-block:: none
 
-    [3.13745022e-01 4.42700090e-01 3.79118390e-07]
+    [3.14453417e-01 4.42302275e-01 1.28148188e-07]
     [0.31390519 0.44241114 0.        ]
 
 
@@ -163,7 +163,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.925 seconds)
+   **Total running time of the script:** ( 0 minutes  0.700 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_analysis_plot_sensitivity_analysis.py:

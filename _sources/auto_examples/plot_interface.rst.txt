@@ -26,7 +26,7 @@ This tutorial demonstrats how to use model wrappers to time function calls and e
 
 Timing function evaluations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-It is often useful to be able to track the time needed to evaluate a function. We can track this using the :class:`pyapprox.interface.wrappers.TimerModel` and :class:`pyapprox.interface.wrappers.WorkTrackingModel` objects which are designed to work together. The former time each evaluation of a function that returns output of shape (nsampels,qoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,qoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsmaples,nqoi) of the user function.
+It is often useful to be able to track the time needed to evaluate a function. We can track this using the :class:`pyapprox.interface.wrappers.TimerModel` and :class:`pyapprox.interface.wrappers.WorkTrackingModel` objects which are designed to work together. The former times each evaluation of a function that returns output of shape (nsamples,nqoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,nqoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsamples,nqoi) of the user function.
 
 Lets use the class with a function that takes a random amount of time. We will use the previous function but add a random pause between 0 and .1 seconds. Lets import some functions and define a multi-variate random variable
 
@@ -93,7 +93,7 @@ The :class:`pyapprox.interface.wrappers.WorkTrackingModel` has an attribute :cla
 
  .. code-block:: none
 
-    {(0.0,): [0.02131509780883789, 0.02283000946044922, 0.019183874130249023, 0.03529810905456543, 0.014818906784057617, 0.018531084060668945, 0.017957687377929688, 0.0004940032958984375, 0.023406982421875, 0.0028939247131347656]}
+    {(0.0,): [0.05295515060424805, 0.0392458438873291, 0.04218101501464844, 0.05422019958496094, 0.025912046432495117, 0.03179216384887695, 0.03925013542175293, 0.026505231857299805, 0.015564203262329102, 0.0067598819732666016]}
 
 
 
@@ -120,7 +120,7 @@ We can also call the work tracker to query the median cost for a model with a gi
 
  .. code-block:: none
 
-    [0.01885748]
+    [0.035519]
 
 
 
@@ -224,8 +224,8 @@ Again we can query the execution times of each model
 
  .. code-block:: none
 
-    {(0.0,): [0.04904341697692871, 0.0388331413269043, 0.033133745193481445, 0.04185914993286133, 0.04831886291503906], (1.0,): [0.08550500869750977, 0.08524584770202637, 0.0595090389251709, 0.07553791999816895, 0.08323788642883301]}
-    [0.04185915 0.08323789]
+    {(0.0,): [0.01680612564086914, 0.04378080368041992, 0.03605318069458008, 0.04554915428161621, 0.02942800521850586], (1.0,): [0.06260919570922852, 0.08654308319091797, 0.06752204895019531, 0.05702018737792969, 0.10064888000488281]}
+    [0.03605318 0.06752205]
 
 
 
@@ -289,11 +289,9 @@ be used with WorkTrackingModel using the sequence of wrappers below.
 
  .. code-block:: none
 
-    Evaluating all 10 samples took 0.5084948539733887 seconds
-    With 1 threads that took 0.5089321136474609 seconds
+    With 1 threads that took 0.4695601463317871 seconds
     Warning set OMP_NUM_THREADS=1 for best performance
-    Evaluating all 10 samples took 1.0294721126556396 seconds
-    With 4 threads that took 1.0301270484924316 seconds
+    With 4 threads that took 1.2888720035552979 seconds
 
 
 
@@ -322,8 +320,8 @@ costs are still being recorded correctly
 
     WorkTracker Cost Summary
     Funtion ID Median Cost
-    (0.0,)     0.02475607395172119
-    (1.0,)     0.07731068134307861
+    (0.0,)     0.02170383930206299
+    (1.0,)     0.07232356071472168
 
 
 
@@ -357,7 +355,7 @@ PoolModel cannot be used with lambda functions. You will get error similar to pi
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  2.883 seconds)
+   **Total running time of the script:** ( 0 minutes  3.179 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_interface.py:

@@ -284,6 +284,7 @@
 <span class="sd">    samples : np.ndarray (nvars, nsamples)</span>
 <span class="sd">        The low-discrepancy samples</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nsamples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">nsamples</span><span class="p">)</span>
     <span class="n">samples</span> <span class="o">=</span> <span class="n">_sobol_sequence</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">nsamples</span><span class="o">+</span><span class="n">start_index</span><span class="p">)[:,</span> <span class="n">start_index</span><span class="p">:]</span>
     <span class="k">if</span> <span class="n">variable</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">samples</span>

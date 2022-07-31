@@ -102,7 +102,7 @@ using the following ensemble of models, taken from [PWGSIAM2016]_, which simulat
 
 where :math:`z = (b,h,P,M,Y)^T`
 
-.. GENERATED FROM PYTHON SOURCE LINES 86-122
+.. GENERATED FROM PYTHON SOURCE LINES 86-123
 
 .. code-block:: default
 
@@ -126,7 +126,8 @@ where :math:`z = (b,h,P,M,Y)^T`
     # generate pilot samples to estimate correlation
     # npilot_samples = int(1e4)
     # cov = pya.estimate_model_ensemble_covariance(
-    #    npilot_samples,short_column_model.generate_samples,model_ensemble)[0]
+    #    npilot_samples, short_column_model.generate_samples, model_ensemble,
+    #    model_ensemble.nmodels)[0]
 
     # define the sample allocation
     est = multifidelity.get_estimator("mlmc", cov, costs, benchmark.variable)
@@ -158,7 +159,7 @@ where :math:`z = (b,h,P,M,Y)^T`
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 123-133
+.. GENERATED FROM PYTHON SOURCE LINES 124-134
 
 These errors are comparable. However these errors are only for one realization of the samples sets. To obtain a clearer picture on the benefits of MLMC we need to look at the variance of the estimator.
 
@@ -171,7 +172,7 @@ where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1
 
 The following code computes the variance reduction of the MLMC estimator, using the 2 models :math:`f_0,f_1`. The variance reduction is estimated numerically by  running MLMC repeatedly with different realizations of the sample sets. The function ``get_rsquared_mlmc`` is used to return the theoretical variance reduction.
 
-.. GENERATED FROM PYTHON SOURCE LINES 133-141
+.. GENERATED FROM PYTHON SOURCE LINES 134-142
 
 .. code-block:: default
 
@@ -199,12 +200,12 @@ The following code computes the variance reduction of the MLMC estimator, using 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 142-144
+.. GENERATED FROM PYTHON SOURCE LINES 143-145
 
 The numerical estimate of the variance reduction is consistent with the theory.
 Now let us compute the theoretical variance reduction using 3 models
 
-.. GENERATED FROM PYTHON SOURCE LINES 144-155
+.. GENERATED FROM PYTHON SOURCE LINES 145-156
 
 .. code-block:: default
 
@@ -234,13 +235,13 @@ Now let us compute the theoretical variance reduction using 3 models
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 156-159
+.. GENERATED FROM PYTHON SOURCE LINES 157-160
 
 The variance reduction obtained using three models is only slightly better than when using two models. The difference in variance reduction is dependent on the correlations between the models and the number of samples assigned to each model.
 
 MLMC works extremely well when the variance between the model discrepancies decays with increaseing fidelity. However one needs to be careful that the variance between discrepancies does indeed decay. Sometimes when the models correspond to different mesh discretizations. Increasing the mesh resolution does not always produce a smaller discrepancy. The following example shows that, for this example, adding a third model actually increases the variance of the MLMC estimator.
 
-.. GENERATED FROM PYTHON SOURCE LINES 159-171
+.. GENERATED FROM PYTHON SOURCE LINES 160-172
 
 .. code-block:: default
 
@@ -271,12 +272,12 @@ MLMC works extremely well when the variance between the model discrepancies deca
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 172-174
+.. GENERATED FROM PYTHON SOURCE LINES 173-175
 
 Using MLMC for this ensemble of models creates an estimate with a variance orders of magnitude larger than just using the high-fidelity model. When using models that do not admit a hierarchical structure, alternative approaches are needed. We will introduce such estimators in future tutorials.
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 176-246
+.. GENERATED FROM PYTHON SOURCE LINES 177-247
 
 Optimal Sample Allocation
 -------------------------
@@ -349,7 +350,7 @@ To demonstrate the effectiveness of MLMC consider the model ensemble
 
 where each model is the function of a single uniform random variable defined on the unit interval :math:`[0,1]`. The following code computes the variance of the MLMC estimator for different target costs using the optimal sample allocation using an exact estimate of the covariance between models and an approximation.
 
-.. GENERATED FROM PYTHON SOURCE LINES 246-277
+.. GENERATED FROM PYTHON SOURCE LINES 247-279
 
 .. code-block:: default
 
@@ -364,7 +365,8 @@ where each model is the function of a single uniform random variable defined on 
     model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
     npilot_samples = 10
     cov_mc = multifidelity.estimate_model_ensemble_covariance(
-        npilot_samples, benchmark.variable.rvs, model_ensemble)[0]
+        npilot_samples, benchmark.variable.rvs, model_ensemble,
+        model_ensemble.nmodels)[0]
 
     from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
     estimators = [
@@ -396,23 +398,23 @@ where each model is the function of a single uniform random variable defined on 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 278-281
+.. GENERATED FROM PYTHON SOURCE LINES 280-283
 
 The left plot shows that the variance of the MLMC estimator is over and order of magnitude smaller than the variance of the single fidelity MC estimator for a fixed cost. The impact of using the approximate covariance is more significant for small samples sizes.
 
 The right plot depicts the percentage of the computational cost due to evaluating each model. The numbers in the bars represent the number of samples allocated to each model. Relative to the low fidelity models only a small number of samples are allocated to the high-fidelity model, however evaluating these samples represents approximately 50\% of the total cost.
 
-.. GENERATED FROM PYTHON SOURCE LINES 283-286
+.. GENERATED FROM PYTHON SOURCE LINES 285-288
 
 Multi-index Monte Carlo
 -----------------------
 Multi-Level Monte Carlo utilizes a sequence of models controlled by a single hyper-parameter, specifying the level of discretization for example, in a manner that balances computational cost with increasing accuracy. In many applications, however, multiple hyper-parameters may control the model discretization, such as the mesh and time step sizes. In these situations, it may not be clear how to construct a one-dimensional hierarchy represented by a scalar hyper-parameter. To overcome this limitation, a generalization of multi-level Monte Carlo, referred to as multi-index stochastic collocation (MIMC), was developed to deal with multivariate hierarchies with multiple refinement hyper-parameters [HNTNM2016]_.  PyApprox does not implement MIMC but a surrogate based version called Multi-index stochastic collocation (MISC) is presented in this tutorial :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py`.
 
-.. GENERATED FROM PYTHON SOURCE LINES 288-297
+.. GENERATED FROM PYTHON SOURCE LINES 290-299
 
 References
 ^^^^^^^^^^
-.. [CGSTCVS2011] `K.A. Cliffe, M.B. Giles, R. Scheichl, A.L. Teckentrup, Multilevel Monte Carlo methods and applications to elliptic PDEs with random coefficients, Comput. Vis. Sci., 14, 3-15, 2011. <https://doi.org/10.1007/s00791-011-0160-x>`_0
+.. [CGSTCVS2011] `K.A. Cliffe, M.B. Giles, R. Scheichl, A.L. Teckentrup, Multilevel Monte Carlo methods and applications to elliptic PDEs with random coefficients, Comput. Vis. Sci., 14, 3-15, 2011. <https://doi.org/10.1007/s00791-011-0160-x>`_
 
 .. [GOR2008] `M.B. Giles, Multilevel Monte Carlo path simulation, Oper. Res., 56(3), 607-617, 2008. <https://doi.org/10.1287/opre.1070.0496>`_
 
@@ -423,7 +425,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.111 seconds)
+   **Total running time of the script:** ( 0 minutes  1.169 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py:

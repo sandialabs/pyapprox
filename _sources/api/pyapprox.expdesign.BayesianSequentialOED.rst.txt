@@ -12,12 +12,10 @@ BayesianSequentialOED
 
       ~BayesianSequentialOED.compute_importance_weights
       ~BayesianSequentialOED.set_collected_design_indices
-      ~BayesianSequentialOED.update_design
       ~BayesianSequentialOED.update_observations
 
    .. rubric:: Methods Documentation
 
    .. automethod:: compute_importance_weights
    .. automethod:: set_collected_design_indices
-   .. automethod:: update_design
    .. automethod:: update_observations

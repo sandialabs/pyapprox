@@ -277,7 +277,7 @@
 
 <span class="sd">    b : float</span>
 <span class="sd">        scalar added to l2 distance</span>
-
+<span class="sd">    </span>
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    ss : np.ndarray (LL, MM)</span>
@@ -506,6 +506,7 @@
     <span class="c1"># generate samples and values for the outer loop</span>
     <span class="n">outer_loop_prior_samples</span> <span class="o">=</span> <span class="n">generate_outer_prior_samples</span><span class="p">(</span>
         <span class="n">nouter_loop_samples</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Running </span><span class="si">{</span><span class="n">outer_loop_prior_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> model evaluations&quot;</span><span class="p">)</span>
     <span class="n">outer_loop_pred_obs</span> <span class="o">=</span> <span class="n">obs_fun</span><span class="p">(</span><span class="n">outer_loop_prior_samples</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">outer_loop_pred_obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">outer_loop_prior_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
@@ -658,11 +659,8 @@
 <span class="k">def</span> <span class="nf">__compute_negative_expected_deviation_monte_carlo</span><span class="p">(</span>
         <span class="n">log_likelihood_fun</span><span class="p">,</span> <span class="n">outer_loop_pred_obs</span><span class="p">,</span>
         <span class="n">inner_loop_pred_obs</span><span class="p">,</span> <span class="n">inner_loop_weights</span><span class="p">,</span> <span class="n">outer_loop_weights</span><span class="p">,</span>
-        <span class="n">inner_loop_pred_qois</span><span class="p">,</span> <span class="n">deviation_fun</span><span class="p">,</span> <span class="n">active_indices</span><span class="p">,</span> <span class="n">risk_fun</span><span class="p">,</span>
-        <span class="n">return_all</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
+        <span class="n">inner_loop_pred_qois</span><span class="p">,</span> <span class="n">deviation_fun</span><span class="p">,</span> <span class="n">active_indices</span><span class="p">,</span> <span class="n">pred_risk_fun</span><span class="p">,</span>
+        <span class="n">return_all</span><span class="p">,</span> <span class="n">data_risk_fun</span><span class="p">):</span>
     <span class="n">nouter_loop_samples</span> <span class="o">=</span> <span class="n">outer_loop_pred_obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">ninner_loop_samples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
         <span class="n">inner_loop_pred_obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">//</span><span class="n">nouter_loop_samples</span><span class="p">)</span>
@@ -687,10 +685,11 @@
     <span class="c1"># assume always want deviation here, but this can be changed</span>
     <span class="c1"># expected_obs_deviations = np.sum(deviations*outer_loop_weights, axis=0)</span>
     <span class="c1"># use einsum because it does not create intermediate arrays</span>
-    <span class="n">expected_obs_deviations</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span>
-        <span class="s2">&quot;ij,i-&gt;j&quot;</span><span class="p">,</span> <span class="n">deviations</span><span class="p">,</span> <span class="n">outer_loop_weights</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="c1"># expected_obs_deviations = np.einsum(</span>
+    <span class="c1">#    &quot;ij,i-&gt;j&quot;, deviations, outer_loop_weights[:, 0])</span>
+    <span class="n">expected_obs_deviations</span> <span class="o">=</span> <span class="n">data_risk_fun</span><span class="p">(</span><span class="n">deviations</span><span class="p">,</span> <span class="n">outer_loop_weights</span><span class="p">)</span>
 
-    <span class="n">disutility_val</span> <span class="o">=</span> <span class="n">risk_fun</span><span class="p">(</span><span class="n">expected_obs_deviations</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])</span>
+    <span class="n">disutility_val</span> <span class="o">=</span> <span class="n">pred_risk_fun</span><span class="p">(</span><span class="n">expected_obs_deviations</span><span class="p">)</span>
 
     <span class="n">utility_val</span> <span class="o">=</span> <span class="o">-</span><span class="n">disutility_val</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">return_all</span><span class="p">:</span>
@@ -698,7 +697,7 @@
     <span class="n">result</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s1">&#39;utility_val&#39;</span><span class="p">:</span> <span class="n">utility_val</span><span class="p">,</span> <span class="s1">&#39;evidences&#39;</span><span class="p">:</span> <span class="n">evidences</span><span class="p">,</span>
         <span class="s1">&#39;weights&#39;</span><span class="p">:</span> <span class="n">weights</span><span class="p">,</span> <span class="s1">&#39;deviations&#39;</span><span class="p">:</span> <span class="n">deviations</span><span class="p">,</span>
-        <span class="s1">&#39;expected_deviations&#39;</span><span class="p">:</span> <span class="n">expected_obs_deviations</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]}</span>
+        <span class="s1">&#39;expected_deviations&#39;</span><span class="p">:</span> <span class="n">expected_obs_deviations</span><span class="p">}</span>
     <span class="k">return</span> <span class="n">result</span>
 
 
@@ -706,7 +705,7 @@
         <span class="n">log_likelihood_fun</span><span class="p">,</span> <span class="n">outer_loop_pred_obs</span><span class="p">,</span>
         <span class="n">inner_loop_pred_obs</span><span class="p">,</span> <span class="n">inner_loop_weights</span><span class="p">,</span> <span class="n">outer_loop_weights</span><span class="p">,</span>
         <span class="n">inner_loop_pred_qois</span><span class="p">,</span> <span class="n">deviation_fun</span><span class="p">,</span> <span class="n">collected_design_indices</span><span class="p">,</span>
-        <span class="n">new_design_indices</span><span class="p">,</span> <span class="n">risk_fun</span><span class="p">,</span> <span class="n">return_all</span><span class="p">):</span>
+        <span class="n">new_design_indices</span><span class="p">,</span> <span class="n">pred_risk_fun</span><span class="p">,</span> <span class="n">return_all</span><span class="p">,</span> <span class="n">data_risk_fun</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">collected_design_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">active_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
             <span class="p">(</span><span class="n">collected_design_indices</span><span class="p">,</span> <span class="n">new_design_indices</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
@@ -717,8 +716,8 @@
     <span class="k">return</span> <span class="n">__compute_negative_expected_deviation_monte_carlo</span><span class="p">(</span>
         <span class="n">log_likelihood_fun</span><span class="p">,</span> <span class="n">outer_loop_pred_obs</span><span class="p">,</span>
         <span class="n">inner_loop_pred_obs</span><span class="p">,</span> <span class="n">inner_loop_weights</span><span class="p">,</span> <span class="n">outer_loop_weights</span><span class="p">,</span>
-        <span class="n">inner_loop_pred_qois</span><span class="p">,</span> <span class="n">deviation_fun</span><span class="p">,</span> <span class="n">active_indices</span><span class="p">,</span> <span class="n">risk_fun</span><span class="p">,</span>
-        <span class="n">return_all</span><span class="p">)</span>
+        <span class="n">inner_loop_pred_qois</span><span class="p">,</span> <span class="n">deviation_fun</span><span class="p">,</span> <span class="n">active_indices</span><span class="p">,</span> <span class="n">pred_risk_fun</span><span class="p">,</span>
+        <span class="n">return_all</span><span class="p">,</span> <span class="n">data_risk_fun</span><span class="p">)</span>
 
 
 <span class="k">def</span> <span class="nf">select_design</span><span class="p">(</span><span class="n">design_candidates</span><span class="p">,</span> <span class="n">collected_design_indices</span><span class="p">,</span>
@@ -1093,7 +1092,7 @@
             <span class="n">new_design_indices</span><span class="p">,</span> <span class="n">return_all</span><span class="p">)</span></div></div>
 
 
-<span class="k">def</span> <span class="nf">oed_average_prediction_deviation</span><span class="p">(</span><span class="n">qoi_vals</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">oed_prediction_average</span><span class="p">(</span><span class="n">qoi_vals</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="k">assert</span> <span class="n">qoi_vals</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">qoi_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
     <span class="k">if</span> <span class="n">weights</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">qoi_vals</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
@@ -1159,6 +1158,58 @@
     <span class="k">return</span> <span class="n">risks</span><span class="o">-</span><span class="n">means</span>
 
 
+<span class="k">def</span> <span class="nf">oed_data_expectation</span><span class="p">(</span><span class="n">deviations</span><span class="p">,</span> <span class="n">weights</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the expected deviation for each outer loop sample</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    deviations : np.ndarray (nouter_loop_samples, nqois)</span>
+<span class="sd">         The samples</span>
+
+<span class="sd">    weights : np.ndarray (nouter_loop_samples, 1)</span>
+<span class="sd">        Weights associated with each innner loop sample</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    expected_obs_deviations : np.ndarray (nqois, 1)</span>
+<span class="sd">        The deviation vals</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">expected_obs_deviations</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span>
+        <span class="s2">&quot;ij,i-&gt;j&quot;</span><span class="p">,</span> <span class="n">deviations</span><span class="p">,</span> <span class="n">weights</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])[:,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">expected_obs_deviations</span>
+
+
+<span class="k">def</span> <span class="nf">oed_data_cvar</span><span class="p">(</span><span class="n">deviations</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">quantile</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the conditional value of risk of the deviations</span>
+<span class="sd">    for each outer loop sample</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    deviations : np.ndarray (nouter_loop_samples, nqois)</span>
+<span class="sd">         The samples</span>
+
+<span class="sd">    weights : np.ndarray (nouter_loop_samples, 1)</span>
+<span class="sd">        Weights associated with each innner loop sample</span>
+
+<span class="sd">    quantile : float</span>
+<span class="sd">        The quantile used to compute of the conditional value at risk</span>
+<span class="sd">        of the deviations for each outerloop obsevation</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    cvar_obs_deviations : np.ndarray (nqois, 1)</span>
+<span class="sd">        The deviation vals</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">quantile</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="n">cvar_obs_deviations</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">deviations</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">qq</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">deviations</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="n">cvar_obs_deviations</span><span class="p">[</span><span class="n">qq</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">conditional_value_at_risk</span><span class="p">(</span>
+            <span class="n">deviations</span><span class="p">[:,</span> <span class="n">qq</span><span class="p">],</span> <span class="n">quantile</span><span class="p">,</span> <span class="n">weights</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">cvar_obs_deviations</span>
+
+
 <span class="k">def</span> <span class="nf">oed_standard_deviation</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">weights</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the standard deviation for each outer loop sample using the</span>
@@ -1197,6 +1248,10 @@
 <span class="sd">    weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)</span>
 <span class="sd">        Weights associated with each innner loop sample</span>
 
+<span class="sd">    quantile : float</span>
+<span class="sd">        The quantile of the conditional value at risk used to</span>
+<span class="sd">        compute the deviation</span>
+
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    deviation_vals : np.ndarray (nouter_loop_samples, nqois)</span>
@@ -1226,7 +1281,8 @@
                  <span class="n">ninner_loop_samples</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">generate_inner_prior_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">econ</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">deviation_fun</span><span class="o">=</span><span class="n">oed_standard_deviation</span><span class="p">,</span>
                  <span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-                 <span class="n">risk_fun</span><span class="o">=</span><span class="n">oed_average_prediction_deviation</span><span class="p">):</span>
+                 <span class="n">pred_risk_fun</span><span class="o">=</span><span class="n">oed_prediction_average</span><span class="p">,</span>
+                 <span class="n">data_risk_fun</span><span class="o">=</span><span class="n">oed_data_expectation</span><span class="p">):</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Constructor.</span>
 
@@ -1317,12 +1373,19 @@
 <span class="sd">            this uses multiprocessing.Pool and seems to provide very little</span>
 <span class="sd">            benefit and in many cases increases the CPU time.</span>
 
-<span class="sd">        risk_fun : callable</span>
-<span class="sd">            Function with the signature</span>
+<span class="sd">        pred_risk_fun : callable</span>
+<span class="sd">            Function to compute risk over multiple qoi with the signature</span>
 
-<span class="sd">             `risk_fun(deviations) -&gt; float`</span>
+<span class="sd">             `pred_risk_fun(expected_deviations) -&gt; float`</span>
 
-<span class="sd">            where deviations : np.ndarray (nqois, 1)</span>
+<span class="sd">            where expected_deviations : np.ndarray (nqois, 1)</span>
+
+<span class="sd">        data_risk_fun : callable</span>
+<span class="sd">            Function to compute risk of deviations over all outerloop samples</span>
+
+<span class="sd">             `data_risk_fun(deviations) -&gt; np.ndarray (nqois, 1)`</span>
+
+<span class="sd">            where deviations : np.ndarray (nouter_loop_samples, nqois)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">design_candidates</span><span class="p">,</span> <span class="n">obs_fun</span><span class="p">,</span> <span class="n">noise_std</span><span class="p">,</span>
@@ -1337,7 +1400,8 @@
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;deviation_fun must be a callable function&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">qoi_fun</span> <span class="o">=</span> <span class="n">qoi_fun</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">deviation_fun</span> <span class="o">=</span> <span class="n">deviation_fun</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">risk_fun</span> <span class="o">=</span> <span class="n">risk_fun</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pred_risk_fun</span> <span class="o">=</span> <span class="n">pred_risk_fun</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data_risk_fun</span> <span class="o">=</span> <span class="n">data_risk_fun</span>
 
     <span class="k">def</span> <span class="nf">__populate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -1426,7 +1490,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">inner_loop_pred_obs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner_loop_weights</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">outer_loop_weights</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner_loop_pred_qois</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">deviation_fun</span><span class="p">,</span> <span class="n">collected_design_indices</span><span class="p">,</span> <span class="n">new_design_indices</span><span class="p">,</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">risk_fun</span><span class="p">,</span> <span class="n">return_all</span><span class="p">)</span></div></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pred_risk_fun</span><span class="p">,</span> <span class="n">return_all</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_risk_fun</span><span class="p">)</span></div></div>
 
 
 <div class="viewcode-block" id="BayesianSequentialOED"><a class="viewcode-back" href="../../../api/pyapprox.expdesign.BayesianSequentialOED.html#pyapprox.expdesign.BayesianSequentialOED">[docs]</a><span class="k">class</span> <span class="nc">BayesianSequentialOED</span><span class="p">(</span><span class="n">AbstractBayesianOED</span><span class="p">):</span>
@@ -1558,10 +1622,10 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">collected_design_indices</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
         <span class="n">new_obs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_process</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">collected_design_indices</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">update_observations</span><span class="p">(</span><span class="n">new_obs</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_observations</span><span class="p">(</span><span class="n">new_obs</span><span class="p">)</span></div></div>
 
-<div class="viewcode-block" id="BayesianSequentialOED.update_design"><a class="viewcode-back" href="../../../api/pyapprox.expdesign.BayesianSequentialOED.html#pyapprox.expdesign.BayesianSequentialOED.update_design">[docs]</a>    <span class="k">def</span> <span class="nf">update_design</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">update_design</span><span class="p">()</span></div></div>
+    <span class="c1"># def update_design(self, return_all=False, rounding_decimals=16):</span>
+    <span class="c1">#     return super().update_design(return_all, rounding_decimals)</span>
 
 
 <div class="viewcode-block" id="BayesianSequentialKLOED"><a class="viewcode-back" href="../../../api/pyapprox.expdesign.BayesianSequentialKLOED.html#pyapprox.expdesign.BayesianSequentialKLOED">[docs]</a><span class="k">class</span> <span class="nc">BayesianSequentialKLOED</span><span class="p">(</span><span class="n">BayesianSequentialOED</span><span class="p">,</span> <span class="n">BayesianBatchKLOED</span><span class="p">):</span>
@@ -1569,7 +1633,7 @@
 <span class="sd">    Compute closed-loop OED my maximizing KL divergence between the prior and</span>
 <span class="sd">    posterior.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    
+
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">design_candidates</span><span class="p">,</span> <span class="n">obs_fun</span><span class="p">,</span> <span class="n">noise_std</span><span class="p">,</span>
                  <span class="n">prior_variable</span><span class="p">,</span> <span class="n">obs_process</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">nouter_loop_samples</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
                  <span class="n">ninner_loop_samples</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">generate_inner_prior_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
@@ -1648,7 +1712,7 @@
 <span class="sd">        max_eval_concurrency : integer</span>
 <span class="sd">            The number of threads used to compute OED design. Warning:</span>
 <span class="sd">            this uses multiprocessing.Pool and seems to provide very little</span>
-<span class="sd">            benefit and in many cases increases the CPU time.   </span>
+<span class="sd">            benefit and in many cases increases the CPU time.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># obs_process default is None so same API can be used as</span>
         <span class="c1"># open loop design</span>
@@ -1699,7 +1763,8 @@
                  <span class="n">generate_inner_prior_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">econ</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                  <span class="n">deviation_fun</span><span class="o">=</span><span class="n">oed_standard_deviation</span><span class="p">,</span>
                  <span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-                 <span class="n">risk_fun</span><span class="o">=</span><span class="n">oed_average_prediction_deviation</span><span class="p">):</span>
+                 <span class="n">pred_risk_fun</span><span class="o">=</span><span class="n">oed_prediction_average</span><span class="p">,</span>
+                 <span class="n">data_risk_fun</span><span class="o">=</span><span class="n">oed_data_expectation</span><span class="p">):</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Constructor.</span>
 
@@ -1797,12 +1862,12 @@
 <span class="sd">            this uses multiprocessing.Pool and seems to provide very little</span>
 <span class="sd">            benefit and in many cases increases the CPU time.</span>
 
-<span class="sd">        risk_fun : callable</span>
-<span class="sd">            Function with the signature</span>
+<span class="sd">        pred_risk_fun : callable</span>
+<span class="sd">            Function to compute risk over multiple qoi with the signature</span>
 
-<span class="sd">             `risk_fun(deviations) -&gt; float`</span>
+<span class="sd">             `pred_risk_fun(expected_deviations) -&gt; float`</span>
 
-<span class="sd">            where deviations : np.ndarray (nqois, 1)            </span>
+<span class="sd">            where expected_deviations : np.ndarray (nqois, 1)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># obs_process default is None so same API can be used as</span>
         <span class="c1"># open loop design</span>
@@ -1810,7 +1875,7 @@
             <span class="bp">self</span><span class="p">,</span> <span class="n">design_candidates</span><span class="p">,</span> <span class="n">obs_fun</span><span class="p">,</span> <span class="n">noise_std</span><span class="p">,</span>
             <span class="n">prior_variable</span><span class="p">,</span> <span class="n">qoi_fun</span><span class="p">,</span> <span class="n">nouter_loop_samples</span><span class="p">,</span>
             <span class="n">ninner_loop_samples</span><span class="p">,</span> <span class="n">generate_inner_prior_samples</span><span class="p">,</span>
-            <span class="n">econ</span><span class="p">,</span> <span class="n">deviation_fun</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">,</span> <span class="n">risk_fun</span><span class="p">)</span>
+            <span class="n">econ</span><span class="p">,</span> <span class="n">deviation_fun</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">,</span> <span class="n">pred_risk_fun</span><span class="p">,</span> <span class="n">data_risk_fun</span><span class="p">)</span>
         <span class="n">BayesianSequentialOED</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obs_process</span><span class="p">)</span>
 
 <div class="viewcode-block" id="BayesianSequentialDeviationOED.compute_expected_utility"><a class="viewcode-back" href="../../../api/pyapprox.expdesign.BayesianSequentialDeviationOED.html#pyapprox.expdesign.BayesianSequentialDeviationOED.compute_expected_utility">[docs]</a>    <span class="k">def</span> <span class="nf">compute_expected_utility</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">collected_design_indices</span><span class="p">,</span>
@@ -1843,7 +1908,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">inner_loop_pred_obs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner_loop_weights_up</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">outer_loop_weights_up</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner_loop_pred_qois</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">deviation_fun</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">new_design_indices</span><span class="p">,</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">risk_fun</span><span class="p">,</span> <span class="n">return_all</span><span class="p">)</span></div></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pred_risk_fun</span><span class="p">,</span> <span class="n">return_all</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_risk_fun</span><span class="p">)</span></div></div>
 
 
 <span class="k">def</span> <span class="nf">get_oed_inner_quadrature_rule</span><span class="p">(</span><span class="n">ninner_loop_samples</span><span class="p">,</span> <span class="n">prior_variable</span><span class="p">,</span>
@@ -2004,13 +2069,15 @@
     <span class="k">return</span> <span class="n">x_quad</span><span class="p">,</span> <span class="n">w_quad</span>
 
 
-<span class="k">def</span> <span class="nf">run_bayesian_batch_deviation_oed</span><span class="p">(</span>
+<span class="k">def</span> <span class="nf">run_bayesian_batch_deviation_oed_deprecated</span><span class="p">(</span>
         <span class="n">prior_variable</span><span class="p">,</span> <span class="n">obs_fun</span><span class="p">,</span> <span class="n">qoi_fun</span><span class="p">,</span> <span class="n">noise_std</span><span class="p">,</span>
         <span class="n">design_candidates</span><span class="p">,</span> <span class="n">pre_collected_design_indices</span><span class="p">,</span> <span class="n">deviation_fun</span><span class="p">,</span>
-        <span class="n">risk_fun</span><span class="p">,</span> <span class="n">nexperiments</span><span class="p">,</span> <span class="n">nouter_loop_samples</span><span class="p">,</span> <span class="n">ninner_loop_samples</span><span class="p">,</span>
+        <span class="n">pred_risk_fun</span><span class="p">,</span> <span class="n">nexperiments</span><span class="p">,</span> <span class="n">nouter_loop_samples</span><span class="p">,</span> <span class="n">ninner_loop_samples</span><span class="p">,</span>
         <span class="n">quad_method</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">return_all</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
         <span class="n">rounding_decimals</span><span class="o">=</span><span class="mi">16</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Deprecated. Use get_bayesian_oed_optimizer()</span>
+
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    prior_variable : pya.IndependentMarginalsVariable</span>
@@ -2052,12 +2119,12 @@
 <span class="sd">         inner_loop_pred_qois : np.ndarray (nouter_loop_samples, ninner_loop_samples, nqois)</span>
 <span class="sd">         weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)</span>
 
-<span class="sd">    risk_fun : callable</span>
-<span class="sd">        Function with the signature</span>
+<span class="sd">    pred_risk_fun : callable</span>
+<span class="sd">        Function to compute risk over multiple qoi with the signature</span>
 
-<span class="sd">         `risk_fun(deviations) -&gt; float`</span>
+<span class="sd">         `pred_risk_fun(expected_deviations) -&gt; float`</span>
 
-<span class="sd">        where deviations : np.ndarray (nqois, 1)</span>
+<span class="sd">        where expected_deviations : np.ndarray (nqois, 1)</span>
 
 <span class="sd">    nexperiments : integer</span>
 <span class="sd">        The number of experiments to be collected</span>
@@ -2129,7 +2196,7 @@
         <span class="n">design_candidates</span><span class="p">,</span> <span class="n">obs_fun</span><span class="p">,</span> <span class="n">noise_std</span><span class="p">,</span> <span class="n">prior_variable</span><span class="p">,</span>
         <span class="n">qoi_fun</span><span class="p">,</span> <span class="n">nouter_loop_samples</span><span class="p">,</span> <span class="n">ninner_loop_samples</span><span class="p">,</span>
         <span class="n">generate_inner_prior_samples</span><span class="o">=</span><span class="n">generate_inner_prior_samples</span><span class="p">,</span>
-        <span class="n">econ</span><span class="o">=</span><span class="n">econ</span><span class="p">,</span> <span class="n">deviation_fun</span><span class="o">=</span><span class="n">deviation_fun</span><span class="p">,</span> <span class="n">risk_fun</span><span class="o">=</span><span class="n">risk_fun</span><span class="p">,</span>
+        <span class="n">econ</span><span class="o">=</span><span class="n">econ</span><span class="p">,</span> <span class="n">deviation_fun</span><span class="o">=</span><span class="n">deviation_fun</span><span class="p">,</span> <span class="n">pred_risk_fun</span><span class="o">=</span><span class="n">pred_risk_fun</span><span class="p">,</span>
         <span class="n">max_eval_concurrency</span><span class="o">=</span><span class="n">max_eval_concurrency</span><span class="p">)</span>
     <span class="n">oed</span><span class="o">.</span><span class="n">populate</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">pre_collected_design_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -2151,9 +2218,11 @@
 
 <span class="k">def</span> <span class="nf">get_deviation_fun</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">opts</span><span class="o">=</span><span class="p">{}):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Get the deviation function used to compute the deviation of themselves</span>
+<span class="sd">    Get the deviation function used to compute the deviation of the</span>
 <span class="sd">    posterior push-forward for a realization of the observational data</span>
 
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
 <span class="sd">    name : string</span>
 <span class="sd">        Name of the deviation function.</span>
 <span class="sd">        Must be one of [&quot;std&quot;, &quot;cvar&quot;, &quot;entropic&quot;]</span>
@@ -2178,8 +2247,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">deviation_funs</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">&quot;std&quot;</span><span class="p">:</span> <span class="n">oed_standard_deviation</span><span class="p">,</span>
-        <span class="s2">&quot;cvar&quot;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span>
-            <span class="n">oed_conditional_value_at_risk_deviation</span><span class="p">),</span>
+        <span class="s2">&quot;cvar&quot;</span><span class="p">:</span> <span class="n">oed_conditional_value_at_risk_deviation</span><span class="p">,</span>
         <span class="s2">&quot;entropic&quot;</span><span class="p">:</span> <span class="n">oed_entropic_deviation</span><span class="p">}</span>
 
     <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">deviation_funs</span><span class="p">:</span>
@@ -2187,6 +2255,47 @@
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
     <span class="n">fun</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">deviation_funs</span><span class="p">[</span><span class="n">name</span><span class="p">],</span> <span class="o">**</span><span class="n">opts</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">fun</span>
+
+
+<span class="k">def</span> <span class="nf">get_data_risk_fun</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">opts</span><span class="o">=</span><span class="p">{}):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the risk function used to compute the risk of the deviation for all</span>
+<span class="sd">    outerloop realizations of the observations</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name : string</span>
+<span class="sd">        Name of the deviation function.</span>
+<span class="sd">        Must be one of [&quot;std&quot;, &quot;cvar&quot;, &quot;entropic&quot;]</span>
+
+<span class="sd">    opts : dict</span>
+<span class="sd">         Any options needed by the desired deviation function. cvar requires</span>
+<span class="sd">         {&quot;quantile&quot;, p} where 0&lt;=p&lt;1. No options are needed for the other</span>
+<span class="sd">         deviation functions</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    deviation_fun : callable</span>
+<span class="sd">        Function with the signature</span>
+
+<span class="sd">        `deviation_fun(inner_loop_pred_qois, weights) -&gt;</span>
+<span class="sd">         np.ndarray(nouter_loop_samples, nqois)`</span>
+
+<span class="sd">         where</span>
+
+<span class="sd">         inner_loop_pred_qois : np.ndarray (nouter_loop_samples, ninner_loop_samples, nqois)</span>
+<span class="sd">         weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">risk_funs</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;mean&quot;</span><span class="p">:</span> <span class="n">oed_data_expectation</span><span class="p">,</span>
+        <span class="s2">&quot;cvar&quot;</span><span class="p">:</span> <span class="n">oed_data_cvar</span><span class="p">}</span>
+
+    <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">risk_funs</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> not in </span><span class="si">{</span><span class="n">risk_funs</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="n">fun</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">risk_funs</span><span class="p">[</span><span class="n">name</span><span class="p">],</span> <span class="o">**</span><span class="n">opts</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">fun</span>
 
 
@@ -2276,8 +2385,8 @@
 
 <div class="viewcode-block" id="get_bayesian_oed_optimizer"><a class="viewcode-back" href="../../../api/pyapprox.expdesign.get_bayesian_oed_optimizer.html#pyapprox.expdesign.get_bayesian_oed_optimizer">[docs]</a><span class="k">def</span> <span class="nf">get_bayesian_oed_optimizer</span><span class="p">(</span>
         <span class="n">short_oed_type</span><span class="p">,</span> <span class="n">design_candidates</span><span class="p">,</span> <span class="n">obs_fun</span><span class="p">,</span> <span class="n">noise_std</span><span class="p">,</span>
-        <span class="n">prior_variable</span><span class="p">,</span> <span class="n">nouter_loop_samples</span><span class="p">,</span>
-        <span class="n">ninner_loop_samples</span><span class="p">,</span> <span class="n">quad_method</span><span class="p">,</span>
+        <span class="n">prior_variable</span><span class="p">,</span> <span class="n">nouter_loop_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">ninner_loop_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">quad_method</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">pre_collected_design_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
@@ -2352,7 +2461,18 @@
         <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;noise_std must be specified for each design candiate&quot;</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
+    <span class="k">if</span> <span class="n">quad_method</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">prior_variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">quad_method</span> <span class="o">=</span> <span class="s2">&quot;quadratic&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">quad_method</span> <span class="o">==</span> <span class="s2">&quot;monte_carlo&quot;</span>
+
+    <span class="k">if</span> <span class="n">nouter_loop_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">nouter_loop_samples</span> <span class="o">=</span> <span class="mi">1000</span>
+
     <span class="k">if</span> <span class="n">quad_method</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;gauss&quot;</span><span class="p">,</span> <span class="s2">&quot;linear&quot;</span><span class="p">,</span> <span class="s2">&quot;quadratic&quot;</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">ninner_loop_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ninner_loop_samples</span> <span class="o">=</span> <span class="mi">20</span>
         <span class="n">x_quad</span><span class="p">,</span> <span class="n">w_quad</span> <span class="o">=</span> <span class="n">get_oed_inner_quadrature_rule</span><span class="p">(</span>
             <span class="n">ninner_loop_samples</span><span class="p">,</span> <span class="n">prior_variable</span><span class="p">,</span> <span class="n">quad_method</span><span class="p">)</span>
         <span class="n">ninner_loop_samples</span> <span class="o">=</span> <span class="n">x_quad</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
@@ -2360,6 +2480,8 @@
             <span class="n">generate_inner_prior_samples_fixed</span><span class="p">,</span> <span class="n">x_quad</span><span class="p">,</span> <span class="n">w_quad</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">quad_method</span> <span class="o">==</span> <span class="s2">&quot;monte_carlo&quot;</span><span class="p">:</span>
         <span class="c1"># use default Monte Carlo sampling</span>
+        <span class="k">if</span> <span class="n">ninner_loop_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ninner_loop_samples</span> <span class="o">=</span> <span class="mi">1000</span>
         <span class="n">generate_inner_prior_samples</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Incorrect quad_method </span><span class="si">{</span><span class="n">quad_method</span><span class="si">}</span><span class="s2"> specified&quot;</span><span class="p">)</span>

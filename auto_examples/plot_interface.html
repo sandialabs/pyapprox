@@ -68,6 +68,7 @@
 <li class="toctree-l2"><a class="reference internal" href="plot_multivariate_piecewise_polynomial_interpolation.html">Multivariate Piecewise Polynomial Interpolation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_pde_convergence.html">Convergence studies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_sparse_grid_uq.html">Sparse Grid Interpolation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_paper_demo.html">End-to-End Model Analysis</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
@@ -116,7 +117,7 @@ to download the full example code</p>
 <p>This tutorial demonstrats how to use model wrappers to time function calls and evaluate a function at multiple samples in parallel.</p>
 <section id="timing-function-evaluations">
 <h2>Timing function evaluations<a class="headerlink" href="#timing-function-evaluations" title="Permalink to this headline"></a></h2>
-<p>It is often useful to be able to track the time needed to evaluate a function. We can track this using the <a class="reference internal" href="../api/pyapprox.interface.TimerModel.html#pyapprox.interface.TimerModel" title="pyapprox.interface.wrappers.TimerModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.interface.wrappers.TimerModel</span></code></a> and <a class="reference internal" href="../api/pyapprox.interface.WorkTrackingModel.html#pyapprox.interface.WorkTrackingModel" title="pyapprox.interface.wrappers.WorkTrackingModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.interface.wrappers.WorkTrackingModel</span></code></a> objects which are designed to work together. The former time each evaluation of a function that returns output of shape (nsampels,qoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,qoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsmaples,nqoi) of the user function.</p>
+<p>It is often useful to be able to track the time needed to evaluate a function. We can track this using the <a class="reference internal" href="../api/pyapprox.interface.TimerModel.html#pyapprox.interface.TimerModel" title="pyapprox.interface.wrappers.TimerModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.interface.wrappers.TimerModel</span></code></a> and <a class="reference internal" href="../api/pyapprox.interface.WorkTrackingModel.html#pyapprox.interface.WorkTrackingModel" title="pyapprox.interface.wrappers.WorkTrackingModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.interface.wrappers.WorkTrackingModel</span></code></a> objects which are designed to work together. The former times each evaluation of a function that returns output of shape (nsamples,nqoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,nqoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsamples,nqoi) of the user function.</p>
 <p>Lets use the class with a function that takes a random amount of time. We will use the previous function but add a random pause between 0 and .1 seconds. Lets import some functions and define a multi-variate random variable</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">fun_pause_1</span><span class="p">(</span><span class="n">sample</span><span class="p">):</span>
     <span class="k">assert</span> <span class="n">sample</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
@@ -158,7 +159,7 @@ to download the full example code</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.02131509780883789, 0.02283000946044922, 0.019183874130249023, 0.03529810905456543, 0.014818906784057617, 0.018531084060668945, 0.017957687377929688, 0.0004940032958984375, 0.023406982421875, 0.0028939247131347656]}
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.05295515060424805, 0.0392458438873291, 0.04218101501464844, 0.05422019958496094, 0.025912046432495117, 0.03179216384887695, 0.03925013542175293, 0.026505231857299805, 0.015564203262329102, 0.0067598819732666016]}
 </pre></div>
 </div>
 <p>We can also call the work tracker to query the median cost for a model with a given id. The default id is 0.</p>
@@ -167,7 +168,7 @@ to download the full example code</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.01885748]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.035519]
 </pre></div>
 </div>
 </section>
@@ -216,8 +217,8 @@ WorkTrackingModel. PyApprox assumes that the configure variables are the last ro
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.04904341697692871, 0.0388331413269043, 0.033133745193481445, 0.04185914993286133, 0.04831886291503906], (1.0,): [0.08550500869750977, 0.08524584770202637, 0.0595090389251709, 0.07553791999816895, 0.08323788642883301]}
-[0.04185915 0.08323789]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.01680612564086914, 0.04378080368041992, 0.03605318069458008, 0.04554915428161621, 0.02942800521850586], (1.0,): [0.06260919570922852, 0.08654308319091797, 0.06752204895019531, 0.05702018737792969, 0.10064888000488281]}
+[0.03605318 0.06752205]
 </pre></div>
 </div>
 <p>As expected there are 5 samples tracked for each model and the median evaluation time of the second function is about twice as large as for the first function.</p>
@@ -260,11 +261,9 @@ be used with WorkTrackingModel using the sequence of wrappers below.</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Evaluating all 10 samples took 0.5084948539733887 seconds
-With 1 threads that took 0.5089321136474609 seconds
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>With 1 threads that took 0.4695601463317871 seconds
 Warning set OMP_NUM_THREADS=1 for best performance
-Evaluating all 10 samples took 1.0294721126556396 seconds
-With 4 threads that took 1.0301270484924316 seconds
+With 4 threads that took 1.2888720035552979 seconds
 </pre></div>
 </div>
 <p>Lets print a summary of the costs to make sure individual function evaluation
@@ -275,8 +274,8 @@ costs are still being recorded correctly</p>
 <p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>WorkTracker Cost Summary
 Funtion ID Median Cost
-(0.0,)     0.02475607395172119
-(1.0,)     0.07731068134307861
+(0.0,)     0.02170383930206299
+(1.0,)     0.07232356071472168
 </pre></div>
 </div>
 </section>
@@ -286,7 +285,7 @@ Funtion ID Median Cost
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># sphinx_gallery_thumbnail_path = &#39;./figures/cantilever-beam.png&#39;</span>
 </pre></div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  2.883 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  3.179 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-interface-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/b46e5c7eeabdb0d4d28ef61aca452c9d/plot_interface.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_interface.py</span></code></a></p>

@@ -161,10 +161,10 @@ The variance of this estimator is given by</p>
 <col style="width: 100%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><figure class="align-center" id="id11">
+<tr class="row-odd"><td><figure class="align-center" id="id9">
 <span id="mlmc-sample-allocation"></span><a class="reference internal image-reference" href="../../_images/mlmc.png"><img alt="../../_images/mlmc.png" src="../../_images/mlmc.png" style="width: 50%;" /></a>
 <figcaption>
-<p><span class="caption-text">MLMC sampling strategy</span><a class="headerlink" href="#id11" title="Permalink to this image"></a></p>
+<p><span class="caption-text">MLMC sampling strategy</span><a class="headerlink" href="#id9" title="Permalink to this image"></a></p>
 </figcaption>
 </figure>
 </td>
@@ -175,7 +175,7 @@ The variance of this estimator is given by</p>
 <div class="math notranslate nohighlight">
 \[\var{Q_{0,\mathcal{Z}}^\mathrm{ML}} = \sum_{\alpha=0}^M N_\alpha\var{Y_{\alpha,\mathcal{Z}_\alpha}}\]</div>
 <p>Lets setup a problem to compute an MLMC estimate of <span class="math notranslate nohighlight">\(\mean{f_0}\)</span>
-using the following ensemble of models, taken from <span id="id5">[PWGSIAM2016]</span>, which simulate a short column with a rectangular cross-sectional area subject to bending and axial force.</p>
+using the following ensemble of models, taken from <a class="reference internal" href="plot_multi_fidelity_monte_carlo.html#pwgsiam2016" id="id5"><span>[PWGSIAM2016]</span></a>, which simulate a short column with a rectangular cross-sectional area subject to bending and axial force.</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}f_0(z)&amp;=(1 - 4M/(b(h^2)Y) - (P/(bhY))^2)\\
 f_1(z)&amp;=(1 - 3.8M/(b(h^2)Y) - ((P(1 + (M-2000)/4000))/(bhY))^2)\\
@@ -203,7 +203,8 @@ f_4(z)&amp;=(1 - M/(b(h^2)Y) - (P(1 + M)/(hY))^2)\end{split}\]</div>
 <span class="c1"># generate pilot samples to estimate correlation</span>
 <span class="c1"># npilot_samples = int(1e4)</span>
 <span class="c1"># cov = pya.estimate_model_ensemble_covariance(</span>
-<span class="c1">#    npilot_samples,short_column_model.generate_samples,model_ensemble)[0]</span>
+<span class="c1">#    npilot_samples, short_column_model.generate_samples, model_ensemble,</span>
+<span class="c1">#    model_ensemble.nmodels)[0]</span>
 
 <span class="c1"># define the sample allocation</span>
 <span class="n">est</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mlmc&quot;</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
@@ -335,7 +336,8 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 <span class="n">model_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$f_0$&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$f_1$&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$f_2$&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$f_3$&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;$f_4$&#39;</span><span class="p">]</span>
 <span class="n">npilot_samples</span> <span class="o">=</span> <span class="mi">10</span>
 <span class="n">cov_mc</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">estimate_model_ensemble_covariance</span><span class="p">(</span>
-    <span class="n">npilot_samples</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span> <span class="n">model_ensemble</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">npilot_samples</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span> <span class="n">model_ensemble</span><span class="p">,</span>
+    <span class="n">model_ensemble</span><span class="o">.</span><span class="n">nmodels</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 
 <span class="kn">from</span> <span class="nn">pyapprox.util.configure_plots</span> <span class="kn">import</span> <span class="n">mathrm_labels</span><span class="p">,</span> <span class="n">mathrm_label</span>
 <span class="n">estimators</span> <span class="o">=</span> <span class="p">[</span>
@@ -366,7 +368,7 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 <h3>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h3>
 <dl class="citation">
 <dt class="label" id="cgstcvs2011"><span class="brackets"><a class="fn-backref" href="#id1">CGSTCVS2011</a></span></dt>
-<dd><p><a href="#id9"><span class="problematic" id="id10">`</span></a>K.A. Cliffe, M.B. Giles, R. Scheichl, A.L. Teckentrup, Multilevel Monte Carlo methods and applications to elliptic PDEs with random coefficients, Comput. Vis. Sci., 14, 3-15, 2011. &lt;<a class="reference external" href="https://doi.org/10.1007/s00791-011-0160-x">https://doi.org/10.1007/s00791-011-0160-x</a>&gt;`_0</p>
+<dd><p><a class="reference external" href="https://doi.org/10.1007/s00791-011-0160-x">K.A. Cliffe, M.B. Giles, R. Scheichl, A.L. Teckentrup, Multilevel Monte Carlo methods and applications to elliptic PDEs with random coefficients, Comput. Vis. Sci., 14, 3-15, 2011.</a></p>
 </dd>
 <dt class="label" id="gor2008"><span class="brackets"><a class="fn-backref" href="#id2">GOR2008</a></span></dt>
 <dd><p><a class="reference external" href="https://doi.org/10.1287/opre.1070.0496">M.B. Giles, Multilevel Monte Carlo path simulation, Oper. Res., 56(3), 607-617, 2008.</a></p>
@@ -378,7 +380,7 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 <dd><p><a class="reference external" href="https://doi.org/10.1007/s00211-015-0734-5">A. Haji-Ali, F. Nobile and R. Tempone. Multi-index Monte Carlo: when sparsity meets sampling. Numerische Mathematik, 132(4), 767-806, 2016.</a></p>
 </dd>
 </dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.111 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.169 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/bb1275901dfaafa79dd0bbce6a0f1ae4/plot_multi_level_monte_carlo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multi_level_monte_carlo.py</span></code></a></p>

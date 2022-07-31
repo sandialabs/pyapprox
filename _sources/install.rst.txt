@@ -39,16 +39,23 @@ To install PyApprox entirely with pip simply run the following in the PyApprox r
     pip install -e .
 
 
-Note that sometimes developers need to remove all files generated when installing. To do this use::
+   
+Troubleshooting
+^^^^^^^^^^^^^^^
+Sometimes pip will cause incompatabilities with your currently installed packages. If this happens try::
+
+    pip install -e . --no-build-isolation
+
+Sometimes developers need to remove all files generated when installing. To do this use::
 
   python setup.py clean --all
   find . -name "*.pyc" -exec rm -f {} \;
 
 Test
 ----
-To run all tests use::
+To run all tests run the following in the root directory of PyApprox::
   
-  python setup.py test
+  python -m unittest discover
 
 To test docstring examples use::
   
