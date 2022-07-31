@@ -96,7 +96,6 @@ convergence_data = run_convergence_study(
     num_samples=10, coarsest_levels=coarsest_levels,
     reference_model=true_value)
 plot_convergence_data(convergence_data)
-plt.show()
 
 #%%
 #The left plots depicts the convergence of the estimated integral as :math:`n_1` is increased for varying values of :math:`n_1` and vice-versa for the right plot. These plots confirm that the Integrator converges as the expected linear rate. Until the error introduced by fixing the other configuration variables dominates.
@@ -121,9 +120,8 @@ N = 4
 config_values = [2*np.arange(1, N+2)+5, 2*np.arange(1, N+2)+5,
                  final_time/((2**np.arange(1, N+2)))]
 benchmark = setup_benchmark(
-    "multi_index_advection_diffusion", nvars=3, kle_length_scale=1,
-    kle_sigma=1, time_scenario=time_scenario,
-    config_values=config_values)
+    "multi_index_advection_diffusion", kle_nvars=3, kle_length_scale=1,
+    kle_stdev=1, time_scenario=time_scenario, config_values=config_values)
 validation_levels = [N, N, N]
 coarsest_levels = [0, 0, 0]
 if final_time is None:

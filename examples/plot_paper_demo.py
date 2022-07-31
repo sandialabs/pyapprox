@@ -23,8 +23,7 @@ from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array)
 from pyapprox.surrogates import adaptive_approximate
 from pyapprox.analysis.sensitivity_analysis import (
-    run_sensitivity_analysis,
-    plot_sensitivity_indices_with_confidence_intervals_from_result)
+    run_sensitivity_analysis, plot_sensitivity_indices)
 from pyapprox.bayes.markov_chain_monte_carlo import (
     loglike_from_negloglike, MCMCVariable)
 from pyapprox.expdesign.bayesian_oed import get_bayesian_oed_optimizer
@@ -116,7 +115,7 @@ def callback(approx):
 
 approx_result = adaptive_approximate(
     inv_benchmark.negloglike, inv_benchmark.variable, "gaussian_process",
-    {"max_nsamples": 30, "ncandidate_samples": 2e3, "verbose": 2,
+    {"max_nsamples": 30, "ncandidate_samples": 2e3, "verbose": 0,
      "callback": callback, "kernel_variance": 400})
 
 # approx_result = adaptive_approximate(
@@ -128,9 +127,10 @@ approx = approx_result.approx
 
 #%%
 #We can plot the errors obtained from the callback with
-plt.loglog(nsamples, errors, "o-")
-plt.xlabel(mathrm_label("No. Samples"))
-plt.ylabel(mathrm_label("Error"))
+ax = plt.subplots(figsize=(8, 6))[1]
+ax.loglog(nsamples, errors, "o-")
+ax.set_xlabel(mathrm_label("No. Samples"))
+ax.set_ylabel(mathrm_label("Error"))
 if savefig:
     plt.savefig("gp-error-plot.pdf")
 
@@ -148,7 +148,7 @@ sa_result = run_sensitivity_analysis(
     "surrogate_sobol", approx, inv_benchmark.variable)
 # sa_result = run_sensitivity_analysis(
 #     "sobol", benchmark.negloglike, inv_benchmark.variable)
-axs = plot_sensitivity_indices_with_confidence_intervals_from_result(
+axs = plot_sensitivity_indices(
     sa_result)[1]
 if savefig:
     plt.savefig("gp-sa-indices.pdf", bbox_inches="tight")
@@ -179,7 +179,7 @@ print("Surrogate", error)
 #Uncomment the commented code to use the numerical model instead of the surrogate
 #with the MCMC algorithm. Again note the significant increase in computational
 #time
-algorithm, npost_samples, njobs = "nuts", 200, 1
+algorithm, npost_samples, njobs = "nuts", 100, 1
 # loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)
 loglike = partial(loglike_from_negloglike, approx)
 mcmc_variable = MCMCVariable(
@@ -194,9 +194,11 @@ map_sample = mcmc_variable.maximum_aposteriori_point()
 #to the cost of evaluating the numerical model, which is much higher relative
 #to the cost of running the surrogate.
 mcmc_variable.plot_2d_marginals(
-    nsamples_1d=10, plot_samples=[[post_samples, 'ko'], [map_sample, 'rX']])
+    nsamples_1d=30,
+    plot_samples=[
+        [post_samples, {}], [map_sample, {"c": "k", "marker": "X", "s": 100}]])
 if savefig:
-    plt.savefig("posterior-samples.pdf")
+    plt.savefig("posterior-samples.pdf", bbox_inches="tight")
 
 #%%
 #In the Bayesian inference above we used a fixed number of observations
@@ -213,7 +215,7 @@ inv_benchmark.mesh.plot(
 design_candidates = inv_benchmark.mesh.mesh_pts[:, inv_benchmark.obs_indices]
 oed = get_bayesian_oed_optimizer(
     "kl_params", design_candidates, inv_benchmark.obs_fun, noise_stdev,
-    inv_benchmark.variable, 100, 10, "quadratic")
+    inv_benchmark.variable)
 oed_results = []
 ndesign = 3
 for step in range(ndesign):

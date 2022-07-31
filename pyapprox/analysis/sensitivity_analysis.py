@@ -1293,8 +1293,7 @@ def _get_sobol_indices_labels(result):
     return labels
 
 
-def plot_sensitivity_indices_with_confidence_intervals_from_result(
-        result, axs=None, include_vars=None):
+def plot_sensitivity_indices(result, axs=None, include_vars=None):
     import matplotlib.pyplot as plt
     if axs is None:
         fig, axs = plt.subplots(1, 3, figsize=(3*8, 6), sharey=True)

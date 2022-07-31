@@ -2298,8 +2298,8 @@ def gaussian_noise_fun(noise_std, values, active_indices=None):
 
 def get_bayesian_oed_optimizer(
         short_oed_type, design_candidates, obs_fun, noise_std,
-        prior_variable, nouter_loop_samples,
-        ninner_loop_samples, quad_method,
+        prior_variable, nouter_loop_samples=None,
+        ninner_loop_samples=None, quad_method=None,
         pre_collected_design_indices=None,
         **kwargs):
     r"""
@@ -2374,7 +2374,18 @@ def get_bayesian_oed_optimizer(
         msg = "noise_std must be specified for each design candiate"
         raise ValueError(msg)
 
+    if quad_method is None:
+        if prior_variable.num_vars() <= 3:
+            quad_method = "quadratic"
+        else:
+            quad_method == "monte_carlo"
+
+    if nouter_loop_samples is None:
+        nouter_loop_samples = 1000
+
     if quad_method in ["gauss", "linear", "quadratic"]:
+        if ninner_loop_samples is None:
+            ninner_loop_samples = 20
         x_quad, w_quad = get_oed_inner_quadrature_rule(
             ninner_loop_samples, prior_variable, quad_method)
         ninner_loop_samples = x_quad.shape[1]
@@ -2382,6 +2393,8 @@ def get_bayesian_oed_optimizer(
             generate_inner_prior_samples_fixed, x_quad, w_quad)
     elif quad_method == "monte_carlo":
         # use default Monte Carlo sampling
+        if ninner_loop_samples is None:
+            ninner_loop_samples = 1000
         generate_inner_prior_samples = None
     else:
         raise ValueError(f"Incorrect quad_method {quad_method} specified")

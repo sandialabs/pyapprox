@@ -336,14 +336,15 @@ class MCMCVariable(JointVariable):
             raise ValueError("Number of subplots is insufficient")
 
         fig, axs = plt.subplots(
-            nfig_rows, nfig_cols)#, figsize=(nfig_cols*8, nfig_rows*6))
+            nfig_rows, nfig_cols, figsize=(nfig_cols*8, nfig_rows*6))
         all_variables = self._variable.marginals()
 
-        if plot_samples is not None and type(plot_samples) == np.ndarray:
-            plot_samples = [[plot_samples, 'ko']]
+        # if plot_samples is not None and type(plot_samples) == np.ndarray:
+        #     plot_samples = [
+        #         [plot_samples, {"c": "k", "marker": "o", "alpha": 0.4}]]
 
         for ii, var in enumerate(all_variables):
-            lb, ub = get_truncated_range(var)
+            lb, ub = get_truncated_range(var, unbounded_alpha=0.995)
             quad_degrees = np.array([20]*(self._variable.num_vars()-1))
             samples_ii = np.linspace(lb, ub, nsamples_1d)
             from pyapprox.surrogates.polychaos.gpc import (
@@ -355,15 +356,15 @@ class MCMCVariable(JointVariable):
             axs[ii][ii].plot(samples_ii, values)
             if plot_samples is not None:
                 for s in plot_samples:
-                    axs[ii][ii].plot(s[0][ii, :], s[0][ii, :]*0, s[1])
+                    axs[ii][ii].scatter(s[0][ii, :], s[0][ii, :]*0, **s[1])
 
         for ii, pair in enumerate(variable_pairs):
             # use pair[1] for x and pair[0] for y because we reverse
             # pairs above
             var1, var2 = all_variables[pair[1]], all_variables[pair[0]]
             axs[pair[1], pair[0]].axis("off")
-            lb1, ub1 = get_truncated_range(var1)
-            lb2, ub2 = get_truncated_range(var2)
+            lb1, ub1 = get_truncated_range(var1, unbounded_alpha=0.995)
+            lb2, ub2 = get_truncated_range(var2, unbounded_alpha=0.995)
             X, Y, samples_2d = get_meshgrid_samples(
                 [lb1, ub1, lb2, ub2], nsamples_1d)
             quad_degrees = np.array([10]*(self._variable.num_vars()-2))
@@ -387,8 +388,8 @@ class MCMCVariable(JointVariable):
                 for s in plot_samples:
                     # use pair[1] for x and pair[0] for y because we reverse
                     # pairs above
-                    axs[pair[0]][pair[1]].plot(
-                        s[0][pair[1], :], s[0][pair[0], :], s[1])
+                    axs[pair[0]][pair[1]].scatter(
+                        s[0][pair[1], :], s[0][pair[0], :], **s[1])
 
         return fig, axs
 
