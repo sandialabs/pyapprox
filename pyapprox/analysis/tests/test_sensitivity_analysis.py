@@ -310,8 +310,8 @@ class TestSensitivityAnalysis(unittest.TestCase):
         result = run_sensitivity_analysis(
             "sobol", benchmark.fun, benchmark.variable,
             interaction_terms, nsamples, sampling_method, qmc_start_index=100)
+        main_effects = result["sobol_indices"]["median"][:benchmark.variable.num_vars()]
         assert np.allclose(main_effects, benchmark.main_effects, atol=2e-3)
-        
 
     def test_repeat_qmc_sobol_sensitivity_analysis_ishigami(self):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
@@ -325,10 +325,13 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
         sampling_method = 'sobol'
         nsobol_realizations = 5
-        rep_sobol_indices, rep_total_effect_indices, rep_var, rep_mean = \
-            repeat_sampling_based_sobol_indices(
-                benchmark.fun, benchmark.variable, interaction_terms, nsamples,
-                sampling_method, nsobol_realizations=nsobol_realizations)
+        result = repeat_sampling_based_sobol_indices(
+            benchmark.fun, benchmark.variable, interaction_terms, nsamples,
+            sampling_method, nsobol_realizations=nsobol_realizations)
+        rep_sobol_indices, rep_total_effect_indices, rep_var, rep_mean = (
+            result["sobol_indices"]["values"],
+            result["total_effects"]["values"],
+            result["variance"]["values"], result["mean"]["values"])
 
         assert np.allclose(rep_mean.mean(axis=0), benchmark.mean, atol=2e-3)
         # check that there is variation in output. If not then we are not

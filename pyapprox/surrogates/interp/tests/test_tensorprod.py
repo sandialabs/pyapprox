@@ -119,11 +119,11 @@ class TestTensorProd(unittest.TestCase):
         ranges = [0, 1]
         interp_vals = piecewise_quadratic_interpolation(
             interp_mesh, mesh, mesh_vals, ranges)
-        import pylab as plt
-        II = np.argsort(interp_mesh)
-        plt.plot(interp_mesh[II], interp_vals[II], 'k-')
-        plt.plot(mesh, mesh_vals, 'o')
-        plt.show()
+        # import pylab as plt
+        # II = np.argsort(interp_mesh)
+        # plt.plot(interp_mesh[II], interp_vals[II], 'k-')
+        # plt.plot(mesh, mesh_vals, 'o')
+        # plt.show()
         assert np.linalg.norm(interp_vals[:, 0]-function(interp_mesh)) < 1e-6
 
 

@@ -852,7 +852,8 @@ def repeat_sampling_based_sobol_indices(
         sampling_method="random",
         nsobol_realizations=10,
         summary_stats=["mean", "median", "min", "max", "quantile-0.25",
-                       "quantile-0.75"]):
+                       "quantile-0.75"],
+        qmc_start_index=1):
     """
     Compute sobol indices for different sample sets. This allows estimation
     of error due to finite sample sizes. This function requires evaluting
@@ -869,7 +870,7 @@ def repeat_sampling_based_sobol_indices(
     stat_functions = _get_stats_functions(summary_stats)
 
     means, variances, sobol_values,  total_values = [], [], [], []
-    qmc_start_index = 0
+    # qmc_start_index = 0
     for ii in range(nsobol_realizations):
         sv, tv, vr, me = sampling_based_sobol_indices(
             fun, variable, interaction_terms, nsamples,

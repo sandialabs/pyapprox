@@ -13,7 +13,7 @@ from pyapprox.surrogates.gaussianprocess.gradient_enhanced_gp import (
 )
 
 
-def gradient_enhanced_gp_example(num_vars, plot=True):
+def gradient_enhanced_gp_example(num_vars, plot=False):
     np.set_printoptions(linewidth=200)
     if num_vars == 2:
         const = 2
@@ -256,6 +256,6 @@ class TestGradientEnhancedGP(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    gradient_enhanced_gp_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestGradientEnhancedGP)
+    gradient_enhanced_gp_test_suite = (
+        unittest.TestLoader().loadTestsFromTestCase(TestGradientEnhancedGP))
     unittest.TextTestRunner(verbosity=2).run(gradient_enhanced_gp_test_suite)

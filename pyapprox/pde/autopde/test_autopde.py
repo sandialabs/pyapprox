@@ -562,8 +562,8 @@ class TestManualPDE(unittest.TestCase):
 
         split_sols = mesh.split_quantities(sol)
 
-        import matplotlib.pyplot as plt
-        fig, axs = plt.subplots(1, 3, figsize=(8*3, 6))
+        # import matplotlib.pyplot as plt
+        # fig, axs = plt.subplots(1, 3, figsize=(8*3, 6))
         # plt_objs = mesh.plot(
         #     [v[:, None] for v in exact_vel_vals.T]+[exact_pres_vals])
         # plt_objs = mesh.plot(split_sols, axs=axs)
@@ -733,7 +733,7 @@ class TestManualPDE(unittest.TestCase):
         def bernoulli_realtion(q, bed_fun, C, x, h):
             return q**2/(2*9.81*h**2)+h+bed_fun(x)-C, None
         x = torch.linspace(0, 1, 11,dtype=torch.double)
-        from util import newton_solve
+        from pyapprox.pde.autopde.util import newton_solve
         def bed_fun(x):
             return -x**2*0
         q, C = 1, 1
