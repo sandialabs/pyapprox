@@ -21,8 +21,8 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     ChemicalReactionModel, define_random_oscillator_random_variables,
     RandomOscillator, piston_function_gradient, CoupledSprings,
     define_coupled_springs_random_variables, HastingsEcology,
-    define_nondim_hastings_ecology_random_variables, NobileBenchmarkFunctions,
-    SpectralPDEMultiIndexWrapper, ParameterizedNonlinearModel
+    define_nondim_hastings_ecology_random_variables,
+    ParameterizedNonlinearModel
     )
 from pyapprox.benchmarks.genz import GenzFunction
 from pyapprox.benchmarks.multifidelity_benchmarks import (

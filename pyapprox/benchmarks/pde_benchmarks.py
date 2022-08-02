@@ -3,7 +3,6 @@ from functools import partial
 from scipy import stats
 import numpy as np
 
-from pyapprox.util.utilities import cartesian_product
 from pyapprox.pde.autopde.solvers import (
     SteadyStatePDE, SteadyStateAdjointPDE, TransientPDE, TransientFunction
 )
@@ -12,8 +11,7 @@ from pyapprox.pde.autopde.physics import (
 )
 from pyapprox.pde.autopde.mesh import (
     full_fun_axis_1, CartesianProductCollocationMesh,
-    subdomain_integral_functional, cartesian_mesh_solution_functional,
-    final_time_functional
+    subdomain_integral_functional, final_time_functional
 )
 from pyapprox.variables import IndependentMarginalsVariable
 from pyapprox.variables.transforms import ConfigureVariableTransformation

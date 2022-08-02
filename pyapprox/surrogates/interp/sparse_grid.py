@@ -522,7 +522,7 @@ def get_subspace_values_using_dictionary(values, subspace_poly_indices,
 
 
 def evaluate_sparse_grid_subspace(samples, subspace_index, subspace_values,
-                                  samples_1d, config_variables_idx, output):
+                                  samples_1d, config_variables_idx):
     if config_variables_idx is None:
         config_variables_idx = samples.shape[0]
 
@@ -549,13 +549,87 @@ def evaluate_sparse_grid_subspace(samples, subspace_index, subspace_values,
     return poly_vals
 
 
+def evaluate_sparse_grid_subspace_deriv(
+        eval_samples, subspace_index, subspace_values,
+        samples_1d, config_variables_idx):
+    if config_variables_idx is None:
+        config_variables_idx = eval_samples.shape[0]
+
+    active_vars = np.where(subspace_index[:config_variables_idx] > 0)[0]
+    nactive_vars = active_vars.shape[0]
+
+    abscissa_1d = []
+    for dd in range(nactive_vars):
+        active_idx = active_vars[dd]
+        abscissa_1d.append(samples_1d[active_idx][subspace_index[active_idx]])
+
+    samples = eval_samples[active_vars, :]
+    nvars, nsamples = eval_samples.shape
+    nqoi = subspace_values.shape[1]
+    derivs = np.zeros((nsamples, nqoi, nvars))
+    vals, active_derivs = tensor_product_lagrange_jacobian(
+        samples, abscissa_1d, subspace_values)
+    derivs[:, :, active_vars] = active_derivs
+    return vals, derivs
+
+
+def tensor_product_lagrange_jacobian(samples, abscissa_1d, values):
+    nvars = samples.shape[0]
+    nabscissa_1d = [a.shape[0] for a in abscissa_1d]
+    numer = [[] for dd in range(nvars)]
+    denom = [[] for dd in range(nvars)]
+    samples_diff = [None for dd in range(nvars)]
+    for dd in range(nvars):
+        samples_diff[dd] = samples[dd][:, None]-abscissa_1d[dd][None, :]
+        abscissa_diff = abscissa_1d[dd][:, None]-abscissa_1d[dd][None, :]
+        for jj in range(nabscissa_1d[dd]):
+            indices = np.delete(np.arange(nabscissa_1d[dd]), jj)
+            numer[dd].append(samples_diff[dd][:, indices].prod(axis=1))
+            denom[dd].append(abscissa_diff[jj, indices].prod(axis=0))
+        numer[dd] = np.asarray(numer[dd])
+
+    nsamples = samples.shape[1]
+    derivs_1d = [np.empty((nsamples, nabscissa_1d[dd]))
+                 for dd in range(nvars)]
+    for dd in range(nvars):
+        # sum over each 1D basis function
+        for jj in range(nabscissa_1d[dd]):
+            # product rule for the jth 1D basis function
+            numer_deriv = 0
+            for kk in range(nabscissa_1d[dd]):
+                # compute deriv of kth component of product rule sum
+                if jj != kk:
+                    numer_deriv += np.delete(
+                        samples_diff[dd], (jj, kk), axis=1).prod(axis=1)
+            derivs_1d[dd][:, jj] = numer_deriv/denom[dd][jj]
+
+    # compute dth derivative for each sample and basis
+    nqoi = values.shape[1]
+    vals = np.empty((nsamples, nqoi))
+    derivs = np.empty((samples.shape[1], nqoi, nvars))
+    # numer[dd].shape is [nabscissa_1d[dd], nsamples]
+    # derivs_1d[dd].shape is [nsamples, nabscissa_1d[dd]]
+    for ii in range(nsamples):
+        basis_mat = outer_product(
+            [numer[ss][:, ii]/denom[ss] for ss in range(nvars)])
+        vals[ii, :] = basis_mat.dot(values)
+    for dd in range(nvars):
+        for ii in range(nsamples):
+            sets = [
+                numer[ss][:, ii]/denom[ss] if ss != dd else derivs_1d[dd][ii]
+                for ss in range(nvars)]
+            deriv_mat = outer_product(sets)
+            derivs[ii, :, dd] = deriv_mat.dot(values)
+    return vals, derivs
+
+
 def evaluate_sparse_grid(samples, values,
                          poly_indices_dict,  # not needed with new implementation
                          sparse_grid_subspace_indices,
                          sparse_grid_subspace_poly_indices_list,
                          smolyak_coefficients, samples_1d,
                          sparse_grid_subspace_values_indices_list,
-                         config_variables_idx=None, output=False):
+                         config_variables_idx=None, jac=False):
 
     num_vars, num_samples = samples.shape
     assert values.ndim == 2
@@ -579,19 +653,31 @@ def evaluate_sparse_grid(samples, values,
     num_qoi = values.shape[1]
     # must initialize to zero
     approx_values = np.zeros((num_samples, num_qoi), dtype=float)
+    grads = 0
     for ii in range(sparse_grid_subspace_indices.shape[1]):
         if (abs(smolyak_coefficients[ii]) > np.finfo(float).eps):
             subspace_index = sparse_grid_subspace_indices[:, ii]
-            subspace_poly_indices = sparse_grid_subspace_poly_indices_list[ii]
+            # subspace_poly_indices = sparse_grid_subspace_poly_indices_list[ii]
             # subspace_values = get_subspace_values_using_dictionary(
             #    values,subspace_poly_indices,poly_indices_dict)
             subspace_values = get_subspace_values(
                 values, sparse_grid_subspace_values_indices_list[ii])
-            subspace_approx_vals = evaluate_sparse_grid_subspace(
-                samples, subspace_index, subspace_values,
-                samples_1d, config_variables_idx, output)
+            if not jac:
+                subspace_approx_vals = evaluate_sparse_grid_subspace(
+                    samples, subspace_index, subspace_values,
+                    samples_1d, config_variables_idx)
+            else:
+                subspace_approx_vals, subspace_grads = (
+                    evaluate_sparse_grid_subspace_deriv(
+                        samples, subspace_index, subspace_values,
+                        samples_1d, config_variables_idx))
             approx_values += smolyak_coefficients[ii]*subspace_approx_vals
-    return approx_values
+            if jac:
+                grads += smolyak_coefficients[ii]*subspace_grads
+    if not jac:
+        return approx_values
+
+    return approx_values, grads
 
 
 def integrate_sparse_grid_subspace(subspace_index, subspace_values,

@@ -675,6 +675,9 @@ def adaptive_approximate_gaussian_process(
     else:
         var_trans = None
 
+    if normalize_y:
+        raise ValueError("normalize_y=True not currently supported")
+
     kernel = __setup_gaussian_process_kernel(
         nvars, length_scale, length_scale_bounds,
         kernel_variance, kernel_variance_bounds,

@@ -12,6 +12,7 @@ from pyapprox.surrogates.interp.sparse_grid import (
     get_subspace_samples, evaluate_sparse_grid, get_smolyak_coefficients,
     get_num_model_evaluations_from_samples, get_equivalent_cost,
     get_num_sparse_grid_samples, integrate_sparse_grid,
+    tensor_product_lagrange_jacobian
 )
 from pyapprox.surrogates.interp.adaptive_sparse_grid import (
     CombinationSparseGrid,
@@ -548,12 +549,14 @@ class TestSparseGrid(unittest.TestCase):
             samples_1d, subspace_values_indices)
         assert np.allclose(approx_values, values)
 
+        # test evaluation
         approx_values = evaluate_sparse_grid(
             validation_samples, values, poly_indices_dict,
             subspace_indices, subspace_poly_indices, smolyak_coefficients,
             samples_1d, subspace_values_indices)
         assert np.allclose(approx_values, validation_values)
 
+        # test integration
         moments = integrate_sparse_grid(values, poly_indices_dict,
                                         subspace_indices,
                                         subspace_poly_indices,
@@ -563,6 +566,57 @@ class TestSparseGrid(unittest.TestCase):
         assert np.allclose(
             moments[0, :], monomial_mean_uniform_variables(
                 monomial_indices, monomial_coeffs))
+
+        # test gradients
+        approx_values, grads = evaluate_sparse_grid(
+            validation_samples, values, poly_indices_dict,
+            subspace_indices, subspace_poly_indices, smolyak_coefficients,
+            samples_1d, subspace_values_indices, jac=True)
+
+        assert np.allclose(approx_values, validation_values)
+        assert np.allclose(grads, validation_grads)
+
+    def test_tensor_product_lagrange_jacobian(self):
+        def fun(xx):
+            return np.array([np.sum(xx**2, axis=0), np.sum(xx**1, axis=0)]).T
+
+        def jac(xx):
+            assert xx.shape[1] == 1
+            jac = np.array([2*xx[:, 0], 1+xx[:, 0]*0])
+            return jac
+
+        levels = [1, 1]
+        nvars = len(levels)
+        # samples = np.random.uniform(-1, 1, (nvars, nsamples))
+        samples = np.array([[0.5]*nvars]).T
+        abscissa_1d = [clenshaw_curtis_pts_wts_1D(ll)[0] for ll in levels]
+        grid_samples = cartesian_product(abscissa_1d)
+        ident = np.eye(grid_samples.shape[1]) # return basis gradient
+        basis_vals, basis_jacs = tensor_product_lagrange_jacobian(
+            samples, abscissa_1d, ident)
+
+        from pyapprox.util.utilities import approx_jacobian
+        from pyapprox.surrogates.interp.barycentric_interpolation import (
+            compute_barycentric_weights_1d,
+            multivariate_barycentric_lagrange_interpolation)
+
+        def basis_fun(xx):
+            barycentric_weights_1d = [
+                compute_barycentric_weights_1d(
+                    abscissa_1d[dd], interval_length=2) for dd in range(nvars)]
+            vals = multivariate_barycentric_lagrange_interpolation(
+                xx, abscissa_1d, barycentric_weights_1d,
+                np.eye(grid_samples.shape[1]), np.arange(nvars))
+            return vals
+        assert np.allclose(basis_fun(samples), basis_vals)
+        jac_fd = approx_jacobian(lambda xx: basis_fun(xx).T, samples)
+        assert np.allclose(jac_fd, basis_jacs)
+        xx = np.random.uniform(0, 1, (nvars, 1))
+        grid_values = fun(grid_samples)
+        vals, jacs = tensor_product_lagrange_jacobian(
+            xx, abscissa_1d, grid_values)
+        assert np.allclose(vals, fun(xx))
+        assert np.allclose(jacs[0], jac(xx))
 
 
 def function_I(x):

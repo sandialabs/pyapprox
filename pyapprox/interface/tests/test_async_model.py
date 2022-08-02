@@ -13,7 +13,7 @@ max_eval_concurrency = max(2, multiprocessing.cpu_count()-2)
 
 
 def check_model_values(model, target_function, num_vars, num_samples,
-                       opts={}, ignore_nans=False, saved_data_basename=None):
+                       ignore_nans=False, saved_data_basename=None):
     """
     Assert the model produces the same set of values for a set of
     samples as evaluating the target function it wraps directly.
@@ -21,7 +21,7 @@ def check_model_values(model, target_function, num_vars, num_samples,
     Assumes domain of model samples contains [-1,1]^num_vars
     """
     samples = np.random.uniform(-1., 1., (num_vars, num_samples))
-    vals = model(samples, opts)
+    vals = model(samples)
     num_qoi = vals.shape[1]
     true_vals = np.empty((num_samples, num_qoi))
     finite_evals_index = []
@@ -83,7 +83,7 @@ def get_file_io_model(delay=0., fault_percentage=0):
         fault_percentage, delay+np.random.uniform(-1., 1.)*delay*0.1)
 
     def target_function(x): return np.array(
-        [x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]])
+            [x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]])
     model = FileIOModel(shell_command)
     return model, target_function, 2
 
@@ -146,8 +146,7 @@ class TestAsyncModel(unittest.TestCase):
 
         finite_evals_index = check_model_values(
             model, target_function, num_vars, num_samples, ignore_nans=True,
-            saved_data_basename=saved_data_basename,
-            opts={'verbosity': verbosity})
+            saved_data_basename=saved_data_basename)
 
         workdirs = glob.glob(workdir_basename+'.*')
         assert len(workdirs) == num_samples, \
@@ -190,8 +189,7 @@ class TestAsyncModel(unittest.TestCase):
             save_workdirs=save_workdirs)
 
         finite_evals_index = check_model_values(
-            model, target_function, num_vars, num_samples, ignore_nans=True,
-            opts={'verbosity': verbosity})
+            model, target_function, num_vars, num_samples, ignore_nans=True)
 
         workdirs = glob.glob(workdir_basename+'.*')
         assert len(workdirs) == num_samples

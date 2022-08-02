@@ -111,7 +111,7 @@ class TestTensorProd(unittest.TestCase):
     def test_piecewise_quadratic_interpolation(self):
         def function(x):
             return (x-0.5)**3
-        num_mesh_points = 11
+        num_mesh_points = 101
         mesh = np.linspace(0., 1., num_mesh_points)
         mesh_vals = function(mesh)
         # interp_mesh = np.random.uniform(0.,1.,101)
@@ -124,7 +124,8 @@ class TestTensorProd(unittest.TestCase):
         # plt.plot(interp_mesh[II], interp_vals[II], 'k-')
         # plt.plot(mesh, mesh_vals, 'o')
         # plt.show()
-        assert np.linalg.norm(interp_vals[:, 0]-function(interp_mesh)) < 1e-6
+        # print(np.linalg.norm(interp_vals[:, 0]-function(interp_mesh)))
+        assert np.allclose(interp_vals[:, 0], function(interp_mesh), atol=1e-6)
 
 
 if __name__ == '__main__':

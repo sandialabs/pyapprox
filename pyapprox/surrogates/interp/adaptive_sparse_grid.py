@@ -1345,7 +1345,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         return get_sparse_grid_samples(
             unique_poly_indices, self.samples_1d, self.config_variables_idx)
 
-    def __call__(self, samples):
+    def __call__(self, samples, jac=False):
         """
         config values are ignored. The sparse grid just returns its best
         approximation of the highest fidelity model. TODO: consider enforcing

@@ -272,6 +272,8 @@ class TestGPC(unittest.TestCase):
         inner_products = (vals_basis_matrix.T*weights).dot(vals_basis_matrix)
         assert np.allclose(inner_products, np.eye(basis_matrix.shape[1]))
 
+        samples = variable.rvs(3)
+        basis_matrix = poly.basis_matrix(samples, {'deriv_order': 1})
         exact_basis_vals_1d = []
         exact_basis_derivs_1d = []
         for dd in range(num_vars):
@@ -282,15 +284,15 @@ class TestGPC(unittest.TestCase):
                     # z = 2*y-1=2*x/3-1=2/3*x-3/2*2/3=2/3*(x-3/2)=(x-3/2)/(3/2)
                     loc, scale = 3/2, 3/2
                     x = (x-loc)/scale
-                exact_basis_vals_1d.append(
-                    np.asarray([1+0.*x, x, 0.5*(3.*x**2-1)]).T)
-                exact_basis_derivs_1d.append(
-                    np.asarray([0.*x, 1.0+0.*x, 3.*x]).T)
-                exact_basis_vals_1d[-1] /= np.sqrt(1. /
-                                                   (2*np.arange(degree+1)+1))
-                exact_basis_derivs_1d[-1] /= np.sqrt(
-                    1./(2*np.arange(degree+1)+1))
-                # account for affine transformation in derivs
+                    exact_basis_vals_1d.append(
+                        np.asarray([1+0.*x, x, 0.5*(3.*x**2-1)]).T)
+                    exact_basis_derivs_1d.append(
+                        np.asarray([0.*x, 1.0+0.*x, 3.*x]).T)
+                    exact_basis_vals_1d[-1] /= np.sqrt(1. /
+                                                       (2*np.arange(degree+1)+1))
+                    exact_basis_derivs_1d[-1] /= np.sqrt(
+                        1./(2*np.arange(degree+1)+1))
+                    # account for affine transformation in derivs
                 if dd == 2:
                     exact_basis_derivs_1d[-1] /= scale
             if dd == 1:
@@ -365,9 +367,11 @@ class TestGPC(unittest.TestCase):
             basis_matrix_derivs_fd[ii::samples.shape[1], :] = approx_fprime(
                 samples[:, ii:ii+1], func)
 
-        # print(np.linalg.stats.norm(
+        # print(np.linalg.norm(
         #    exact_basis_matrix_derivs-basis_matrix_derivs_fd,
         #    ord=np.inf))
+        # print(exact_basis_matrix_derivs)
+        # print(basis_matrix_derivs_fd)
         assert np.allclose(
             exact_basis_matrix_derivs, basis_matrix_derivs_fd,
             atol=1e-7, rtol=1e-7)

@@ -38,13 +38,14 @@ To install PyApprox entirely with pip simply run the following in the PyApprox r
 
     pip install -e .
 
-
-   
 Troubleshooting
 ^^^^^^^^^^^^^^^
-Sometimes pip will cause incompatabilities with your currently installed packages. If this happens try::
+Sometimes pip will cause incompatabilities with your currently installed packages and will fail. If so try to reinstall with::
 
     pip install -e . --no-build-isolation
+
+The above has solved errors such as
+"ValueError: numpy.ndarray size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject"
 
 Sometimes developers need to remove all files generated when installing. To do this use::
 

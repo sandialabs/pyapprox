@@ -56,19 +56,16 @@ class FileIOModel(object):
         assert type(eval_id) == int
         self.function_eval_id = eval_id
 
-    def run(self, sample, opts):
+    def run(self, sample):
         np.savetxt(self.params_filename, sample)
         if self.process_sample is not None:
-            self.process_sample(sample, opts)
+            self.process_sample(sample)
 
-        if 'model_output_verbosity' in opts:
-            model_output_verbosity = opts['model_output_verbosity']
-        else:
-            model_output_verbosity = 0
+        model_output_verbosity = 0
         run_shell_command(
             self.shell_command, {'verbosity': model_output_verbosity})
         if self.load_results is not None:
-            vals = self.load_results(opts)
+            vals = self.load_results()
         else:
             vals = np.loadtxt(self.results_filename, usecols=[0])
         assert vals.ndim == 1
@@ -92,5 +89,5 @@ class FileIOModel(object):
     def get(self, key, assert_exists=True):
         return self.model.get(key, assert_exists)
 
-    def __call__(self, samples, opts):
-        return evaluate_1darray_function_on_2d_array(self.run, samples, opts)
+    def __call__(self, samples):
+        return evaluate_1darray_function_on_2d_array(self.run, samples)

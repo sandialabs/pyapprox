@@ -257,11 +257,13 @@ class DataFunctionModel(object):
                     self.samples = np.hstack(
                         [self.samples, samples[:, ii:ii+1]])
                     self.values = np.vstack([self.values, values[ii:ii+1, :]])
-                    self.grads += grads[ii:ii+1]
+                    if grads is not None:
+                        self.grads += grads[ii:ii+1]
                 else:
                     self.samples = samples[:, ii:ii+1]
                     self.values = values[ii:ii+1, :]
-                    self.grads = grads[ii:ii+1]
+                    if grads is not None:
+                        self.grads = grads[ii:ii+1]
 
         # set counter so that next file takes into account all previously
         # ran samples
@@ -363,28 +365,33 @@ class DataFunctionModel(object):
         if len(new_sample_indices) < samples.shape[1]:
             values[evaluated_sample_indices[:, 0]] = \
                 self.values[evaluated_sample_indices[:, 1], :]
-            for ii in range(evaluated_sample_indices.shape[0]):
-                grads[evaluated_sample_indices[ii, 0]] = copy.deepcopy(self.grads[
-                    evaluated_sample_indices[ii, 1]])
+            if jac:
+                for ii in range(evaluated_sample_indices.shape[0]):
+                    grads[evaluated_sample_indices[ii, 0]] = copy.deepcopy(
+                        self.grads[
+                            evaluated_sample_indices[ii, 1]])
         if len(new_sample_indices) > 0:
             if self.samples.shape[1] == 0:
                 jj = 0
                 self.samples = samples
                 self.values = values
-                self.grads = copy.deepcopy(grads)
+                if jac:
+                    self.grads = copy.deepcopy(grads)
             else:
                 jj = self.samples.shape[0]
                 self.samples = np.hstack(
                     (self.samples, samples[:, new_sample_indices]))
                 self.values = np.vstack((self.values, new_values))
-                self.grads += copy.deepcopy(new_grads)
+                if jac:
+                    self.grads += copy.deepcopy(new_grads)
 
             for ii in range(len(new_sample_indices)):
                 key = hash_array(samples[:, new_sample_indices[ii]])
                 self.data[key] = jj+ii
 
             self.num_evaluations_ran += len(new_sample_indices)
-            # increment the number of samples pass to __call__ since object created
+            # increment the number of samples pass to __call__ since object
+            # created
             # includes samples drawn from arxiv and samples used to evaluate
             # self.function
         self.num_evaluations += samples.shape[1]

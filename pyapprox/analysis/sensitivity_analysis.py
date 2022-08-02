@@ -935,7 +935,8 @@ def analytic_sobol_indices_from_gaussian_process(
         alpha=1e-8, verbosity=0):
 
     if ninterpolation_samples is None:
-        ninterpolation_samples = 5*gp.num_training_samples()
+        ninterpolation_samples = min(
+            5*gp.num_training_samples(), ncandidate_samples)
 
     if not issubclass(gp.__class__, GaussianProcess):
         raise ValueError("Argument gp must be a Gaussian process")

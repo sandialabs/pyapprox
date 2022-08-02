@@ -84,3 +84,6 @@ setuptools.setup(
 
 # run a doctest of a single function in a module
 # pytest -v --doctest-modules path/to/module.py::path.to.module.Class.method
+
+# The loading times of modules that depend on torch can
+# increase if torch install from pip

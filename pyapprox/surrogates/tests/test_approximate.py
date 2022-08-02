@@ -345,9 +345,10 @@ class TestApproximate(unittest.TestCase):
             print(error, gp.y_train_.shape[0])
             errors.append(error)
 
+        # normalize_y must be False
         adaptive_approximate(
             fun, univariate_variables, "gaussian_process",
-            {"nu": nu, "noise_level": None, "normalize_y": True,
+            {"nu": nu, "noise_level": None, "normalize_y": False,
              "alpha": 1e-10,
              "ncandidate_samples": 1e3, "callback": callback}).approx
         assert errors[-1] < 1e-8
@@ -386,7 +387,7 @@ class TestApproximate(unittest.TestCase):
 
         gp = adaptive_approximate(
             fun, univariate_variables, "gaussian_process",
-            {"nu": nu, "noise_level": None, "normalize_y": True,
+            {"nu": nu, "noise_level": None, "normalize_y": False,
              "alpha": 1e-10,  "normalize_inputs": True,
              "weight_function": weight_function,
              "ncandidate_samples": 1e3, "callback": callback}).approx
@@ -402,7 +403,7 @@ class TestApproximate(unittest.TestCase):
         # plt.plot(xx, var.pdf(xx), "r-")
         # plt.show()
         print(errors[-1])
-        assert errors[-1] < 1e-7
+        assert errors[-1] < 4e-7
 
     def test_approximate_fixed_pce(self):
         num_vars = 2

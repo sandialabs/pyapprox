@@ -71,7 +71,7 @@ class TestDataFunctionModel(unittest.TestCase):
         samples = np.random.uniform(-1., 1., (num_vars, num_samples))
         values = submodel(samples)
 
-        model = DataFunctionModel(submodel, (samples, values))
+        model = DataFunctionModel(submodel, (samples, values, None))
         submodel.counter = 0
 
         values = model(samples)

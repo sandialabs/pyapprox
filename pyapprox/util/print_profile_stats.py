@@ -35,5 +35,8 @@ if __name__ == '__main__':
     p.strip_dirs().sort_stats('time').print_stats(num_funcs)
 
     if view_html:
+        # pip install cprofilev
         shell_command = 'cprofilev -f %s' % stats_filename
         out = subprocess.call(shell_command, shell=True)
+
+# gprof2dot -f pstats profile.out | dot -Tpng -o output.png && eog output.png
