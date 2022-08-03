@@ -20,7 +20,9 @@ from pyapprox.surrogates.interp.sparse_grid import (
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_1d
 )
-from pyapprox.surrogates.orthopoly.orthonormal_recursions import jacobi_recurrence
+from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
+    jacobi_recurrence
+)
 from pyapprox.surrogates.polychaos.gpc import (
     PolynomialChaosExpansion,
     define_poly_options_from_variable_transformation
@@ -382,3 +384,4 @@ if __name__ == "__main__":
             TestMultivariatePolynomials)
     unittest.TextTestRunner(verbosity=2).run(
         multivariate_polynomials_test_suite)
+    

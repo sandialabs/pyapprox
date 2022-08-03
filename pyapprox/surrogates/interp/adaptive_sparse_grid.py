@@ -1358,14 +1358,20 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         else:
             canonical_samples = samples[:self.config_variables_idx, :]
 
-        return evaluate_sparse_grid(
+        result = evaluate_sparse_grid(
             canonical_samples[:self.config_variables_idx, :],
             self.values,
             self.poly_indices_dict, self.subspace_indices,
             self.subspace_poly_indices_list,
             self.smolyak_coefficients, self.samples_1d,
             self.subspace_values_indices_list,
-            self.config_variables_idx)
+            self.config_variables_idx, jac=jac)
+        if not jac:
+            return result
+        vals, jacs = result
+        if samples.shape[1] == 1:
+            jacs = jacs[0]
+        return vals, jacs
 
     def moments_(self, smolyak_coefficients):
         return integrate_sparse_grid_from_subspace_moments(
@@ -1477,7 +1483,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
                     evaluate_sparse_grid_subspace(
                         self.canonical_interrogation_samples, subspace_index,
                         subspace_values, self.samples_1d,
-                        self.config_variables_idx, False))
+                        self.config_variables_idx))
             cnt += 1
 
         if self.subspace_moments is None:

@@ -359,13 +359,14 @@ class DataFunctionModel(object):
                     # can return list of grads for each sample
                     # or a 2d array if nqoi=1
                     new_grads_list[ii] = np.atleast_2d(new_grads[ii]).copy()
-                    grads[new_sample_indices[ii]] = copy.deepcopy(new_grads[ii])
+                    grads[new_sample_indices[ii]] = copy.deepcopy(
+                        new_grads[ii])
             new_grads = new_grads_list
 
         if len(new_sample_indices) < samples.shape[1]:
             values[evaluated_sample_indices[:, 0]] = \
                 self.values[evaluated_sample_indices[:, 1], :]
-            if jac:
+            if has_jac:
                 for ii in range(evaluated_sample_indices.shape[0]):
                     grads[evaluated_sample_indices[ii, 0]] = copy.deepcopy(
                         self.grads[
@@ -375,14 +376,14 @@ class DataFunctionModel(object):
                 jj = 0
                 self.samples = samples
                 self.values = values
-                if jac:
+                if has_jac:
                     self.grads = copy.deepcopy(grads)
             else:
                 jj = self.samples.shape[0]
                 self.samples = np.hstack(
                     (self.samples, samples[:, new_sample_indices]))
                 self.values = np.vstack((self.values, new_values))
-                if jac:
+                if has_jac:
                     self.grads += copy.deepcopy(new_grads)
 
             for ii in range(len(new_sample_indices)):

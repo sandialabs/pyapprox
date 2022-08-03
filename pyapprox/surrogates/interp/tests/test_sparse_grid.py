@@ -62,9 +62,11 @@ from pyapprox.variables.sampling import (
 from pyapprox.interface.wrappers import WorkTrackingModel
 from pyapprox.surrogates.interp.monomial import (
     evaluate_monomial, monomial_mean_uniform_variables,
-    monomial_variance_uniform_variables, monomial_basis_matrix
+    monomial_variance_uniform_variables, monomial_basis_matrix,
+    evaluate_monomial_jacobian
 )
-from pyapprox.surrogates.interp.manipulate_polynomials import get_indices_double_set
+from pyapprox.surrogates.interp.manipulate_polynomials import (
+    get_indices_double_set)
 
 
 class MultilevelPolynomialModel():
@@ -574,7 +576,11 @@ class TestSparseGrid(unittest.TestCase):
             samples_1d, subspace_values_indices, jac=True)
 
         assert np.allclose(approx_values, validation_values)
-        assert np.allclose(grads, validation_grads)
+
+        validation_grads = evaluate_monomial_jacobian(
+            monomial_indices, monomial_coeffs, validation_samples)
+        for dd in range(num_vars):
+            assert np.allclose(grads[:, :, dd], validation_grads[dd])
 
     def test_tensor_product_lagrange_jacobian(self):
         def fun(xx):

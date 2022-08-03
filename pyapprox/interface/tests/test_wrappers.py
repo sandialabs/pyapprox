@@ -145,7 +145,6 @@ class TestModelwrappers(unittest.TestCase):
         pool_model = PoolModel(
             function, max_eval_concurrency, assert_omp=False)
         from pyapprox.util.sys_utilities import has_kwarg
-        print(has_kwarg(pool_model, "jac"))
         model = DataFunctionModel(
             pool_model, None, data_basename, save_frequency)
 
@@ -155,7 +154,6 @@ class TestModelwrappers(unittest.TestCase):
         values = model(samples)
         exact_values = function(samples)
         assert np.allclose(values, exact_values)
-        print(model.num_evaluations, samples.shape[1])
         assert model.num_evaluations == samples.shape[1]
 
         filenames = glob.glob(data_basename+'*.pkl')
@@ -208,9 +206,9 @@ class TestModelwrappers(unittest.TestCase):
         assert model_3.num_evaluations == samples.shape[1]
         assert np.allclose(np.vstack(grads), exact_grads)
 
-        print("##")
         model_4 = DataFunctionModel(
-            function_with_jac, None, data_basename, save_frequency, use_hash=False)
+            function_with_jac, None, data_basename, save_frequency,
+            use_hash=False)
         samples_4 = np.random.uniform(0., 1., (num_vars, num_samples*2))
         # set half of new samples to be replicates from previous study
         II = np.random.permutation(np.arange(num_samples*2))[:num_samples]
@@ -233,6 +231,7 @@ class TestModelwrappers(unittest.TestCase):
         self.assertRaises(ValueError, model_4, samples_6, jac=True)
 
         tmp_dir.cleanup()
+
 
 if __name__ == "__main__":
     model_wrappers_test_suite = unittest.TestLoader().loadTestsFromTestCase(

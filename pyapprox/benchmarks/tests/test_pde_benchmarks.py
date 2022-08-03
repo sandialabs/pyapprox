@@ -1,12 +1,9 @@
 import unittest
 import numpy as np
 from functools import partial
-import matplotlib.pyplot as plt
 
 from pyapprox.optimization.pya_minimize import pyapprox_minimize
-from pyapprox.pde.autopde.mesh import (
-    full_fun_axis_1, subdomain_integral_functional, final_time_functional,
-    cartesian_mesh_solution_functional)
+from pyapprox.pde.autopde.mesh import cartesian_mesh_solution_functional
 from pyapprox.util.utilities import (
     check_gradients, get_all_sample_combinations)
 from pyapprox.benchmarks.benchmarks import setup_benchmark
@@ -20,7 +17,7 @@ class TestPDEBenchmarks(unittest.TestCase):
     def test_setup_inverse_advection_diffusion_benchmark(self):
         nobs = 10
         noise_std = 1e-8  # 0.01 make sure it does not dominate observed values
-        nvars = 5
+        nvars = 4
         benchmark = setup_benchmark(
             "advection_diffusion_kle_inversion", kle_nvars=nvars,
             noise_stdev=noise_std, nobs=nobs)
@@ -28,13 +25,19 @@ class TestPDEBenchmarks(unittest.TestCase):
             benchmark.negloglike, benchmark.variable, benchmark.true_sample,
             benchmark.noiseless_obs, benchmark.obs)
 
+        # inv_model.base_model._functional = partial(
+        #     inv_model.base_model._functional, ignore_constants=True)
+        # inv_model.base_model._adj_solver._dqdu = partial(
+        #     inv_model.base_model._adj_solver._dqdu, ignore_constants=True)
+
         # TODO add std to params list
-        init_guess = variable.rvs(1)
+        init_guess = true_params + np.random.normal(0, 1, true_params.shape)
+        # init_guess = variable.rvs(1)
         errors = check_gradients(
             partial(inv_model, jac=True),
             True, init_guess, plot=False,
-            fd_eps=np.logspace(-12, 1, 14)[::-1])
-        assert errors[0] > 5e-0 and errors.min() < 5e-6
+            fd_eps=3*np.logspace(-12, 1, 14)[::-1])
+        assert errors[0] > 1e-0 and errors.min() < 7e-6
 
         def scipy_obj(sample):
             vals, grad = inv_model(sample[:, None], jac=jac)
@@ -44,7 +47,7 @@ class TestPDEBenchmarks(unittest.TestCase):
         opt_result = pyapprox_minimize(
             scipy_obj, init_guess,
             method="trust-constr", jac=jac,
-            options={"verbose": 0, "gtol": 1e-8, "xtol": 1e-16})
+            options={"verbose": 2, "gtol": 1e-7, "xtol": 1e-16})
         # print(opt_result.x)
         # print(true_params.T)
         # print(opt_result.x-true_params.T)
@@ -180,7 +183,7 @@ class TestPDEBenchmarks(unittest.TestCase):
             functional=None)
         model, variable = benchmark.fun, benchmark.variable
         values = model(samples)
-
+        
         np.set_printoptions(precision=16)
         values = values.reshape((nrandom_samples, config_samples.shape[1]))
         qoi_means = values.mean(axis=0)
@@ -193,7 +196,7 @@ class TestPDEBenchmarks(unittest.TestCase):
         # plt.loglog(
         #     ndof[:-1], np.abs((qoi_means[-1]-qoi_means[:-1])/qoi_means[-1]))
         # plt.show()
-        assert (rel_diffs.max() > 4e-2 and rel_diffs.min() < 7e-5)
+        assert (rel_diffs.max() > 4e-2 and rel_diffs.min() < 8e-5)
 
 
 if __name__ == "__main__":

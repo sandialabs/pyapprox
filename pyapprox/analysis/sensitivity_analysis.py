@@ -846,28 +846,15 @@ def sampling_based_sobol_indices(
     return sobol_indices, total_effect_values, variance, mean
 
 
-def repeat_sampling_based_sobol_indices(
+def _repeat_sampling_based_sobol_indices(
         fun, variable, interaction_terms=None,
         nsamples=1000,
         sampling_method="random",
         nsobol_realizations=10,
-        summary_stats=["mean", "median", "min", "max", "quantile-0.25",
-                       "quantile-0.75"],
         qmc_start_index=1):
-    """
-    Compute sobol indices for different sample sets. This allows estimation
-    of error due to finite sample sizes. This function requires evaluting
-    the function at nsobol_realizations * N, where N is the
-    number of samples required by sampling_based_sobol_indices. Thus
-    This function is useful when applid to a random
-    realization of a Gaussian process requires the Cholesky decomposition
-    of a nsamples x nsamples matrix which becomes to costly for nsamples >1000
-    """
     if interaction_terms is None:
         interaction_terms = get_isotropic_anova_indices(
             variable.num_vars(), 2)
-
-    stat_functions = _get_stats_functions(summary_stats)
 
     means, variances, sobol_values,  total_values = [], [], [], []
     # qmc_start_index = 0
@@ -885,11 +872,37 @@ def repeat_sampling_based_sobol_indices(
     sobol_values = np.asarray(sobol_values)
     total_values = np.asarray(total_values)
 
-    result = dict()
     interaction_terms = [
         np.where(index > 0)[0]
         for index in interaction_terms.T]
+    return sobol_values, total_values, variances, means
 
+
+def repeat_sampling_based_sobol_indices(
+        fun, variable, interaction_terms=None,
+        nsamples=1000,
+        sampling_method="random",
+        nsobol_realizations=10,
+        summary_stats=["mean", "median", "min", "max", "quantile-0.25",
+                       "quantile-0.75"],
+        qmc_start_index=1):
+    """
+    Compute sobol indices for different sample sets. This allows estimation
+    of error due to finite sample sizes. This function requires evaluting
+    the function at nsobol_realizations * N, where N is the
+    number of samples required by sampling_based_sobol_indices. Thus
+    This function is useful when applid to a random
+    realization of a Gaussian process requires the Cholesky decomposition
+    of a nsamples x nsamples matrix which becomes to costly for nsamples >1000
+    """
+    sobol_values, total_values, variances, means = (
+        _repeat_sampling_based_sobol_indices(
+            fun, variable, interaction_terms,
+            nsamples, sampling_method, nsobol_realizations,
+            qmc_start_index))
+
+    stat_functions = _get_stats_functions(summary_stats)
+    result = dict()
     result["sobol_interaction_indices"] = interaction_terms
     data = [sobol_values, total_values, variances, means]
     data_names = ['sobol_indices', 'total_effects', 'variance', 'mean']
@@ -900,7 +913,6 @@ def repeat_sampling_based_sobol_indices(
         subdict['values'] = item
         result[name] = subdict
 
-    # return sobol_values, total_values, variances, means
     return result
 
 
@@ -970,7 +982,7 @@ def analytic_sobol_indices_from_gaussian_process(
                   np.linalg.norm(std))
             print('var of realizations error',
                   np.linalg.norm(std**2-realization_vals.var(axis=1)) /
-                  np.linalg.norm(std**2))            
+                  np.linalg.norm(std**2))
             print('mean interpolation error',
                   np.linalg.norm((mean_vals[:, 0]-realization_vals[:, -1])) /
                   np.linalg.norm(mean_vals[:, 0]))
@@ -1083,7 +1095,7 @@ def sampling_based_sobol_indices_from_gaussian_process(
         fun = gp
 
     sobol_values, total_values, variances, means = \
-        repeat_sampling_based_sobol_indices(
+        _repeat_sampling_based_sobol_indices(
             fun, variables, interaction_terms, nsamples,
             sampling_method, nsobol_realizations)
 

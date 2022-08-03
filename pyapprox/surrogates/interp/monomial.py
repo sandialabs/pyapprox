@@ -131,6 +131,7 @@ def evaluate_monomial(indices, coeffs, samples):
     values = np.dot(basis_matrix, coeffs)
     return values
 
+
 def evaluate_monomial_jacobian(indices, coeffs, samples):
     """
     Evaluate the jacobian of a multivariate monomial at a set of samples.
@@ -160,12 +161,13 @@ def evaluate_monomial_jacobian(indices, coeffs, samples):
     derivs = []
     for dd in range(nvars):
         indices_dd = indices.copy()
-        II = np.where(indices_dd[dd] == 0)[0]
-        coeffs_dd = coeffs[:, II]
+        II = np.where(indices_dd[dd] > 0)[0]
+        coeffs_dd = coeffs[II]
         indices_dd = indices_dd[:, II]
-        coeffs_dd *= indices[dd]
+        print(coeffs.shape, coeffs_dd.shape, indices_dd.shape)
+        coeffs_dd = indices_dd[dd][:, None]*coeffs_dd
         indices_dd[dd] -= 1
-        basis_matrix = monomial_basis_matrix(indices, samples)
+        basis_matrix = monomial_basis_matrix(indices_dd, samples)
         derivs_dd = np.dot(basis_matrix, coeffs_dd)
         derivs.append(derivs_dd)
     return derivs

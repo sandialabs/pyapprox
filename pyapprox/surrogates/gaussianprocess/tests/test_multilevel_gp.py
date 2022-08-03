@@ -177,7 +177,7 @@ class TestMultilevelGP(unittest.TestCase):
 
         print('ml', )
         print(get_gp_samples_kernel(gp).length_scale[-1], true_rho)
-        assert np.allclose(gp.kernel_.length_scale[-1], true_rho, atol=1e-3)
+        assert np.allclose(gp.kernel_.length_scale[-1], true_rho, atol=4e-3)
         xx = np.linspace(lb, ub, 2**8+1)[np.newaxis, :]
         # import matplotlib.pyplot as plt
         # fig, axs = plt.subplots(1, 1)

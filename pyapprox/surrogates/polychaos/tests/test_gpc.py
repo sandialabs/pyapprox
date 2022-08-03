@@ -284,18 +284,18 @@ class TestGPC(unittest.TestCase):
                     # z = 2*y-1=2*x/3-1=2/3*x-3/2*2/3=2/3*(x-3/2)=(x-3/2)/(3/2)
                     loc, scale = 3/2, 3/2
                     x = (x-loc)/scale
-                    exact_basis_vals_1d.append(
-                        np.asarray([1+0.*x, x, 0.5*(3.*x**2-1)]).T)
-                    exact_basis_derivs_1d.append(
-                        np.asarray([0.*x, 1.0+0.*x, 3.*x]).T)
-                    exact_basis_vals_1d[-1] /= np.sqrt(1. /
-                                                       (2*np.arange(degree+1)+1))
-                    exact_basis_derivs_1d[-1] /= np.sqrt(
-                        1./(2*np.arange(degree+1)+1))
-                    # account for affine transformation in derivs
+                exact_basis_vals_1d.append(
+                    np.asarray([1+0.*x, x, 0.5*(3.*x**2-1)]).T)
+                exact_basis_derivs_1d.append(
+                    np.asarray([0.*x, 1.0+0.*x, 3.*x]).T)
+                exact_basis_vals_1d[-1] /= np.sqrt(1. /
+                                                   (2*np.arange(degree+1)+1))
+                exact_basis_derivs_1d[-1] /= np.sqrt(
+                    1./(2*np.arange(degree+1)+1))
+                # account for affine transformation in derivs
                 if dd == 2:
                     exact_basis_derivs_1d[-1] /= scale
-            if dd == 1:
+            elif dd == 1:
                 loc, scale = gauss_mean, np.sqrt(gauss_var)
                 x = (x-loc)/scale
                 exact_basis_vals_1d.append(
