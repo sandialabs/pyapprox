@@ -37,7 +37,7 @@ class TestPDEBenchmarks(unittest.TestCase):
             partial(inv_model, jac=True),
             True, init_guess, plot=False,
             fd_eps=3*np.logspace(-12, 1, 14)[::-1])
-        assert errors[0] > 1e-0 and errors.min() < 7e-6
+        assert errors[0] > 1e-0 and errors.min() < 1.1e-5
 
         def scipy_obj(sample):
             vals, grad = inv_model(sample[:, None], jac=jac)
