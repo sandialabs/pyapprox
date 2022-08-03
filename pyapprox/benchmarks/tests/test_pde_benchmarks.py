@@ -31,13 +31,14 @@ class TestPDEBenchmarks(unittest.TestCase):
         #     inv_model.base_model._adj_solver._dqdu, ignore_constants=True)
 
         # TODO add std to params list
-        init_guess = true_params + np.random.normal(0, 1, true_params.shape)
+        init_guess = true_params + np.random.normal(0, 0.01, true_params.shape)
         # init_guess = variable.rvs(1)
         errors = check_gradients(
             partial(inv_model, jac=True),
             True, init_guess, plot=False,
             fd_eps=3*np.logspace(-12, 1, 14)[::-1])
-        assert errors[0] > 1e-0 and errors.min() < 1.1e-5
+        # print(np.log10(errors[0]/errors.min()))
+        assert np.log10(errors[0]/errors.min()) > 6
 
         def scipy_obj(sample):
             vals, grad = inv_model(sample[:, None], jac=jac)

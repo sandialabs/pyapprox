@@ -414,7 +414,7 @@ class TestMFNets(unittest.TestCase):
                            objective_wrapper(true_params)[1])
 
         diffs = check_gradients(objective_wrapper, True, init_params)
-        assert diffs.min() < 5e-7 and diffs.max() > 1
+        assert diffs.min() < 6e-7 and diffs.max() > 1
 
         tol = 1e-10
         # opts = {'disp': True, "iprint": 3, "gtol": tol, "ftol": tol,

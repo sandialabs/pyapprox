@@ -1814,7 +1814,7 @@ class TestSamplers(unittest.TestCase):
             sampler.objective, sampler.objective_gradient,
             x0[:, np.newaxis], disp=False, fd_eps=3*np.logspace(-13, 0, 14)[::-1])
         print(errors)
-        assert errors.min() < 2e-5
+        assert errors.min() < 3e-5
 
         # gsampler = sampler.greedy_sampler
         # print(np.linalg.norm(gsampler.candidate_samples))

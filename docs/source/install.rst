@@ -47,6 +47,8 @@ Sometimes pip will cause incompatabilities with your currently installed package
 The above has solved errors such as
 "ValueError: numpy.ndarray size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject"
 
+A pure pip-based installation on OSX M1 is not recommended. Installing scipy with pip is very difficult on this platform and requires expert intervention. Instead install scipy with Conda and everything should work well.
+
 Sometimes developers need to remove all files generated when installing. To do this use::
 
   python setup.py clean --all
