@@ -105,6 +105,10 @@ class GaussianProcess(GaussianProcessRegressor):
                 nu, samples, self.X_train_.T, kernel.length_scale)
             grad = gradK.T.dot(self.alpha_)
             kernel = extract_covariance_kernel(self.kernel_, [ConstantKernel])
+            if result.ndim == 1:
+                # gpr in later versions of sklearn only return 1D array
+                # while earlier versions return 2D array with one column
+                result = result[:, None]
             if kernel is not None:
                 grad *= kernel.constant_value
             return result, grad
@@ -114,6 +118,10 @@ class GaussianProcess(GaussianProcessRegressor):
             if result[0].ndim == 1:
                 result = [result[0][:, None]] + [r for r in result[1:]]
                 result = tuple(result)
+        if result.ndim == 1:
+            # gpr in later versions of sklearn only return 1D array
+            # while earlier versions return 2D array with one column
+            result = result[:, None]
         return result
 
     def predict_random_realization(self, samples, rand_noise=1,

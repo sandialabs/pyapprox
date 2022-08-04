@@ -1192,10 +1192,10 @@ def get_generalized_approximate_control_variate_weights(
         weights = get_approximate_control_variate_weights(CF, cf)
 
     except np.linalg.LinAlgError as err:
-        print("acv weights failed")
+        print("linalgerror: acv weights failed")
         weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
     except RuntimeError as err:
-        print("acv weights failed")
+        print("runtime: acv weights failed")
         weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
     return weights, cf
 
@@ -1676,6 +1676,11 @@ def round_nsample_ratios(target_cost, costs, nsample_ratios):
     nsamples_float = get_nsamples_per_model(
         target_cost, costs, nsample_ratios, False)
     nsamples_floor = nsamples_float.astype(int)
+    # ensure all low-fidelity samples > nhf_samples after rounding
+    print(nsamples_floor, "nsf1")
+    II = np.where(nsamples_floor[1:] == nsamples_floor[0])[0]+1
+    nsamples_floor[II] = 2
+    print(nsamples_floor, "nsf2")
     if nsamples_floor[0] < 1 and nsamples_float[0] < 1-1e-8:
         # print(nsamples_floor[0], nsamples_float[0], nsamples_float[0]-1, costs)
         raise Exception("Rounding likely caused nhf samples to be zero")

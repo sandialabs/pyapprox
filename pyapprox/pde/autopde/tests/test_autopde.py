@@ -129,7 +129,7 @@ def _adf_bndry_fun(bndry_fun, diff_fun, xx):
     return bndry_fun(xx)/diff_fun(xx)
 
 
-class TestManualPDE(unittest.TestCase):
+class TestAutoPDE(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(1)
         np.random.seed(1)
@@ -581,7 +581,7 @@ class TestManualPDE(unittest.TestCase):
         for exact_v, v in zip(exact_vel_vals.T, split_sols[:-1]):
             assert np.allclose(exact_v, v[:, 0])
             print(np.abs(exact_pres_vals-split_sols[-1]).max())
-            assert np.allclose(exact_pres_vals, split_sols[-1], atol=7e-8)
+            assert np.allclose(exact_pres_vals, split_sols[-1], atol=9e-8)
 
     def test_stokes_solver_mms(self):
         s0, depth, L, alpha = 2, .1, 1, 1e-1
@@ -1310,7 +1310,7 @@ class TestManualPDE(unittest.TestCase):
         self._check_gradients_of_transformed_mesh(mesh, degree)
 
         L, alpha = 20, np.pi/180*0.1
-        degree, orders = 2, [15, 4] # when using taylor series expansion of sine
+        degree, orders = 2, [15, 4]  # when using taylor series expansion of sine
         # degree, orders = 2, [20, 4] # hen using sine
         surf_string = f"-tan({alpha})*x"
         # depth_string = f"1-1/2*1*sin(2*pi/{L}*x)"
@@ -1325,9 +1325,7 @@ class TestManualPDE(unittest.TestCase):
         self._check_gradients_of_transformed_mesh(mesh, degree)
 
 
-
-
 if __name__ == "__main__":
-    manual_pde_test_suite = \
-        unittest.TestLoader().loadTestsFromTestCase(TestManualPDE)
-    unittest.TextTestRunner(verbosity=2).run(manual_pde_test_suite)
+    auto_pde_test_suite = \
+        unittest.TestLoader().loadTestsFromTestCase(TestAutoPDE)
+    unittest.TextTestRunner(verbosity=2).run(auto_pde_test_suite)

@@ -520,6 +520,7 @@ class TestCVMC(unittest.TestCase):
             for ii in range(K+1, nmodels):
                 assert values[ii][0].shape[0] == values[L][1].shape[0]
             for ii in range(1, K+1):
+                print(values[ii][1].shape[0], nsamples_per_model[ii], ii)
                 assert values[ii][1].shape[0] == nsamples_per_model[ii]
             for ii in range(K+1, nmodels):
                 assert values[ii][1].shape[0] == values[ii][1].shape[0]

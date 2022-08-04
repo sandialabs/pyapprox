@@ -1211,6 +1211,7 @@ class TestSamplers(unittest.TestCase):
 
         assert np.allclose(gp1.train_samples, gp2.X_train_.T)
         assert np.allclose(gp1.train_values[:, 0:1], gp2.y_train_)
+        print(vals1.shape, vals2.shape)
         assert np.allclose(vals1[:, 0:1], vals2)
 
         # xx = np.linspace(0,1,101)
@@ -1809,7 +1810,7 @@ class TestSamplers(unittest.TestCase):
         train_samples = cartesian_product(
             [np.linspace(0, 1, ntrain_samples_1d)]*nvars)
         x0 = train_samples.flatten(order='F')
-
+ 
         errors = check_gradients(
             sampler.objective, sampler.objective_gradient,
             x0[:, np.newaxis], disp=False, fd_eps=3*np.logspace(-13, 0, 14)[::-1])
