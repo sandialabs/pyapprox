@@ -231,7 +231,7 @@ def setup_oakley_function():
 
     .. math:: f(z) = a_1^Tz + a_2^T\sin(z) + a_3^T\cos(z) + z^TMz
 
-    where :math:`z` consists of 15 I.I.D. standard Normal variables and the data :math:`a_1,a_2,a_3` and :math:`M` are defined in the function :func:`pyapprox.benchmarks.sensitivity_benchmarks.get_oakley_function_data`.
+    where :math:`z` consists of 15 I.I.D. standard Normal variables and the data :math:`a_1,a_2,a_3` and :math:`M` are defined in the function :py:func:`pyapprox.benchmarks.sensitivity_benchmarks.get_oakley_function_data`.
 
     >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
     >>> benchmark=setup_benchmark('oakley')
@@ -516,7 +516,9 @@ def setup_wing_weight_benchmark():
     The model is given by
 
 
-    ::math f(x) = 0.036\; S_w^{0.758}W_{fw}^{0.0035}\left(\frac{A}{\cos^2(\Lambda)}\right)^{0.6}q^{0.006}\lambda^{0.04}\left(\frac{100t_c}{\cos(\Lambda)}\right)^{-0.3}(N_zW_{dg})^{0.49}+S_wW_p,
+    .. math::
+
+       f(x) = 0.036\; S_w^{0.758}W_{fw}^{0.0035}\left(\frac{A}{\cos^2(\Lambda)}\right)^{0.6}q^{0.006}\lambda^{0.04}\left(\frac{100t_c}{\cos(\Lambda)}\right)^{-0.3}(N_zW_{dg})^{0.49}+S_wW_p,
 
     Returns
     -------
@@ -626,7 +628,7 @@ def setup_polynomial_ensemble():
 
     .. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4
 
-    where :mat:`z\sim\mathcal{U}[0, 1]`
+    where :math:`z\sim\mathcal{U}[0, 1]`
 
     Returns
     -------
@@ -684,42 +686,39 @@ def setup_multi_index_advection_diffusion_benchmark(
         max_eval_concurrency=1, time_scenario=None,
         functional=None, config_values=None):
     r"""
-    Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)
+    This benchmark is used to test methods for forward propagation of uncertainty. The forward simulation model is the transient advection-diffusion model
 
     .. math::
 
-       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
-       \mathcal{B}(x,t,\rv)&=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
-       u(x,t,\rv)&=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom
+       \frac{\partial u}{\partial t}(x,t,\rv) &= \nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] -\nabla u(x,t,\rv)+g(x,t) &(x,t,\rv)\in D\times [0,1]\times\rvdom\\
+       \mathcal{B}(x,t,\rv)&=0  &(x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
+       u(x,t,\rv)&=u_0(x,\rv) & (x,t,\rv)\in D\times\{t=0\}\times\rvdom
 
-    Following [NTWSIAMNA2008]_, [JEGGIJNME2020]_ we set
+    where 
 
-    .. math:: g(x,t)=(1.5+\cos(2\pi t))\cos(x_1),
+    .. math:: 
+    
+        g(x,t)=\frac{100}{2\pi 0.1^2}\exp\left(-\frac{\lvert x-x_\mathrm{src}\rvert^2}{2\cdot 0.1^2}\right)-\frac{s}{2\pi h^2}\exp\left(-\frac{\lvert x-x_\mathrm{src}\rvert^2}{2h^2}\right)
 
-    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero dirichlet boundary conditions.
+    and :math:`B(x,t,z)` is set to enforce Dirichlet boundary conditions, i.e.
 
-    and we model the diffusivity :math:`k` as a random field represented by the
-    Karhunen-Loeve (like) expansion (KLE)
+    .. math:: u(x) = 0 \quad\mathrm{on} \quad\partial D
 
-    .. math::
 
-       \log(k(x,\rv)-0.5)=1+\rv_1\left(\frac{\sqrt{\pi L}}{2}\right)^{1/2}+\sum_{k=2}^d \lambda_k\phi(x)\rv_k,
+    As with the :py:func:`pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark`
+    we parameterize the uncertain diffusivity with a Karhunen Loeve Expansion (KLE)
 
-    with
+    .. math:: k(x, \rv)=\exp\left(\sum_{d=1}^D \sqrt{\lambda_d}\psi_d(x)\rv_d\right).
 
-    .. math::
+    If no initial condition is provided by the user then the model in :py:func:`pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark` is used to create an initial condition. I.e. the solution before the second term of :math:`g` is used to remove the concentration :math:`u` from the domain.
 
-       \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k>1,  \qquad\qquad  \phi(x)=
-       \begin{cases}
-       \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ even}\,,\\
-       \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ odd}\,.
-       \end{cases}
+    The quantity of interest :math:`f(z)` is the integral of the final solution in the subdomain :math:`S=[0.75, 1]\times[0, 0.25]`, i.e.
 
-    where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}`.
+    .. math:: f(z)=\int_S u(x,T,z) dx
 
-    The quantity of interest :math:`f(z)` is the measurement of the solution at a location :math:`x_k` at the final time :math:`T=1` obtained via the linear functional
+    This model can be evaluated using different numerical discreizations that control the two spatial mesh resolutions and the timestep. The model is evaluated by specifying the random variables and the three numerical (configuration) variables.
 
-    .. math:: f(z)=\int_D u(x,T,z)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x_k \rVert^2_2}{\sigma^2}\right) dx
+    If not time_scenario is provided. The QoI from the steady state solution is returned.
 
 
     Parameters
@@ -765,6 +764,9 @@ def setup_multi_index_advection_diffusion_benchmark(
         which is the tensor product of independent and identically distributed
         uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.
 
+    time_scenario : dict
+        Options defining the transient simulation.
+
     Examples
     --------
     >>> from pyapprox_dev.benchmarks.benchmarks import setup_benchmark
@@ -796,12 +798,13 @@ def setup_advection_diffusion_kle_inversion_benchmark(
         orders=[20, 20], noise_stdev=0.4, nobs=2, max_eval_concurrency=1,
         obs_indices=None):
     r"""
-    Compute functionals of the following model of transient diffusion of
-    a contaminant
+    A benchmark for testing maximum likelihood estimation and Bayesian inference algorithms that involves
+    learning the uncertain parameters :math:`\rv` from synthteically generated observational data using
+    the model
 
     .. math::
 
-       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
+        \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
        \mathcal{B}(x,t,\rv)&=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
        u(x,t,\rv)&=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom
 
@@ -809,32 +812,29 @@ def setup_advection_diffusion_kle_inversion_benchmark(
 
     .. math:: g(x,t)=\frac{s}{2\pi h^2}\exp\left(-\frac{\lvert x-x_\mathrm{src}\rvert^2}{2h^2}\right)
 
-    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero Neumann boundary conditions, i.e.
+    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero Dirichlet boundary conditions, i.e.
 
-    .. math:: \nabla u\cdot n = 0 \quad\mathrm{on} \quad\partial D
+    .. math:: u(x) = 0 \quad\mathrm{on} \quad\partial D
 
-    and we model the diffusivity :math:`k=1` as a constant.
+    and we model the diffusivity as a Karhunen Loeve Expansion (KLE)
 
-    The quantities of interest are point observations :math:`u(x_l)`
-    taken at :math:`P` points in time :math:`\{t_p\}_{p=1}^P` at :math:`L`
-    locations :math:`\{x_l\}_{l=1}^L`. The final time :math:`T` is the last
-    observation time.
+    .. math:: k(x, \rv)=\exp\left(\sum_{d=1}^D \sqrt{\lambda_d}\psi_d(x)\rv_d\right).
 
-    These functionals can be used to define the posterior distribution
+    The observations are noisy  observations :math:`u(x_l)`
+    at :math:`L` locations :math:`\{x_l\}_{l=1}^L` with additive independent Gaussian noise
+    with mean zero and variance :math:`\sigma^2`.
+    These observations can be used to define the posterior distribution
 
     .. math::  \pi_{\text{post}}(\rv)=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom} \pi(\V{y}|\rv)\pi(\rv)d\rv}
 
     where the prior is the tensor product of independent and identically
-    distributed uniform variables on :math:`[0,1]` i.e.
-    :math:`\pi(\rv)=1`, and the likelihood is given by
+    distributed Gaussian with zero mean and unit variance
+    In this scenario the likelihood is given by
 
     .. math:: \pi(\V{y}|\rv)=\frac{1}{(2\pi)^{d/2}\sigma}\exp\left(-\frac{1}{2}\frac{(y-f(\rv))^T(y-f(\rv))}{\sigma^2}\right)
 
-    and :math:`y` are noisy observations of the solution `u` at the 9
-    points of a uniform :math:`3\times 3` grid covering the physical domain
-    :math:`D` at successive times :math:`\{t_p\}_{p=1}^P`. Here the noise is
-    indepenent and Normally distrbuted with mean
-    zero and variance :math:`\sigma^2`.
+    which can be used for Bayesian inference and maximum likelihood estimation of the parameters 
+    :math:`\rv`.
 
     Parameters
     ----------
@@ -847,45 +847,84 @@ def setup_advection_diffusion_kle_inversion_benchmark(
     source_width : float
         The source width :math:`h`
 
+    kle_length_scale : float
+        The length scale of the KLE
+
+    kle_stdev : float
+        The standard deviation of the KLE covariance kernel
+
+    kle_nvars : integer
+        The number of KLE modes
+
     true_sample : np.ndarray (2)
         The true location of the source used to generate the observations
         used in the likelihood function
 
+    orders : np.ndarray (2)
+        The degrees of the collocation polynomials in each mesh dimension
+
+    nobs : integer
+         The number of observations :math:`L`
+
+    obs_indices : np.ndarray (nobs)
+         The indices of the collocation mesh at which observations are
+         collected. If not specified the indices will be chosen randomly
+         ensuring that no indices associated with boundary segments are
+         selected.
+
     noise_stdev : float
-        The standard deviation :math:`sigma` of the observational noise
+        The standard deviation :math:`\sigma` of the observational noise
 
     max_eval_concurrency : integer
         The maximum number of simulations that can be run in parallel. Should
         be no more than the maximum number of cores on the computer being used
+
 
     Returns
     -------
     benchmark : pya.Benchmark
        Object containing the benchmark attributes documented below
 
-    fun : callable
+    negloglike : callable
 
-        The quantity of interest :math:`f(w)` with signature
+        The negative log likelihood :math:`\exp(\pi(\V{y}|\rv))` with signature
 
-        ``fun(w) -> np.ndarray``
+        ``negloglike(z) -> np.ndarray``
 
-        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the
-        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars``
-        rows of ``w`` are realizations of the random variables. The last 3 rows
-        are configuration variables specifying the numerical discretization of
-        the PDE model. Specifically the first and second configuration variables
-        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate
-        the resolution of the FEM mesh in the directions :math:`{x_1}` and
-        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}`
-        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration
-        variable specifies the level :math:`l_t` of the temporal discretization.
-        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep
-        size is and :math:`T/2^{l_{t}+2}`.
+        where ``z`` is a 2D np.ndarray with shape (nvars, nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples, 1).
 
     variable : py:class:`pyapprox.variabels.joint.IndependentMarginalsVariable`
         Object containing information of the joint density of the inputs z
         which is the tensor product of independent and identically distributed
         uniform variables on :math:`[0,1]`.
+
+    noiseless_obs : np.ndarray (nobs)
+        The solution :math:`u(x_l)` at the :math:`L` locations
+        :math:`\{x_l\}_{l=1}^L` determined by ``obs_indices``
+
+    obs : np.ndarray (nobs)
+        The noisy observations :math:`u(x_l)+\epsilon_l`
+
+    true_sample : np.ndarray (nkle_vars)
+        The KLE coefficients used to generate the noisy observations
+
+    obs_indices : np.ndarray (nobs)
+         The indices of the collocation mesh at which observations are
+         collected. If not specified the indices will be chosen randomly
+         ensuring that no indices associated with boundary segments are
+         selected.
+
+    obs_fun : callable
+
+        The function used to generate the noisless observations with signature
+
+        ``obs_fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars, nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples, nobs).
+
+    KLE :  MeshKLE
 
     Examples
     --------
@@ -967,8 +1006,6 @@ def setup_benchmark(name, **kwargs):
         Class containing information about each of the nvars inputs to fun
 
     """
-
-
     if name not in _benchmarks:
         msg = f'Benchmark "{name}" not found.\n Available benchmarks are:\n'
         for key in _benchmarks.keys():

@@ -118,6 +118,8 @@ class GaussianProcess(GaussianProcessRegressor):
             if result[0].ndim == 1:
                 result = [result[0][:, None]] + [r for r in result[1:]]
                 result = tuple(result)
+            return result
+        
         if result.ndim == 1:
             # gpr in later versions of sklearn only return 1D array
             # while earlier versions return 2D array with one column
