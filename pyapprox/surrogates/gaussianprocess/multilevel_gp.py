@@ -131,6 +131,136 @@ def full_multilevel_kernel_for_prediction(
 
 
 class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
+    def __init__(self, nvars, nsamples_per_model, kernels, length_scale=[1.0],
+                 length_scale_bounds=(1e-5, 1e5)):
+        self.nmodels = len(nsamples_per_model)
+        self.nvars = nvars
+        self.nsamples_per_model = nsamples_per_model
+        self.return_code = 'full'
+        assert len(kernels) == self.nmodels
+        self.kernels = kernels
+
+        assert len(length_scale) == self.nmodels*nvars+self.nmodels-1
+        self.length_scale = np.atleast_1d(length_scale)
+        if length_scale_bounds != 'fixed':
+            assert len(length_scale_bounds) == self.nmodels * \
+                nvars+self.nmodels-1
+        self.length_scale_bounds = length_scale_bounds
+
+    @staticmethod
+    def _sprod(scalings, ii, jj):
+        if jj > len(scalings):
+            raise RuntimeError()
+        return np.prod(scalings[ii:jj+1])
+
+    def _diagonal_kernel_block(self, XX1, kernels, scalings):
+        kk = len(kernels)
+        K_block = kernels[kk-1](XX1)
+        for nn in range(kk-1):
+            K_block += self._sprod(scalings, nn, kk-1)**2*kernels[nn](XX1)
+        return K_block
+
+    def _off_diagonal_kernel_block(self, Xkk, Xll, kernels, scalings, kk, ll):
+        assert kk < ll
+        K_block = 0
+        for nn in range(kk+1):
+            const = (self._sprod(scalings, nn, kk-1) *
+                     self._sprod(scalings, nn, ll-1))
+            K_block += const*kernels[nn](Xkk, Xll)
+        return K_block
+
+    def _eval_K(self, XX1, nsamples_per_model, kernels, scalings):
+        nrows = XX1.shape[0]
+        nmodels = len(nsamples_per_model)
+        assert np.sum(nsamples_per_model) == XX1.shape[0]
+        samples = unpack_samples(XX1, nsamples_per_model)
+        K = np.zeros((nrows, nrows), dtype=float)
+        lb1, ub1 = 0, 0
+        for kk in range(nmodels):
+            lb1 = ub1
+            ub1 += nsamples_per_model[kk]
+            lb2, ub2 = lb1, ub1
+            K_block = self._diagonal_kernel_block(
+                samples[kk], kernels[:kk+1], scalings[:kk])
+            K[lb1:ub1, lb2:ub2] = K_block
+            for ll in range(kk+1, nmodels):
+                lb2 = ub2
+                ub2 += nsamples_per_model[ll]
+                K[lb1:ub1, lb2:ub2] = self._off_diagonal_kernel_block(
+                    samples[kk], samples[ll], kernels[:ll],
+                    scalings[:ll], kk, ll)
+                K[lb2:ub2, lb1:ub1] = K[lb1:ub1, lb2:ub2].T
+        return K
+
+    @staticmethod
+    def _shared_samples(samples1, samples2):
+        # recall sklearn kernels defines samples transpose of pyapprox format
+        shared_idx = []
+        for ii in range(samples2.shape[1]):
+            sample2 = samples2[ii, :]
+            for jj in range(samples1.shape[1]):
+                if np.allclose(sample2, samples1[jj, :], atol=1e-13):
+                    shared_idx.append(jj)
+        return shared_idx
+
+    def _all_shared_samples(self, samples):
+        nmodels = len(samples)
+        shared_idx_list = [None for nn in range(1, nmodels)]
+        for nn in range(1, nmodels):
+            shared_idx_list[nn-1] = self._shared_samples(
+                samples[nn-1], samples[nn])
+        return shared_idx_list
+
+    def _eval_t(self, XX1, XX2, nsamples_per_model, kernels, scalings):
+        nmodels = len(nsamples_per_model)
+        assert np.sum(nsamples_per_model) == XX2.shape[0]
+        samples = unpack_samples(XX2, nsamples_per_model)
+        const = self._sprod(scalings, 0, nmodels-1)
+        t_blocks = [const*self.kernels[0](XX1, samples[0])]
+        # todo move to when samples are first provided
+        shared_idx_list = self._all_shared_samples(samples)
+        for nn in range(1, nmodels):
+            const = self._sprod(scalings, nn, nmodels-1)
+            tnm1_prime = t_blocks[nn-1][:, shared_idx_list[nn]]
+            t_block = scalings[nn-1]*tnm1_prime + const*self.kernels[nn](
+                XX1, samples[nn])
+            t_blocks.append(t_block)
+        return np.hstack(t_blocks)
+
+    def __call__(self, XX1, XX2=None, eval_gradient=False):
+        XX1 = np.atleast_2d(XX1)
+        hyperparams = np.squeeze(self.length_scale).astype(float)
+        length_scales = np.asarray(hyperparams[:self.nmodels*self.nvars])
+        scalings = np.asarray(hyperparams[self.nmodels*self.nvars:])
+        for kk in range(self.nmodels):
+            self.kernels[kk].length_scale = (
+                length_scales[kk*self.nvars:(kk+1)*self.nvars])
+        if XX2 is None:
+            K = self._eval_K(
+                XX1, self.nsamples_per_model, self.kernels, scalings)
+        else:
+            if eval_gradient:
+                raise ValueError(
+                    "Gradient can only be evaluated when XX2 is None.")
+            K = self._eval_t(
+                XX1, XX2, self.nsamples_per_model, self.kernels, scalings)
+        if not eval_gradient:
+            return K
+
+        if self.hyperparameter_length_scale.fixed:
+            # Hyperparameter l kept fixed
+            length_scale_gradient = np.empty((K.shape[0], K.shape[1], 0))
+        else:
+            # approximate gradient numerically
+            def f(gamma):  # helper function
+                return full_multilevel_kernel(
+                    XX1, gamma, self.nsamples_per_model)
+            length_scale = np.atleast_1d(self.length_scale)
+            length_scale_gradient = _approx_fprime(length_scale, f, 1e-8)
+
+        return K, length_scale_gradient
+
+class MultilevelGPKernelDeprecated(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     def __init__(self, nvars, nsamples_per_model, length_scale=[1.0],
                  length_scale_bounds=(1e-5, 1e5)):
         """
