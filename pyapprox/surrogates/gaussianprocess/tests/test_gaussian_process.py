@@ -870,8 +870,10 @@ class TestGaussianProcess(unittest.TestCase):
         true_unnormalized_sobol_indices = np.vstack((
             true_unnormalized_main_effects, [[0]]))
         true_sobol_indices = true_unnormalized_sobol_indices/true_var
-        # print(np.absolute(
-        #    sobol_indices-true_sobol_indices) - 3e-5-1e-5*true_sobol_indices)
+        print("GP sobol indices debug", np.absolute(
+            sobol_indices-true_sobol_indices) - 3e-5-1e-5*true_sobol_indices)
+        print(sobol_indices)
+        print(true_sobol_indices)
         assert np.allclose(
             sobol_indices, true_sobol_indices, rtol=1e-5, atol=3e-5)
 
@@ -1086,7 +1088,7 @@ class TestGaussianProcess(unittest.TestCase):
 
         x0 = np.full((nvars, 1), 0.5)
         errors = check_gradients(partial(gp, jac=True), True, x0, disp=False)
-        assert errors.min() < 7e-6 and errors.max() > 0.6
+        assert errors.min() < 1.1e-5 and errors.max() > 0.6
 
         if nu != np.inf:
             return

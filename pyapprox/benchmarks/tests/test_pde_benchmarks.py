@@ -38,7 +38,7 @@ class TestPDEBenchmarks(unittest.TestCase):
             True, init_guess, plot=False,
             fd_eps=3*np.logspace(-12, 1, 14)[::-1])
         # print(np.log10(errors[0]/errors.min()))
-        assert np.log10(errors[0]/errors.min()) > 5.6
+        assert np.log10(errors[0]/errors.min()) > 5.3
 
         def scipy_obj(sample):
             vals, grad = inv_model(sample[:, None], jac=jac)

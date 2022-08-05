@@ -317,7 +317,7 @@ class SequentialMultiLevelGP(MultilevelGP):
         for ii in range(1, nmodels):
             self._kernels.append(
                 self._rho[ii-1]**2*self._kernels[ii-1]+self._raw_kernels[ii])
-        
+
         self._gps = []
         for ii in range(nmodels):
             # length_scale=.1, length_scale_bounds='fixed')

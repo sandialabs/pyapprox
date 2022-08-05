@@ -1,17 +1,14 @@
 import unittest
 import numpy as np
 from functools import partial
-
 from sklearn.gaussian_process.kernels import RBF
 
-from pyapprox.surrogates.gaussianprocess.gaussian_process import (
-    GaussianProcess
-)
 from pyapprox.surrogates.gaussianprocess.gradient_enhanced_gp import (
     kernel_ff, get_gp_samples_kernel)
 from pyapprox.surrogates.gaussianprocess.multilevel_gp import (
     MultilevelGPKernel, MultilevelGP, SequentialMultiLevelGP,
 )
+
 
 class TestMultilevelGP(unittest.TestCase):
     def test_multilevel_kernel(self):
@@ -34,8 +31,8 @@ class TestMultilevelGP(unittest.TestCase):
         # y2 = p12*f1(x2)+d2(x2)
         p12 = 2
         YY1 = np.linalg.cholesky(kernel1(XX1, XX1)).dot(samples1)
-        # cannout use kernel1(XX2,XX2) here because this will generate different
-        # samples to those used in YY1
+        # cannout use kernel1(XX2,XX2) here because this will generate
+        # different samples to those used in YY1
         dsamples = np.linalg.cholesky(kernel2(XX2, XX2)).dot(samples2)
         YY2 = p12*np.linalg.cholesky(kernel1(XX1, XX1)
                                      ).dot(samples1)[shared_idx, :]+dsamples
@@ -60,7 +57,7 @@ class TestMultilevelGP(unittest.TestCase):
         # print(cov22-(kernel2(XX2,XX2)+p12**2*kernel1(XX2,XX2)))
         assert np.allclose(cov22, (kernel2(XX2, XX2)+p12 **
                            2*kernel1(XX2, XX2)), atol=2e-2)
-        print('Ks1', kernel1(XX2, XX2))
+        # print('Ks1', kernel1(XX2, XX2))
 
         cov12 = YY1_centered[shared_idx, :].dot(YY2_centered.T)/(nsamples-1)
         # print(cov11-kernel1(XX1,XX1))
@@ -91,7 +88,7 @@ class TestMultilevelGP(unittest.TestCase):
         assert np.allclose(K[:, :XX1.shape[0]], p12*kernel1(XX1, XX1))
         assert np.allclose(
             K[:, XX1.shape[0]:], p12**2*kernel1(XX1, XX2)+kernel2(XX1, XX2))
-        print(K)
+        # print(K)
 
     def test_2_models(self):
         # TODO Add Test which builds gp on two models data separately when
@@ -137,7 +134,7 @@ class TestMultilevelGP(unittest.TestCase):
         x2 = x1[:, [0, 2, 4, 6]]
         lb, ub = 0, 1
         # x1 = np.linspace(lb,ub,31)[np.newaxis,:]
-        print(x1)
+        # print(x1)
 
         samples = [x1, x2]
         values = [f(x) for f, x in zip([f1, f2], samples)]
@@ -146,7 +143,7 @@ class TestMultilevelGP(unittest.TestCase):
         n_restarts_optimizer = 10
 
         rho = np.ones(nmodels-1)
-        length_scale=[1]*(nmodels*(nvars))+list(rho);
+        length_scale = [1]*(nmodels*(nvars))+list(rho)
         # print(length_scale)
         length_scale_bounds = [(1e-1, 10)] * \
             (nmodels*nvars)+[(1e-1, 10)]*(nmodels-1)
@@ -171,11 +168,12 @@ class TestMultilevelGP(unittest.TestCase):
         print(sml_kernels)
         print(get_gp_samples_kernel(gp).length_scale)
 
-        sml_gp = SequentialMultiLevelGP(sml_kernels)
+        sml_gp = SequentialMultiLevelGP(
+            sml_kernels, n_restarts_optimizer=n_restarts_optimizer)
         sml_gp.set_data(samples, values)
         sml_gp.fit(true_rho)
 
-        print('ml', )
+        print('ml')
         print(get_gp_samples_kernel(gp).length_scale[-1], true_rho)
         assert np.allclose(gp.kernel_.length_scale[-1], true_rho, atol=4e-3)
         xx = np.linspace(lb, ub, 2**8+1)[np.newaxis, :]
@@ -189,7 +187,6 @@ class TestMultilevelGP(unittest.TestCase):
         # axs[0].plot(x1[0,:],f1(x1),'gs')
         # plt.show()
 
-        # print('when n1=17,n2=9 Warning answer seems to be off by np.sqrt(5) on most of the domain. This changes depending on number of ')
         sml_gp_mean, sml_gp_std = sml_gp(xx)
         gp_mean, gp_std = gp(xx, return_std=True)
         # axs[0].plot(samples[1][0, :], values[1], 'ko')
@@ -198,7 +195,7 @@ class TestMultilevelGP(unittest.TestCase):
         # axs[0].plot(xx[0, :], gp_mean, 'r:')
         # plt.legend()
         # plt.show()
-        gp_cov = gp(xx, return_cov=True)[1]
+        # gp_cov = gp(xx, return_cov=True)[1]
         # assert np.allclose(gp_cov, gp_std**2, atol=1e-4)
         print(np.abs(sml_gp_mean - gp_mean).max())
         assert np.allclose(sml_gp_mean, gp_mean, atol=5e-3)
@@ -208,4 +205,3 @@ if __name__ == "__main__":
     multilevel_gp_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestMultilevelGP)
     unittest.TextTestRunner(verbosity=2).run(multilevel_gp_test_suite)
-    
