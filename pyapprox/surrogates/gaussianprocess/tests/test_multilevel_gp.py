@@ -43,13 +43,11 @@ class TestMultilevelGP(unittest.TestCase):
             np.random.normal(0, 1, (nsamples_per_model[nn], nsamples))
             for nn in range(nmodels)]
 
-        # y1 = f1(x1), x1 \subseteq x2
-        # y2 = p12*f1(x2)+d2(x2)
         # Sample from discrepancies
         DD_list = [
             np.linalg.cholesky(kernels[nn](XX_list[nn])).dot(
                 samples_list[nn]) for nn in range(nmodels)]
-        # cannout use kernel1(XX2,XX2) here because this will generate
+        # cannout use kernel1(XX2, XX2) here because this will generate
         # different samples to those used in YY1
         YY_list = [None for nn in range(nmodels)]
         YY_list[0] = DD_list[0]
@@ -110,7 +108,6 @@ class TestMultilevelGP(unittest.TestCase):
                     XX_list[1], XX_list[2]), atol=1e-2)
 
         length_scale = np.hstack((length_scales, scalings))
-        print(length_scale, scalings)
         length_scale_bounds = [(1e-1, 10)] * \
             (nmodels*nvars) + [(1e-1, 1)]*(nmodels-1)
         mlgp_kernel = MultilevelGPKernel(
@@ -142,16 +139,64 @@ class TestMultilevelGP(unittest.TestCase):
                 K[nsamples_per_model[0]:sum(nsamples_per_model[:2]),
                   sum(nsamples_per_model[:2]):],
                 cov[1][2], atol=2e-2)
-        
+
+        nsamples_test = 6
         XX_train = np.vstack(XX_list)
-        K = mlgp_kernel(XX_list[0], XX_train)
+        XX_test = np.linspace(-1, 1, nsamples_test)[:, None]
+        K = mlgp_kernel(XX_test, XX_train)
         assert np.allclose(K[:, :XX_list[0].shape[0]],
-                           scalings[0]*kernels[0](XX_list[0], XX_list[0]))
+                           scalings.prod()*kernels[0](XX_test, XX_list[0]))
+        if nmodels == 2:
+            tnm1_prime = scalings[0]*kernels[0](XX_test, XX_list[1])
+            assert np.allclose(
+                K[:, nsamples_per_model[0]:sum(nsamples_per_model[:2])],
+                scalings[0]*tnm1_prime +
+                kernels[1](XX_test, XX_list[1]))
+        elif nmodels == 3:
+            t2m1_prime = scalings[1]*scalings[0]*kernels[0](
+                XX_test, XX_list[1])
+            assert np.allclose(
+                K[:, nsamples_per_model[0]:sum(nsamples_per_model[:2])],
+                scalings[0]*t2m1_prime +
+                scalings[1]*kernels[1](XX_test, XX_list[1]))
+
+            t2m1_prime = scalings[1]*scalings[0]*kernels[0](
+                XX_test, XX_list[2])
+            t3m1_prime = (scalings[0]*t2m1_prime +
+                          scalings[1]*kernels[1](XX_test, XX_list[2]))
+            assert np.allclose(
+                K[:, sum(nsamples_per_model[:2]):],
+                scalings[1]*t3m1_prime +
+                kernels[2](XX_test, XX_list[2]))
+
+        # samples_test = [np.random.normal(0, 1, (nsamples_test, nsamples))
+        #                 for nn in range(nmodels)]
+        # # to evaluate lower fidelity model change kernel index
+        # DD2_list = [
+        #     np.linalg.cholesky(kernels[nn](XX_test)).dot(
+        #         samples_test[nn]) for nn in range(nmodels)]
+        # YY2_test = DD2_list[0]
+        # for nn in range(1, nmodels):
+        #     YY2_test = (
+        #         scalings[nn-1]*YY2_test + DD2_list[nn])
+        # YY2_test_centered = YY2_test-YY2_test.mean(axis=1)[:, None]
+        # t0 = YY2_test_centered.dot(YY_centered_list[0].T)/(nsamples-1)
+        # print(t0)
+        K = mlgp_kernel(XX_list[nmodels-1], XX_train)
+        t0 = YY_centered_list[nmodels-1].dot(YY_centered_list[0].T)/(
+            nsamples-1)
+        assert np.allclose(t0, K[:, :nsamples_per_model[0]], atol=1e-2)
+        t1 = YY_centered_list[nmodels-1].dot(YY_centered_list[1].T)/(
+            nsamples-1)
         assert np.allclose(
-            K[:, XX_list[0].shape[0]:],
-            scalings[0]**2*kernels[0](XX_list[0], XX_list[1]) +
-            kernels[1](XX_list[0], XX_list[1]))
-        # print(K)
+            t1, K[:, nsamples_per_model[0]:sum(nsamples_per_model[:2])],
+            atol=1e-2)
+        if nmodels > 2:
+            t2 = YY_centered_list[nmodels-1].dot(YY_centered_list[2].T)/(
+                nsamples-1)
+            assert np.allclose(
+                t2, K[:, sum(nsamples_per_model[:2]):], atol=1e-2)
+
 
     # cannot debug failing test on osx latest wth python3.7
     # because do not have access to such a machine

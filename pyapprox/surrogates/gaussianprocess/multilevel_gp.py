@@ -196,9 +196,9 @@ class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     def _shared_samples(samples1, samples2):
         # recall sklearn kernels defines samples transpose of pyapprox format
         shared_idx = []
-        for ii in range(samples2.shape[1]):
+        for ii in range(samples2.shape[0]):
             sample2 = samples2[ii, :]
-            for jj in range(samples1.shape[1]):
+            for jj in range(samples1.shape[0]):
                 if np.allclose(sample2, samples1[jj, :], atol=1e-13):
                     shared_idx.append(jj)
         return shared_idx
@@ -216,15 +216,14 @@ class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
         assert np.sum(nsamples_per_model) == XX2.shape[0]
         samples = unpack_samples(XX2, nsamples_per_model)
         const = self._sprod(scalings, 0, nmodels-1)
-        t_blocks = [const*self.kernels[0](XX1, samples[0])]
-        # todo move to when samples are first provided
-        shared_idx_list = self._all_shared_samples(samples)
+        t_blocks = [const*self.kernels[0](XX1, samples[nn])
+                    for nn in range(nmodels)]
         for nn in range(1, nmodels):
             const = self._sprod(scalings, nn, nmodels-1)
-            tnm1_prime = t_blocks[nn-1][:, shared_idx_list[nn]]
-            t_block = scalings[nn-1]*tnm1_prime + const*self.kernels[nn](
-                XX1, samples[nn])
-            t_blocks.append(t_block)
+            t_blocks[nn:] = [
+                const*self.kernels[nn](XX1, samples[kk]) +
+                scalings[nn-1]*t_blocks[kk]
+                for kk in range(nn, nmodels)]
         return np.hstack(t_blocks)
 
     def __call__(self, XX1, XX2=None, eval_gradient=False):
