@@ -157,30 +157,66 @@ class MultilevelGPKernel(RBF):
         else:
             return result, np.nan
 
-    def _diagonal_kernel_block(self, XX1, kernels, scalings, eval_gradient):
+    def _diagonal_kernel_block(self, XX1, kernels, scalings, nmodels,
+                               eval_gradient):
+        nvars = XX1.shape[1]
+        nhyperparams = nvars*nmodels+nmodels-1
         kk = len(kernels)
-        K_block, K_block_grad = self._eval_kernel(
+        K_block, K_grad = self._eval_kernel(
             kernels[kk-1], XX1, None, eval_gradient)
+        if eval_gradient:
+            K_block_grad = np.zeros(
+                (K_grad.shape[0], K_grad.shape[1], nhyperparams))
+            K_block_grad[..., (kk-1)*nvars:kk*nvars] = K_grad
+            # derivative with respect to scalings for kk model is zero so
+            # do nothing
+        else:
+            K_block_grad = np.nan
         for nn in range(kk-1):
             K, K_grad = self._eval_kernel(
                 kernels[nn], XX1, None, eval_gradient)
-            K_block += self._sprod(scalings, nn, kk-1)**2*K
+            const = self._sprod(scalings, nn, kk-1)**2
+            K_block += const*K
             if eval_gradient:
-                K_grad += self._sprod(scalings, nn, kk-1)**2*K_grad
+                # length_scale grad
+                K_block_grad[..., nn*nvars:(nn+1)*nvars] += const*K_grad
+                # scalings grad
+                idx1 = nmodels*nvars+nn
+                idx2 = nmodels*nvars+kk-1
+                # tmp = 2*const/scalings[nn:kk]  # when NO using log of hyperparams
+                tmp = 2*const  # when YES using log of hyperparams
+                # print(nn, kk, scalings[nn:kk], const, tmp, idx1, idx2)
+                K_block_grad[..., idx1:idx2] += K[..., None]*tmp
         return K_block, K_block_grad
 
     def _off_diagonal_kernel_block(self, Xkk, Xll, kernels, scalings, kk, ll,
-                                   eval_gradient):
+                                   nmodels, eval_gradient):
         assert kk < ll
-        K_block, K_block_grad = 0, 0
+        nvars = Xkk.shape[1]
+        nhyperparams = nvars*nmodels+nmodels-1
+        K_block, K_block_grad = 0, np.nan
+        if eval_gradient:
+            K_block_grad = np.zeros((Xkk.shape[0], Xll.shape[0], nhyperparams))
         for nn in range(kk+1):
             const = (self._sprod(scalings, nn, kk-1) *
                      self._sprod(scalings, nn, ll-1))
             K, K_grad = self._eval_kernel(kernels[nn], Xkk, Xll, eval_gradient)
             K_block += const*K
             if eval_gradient:
-                K_block_grad += const*K_grad
-            # K_block += const*kernels[nn](Xkk, Xll)
+                # length_scale grad
+                K_block_grad[..., nn*nvars:(nn+1)*nvars] += const*K_grad
+                # scalings grad
+                idx1 = nmodels*nvars+nn
+                idx2 = nmodels*nvars+kk
+                if idx1 < idx2:
+                    # products that have squared terms
+                    tmp = 2*const
+                    K_block_grad[..., idx1:idx2] += K[..., None]*tmp
+                # products with just linear terms
+                idx1 = nmodels*nvars+kk
+                idx2 = nmodels*nvars+ll
+                tmp = const
+                K_block_grad[..., idx1:idx2] += K[..., None]*tmp
         return K_block, K_block_grad
 
     def _eval_K(self, XX1, nsamples_per_model, kernels, scalings,
@@ -198,7 +234,7 @@ class MultilevelGPKernel(RBF):
             lb2, ub2 = lb1, ub1
             K_block, K_block_grad = self._diagonal_kernel_block(
                 samples[kk], kernels[:kk+1], scalings[:kk],
-                eval_gradient)
+                nmodels, eval_gradient)
             K[lb1:ub1, lb2:ub2] = K_block
             K_grad[kk][kk] = K_block_grad
             for ll in range(kk+1, nmodels):
@@ -207,14 +243,13 @@ class MultilevelGPKernel(RBF):
                 K[lb1:ub1, lb2:ub2], K_block_grad = (
                     self._off_diagonal_kernel_block(
                         samples[kk], samples[ll], kernels[:ll],
-                        scalings[:ll], kk, ll, eval_gradient))
+                        scalings[:ll], kk, ll, nmodels, eval_gradient))
                 K[lb2:ub2, lb1:ub1] = K[lb1:ub1, lb2:ub2].T
                 K_grad[kk][ll] = K_block_grad
                 if eval_gradient:
                     K_grad[ll][kk] = np.transpose(K_block_grad, axes=[1, 0, 2])
         if eval_gradient:
             for kk in range(nmodels):
-                print(kk, [tmp.shape for tmp in K_grad[kk]])
                 K_grad[kk] = np.hstack(K_grad[kk])
             K_grad = np.vstack(K_grad)
         return K, K_grad
@@ -277,79 +312,6 @@ class MultilevelGPKernel(RBF):
         else:
             return K, K_grad
 
-
-class MultilevelGPKernelDeprecated(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
-    def __init__(self, nvars, nsamples_per_model, length_scale=[1.0],
-                 length_scale_bounds=(1e-5, 1e5)):
-        """
-        Parameters
-        ----------
-        length_scale : np.ndarray ((nmodels+1)*nvars-1)
-            The length scales of each model kernel and the correlation between
-            consecutive models (lowest fidelity does not have a rho)
-        """
-        self.nmodels = len(nsamples_per_model)
-        self.nvars = nvars
-        self.nsamples_per_model = nsamples_per_model
-        self.return_code = 'full'
-
-        assert len(length_scale) == self.nmodels*nvars+self.nmodels-1
-        self.length_scale = np.atleast_1d(length_scale)
-        if length_scale_bounds != 'fixed':
-            assert len(length_scale_bounds) == self.nmodels * \
-                nvars+self.nmodels-1
-        self.length_scale_bounds = length_scale_bounds
-
-    def __call__(self, XX1, XX2=None, eval_gradient=False):
-        """Return the kernel k(XX1, XX2) and optionally its gradient.
-
-        Parameters
-        ----------
-        XX1 : array, shape (n_samples_XX1, n_features)
-            Left argument of the returned kernel k(XX1, XX2)
-
-        XX2 : array, shape (n_samples_XX2, n_features), (optional, default=None)
-            Right argument of the returned kernel k(XX1, XX2). If None,
-            k(XX1, XX1) is evaluated instead.
-
-        Returns
-        -------
-        K : array, shape (n_samples_XX1, n_samples_XX2)
-            Kernel k(XX1, XX2)
-
-        K_gradient : array (opt.), shape (n_samples_XX1, n_samples_XX1, n_dims)
-            The gradient of the kernel k(XX1, XX1) with respect to the
-            hyperparameter of the kernel. Only returned when eval_gradient
-            is True.
-        """
-        XX1 = np.atleast_2d(XX1)
-        hyperparams = np.squeeze(self.length_scale).astype(float)
-        if XX2 is None:
-            K = full_multilevel_kernel(
-                XX1, hyperparams, self.nsamples_per_model,
-                self.return_code != 'full')
-        else:
-            if eval_gradient:
-                raise ValueError(
-                    "Gradient can only be evaluated when XX2 is None.")
-            K = full_multilevel_kernel_for_prediction(
-                XX1, XX2, hyperparams, self.nsamples_per_model)
-        if not eval_gradient:
-            return K
-
-        if self.hyperparameter_length_scale.fixed:
-            # Hyperparameter l kept fixed
-            length_scale_gradient = np.empty((K.shape[0], K.shape[1], 0))
-        else:
-            # approximate gradient numerically
-            def f(gamma):  # helper function
-                return full_multilevel_kernel(
-                    XX1, gamma, self.nsamples_per_model)
-            length_scale = np.atleast_1d(self.length_scale)
-            length_scale_gradient = _approx_fprime(length_scale, f, 1e-8)
-
-        return K, length_scale_gradient
-
     def diag(self, X):
         """
         Need to overide this function as base kernel.diag methods only returns
@@ -359,25 +321,6 @@ class MultilevelGPKernelDeprecated(StationaryKernelMixin, NormalizedKernelMixin,
         only
         """
         return np.diag(self(X)).copy()
-
-    @property
-    def anisotropic(self):
-        return np.iterable(self.length_scale) and len(self.length_scale) > 1
-
-    @property
-    def hyperparameter_length_scale(self):
-        if self.anisotropic:
-            return Hyperparameter("length_scale", "numeric",
-                                  self.length_scale_bounds,
-                                  len(self.length_scale))
-        return Hyperparameter(
-            "length_scale", "numeric", self.length_scale_bounds)
-
-    def __repr__(self):
-        self.length_scale = np.atleast_1d(self.length_scale)
-        return "{0}(length_scale=[{1}])".format(
-            self.__class__.__name__, ", ".join(map("{0:.3g}".format,
-                                                   self.length_scale)))
 
 
 class MultilevelGP(GaussianProcessRegressor):

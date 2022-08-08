@@ -16,19 +16,18 @@ class TestMultilevelGP(unittest.TestCase):
         np.random.seed(1)
 
     def test_pyapprox_rbf_kernel(self):
-        # kernel = PyApproxRBF(0.1)
+        kernel = PyApproxRBF(0.1)
+        nvars, nsamples = 1, 3
+        XX = np.random.uniform(0, 1, (nsamples, nvars))
+        YY = np.random.uniform(0, 1, (nsamples-1, nvars))
+        K_grad = kernel(XX, YY, eval_gradient=True)[1]
 
-        # nvars, nsamples = 1, 3
-        # XX = np.random.uniform(0, 1, (nsamples, nvars))
-        # YY = np.random.uniform(0, 1, (nsamples-1, nvars))
-        # K_grad = kernel(XX, YY, eval_gradient=True)[1]
-
-        # def f(theta):
-        #     kernel.theta = theta
-        #     K = kernel(XX, YY)
-        #     return K
-        # K_grad_f = _approx_fprime(kernel.theta, f, 1e-8)
-        # assert np.allclose(K_grad, K_grad_f)
+        def f(theta):
+            kernel.theta = theta
+            K = kernel(XX, YY)
+            return K
+        K_grad_f = _approx_fprime(kernel.theta, f, 1e-8)
+        assert np.allclose(K_grad, K_grad_f)
 
         nvars, nsamples = 2, 4
         kernel = PyApproxRBF([0.1, 0.2])
@@ -50,15 +49,15 @@ class TestMultilevelGP(unittest.TestCase):
         K_grad = kernel(XX, YY, eval_gradient=True)[1]
         assert np.allclose(K_grad, K_grad_fd, atol=1e-6)
 
-    def test_multilevel_kernel(self):
+    def _check_multilevel_kernel(self, nmodels):
 
         nmodels = 3
         nsamples = int(1e6)
         nvars = 1  # if increase must change from linspace to rando
-        nsamples_per_model = [5, 4, 3][:nmodels]
-        # nsamples_per_model = [3, 2, 1][:nmodels]
+        # nsamples_per_model = [5, 4, 3][:nmodels]
+        nsamples_per_model = [4, 3, 2][:nmodels]
         length_scales = [1, 2, 3][:nmodels]
-        scalings = np.arange(2, 2+nmodels-1)/4
+        scalings = np.arange(2, 2+nmodels-1)/3
         # shared indices of samples from lower level
         shared_idx_list = [
             np.random.permutation(
@@ -241,13 +240,17 @@ class TestMultilevelGP(unittest.TestCase):
         from sklearn.gaussian_process.kernels import _approx_fprime
         K_grad_fd = _approx_fprime(mlgp_kernel.theta, f, 1e-8)
         K_grad = mlgp_kernel(XX_train, eval_gradient=True)[1]
-        #print(K_grad[0][0][:, :, 0])
-        print(K_grad[:, :, 0])
-        print(K_grad_fd[:, :, 0])
-        np.set_printoptions(precision=3, suppress=True)
-        print(K_grad[:, :, 0]-K_grad_fd[:, :, 0])
+        idx = 3
+        # print(K_grad[:, :, idx])
+        # print(K_grad_fd[:, :, idx])
+        # np.set_printoptions(precision=3, suppress=True)
+        # print(np.absolute(K_grad[:, :, idx]-K_grad_fd[:, :, idx]))#.max())
+        # print(K_grad_fd.shape, K_grad.shape)
         assert np.allclose(K_grad, K_grad_fd, atol=1e-6)
 
+    def test_multilevel_kernel(self):
+        self._check_multilevel_kernel(2)
+        self._check_multilevel_kernel(3)
 
     # cannot debug failing test on osx latest wth python3.7
     # because do not have access to such a machine
