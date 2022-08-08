@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import (
     StationaryKernelMixin, NormalizedKernelMixin, Kernel, Hyperparameter,
-    _approx_fprime
+    _approx_fprime, RBF, _check_length_scale, squareform, cdist
 )
 
 from pyapprox.surrogates.gaussianprocess.gradient_enhanced_gp import (
@@ -130,22 +130,19 @@ def full_multilevel_kernel_for_prediction(
     return K
 
 
-class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
+#class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
+class MultilevelGPKernel(RBF):
     def __init__(self, nvars, nsamples_per_model, kernels, length_scale=[1.0],
                  length_scale_bounds=(1e-5, 1e5)):
+
         self.nmodels = len(nsamples_per_model)
+        assert len(length_scale) == self.nmodels*nvars+self.nmodels-1
+        super().__init__(length_scale, length_scale_bounds)
         self.nvars = nvars
         self.nsamples_per_model = nsamples_per_model
         self.return_code = 'full'
         assert len(kernels) == self.nmodels
         self.kernels = kernels
-
-        assert len(length_scale) == self.nmodels*nvars+self.nmodels-1
-        self.length_scale = np.atleast_1d(length_scale)
-        if length_scale_bounds != 'fixed':
-            assert len(length_scale_bounds) == self.nmodels * \
-                nvars+self.nmodels-1
-        self.length_scale_bounds = length_scale_bounds
 
     @staticmethod
     def _sprod(scalings, ii, jj):
@@ -153,63 +150,93 @@ class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
             raise RuntimeError()
         return np.prod(scalings[ii:jj+1])
 
-    def _diagonal_kernel_block(self, XX1, kernels, scalings):
-        kk = len(kernels)
-        K_block = kernels[kk-1](XX1)
-        for nn in range(kk-1):
-            K_block += self._sprod(scalings, nn, kk-1)**2*kernels[nn](XX1)
-        return K_block
+    def _eval_kernel(self, kernel, XX1, XX2, eval_gradient):
+        result = kernel(XX1, XX2, eval_gradient=eval_gradient)
+        if type(result) == tuple:
+            return result
+        else:
+            return result, np.nan
 
-    def _off_diagonal_kernel_block(self, Xkk, Xll, kernels, scalings, kk, ll):
+    def _diagonal_kernel_block(self, XX1, kernels, scalings, eval_gradient):
+        kk = len(kernels)
+        K_block, K_block_grad = self._eval_kernel(
+            kernels[kk-1], XX1, None, eval_gradient)
+        for nn in range(kk-1):
+            K, K_grad = self._eval_kernel(
+                kernels[nn], XX1, None, eval_gradient)
+            K_block += self._sprod(scalings, nn, kk-1)**2*K
+            if eval_gradient:
+                K_grad += self._sprod(scalings, nn, kk-1)**2*K_grad
+        return K_block, K_block_grad
+
+    def _off_diagonal_kernel_block(self, Xkk, Xll, kernels, scalings, kk, ll,
+                                   eval_gradient):
         assert kk < ll
-        K_block = 0
+        K_block, K_block_grad = 0, 0
         for nn in range(kk+1):
             const = (self._sprod(scalings, nn, kk-1) *
                      self._sprod(scalings, nn, ll-1))
-            K_block += const*kernels[nn](Xkk, Xll)
-        return K_block
+            K, K_grad = self._eval_kernel(kernels[nn], Xkk, Xll, eval_gradient)
+            K_block += const*K
+            if eval_gradient:
+                K_block_grad += const*K_grad
+            # K_block += const*kernels[nn](Xkk, Xll)
+        return K_block, K_block_grad
 
-    def _eval_K(self, XX1, nsamples_per_model, kernels, scalings):
+    def _eval_K(self, XX1, nsamples_per_model, kernels, scalings,
+                eval_gradient):
         nrows = XX1.shape[0]
         nmodels = len(nsamples_per_model)
         assert np.sum(nsamples_per_model) == XX1.shape[0]
         samples = unpack_samples(XX1, nsamples_per_model)
         K = np.zeros((nrows, nrows), dtype=float)
+        K_grad = [[None for ll in range(nmodels)] for kk in range(nmodels)]
         lb1, ub1 = 0, 0
         for kk in range(nmodels):
             lb1 = ub1
             ub1 += nsamples_per_model[kk]
             lb2, ub2 = lb1, ub1
-            K_block = self._diagonal_kernel_block(
-                samples[kk], kernels[:kk+1], scalings[:kk])
+            K_block, K_block_grad = self._diagonal_kernel_block(
+                samples[kk], kernels[:kk+1], scalings[:kk],
+                eval_gradient)
             K[lb1:ub1, lb2:ub2] = K_block
+            K_grad[kk][kk] = K_block_grad
             for ll in range(kk+1, nmodels):
                 lb2 = ub2
                 ub2 += nsamples_per_model[ll]
-                K[lb1:ub1, lb2:ub2] = self._off_diagonal_kernel_block(
-                    samples[kk], samples[ll], kernels[:ll],
-                    scalings[:ll], kk, ll)
+                K[lb1:ub1, lb2:ub2], K_block_grad = (
+                    self._off_diagonal_kernel_block(
+                        samples[kk], samples[ll], kernels[:ll],
+                        scalings[:ll], kk, ll, eval_gradient))
                 K[lb2:ub2, lb1:ub1] = K[lb1:ub1, lb2:ub2].T
-        return K
+                K_grad[kk][ll] = K_block_grad
+                if eval_gradient:
+                    K_grad[ll][kk] = np.transpose(K_block_grad, axes=[1, 0, 2])
+        if eval_gradient:
+            for kk in range(nmodels):
+                print(kk, [tmp.shape for tmp in K_grad[kk]])
+                K_grad[kk] = np.hstack(K_grad[kk])
+            K_grad = np.vstack(K_grad)
+        return K, K_grad
 
-    @staticmethod
-    def _shared_samples(samples1, samples2):
-        # recall sklearn kernels defines samples transpose of pyapprox format
-        shared_idx = []
-        for ii in range(samples2.shape[0]):
-            sample2 = samples2[ii, :]
-            for jj in range(samples1.shape[0]):
-                if np.allclose(sample2, samples1[jj, :], atol=1e-13):
-                    shared_idx.append(jj)
-        return shared_idx
+    # @staticmethod
+    # def _shared_samples(samples1, samples2):
+    #     # recall sklearn kernels defines samples transpose of pyapprox format
+    #     shared_idx = []
+    #     for ii in range(samples2.shape[0]):
+    #         sample2 = samples2[ii, :]
+    #         for jj in range(samples1.shape[0]):
+    #             if np.allclose(sample2, samples1[jj, :], atol=1e-13):
+    #                 shared_idx.append(jj)
+    #     return shared_idx
 
-    def _all_shared_samples(self, samples):
-        nmodels = len(samples)
-        shared_idx_list = [None for nn in range(1, nmodels)]
-        for nn in range(1, nmodels):
-            shared_idx_list[nn-1] = self._shared_samples(
-                samples[nn-1], samples[nn])
-        return shared_idx_list
+    # def _all_shared_samples(self, samples):
+    #     nmodels = len(samples)
+    #     shared_idx_list = [None for nn in range(1, nmodels)]
+    #     for nn in range(1, nmodels):
+    #         shared_idx_list[nn-1] = self._shared_samples(
+    #             samples[nn-1], samples[nn])
+    #     return shared_idx_list
 
     def _eval_t(self, XX1, XX2, nsamples_per_model, kernels, scalings):
         nmodels = len(nsamples_per_model)
@@ -230,13 +257,15 @@ class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
         XX1 = np.atleast_2d(XX1)
         hyperparams = np.squeeze(self.length_scale).astype(float)
         length_scales = np.asarray(hyperparams[:self.nmodels*self.nvars])
+        assert hyperparams.ndim == 1
         scalings = np.asarray(hyperparams[self.nmodels*self.nvars:])
         for kk in range(self.nmodels):
             self.kernels[kk].length_scale = (
                 length_scales[kk*self.nvars:(kk+1)*self.nvars])
         if XX2 is None:
-            K = self._eval_K(
-                XX1, self.nsamples_per_model, self.kernels, scalings)
+            K, K_grad = self._eval_K(
+                XX1, self.nsamples_per_model, self.kernels, scalings,
+                eval_gradient)
         else:
             if eval_gradient:
                 raise ValueError(
@@ -245,19 +274,9 @@ class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
                 XX1, XX2, self.nsamples_per_model, self.kernels, scalings)
         if not eval_gradient:
             return K
-
-        if self.hyperparameter_length_scale.fixed:
-            # Hyperparameter l kept fixed
-            length_scale_gradient = np.empty((K.shape[0], K.shape[1], 0))
         else:
-            # approximate gradient numerically
-            def f(gamma):  # helper function
-                return full_multilevel_kernel(
-                    XX1, gamma, self.nsamples_per_model)
-            length_scale = np.atleast_1d(self.length_scale)
-            length_scale_gradient = _approx_fprime(length_scale, f, 1e-8)
+            return K, K_grad
 
-        return K, length_scale_gradient
 
 class MultilevelGPKernelDeprecated(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     def __init__(self, nvars, nsamples_per_model, length_scale=[1.0],
@@ -487,3 +506,50 @@ class SequentialMultiLevelGP(MultilevelGP):
                     np.sqrt(variances[model_idx[0]]).squeeze())
         return ([means[idx] for idx in model_idx],
                 [np.sqrt(variances[idx]).squeeze() for idx in model_idx])
+
+
+class PyApproxRBF(RBF):
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """Return the kernel k(X, Y) and optionally its gradient.
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples_X, n_features)
+            Left argument of the returned kernel k(X, Y)
+
+        Y : ndarray of shape (n_samples_Y, n_features), default=None
+            Right argument of the returned kernel k(X, Y). If None, k(X, X)
+            if evaluated instead.
+
+        eval_gradient : bool, default=False
+            Determines whether the gradient with respect to the log of
+            the kernel hyperparameter is computed.
+            Unlike sklearn True is supported when Y is None.
+
+        Returns
+        -------
+        K : ndarray of shape (n_samples_X, n_samples_Y)
+            Kernel k(X, Y)
+
+        K_gradient : ndarray of shape (n_samples_X, n_samples_X, n_dims), \
+                optional
+            The gradient of the kernel k(X, X) with respect to the log of the
+            hyperparameter of the kernel. Only returned when `eval_gradient`
+            is True.
+        """
+        if not eval_gradient or Y is None:
+            return super().__call__(X, Y, eval_gradient)
+        K = super().__call__(X, Y)
+        length_scale = _check_length_scale(X, self.length_scale)
+        if self.hyperparameter_length_scale.fixed:
+            return K, np.empty((X.shape[0], Y.shape[0], 0))
+        if not self.anisotropic or length_scale.shape[0] == 1:
+            dists = cdist(X, Y, metric="sqeuclidean")
+            K_gradient = (K * dists[:, :]/length_scale**2)[:, :, np.newaxis]
+        elif self.anisotropic:
+            dists = (X[:, np.newaxis, :] - Y[np.newaxis, :, :]) ** 2 / (
+                length_scale ** 2)
+            K_gradient = dists
+            K_gradient *= K[..., np.newaxis]
+
+        return K, K_gradient
