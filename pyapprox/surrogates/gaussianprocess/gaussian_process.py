@@ -8,15 +8,12 @@ from scipy.linalg import solve_triangular
 from scipy.special import kv, gamma
 
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import (
-    Matern, RBF, Product, Sum, ConstantKernel, WhiteKernel
-)
 
+from pyapprox.surrogates.gaussianprocess.kernels import (
+    Matern, Product, Sum, ConstantKernel, WhiteKernel, RBF
+)
 from pyapprox.util.utilities import (
     cartesian_product, outer_product
-)
-from pyapprox.expdesign.low_discrepancy_sequences import (
-    transformed_halton_sequence
 )
 from pyapprox.util.linalg import (
     pivoted_cholesky_decomposition,

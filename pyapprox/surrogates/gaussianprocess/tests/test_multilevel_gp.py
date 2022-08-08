@@ -1,13 +1,12 @@
 import unittest
 import numpy as np
-from functools import partial
-from sklearn.gaussian_process.kernels import RBF
 from sklearn.gaussian_process.kernels import _approx_fprime
 
+from pyapprox.surrogates.gaussianprocess.kernels import RBF
 from pyapprox.surrogates.gaussianprocess.gradient_enhanced_gp import (
-    kernel_ff, get_gp_samples_kernel)
+    get_gp_samples_kernel)
 from pyapprox.surrogates.gaussianprocess.multilevel_gp import (
-    MultilevelGPKernel, MultilevelGP, SequentialMultiLevelGP, PyApproxRBF
+    MultilevelGPKernel, MultilevelGP, SequentialMultiLevelGP
 )
 
 
@@ -16,7 +15,7 @@ class TestMultilevelGP(unittest.TestCase):
         np.random.seed(1)
 
     def test_pyapprox_rbf_kernel(self):
-        kernel = PyApproxRBF(0.1)
+        kernel = RBF(0.1)
         nvars, nsamples = 1, 3
         XX = np.random.uniform(0, 1, (nsamples, nvars))
         YY = np.random.uniform(0, 1, (nsamples-1, nvars))
@@ -30,7 +29,7 @@ class TestMultilevelGP(unittest.TestCase):
         assert np.allclose(K_grad, K_grad_f)
 
         nvars, nsamples = 2, 4
-        kernel = PyApproxRBF([0.1, 0.2])
+        kernel = RBF([0.1, 0.2])
         XX = np.random.uniform(0, 1, (nsamples, nvars))
 
         YY = None
@@ -68,12 +67,10 @@ class TestMultilevelGP(unittest.TestCase):
             XX_list += [XX_list[nn-1][shared_idx_list[nn-1]]]
 
         assert nmodels*nvars == len(length_scales)
-        # from sklearn.gaussian_process.kernels import Matern
         # kernels = [
         #     Matern(length_scales[nn], nu=np.inf)
         #     for nn in range(nmodels)]
-        kernels = [
-            PyApproxRBF(length_scales[nn]) for nn in range(nmodels)]
+        kernels = [RBF(length_scales[nn]) for nn in range(nmodels)]
 
         samples_list = [
             np.random.normal(0, 1, (nsamples_per_model[nn], nsamples))
@@ -240,7 +237,7 @@ class TestMultilevelGP(unittest.TestCase):
         from sklearn.gaussian_process.kernels import _approx_fprime
         K_grad_fd = _approx_fprime(mlgp_kernel.theta, f, 1e-8)
         K_grad = mlgp_kernel(XX_train, eval_gradient=True)[1]
-        idx = 3
+        # idx = 3
         # print(K_grad[:, :, idx])
         # print(K_grad_fd[:, :, idx])
         # np.set_printoptions(precision=3, suppress=True)
@@ -252,54 +249,32 @@ class TestMultilevelGP(unittest.TestCase):
         self._check_multilevel_kernel(2)
         self._check_multilevel_kernel(3)
 
-    # cannot debug failing test on osx latest wth python3.7
-    # because do not have access to such a machine
-    @unittest.skip
-    def test_2_models(self):
+    def _check_2_models(self, nested):
         # TODO Add Test which builds gp on two models data separately when
         # data2 is subset data and hyperparameters are fixed.
         # Then Gp should just be sum of separate GPs.
 
+        lb, ub = 0, 1
         nvars, nmodels = 1, 2
-
         np.random.seed(2)
-        # np.random.seed(3)
-        # n1,n2=5,3
-        n1, n2 = 9, 5
-        # n1,n2=10,9
-        # n1,n2=17,9
-        # n1,n2=32,17
-        lb, ub = -1, 1
-        x1 = np.atleast_2d(np.linspace(lb, ub, n1))
-        x2 = x1[:, np.random.permutation(n1)[:n2]]
-
-        # def f1(x): return (1*f2(x)+x.T**2)  # change 1* to some non unitary rho
-        # def f2(x): return np.cos(2*np.pi*x).T
-
         true_rho = [2]
-
         def f1(x):
-            return ((x.T*6-2)**2)*np.sin((x.T*6-2)*2)
+            return ((x.T*6-2)**2)*np.sin((x.T*6-2)*2)/5
 
         def f2(x):
-            return true_rho[0]*f1(x)+(x.T-0.5)*1. - 5
+            return true_rho[0]*f1(x)+((x.T-0.5)*1. - 5)/5
 
-        # def f2(x):
-        #     return ((x.T*6-2)**2)*np.sin((x.T*6-2)*2)
-        # def f1(x):
-        #     return 1/true_rho[0]*((x.T*6-2)**2)*np.sin((x.T*6-2)*2)+(x.T-0.5)*1. - 5
-
-        # non-nested
-        # x2 = np.array([[0.0], [0.4], [0.6], [1.0]]).T
-        # x1 = np.array([[0.1], [0.2], [0.3], [0.5], [0.7],
-        #                [0.8], [0.9], [0.0], [0.4], [0.6], [1.0]]).T
-        # nested
-        x1 = np.array([[0.1], [0.2], [0.3], [0.5], [0.7],
-                       [0.8], [0.9], [0.0], [0.4], [0.6], [1.0]]).T
-        x2 = x1[:, [0, 2, 4, 6]]
-        lb, ub = 0, 1
-        # x1 = np.linspace(lb,ub,31)[np.newaxis,:]
-        # print(x1)
+        if not nested:
+            x2 = np.array([[0.0], [0.4], [0.6], [1.0]]).T
+            x1 = np.array([[0.1], [0.2], [0.3], [0.5], [0.7],
+                           [0.8], [0.9], [0.0], [0.4], [0.6], [1.0]]).T
+        else:
+            # nested
+            x1 = np.array([[0.1], [0.2], [0.3], [0.5], [0.7],
+                           [0.8], [0.9], [0.0], [0.4], [0.6], [1.0]]).T
+            x2 = x1[:, [0, 2, 4, 6]]
+            # x1 = x1[:, ::2]
+            # x2 = x1[:, [0, 2]]
 
         samples = [x1, x2]
         values = [f(x) for f, x in zip([f1, f2], samples)]
@@ -313,8 +288,9 @@ class TestMultilevelGP(unittest.TestCase):
         length_scale_bounds = [(1e-1, 10)] * \
             (nmodels*nvars)+[(1e-1, 10)]*(nmodels-1)
         # length_scale_bounds='fixed'
+        kernels = [RBF(0.1) for nn in range(nmodels)]
         mlgp_kernel = MultilevelGPKernel(
-            nvars, nsamples_per_model, length_scale=length_scale,
+            nvars, nsamples_per_model, kernels, length_scale=length_scale,
             length_scale_bounds=length_scale_bounds)
         # noise_level_bounds=(1e-8, 1)
         # do not use noise kernel for entire kernel
@@ -325,45 +301,73 @@ class TestMultilevelGP(unittest.TestCase):
         gp = MultilevelGP(mlgp_kernel)
         gp.set_data(samples, values)
         gp.fit()
+        print(gp.kernel_.length_scale[2], true_rho)
+        # print(gp.kernel_.length_scale[2]-true_rho)
+        assert np.allclose(gp.kernel_.length_scale[-1], true_rho, atol=4e-3)
 
         sml_kernels = [
             RBF(length_scale=get_gp_samples_kernel(gp).length_scale[
                 nvars*ii:nvars*(ii+1)],
                 length_scale_bounds=(1e-1, 10)) for ii in range(nmodels)]
-        print(sml_kernels)
-        print(get_gp_samples_kernel(gp).length_scale)
+        print("SML kernels", sml_kernels)
+        print(gp.kernel_.length_scale)
 
         sml_gp = SequentialMultiLevelGP(
             sml_kernels, n_restarts_optimizer=n_restarts_optimizer)
         sml_gp.set_data(samples, values)
         sml_gp.fit(true_rho)
 
+        from pyapprox.surrogates.gaussianprocess.kernels import ConstantKernel
+        from pyapprox.surrogates.gaussianprocess.gaussian_process import (
+            GaussianProcess)
+        # point used to evaluate diag does not matter for stationary kernels
+        sf_var = gp.kernel_.diag(np.zeros((1, nvars)))
+        sf_kernel = RBF(
+            length_scale_bounds=length_scale_bounds[:nvars])*ConstantKernel(
+                sf_var, constant_value_bounds="fixed")
+        sf_gp = GaussianProcess(sf_kernel)
+        sf_gp.fit(samples[1], values[1])
+
         # print('ml')
         # print(get_gp_samples_kernel(gp).length_scale[-1], true_rho)
-        assert np.allclose(gp.kernel_.length_scale[-1], true_rho, atol=4e-3)
+
         xx = np.linspace(lb, ub, 2**8+1)[np.newaxis, :]
-        # import matplotlib.pyplot as plt
-        # fig, axs = plt.subplots(1, 1)
-        # axs = [axs]
-        # gp.plot_1d(2**8+1,[lb,ub],axs[0])
-        # #xx = np.linspace(lb,ub,2**8+1)[np.newaxis,:]
-        # axs[0].plot(xx[0,:],f2(xx),'r')
-        # #axs[0].plot(xx[0,:],f1(xx),'g--')
-        # axs[0].plot(x1[0,:],f1(x1),'gs')
-        # plt.show()
 
         sml_gp_mean, sml_gp_std = sml_gp(xx)
         gp_mean, gp_std = gp(xx, return_std=True)
+        sf_gp_mean, sf_gp_std = sf_gp(xx, return_std=True)
+
+        # import matplotlib.pyplot as plt
+        # fig, axs = plt.subplots(1, 1)
+        # axs = [axs]
         # axs[0].plot(samples[1][0, :], values[1], 'ko')
         # axs[0].plot(xx[0, :], f2(xx), 'k-', label='f2')
         # axs[0].plot(xx[0, :], sml_gp_mean, 'b--')
         # axs[0].plot(xx[0, :], gp_mean, 'r:')
+        # axs[0].plot(xx[0, :], sf_gp_mean, 'g-.')
+        # nstdev = 2
+        # gp_mean = gp_mean[:, 0]
+        # sf_gp_mean = sf_gp_mean[:, 0]
+        # axs[0].fill_between(
+        #     xx[0, :], gp_mean - nstdev*gp_std, gp_mean + nstdev*gp_std,
+        #     alpha=0.2, color='r')
+        # axs[0].fill_between(
+        #     xx[0, :], sf_gp_mean - nstdev*sf_gp_std, sf_gp_mean + nstdev*sf_gp_std,
+        #     alpha=0.2, color='g')
+        # # prior_stdev = np.sqrt(gp.kernel_.diag(xx.T))
+        # # axs[0].fill_between(
+        # #     xx[0, :], -nstdev*prior_stdev, nstdev*prior_stdev,
+        # #     alpha=0.5, color='k')
         # plt.legend()
         # plt.show()
         # gp_cov = gp(xx, return_cov=True)[1]
         # assert np.allclose(gp_cov, gp_std**2, atol=1e-4)
         print(np.abs(sml_gp_mean - gp_mean).max())
         assert np.allclose(sml_gp_mean, gp_mean, atol=5e-3)
+
+    def test_2_models(self):
+        self._check_2_models(True)
+        self._check_2_models(False)
 
 
 if __name__ == "__main__":

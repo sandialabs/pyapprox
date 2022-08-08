@@ -40,6 +40,8 @@ from pyapprox.expdesign.low_discrepancy_sequences import halton_sequence
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     AdaptiveGaussianProcess, CholeskySampler, GaussianProcess
 )
+from pyapprox.surrogates.gaussianprocess.kernels import (
+    Matern, WhiteKernel, ConstantKernel)
 from pyapprox.surrogates.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
 )
@@ -1671,8 +1673,6 @@ def approximate_fixed_pce(pce, train_samples, train_vals, indices,
 def __setup_gaussian_process_kernel(nvars, length_scale, length_scale_bounds,
                                     kernel_variance, kernel_variance_bounds,
                                     noise_level, noise_level_bounds, nu):
-    from sklearn.gaussian_process.kernels import Matern, WhiteKernel, \
-        ConstantKernel
     if np.isscalar(length_scale):
         length_scale = np.array([length_scale]*nvars)
     assert length_scale.shape[0] == nvars

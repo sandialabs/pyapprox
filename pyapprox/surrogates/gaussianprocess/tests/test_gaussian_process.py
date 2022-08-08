@@ -8,10 +8,11 @@ from scipy.linalg import solve_triangular
 from scipy.spatial.distance import cdist
 from functools import partial
 
-from sklearn.gaussian_process.kernels import (
+from sklearn.gaussian_process.kernels import _approx_fprime
+
+from pyapprox.surrogates.gaussianprocess.kernels import (
     Matern, WhiteKernel, RBF, ConstantKernel
 )
-
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     GaussianProcess,
     RandomGaussianProcessRealizations, gaussian_process_pointwise_variance,
@@ -1538,7 +1539,6 @@ class TestSamplers(unittest.TestCase):
             P_fd_jac.shape, (ntrain_samples**2, nvars*ntrain_samples))
         P_fd_jac_res = P_fd_jac.reshape(
             (ntrain_samples, ntrain_samples, nvars*ntrain_samples), order='F')
-        from sklearn.gaussian_process.kernels import _approx_fprime
         assert np.allclose(_approx_fprime(x0, lambda x: func1(x).reshape(
             ntrain_samples, ntrain_samples, order='F'),
                                           np.sqrt(np.finfo(float).eps)), P_fd_jac_res)

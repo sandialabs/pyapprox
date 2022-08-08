@@ -4,6 +4,7 @@ import numpy as np
 import copy
 from functools import partial
 
+from pyapprox.surrogates.gaussianprocess.kernels import Matern
 from pyapprox.surrogates.approximate import (
     approximate, adaptive_approximate,
     cross_validate_pce_degree, compute_l2_error,
@@ -286,7 +287,6 @@ class TestApproximate(unittest.TestCase):
             atol=1e-8), error
 
     def test_approximate_gaussian_process(self):
-        from sklearn.gaussian_process.kernels import Matern
         num_vars = 1
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
         variable = IndependentMarginalsVariable(
@@ -319,7 +319,6 @@ class TestApproximate(unittest.TestCase):
         # plt.show()
 
     def test_adaptive_approximate_gaussian_process(self):
-        from sklearn.gaussian_process.kernels import Matern
         num_vars = 1
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
 
@@ -354,7 +353,6 @@ class TestApproximate(unittest.TestCase):
         assert errors[-1] < 1e-8
 
     def test_adaptive_approximate_gaussian_process_normalize_inputs(self):
-        from sklearn.gaussian_process.kernels import Matern
         num_vars = 1
         univariate_variables = [stats.beta(5, 10, 0, 2)]*num_vars
 
