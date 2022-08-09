@@ -29,22 +29,24 @@ The following tabulates the benchmarks provided in :mod:`pyapprox.benchmarks`. E
 
 Sensitivity Analysis
 --------------------
-:func:`pyapprox.benchmarks.setup_ishigami_function`
-:func:`pyapprox.benchmarks.setup_sobol_g_function`
-:func:`pyapprox.benchmarks.setup_oakley_function`
+:func:`~pyapprox.benchmarks.setup_ishigami_function`
+:func:`~pyapprox.benchmarks.setup_sobol_g_function`
+:func:`~pyapprox.benchmarks.setup_oakley_function`
 
 Quadrature
 ----------
-:func:`pyapprox.benchmarks.setup_genz_function`
+:func:`~pyapprox.benchmarks.setup_genz_function`
 
 Inference
 ---------
-:func:`pyapprox.benchmarks.setup_rosenbrock_function`
+:func:`~pyapprox.benchmarks.setup_rosenbrock_function`
+:func:`~pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark`
 
 Multi-fidelity Modeling
 -----------------------
-
-:func:`pyapprox.benchmarks.setup_polynomial_ensemble`
+:func:`~pyapprox.benchmarks.setup_polynomial_ensemble`
+:func:`~pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark`
+ 
 
 .. Do not document dev tutorials
    :func:`pyapprox_dev.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark`

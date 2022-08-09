@@ -49,8 +49,6 @@ class TestMultilevelGP(unittest.TestCase):
         assert np.allclose(K_grad, K_grad_fd, atol=1e-6)
 
     def _check_multilevel_kernel(self, nmodels):
-
-        nmodels = 3
         nsamples = int(1e6)
         nvars = 1  # if increase must change from linspace to rando
         # nsamples_per_model = [5, 4, 3][:nmodels]
@@ -334,36 +332,32 @@ class TestMultilevelGP(unittest.TestCase):
         xx = np.linspace(lb, ub, 2**8+1)[np.newaxis, :]
 
         sml_gp_mean, sml_gp_std = sml_gp(xx)
-        gp_mean, gp_std = gp(xx, return_std=True)
+        hf_gp_mean, hf_gp_std = gp(xx, return_std=True)
         sf_gp_mean, sf_gp_std = sf_gp(xx, return_std=True)
+        lf_gp_mean, lf_gp_std = gp(xx, return_std=True, model_eval_id=0)
 
         # import matplotlib.pyplot as plt
         # fig, axs = plt.subplots(1, 1)
-        # axs = [axs]
-        # axs[0].plot(samples[1][0, :], values[1], 'ko')
-        # axs[0].plot(xx[0, :], f2(xx), 'k-', label='f2')
-        # axs[0].plot(xx[0, :], sml_gp_mean, 'b--')
-        # axs[0].plot(xx[0, :], gp_mean, 'r:')
-        # axs[0].plot(xx[0, :], sf_gp_mean, 'g-.')
-        # nstdev = 2
-        # gp_mean = gp_mean[:, 0]
-        # sf_gp_mean = sf_gp_mean[:, 0]
-        # axs[0].fill_between(
-        #     xx[0, :], gp_mean - nstdev*gp_std, gp_mean + nstdev*gp_std,
-        #     alpha=0.2, color='r')
-        # axs[0].fill_between(
-        #     xx[0, :], sf_gp_mean - nstdev*sf_gp_std, sf_gp_mean + nstdev*sf_gp_std,
-        #     alpha=0.2, color='g')
-        # # prior_stdev = np.sqrt(gp.kernel_.diag(xx.T))
-        # # axs[0].fill_between(
-        # #     xx[0, :], -nstdev*prior_stdev, nstdev*prior_stdev,
-        # #     alpha=0.5, color='k')
-        # plt.legend()
+
+        #print(np.abs(sml_gp_mean - hf_gp_mean).max())
+        assert np.allclose(sml_gp_mean, hf_gp_mean, atol=5e-3)
+
+        # print(np.abs(lf_gp_mean-sml_gp(xx, model_idx=[0])[0]).max())
+        assert np.allclose(lf_gp_mean, sml_gp(xx, model_idx=[0])[0], atol=1e-5)
+
+        # warning normalize_y does not make a lot of sense for multi-fidelity
+        # GPs because the mean and std of the data is computed from the low
+        # and high-fidelity values
+        # gp.plot_1d(100, [0, 1], plt_kwargs={"color": "b", "alpha": 0.3},
+        #            prior_fill_kwargs={"color": "r"})
+        # from pyapprox.util.configure_plots import plt
+        # fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        # xx = np.linspace(0, 1, 101)[None, :]
+        # ax.plot(xx[0, :], f1(xx), 'k-')
+        # gp.plot_1d(100, [0, 1], plt_kwargs={"color": "g", "ls": "--"},
+        #            fill_kwargs={"color": "g", "alpha": 0.3},
+        #            model_eval_id=0, ax=ax)
         # plt.show()
-        # gp_cov = gp(xx, return_cov=True)[1]
-        # assert np.allclose(gp_cov, gp_std**2, atol=1e-4)
-        print(np.abs(sml_gp_mean - gp_mean).max())
-        assert np.allclose(sml_gp_mean, gp_mean, atol=5e-3)
 
     def test_2_models(self):
         self._check_2_models(True)

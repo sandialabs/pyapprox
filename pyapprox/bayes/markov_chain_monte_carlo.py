@@ -99,8 +99,6 @@ class LogLike(tt.Op):
         logl = self.likelihood(samples).squeeze()
         outputs[0][0] = np.array(logl)  # output the log-likelihood
 
-# define a theano Op for our likelihood function
-
 
 class LogLikeWithGrad(LogLike):
 
@@ -172,9 +170,12 @@ class LogLikeGrad(tt.Op):
             if samples.ndim == 1:
                 samples = samples[:, None]
             if self.likelihood_grad == True:
-                grads = self.likelihood(samples, jac=True)[1].squeeze()
+                grads = self.likelihood(samples, jac=True)[1]
             else:
-                grads = self.likelihood_grad(samples).squeeze()
+                grads = self.likelihood_grad(samples)
+            if grads.ndim == 2:
+                grads = grads[:, 0]
+            assert grads.ndim == 1
         outputs[0][0] = grads
 
 

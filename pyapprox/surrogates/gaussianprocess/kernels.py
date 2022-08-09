@@ -64,7 +64,8 @@ class MultilevelGPKernel(RBF):
         super().__init__(length_scale, length_scale_bounds)
         self.nvars = nvars
         self.nsamples_per_model = nsamples_per_model
-        self.return_code = 'full'
+        # model_eval_id determines which fidelity to evaluate on test data
+        self.model_eval_id = self.nmodels-1
         for kernel in kernels:
             # todo add ability to compute gradients when Y is not None
             # to matern kernel
@@ -79,20 +80,21 @@ class MultilevelGPKernel(RBF):
             raise RuntimeError()
         return np.prod(scalings[ii:jj+1])
 
-    def _eval_kernel(self, kernel, XX1, XX2, eval_gradient):
+    @staticmethod
+    def _eval_kernel(kernel, XX1, XX2, eval_gradient):
         result = kernel(XX1, XX2, eval_gradient=eval_gradient)
         if type(result) == tuple:
             return result
         else:
             return result, np.nan
 
-    def _diagonal_kernel_block(self, XX1, kernels, scalings, nmodels,
+    def _diagonal_kernel_block(self, XX1, XX2, kernels, scalings, nmodels,
                                eval_gradient):
         nvars = XX1.shape[1]
         nhyperparams = nvars*nmodels+nmodels-1
         kk = len(kernels)
         K_block, K_grad = self._eval_kernel(
-            kernels[kk-1], XX1, None, eval_gradient)
+            kernels[kk-1], XX1, XX2, eval_gradient)
         if eval_gradient:
             K_block_grad = np.zeros(
                 (K_grad.shape[0], K_grad.shape[1], nhyperparams))
@@ -103,7 +105,7 @@ class MultilevelGPKernel(RBF):
             K_block_grad = np.nan
         for nn in range(kk-1):
             K, K_grad = self._eval_kernel(
-                kernels[nn], XX1, None, eval_gradient)
+                kernels[nn], XX1, XX2, eval_gradient)
             const = self._sprod(scalings, nn, kk-1)**2
             K_block += const*K
             if eval_gradient:
@@ -112,9 +114,10 @@ class MultilevelGPKernel(RBF):
                 # scalings grad
                 idx1 = nmodels*nvars+nn
                 idx2 = nmodels*nvars+kk-1
-                # tmp = 2*const/scalings[nn:kk]  # when NO using log of hyperparams
-                tmp = 2*const  # when YES using log of hyperparams
-                # print(nn, kk, scalings[nn:kk], const, tmp, idx1, idx2)
+                # when NO using log of hyperparams
+                # tmp = 2*const/scalings[nn:kk]
+                # when YES using log of hyperparams
+                tmp = 2*const
                 K_block_grad[..., idx1:idx2] += K[..., None]*tmp
         return K_block, K_block_grad
 
@@ -171,7 +174,7 @@ class MultilevelGPKernel(RBF):
             ub1 += nsamples_per_model[kk]
             lb2, ub2 = lb1, ub1
             K_block, K_block_grad = self._diagonal_kernel_block(
-                samples[kk], kernels[:kk+1], scalings[:kk],
+                samples[kk], None, kernels[:kk+1], scalings[:kk],
                 nmodels, eval_gradient)
             K[lb1:ub1, lb2:ub2] = K_block
             K_grad[kk][kk] = K_block_grad
@@ -211,19 +214,36 @@ class MultilevelGPKernel(RBF):
     #             samples[nn-1], samples[nn])
     #     return shared_idx_list
 
-    def _eval_t(self, XX1, XX2, nsamples_per_model, kernels, scalings):
+    def _eval_t(self, XX1, XX2, nsamples_per_model, kernels, scalings, kk):
         nmodels = len(nsamples_per_model)
         assert np.sum(nsamples_per_model) == XX2.shape[0]
         samples = self._unpack_samples(XX2, nsamples_per_model)
-        const = self._sprod(scalings, 0, nmodels-1)
-        t_blocks = [const*self.kernels[0](XX1, samples[nn])
-                    for nn in range(nmodels)]
-        for nn in range(1, nmodels):
-            const = self._sprod(scalings, nn, nmodels-1)
-            t_blocks[nn:] = [
-                const*self.kernels[nn](XX1, samples[kk]) +
-                scalings[nn-1]*t_blocks[kk]
-                for kk in range(nn, nmodels)]
+        # const = self._sprod(scalings, 0, nmodels-1)
+        # t_blocks = [const*self.kernels[0](XX1, samples[nn])
+        #             for nn in range(nmodels)]
+        # for nn in range(1, nmodels):
+        #     const = self._sprod(scalings, nn, nmodels-1)
+        #     t_blocks[nn:] = [
+        #         const*self.kernels[nn](XX1, samples[kk]) +
+        #         scalings[nn-1]*t_blocks[kk]
+        #         for kk in range(nn, nmodels)]
+        # t_blocks1 = t_blocks
+        t_blocks = [None for nn in range(nmodels)]
+        for ll in range(0, kk):
+            t_blocks[ll] = (
+                self._off_diagonal_kernel_block(
+                    samples[ll], XX1, kernels[:kk],
+                    scalings[:kk], ll, kk, nmodels, False)[0].T)
+        t_blocks[kk] = self._diagonal_kernel_block(
+            XX1, samples[kk], kernels[:kk+1], scalings[:kk], nmodels, False)[0]
+        for ll in range(kk+1, nmodels):
+            t_blocks[ll] = (
+                self._off_diagonal_kernel_block(
+                    XX1, samples[ll], kernels[:ll],
+                    scalings[:ll], kk, ll, nmodels, False)[0])
+        # when kk = nmodels -1
+        # for ii in range(len(t_blocks)):
+        #     assert np.allclose(t_blocks1[ii], t_blocks[ii])
         return np.hstack(t_blocks)
 
     def __call__(self, XX1, XX2=None, eval_gradient=False):
@@ -244,17 +264,14 @@ class MultilevelGPKernel(RBF):
                 raise ValueError(
                     "Gradient can only be evaluated when XX2 is None.")
             K = self._eval_t(
-                XX1, XX2, self.nsamples_per_model, self.kernels, scalings)
+                XX1, XX2, self.nsamples_per_model, self.kernels, scalings,
+                self.model_eval_id)
         if not eval_gradient:
             return K
         else:
             return K, K_grad
 
     def diag(self, X):
-        """
-        TODO make this function more efficient by directly evaluating diagonal
-        only
-        """
         hyperparams = np.squeeze(self.length_scale).astype(float)
         assert hyperparams.ndim == 1
         scalings = np.asarray(hyperparams[self.nmodels*self.nvars:])
@@ -263,7 +280,7 @@ class MultilevelGPKernel(RBF):
         # D1 = np.diag(D1).copy()
 
         # compute diag for high_fidelity model
-        kk = self.nmodels
+        kk = self.model_eval_id+1
         D = self.kernels[kk-1].diag(X)
         for nn in range(kk-1):
             const = self._sprod(scalings, nn, kk-1)**2

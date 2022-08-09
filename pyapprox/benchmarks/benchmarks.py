@@ -686,8 +686,8 @@ def setup_multi_index_advection_diffusion_benchmark(
         max_eval_concurrency=1, time_scenario=None,
         functional=None, config_values=None):
     r"""
-    This benchmark is used to test methods for forward propagation of 
-    uncertainty. The forward simulation model is the transient 
+    This benchmark is used to test methods for forward propagation of
+    uncertainty. The forward simulation model is the transient
     advection-diffusion model
 
     .. math::
@@ -811,7 +811,7 @@ def setup_multi_index_advection_diffusion_benchmark(
 
     model_ensemble : :py:class:`~pyapprox.interface.wrappers.ModelEnsemble`
        Function return the quantities of interest with the signature
-    
+
        ``fun(w) -> np.ndarray``
 
         where ``w`` is a 2D np.ndarray with shape (nvars+1, nsamples) and the
