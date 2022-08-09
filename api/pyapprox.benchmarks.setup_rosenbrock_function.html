@@ -77,6 +77,8 @@
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_wing_weight_benchmark.html">setup_wing_weight_benchmark</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_polynomial_ensemble.html">setup_polynomial_ensemble</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.list_benchmarks.html">list_benchmarks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark.html">setup_advection_diffusion_kle_inversion_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark.html">setup_multi_index_advection_diffusion_benchmark</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../user_reference_guide.html#id3">Classes</a></li>
@@ -147,7 +149,7 @@ identically distributed uniform variables on <span class="math notranslate nohig
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><dl>
-<dt><strong>benchmark</strong><span class="classifier"><a class="reference internal" href="pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark" title="pyapprox.benchmarks.Benchmark"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.benchmarks.Benchmark</span></code></a></span></dt><dd><p>Object containing the benchmark attributes documented below</p>
+<dt><strong>benchmark</strong><span class="classifier"><a class="reference internal" href="pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark" title="pyapprox.benchmarks.Benchmark"><code class="xref py py-class docutils literal notranslate"><span class="pre">Benchmark</span></code></a></span></dt><dd><p>Object containing the benchmark attributes documented below</p>
 </dd>
 <dt><strong>fun</strong><span class="classifier">callable</span></dt><dd><p>The rosenbrock function with signature</p>
 <p><code class="docutils literal notranslate"><span class="pre">fun(z)</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray</span></code></p>
@@ -164,7 +166,7 @@ output is a 2D np.ndarray with shape (nvars,1)</p>
 <p>where <code class="docutils literal notranslate"><span class="pre">z</span></code> is a 2D np.ndarray with shape (nvars,nsamples) and p is an
 arbitraty vector with shape (nvars,1)</p>
 </dd>
-<dt><strong>variable</strong><span class="classifier"><a class="reference internal" href="pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable" title="pyapprox.variables.IndependentMarginalsVariable"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.variables.IndependentMarginalsVariable</span></code></a></span></dt><dd><p>Object containing information of the joint density of the inputs z
+<dt><strong>variable</strong><span class="classifier"><a class="reference internal" href="pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable" title="pyapprox.variables.IndependentMarginalsVariable"><code class="xref py py-class docutils literal notranslate"><span class="pre">IndependentMarginalsVariable</span></code></a></span></dt><dd><p>Object containing information of the joint density of the inputs z
 which is the tensor product of independent and identically distributed
 uniform variables on <span class="math notranslate nohighlight">\([-2,2]\)</span>.</p>
 </dd>

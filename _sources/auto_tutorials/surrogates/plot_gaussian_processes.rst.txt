@@ -103,7 +103,7 @@ Lets construct a GP with a fixed set of training samples and associated values w
  .. code-block:: none
 
 
-    <matplotlib.collections.PolyCollection object at 0x289202ee0>
+    <matplotlib.collections.PolyCollection object at 0x1545ce5e0>
 
 
 
@@ -205,7 +205,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.077 seconds)
+   **Total running time of the script:** ( 0 minutes  0.087 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_surrogates_plot_gaussian_processes.py:

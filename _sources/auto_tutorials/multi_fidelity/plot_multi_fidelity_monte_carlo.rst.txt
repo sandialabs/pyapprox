@@ -118,6 +118,10 @@ Let us use MFMC to estimate the mean of our high-fidelity model.
 
  .. code-block:: none
 
+    [ 14.65121753 316.63036044] nsample_ratios
+    [   4   60 1310] nsf1
+    [   4   60 1310] nsf2
+    [ 15.  327.5] rounded nsample_ratios
     MC error 0.007037370239274421
     MFMC error 0.017509111944310596
 
@@ -187,6 +191,29 @@ Now lets us compare MC with MFMC using optimal sample allocations
    :class: sphx-glr-single-img
 
 
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+    [  6.275565    30.20633774 136.34720835 820.65180665] nsample_ratios
+    [   4   29  140  634 3820] nsf1
+    [   4   29  140  634 3820] nsf2
+    [  7.25  35.   158.5  955.  ] rounded nsample_ratios
+    [  6.275565    30.20633774 136.34720835 820.65180665] nsample_ratios
+    [   46   292  1406  6347 38204] nsf1
+    [   46   292  1406  6347 38204] nsf2
+    [  6.34782609  30.56521739 137.97826087 830.52173913] rounded nsample_ratios
+    [  6.275565    30.20633774 136.34720835 820.65180665] nsample_ratios
+    [   465   2921  14062  63475 382048] nsf1
+    [   465   2921  14062  63475 382048] nsf2
+    [  6.28172043  30.24086022 136.50537634 821.60860215] rounded nsample_ratios
+    [  6.275565    30.20633774 136.34720835 820.65180665] nsample_ratios
+    [   4655   29215  140623  634754 3820481] nsf1
+    [   4655   29215  140623  634754 3820481] nsf2
+    [  6.27604726  30.20902256 136.35961332 820.72631579] rounded nsample_ratios
+
 
 
 
@@ -199,7 +226,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.592 seconds)
+   **Total running time of the script:** ( 0 minutes  0.599 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py:

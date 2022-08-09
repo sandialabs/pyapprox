@@ -5,12 +5,12 @@
 
 Computation times
 =================
-**00:05.958** total execution time for **auto_tutorials_inference** files:
+**00:08.874** total execution time for **auto_tutorials_inference** files:
 
 +--------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_inference_plot_bayesian_inference.py` (``plot_bayesian_inference.py``)                     | 00:05.053 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_inference_plot_bayesian_inference.py` (``plot_bayesian_inference.py``)                     | 00:07.978 | 0.0 MB |
 +--------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_inference_plot_push_forward_based_inference.py` (``plot_push_forward_based_inference.py``) | 00:00.725 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_inference_plot_push_forward_based_inference.py` (``plot_push_forward_based_inference.py``) | 00:00.711 | 0.0 MB |
 +--------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_inference_plot_bayesian_networks.py` (``plot_bayesian_networks.py``)                       | 00:00.179 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_inference_plot_bayesian_networks.py` (``plot_bayesian_networks.py``)                       | 00:00.185 | 0.0 MB |
 +--------------------------------------------------------------------------------------------------------------------------+-----------+--------+

@@ -137,10 +137,13 @@
 </section>
 <section id="troubleshooting">
 <h3>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this headline"></a></h3>
-<p>Sometimes pip will cause incompatabilities with your currently installed packages. If this happens try:</p>
+<p>Sometimes pip will cause incompatabilities with your currently installed packages and will fail. If so try to reinstall with:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">e</span> <span class="o">.</span> <span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">build</span><span class="o">-</span><span class="n">isolation</span>
 </pre></div>
 </div>
+<p>The above has solved errors such as
+“ValueError: numpy.ndarray size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject”</p>
+<p>A pure pip-based installation on OSX M1 is not recommended. Installing scipy with pip is very difficult on this platform and requires expert intervention. Instead install scipy with Conda and everything should work well.</p>
 <p>Sometimes developers need to remove all files generated when installing. To do this use:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">setup</span><span class="o">.</span><span class="n">py</span> <span class="n">clean</span> <span class="o">--</span><span class="nb">all</span>
 <span class="n">find</span> <span class="o">.</span> <span class="o">-</span><span class="n">name</span> <span class="s2">&quot;*.pyc&quot;</span> <span class="o">-</span><span class="n">exec</span> <span class="n">rm</span> <span class="o">-</span><span class="n">f</span> <span class="p">{}</span> \<span class="p">;</span>

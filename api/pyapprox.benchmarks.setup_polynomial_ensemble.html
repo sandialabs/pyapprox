@@ -77,6 +77,8 @@
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_wing_weight_benchmark.html">setup_wing_weight_benchmark</a></li>
 <li class="toctree-l4 current"><a class="current reference internal" href="#">setup_polynomial_ensemble</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.list_benchmarks.html">list_benchmarks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark.html">setup_advection_diffusion_kle_inversion_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark.html">setup_multi_index_advection_diffusion_benchmark</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../user_reference_guide.html#id3">Classes</a></li>
@@ -126,15 +128,15 @@
 <dd><p>Return an ensemble of 5 univariate models of the form</p>
 <div class="math notranslate nohighlight">
 \[f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4\]</div>
-<p>where <a href="#id1"><span class="problematic" id="id2">:mat:`z\sim\mathcal{U}[0, 1]`</span></a></p>
+<p>where <span class="math notranslate nohighlight">\(z\sim\mathcal{U}[0, 1]\)</span></p>
 <dl class="field-list">
 <dt class="field-odd">Returns</dt>
 <dd class="field-odd"><dl>
-<dt><strong>benchmark</strong><span class="classifier"><a class="reference internal" href="pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark" title="pyapprox.benchmarks.Benchmark"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.benchmarks.Benchmark</span></code></a></span></dt><dd><p>Object containing the benchmark attributes</p>
+<dt><strong>benchmark</strong><span class="classifier"><a class="reference internal" href="pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark" title="pyapprox.benchmarks.Benchmark"><code class="xref py py-class docutils literal notranslate"><span class="pre">Benchmark</span></code></a></span></dt><dd><p>Object containing the benchmark attributes</p>
 </dd>
 <dt><strong>fun</strong><span class="classifier">callable</span></dt><dd><p>The function being analyzed</p>
 </dd>
-<dt><strong>variable</strong><span class="classifier"><a class="reference internal" href="pyapprox.variables.JointVariable.html#pyapprox.variables.JointVariable" title="pyapprox.variables.JointVariable"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.variables.JointVariable</span></code></a></span></dt><dd><p>Class containing information about each of the nvars inputs to fun</p>
+<dt><strong>variable</strong><span class="classifier"><a class="reference internal" href="pyapprox.variables.JointVariable.html#pyapprox.variables.JointVariable" title="pyapprox.variables.JointVariable"><code class="xref py py-class docutils literal notranslate"><span class="pre">JointVariable</span></code></a></span></dt><dd><p>Class containing information about each of the nvars inputs to fun</p>
 </dd>
 <dt><strong>means</strong><span class="classifier">np.ndarray (nmodels)</span></dt><dd><p>The mean of each model fidelity</p>
 </dd>

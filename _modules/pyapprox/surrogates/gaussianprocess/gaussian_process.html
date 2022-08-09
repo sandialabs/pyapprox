@@ -95,15 +95,12 @@
 <span class="kn">from</span> <span class="nn">scipy.special</span> <span class="kn">import</span> <span class="n">kv</span><span class="p">,</span> <span class="n">gamma</span>
 
 <span class="kn">from</span> <span class="nn">sklearn.gaussian_process</span> <span class="kn">import</span> <span class="n">GaussianProcessRegressor</span>
-<span class="kn">from</span> <span class="nn">sklearn.gaussian_process.kernels</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">Matern</span><span class="p">,</span> <span class="n">RBF</span><span class="p">,</span> <span class="n">Product</span><span class="p">,</span> <span class="n">Sum</span><span class="p">,</span> <span class="n">ConstantKernel</span><span class="p">,</span> <span class="n">WhiteKernel</span>
-<span class="p">)</span>
 
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.gaussianprocess.kernels</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Matern</span><span class="p">,</span> <span class="n">Product</span><span class="p">,</span> <span class="n">Sum</span><span class="p">,</span> <span class="n">ConstantKernel</span><span class="p">,</span> <span class="n">WhiteKernel</span><span class="p">,</span> <span class="n">RBF</span>
+<span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">cartesian_product</span><span class="p">,</span> <span class="n">outer_product</span>
-<span class="p">)</span>
-<span class="kn">from</span> <span class="nn">pyapprox.expdesign.low_discrepancy_sequences</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">transformed_halton_sequence</span>
 <span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.util.linalg</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">pivoted_cholesky_decomposition</span><span class="p">,</span>
@@ -192,6 +189,10 @@
                 <span class="n">nu</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">X_train_</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">kernel</span><span class="o">.</span><span class="n">length_scale</span><span class="p">)</span>
             <span class="n">grad</span> <span class="o">=</span> <span class="n">gradK</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_</span><span class="p">)</span>
             <span class="n">kernel</span> <span class="o">=</span> <span class="n">extract_covariance_kernel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kernel_</span><span class="p">,</span> <span class="p">[</span><span class="n">ConstantKernel</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="c1"># gpr in later versions of sklearn only return 1D array</span>
+                <span class="c1"># while earlier versions return 2D array with one column</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">result</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
             <span class="k">if</span> <span class="n">kernel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">grad</span> <span class="o">*=</span> <span class="n">kernel</span><span class="o">.</span><span class="n">constant_value</span>
             <span class="k">return</span> <span class="n">result</span><span class="p">,</span> <span class="n">grad</span>
@@ -201,6 +202,12 @@
             <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="n">result</span> <span class="o">=</span> <span class="p">[</span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">][:,</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">+</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]</span>
                 <span class="n">result</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">result</span>
+
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># gpr in later versions of sklearn only return 1D array</span>
+            <span class="c1"># while earlier versions return 2D array with one column</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">result</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">result</span></div>
 
 <div class="viewcode-block" id="GaussianProcess.predict_random_realization"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.GaussianProcess.html#pyapprox.surrogates.GaussianProcess.predict_random_realization">[docs]</a>    <span class="k">def</span> <span class="nf">predict_random_realization</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">rand_noise</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>

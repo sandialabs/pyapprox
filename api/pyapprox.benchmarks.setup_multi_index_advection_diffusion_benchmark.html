@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>setup_multi_index_advection_diffusion_benchmark &mdash; PyApprox 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Benchmark" href="pyapprox.benchmarks.Benchmark.html" />
+    <link rel="prev" title="setup_advection_diffusion_kle_inversion_benchmark" href="pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> PyApprox
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.analysis">pyapprox.analysis Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.bayes">pyapprox.bayes Package</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.benchmarks">pyapprox.benchmarks Package</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="../user_reference_guide.html#id2">Functions</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_ishigami_function.html">setup_ishigami_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_sobol_g_function.html">setup_sobol_g_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_oakley_function.html">setup_oakley_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_genz_function.html">setup_genz_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_rosenbrock_function.html">setup_rosenbrock_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_benchmark.html">setup_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_piston_benchmark.html">setup_piston_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_wing_weight_benchmark.html">setup_wing_weight_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_polynomial_ensemble.html">setup_polynomial_ensemble</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.list_benchmarks.html">list_benchmarks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark.html">setup_advection_diffusion_kle_inversion_benchmark</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">setup_multi_index_advection_diffusion_benchmark</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_reference_guide.html#id3">Classes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.expdesign">pyapprox.expdesign Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.interface">pyapprox.interface Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.multifidelity">pyapprox.multifidelity Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.optimization">pyapprox.optimization Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.surrogates">pyapprox.surrogates Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.util">pyapprox.util Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.variables">pyapprox.variables Package</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
+      <li>setup_multi_index_advection_diffusion_benchmark</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="setup-multi-index-advection-diffusion-benchmark">
+<h1>setup_multi_index_advection_diffusion_benchmark<a class="headerlink" href="#setup-multi-index-advection-diffusion-benchmark" title="Permalink to this headline"></a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark">
+<span class="sig-prename descclassname"><span class="pre">pyapprox.benchmarks.</span></span><span class="sig-name descname"><span class="pre">setup_multi_index_advection_diffusion_benchmark</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">kle_nvars</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kle_length_scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kle_stdev</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_eval_concurrency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_scenario</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">functional</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">config_values</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/benchmarks/benchmarks.html#setup_multi_index_advection_diffusion_benchmark"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark" title="Permalink to this definition"></a></dt>
+<dd><p>This benchmark is used to test methods for forward propagation of 
+uncertainty. The forward simulation model is the transient 
+advection-diffusion model</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\frac{\partial u}{\partial t}(x,t,\rv) &amp;= \nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] -\nabla u(x,t,\rv)+g(x,t) &amp;(x,t,\rv)\in D\times [0,1]\times\rvdom\\
+\mathcal{B}(x,t,\rv)&amp;=0  &amp;(x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
+u(x,t,\rv)&amp;=u_0(x,\rv) &amp; (x,t,\rv)\in D\times\{t=0\}\times\rvdom\end{split}\]</div>
+<p>where</p>
+<div class="math notranslate nohighlight">
+\[g(x,t)=\frac{100}{2\pi 0.1^2}\exp\left(-\frac{\lvert x-[0.25,0.75]^\top\rvert^2}{2\cdot 0.1^2}\right)-\frac{s_\mathrm{sink}}{2\pi h_\mathrm{sink}^2}\exp\left(-\frac{\lvert x-x_\mathrm{sink}\rvert^2}{2h_\mathrm{sink}^2}\right)\]</div>
+<p>and <span class="math notranslate nohighlight">\(B(x,t,z)\)</span> is set to enforce Dirichlet boundary conditions, i.e.</p>
+<div class="math notranslate nohighlight">
+\[u(x) = 0 \quad\mathrm{on} \quad\partial D\]</div>
+<p>As with the <a class="reference internal" href="pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark.html#pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark" title="pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark()</span></code></a>
+we parameterize the uncertain diffusivity with a Karhunen Loeve Expansion (KLE)</p>
+<div class="math notranslate nohighlight">
+\[k(x, \rv)=\exp\left(\sum_{d=1}^D \sqrt{\lambda_d}\psi_d(x)\rv_d\right).\]</div>
+<p>If no initial condition is provided by the user then the governing equations in <a class="reference internal" href="pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark.html#pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark" title="pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark()</span></code></a> is used to create an initial condition, where the forcing is set to be the first term of <span class="math notranslate nohighlight">\(g\)</span> here. I.e. the steady state solution before the second term of <span class="math notranslate nohighlight">\(g\)</span> is used to remove the concentration <span class="math notranslate nohighlight">\(u\)</span> from the domain.</p>
+<p>The quantity of interest <span class="math notranslate nohighlight">\(f(z)\)</span> is the integral of the final solution in the subdomain <span class="math notranslate nohighlight">\(S=[0.75, 1]\times[0, 0.25]\)</span>, i.e.</p>
+<div class="math notranslate nohighlight">
+\[f(z)=\int_S u(x,T,z) dx\]</div>
+<p>This model can be evaluated using different numerical discreizations that control the two spatial mesh resolutions and the timestep. The model is evaluated by specifying the random variables and the three numerical (configuration) variables.</p>
+<p>If not time_scenario is provided. The QoI from the steady state solution is returned.</p>
+<p>This benchmark can be modified by
+changing the default keyword arguments if necessary but is not recommended.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>nvars</strong><span class="classifier">integer</span></dt><dd><p>The number of variables of the KLE</p>
+</dd>
+<dt><strong>kle_length_scale</strong><span class="classifier">float</span></dt><dd><p>The correlation length <span class="math notranslate nohighlight">\(L_c\)</span> of the covariance kernel</p>
+</dd>
+<dt><strong>kle_sigma</strong><span class="classifier">float</span></dt><dd><p>The standard deviation of the KLE kernel</p>
+</dd>
+<dt><strong>max_eval_concurrency</strong><span class="classifier">integer</span></dt><dd><p>The maximum number of simulations that can be run in parallel. Should be         no more than the maximum number of cores on the computer being used</p>
+</dd>
+<dt><strong>time_scenario</strong><span class="classifier">dict</span></dt><dd><p>Options defining the transient simulation. If None a steady state problem will be solved
+If True the default time scenario will be used which corresponds to specifying the dictionary</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">time_scenario</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;final_time&quot;</span><span class="p">:</span> <span class="mf">0.2</span><span class="p">,</span>
+    <span class="s2">&quot;butcher_tableau&quot;</span><span class="p">:</span> <span class="s2">&quot;im_crank2&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;deltat&quot;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span>  <span class="c1"># default will be overwritten</span>
+    <span class="s2">&quot;init_sol_fun&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="s2">&quot;sink&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">50</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="p">[</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">]]</span>
+    <span class="p">}</span>
+</pre></div>
+</div>
+<p>Respectively, the entries of sink are <span class="math notranslate nohighlight">\(s_\mathrm{sink}, h_\mathrm{sink}, x_\mathrm{sink}\)</span>
+init_sol is a callable function with signature <code class="docutils literal notranslate"><span class="pre">init_sol_fun(x)</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray</span> <span class="pre">(nx,</span> <span class="pre">1)</span></code>
+where <code class="docutils literal notranslate"><span class="pre">x</span></code> is np.ndarray (nphys_vars, nx) are physical coordinates in the mesh. <code class="docutils literal notranslate"><span class="pre">butcher_tableau</span></code> specifies the time-stepping scheme which can be either
+<code class="docutils literal notranslate"><span class="pre">im_beuler1</span></code> or <code class="docutils literal notranslate"><span class="pre">im_crank2</span></code>. <code class="docutils literal notranslate"><span class="pre">final_time</span></code> specifies <span class="math notranslate nohighlight">\(T\)</span>.</p>
+</dd>
+<dt><strong>functional</strong><span class="classifier">callable</span></dt><dd><p>Function used to compute the Quantities of interest with signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">functional(sol,</span> <span class="pre">z)</span> <span class="pre">-&gt;</span> <span class="pre">float</span></code></p>
+<p>Here <code class="docutils literal notranslate"><span class="pre">sol:</span> <span class="pre">torch.tensor</span> <span class="pre">(ndof)</span></code> is the solution at the mesh points
+and <code class="docutils literal notranslate"><span class="pre">z</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray(nkle_vars,</span> <span class="pre">1)</span></code> is the value of the KLE
+coefficients that produced <code class="docutils literal notranslate"><span class="pre">sol</span></code>. If None the subdomain intergral
+of sol at the final time will be used as defined above.</p>
+</dd>
+<dt><strong>config_values</strong><span class="classifier">list (np.ndarray)</span></dt><dd><p>List with three entries (two if time_scenario=None) The first two are
+the values of the degrees that can be used to construct the
+collocation mesh in each physical direction. The third is an array of
+the timestep sizes that can be used to integrate the PDE in time.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl>
+<dt><strong>benchmark</strong><span class="classifier"><a class="reference internal" href="pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark" title="pyapprox.benchmarks.benchmarks.Benchmark"><code class="xref py py-class docutils literal notranslate"><span class="pre">Benchmark</span></code></a></span></dt><dd><p>Object containing the benchmark attributes documented below</p>
+</dd>
+<dt><strong>fun</strong><span class="classifier">callable</span></dt><dd><p>The quantity of interest <span class="math notranslate nohighlight">\(f(w)\)</span> with signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">fun(w)</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray</span></code></p>
+<p>where <code class="docutils literal notranslate"><span class="pre">w</span></code> is a 2D np.ndarray with shape (nvars+3,nsamples) and the
+output is a 2D np.ndarray with shape (nsamples,1). The first <code class="docutils literal notranslate"><span class="pre">nvars</span></code>
+rows of <code class="docutils literal notranslate"><span class="pre">w</span></code> are realizations of the random variables. The last 3 rows
+are configuration variables specifying the numerical discretization of
+the PDE model. See config_values documentation above. This is useful
+for testing multi-index multi-fidelity methods.</p>
+</dd>
+<dt><strong>variable</strong><span class="classifier"><a class="reference internal" href="pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable" title="pyapprox.variables.joint.IndependentMarginalsVariable"><code class="xref py py-class docutils literal notranslate"><span class="pre">IndependentMarginalsVariable</span></code></a></span></dt><dd><p>Object containing information of the joint density of the inputs z
+which is the tensor product of independent and identically distributed
+Gaussian variables <span class="math notranslate nohighlight">\(\mathcal{N}(0,1)\)</span>.</p>
+</dd>
+<dt><strong>get_num_degrees_of_freedom</strong><span class="classifier">callable</span></dt><dd><p>Function that returns the number of mesh points multiplied by the
+number of timesteps, with signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">get_num_degrees_of_freedom(v)</span> <span class="pre">-&gt;</span> <span class="pre">int</span></code></p>
+<p>where <code class="docutils literal notranslate"><span class="pre">v-&gt;np.ndarray(3)</span></code> are the thre configuration values
+specifiying the numerical discretization</p>
+</dd>
+<dt><strong>config_var_trans</strong><span class="classifier"><a class="reference internal" href="pyapprox.variables.ConfigureVariableTransformation.html#pyapprox.variables.ConfigureVariableTransformation" title="pyapprox.variables.transforms.ConfigureVariableTransformation"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConfigureVariableTransformation</span></code></a></span></dt><dd><p>A transform that maps the configuration values to and from a canonical space.</p>
+</dd>
+<dt><strong>model_ensemble</strong><span class="classifier"><a class="reference internal" href="pyapprox.interface.ModelEnsemble.html#pyapprox.interface.ModelEnsemble" title="pyapprox.interface.wrappers.ModelEnsemble"><code class="xref py py-class docutils literal notranslate"><span class="pre">ModelEnsemble</span></code></a></span></dt><dd><p>Function return the quantities of interest with the signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">fun(w)</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray</span></code></p>
+<blockquote>
+<div><p>where <code class="docutils literal notranslate"><span class="pre">w</span></code> is a 2D np.ndarray with shape (nvars+1, nsamples) and the
+output is a 2D np.ndarray with shape (nsamples, 1). The first <code class="docutils literal notranslate"><span class="pre">nvars</span></code>
+rows of <code class="docutils literal notranslate"><span class="pre">w</span></code> are realizations of the random variables. The last row
+is a model ID specifying a different numerical discretization. This is useful for testing
+multi-fidelity approximate control variate Monte Carlo estimators.</p>
+</div></blockquote>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyapprox_dev.benchmarks.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s1">&#39;multi_index_advection_diffusion&#39;</span><span class="p">,</span> <span class="n">nvars</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<span class="go">dict_keys([&#39;fun&#39;, &#39;variable&#39;])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark.html" class="btn btn-neutral float-left" title="setup_advection_diffusion_kle_inversion_benchmark" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pyapprox.benchmarks.Benchmark.html" class="btn btn-neutral float-right" title="Benchmark" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

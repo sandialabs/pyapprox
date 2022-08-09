@@ -1,0 +1,30 @@
+name: pyapprox-conda-3.7
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.7 # numba does requires <=3.8
+  - threadpoolctl>3 # avoid sklearn error  AttributeError: 'NoneType' object has no attribute 'split
+  - numpy>=1.20 # numba requires numpy >1.17, <=1.20 but pandas requires >= 1.20
+  - matplotlib
+  - scipy
+  - jupyter
+  - pytest
+  - pytest-cov
+  - pip
+  - setuptools
+  - scikit-learn
+  - Cython
+  - sympy
+  - networkx
+  - pytorch
+  - pymc3 # requires conda-forge
+  # make html in docs folder
+  - sphinx
+#  - sphinx-gallery # requires conda-forge
+  - pip:
+    - sphinx-gallery
+    - sphinx_copybutton
+    - sphinx_rtd_theme
+    - numpydoc
+    - sphinx_automodapi

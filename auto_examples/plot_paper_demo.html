@@ -141,7 +141,7 @@ following the exposition in <a class="reference internal" href="#pyapprox2022" i
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;torch._C.Generator object at 0x153101b10&gt;
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;torch._C.Generator object at 0x12f3e9e10&gt;
 </pre></div>
 </div>
 <p>The tutorial can save the figures to file if desired. If you do want the plots
@@ -223,7 +223,7 @@ their execution times</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.02768397 0.07392693]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.02743196 0.07590818]
 </pre></div>
 </div>
 <p>Pyapprox provide numerous benchmarks for verifying, validating and comparing
@@ -357,6 +357,11 @@ Independent Marginal Variable
 Number of variables: 3
 Unique variables and global id:
     norm(loc=0,scale=1): z0, z1, z2
+Only 100 samples in chain.
+Sequential sampling (2 chains in 1 job)
+NUTS: [z_2, z_1, z_0]
+The acceptance probability does not match the target. It is 0.9508962216489982, but should be close to 0.8. Try to increase the number of tuning steps.
+The acceptance probability does not match the target. It is 0.9583451279721997, but should be close to 0.8. Try to increase the number of tuning steps.
 </pre></div>
 </div>
 <p>Now plot the posterior samples with the 2D Marginals of the posterior. Note
@@ -484,7 +489,123 @@ for each run</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance 9.836751142547392e-11
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[86.61793072] nsample_ratios
+[  1 134] nsf1
+[  1 134] nsf2
+[134.] rounded nsample_ratios
+[38.41300959] nsample_ratios
+[  3 131] nsf1
+[  3 131] nsf2
+[43.66666667] rounded nsample_ratios
+[26.73111506] nsample_ratios
+[  5 146] nsf1
+[  5 146] nsf2
+[29.2] rounded nsample_ratios
+[390.86028301] nsample_ratios
+[  1 390] nsf1
+[  1 390] nsf2
+[390.] rounded nsample_ratios
+[177.59244178] nsample_ratios
+[  2 512] nsf1
+[  2 512] nsf2
+[256.] rounded nsample_ratios
+[77.70477241] nsample_ratios
+[  6 495] nsf1
+[  6 495] nsf2
+[82.5] rounded nsample_ratios
+[53.27223598] nsample_ratios
+[ 10 538] nsf1
+[ 10 538] nsf2
+[53.8] rounded nsample_ratios
+[ 1.39276871 50.57909387] nsample_ratios
+[  2   3 128] nsf1
+[  2   3 128] nsf2
+[ 1.5 64. ] rounded nsample_ratios
+[ 1.24555129 35.20257119] nsample_ratios
+[  4   5 143] nsf1
+[  4   5 143] nsf2
+[ 1.25 35.75] rounded nsample_ratios
+[  2.         385.07029336] nsample_ratios
+[  1   2 385] nsf1
+[  1   2 385] nsf2
+[  2. 385.] rounded nsample_ratios
+[  1.46360686 233.79904009] nsample_ratios
+[  2   3 504] nsf1
+[  2   3 504] nsf2
+[  1.5 252. ] rounded nsample_ratios
+[  1.2122887  102.30830617] nsample_ratios
+[  4   5 481] nsf1
+[  4   5 481] nsf2
+[  1.25 120.25] rounded nsample_ratios
+[ 1.13535226 70.14431782] nsample_ratios
+[  7   8 518] nsf1
+[  7   8 518] nsf2
+[ 1.14285714 74.        ] rounded nsample_ratios
+[ 1.24576165 35.22861578] nsample_ratios
+[  4   5 143] nsf1
+[  4   5 143] nsf2
+[ 1.25 35.75] rounded nsample_ratios
+[  2.         385.04411601] nsample_ratios
+[  1   2 385] nsf1
+[  1   2 385] nsf2
+[  2. 385.] rounded nsample_ratios
+[  1.46411713 234.04082252] nsample_ratios
+[  2   3 504] nsf1
+[  2   3 504] nsf2
+[  1.5 252. ] rounded nsample_ratios
+[  1.212502   102.39905014] nsample_ratios
+[  4   5 481] nsf1
+[  4   5 481] nsf2
+[  1.25 120.25] rounded nsample_ratios
+[ 1.13548928 70.20327801] nsample_ratios
+[  7   8 518] nsf1
+[  7   8 518] nsf2
+[ 1.14285714 74.        ] rounded nsample_ratios
+[  2.         385.78157704] nsample_ratios
+[  1   2 385] nsf1
+[  1   2 385] nsf2
+[  2. 385.] rounded nsample_ratios
+[  1.45072701 227.73935007] nsample_ratios
+[  2   3 505] nsf1
+[  2   3 505] nsf2
+[  1.5 252.5] rounded nsample_ratios
+[ 1.20606123 99.61284285] nsample_ratios
+[  4   5 483] nsf1
+[  4   5 483] nsf2
+[  1.25 120.75] rounded nsample_ratios
+[ 1.13120452 68.28721754] nsample_ratios
+[  7   8 520] nsf1
+[  7   8 520] nsf2
+[ 1.14285714 74.28571429] rounded nsample_ratios
+[  1.39015459 198.8294807 ] nsample_ratios
+[  2   3 509] nsf1
+[  2   3 509] nsf2
+[  1.5 254.5] rounded nsample_ratios
+[ 1.17745253 87.00474743] nsample_ratios
+[  5   6 490] nsf1
+[  5   6 490] nsf2
+[ 1.2 98. ] rounded nsample_ratios
+[ 1.11234102 59.65297087] nsample_ratios
+[  8   9 530] nsf1
+[  8   9 530] nsf2
+[ 1.125 66.25 ] rounded nsample_ratios
+[ 1.1724299  84.75058957] nsample_ratios
+[  5   6 491] nsf1
+[  5   6 491] nsf2
+[ 1.2 98.2] rounded nsample_ratios
+[ 1.10904215 58.10520572] nsample_ratios
+[  9  10 532] nsf1
+[  9  10 532] nsf2
+[ 1.11111111 59.11111111] rounded nsample_ratios
+[ 1.10901279 58.0902301 ] nsample_ratios
+[  9  10 532] nsf1
+[  9  10 532] nsf2
+[ 1.11111111 59.11111111] rounded nsample_ratios
+[177.59244178] nsample_ratios
+[  28 5126] nsf1
+[  28 5126] nsf2
+[183.07142857] rounded nsample_ratios
+Predicted variance 9.687044686792184e-11
 </pre></div>
 </div>
 <p>Now we can plot the relative performance of the single and multi-fidelity
@@ -512,7 +633,26 @@ estimates of the mean before requiring any additional model evaluations</p>
     <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;acv-variance-reduction.pdf&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_paper_demo_007.png" srcset="../_images/sphx_glr_plot_paper_demo_007.png" alt="plot paper demo" class = "sphx-glr-single-img"/><p>It is clear that the multi-fidelity estimator will be more computationally
+<img src="../_images/sphx_glr_plot_paper_demo_007.png" srcset="../_images/sphx_glr_plot_paper_demo_007.png" alt="plot paper demo" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[47.51211184] nsample_ratios
+[ 0 47] nsf1
+[ 0 47] nsf2
+[47.] rounded nsample_ratios
+[177.59244178] nsample_ratios
+[  2 512] nsf1
+[  2 512] nsf2
+[256.] rounded nsample_ratios
+[177.59244178] nsample_ratios
+[  28 5126] nsf1
+[  28 5126] nsf2
+[183.07142857] rounded nsample_ratios
+[177.59244178] nsample_ratios
+[  288 51267] nsf1
+[  288 51267] nsf2
+[178.01041667] rounded nsample_ratios
+</pre></div>
+</div>
+<p>It is clear that the multi-fidelity estimator will be more computationally
 efficient for multiple computational budgets (target costs). Once the user
 is ready to actually estimate the mean QoI they can use</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">target_cost</span> <span class="o">=</span> <span class="mi">10</span>
@@ -527,7 +667,11 @@ is ready to actually estimate the mean QoI they can use</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Mean QoI 0.0010523528378532541
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[47.51211184] nsample_ratios
+[ 0 47] nsf1
+[ 0 47] nsf2
+[47.] rounded nsample_ratios
+Mean QoI 0.001136890542170262
 </pre></div>
 </div>
 <section id="references">
@@ -537,7 +681,7 @@ is ready to actually estimate the mean QoI they can use</p>
 <dd><p><a href="#id2"><span class="problematic" id="id3">`Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022)`_</span></a></p>
 </dd>
 </dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 1 minutes  18.580 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 1 minutes  23.846 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-paper-demo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/4231eb2cab42df6435f116bfe8f5e15a/plot_paper_demo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_paper_demo.py</span></code></a></p>

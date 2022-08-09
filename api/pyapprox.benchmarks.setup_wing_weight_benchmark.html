@@ -21,6 +21,8 @@
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
         <script src="../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -75,6 +77,8 @@
 <li class="toctree-l4 current"><a class="current reference internal" href="#">setup_wing_weight_benchmark</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_polynomial_ensemble.html">setup_polynomial_ensemble</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.list_benchmarks.html">list_benchmarks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark.html">setup_advection_diffusion_kle_inversion_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark.html">setup_multi_index_advection_diffusion_benchmark</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../user_reference_guide.html#id3">Classes</a></li>
@@ -123,11 +127,12 @@
 <span class="sig-prename descclassname"><span class="pre">pyapprox.benchmarks.</span></span><span class="sig-name descname"><span class="pre">setup_wing_weight_benchmark</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/benchmarks/benchmarks.html#setup_wing_weight_benchmark"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.benchmarks.setup_wing_weight_benchmark" title="Permalink to this definition"></a></dt>
 <dd><p>Setup the wing weight model benchmark.</p>
 <p>The model is given by</p>
-<p>::math f(x) = 0.036; S_w^{0.758}W_{fw}^{0.0035}left(frac{A}{cos^2(Lambda)}right)^{0.6}q^{0.006}lambda^{0.04}left(frac{100t_c}{cos(Lambda)}right)^{-0.3}(N_zW_{dg})^{0.49}+S_wW_p,</p>
+<div class="math notranslate nohighlight">
+\[f(x) = 0.036\; S_w^{0.758}W_{fw}^{0.0035}\left(\frac{A}{\cos^2(\Lambda)}\right)^{0.6}q^{0.006}\lambda^{0.04}\left(\frac{100t_c}{\cos(\Lambda)}\right)^{-0.3}(N_zW_{dg})^{0.49}+S_wW_p,\]</div>
 <dl class="field-list">
 <dt class="field-odd">Returns</dt>
 <dd class="field-odd"><dl>
-<dt><strong>benchmark</strong><span class="classifier"><a class="reference internal" href="pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark" title="pyapprox.benchmarks.Benchmark"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.benchmarks.Benchmark</span></code></a></span></dt><dd><p>Object containing the benchmark attributes documented below</p>
+<dt><strong>benchmark</strong><span class="classifier"><a class="reference internal" href="pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark" title="pyapprox.benchmarks.Benchmark"><code class="xref py py-class docutils literal notranslate"><span class="pre">Benchmark</span></code></a></span></dt><dd><p>Object containing the benchmark attributes documented below</p>
 </dd>
 <dt><strong>fun</strong><span class="classifier">callable</span></dt><dd><p>The wing weight model with signature</p>
 <p><code class="docutils literal notranslate"><span class="pre">fun(z)</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray</span></code></p>
@@ -139,7 +144,7 @@ output is a 2D np.ndarray with shape (nsamples,1)</p>
 <p>where <code class="docutils literal notranslate"><span class="pre">z</span></code> is a 2D np.ndarray with shape (nvars,nsamples) and the
 output is a 2D np.ndarray with shape (nvars,1)</p>
 </dd>
-<dt><strong>variable</strong><span class="classifier"><a class="reference internal" href="pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable" title="pyapprox.variables.IndependentMarginalsVariable"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.variables.IndependentMarginalsVariable</span></code></a></span></dt><dd><p>Object containing information of the joint density of the inputs z
+<dt><strong>variable</strong><span class="classifier"><a class="reference internal" href="pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable" title="pyapprox.variables.IndependentMarginalsVariable"><code class="xref py py-class docutils literal notranslate"><span class="pre">IndependentMarginalsVariable</span></code></a></span></dt><dd><p>Object containing information of the joint density of the inputs z
 which is the tensor product of independent and identically distributed
 uniform variables`.</p>
 </dd>

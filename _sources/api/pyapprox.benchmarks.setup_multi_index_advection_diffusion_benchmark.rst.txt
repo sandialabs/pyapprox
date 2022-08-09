@@ -1,0 +1,6 @@
+setup_multi_index_advection_diffusion_benchmark
+===============================================
+
+.. currentmodule:: pyapprox.benchmarks
+
+.. autofunction:: setup_multi_index_advection_diffusion_benchmark

@@ -221,7 +221,11 @@ f_4(z)&amp;=(1 - M/(b(h^2)Y) - (P(1 + M)/(hY))^2)\end{split}\]</div>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>MC error 0.02681883818073516
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[32.90178931] nsample_ratios
+[  5 188] nsf1
+[  5 188] nsf2
+[37.6] rounded nsample_ratios
+MC error 0.02681883818073516
 MLMC error 0.016225314022627835
 </pre></div>
 </div>
@@ -240,7 +244,11 @@ MLMC error 0.016225314022627835
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Theoretical 2 model MLMC variance 5.237424316269406e-06
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[32.90178931] nsample_ratios
+[  5 188] nsf1
+[  5 188] nsf2
+[37.6] rounded nsample_ratios
+Theoretical 2 model MLMC variance 5.237424316269406e-06
 Achieved 2 model MLMC variance 1.201156752118136e-06
 </pre></div>
 </div>
@@ -258,7 +266,11 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Theoretical 3 model MLMC variance reduction 3.941126333726465e-06
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[23.38346104 49.40657799] nsample_ratios
+[  6 154 325] nsf1
+[  6 154 325] nsf2
+[25.66666667 54.16666667] rounded nsample_ratios
+Theoretical 3 model MLMC variance reduction 3.941126333726465e-06
 </pre></div>
 </div>
 <p>The variance reduction obtained using three models is only slightly better than when using two models. The difference in variance reduction is dependent on the correlations between the models and the number of samples assigned to each model.</p>
@@ -276,7 +288,11 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Theoretical 3 model MLMC variance reduction for a pathalogical example 44142502.4446217
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[ 490.32492728 1704.01595283] nsample_ratios
+[   10  5265 18300] nsf1
+[   10  5265 18300] nsf2
+[ 526.5 1830. ] rounded nsample_ratios
+Theoretical 3 model MLMC variance reduction for a pathalogical example 44142502.4446217
 </pre></div>
 </div>
 <p>Using MLMC for this ensemble of models creates an estimate with a variance orders of magnitude larger than just using the high-fidelity model. When using models that do not admit a hierarchical structure, alternative approaches are needed. We will introduce such estimators in future tutorials.</p>
@@ -358,7 +374,42 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_multi_level_monte_carlo_001.png" srcset="../../_images/sphx_glr_plot_multi_level_monte_carlo_001.png" alt="plot multi level monte carlo" class = "sphx-glr-single-img"/><p>The left plot shows that the variance of the MLMC estimator is over and order of magnitude smaller than the variance of the single fidelity MC estimator for a fixed cost. The impact of using the approximate covariance is more significant for small samples sizes.</p>
+<img src="../../_images/sphx_glr_plot_multi_level_monte_carlo_001.png" srcset="../../_images/sphx_glr_plot_multi_level_monte_carlo_001.png" alt="plot multi level monte carlo" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[   5.018805     20.86309658   95.01788757 1082.33161809] nsample_ratios
+[   5   26  109  496 5655] nsf1
+[   5   26  109  496 5655] nsf2
+[   5.2   21.8   99.2 1131. ] rounded nsample_ratios
+[   5.018805     20.86309658   95.01788757 1082.33161809] nsample_ratios
+[   52   262  1090  4964 56555] nsf1
+[   52   262  1090  4964 56555] nsf2
+[   5.03846154   20.96153846   95.46153846 1087.59615385] rounded nsample_ratios
+[   5.018805     20.86309658   95.01788757 1082.33161809] nsample_ratios
+[   522   2622  10901  49649 565551] nsf1
+[   522   2622  10901  49649 565551] nsf2
+[   5.02298851   20.88314176   95.11302682 1083.43103448] rounded nsample_ratios
+[   5.018805     20.86309658   95.01788757 1082.33161809] nsample_ratios
+[   5225   26224  109016  496497 5655516] nsf1
+[   5225   26224  109016  496497 5655516] nsf2
+[   5.01894737   20.86430622   95.02334928 1082.3954067 ] rounded nsample_ratios
+[   5.56398138   26.35508612  130.13935711 1060.71926142] nsample_ratios
+[   4   27  128  632 5158] nsf1
+[   4   27  128  632 5158] nsf2
+[   6.75   32.    158.   1289.5 ] rounded nsample_ratios
+[   5.56398138   26.35508612  130.13935711 1060.71926142] nsample_ratios
+[   48   270  1281  6329 51587] nsf1
+[   48   270  1281  6329 51587] nsf2
+[   5.625        26.6875      131.85416667 1074.72916667] rounded nsample_ratios
+[   5.56398138   26.35508612  130.13935711 1060.71926142] nsample_ratios
+[   486   2706  12817  63292 515873] nsf1
+[   486   2706  12817  63292 515873] nsf2
+[   5.56790123   26.37242798  130.23045267 1061.46707819] rounded nsample_ratios
+[   5.56398138   26.35508612  130.13935711 1060.71926142] nsample_ratios
+[   4863   27060  128176  632924 5158738] nsf1
+[   4863   27060  128176  632924 5158738] nsf2
+[   5.56446638   26.35739256  130.15093564 1060.81390088] rounded nsample_ratios
+</pre></div>
+</div>
+<p>The left plot shows that the variance of the MLMC estimator is over and order of magnitude smaller than the variance of the single fidelity MC estimator for a fixed cost. The impact of using the approximate covariance is more significant for small samples sizes.</p>
 <p>The right plot depicts the percentage of the computational cost due to evaluating each model. The numbers in the bars represent the number of samples allocated to each model. Relative to the low fidelity models only a small number of samples are allocated to the high-fidelity model, however evaluating these samples represents approximately 50% of the total cost.</p>
 </section>
 <section id="multi-index-monte-carlo">
@@ -380,7 +431,7 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 <dd><p><a class="reference external" href="https://doi.org/10.1007/s00211-015-0734-5">A. Haji-Ali, F. Nobile and R. Tempone. Multi-index Monte Carlo: when sparsity meets sampling. Numerische Mathematik, 132(4), 767-806, 2016.</a></p>
 </dd>
 </dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.124 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.122 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/bb1275901dfaafa79dd0bbce6a0f1ae4/plot_multi_level_monte_carlo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multi_level_monte_carlo.py</span></code></a></p>

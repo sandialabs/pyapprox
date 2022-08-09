@@ -21,6 +21,8 @@
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
         <script src="_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -99,6 +101,8 @@
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_wing_weight_benchmark.html">setup_wing_weight_benchmark</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_polynomial_ensemble.html">setup_polynomial_ensemble</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.list_benchmarks.html">list_benchmarks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark.html">setup_advection_diffusion_kle_inversion_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark.html">setup_multi_index_advection_diffusion_benchmark</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#id3">Classes</a><ul>
@@ -372,6 +376,12 @@ the modeling literature.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.list_benchmarks.html#pyapprox.benchmarks.list_benchmarks" title="pyapprox.benchmarks.list_benchmarks"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list_benchmarks</span></code></a>()</p></td>
 <td><p>List the names of all available benchmarks</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark.html#pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark" title="pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_advection_diffusion_kle_inversion_benchmark</span></code></a>([...])</p></td>
+<td><p>A benchmark for testing maximum likelihood estimation and Bayesian inference algorithms that involves learning the uncertain parameters <span class="math notranslate nohighlight">\(\rv\)</span> from synthteically generated observational data using the model</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark.html#pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark" title="pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_multi_index_advection_diffusion_benchmark</span></code></a>([...])</p></td>
+<td><p>This benchmark is used to test methods for forward propagation of  uncertainty.</p></td>
 </tr>
 </tbody>
 </table>

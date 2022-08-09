@@ -153,6 +153,10 @@ where :math:`z = (b,h,P,M,Y)^T`
 
  .. code-block:: none
 
+    [32.90178931] nsample_ratios
+    [  5 188] nsf1
+    [  5 188] nsf2
+    [37.6] rounded nsample_ratios
     MC error 0.02681883818073516
     MLMC error 0.016225314022627835
 
@@ -194,6 +198,10 @@ The following code computes the variance reduction of the MLMC estimator, using 
 
  .. code-block:: none
 
+    [32.90178931] nsample_ratios
+    [  5 188] nsf1
+    [  5 188] nsf2
+    [37.6] rounded nsample_ratios
     Theoretical 2 model MLMC variance 5.237424316269406e-06
     Achieved 2 model MLMC variance 1.201156752118136e-06
 
@@ -230,6 +238,10 @@ Now let us compute the theoretical variance reduction using 3 models
 
  .. code-block:: none
 
+    [23.38346104 49.40657799] nsample_ratios
+    [  6 154 325] nsf1
+    [  6 154 325] nsf2
+    [25.66666667 54.16666667] rounded nsample_ratios
     Theoretical 3 model MLMC variance reduction 3.941126333726465e-06
 
 
@@ -267,6 +279,10 @@ MLMC works extremely well when the variance between the model discrepancies deca
 
  .. code-block:: none
 
+    [ 490.32492728 1704.01595283] nsample_ratios
+    [   10  5265 18300] nsf1
+    [   10  5265 18300] nsf2
+    [ 526.5 1830. ] rounded nsample_ratios
     Theoretical 3 model MLMC variance reduction for a pathalogical example 44142502.4446217
 
 
@@ -395,6 +411,45 @@ where each model is the function of a single uniform random variable defined on 
    :class: sphx-glr-single-img
 
 
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+    [   5.018805     20.86309658   95.01788757 1082.33161809] nsample_ratios
+    [   5   26  109  496 5655] nsf1
+    [   5   26  109  496 5655] nsf2
+    [   5.2   21.8   99.2 1131. ] rounded nsample_ratios
+    [   5.018805     20.86309658   95.01788757 1082.33161809] nsample_ratios
+    [   52   262  1090  4964 56555] nsf1
+    [   52   262  1090  4964 56555] nsf2
+    [   5.03846154   20.96153846   95.46153846 1087.59615385] rounded nsample_ratios
+    [   5.018805     20.86309658   95.01788757 1082.33161809] nsample_ratios
+    [   522   2622  10901  49649 565551] nsf1
+    [   522   2622  10901  49649 565551] nsf2
+    [   5.02298851   20.88314176   95.11302682 1083.43103448] rounded nsample_ratios
+    [   5.018805     20.86309658   95.01788757 1082.33161809] nsample_ratios
+    [   5225   26224  109016  496497 5655516] nsf1
+    [   5225   26224  109016  496497 5655516] nsf2
+    [   5.01894737   20.86430622   95.02334928 1082.3954067 ] rounded nsample_ratios
+    [   5.56398138   26.35508612  130.13935711 1060.71926142] nsample_ratios
+    [   4   27  128  632 5158] nsf1
+    [   4   27  128  632 5158] nsf2
+    [   6.75   32.    158.   1289.5 ] rounded nsample_ratios
+    [   5.56398138   26.35508612  130.13935711 1060.71926142] nsample_ratios
+    [   48   270  1281  6329 51587] nsf1
+    [   48   270  1281  6329 51587] nsf2
+    [   5.625        26.6875      131.85416667 1074.72916667] rounded nsample_ratios
+    [   5.56398138   26.35508612  130.13935711 1060.71926142] nsample_ratios
+    [   486   2706  12817  63292 515873] nsf1
+    [   486   2706  12817  63292 515873] nsf2
+    [   5.56790123   26.37242798  130.23045267 1061.46707819] rounded nsample_ratios
+    [   5.56398138   26.35508612  130.13935711 1060.71926142] nsample_ratios
+    [   4863   27060  128176  632924 5158738] nsf1
+    [   4863   27060  128176  632924 5158738] nsf2
+    [   5.56446638   26.35739256  130.15093564 1060.81390088] rounded nsample_ratios
+
 
 
 
@@ -425,7 +480,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.124 seconds)
+   **Total running time of the script:** ( 0 minutes  1.122 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py:

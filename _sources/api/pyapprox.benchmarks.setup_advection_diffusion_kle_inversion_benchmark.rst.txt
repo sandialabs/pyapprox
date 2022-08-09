@@ -1,0 +1,6 @@
+setup_advection_diffusion_kle_inversion_benchmark
+=================================================
+
+.. currentmodule:: pyapprox.benchmarks
+
+.. autofunction:: setup_advection_diffusion_kle_inversion_benchmark
