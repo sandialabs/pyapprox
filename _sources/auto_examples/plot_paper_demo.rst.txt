@@ -65,7 +65,7 @@ First lets load all the necessary modules and set the random seeds for reproduci
  .. code-block:: none
 
 
-    <torch._C.Generator object at 0x12f3e9e10>
+    <torch._C.Generator object at 0x140e81d90>
 
 
 
@@ -223,7 +223,7 @@ their execution times
 
  .. code-block:: none
 
-    [0.02743196 0.07590818]
+    [0.02750206 0.07620621]
 
 
 
@@ -476,11 +476,6 @@ time
     Number of variables: 3
     Unique variables and global id:
         norm(loc=0,scale=1): z0, z1, z2
-    Only 100 samples in chain.
-    Sequential sampling (2 chains in 1 job)
-    NUTS: [z_2, z_1, z_0]
-    The acceptance probability does not match the target. It is 0.9508962216489982, but should be close to 0.8. Try to increase the number of tuning steps.
-    The acceptance probability does not match the target. It is 0.9583451279721997, but should be close to 0.8. Try to increase the number of tuning steps.
 
 
 
@@ -730,123 +725,123 @@ for each run
 
  .. code-block:: none
 
-    [86.61793072] nsample_ratios
+    [86.79587866] nsample_ratios
     [  1 134] nsf1
     [  1 134] nsf2
     [134.] rounded nsample_ratios
-    [38.41300959] nsample_ratios
-    [  3 131] nsf1
-    [  3 131] nsf2
-    [43.66666667] rounded nsample_ratios
-    [26.73111506] nsample_ratios
-    [  5 146] nsf1
-    [  5 146] nsf2
-    [29.2] rounded nsample_ratios
-    [390.86028301] nsample_ratios
-    [  1 390] nsf1
-    [  1 390] nsf2
-    [390.] rounded nsample_ratios
-    [177.59244178] nsample_ratios
-    [  2 512] nsf1
-    [  2 512] nsf2
-    [256.] rounded nsample_ratios
-    [77.70477241] nsample_ratios
-    [  6 495] nsf1
-    [  6 495] nsf2
-    [82.5] rounded nsample_ratios
-    [53.27223598] nsample_ratios
-    [ 10 538] nsf1
-    [ 10 538] nsf2
-    [53.8] rounded nsample_ratios
-    [ 1.39276871 50.57909387] nsample_ratios
-    [  2   3 128] nsf1
-    [  2   3 128] nsf2
-    [ 1.5 64. ] rounded nsample_ratios
-    [ 1.24555129 35.20257119] nsample_ratios
-    [  4   5 143] nsf1
-    [  4   5 143] nsf2
-    [ 1.25 35.75] rounded nsample_ratios
-    [  2.         385.07029336] nsample_ratios
-    [  1   2 385] nsf1
-    [  1   2 385] nsf2
-    [  2. 385.] rounded nsample_ratios
-    [  1.46360686 233.79904009] nsample_ratios
-    [  2   3 504] nsf1
-    [  2   3 504] nsf2
-    [  1.5 252. ] rounded nsample_ratios
-    [  1.2122887  102.30830617] nsample_ratios
-    [  4   5 481] nsf1
-    [  4   5 481] nsf2
-    [  1.25 120.25] rounded nsample_ratios
-    [ 1.13535226 70.14431782] nsample_ratios
-    [  7   8 518] nsf1
-    [  7   8 518] nsf2
-    [ 1.14285714 74.        ] rounded nsample_ratios
-    [ 1.24576165 35.22861578] nsample_ratios
-    [  4   5 143] nsf1
-    [  4   5 143] nsf2
-    [ 1.25 35.75] rounded nsample_ratios
-    [  2.         385.04411601] nsample_ratios
-    [  1   2 385] nsf1
-    [  1   2 385] nsf2
-    [  2. 385.] rounded nsample_ratios
-    [  1.46411713 234.04082252] nsample_ratios
-    [  2   3 504] nsf1
-    [  2   3 504] nsf2
-    [  1.5 252. ] rounded nsample_ratios
-    [  1.212502   102.39905014] nsample_ratios
-    [  4   5 481] nsf1
-    [  4   5 481] nsf2
-    [  1.25 120.25] rounded nsample_ratios
-    [ 1.13548928 70.20327801] nsample_ratios
-    [  7   8 518] nsf1
-    [  7   8 518] nsf2
-    [ 1.14285714 74.        ] rounded nsample_ratios
-    [  2.         385.78157704] nsample_ratios
-    [  1   2 385] nsf1
-    [  1   2 385] nsf2
-    [  2. 385.] rounded nsample_ratios
-    [  1.45072701 227.73935007] nsample_ratios
-    [  2   3 505] nsf1
-    [  2   3 505] nsf2
-    [  1.5 252.5] rounded nsample_ratios
-    [ 1.20606123 99.61284285] nsample_ratios
-    [  4   5 483] nsf1
-    [  4   5 483] nsf2
-    [  1.25 120.75] rounded nsample_ratios
-    [ 1.13120452 68.28721754] nsample_ratios
-    [  7   8 520] nsf1
-    [  7   8 520] nsf2
-    [ 1.14285714 74.28571429] rounded nsample_ratios
-    [  1.39015459 198.8294807 ] nsample_ratios
+    [38.65097744] nsample_ratios
+    [  3 132] nsf1
+    [  3 132] nsf2
+    [44.] rounded nsample_ratios
+    [26.87360743] nsample_ratios
+    [  5 148] nsf1
+    [  5 148] nsf2
+    [29.6] rounded nsample_ratios
+    [400.02117139] nsample_ratios
+    [  1 400] nsf1
+    [  1 400] nsf2
+    [400.] rounded nsample_ratios
+    [178.4364653] nsample_ratios
+    [  2 517] nsf1
+    [  2 517] nsf2
+    [258.5] rounded nsample_ratios
+    [78.07372016] nsample_ratios
+    [  6 499] nsf1
+    [  6 499] nsf2
+    [83.16666667] rounded nsample_ratios
+    [53.83290167] nsample_ratios
+    [ 10 549] nsf1
+    [ 10 549] nsf2
+    [54.9] rounded nsample_ratios
+    [ 1.39009201 50.84824312] nsample_ratios
+    [  2   3 130] nsf1
+    [  2   3 130] nsf2
+    [ 1.5 65. ] rounded nsample_ratios
+    [ 1.24410659 35.35949621] nsample_ratios
+    [  4   5 144] nsf1
+    [  4   5 144] nsf2
+    [ 1.25 36.  ] rounded nsample_ratios
+    [  2.         394.11976397] nsample_ratios
+    [  1   2 394] nsf1
+    [  1   2 394] nsf2
+    [  2. 394.] rounded nsample_ratios
+    [  1.46106696 234.70634192] nsample_ratios
     [  2   3 509] nsf1
     [  2   3 509] nsf2
     [  1.5 254.5] rounded nsample_ratios
-    [ 1.17745253 87.00474743] nsample_ratios
-    [  5   6 490] nsf1
-    [  5   6 490] nsf2
-    [ 1.2 98. ] rounded nsample_ratios
-    [ 1.11234102 59.65297087] nsample_ratios
-    [  8   9 530] nsf1
-    [  8   9 530] nsf2
-    [ 1.125 66.25 ] rounded nsample_ratios
-    [ 1.1724299  84.75058957] nsample_ratios
-    [  5   6 491] nsf1
-    [  5   6 491] nsf2
-    [ 1.2 98.2] rounded nsample_ratios
-    [ 1.10904215 58.10520572] nsample_ratios
-    [  9  10 532] nsf1
-    [  9  10 532] nsf2
-    [ 1.11111111 59.11111111] rounded nsample_ratios
-    [ 1.10901279 58.0902301 ] nsample_ratios
-    [  9  10 532] nsf1
-    [  9  10 532] nsf2
-    [ 1.11111111 59.11111111] rounded nsample_ratios
-    [177.59244178] nsample_ratios
-    [  28 5126] nsf1
-    [  28 5126] nsf2
-    [183.07142857] rounded nsample_ratios
-    Predicted variance 9.687044686792184e-11
+    [  1.21116308 102.70488626] nsample_ratios
+    [  4   5 486] nsf1
+    [  4   5 486] nsf2
+    [  1.25 121.5 ] rounded nsample_ratios
+    [ 1.13398864 70.82091007] nsample_ratios
+    [  7   8 528] nsf1
+    [  7   8 528] nsf2
+    [ 1.14285714 75.42857143] rounded nsample_ratios
+    [ 1.24384568 35.32411583] nsample_ratios
+    [  4   5 144] nsf1
+    [  4   5 144] nsf2
+    [ 1.25 36.  ] rounded nsample_ratios
+    [  2.         394.14175859] nsample_ratios
+    [  1   2 394] nsf1
+    [  1   2 394] nsf2
+    [  2. 394.] rounded nsample_ratios
+    [  1.46071238 234.53993971] nsample_ratios
+    [  2   3 509] nsf1
+    [  2   3 509] nsf2
+    [  1.5 254.5] rounded nsample_ratios
+    [  1.2109642 102.6170491] nsample_ratios
+    [  4   5 486] nsf1
+    [  4   5 486] nsf2
+    [  1.25 121.5 ] rounded nsample_ratios
+    [ 1.13385259 70.75713423] nsample_ratios
+    [  7   8 528] nsf1
+    [  7   8 528] nsf2
+    [ 1.14285714 75.42857143] rounded nsample_ratios
+    [  2.         394.87842068] nsample_ratios
+    [  1   2 394] nsf1
+    [  1   2 394] nsf2
+    [  2. 394.] rounded nsample_ratios
+    [  1.44767714 228.346756  ] nsample_ratios
+    [  2   3 510] nsf1
+    [  2   3 510] nsf2
+    [  1.5 255. ] rounded nsample_ratios
+    [ 1.20469207 99.878338  ] nsample_ratios
+    [  4   5 487] nsf1
+    [  4   5 487] nsf2
+    [  1.25 121.75] rounded nsample_ratios
+    [ 1.12969767 68.86284924] nsample_ratios
+    [  7   8 530] nsf1
+    [  7   8 530] nsf2
+    [ 1.14285714 75.71428571] rounded nsample_ratios
+    [  1.38741704 199.31151917] nsample_ratios
+    [  2   3 514] nsf1
+    [  2   3 514] nsf2
+    [  1.5 257. ] rounded nsample_ratios
+    [ 1.17622457 87.215252  ] nsample_ratios
+    [  5   6 494] nsf1
+    [  5   6 494] nsf2
+    [ 1.2 98.8] rounded nsample_ratios
+    [ 1.11100821 60.14095862] nsample_ratios
+    [  9  10 541] nsf1
+    [  9  10 541] nsf2
+    [ 1.11111111 60.11111111] rounded nsample_ratios
+    [ 1.17153023 85.08895227] nsample_ratios
+    [  5   6 496] nsf1
+    [  5   6 496] nsf2
+    [ 1.2 99.2] rounded nsample_ratios
+    [ 1.10793829 58.67247151] nsample_ratios
+    [  9  10 543] nsf1
+    [  9  10 543] nsf2
+    [ 1.11111111 60.33333333] rounded nsample_ratios
+    [ 1.10790956 58.65752382] nsample_ratios
+    [  9  10 543] nsf1
+    [  9  10 543] nsf2
+    [ 1.11111111 60.33333333] rounded nsample_ratios
+    [178.4364653] nsample_ratios
+    [  29 5174] nsf1
+    [  29 5174] nsf2
+    [178.4137931] rounded nsample_ratios
+    Predicted variance 9.589916867071303e-11
 
 
 
@@ -897,22 +892,22 @@ estimates of the mean before requiring any additional model evaluations
 
  .. code-block:: none
 
-    [47.51211184] nsample_ratios
-    [ 0 47] nsf1
-    [ 0 47] nsf2
+    [47.96479826] nsample_ratios
+    [ 1 47] nsf1
+    [ 1 47] nsf2
     [47.] rounded nsample_ratios
-    [177.59244178] nsample_ratios
-    [  2 512] nsf1
-    [  2 512] nsf2
-    [256.] rounded nsample_ratios
-    [177.59244178] nsample_ratios
-    [  28 5126] nsf1
-    [  28 5126] nsf2
-    [183.07142857] rounded nsample_ratios
-    [177.59244178] nsample_ratios
-    [  288 51267] nsf1
-    [  288 51267] nsf2
-    [178.01041667] rounded nsample_ratios
+    [178.4364653] nsample_ratios
+    [  2 517] nsf1
+    [  2 517] nsf2
+    [258.5] rounded nsample_ratios
+    [178.4364653] nsample_ratios
+    [  29 5174] nsf1
+    [  29 5174] nsf2
+    [178.4137931] rounded nsample_ratios
+    [178.4364653] nsample_ratios
+    [  290 51748] nsf1
+    [  290 51748] nsf2
+    [178.44137931] rounded nsample_ratios
 
 
 
@@ -947,9 +942,9 @@ is ready to actually estimate the mean QoI they can use
 
  .. code-block:: none
 
-    [47.51211184] nsample_ratios
-    [ 0 47] nsf1
-    [ 0 47] nsf2
+    [47.96479826] nsample_ratios
+    [ 1 47] nsf1
+    [ 1 47] nsf2
     [47.] rounded nsample_ratios
     Mean QoI 0.001136890542170262
 
@@ -965,7 +960,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 1 minutes  23.846 seconds)
+   **Total running time of the script:** ( 1 minutes  21.713 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_paper_demo.py:

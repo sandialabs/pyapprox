@@ -401,11 +401,9 @@ Sample initial stage: ...
 Stage:   0 Beta: 0.586 Steps:  25 Acce: 1.000
 Stage:   1 Beta: 1.000 Steps:  25 Acce: 0.443
 arviz - WARNING - Shape validation failed: input_shape: (1, 500), minimum_shape: (chains=2, draws=4)
-      mean     sd  hdi_3%  hdi_97%  mcse_mean  ...  ess_mean  ess_sd  ess_bulk  ess_tail  r_hat
-z_0 -0.060  0.967  -1.606    1.726      0.049  ...     388.0   388.0     398.0     460.0    NaN
-z_1  0.424  0.648  -0.736    1.561      0.026  ...     601.0   589.0     603.0     515.0    NaN
-
-[2 rows x 11 columns]
+      mean     sd  hdi_3%  hdi_97%  mcse_mean  mcse_sd  ess_mean  ess_sd  ess_bulk  ess_tail  r_hat
+z_0 -0.060  0.967  -1.606    1.726      0.049    0.035     388.0   388.0     398.0     460.0    NaN
+z_1  0.424  0.648  -0.736    1.561      0.026    0.019     601.0   589.0     603.0     515.0    NaN
 MAP sample [ 1.23767663e-11 -7.43454187e-11]
 </pre></div>
 </div>
@@ -468,7 +466,7 @@ exact mean [-3.05426260e-16  4.33326051e-01]
 <dd><p><a class="reference external" href="https://link.springer.com/book/10.1007/b138659">J. Kaipio and E. Somersalo. Statistical and Computational Inverse Problems. 2005</a></p>
 </dd>
 </dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  7.978 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  4.825 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-inference-plot-bayesian-inference-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/43434288c7446fa54e82fe444db0cec7/plot_bayesian_inference.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_bayesian_inference.py</span></code></a></p>
