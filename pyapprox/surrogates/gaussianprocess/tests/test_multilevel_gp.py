@@ -256,6 +256,7 @@ class TestMultilevelGP(unittest.TestCase):
         nvars, nmodels = 1, 2
         np.random.seed(2)
         true_rho = [2]
+
         def f1(x):
             return ((x.T*6-2)**2)*np.sin((x.T*6-2)*2)/5
 
@@ -313,7 +314,10 @@ class TestMultilevelGP(unittest.TestCase):
         sml_gp = SequentialMultiLevelGP(
             sml_kernels, n_restarts_optimizer=n_restarts_optimizer)
         sml_gp.set_data(samples, values)
-        sml_gp.fit(true_rho)
+        sml_gp.fit()
+
+        # hack
+        # sml_gp.rho = true_rho
 
         from pyapprox.surrogates.gaussianprocess.kernels import ConstantKernel
         from pyapprox.surrogates.gaussianprocess.gaussian_process import (
@@ -339,7 +343,7 @@ class TestMultilevelGP(unittest.TestCase):
         # import matplotlib.pyplot as plt
         # fig, axs = plt.subplots(1, 1)
 
-        #print(np.abs(sml_gp_mean - hf_gp_mean).max())
+        print(np.abs(sml_gp_mean - hf_gp_mean).max())
         assert np.allclose(sml_gp_mean, hf_gp_mean, atol=5e-3)
 
         # print(np.abs(lf_gp_mean-sml_gp(xx, model_idx=[0])[0]).max())

@@ -80,7 +80,7 @@ class GPCalibrationVariable(MCMCVariable):
         # estimate hypeprameters using variable.mean()
         self.gp = CalibrationGP(kernel, **gp_kwargs)
         self.gp.set_data(train_samples, train_values,
-                    variable.get_statistics("mean"))
+                         variable.get_statistics("mean"))
         self.gp.fit()
         print(self.gp.kernel_)
         self.gp.kernel_.length_scale_bounds = "fixed"

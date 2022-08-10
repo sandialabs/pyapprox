@@ -1,10 +1,8 @@
 import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 
-from pyapprox.surrogates.gaussianprocess.kernels import MultilevelGPKernel
-from pyapprox.surrogates.gaussianprocess.gradient_enhanced_gp import (
-    plot_gp_1d
-)
+from pyapprox.surrogates.gaussianprocess.kernels import (
+    MultilevelGPKernel, ConstantKernel)
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     GaussianProcess
 )
@@ -94,40 +92,48 @@ class SequentialMultiLevelGP(MultilevelGP):
         self._random_state = random_state
 
         self._gps = None
-        self._rho = None
+        self.rho = None
 
     def _get_kernel(self, kk):
-        # TODO use this so rho can be optimized
-        kernel = self._raw_kernels[0]
-        for ii in range(1, kk):
-            kernel = self._rho[ii-1]**2*kernel+self._raw_kernels[ii]
+        from pyapprox.surrogates.gaussianprocess.kernels import SequentialMultiLevelKernel
+        kernels = []
+        for ii in range(kk):
+            self._raw_kernels[ii].length_scale_bounds = "fixed"
+            if kk > 1:
+                print("rho", ii, kk, self.rho[ii:kk])
+                kernels.append(self._raw_kernels[ii]*np.prod(self.rho[ii:kk])**2)
+            else:
+                kernels.append(self._raw_kernels[ii])
+        kernels.append(self._raw_kernels[kk])
+        kernel = SequentialMultiLevelKernel(
+            self._raw_kernels[:kk+1], np.hstack((
+                self._raw_kernels[kk].length_scale, [1])),
+            self._raw_kernels[kk].length_scale_bounds)
         return kernel
 
-    def fit(self, rho):
+    def fit(self):
         nmodels = len(self._samples)
-        self._rho = rho
-        self._kernels = [self._raw_kernels[0]]
-        for ii in range(1, nmodels):
-            self._kernels.append(
-                self._rho[ii-1]**2*self._kernels[ii-1]+self._raw_kernels[ii])
-
+        self.rho = [1 for ii in range(nmodels-1)]
         self._gps = []
+        lf_values = 0
         for ii in range(nmodels):
-            # length_scale=.1, length_scale_bounds='fixed')
-            # gp_kernel += WhiteKernel( # optimize gp noise
-            #    noise_level=noise_level,
-            #    noise_level_bounds=noise_level_bounds)
-            gp = GaussianProcess(
-                kernel=self._kernels[ii],
+            print("####", ii)
+            if ii > 1:
+                lf_values += self.rho[ii-1]*lf_values + self._gps[ii-1](
+                    self._samples[ii])
+            elif ii == 1:
+                lf_values = self._gps[ii-1](self._samples[ii])
+            gp = SequentialMultilevelGaussianProcess(
+                lf_values,
+                kernel=self._get_kernel(ii),
                 n_restarts_optimizer=self._n_restarts_optimizer,
                 alpha=self._alpha, random_state=self._random_state,
                 copy_X_train=self._copy_X_train)
+            gp.fit(self._samples[ii], self._values[ii])
+            print(ii, gp.kernel_)
             if ii > 0:
-                shift = rho[ii-1]*self._gps[ii-1](self._samples[ii])
-                print(self._values[ii]-shift)
-            else:
-                shift = 0
-            gp.fit(self._samples[ii], self._values[ii]-shift)
+                print(gp.kernel.length_scale)
+                self.rho[ii-1] = gp.kernel_.length_scale[-1]
             self._gps.append(gp)
 
     def __call__(self, samples, model_idx=None):
@@ -139,8 +145,8 @@ class SequentialMultiLevelGP(MultilevelGP):
         for ii in range(nmodels):
             discrepancy, std = self._gps[ii](samples, return_std=True)
             if ii > 0:
-                ml_mean = self._rho[ii-1]*ml_mean + discrepancy
-                ml_var = self._rho[ii-1]**2*ml_var + std**2
+                ml_mean = self.rho[ii-1]*ml_mean + discrepancy
+                ml_var = self.rho[ii-1]**2*ml_var + std**2
             else:
                 ml_mean = discrepancy
                 ml_var = std**2
@@ -153,3 +159,27 @@ class SequentialMultiLevelGP(MultilevelGP):
                     np.sqrt(variances[model_idx[0]]).squeeze())
         return ([means[idx] for idx in model_idx],
                 [np.sqrt(variances[idx]).squeeze() for idx in model_idx])
+
+
+class SequentialMultilevelGaussianProcess(GaussianProcess):
+    def __init__(self, lf_values, **kwargs):
+        super().__init__(**kwargs)
+        self.lf_values = lf_values
+        print('k', self.kernel, self.kernel.length_scale_bounds)
+
+    def _log_marginal_likelihood(self, theta):
+        rho = theta[-1]
+        shift = rho*self.lf_values
+        self.y_train_ = self.y_train_-shift
+        val = super().log_marginal_likelihood(theta, clone_kernel=False)
+        return val
+
+    def log_marginal_likelihood(self, theta=None, eval_gradient=False,
+                                clone_kernel=True):
+        val = self._log_marginal_likelihood(theta)
+        if not eval_gradient:
+            return val
+        from scipy.optimize import approx_fprime
+        grad = approx_fprime(
+            theta, self._log_marginal_likelihood, 1e-10)
+        return val, grad

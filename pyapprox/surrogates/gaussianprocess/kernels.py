@@ -591,3 +591,38 @@ class DerivGPKernel(SKL_RBF):
                                   len(self.length_scale))
         return Hyperparameter(
             "length_scale", "numeric", self.length_scale_bounds)
+
+
+class SequentialMultiLevelKernel(RBF):
+    def __init__(self, kernels, length_scale=[1.0],
+                 length_scale_bounds=(1e-5, 1e5)):
+        super().__init__(length_scale, length_scale_bounds)
+        for ii in range(len(kernels)-1):
+            if kernels[ii].length_scale_bounds != "fixed":
+                msg = "Hyperparameters of all but last kernel must be fixed"
+                raise ValueError(msg)
+        self.kernels = kernels
+
+    def __call__(self, XX1, XX2=None, eval_gradient=False):
+        assert XX1.shape[1] == len(self.length_scale)-1
+        vals = sum([kernel(XX1, XX2) for kernel in self.kernels[:-1]])
+        hyperparams = np.squeeze(self.length_scale).astype(float)
+        length_scale = np.asarray(hyperparams[:-1])
+        rho = hyperparams[-1]
+        self.kernels[-1].length_scale = length_scale
+        out = self.kernels[-1](XX1, XX2, eval_gradient)
+        if not eval_gradient:
+            return vals*rho**2 + out
+
+        K, K_grad = out
+        grad = np.empty((K_grad.shape[0], K_grad.shape[1], K_grad.shape[2]+1))
+        grad[..., :-1] = K_grad
+        grad[..., -1] = vals*2*rho
+
+        def f(theta):  # helper function
+            return self.clone_with_theta(theta)(XX1, XX2)
+        grad_1 = _approx_fprime(self.theta, f, 1e-10)
+        print(grad_1)
+        print(grad)
+        assert np.allclose(grad_1, grad)
+        return vals, grad
