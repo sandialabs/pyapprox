@@ -3,14 +3,15 @@ import numpy as np
 from sklearn.gaussian_process.kernels import _approx_fprime
 
 from pyapprox.surrogates.gaussianprocess.kernels import RBF
-from pyapprox.surrogates.gaussianprocess.gradient_enhanced_gp import (
-    get_gp_samples_kernel)
-from pyapprox.surrogates.gaussianprocess.multilevel_gp import (
-    MultilevelGPKernel, MultilevelGP, SequentialMultiLevelGP
+from pyapprox.surrogates.gaussianprocess.multilevel import (
+    MultilevelKernel, MultilevelGaussianProcess,
+    SequentialMultilevelGaussianProcess
 )
+from pyapprox.surrogates.gaussianprocess.gaussian_process import (
+    GaussianProcess)
 
 
-class TestMultilevelGP(unittest.TestCase):
+class TestMultilevelGaussianProcess(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
@@ -138,15 +139,11 @@ class TestMultilevelGP(unittest.TestCase):
                     XX_list[1], XX_list[2])+scalings[1]*kernels[1](
                     XX_list[1], XX_list[2]), atol=1e-2)
 
-        length_scale = np.hstack((length_scales, scalings))
-        length_scale_bounds = [(1e-1, 10)] * \
-            (nmodels*nvars) + [(1e-1, 1)]*(nmodels-1)
-        mlgp_kernel = MultilevelGPKernel(
-            nvars, nsamples_per_model, kernels, length_scale=length_scale,
-            length_scale_bounds=length_scale_bounds)
-        # mlgp_kernel = MultilevelGPKernelDeprecated(
-        #     nvars, nsamples_per_model, length_scale=length_scale,
-        #     length_scale_bounds=length_scale_bounds)
+        length_scale_bounds = [(1e-1, 10)]
+        mlgp_kernel = MultilevelKernel(
+            nvars, nsamples_per_model, kernels, length_scale=length_scales,
+            length_scale_bounds=length_scale_bounds,
+            rho=scalings)
 
         XX_train = np.vstack(XX_list)
         np.set_printoptions(linewidth=500)
@@ -254,7 +251,6 @@ class TestMultilevelGP(unittest.TestCase):
 
         lb, ub = 0, 1
         nvars, nmodels = 1, 2
-        np.random.seed(2)
         true_rho = [2]
 
         def f1(x):
@@ -275,100 +271,118 @@ class TestMultilevelGP(unittest.TestCase):
             # x1 = x1[:, ::2]
             # x2 = x1[:, [0, 2]]
 
-        samples = [x1, x2]
-        values = [f(x) for f, x in zip([f1, f2], samples)]
-        nsamples_per_model = [s.shape[1] for s in samples]
-
-        n_restarts_optimizer = 10
+        train_samples = [x1, x2]
+        train_values = [f(x) for f, x in zip([f1, f2], train_samples)]
+        nsamples_per_model = [s.shape[1] for s in train_samples]
 
         rho = np.ones(nmodels-1)
-        length_scale = [1]*(nmodels*(nvars))+list(rho)
-        # print(length_scale)
-        length_scale_bounds = [(1e-1, 10)] * \
-            (nmodels*nvars)+[(1e-1, 10)]*(nmodels-1)
+        length_scale = [1]*(nmodels*(nvars))
+        length_scale_bounds = [(1e-1, 10)]
+
         # length_scale_bounds='fixed'
         kernels = [RBF(0.1) for nn in range(nmodels)]
-        mlgp_kernel = MultilevelGPKernel(
+        mlgp_kernel = MultilevelKernel(
             nvars, nsamples_per_model, kernels, length_scale=length_scale,
-            length_scale_bounds=length_scale_bounds)
-        # noise_level_bounds=(1e-8, 1)
-        # do not use noise kernel for entire kernel
-        # have individual noise kernels for each model
-        # mlgp_kernel += WhiteKernel( # optimize gp noise
-        #    noise_level=noise_level, noise_level_bounds=noise_level_bounds)
+            length_scale_bounds=length_scale_bounds, rho=rho)
 
-        gp = MultilevelGP(mlgp_kernel)
-        gp.set_data(samples, values)
+        gp = MultilevelGaussianProcess(mlgp_kernel)
+        gp.set_data(train_samples, train_values)
         gp.fit()
-        print(gp.kernel_.length_scale[2], true_rho)
-        # print(gp.kernel_.length_scale[2]-true_rho)
-        assert np.allclose(gp.kernel_.length_scale[-1], true_rho, atol=4e-3)
-
-        sml_kernels = [
-            RBF(length_scale=get_gp_samples_kernel(gp).length_scale[
-                nvars*ii:nvars*(ii+1)],
-                length_scale_bounds=(1e-1, 10)) for ii in range(nmodels)]
-        print("SML kernels", sml_kernels)
-        print(gp.kernel_.length_scale)
-
-        sml_gp = SequentialMultiLevelGP(
-            sml_kernels, n_restarts_optimizer=n_restarts_optimizer)
-        sml_gp.set_data(samples, values)
-        sml_gp.fit()
-
-        # hack
-        # sml_gp.rho = true_rho
-
-        from pyapprox.surrogates.gaussianprocess.kernels import ConstantKernel
-        from pyapprox.surrogates.gaussianprocess.gaussian_process import (
-            GaussianProcess)
+        print(gp.kernel_.rho-true_rho)
+        assert np.allclose(gp.kernel_.rho, true_rho, atol=4e-3)
+        print(gp.kernel_)
         # point used to evaluate diag does not matter for stationary kernels
-        sf_var = gp.kernel_.diag(np.zeros((1, nvars)))
-        sf_kernel = RBF(
-            length_scale_bounds=length_scale_bounds[:nvars])*ConstantKernel(
-                sf_var, constant_value_bounds="fixed")
-        sf_gp = GaussianProcess(sf_kernel)
-        sf_gp.fit(samples[1], values[1])
+        # sf_var = gp.kernel_.diag(np.zeros((1, nvars)))
+        # shf_kernel = RBF(
+        #     length_scale_bounds=length_scale_bounds[:nvars])*ConstantKernel(
+        #         sf_var, constant_value_bounds="fixed")
+        # shf_gp = GaussianProcess(shf_kernel)
+        # shf_gp.fit(train_samples[1], train_values[1])
+        slf_kernel = RBF(length_scale_bounds=length_scale_bounds[:nvars])
+        slf_gp = GaussianProcess(slf_kernel)
+        slf_gp.fit(train_samples[0], train_values[0])
 
         # print('ml')
         # print(get_gp_samples_kernel(gp).length_scale[-1], true_rho)
 
-        xx = np.linspace(lb, ub, 2**8+1)[np.newaxis, :]
+        # xx = np.linspace(lb, ub, 2**8+1)[np.newaxis, :]
+        xx = np.linspace(lb, ub, 2**3+1)[np.newaxis, :]
 
-        sml_gp_mean, sml_gp_std = sml_gp(xx)
         hf_gp_mean, hf_gp_std = gp(xx, return_std=True)
-        sf_gp_mean, sf_gp_std = sf_gp(xx, return_std=True)
+        slf_gp_mean, slf_gp_std = slf_gp(xx, return_std=True)
         lf_gp_mean, lf_gp_std = gp(xx, return_std=True, model_eval_id=0)
+        # shf_gp_mean, shf_gp_std = shf_gp(xx, return_std=True)
 
-        # import matplotlib.pyplot as plt
-        # fig, axs = plt.subplots(1, 1)
+        # print(np.abs(lf_gp_mean-slf_gp_mean).max())
+        assert np.allclose(lf_gp_mean, slf_gp_mean, atol=1e-5)
 
-        print(np.abs(sml_gp_mean - hf_gp_mean).max())
-        assert np.allclose(sml_gp_mean, hf_gp_mean, atol=5e-3)
-
-        # print(np.abs(lf_gp_mean-sml_gp(xx, model_idx=[0])[0]).max())
-        assert np.allclose(lf_gp_mean, sml_gp(xx, model_idx=[0])[0], atol=1e-5)
-
-        # warning normalize_y does not make a lot of sense for multi-fidelity
-        # GPs because the mean and std of the data is computed from the low
-        # and high-fidelity values
-        # gp.plot_1d(100, [0, 1], plt_kwargs={"color": "b", "alpha": 0.3},
-        #            prior_fill_kwargs={"color": "r"})
-        # from pyapprox.util.configure_plots import plt
-        # fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-        # xx = np.linspace(0, 1, 101)[None, :]
-        # ax.plot(xx[0, :], f1(xx), 'k-')
-        # gp.plot_1d(100, [0, 1], plt_kwargs={"color": "g", "ls": "--"},
-        #            fill_kwargs={"color": "g", "alpha": 0.3},
-        #            model_eval_id=0, ax=ax)
-        # plt.show()
+        # print(hf_gp_mean-f2(xx))
+        assert np.allclose(f2(xx), hf_gp_mean, atol=5e-2)
 
     def test_2_models(self):
         self._check_2_models(True)
         self._check_2_models(False)
 
+    def test_sequential_multilevel_gaussian_process(self):
+        lb, ub = 0, 1
+        nvars, nmodels = 1, 2
+        n_restarts_optimizer = 10
+        true_rho = [2]
+
+        def f1(x):
+            return ((x.T*6-2)**2)*np.sin((x.T*6-2)*2)/5
+
+        def f2(x):
+            return true_rho[0]*f1(x)+((x.T-0.5)*1. - 5)/5
+
+        x1 = np.linspace(lb, ub, 2**5+1)[None, :]
+        x2 = np.linspace(lb, ub, 2**2+1)[None, :]
+
+        train_samples = [x1, x2]
+        train_values = [f(x) for f, x in zip([f1, f2], train_samples)]
+
+        length_scale_bounds = (1e-1, 1)
+        sml_kernels = [
+            RBF(length_scale=0.1, length_scale_bounds=length_scale_bounds)
+            for ii in range(nmodels)]
+        sml_gp = SequentialMultilevelGaussianProcess(
+            sml_kernels, n_restarts_optimizer=n_restarts_optimizer,
+            default_rho=[1.0])
+        sml_gp.set_data(train_samples, train_values)
+        sml_gp.fit()
+
+        print([g.kernel_ for g in sml_gp._gps])
+
+        xx = np.linspace(0, 1, 101)[None, :]
+        print(np.abs(f1(xx)-sml_gp(xx, model_idx=[0])[0]).max())
+        assert np.allclose(f1(xx), sml_gp(xx, model_idx=[0])[0], atol=1e-3)
+        error = np.linalg.norm(
+            (f2(xx)-sml_gp(xx, model_idx=[1])[0]))/np.linalg.norm(f2(xx))
+        print(error)
+        assert error < 7e-2
+
+        # from pyapprox.util.configure_plots import plt
+        # fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
+        # axs[0].plot(xx[0, :], f2(xx), 'k--')
+        # axs[0].plot(xx[0, :], sml_gp(xx)[0], ':b')
+        # axs[0].plot(train_samples[1][0, :], f2(train_samples[1]), 'ko')
+        # axs[1].plot(xx[0, :], f1(xx), 'k-')
+        # axs[1].plot(train_samples[0][0, :], f1(train_samples[0]), 'ko')
+        # axs[1].plot(xx[0, :], sml_gp(xx, model_idx=[0])[0], ':b')
+        # rho = sml_gp.rho[0]
+        # axs[2].plot(xx[0, :], f2(xx)-rho*f1(xx), 'k--')
+        # axs[2].plot(xx[0, :], sml_gp._gps[1](xx), ':b')
+        # axs[2].plot(
+        #     train_samples[1][0, :],
+        #     f2(train_samples[1])-rho*sml_gp._gps[0](train_samples[1]), 'ko')
+        # plt.show()
+
 
 if __name__ == "__main__":
-    multilevel_gp_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestMultilevelGP)
-    unittest.TextTestRunner(verbosity=2).run(multilevel_gp_test_suite)
+    multilevel_test_suite = unittest.TestLoader().loadTestsFromTestCase(
+        TestMultilevelGaussianProcess)
+    unittest.TextTestRunner(verbosity=2).run(multilevel_test_suite)
+
+    # warning normalize_y does not make a lot of sense for multi-fidelity
+    # GPs because the mean and std of the data is computed from the low
+    # and high-fidelity values

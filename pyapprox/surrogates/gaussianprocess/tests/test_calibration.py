@@ -3,10 +3,10 @@ import numpy as np
 from scipy import stats
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.gaussianprocess.kernels import MultilevelGPKernel, RBF
+from pyapprox.surrogates.gaussianprocess.kernels import MultilevelKernel, RBF
 from pyapprox.util.utilities import get_all_sample_combinations
 from pyapprox.surrogates.gaussianprocess.calibration import (
-    GPCalibrationVariable, CalibrationGP)
+    GPCalibrationVariable, CalibrationGaussianProcess)
 
 
 class TestGPCalibration(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestGPCalibration(unittest.TestCase):
 
         nmodels = 2
         nrandom_vars, ndesign_vars = 1, 1
-        nmodel_samples, nobs_samples = 100, 3
+        nmodel_samples, nobs_samples = 21, 3
         model_samples = np.random.uniform(
             0, 1, (nrandom_vars+ndesign_vars, nmodel_samples))
         obs_samples = np.linspace(0.1, .9, nobs_samples)[None, :]
@@ -39,28 +39,26 @@ class TestGPCalibration(unittest.TestCase):
 
         nvars = nrandom_vars+ndesign_vars
         length_scales = np.ones(nmodels*nvars)
-        scalings = np.ones(nmodels-1)
-        length_scale = np.hstack((length_scales, scalings))
-        length_scale_bounds = (
-            [(1e-1, 10)]*(nmodels*nvars)+[(1e-1, 4)]*(nmodels-1))
+        rho = np.ones(nmodels-1)
+        length_scale_bounds = (1e-1, 10)
         # when length_scale bounds is fixed then the V2(D2) block in Kennedys
         # paper should always be the same regardless of value of theta
         # length_scale_bounds = "fixed"
         kernels = [RBF() for nn in range(nmodels)]
         nsamples_per_model = [v.shape[0] for v in train_values]
-        ml_kernel = MultilevelGPKernel(
-            nvars, nsamples_per_model, kernels, length_scale=length_scale,
-            length_scale_bounds=length_scale_bounds)
- 
-        gp = CalibrationGP(ml_kernel, normalize_y=True,
-                           n_restarts_optimizer=0)
+        ml_kernel = MultilevelKernel(
+            nvars, nsamples_per_model, kernels, length_scale=length_scales,
+            length_scale_bounds=length_scale_bounds, rho=rho)
+
+        gp = CalibrationGaussianProcess(
+            ml_kernel, normalize_y=False, n_restarts_optimizer=0)
         gp.set_data(
             train_samples, train_values, true_theta)
         gp.fit()
         print(gp.kernel_)
         # check inactive length scale of obs model kernel V2 is unchanged
         # this will not be true if n_restarts_optimizer > 1
-        assert np.allclose(gp.kernel_.length_scale[-2], length_scales[-1])
+        assert np.allclose(gp.kernel_.length_scale[-1], length_scales[-1])
         # ml_kernel.length_scale_bounds = "fixed"
         # ml_kernel.length_scale = gp.kernel_.length_scale
 
@@ -70,8 +68,62 @@ class TestGPCalibration(unittest.TestCase):
             random_variable, ml_kernel, train_samples, train_values,
             "metropolis")
         map_sample = mcmc_variable.maximum_aposteriori_point()
-        print(map_sample, true_theta)
         # assert np.allclose(true_theta, map_sample, atol=1e-2)
+
+        from pyapprox.interface.wrappers import (
+            evaluate_1darray_function_on_2d_array)
+        from pyapprox.util.visualization import get_meshgrid_function_data, plt
+        fixed_rho = mcmc_variable.gp.kernel_.rho.copy()
+        plt.plot(fixed_rho, map_sample, 'ko', ms=30)
+        plt.plot(fixed_rho, 0.5, 'kX', ms=30)
+        plt.axvline(x=fixed_rho, color="k")
+        def _gp_loglike(kernel, train_samples, train_values, zz):
+            kernel.length_scale_bounds = "fixed"
+            kernel.rho_bounds = "fixed"
+            theta = np.array([[zz[1]]])
+            rho = np.array([zz[0]])
+            kernel.rho = rho
+            gp = CalibrationGaussianProcess(kernel)
+            assert theta.ndim == 2 and theta.shape[1] == 1
+            gp.set_data(
+                train_samples, train_values, theta)
+            gp.fit()
+            # print(gp.kernel_)
+            data = np.vstack(train_values)
+            from scipy.linalg import cho_solve
+            val = data.T.dot(
+                cho_solve((gp.L_, True), data, check_finite=False))
+            # det LL.T is diag(L)**2 so
+            # 1/2 log diag(LL.T)=2/2*sum(log(diag(L)))
+            val += np.log(np.diag(gp.L_)).sum()
+            # d = gp.L_.shape[0]
+            # print(theta, gp.kernel_, -val[0,0])
+            # val += d/2*np.log(2*np.pi)
+            return -val[:, 0]
+        from functools import partial
+        def plotfun(zz):
+            f = partial(_gp_loglike, mcmc_variable.gp.kernel_,
+                        train_samples, train_values)
+            return evaluate_1darray_function_on_2d_array(f, zz)
+        print(map_sample, "MAP")
+        zz = np.array([fixed_rho, map_sample[0, 0]])
+        print(plotfun(zz[:, None]))
+        print("A")
+        print(mcmc_variable._loglike(map_sample))
+        X, Y, Z = get_meshgrid_function_data(
+            plotfun, [fixed_rho*0.8, fixed_rho*1.2,
+                      true_theta*0, true_theta[0, 0]*0+1], 30)
+        im = plt.contourf(
+            X, Y, Z,  levels=np.linspace(Z.min(), Z.max(), 20))
+        plt.colorbar(im)
+        plt.figure()
+        xx = np.vstack((np.full((1, 31), fixed_rho),
+                        np.linspace(map_sample[0, 0]*0.8,
+                                    map_sample[0, 0]*1.2, 31)[None, :]))
+        plt.plot(xx[1, :], plotfun(xx))
+        print(mcmc_variable.gp.kernel_)
+        plt.show()
+        #assert False
 
         # nrandom_samples = 10
         # random_samples = mcmc_variable.rvs(nrandom_samples)

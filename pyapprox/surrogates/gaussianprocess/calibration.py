@@ -4,12 +4,13 @@ from scipy.optimize import approx_fprime
 from scipy.linalg import cho_solve
 from functools import partial
 
-from pyapprox.surrogates.gaussianprocess.multilevel_gp import MultilevelGP
+from pyapprox.surrogates.gaussianprocess.multilevel import (
+    MultilevelGaussianProcess)
 from pyapprox.util.utilities import get_all_sample_combinations
 from pyapprox.bayes.markov_chain_monte_carlo import MCMCVariable
 
 
-class CalibrationGP(MultilevelGP):
+class CalibrationGaussianProcess(MultilevelGaussianProcess):
     def set_data(self, samples, values, theta):
         # when length_scale bounds is fixed then the V2(D2) block in Kennedys
         # paper should always be the same regardless of value of theta
@@ -45,12 +46,12 @@ class CalibrationGP(MultilevelGP):
 
 
 def _gp_negloglike(kernel, train_samples, train_values, theta, **gp_kwargs):
-    gp = CalibrationGP(kernel, **gp_kwargs)
+    gp = CalibrationGaussianProcess(kernel, **gp_kwargs)
     assert theta.ndim == 2 and theta.shape[1] == 1
     gp.set_data(
         train_samples, train_values, theta)
     gp.fit()
-    # print(gp.kernel_)
+    # print(gp.kernel_, 'gp')
     data = np.vstack(train_values)
     val = data.T.dot(
         cho_solve((gp.L_, True), data, check_finite=False))
@@ -59,17 +60,21 @@ def _gp_negloglike(kernel, train_samples, train_values, theta, **gp_kwargs):
     val += np.log(np.diag(gp.L_)).sum()
     # d = gp.L_.shape[0]
     # val += d/2*np.log(2*np.pi)
+    # print(theta, val)
     return val
 
 
 def _gp_loglike(negloglike, t, jac=False):
-    val = -negloglike(t)
-    grad = -approx_fprime(
+    val = negloglike(t)
+    if not jac:
+        # print(t, -val)
+        return -val
+    # raise NotImplementedError("finite differncing errors can be too large")
+    grad = approx_fprime(
         t[:, 0], lambda s: negloglike(s[:, None])[:, 0],
-        10*np.sqrt(np.finfo(float).eps))
-    if jac:
-        return val, grad
-    return val
+        1e-8)
+    # print(t, -val, -grad)
+    return -val, -grad
 
 
 class GPCalibrationVariable(MCMCVariable):
@@ -78,13 +83,13 @@ class GPCalibrationVariable(MCMCVariable):
     def __init__(self, variable, kernel, train_samples, train_values,
                  algorithm="metropolis", **gp_kwargs):
         # estimate hypeprameters using variable.mean()
-        self.gp = CalibrationGP(kernel, **gp_kwargs)
+        self.gp = CalibrationGaussianProcess(kernel, **gp_kwargs)
         self.gp.set_data(train_samples, train_values,
-                         variable.get_statistics("mean"))
+                         variable.get_statistics("mean")*0+4/5)
         self.gp.fit()
-        print(self.gp.kernel_)
         self.gp.kernel_.length_scale_bounds = "fixed"
-
+        self.gp.kernel_.rho_bounds = "fixed"
+        
         negloglike = partial(
             _gp_negloglike, self.gp.kernel_, train_samples, train_values,
             **gp_kwargs)

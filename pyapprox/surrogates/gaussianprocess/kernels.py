@@ -54,13 +54,30 @@ class RBF(SKL_RBF):
 
         return K, K_gradient
 
+    def _length_scale_repr(self):
+        if self.anisotropic:
+            return "[{0}]".format(
+                ", ".join(map("{0:.3g}".format, self.length_scale)),
+            )
+        else:  # isotropic
+            return "{0:.3g}".format(
+                np.ravel(self.length_scale)[0])
 
-class MultilevelGPKernel(RBF):
+    def __repr__(self):
+         return "{0}(length_scale={1})".format(
+            self.__class__.__name__, self._length_scale_repr())
+
+
+
+class MultilevelKernel(RBF):
     def __init__(self, nvars, nsamples_per_model, kernels, length_scale=[1.0],
-                 length_scale_bounds=(1e-5, 1e5)):
+                 length_scale_bounds=(1e-5, 1e5), rho=[1.0],
+                 rho_bounds=(1e-5, 10)):
 
+        # assert type(rho) == np.ndarray, type(rho)
         self.nmodels = len(nsamples_per_model)
-        assert len(length_scale) == self.nmodels*nvars+self.nmodels-1
+        assert len(length_scale) == self.nmodels*nvars
+        assert len(np.atleast_1d(rho)) == self.nmodels-1
         super().__init__(length_scale, length_scale_bounds)
         self.nvars = nvars
         self.nsamples_per_model = nsamples_per_model
@@ -71,13 +88,16 @@ class MultilevelGPKernel(RBF):
             # to matern kernel
             if type(kernel) != RBF:
                 raise ValueError("Only RBF Kernels are curently supported")
-        assert len(kernels) == self.nmodels
-        self.kernels = kernels
+            assert len(kernels) == self.nmodels
+            self.kernels = kernels
+            self.rho = rho
+            self.rho_bounds = rho_bounds
 
     @staticmethod
     def _sprod(scalings, ii, jj):
         if jj > len(scalings):
-            raise RuntimeError()
+            # print(jj, len(scalings))
+            raise RuntimeError("scalings is the wrong size")
         return np.prod(scalings[ii:jj+1])
 
     @staticmethod
@@ -95,6 +115,7 @@ class MultilevelGPKernel(RBF):
         kk = len(kernels)
         K_block, K_grad = self._eval_kernel(
             kernels[kk-1], XX1, XX2, eval_gradient)
+        # print(kk-1, K_block)
         if eval_gradient:
             K_block_grad = np.zeros(
                 (K_grad.shape[0], K_grad.shape[1], nhyperparams))
@@ -106,6 +127,7 @@ class MultilevelGPKernel(RBF):
         for nn in range(kk-1):
             K, K_grad = self._eval_kernel(
                 kernels[nn], XX1, XX2, eval_gradient)
+            # print(nn, K)
             const = self._sprod(scalings, nn, kk-1)**2
             K_block += const*K
             if eval_gradient:
@@ -144,7 +166,7 @@ class MultilevelGPKernel(RBF):
                     # products that have squared terms
                     tmp = 2*const
                     K_block_grad[..., idx1:idx2] += K[..., None]*tmp
-                # products with just linear terms
+                    # products with just linear terms
                 idx1 = nmodels*nvars+kk
                 idx2 = nmodels*nvars+ll
                 tmp = const
@@ -241,17 +263,16 @@ class MultilevelGPKernel(RBF):
                 self._off_diagonal_kernel_block(
                     XX1, samples[ll], kernels[:ll],
                     scalings[:ll], kk, ll, nmodels, False)[0])
-        # when kk = nmodels -1
-        # for ii in range(len(t_blocks)):
-        #     assert np.allclose(t_blocks1[ii], t_blocks[ii])
+            # when kk = nmodels -1
+            # for ii in range(len(t_blocks)):
+            #     assert np.allclose(t_blocks1[ii], t_blocks[ii])
         return np.hstack(t_blocks)
 
     def __call__(self, XX1, XX2=None, eval_gradient=False):
         XX1 = np.atleast_2d(XX1)
-        hyperparams = np.squeeze(self.length_scale).astype(float)
-        length_scales = np.asarray(hyperparams[:self.nmodels*self.nvars])
-        assert hyperparams.ndim == 1
-        scalings = np.asarray(hyperparams[self.nmodels*self.nvars:])
+        length_scales = np.atleast_1d(self.length_scale).astype(float)
+        assert length_scales.shape[0] == self.nvars*self.nmodels
+        scalings = np.atleast_1d(self.rho)
         for kk in range(self.nmodels):
             self.kernels[kk].length_scale = (
                 length_scales[kk*self.nvars:(kk+1)*self.nvars])
@@ -272,9 +293,7 @@ class MultilevelGPKernel(RBF):
             return K, K_grad
 
     def diag(self, X):
-        hyperparams = np.squeeze(self.length_scale).astype(float)
-        assert hyperparams.ndim == 1
-        scalings = np.asarray(hyperparams[self.nmodels*self.nvars:])
+        scalings = np.atleast_1d(self.rho)
         # D1 = self._diagonal_kernel_block(X, self.kernels, scalings,
         #                                  self.nmodels, False)[0]
         # D1 = np.diag(D1).copy()
@@ -285,8 +304,30 @@ class MultilevelGPKernel(RBF):
         for nn in range(kk-1):
             const = self._sprod(scalings, nn, kk-1)**2
             D += const*self.kernels[nn].diag(X)
-        # assert np.allclose(D, D1)
+            # assert np.allclose(D, D1)
         return D
+
+    @property
+    def hyperparameter_rho(self):
+        if np.iterable(self.rho):
+            return Hyperparameter(
+                "rho", "numeric", self.rho_bounds, len(self.rho))
+        return Hyperparameter(
+            "rho", "numeric", self.rho_bounds)
+
+    def _rho_repr(self):
+        if np.iterable(self.rho):
+            return "[{0}]".format(
+                ", ".join(map("{0:.3g}".format, self.rho)),
+            )
+        else:
+            return "{0:.3g}".format(np.ravel(self.rho)[0])
+
+    def __repr__(self):
+        return "{0}(rho={1}, length_scale={2})".format(
+            self.__class__.__name__, self._rho_repr(),
+            self._length_scale_repr()
+        )
 
 
 def kernel_dd(XX1, XX2, length_scale, var_num1, var_num2):
@@ -593,36 +634,42 @@ class DerivGPKernel(SKL_RBF):
             "length_scale", "numeric", self.length_scale_bounds)
 
 
-class SequentialMultiLevelKernel(RBF):
-    def __init__(self, kernels, length_scale=[1.0],
-                 length_scale_bounds=(1e-5, 1e5)):
+class SequentialMultilevelKernel(RBF):
+    def __init__(self, kernels, fixed_rho, length_scale=[1.0],
+                 length_scale_bounds=(1e-5, 1e5), rho=1.0,
+                 rho_bounds=(1e-10, 10)):
         super().__init__(length_scale, length_scale_bounds)
         for ii in range(len(kernels)-1):
             if kernels[ii].length_scale_bounds != "fixed":
                 msg = "Hyperparameters of all but last kernel must be fixed"
                 raise ValueError(msg)
         self.kernels = kernels
+        # rho of the fixed kernels
+        self.fixed_rho = fixed_rho
+        self.rho = rho
+        self.rho_bounds = rho_bounds
 
     def __call__(self, XX1, XX2=None, eval_gradient=False):
-        assert XX1.shape[1] == len(self.length_scale)-1
-        vals = sum([kernel(XX1, XX2) for kernel in self.kernels[:-1]])
-        hyperparams = np.squeeze(self.length_scale).astype(float)
-        length_scale = np.asarray(hyperparams[:-1])
-        rho = hyperparams[-1]
+        length_scale = np.atleast_1d(self.length_scale).astype(float)
+        assert length_scale.shape[0] == XX1.shape[1]
+        rho = np.hstack((self.fixed_rho, [self.rho]))
         self.kernels[-1].length_scale = length_scale
-        out = self.kernels[-1](XX1, XX2, eval_gradient)
+        vals = 0
+        for ii in range(len(self.kernels)):
+            const = MultilevelKernel._sprod(
+                rho, ii, len(self.kernels)-1)**2
+            K = self.kernels[ii](XX1, XX2)
+            vals += const*K
         if not eval_gradient:
-            return vals*rho**2 + out
+            return vals
 
-        K, K_grad = out
-        grad = np.empty((K_grad.shape[0], K_grad.shape[1], K_grad.shape[2]+1))
-        grad[..., :-1] = K_grad
-        grad[..., -1] = vals*2*rho
+        raise NotImplementedError()
 
-        def f(theta):  # helper function
-            return self.clone_with_theta(theta)(XX1, XX2)
-        grad_1 = _approx_fprime(self.theta, f, 1e-10)
-        print(grad_1)
-        print(grad)
-        assert np.allclose(grad_1, grad)
-        return vals, grad
+    @property
+    def hyperparameter_rho(self):
+        return Hyperparameter("rho", "numeric", self.rho_bounds)
+
+    def __repr__(self):
+        return "{0}(rho={1:.3g}, length_scale={2:.3g})".format(
+            self.__class__.__name__, self.rho, self.length_scale
+        )

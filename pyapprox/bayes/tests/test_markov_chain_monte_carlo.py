@@ -92,8 +92,8 @@ class TestMCMC(unittest.TestCase):
         #         loglike, variable, nsamples, nburn, njobs,
         #         algorithm=algorithm, get_map=True, print_summary=False)
         mcmc_variable = MCMCVariable(variable, loglike, algorithm, njobs=njobs)
-        samples = mcmc_variable.rvs(nsamples)
         map_sample = mcmc_variable.maximum_aposteriori_point()
+        samples = mcmc_variable.rvs(nsamples)
 
         # from pyapprox.util.visualization import (
         #     get_meshgrid_function_data, plt)
