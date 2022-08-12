@@ -64,9 +64,8 @@ class RBF(SKL_RBF):
                 np.ravel(self.length_scale)[0])
 
     def __repr__(self):
-         return "{0}(length_scale={1})".format(
+        return "{0}(length_scale={1})".format(
             self.__class__.__name__, self._length_scale_repr())
-
 
 
 class MultilevelKernel(RBF):

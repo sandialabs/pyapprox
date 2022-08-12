@@ -47,24 +47,79 @@ class GPCalibrationVariable(MCMCVariable):
     # TODO create new MCMCVariable base class without normalized pdf etc
     # and inherit this from that here and for old MCMCVariable
     def __init__(self, variable, kernel, train_samples, train_values,
-                 algorithm="metropolis", **gp_kwargs):
+                 algorithm="metropolis", loglike_grad=False, **gp_kwargs):
         self.train_samples = train_samples
         self.train_values = train_values
-        # estimate hypeprameters using variable.mean()
-        self.gp = CalibrationGaussianProcess(kernel, **gp_kwargs)
-        self.gp.set_data(train_samples, train_values,
-                         variable.get_statistics("mean")*0)
-        self.gp.fit()
-        # fit overwrite gp.kernel_ with gp.kernel so set length_bounds
-        # of both to zero
-        self.gp.kernel_.length_scale_bounds = "fixed"
-        self.gp.kernel_.rho_bounds = "fixed"
+
+        if loglike_grad is False:
+            loglike_grad = None
+        # else: use finite difference
+
+        loglike = self.loglike_calibration_params
+        super().__init__(
+            variable, loglike, algorithm, loglike_grad=loglike_grad,
+            burn_fraction=0.1, njobs=1)
+
+        self._set_hyperparams(kernel, **gp_kwargs)
+
+    def _fix_hyperparameters(self):
+        if hasattr(self.gp, "kernel_"):
+            self.gp.kernel_.length_scale_bounds = "fixed"
+            self.gp.kernel_.rho_bounds = "fixed"
         self.gp.kernel.length_scale_bounds = "fixed"
         self.gp.kernel.rho_bounds = "fixed"
 
-        loglike = self.loglike_calibration_params
-        super().__init__(variable, loglike, algorithm, loglike_grad=True,
-                         burn_fraction=0.1, njobs=1)
+    def _unfix_hyperparameters(self):
+        if hasattr(self.gp, "kernel_"):
+            self.gp.kernel_.length_scale_bounds = (1e-5, 1e1)
+            self.gp.kernel_.rho_bounds = (1e-5, 1e1)
+        self.gp.kernel.length_scale_bounds = (1e-5, 1e1)
+        self.gp.kernel.rho_bounds = (1e-5, 1e1)
+
+    def _set_hyperparams(self, kernel, **gp_kwargs):
+        # estimate hypeprameters using variable.mean()
+        init_theta = self._variable.get_statistics("mean")
+        self.gp = CalibrationGaussianProcess(kernel, **gp_kwargs)
+        self.gp.set_data(self.train_samples, self.train_values,
+                         init_theta)
+        self.gp.fit()
+        self._fix_hyperparameters()
+
+        # # if not calling fit must add the following line and comment
+        # out _fix_hyperparameters above
+        # self.gp.kernel_ = self.gp.kernel
+
+        # # fit overwrite gp.kernel_ with gp.kernel so set length_bounds
+        # # of both to zero
+        # hyperparams_bounds = self.gp.kernel.bounds
+        # # bounds must be obtained before length_scale is fixed
+        # self._fix_hyperparameters()
+
+        # #init_hyperparams = np.hstack((self.gp.kernel_.length_scale.copy(),
+        # #                              self.gp.kernel_.rho.copy()))
+        # init_hyperparams = np.exp(hyperparams_bounds.sum(axis=1)/2)
+        # print(init_hyperparams, "init H")
+
+        # init_guess = np.hstack((init_hyperparams, init_theta[:, 0]))
+        # import scipy
+        # theta_bounds = self._variable.get_statistics("interval", alpha=1)
+        # bounds = np.vstack((np.exp(hyperparams_bounds), theta_bounds))
+        # res = scipy.optimize.minimize(
+        #     lambda x: self.loglike_calibration_and_hyperparams(x[:, None]),
+        #     init_guess+np.random.normal(0, 1e-1),
+        #     method="L-BFGS-B", jac=False,
+        #     # method="Powell",
+        #     options={"disp": True, "eps": 1e-3},
+        #     bounds=bounds)
+        # hyperparams = res.x[:hyperparams_bounds.shape[0]]
+        # # hyperparameters must be temporarily unfixed to set kernel_.theta_
+        # self._unfix_hyperparameters()
+        # self.gp.kernel_.theta = np.log(hyperparams)
+        # self._fix_hyperparameters()
+        # self.MAP = res.x[hyperparams_bounds.shape[0]:]
+        # print(self.MAP)
+        # print(res.x)
+        # assert False
 
     def _loglike_theta(self, theta):
         assert self.gp.kernel_.length_scale_bounds == "fixed"
@@ -83,7 +138,7 @@ class GPCalibrationVariable(MCMCVariable):
             return val
         # Warning map point is very sensitive to finite difference
         # step size. TODO compute gradients analytically
-        grad = approx_fprime(theta, self._loglike_theta, 1e-10)
+        grad = approx_fprime(theta, self._loglike_theta, 1e-8)
         return val, grad
 
     def loglike_calibration_params(self, theta, jac=False):
@@ -99,9 +154,42 @@ class GPCalibrationVariable(MCMCVariable):
         self.gp.kernel_.length_scale = zz[:nlengthscales, 0]
         self.gp.kernel_.rho = zz[nlengthscales:nlengthscales+nrho, 0]
         theta = zz[nlengthscales+nrho:, 0]
-        return self._loglike_theta_with_grad(theta, jac)
+        val = self._loglike_theta_with_grad(theta, jac)
+        print(zz, val)
+        return val
 
     def __str__(self):
         string = "GPCalibrationVariable with prior:\n"
         string += self._variable.__str__()
         return string
+
+    def _plot_loglikelihood_cross_section(self, ax, bounds):
+        # nominal values are the current values in self.kernel_
+        # TODO generalize. Currently only works for varying 1 rho and 1 theta
+        from pyapprox.util.visualization import get_meshgrid_function_data, plt
+        from pyapprox.interface.wrappers import (
+            evaluate_1darray_function_on_2d_array)
+        if ax is None:
+            ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+        from functools import partial
+        hyperparams = np.hstack((self.gp.kernel_.length_scale.copy(),
+                                 self.gp.kernel_.rho.copy()))
+
+        def plotfun_1d_array(xx):
+            zz = np.hstack((hyperparams, xx[1]))
+            zz[-2] = xx[0]
+            return self.loglike_calibration_and_hyperparams(
+                zz[:, None])
+        plotfun = partial(
+            evaluate_1darray_function_on_2d_array, plotfun_1d_array)
+
+        X, Y, Z = get_meshgrid_function_data(plotfun, bounds, 30)
+        im = plt.contourf(
+            X, Y, Z,  levels=np.linspace(Z.min(), Z.max(), 20))
+        plt.colorbar(im, ax=ax)
+        return ax
+
+
+# TODO: obs_model kernel should not have length scales associated
+# with random variables. This should not effect result but
+# requires wasted optimization effort
