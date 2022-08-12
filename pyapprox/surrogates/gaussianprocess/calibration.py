@@ -1,8 +1,6 @@
 import numpy as np
 import copy
 from scipy.optimize import approx_fprime
-from scipy.linalg import cho_solve
-from functools import partial
 
 from pyapprox.surrogates.gaussianprocess.multilevel import (
     MultilevelGaussianProcess)
@@ -45,57 +43,63 @@ class CalibrationGaussianProcess(MultilevelGaussianProcess):
         return ax
 
 
-def _gp_negloglike(kernel, train_samples, train_values, theta, **gp_kwargs):
-    gp = CalibrationGaussianProcess(kernel, **gp_kwargs)
-    assert theta.ndim == 2 and theta.shape[1] == 1
-    gp.set_data(
-        train_samples, train_values, theta)
-    gp.fit()
-    # print(gp.kernel_, 'gp')
-    data = np.vstack(train_values)
-    val = data.T.dot(
-        cho_solve((gp.L_, True), data, check_finite=False))
-    # det LL.T is diag(L)**2 so
-    # 1/2 log diag(LL.T)=2/2*sum(log(diag(L)))
-    val += np.log(np.diag(gp.L_)).sum()
-    # d = gp.L_.shape[0]
-    # val += d/2*np.log(2*np.pi)
-    # print(theta, val)
-    return val
-
-
-def _gp_loglike(negloglike, t, jac=False):
-    val = negloglike(t)
-    if not jac:
-        # print(t, -val)
-        return -val
-    # raise NotImplementedError("finite differncing errors can be too large")
-    grad = approx_fprime(
-        t[:, 0], lambda s: negloglike(s[:, None])[:, 0],
-        1e-8)
-    # print(t, -val, -grad)
-    return -val, -grad
-
-
 class GPCalibrationVariable(MCMCVariable):
     # TODO create new MCMCVariable base class without normalized pdf etc
     # and inherit this from that here and for old MCMCVariable
     def __init__(self, variable, kernel, train_samples, train_values,
                  algorithm="metropolis", **gp_kwargs):
+        self.train_samples = train_samples
+        self.train_values = train_values
         # estimate hypeprameters using variable.mean()
         self.gp = CalibrationGaussianProcess(kernel, **gp_kwargs)
         self.gp.set_data(train_samples, train_values,
-                         variable.get_statistics("mean")*0+4/5)
+                         variable.get_statistics("mean")*0)
         self.gp.fit()
+        # fit overwrite gp.kernel_ with gp.kernel so set length_bounds
+        # of both to zero
         self.gp.kernel_.length_scale_bounds = "fixed"
         self.gp.kernel_.rho_bounds = "fixed"
-        
-        negloglike = partial(
-            _gp_negloglike, self.gp.kernel_, train_samples, train_values,
-            **gp_kwargs)
-        loglike = partial(_gp_loglike, negloglike, jac=False)
+        self.gp.kernel.length_scale_bounds = "fixed"
+        self.gp.kernel.rho_bounds = "fixed"
+
+        loglike = self.loglike_calibration_params
         super().__init__(variable, loglike, algorithm, loglike_grad=True,
                          burn_fraction=0.1, njobs=1)
+
+    def _loglike_theta(self, theta):
+        assert self.gp.kernel_.length_scale_bounds == "fixed"
+        assert self.gp.kernel_.rho_bounds == "fixed"
+        assert theta.ndim == 1
+        self.gp.set_data(
+            self.train_samples, self.train_values, theta[:, None])
+        self.gp.fit()
+        val = self.gp.log_marginal_likelihood(
+            self.gp.kernel_.theta, clone_kernel=False)
+        return val
+
+    def _loglike_theta_with_grad(self, theta, jac):
+        val = self._loglike_theta(theta)
+        if not jac:
+            return val
+        # Warning map point is very sensitive to finite difference
+        # step size. TODO compute gradients analytically
+        grad = approx_fprime(theta, self._loglike_theta, 1e-10)
+        return val, grad
+
+    def loglike_calibration_params(self, theta, jac=False):
+        assert theta.ndim == 2 and theta.shape[1] == 1
+        return self._loglike_theta_with_grad(theta[:, 0], jac)
+
+    def loglike_calibration_and_hyperparams(self, zz, jac=False):
+        assert zz.ndim == 2 and zz.shape[1] == 1
+        nlengthscales = self.gp.nmodels*self.gp.nvars
+        nrho = self.gp.nmodels-1
+        nhyperparams = nlengthscales+nrho
+        assert zz.shape[0] == nhyperparams+self._variable.num_vars()
+        self.gp.kernel_.length_scale = zz[:nlengthscales, 0]
+        self.gp.kernel_.rho = zz[nlengthscales:nlengthscales+nrho, 0]
+        theta = zz[nlengthscales+nrho:, 0]
+        return self._loglike_theta_with_grad(theta, jac)
 
     def __str__(self):
         string = "GPCalibrationVariable with prior:\n"
