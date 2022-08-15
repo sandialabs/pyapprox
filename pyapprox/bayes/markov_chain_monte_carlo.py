@@ -155,7 +155,6 @@ class LogLikeGrad(tt.Op):
 
     def perform(self, node, inputs, outputs):
         samples, = inputs
-
         # calculate gradients
         if self.likelihood_grad is None:
             # define version of likelihood function to pass to
@@ -455,6 +454,8 @@ def run_bayesian_inference_gaussian_error_model(
 
     if loglike_grad is None:
         logl = LogLike(loglike)
+    elif loglike_grad == "FD":
+        logl = LogLikeWithGrad(loglike)
     else:
         logl = LogLikeWithGrad(loglike, loglike_grad)
 

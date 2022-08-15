@@ -67,13 +67,23 @@ def evaluate_core(samples, core_params, core_params_map, ranks,
     for each different degree. We build max_degree vandermonde here.
     """
     assert samples.ndim == 2 and samples.shape[0] == 1
-    max_degree = recursion_coeffs.shape[0]-1
-    basis_matrix = evaluate_orthonormal_polynomial_1d(
-        samples[0, :], max_degree, recursion_coeffs)
+    if recursion_coeffs[0] is not None:
+        max_degree = recursion_coeffs.shape[0]-1
+        basis_matrix = evaluate_orthonormal_polynomial_1d(
+            samples[0, :], max_degree, recursion_coeffs)
+    else:
+        from pyapprox.surrogates.interp.monomial import (
+            univariate_monomial_basis_matrix)
+        basis_matrix = univariate_monomial_basis_matrix(
+            len(recursion_coeffs)-1, samples[0, :])
     params = core_params_per_function(core_params, core_params_map, ranks)
     core_values = basis_matrix.dot(params)
     core_values = core_values.reshape(
         (samples.shape[1], ranks[0], ranks[1]), order="F")
+    # print("##", ranks)
+    # print(core_params)
+    # print(params)
+    # print(core_values)
     return core_values
 
 
@@ -532,6 +542,7 @@ def generate_homogeneous_function_train(ranks, num_params_1d, ft_params):
     num_1d_functions = num_univariate_functions(ranks)
     num_ft_parameters = num_params_1d*num_1d_functions
     ft_params_map = np.arange(0, num_ft_parameters, num_params_1d, dtype=int)
+    assert ft_params.shape[0] == num_ft_parameters
     ft_cores_map = np.zeros((1), dtype=int)
     for ii in range(num_vars-1):
         ft_cores_map = np.append(
