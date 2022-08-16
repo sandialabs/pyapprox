@@ -207,6 +207,32 @@ class GaussianProcess(GaussianProcessRegressor):
         else:
             return self.X_train_.T
 
+    def plot_1d(self, num_XX_test, bounds,
+                ax=None, num_stdev=2, plt_kwargs={},
+                fill_kwargs={"alpha": 0.3},
+                prior_fill_kwargs=None, model_eval_id=None):
+        if ax is None:
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(figsize=(8, 6))
+        XX_test = np.linspace(bounds[0], bounds[1], num_XX_test)[None, :]
+        # return_std=True does not work for gradient enhanced krigging
+        # gp_mean, gp_std = predict(XX_test,return_std=True)
+        gp_mean, gp_std = self(
+            XX_test, return_std=True)
+        gp_mean = gp_mean[:, 0]
+        if prior_fill_kwargs is not None:
+            if model_eval_id is not None:
+                self.kernel_.model_eval_id = model_eval_id
+            prior_std = np.sqrt(self.kernel_.diag(XX_test.T))
+            ax.fill_between(
+                XX_test[0, :], self._y_train_mean-num_stdev*prior_std,
+                self._y_train_mean+num_stdev*prior_std, **prior_fill_kwargs)
+        ax.fill_between(
+           XX_test[0, :], gp_mean-num_stdev*gp_std, gp_mean+num_stdev*gp_std,
+           **fill_kwargs)
+        ax.plot(XX_test[0, :], gp_mean, **plt_kwargs)
+        return ax
+
 
 class RandomGaussianProcessRealizations:
     """

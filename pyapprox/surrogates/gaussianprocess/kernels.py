@@ -69,12 +69,14 @@ class RBF(SKL_RBF):
 
 
 class MultilevelKernel(RBF):
-    def __init__(self, nvars, nsamples_per_model, kernels, length_scale=[1.0],
+    def __init__(self, nvars, nsamples_per_model, kernels, length_scale=None,
                  length_scale_bounds=(1e-5, 1e5), rho=[1.0],
                  rho_bounds=(1e-5, 10)):
 
         # assert type(rho) == np.ndarray, type(rho)
         self.nmodels = len(nsamples_per_model)
+        if length_scale is None:
+            length_scale = np.ones(nvars*self.nmodels)
         assert len(length_scale) == self.nmodels*nvars
         assert len(np.atleast_1d(rho)) == self.nmodels-1
         super().__init__(length_scale, length_scale_bounds)

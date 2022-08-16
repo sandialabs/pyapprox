@@ -58,7 +58,8 @@ class MultilevelGaussianProcess(GaussianProcessRegressor):
         return result
 
     def plot_1d(self, num_XX_test, bounds,
-                ax=None, num_stdev=2, plt_kwargs={}, fill_kwargs={},
+                ax=None, num_stdev=2, plt_kwargs={},
+                fill_kwargs={"alpha": 0.3},
                 prior_fill_kwargs=None, model_eval_id=None):
         if ax is None:
             import matplotlib.pyplot as plt
@@ -76,10 +77,10 @@ class MultilevelGaussianProcess(GaussianProcessRegressor):
             ax.fill_between(
                 XX_test[0, :], self._y_train_mean-num_stdev*prior_std,
                 self._y_train_mean+num_stdev*prior_std, **prior_fill_kwargs)
-        ax.plot(XX_test[0, :], gp_mean, **plt_kwargs)
         ax.fill_between(
-            XX_test[0, :], gp_mean-num_stdev*gp_std, gp_mean+num_stdev*gp_std,
-            **fill_kwargs)
+           XX_test[0, :], gp_mean-num_stdev*gp_std, gp_mean+num_stdev*gp_std,
+           **fill_kwargs)
+        ax.plot(XX_test[0, :], gp_mean, **plt_kwargs)
         return ax
 
 
