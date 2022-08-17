@@ -18,7 +18,7 @@ class TestGPCalibration(unittest.TestCase):
         def model_0(samples):
             # first rows are random samples
             # las rows are calibration inputs
-            #return samples.sum(axis=0)[:, None]**4
+            # return samples.sum(axis=0)[:, None]**4
             return np.cos(np.pi*samples.sum(axis=0)[:, None])
 
         def model_1(samples):
@@ -61,7 +61,8 @@ class TestGPCalibration(unittest.TestCase):
         nsamples_per_model = [v.shape[0] for v in train_values]
         ml_kernel = MultilevelKernel(
             nvars, nsamples_per_model, kernels, length_scale=length_scales,
-            length_scale_bounds=length_scale_bounds, rho=rho)
+            length_scale_bounds=length_scale_bounds, rho=rho,
+            rho_bounds=(1e-2, 3))
 
         gp = CalibrationGaussianProcess(
             ml_kernel, normalize_y=False, n_restarts_optimizer=0)
@@ -77,21 +78,23 @@ class TestGPCalibration(unittest.TestCase):
             [stats.uniform(0, 1)]*nrandom_vars)
         mcmc_variable = GPCalibrationVariable(
             random_variable, ml_kernel, train_samples, train_values,
-            "metropolis")
+            "metropolis", loglike_grad=True)
+        print(mcmc_variable.gp.kernel_.length_scale_bounds)
         map_sample = mcmc_variable.maximum_aposteriori_point()
         print(map_sample, true_theta)
         print(map_sample-true_theta)
-        assert np.allclose(true_theta, map_sample, atol=4e-2)
+        print(mcmc_variable.gp.kernel_)
+        assert np.allclose(true_theta, map_sample, atol=1e-2)
 
         # from pyapprox.util.visualization import plt
         # ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-        # fixed_rho = mcmc_variable.gp.kernel_.rho.copy()[-1]
+        # fixed_rho = np.atleast_1d(mcmc_variable.gp.kernel_.rho.copy())[-1]
         # ax.plot(fixed_rho, map_sample, 'ko', ms=30)
-        # ax.plot(fixed_rho, 0.5, 'kX', ms=30)
+        # ax.plot(fixed_rho, mcmc_variable.MAP, 'kX', ms=30)
         # ax.axvline(x=fixed_rho, color="k")
         # bounds = [fixed_rho*0.8, fixed_rho*1.2, 0, 1]
-        # # mcmc_variable._plot_loglikelihood_cross_section(ax, bounds)
-        # # plt.show()
+        # mcmc_variable._plot_negloglikelihood_cross_section(ax, bounds)
+        # plt.show()
 
         # # useful code for paper
         # mcmc_variable.gp.set_data(
@@ -119,10 +122,10 @@ class TestGPCalibration(unittest.TestCase):
 
     def test_linear_discrepancy(self):
         scenarios = [
-            [1, 1, [21, 11]],
+            [1, 1, [21, 15]],
             [1, 1, [21, 11, 5]],
         ]
-        for scenario in scenarios[:1]:
+        for scenario in scenarios[1:]:
             self._check_linear_discrepancy(*scenario)
 
 
