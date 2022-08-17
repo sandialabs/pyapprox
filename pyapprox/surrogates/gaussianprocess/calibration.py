@@ -9,17 +9,18 @@ from pyapprox.bayes.markov_chain_monte_carlo import MCMCVariable
 
 
 class CalibrationGaussianProcess(MultilevelGaussianProcess):
-    def set_data(self, samples, values, theta):
+    def set_data(self, samples, values, random_sample):
         # when length_scale bounds is fixed then the V2(D2) block in Kennedys
-        # paper should always be the same regardless of value of theta
+        # paper should always be the same regardless of value of random_sample
         # Currently I have extra length scales for V2 kernel, i.e. for
-        # theta dimensions. This will not effect answer given other
+        # random_sample dimensions. This will not effect answer given other
         # increase size of optimization problem
         samples_copy = copy.deepcopy(samples)
-        samples_copy[-1] = get_all_sample_combinations(samples[-1], theta)
+        samples_copy[-1] = get_all_sample_combinations(
+            samples[-1], random_sample)
         super().set_data(samples_copy, values)
 
-    def plot_1d(self, theta, num_XX_test, bounds,
+    def plot_1d(self, random_sample, num_XX_test, bounds,
                 ax=None, num_stdev=2, plt_kwargs={}, fill_kwargs={},
                 prior_fill_kwargs=None):
         if ax is None:
@@ -28,7 +29,7 @@ class CalibrationGaussianProcess(MultilevelGaussianProcess):
         XX_test = np.linspace(bounds[0], bounds[1], num_XX_test)[None, :]
         # return_std=True does not work for gradient enhanced krigging
         # gp_mean, gp_std = predict(XX_test,return_std=True)
-        XX = get_all_sample_combinations(XX_test, theta)
+        XX = get_all_sample_combinations(XX_test, random_sample)
         gp_mean, gp_std = self(XX, return_std=True)
         gp_mean = gp_mean[:, 0]
         if prior_fill_kwargs is not None:
@@ -132,7 +133,7 @@ class GPCalibrationVariable(MCMCVariable):
         self.gp.kernel_.theta = np.log(hyperparams)
         res.x[hyperparams_bounds.shape[0]:]
         self._fix_hyperparameters()
-        return res.x[hyperparams_bounds.shape[0]:]
+        return res.x[hyperparams_bounds.shape[0]:, None]
 
     def _loglike_sample(self, sample):
         assert self.gp.kernel.length_scale_bounds == "fixed"
@@ -160,7 +161,7 @@ class GPCalibrationVariable(MCMCVariable):
         assert sample.ndim == 2 and sample.shape[1] == 1
         return self._loglike_sample_with_grad(sample[:, 0], jac)
 
-    def negloglike_calibration_and_hyperparams(self, zz, jac=False):
+    def negloglike_calibration_and_hyperparams(self, zz):
         assert zz.ndim == 2 and zz.shape[1] == 1
         nlengthscales = self.gp.nmodels*self.gp.nvars
         nrho = self.gp.nmodels-1
@@ -171,7 +172,8 @@ class GPCalibrationVariable(MCMCVariable):
         self.gp.kernel.length_scale = zz[:nlengthscales, 0]
         self.gp.kernel.rho = zz[nlengthscales:nlengthscales+nrho, 0]
         sample = zz[nlengthscales+nrho:, 0]
-        val = self._loglike_sample_with_grad(sample, jac)
+        val = self._loglike_sample_with_grad(sample, False)
+        val += self._variable.pdf(sample[:, None], log=True)[0, 0]
         return -val
 
     def __str__(self):

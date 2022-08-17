@@ -4,7 +4,8 @@ from scipy import stats
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.gaussianprocess.kernels import MultilevelKernel, RBF
-from pyapprox.util.utilities import get_all_sample_combinations
+from pyapprox.util.utilities import (
+    get_all_sample_combinations, cartesian_product)
 from pyapprox.surrogates.gaussianprocess.calibration import (
     GPCalibrationVariable, CalibrationGaussianProcess)
 
@@ -14,7 +15,7 @@ class TestGPCalibration(unittest.TestCase):
         np.random.seed(1)
 
     def _check_linear_discrepancy(self, nrandom_vars, ndesign_vars,
-                                  nsamples_per_model):
+                                  nsamples_per_model, check_map):
         def model_0(samples):
             # first rows are random samples
             # las rows are calibration inputs
@@ -39,7 +40,13 @@ class TestGPCalibration(unittest.TestCase):
         model_samples = [
             np.random.uniform(0, 1, (nrandom_vars+ndesign_vars, n))
             for m, n in zip(sim_models, nsamples_per_model[:-1])]
-        obs_samples = np.linspace(0.1, .9, nsamples_per_model[-1])[None, :]
+        if ndesign_vars == 1:
+            obs_samples = np.linspace(0.1, .9, nsamples_per_model[-1])[None, :]
+        else:
+            obs_samples = cartesian_product([
+                np.linspace(0.1, .9, nsamples_per_model[-1])]*ndesign_vars)
+            II = np.random.permutation(np.arange(obs_samples.shape[1]))
+            obs_samples = obs_samples[:, II[:nsamples_per_model[-1]]]
         # have some samples of calibration inputs used to build GP of model
         # be the same as calibration inputs of trainign data for observation GP
         for ii in range(nsim_models):
@@ -62,7 +69,7 @@ class TestGPCalibration(unittest.TestCase):
         ml_kernel = MultilevelKernel(
             nvars, nsamples_per_model, kernels, length_scale=length_scales,
             length_scale_bounds=length_scale_bounds, rho=rho,
-            rho_bounds=(1e-2, 3))
+            rho_bounds=(1e-1, 2))
 
         gp = CalibrationGaussianProcess(
             ml_kernel, normalize_y=False, n_restarts_optimizer=0)
@@ -84,7 +91,19 @@ class TestGPCalibration(unittest.TestCase):
         print(map_sample, true_theta)
         print(map_sample-true_theta)
         print(mcmc_variable.gp.kernel_)
-        assert np.allclose(true_theta, map_sample, atol=1e-2)
+        # Calibrated GP is not guaranteed to find true random param_idx
+        # but in scenarios below it does
+        if check_map:
+            assert np.allclose(true_theta, map_sample, atol=3e-2)
+
+        ntest_samples = 100
+        XX_design = np.random.uniform(0, 1, (ndesign_vars, ntest_samples))
+        XX_test = get_all_sample_combinations(XX_design, mcmc_variable.MAP)
+        gp_mean = mcmc_variable.gp(XX_test)
+        true_vals = obs_fun(sim_models, true_theta, XX_design)
+        # print(gp_mean-true_vals)
+        print(np.abs(gp_mean-true_vals).max())
+        assert np.allclose(gp_mean, true_vals, atol=2.5e-2)
 
         # from pyapprox.util.visualization import plt
         # ax = plt.subplots(1, 1, figsize=(8, 6))[1]
@@ -121,11 +140,17 @@ class TestGPCalibration(unittest.TestCase):
         # plt.show()
 
     def test_linear_discrepancy(self):
+        # answer is sensitive to length_scale and rho bounds
+        # TODO mitigate this with multiple restart optimization
         scenarios = [
-            [1, 1, [21, 15]],
-            [1, 1, [21, 11, 5]],
+            [1, 1, [21, 15], True],
+            [1, 1, [21, 11, 7], True],
+            [2, 1, [51, 11], False],
+            [2, 2, [51, 31], False],
         ]
-        for scenario in scenarios[1:]:
+        for scenario in scenarios:
+            print(scenario)
+            np.random.seed(1)
             self._check_linear_discrepancy(*scenario)
 
 
