@@ -872,11 +872,11 @@ class TestGaussianProcess(unittest.TestCase):
             true_unnormalized_main_effects, [[0]]))
         true_sobol_indices = true_unnormalized_sobol_indices/true_var
         print("GP sobol indices debug", np.absolute(
-            sobol_indices-true_sobol_indices) - 3e-5-1e-5*true_sobol_indices)
+            sobol_indices-true_sobol_indices) - 4e-5-2e-5*true_sobol_indices)
         print(sobol_indices)
         print(true_sobol_indices)
         assert np.allclose(
-            sobol_indices, true_sobol_indices, rtol=1e-5, atol=3e-5)
+            sobol_indices, true_sobol_indices, rtol=2e-5, atol=4e-5)
 
     def test_compute_sobol_indices_gaussian_process_uniform_3d(self):
         nvars = 3
