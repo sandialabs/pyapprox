@@ -477,9 +477,11 @@ We can sample the posterior using Sequential Markov Chain Monte Carlo using the 
     Stage:   0 Beta: 0.586 Steps:  25 Acce: 1.000
     Stage:   1 Beta: 1.000 Steps:  25 Acce: 0.443
     arviz - WARNING - Shape validation failed: input_shape: (1, 500), minimum_shape: (chains=2, draws=4)
-          mean     sd  hdi_3%  hdi_97%  mcse_mean  mcse_sd  ess_mean  ess_sd  ess_bulk  ess_tail  r_hat
-    z_0 -0.060  0.967  -1.606    1.726      0.049    0.035     388.0   388.0     398.0     460.0    NaN
-    z_1  0.424  0.648  -0.736    1.561      0.026    0.019     601.0   589.0     603.0     515.0    NaN
+          mean     sd  hdi_3%  hdi_97%  ...  ess_sd  ess_bulk  ess_tail  r_hat
+    z_0 -0.060  0.967  -1.606    1.726  ...   388.0     398.0     460.0    NaN
+    z_1  0.424  0.648  -0.736    1.561  ...   589.0     603.0     515.0    NaN
+
+    [2 rows x 11 columns]
     MAP sample [ 1.23767663e-11 -7.43454187e-11]
 
 
@@ -588,7 +590,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  4.825 seconds)
+   **Total running time of the script:** ( 0 minutes  4.206 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_inference_plot_bayesian_inference.py:

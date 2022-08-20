@@ -248,7 +248,7 @@ for some proposal density :math:`\pi_\text{prop}(\rv)` such that :math:`M\pi_\te
 
  .. code-block:: none
 
-    Acceptance ratio 0.1849
+    Acceptance ratio 0.1699
 
 
 

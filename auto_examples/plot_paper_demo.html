@@ -141,7 +141,7 @@ following the exposition in <a class="reference internal" href="#pyapprox2022" i
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;torch._C.Generator object at 0x140e81d90&gt;
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;torch._C.Generator object at 0x14f968190&gt;
 </pre></div>
 </div>
 <p>The tutorial can save the figures to file if desired. If you do want the plots
@@ -223,7 +223,7 @@ their execution times</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.02750206 0.07620621]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.027107   0.07577896]
 </pre></div>
 </div>
 <p>Pyapprox provide numerous benchmarks for verifying, validating and comparing
@@ -357,6 +357,11 @@ Independent Marginal Variable
 Number of variables: 3
 Unique variables and global id:
     norm(loc=0,scale=1): z0, z1, z2
+Only 100 samples in chain.
+Sequential sampling (2 chains in 1 job)
+NUTS: [z_2, z_1, z_0]
+The acceptance probability does not match the target. It is 0.9508962216489982, but should be close to 0.8. Try to increase the number of tuning steps.
+The acceptance probability does not match the target. It is 0.9583451279721997, but should be close to 0.8. Try to increase the number of tuning steps.
 </pre></div>
 </div>
 <p>Now plot the posterior samples with the 2D Marginals of the posterior. Note
@@ -484,123 +489,123 @@ for each run</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[86.79587866] nsample_ratios
-[  1 134] nsf1
-[  1 134] nsf2
-[134.] rounded nsample_ratios
-[38.65097744] nsample_ratios
-[  3 132] nsf1
-[  3 132] nsf2
-[44.] rounded nsample_ratios
-[26.87360743] nsample_ratios
-[  5 148] nsf1
-[  5 148] nsf2
-[29.6] rounded nsample_ratios
-[400.02117139] nsample_ratios
-[  1 400] nsf1
-[  1 400] nsf2
-[400.] rounded nsample_ratios
-[178.4364653] nsample_ratios
-[  2 517] nsf1
-[  2 517] nsf2
-[258.5] rounded nsample_ratios
-[78.07372016] nsample_ratios
-[  6 499] nsf1
-[  6 499] nsf2
-[83.16666667] rounded nsample_ratios
-[53.83290167] nsample_ratios
-[ 10 549] nsf1
-[ 10 549] nsf2
-[54.9] rounded nsample_ratios
-[ 1.39009201 50.84824312] nsample_ratios
-[  2   3 130] nsf1
-[  2   3 130] nsf2
-[ 1.5 65. ] rounded nsample_ratios
-[ 1.24410659 35.35949621] nsample_ratios
-[  4   5 144] nsf1
-[  4   5 144] nsf2
-[ 1.25 36.  ] rounded nsample_ratios
-[  2.         394.11976397] nsample_ratios
-[  1   2 394] nsf1
-[  1   2 394] nsf2
-[  2. 394.] rounded nsample_ratios
-[  1.46106696 234.70634192] nsample_ratios
-[  2   3 509] nsf1
-[  2   3 509] nsf2
-[  1.5 254.5] rounded nsample_ratios
-[  1.21116308 102.70488626] nsample_ratios
-[  4   5 486] nsf1
-[  4   5 486] nsf2
-[  1.25 121.5 ] rounded nsample_ratios
-[ 1.13398864 70.82091007] nsample_ratios
-[  7   8 528] nsf1
-[  7   8 528] nsf2
-[ 1.14285714 75.42857143] rounded nsample_ratios
-[ 1.24384568 35.32411583] nsample_ratios
-[  4   5 144] nsf1
-[  4   5 144] nsf2
-[ 1.25 36.  ] rounded nsample_ratios
-[  2.         394.14175859] nsample_ratios
-[  1   2 394] nsf1
-[  1   2 394] nsf2
-[  2. 394.] rounded nsample_ratios
-[  1.46071238 234.53993971] nsample_ratios
-[  2   3 509] nsf1
-[  2   3 509] nsf2
-[  1.5 254.5] rounded nsample_ratios
-[  1.2109642 102.6170491] nsample_ratios
-[  4   5 486] nsf1
-[  4   5 486] nsf2
-[  1.25 121.5 ] rounded nsample_ratios
-[ 1.13385259 70.75713423] nsample_ratios
-[  7   8 528] nsf1
-[  7   8 528] nsf2
-[ 1.14285714 75.42857143] rounded nsample_ratios
-[  2.         394.87842068] nsample_ratios
-[  1   2 394] nsf1
-[  1   2 394] nsf2
-[  2. 394.] rounded nsample_ratios
-[  1.44767714 228.346756  ] nsample_ratios
-[  2   3 510] nsf1
-[  2   3 510] nsf2
-[  1.5 255. ] rounded nsample_ratios
-[ 1.20469207 99.878338  ] nsample_ratios
-[  4   5 487] nsf1
-[  4   5 487] nsf2
-[  1.25 121.75] rounded nsample_ratios
-[ 1.12969767 68.86284924] nsample_ratios
-[  7   8 530] nsf1
-[  7   8 530] nsf2
-[ 1.14285714 75.71428571] rounded nsample_ratios
-[  1.38741704 199.31151917] nsample_ratios
-[  2   3 514] nsf1
-[  2   3 514] nsf2
-[  1.5 257. ] rounded nsample_ratios
-[ 1.17622457 87.215252  ] nsample_ratios
-[  5   6 494] nsf1
-[  5   6 494] nsf2
-[ 1.2 98.8] rounded nsample_ratios
-[ 1.11100821 60.14095862] nsample_ratios
-[  9  10 541] nsf1
-[  9  10 541] nsf2
-[ 1.11111111 60.11111111] rounded nsample_ratios
-[ 1.17153023 85.08895227] nsample_ratios
-[  5   6 496] nsf1
-[  5   6 496] nsf2
-[ 1.2 99.2] rounded nsample_ratios
-[ 1.10793829 58.67247151] nsample_ratios
-[  9  10 543] nsf1
-[  9  10 543] nsf2
-[ 1.11111111 60.33333333] rounded nsample_ratios
-[ 1.10790956 58.65752382] nsample_ratios
-[  9  10 543] nsf1
-[  9  10 543] nsf2
-[ 1.11111111 60.33333333] rounded nsample_ratios
-[178.4364653] nsample_ratios
-[  29 5174] nsf1
-[  29 5174] nsf2
-[178.4137931] rounded nsample_ratios
-Predicted variance 9.589916867071303e-11
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[86.87575245] nsample_ratios
+[  1 135] nsf1
+[  1 135] nsf2
+[135.] rounded nsample_ratios
+[38.99089106] nsample_ratios
+[  3 135] nsf1
+[  3 135] nsf2
+[45.] rounded nsample_ratios
+[27.07874648] nsample_ratios
+[  5 150] nsf1
+[  5 150] nsf2
+[30.] rounded nsample_ratios
+[404.27171433] nsample_ratios
+[  1 404] nsf1
+[  1 404] nsf2
+[404.] rounded nsample_ratios
+[175.37163859] nsample_ratios
+[  2 500] nsf1
+[  2 500] nsf2
+[250.] rounded nsample_ratios
+[76.13018167] nsample_ratios
+[  6 476] nsf1
+[  6 476] nsf2
+[79.33333333] rounded nsample_ratios
+[54.37619228] nsample_ratios
+[ 10 560] nsf1
+[ 10 560] nsf2
+[56.] rounded nsample_ratios
+[ 1.38668057 51.27545332] nsample_ratios
+[  2   3 132] nsf1
+[  2   3 132] nsf2
+[ 1.5 66. ] rounded nsample_ratios
+[ 1.24228401 35.61553865] nsample_ratios
+[  4   5 146] nsf1
+[  4   5 146] nsf2
+[ 1.25 36.5 ] rounded nsample_ratios
+[  2.         398.31856794] nsample_ratios
+[  1   2 398] nsf1
+[  1   2 398] nsf2
+[  2. 398.] rounded nsample_ratios
+[  1.46862603 230.58599008] nsample_ratios
+[  2   3 492] nsf1
+[  2   3 492] nsf2
+[  1.5 246. ] rounded nsample_ratios
+[  1.21601575 100.10944435] nsample_ratios
+[  4   5 463] nsf1
+[  4   5 463] nsf2
+[  1.25 115.75] rounded nsample_ratios
+[ 1.13276368 71.50771587] nsample_ratios
+[  7   8 538] nsf1
+[  7   8 538] nsf2
+[ 1.14285714 76.85714286] rounded nsample_ratios
+[ 1.24114872 35.46346749] nsample_ratios
+[  4   5 147] nsf1
+[  4   5 147] nsf2
+[ 1.25 36.75] rounded nsample_ratios
+[  2.         398.43297763] nsample_ratios
+[  1   2 398] nsf1
+[  1   2 398] nsf2
+[  2. 398.] rounded nsample_ratios
+[  1.46662309 229.66817292] nsample_ratios
+[  2   3 492] nsf1
+[  2   3 492] nsf2
+[  1.5 246. ] rounded nsample_ratios
+[ 1.21502422 99.69606476] nsample_ratios
+[  4   5 463] nsf1
+[  4   5 463] nsf2
+[  1.25 115.75] rounded nsample_ratios
+[ 1.13212277 71.20943715] nsample_ratios
+[  7   8 538] nsf1
+[  7   8 538] nsf2
+[ 1.14285714 76.85714286] rounded nsample_ratios
+[  2.         399.15278882] nsample_ratios
+[  1   2 399] nsf1
+[  1   2 399] nsf2
+[  2. 399.] rounded nsample_ratios
+[  1.45378626 223.76672786] nsample_ratios
+[  2   3 493] nsf1
+[  2   3 493] nsf2
+[  1.5 246.5] rounded nsample_ratios
+[ 1.20881312 97.1057363 ] nsample_ratios
+[  4   5 465] nsf1
+[  4   5 465] nsf2
+[  1.25 116.25] rounded nsample_ratios
+[ 1.12812764 69.35328986] nsample_ratios
+[  7   8 541] nsf1
+[  7   8 541] nsf2
+[ 1.14285714 77.28571429] rounded nsample_ratios
+[  1.3935352  195.68398022] nsample_ratios
+[  2   3 497] nsf1
+[  2   3 497] nsf2
+[  1.5 248.5] rounded nsample_ratios
+[ 1.18019898 84.95574969] nsample_ratios
+[  5   6 471] nsf1
+[  5   6 471] nsf2
+[ 1.2 94.2] rounded nsample_ratios
+[ 1.10989309 60.68437474] nsample_ratios
+[  9  10 552] nsf1
+[  9  10 552] nsf2
+[ 1.11111111 61.33333333] rounded nsample_ratios
+[ 1.17613909 83.20165749] nsample_ratios
+[  5   6 472] nsf1
+[  5   6 472] nsf2
+[ 1.2 94.4] rounded nsample_ratios
+[ 1.1073159  59.42901762] nsample_ratios
+[  9  10 553] nsf1
+[  9  10 553] nsf2
+[ 1.11111111 61.44444444] rounded nsample_ratios
+[ 1.10744368 59.49010641] nsample_ratios
+[  9  10 553] nsf1
+[  9  10 553] nsf2
+[ 1.11111111 61.44444444] rounded nsample_ratios
+[54.37619228] nsample_ratios
+[ 103 5601] nsf1
+[ 103 5601] nsf2
+[54.37864078] rounded nsample_ratios
+Predicted variance 9.571257732073022e-11
 </pre></div>
 </div>
 <p>Now we can plot the relative performance of the single and multi-fidelity
@@ -629,22 +634,22 @@ estimates of the mean before requiring any additional model evaluations</p>
 </pre></div>
 </div>
 <img src="../_images/sphx_glr_plot_paper_demo_007.png" srcset="../_images/sphx_glr_plot_paper_demo_007.png" alt="plot paper demo" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[47.96479826] nsample_ratios
-[ 1 47] nsf1
-[ 1 47] nsf2
-[47.] rounded nsample_ratios
-[178.4364653] nsample_ratios
-[  2 517] nsf1
-[  2 517] nsf2
-[258.5] rounded nsample_ratios
-[178.4364653] nsample_ratios
-[  29 5174] nsf1
-[  29 5174] nsf2
-[178.4137931] rounded nsample_ratios
-[178.4364653] nsample_ratios
-[  290 51748] nsf1
-[  290 51748] nsf2
-[178.44137931] rounded nsample_ratios
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[54.37619228] nsample_ratios
+[ 1 56] nsf1
+[ 1 56] nsf2
+[56.] rounded nsample_ratios
+[54.37619228] nsample_ratios
+[ 10 560] nsf1
+[ 10 560] nsf2
+[56.] rounded nsample_ratios
+[54.37619228] nsample_ratios
+[ 103 5601] nsf1
+[ 103 5601] nsf2
+[54.37864078] rounded nsample_ratios
+[54.37619228] nsample_ratios
+[ 1030 56015] nsf1
+[ 1030 56015] nsf2
+[54.38349515] rounded nsample_ratios
 </pre></div>
 </div>
 <p>It is clear that the multi-fidelity estimator will be more computationally
@@ -662,11 +667,11 @@ is ready to actually estimate the mean QoI they can use</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[47.96479826] nsample_ratios
-[ 1 47] nsf1
-[ 1 47] nsf2
-[47.] rounded nsample_ratios
-Mean QoI 0.001136890542170262
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[54.37619228] nsample_ratios
+[ 1 56] nsf1
+[ 1 56] nsf2
+[56.] rounded nsample_ratios
+Mean QoI 0.0010551070251234526
 </pre></div>
 </div>
 <section id="references">
@@ -676,7 +681,7 @@ Mean QoI 0.001136890542170262
 <dd><p><a href="#id2"><span class="problematic" id="id3">`Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022)`_</span></a></p>
 </dd>
 </dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 1 minutes  21.713 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 1 minutes  23.079 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-paper-demo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/4231eb2cab42df6435f116bfe8f5e15a/plot_paper_demo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_paper_demo.py</span></code></a></p>

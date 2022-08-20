@@ -159,7 +159,7 @@ to download the full example code</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.02130603790283203, 0.022825956344604492, 0.0191800594329834, 0.03525400161743164, 0.01473093032836914, 0.01854085922241211, 0.01796102523803711, 0.0005080699920654297, 0.023298978805541992, 0.003134012222290039]}
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.021309852600097656, 0.022834300994873047, 0.01922321319580078, 0.03530120849609375, 0.014723777770996094, 0.018468141555786133, 0.017929792404174805, 0.0005068778991699219, 0.023463010787963867, 0.0032320022583007812]}
 </pre></div>
 </div>
 <p>We can also call the work tracker to query the median cost for a model with a given id. The default id is 0.</p>
@@ -168,7 +168,7 @@ to download the full example code</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.01886046]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.01884568]
 </pre></div>
 </div>
 </section>
@@ -217,8 +217,8 @@ WorkTrackingModel. PyApprox assumes that the configure variables are the last ro
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.04911684989929199, 0.04162096977233887, 0.0345768928527832, 0.04167771339416504, 0.05046391487121582], (1.0,): [0.09007000923156738, 0.08495688438415527, 0.05837583541870117, 0.07559514045715332, 0.08447527885437012]}
-[0.04167771 0.08447528]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.04897189140319824, 0.04144620895385742, 0.035201072692871094, 0.0427098274230957, 0.04759788513183594], (1.0,): [0.08864402770996094, 0.08164477348327637, 0.061695098876953125, 0.07576799392700195, 0.08119797706604004]}
+[0.04270983 0.08119798]
 </pre></div>
 </div>
 <p>As expected there are 5 samples tracked for each model and the median evaluation time of the second function is about twice as large as for the first function.</p>
@@ -261,9 +261,9 @@ be used with WorkTrackingModel using the sequence of wrappers below.</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>With 1 threads that took 0.5043239593505859 seconds
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>With 1 threads that took 0.4975900650024414 seconds
 Warning set OMP_NUM_THREADS=1 for best performance
-With 4 threads that took 1.2821130752563477 seconds
+With 4 threads that took 1.147495985031128 seconds
 </pre></div>
 </div>
 <p>Lets print a summary of the costs to make sure individual function evaluation
@@ -274,8 +274,8 @@ costs are still being recorded correctly</p>
 <p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>WorkTracker Cost Summary
 Funtion ID Median Cost
-(0.0,)     0.032004714012145996
-(1.0,)     0.06990242004394531
+(0.0,)     0.022763609886169434
+(1.0,)     0.07447099685668945
 </pre></div>
 </div>
 </section>
@@ -285,7 +285,7 @@ Funtion ID Median Cost
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># sphinx_gallery_thumbnail_path = &#39;./figures/cantilever-beam.png&#39;</span>
 </pre></div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  3.138 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  2.997 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-interface-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/b46e5c7eeabdb0d4d28ef61aca452c9d/plot_interface.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_interface.py</span></code></a></p>

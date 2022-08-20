@@ -128,7 +128,7 @@ Plot the 3 functions
  .. code-block:: none
 
 
-    <matplotlib.legend.Legend object at 0x2891742e0>
+    <matplotlib.legend.Legend object at 0x16d7de880>
 
 
 
@@ -297,7 +297,7 @@ Now let's plot the resulting approximation of the high-fidelity data.
  .. code-block:: none
 
 
-    [<matplotlib.lines.Line2D object at 0x289499ca0>]
+    [<matplotlib.lines.Line2D object at 0x1693f26d0>]
 
 
 
@@ -404,7 +404,7 @@ Plot the structure of the prior covariance
  .. code-block:: none
 
 
-    <matplotlib.image.AxesImage object at 0x2895ea850>
+    <matplotlib.image.AxesImage object at 0x16d55c9a0>
 
 
 
@@ -463,7 +463,7 @@ Now let's plot the resulting approximation of the high-fidelity data.
  .. code-block:: none
 
 
-    [<matplotlib.lines.Line2D object at 0x288d53d60>]
+    [<matplotlib.lines.Line2D object at 0x16c3edb50>]
 
 
 
@@ -709,7 +709,7 @@ Noting that :math:`\left(A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.473 seconds)
+   **Total running time of the script:** ( 0 minutes  0.502 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_gaussian_mfnets.py:
