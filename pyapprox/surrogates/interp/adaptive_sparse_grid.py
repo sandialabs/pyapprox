@@ -36,6 +36,10 @@ from pyapprox.surrogates.interp.sparse_grid import (
     evaluate_sparse_grid_from_subspace_values,
     integrate_sparse_grid_subspace, evaluate_sparse_grid_subspace
  )
+from pyapprox.surrogates.interp.tensorprod import (
+    piecewise_univariate_linear_quad_rule,
+    piecewise_univariate_quadratic_quad_rule
+)
 
 
 class mypriorityqueue():
@@ -1215,9 +1219,9 @@ def get_sparse_grid_univariate_leja_quadrature_rules(
     Return a list of quadrature rules for every variable
     """
     (unique_quad_rules, unique_growth_rules, unique_quadrule_indices,
-     unique_max_level_1d) = \
+     unique_max_level_1d) = (
          get_sparse_grid_univariate_leja_quadrature_rules_economical(
-             var_trans, growth_rules=None)
+             var_trans, growth_rules=None))
     quad_rules = [None for ii in var_trans.num_vars()]
     growth_rules = [None for ii in var_trans.num_vars()]
     max_level_1d = [None for ii in var_trans.num_vars()]
@@ -1235,13 +1239,18 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
     Adaptive sparse grid that uses the combination technique.
     """
 
-    def __init__(self, num_vars):
+    def __init__(self, num_vars, basis_type="barycentric"):
         """
         num_vars : integer
             The number of variables
         """
         super(CombinationSparseGrid, self).__init__(num_vars)
 
+        # to allow for mixed barycentric and piecwise poly basis
+        # if type(basis_type) == str:
+        #    basis_type = [basis_type]*num_vars
+
+        self.basis_type = basis_type
         self.univariate_quad_rule = None
         self.samples_1d, self.weights_1d = [None, None]
         self.smolyak_coefficients = np.empty((0), np.float64)
@@ -1365,7 +1374,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
             self.subspace_poly_indices_list,
             self.smolyak_coefficients, self.samples_1d,
             self.subspace_values_indices_list,
-            self.config_variables_idx, jac=jac)
+            self.config_variables_idx, jac=jac, basis_type=self.basis_type)
         if not jac:
             return result
         vals, jacs = result

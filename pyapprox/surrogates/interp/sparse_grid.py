@@ -13,6 +13,9 @@ from pyapprox.surrogates.interp.barycentric_interpolation import (
     multivariate_barycentric_lagrange_interpolation,
     multivariate_hierarchical_barycentric_lagrange_interpolation
 )
+from pyapprox.surrogates.interp.tensorprod import (
+    tensor_product_piecewise_polynomial_interpolation_with_values
+)
 
 
 def get_1d_samples_weights(quad_rules, growth_rules,
@@ -522,9 +525,27 @@ def get_subspace_values_using_dictionary(values, subspace_poly_indices,
 
 
 def evaluate_sparse_grid_subspace(samples, subspace_index, subspace_values,
-                                  samples_1d, config_variables_idx):
+                                  samples_1d, config_variables_idx,
+                                  basis_type="barycentric"):
     if config_variables_idx is None:
         config_variables_idx = samples.shape[0]
+    if basis_type == "barycentric":
+        return _evaluate_sparse_grid_subspace_barycentric(
+            samples, subspace_index, subspace_values,
+            samples_1d, config_variables_idx)
+
+    if config_variables_idx != subspace_index.shape[0]:
+        print(config_variables_idx)
+        msg = "use of config values with piecwise poly basis will be "
+        msg += "implemented shortly "
+        raise NotImplementedError(msg)
+    return tensor_product_piecewise_polynomial_interpolation_with_values(
+        samples, subspace_values, subspace_index, basis_type=basis_type)
+
+
+def _evaluate_sparse_grid_subspace_barycentric(
+        samples, subspace_index, subspace_values,
+        samples_1d, config_variables_idx):
 
     active_sample_vars = np.where(subspace_index[:config_variables_idx] > 0)[0]
     num_active_sample_vars = active_sample_vars.shape[0]
@@ -629,26 +650,14 @@ def evaluate_sparse_grid(samples, values,
                          sparse_grid_subspace_poly_indices_list,
                          smolyak_coefficients, samples_1d,
                          sparse_grid_subspace_values_indices_list,
-                         config_variables_idx=None, jac=False):
+                         config_variables_idx=None, jac=False,
+                         basis_type="barycentric"):
 
     num_vars, num_samples = samples.shape
     assert values.ndim == 2
     assert values.shape[0] == len(poly_indices_dict)
     assert sparse_grid_subspace_indices.shape[1] == \
         smolyak_coefficients.shape[0]
-
-    # max_level_samples_1d_min = [
-    #    samples_1d[dd][-1].min() for dd in range(len(samples_1d))]
-    # max_level_samples_1d_max = [
-    #    samples_1d[dd][-1].max() for dd in range(len(samples_1d))]
-    # if (np.any(samples.min(axis=1)<max_level_samples_1d_min) or
-    #     np.any(samples.max(axis=1)>max_level_samples_1d_max)):
-    #     print ('warning extrapolating outside abscissa')
-    #     print(samples.min(axis=1),max_level_samples_1d_min)
-    #     print(samples.max(axis=1),max_level_samples_1d_max)
-    #     # this can be true for univariate quadrature rules that are not closed
-    #     # i.e on bounded domain and with samples on both boundaries
-    #     # need to make this check better
 
     num_qoi = values.shape[1]
     # must initialize to zero
@@ -657,15 +666,12 @@ def evaluate_sparse_grid(samples, values,
     for ii in range(sparse_grid_subspace_indices.shape[1]):
         if (abs(smolyak_coefficients[ii]) > np.finfo(float).eps):
             subspace_index = sparse_grid_subspace_indices[:, ii]
-            # subspace_poly_indices = sparse_grid_subspace_poly_indices_list[ii]
-            # subspace_values = get_subspace_values_using_dictionary(
-            #    values,subspace_poly_indices,poly_indices_dict)
             subspace_values = get_subspace_values(
                 values, sparse_grid_subspace_values_indices_list[ii])
             if not jac:
                 subspace_approx_vals = evaluate_sparse_grid_subspace(
                     samples, subspace_index, subspace_values,
-                    samples_1d, config_variables_idx)
+                    samples_1d, config_variables_idx, basis_type)
             else:
                 subspace_approx_vals, subspace_grads = (
                     evaluate_sparse_grid_subspace_deriv(
