@@ -5,6 +5,9 @@ from pyapprox.util.pya_numba import njit
 from pyapprox.util.utilities import (
     cartesian_product, get_tensor_product_quadrature_rule
 )
+from pyapprox.surrogates.orthopoly.quadrature import (
+    clenshaw_curtis_poly_indices_to_quad_rule_indices,
+    clenshaw_curtis_rule_growth)
 
 
 def piecewise_quadratic_interpolation(samples, mesh, mesh_vals, ranges):
@@ -91,6 +94,9 @@ def piecewise_univariate_linear_quad_rule(range_1d, npoints):
     ww : np.ndarray (npoints)
         The weights of the quadrature rule
     """
+    if npoints == 1:
+        return (np.array([(range_1d[1]+range_1d[0])/2]),
+                np.array([(range_1d[1]-range_1d[0])]))
     xx = np.linspace(range_1d[0], range_1d[1], npoints)
     ww = np.ones((npoints))/(npoints-1)*(range_1d[1]-range_1d[0])
     ww[0] *= 0.5
@@ -116,6 +122,9 @@ def piecewise_univariate_quadratic_quad_rule(range_1d, npoints):
     ww : np.ndarray (npoints)
         The weights of the quadrature rule
     """
+    if npoints == 1:
+        return (np.array([(range_1d[1]+range_1d[0])/2]),
+                np.array([(range_1d[1]-range_1d[0])]))
     xx = np.linspace(range_1d[0], range_1d[1], npoints)
     dx = 4/(3*(npoints-1))
     ww = dx*np.ones((npoints))*(range_1d[1]-range_1d[0])
@@ -178,7 +187,6 @@ def piecewise_quadratic_basis(level, xx):
     h = 1/float(1 << level)
     N = (1 << level)+1
     vals = np.zeros((xx.shape[0], N))
-
     for ii in range(N):
         xl = (ii-1.0)*h
         xr = xl+2.0*h
@@ -254,8 +262,8 @@ def dydactic_grid_1d(level):
         The points in the grid
     """
     if level == 0:
-        return np.array([0.5])
-    return np.linspace(0, 1, nsamples_dydactic_grid_1d(level))
+        return np.array([0.0])
+    return np.linspace(-1, 1, nsamples_dydactic_grid_1d(level))
 
 
 def tensor_product_piecewise_polynomial_basis(
@@ -279,6 +287,9 @@ def tensor_product_piecewise_polynomial_basis(
     basis_vals : np.ndarray(nsamples, nbasis)
         Evaluations of each basis function
     """
+    assert samples.min() >= -1 and samples.max() <= 1
+    samples = (samples+1)/2
+    assert samples.min() >= 0 and samples.max() <= 1
     nvars = samples.shape[0]
     levels = np.asarray(levels)
     if len(levels) != nvars:
@@ -289,6 +300,8 @@ def tensor_product_piecewise_polynomial_basis(
 
     active_vars = np.arange(nvars)[levels > 0]
     nactive_vars = active_vars.shape[0]
+    if nactive_vars == 0:
+        return np.ones((samples.shape[1], 1))
     nsamples = samples.shape[1]
     N_active = [nsamples_dydactic_grid_1d(ll) for ll in levels[active_vars]]
     N_max = np.max(N_active)
@@ -298,6 +311,13 @@ def tensor_product_piecewise_polynomial_basis(
         idx = active_vars[dd]
         basis_vals_1d[dd, :N_active[dd], :] = basis_fun(
             levels[idx], samples[idx, :]).T
+        # assumes that basis functions are nested, i.e.
+        # basis for x=0.5, 0, 1, 0.25, 0.75 and so on
+        indices = clenshaw_curtis_poly_indices_to_quad_rule_indices(
+            levels[idx])
+        basis_vals_1d[dd, :N_active[dd], :] = (
+            basis_vals_1d[dd, :N_active[dd], :][indices, :])
+
     temp1 = basis_vals_1d.reshape(
         (nactive_vars*basis_vals_1d.shape[1], nsamples))
     indices = cartesian_product([np.arange(N) for N in N_active])
@@ -338,6 +358,12 @@ def tensor_product_piecewise_polynomial_interpolation_with_values(
         levels, samples, basis_type)
     if fn_vals.shape[0] != basis_vals.shape[1]:
         raise ValueError("The size of fn_vals is inconsistent with levels")
+    # from matplotlib import pyplot as plt
+    # print(fn_vals)
+    # II = np.argsort(samples[0])
+    # plt.plot(samples[0, II], basis_vals[II])
+    # plt.plot(samples[0, II], basis_vals[II].dot(fn_vals))
+    # plt.show()
     return basis_vals.dot(fn_vals)
 
 
@@ -369,8 +395,37 @@ def tensor_product_piecewise_polynomial_interpolation(
     basis_vals : np.ndarray(nsamples, nqoi)
         Evaluations of the interpolant at the samples
     """
-    samples_1d = [dydactic_grid_1d(ll) for ll in levels]
+    samples_1d = [dydactic_grid_1d(ll)[
+        clenshaw_curtis_poly_indices_to_quad_rule_indices(ll)]
+                  for ll in levels]
     grid_samples = cartesian_product(samples_1d)
     fn_vals = fun(grid_samples)
     return tensor_product_piecewise_polynomial_interpolation_with_values(
         samples, fn_vals, levels, basis_type)
+
+
+def canonical_univariate_piecewise_polynomial_quad_rule(
+        basis_type,  level, return_weights_for_all_levels=True):
+    ordered_weights_1d = []
+    for ll in range(level+1):
+        npts = clenshaw_curtis_rule_growth(ll)
+        if basis_type == "linear":
+            x, w = piecewise_univariate_quadratic_quad_rule([-1, 1], npts)
+        elif basis_type == "quadratic":
+            x, w = piecewise_univariate_quadratic_quad_rule([-1, 1], npts)
+        else:
+            raise NotImplementedError(f"{basis_type} not supported")
+        # piecewise rules are for lebesque integation
+        # so must divide w/2 so that integation is respcet to
+        # uniform measure
+        w = w / 2
+        quad_indices = clenshaw_curtis_poly_indices_to_quad_rule_indices(
+            ll)
+        ordered_weights_1d.append(w[quad_indices])
+        # ordered samples for last x
+
+    ordered_samples_1d = x[quad_indices]
+    if return_weights_for_all_levels:
+        return ordered_samples_1d, ordered_weights_1d
+
+    return ordered_samples_1d, w[quad_indices]

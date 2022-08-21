@@ -67,6 +67,9 @@ from pyapprox.surrogates.interp.monomial import (
 )
 from pyapprox.surrogates.interp.manipulate_polynomials import (
     get_indices_double_set)
+from pyapprox.surrogates.interp.tensorprod import (
+    canonical_univariate_piecewise_polynomial_quad_rule
+)
 
 
 class MultilevelPolynomialModel():
@@ -1723,6 +1726,57 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         samples = quad_rule(sparse_grid.subspace_indices.max())[0]
 
         assert np.allclose(sparse_grid.samples[0, :], samples)
+
+    def test_piecewise_polynomial_basis(self):
+        nvars = 2
+        max_level = 2
+
+        variable = IndependentMarginalsVariable([stats.uniform(0, 1)]*nvars)
+        var_trans = AffineTransform(variable)
+        ranges = variable.get_statistics("interval", alpha=1).flatten()
+
+        w = np.prod([1./(ranges[2*ii+1]-ranges[2*ii])
+                     for ii in range(nvars)])
+        x, y = sp.Symbol('x'), sp.Symbol('y')
+        exact_mean = float(sp.integrate(
+            (x+y)**2*w, (x, ranges[0], ranges[1]),
+            (y, ranges[2], ranges[3])))
+
+        def function(x): return x.sum(axis=0)[:, None]**2
+
+        refinement_indicator = isotropic_refinement_indicator
+
+        max_level_1d = [max_level]*nvars
+        max_num_sparse_grid_samples = 100
+        error_tol = None
+        admissibility_function = partial(
+            max_level_admissibility_function, max_level, max_level_1d,
+            max_num_sparse_grid_samples, error_tol)
+
+        basis_type = "quadratic"
+        # basis_type = "linear"
+        sparse_grid = CombinationSparseGrid(nvars, basis_type)
+        sparse_grid.set_refinement_functions(
+            refinement_indicator, admissibility_function,
+            clenshaw_curtis_rule_growth)
+        sparse_grid.set_univariate_rules(
+            partial(canonical_univariate_piecewise_polynomial_quad_rule,
+                    basis_type))
+        sparse_grid.set_function(function, var_trans)
+        sparse_grid.build()
+
+        moments = sparse_grid.moments()[:, 0]
+        assert np.allclose(moments[0], exact_mean)
+
+        num_validation_samples = 31
+        validation_samples = variable.rvs(num_validation_samples)
+        values = sparse_grid(validation_samples)
+        validation_values = function(validation_samples)
+        # print(values.T)
+        # print(validation_values.T)
+        assert np.allclose(values, validation_values)
+        values = sparse_grid.evaluate_using_all_data(validation_samples)
+        assert np.allclose(values, validation_values)
 
 
 if __name__ == "__main__":

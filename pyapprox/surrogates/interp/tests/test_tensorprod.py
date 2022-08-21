@@ -55,9 +55,11 @@ class TestTensorProd(unittest.TestCase):
         print(integral-true_integral)
         assert np.allclose(integral, true_integral, atol=1e-3)
 
-    def check_piecewise_quadratic_basis(self, basis_type, levels, tol):
+    def check_piecewise_poly_basis(self, basis_type, levels, tol):
 
-        samples = np.random.uniform(0, 1, (len(levels), 9))
+        samples = np.random.uniform(-1, 1, (len(levels), 21))
+        # print(samples.min(axis=1), samples.max(axis=1))
+        # assert False
 
         def fun(samples):
             # when levels is zero to test interpolation make sure
@@ -66,9 +68,15 @@ class TestTensorProd(unittest.TestCase):
 
         interp_fun = partial(tensor_product_piecewise_polynomial_interpolation,
                              levels=levels, fun=fun, basis_type=basis_type)
-        # print((fun(samples)-interp_fun(samples))/fun(samples))
+        # print(fun(samples).T)
+        # print(interp_fun(samples).T)
+        # print(((fun(samples)-interp_fun(samples))/fun(samples).T))
+        # from pyapprox.util.visualization import get_meshgrid_function_data, plt
+        # II = np.argsort(samples[0])
+        # plt.plot(samples[0, II], fun(samples)[II], "-")
+        # plt.plot(samples[0, II], interp_fun(samples)[II], "--")
+        # plt.show()
         assert np.allclose(interp_fun(samples), fun(samples), rtol=tol)
-        # from pyapprox import get_meshgrid_function_data, plt
         # X, Y, Z = get_meshgrid_function_data(
         #     lambda x: interp_fun(x)-fun(x), [0, 1, 0, 1], 50, qoi=0)
         # p = plt.contourf(X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 30))
@@ -76,11 +84,12 @@ class TestTensorProd(unittest.TestCase):
         # print(Z.max())
         # #plt.show()
 
-    def test_piecewise_quadratic_basis(self):
-        self.check_piecewise_quadratic_basis("quadratic", [0, 1], 1e-8)
-        self.check_piecewise_quadratic_basis("quadratic", [1, 1], 1e-8)
-        self.check_piecewise_quadratic_basis("linear", [0, 10], 4e-4)
-        self.check_piecewise_quadratic_basis("linear", [10, 10], 4e-4)
+    def test_piecewise_poly_basis(self):
+        self.check_piecewise_poly_basis("quadratic", [1], 1e-8)
+        self.check_piecewise_poly_basis("quadratic", [0, 1], 1e-8)
+        self.check_piecewise_poly_basis("quadratic", [1, 1], 1e-8)
+        self.check_piecewise_poly_basis("linear", [0, 10], 4e-4)
+        self.check_piecewise_poly_basis("linear", [10, 10], 4e-4)
 
     def test_tensor_product_quadrature(self):
         num_vars = 2
