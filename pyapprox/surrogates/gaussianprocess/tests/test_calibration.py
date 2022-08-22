@@ -99,10 +99,11 @@ class TestGPCalibration(unittest.TestCase):
         ntest_samples = 100
         XX_design = np.random.uniform(0, 1, (ndesign_vars, ntest_samples))
         XX_test = get_all_sample_combinations(XX_design, mcmc_variable.MAP)
-        gp_mean = mcmc_variable.gp(XX_test)
-        true_vals = obs_fun(sim_models, true_theta, XX_design)
+        gp_mean = mcmc_variable.gp(XX_test).squeeze()
+        true_vals = obs_fun(sim_models, true_theta, XX_design).squeeze()
         # print(gp_mean-true_vals)
         print(np.abs(gp_mean-true_vals).max())
+        print(np.abs(gp_mean-true_vals))
         assert np.allclose(gp_mean, true_vals, atol=2.5e-2)
 
         # from pyapprox.util.visualization import plt
