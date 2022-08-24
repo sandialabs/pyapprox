@@ -434,7 +434,7 @@ def approx_fprime(x, func, eps=np.sqrt(np.finfo(float).eps)):
     func_at_x = func(x).squeeze()
     # if func_at_x.ndim == 2:
     #     func_at_x = func_at_x[:, 0]
-    assert func_at_x.ndim == 1
+    assert func_at_x.ndim < 2
     for ii in range(nvars):
         x_plus_eps = x.copy()
         x_plus_eps[ii] += eps
@@ -984,7 +984,7 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
 
     if callable(jac):
         function_val = fun(zz)
-        grad_val = jac(zz)  # .squeeze()
+        grad_val = jac(zz)
         directional_derivative = grad_val.dot(direction).squeeze()
     elif callable(jacp):
         directional_derivative = jacp(zz, direction)
