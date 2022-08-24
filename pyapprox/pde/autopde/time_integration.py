@@ -234,10 +234,12 @@ def implicit_runge_kutta_update_wildey(
     # the last 4 arguments are not used and only kept to keep inteface
     # between wildey and trad update functions
     nstages = stage_unknowns.shape[0]//sol.shape[0]
-    new_sol = sol.clone()
+    # new_sol = sol.clone()
+    new_sol = (nstages-1)*sol
     ndof = stage_unknowns.shape[0]//nstages
     for ii in range(nstages):
-        new_sol += (stage_unknowns[ii*ndof:(ii+1)*ndof]-sol)
+        # new_sol += (stage_unknowns[ii*ndof:(ii+1)*ndof]-sol)
+        new_sol += stage_unknowns[ii*ndof:(ii+1)*ndof]
     return new_sol
 
 
@@ -300,6 +302,9 @@ def diag_runge_kutta_residual(
         stage_jac = butcher_tableau[1][ii]*deltat*out[2]
         jac = torch.eye(ndof, dtype=torch.double)-(
             butcher_tableau[0][ii, ii]/butcher_tableau[1][ii]*stage_jac)
+        # jac = ((butcher_tableau[0][ii, ii]/butcher_tableau[1][ii] *
+        #         butcher_tableau[1][ii]*deltat)*out[2])
+        # jac.diagonal().copy_(1-torch.diagonal(jac))
     else:
         jac = None
     if constraints is not None:
@@ -387,8 +392,9 @@ class ImplicitRungeKutta():
             active_stage_unknown = newton_solve(
                 self._diag_residual_fun, init_guess,
                 **self._newton_kwargs)
-            init_guess = active_stage_unknown.detach()
-            self._computed_stage_unknowns.append(init_guess.clone())
+            # init_guess = active_stage_unknown.detach()
+            # self._computed_stage_unknowns.append(init_guess.clone())
+            self._computed_stage_unknowns.append(active_stage_unknown.detach())
         return implicit_runge_kutta_update_wildey(
             self._res_sol, torch.cat(
                 self._computed_stage_unknowns), self._res_deltat,
