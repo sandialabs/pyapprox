@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-from functools import partial
 
 from pyapprox.pde.autopde.util import newton_solve
 
