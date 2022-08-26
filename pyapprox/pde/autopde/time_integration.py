@@ -404,7 +404,14 @@ class ImplicitRungeKutta():
         return self._update(sol, time, deltat, init_guess)
 
     def integrate(self, init_sol, init_time, final_time, verbosity=0,
-                  newton_kwargs={}):
+                  newton_kwargs={}, init_deltat=None):
+        """
+        Parameters
+        ----------
+        init_deltat : float
+            The size of the first time step. If None then self.deltat will be
+            used. This is needed for solving adjoint equations
+        """
         self._newton_kwargs = newton_kwargs
         sols, times = [], []
         time = init_time
@@ -419,7 +426,13 @@ class ImplicitRungeKutta():
         while time < final_time-1e-12:
             if verbosity >= 1:
                 print("Time", time)
-            deltat = min(self._deltat, final_time-time)
+            if init_deltat is not None:
+                if init_time+init_deltat > final_time:
+                    raise ValueError("init_deltat is to large")
+                deltat = init_deltat
+                init_deltat = None
+            else:
+                deltat = min(self._deltat, final_time-time)
             sol = self.update(
                 sol, time, deltat,
                 [sol.clone()]*self._butcher_tableau[0].shape[0])
