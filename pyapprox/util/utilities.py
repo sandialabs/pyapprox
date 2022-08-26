@@ -1013,7 +1013,11 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
         zz_perturbed = zz.copy()+fd_eps[ii]*direction
         # perturbed_function_val = fun(zz_perturbed)
         # add jac=False so that exact gradient is not always computed
-        perturbed_function_val = fun(zz_perturbed, jac=False)
+        import inspect
+        if "jac" in inspect.getfullargspec(fun).args:
+            perturbed_function_val = fun(zz_perturbed, jac=False)
+        else:
+            perturbed_function_val = fun(zz_perturbed)
         if jac is True:
             perturbed_function_val = perturbed_function_val[0].squeeze()
         fd_directional_derivative = (

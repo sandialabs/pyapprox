@@ -234,12 +234,10 @@ def implicit_runge_kutta_update_wildey(
     # the last 4 arguments are not used and only kept to keep inteface
     # between wildey and trad update functions
     nstages = stage_unknowns.shape[0]//sol.shape[0]
-    # new_sol = sol.clone()
-    new_sol = (nstages-1)*sol
+    new_sol = sol.clone()
     ndof = stage_unknowns.shape[0]//nstages
     for ii in range(nstages):
-        # new_sol += (stage_unknowns[ii*ndof:(ii+1)*ndof]-sol)
-        new_sol += stage_unknowns[ii*ndof:(ii+1)*ndof]
+        new_sol += (stage_unknowns[ii*ndof:(ii+1)*ndof]-sol)
     return new_sol
 
 
