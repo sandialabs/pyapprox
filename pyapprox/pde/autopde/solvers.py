@@ -252,14 +252,14 @@ class TransientAdjointPDE(TransientPDE):
         adj_sols = torch.empty_like(fwd_sols)
         ndof, ntimes = fwd_sols.shape
         dqdu = self._dqdu(fwd_sols, ntimes-1, param_vals)
-        adj_sols[:, ntimes-1] = 0#dqdu[:, ntimes-1]
+        adj_sols[:, ntimes-1] = 0
         Id = torch.eye(adj_sols.shape[0])
         for ii in range(ntimes-2, -1, -1):
             # print(ii, times[ii])
             jac = self.residual._transient_residual(
                 fwd_sols[:, ii], times[ii])[1]
             deltat = times[ii+1]-times[ii]
-            rhs = adj_sols[:, ii+1]+deltat*(-dqdu[:, ii])
+            rhs = adj_sols[:, ii+1]+deltat*(-dqdu[:, ii+1])
             # need to pass in 0 instead of fwd_sol to apply boundary conditions
             # because we are not updating a residual rhs=sol-bndry_vals
             # but rather just want rhs=bndry_vals.

@@ -349,6 +349,33 @@ class TestAutoPDE(unittest.TestCase):
             self._check_advection_diffusion_reaction(*test_case)
             ii += 1
 
+    def _check_adjoint(self, adj_solver, param_vals, functional,
+                       set_param_values, init_sol, final_time):
+
+        from pyapprox.util.utilities import (
+            approx_fprime, approx_jacobian, check_gradients)
+        def fun(params, jac=True):
+            # newton tol must be smaller than finite difference step size
+            qoi, grad = adj_solver.compute_gradient(
+                init_sol, 0, final_time, set_param_values,
+                torch.as_tensor(params[:, 0]))
+            if jac:
+                return qoi, grad
+            return qoi
+
+        # qoi, grad = adj_solver.compute_gradient(
+        #     init_sol, 0, final_time,
+        #     set_param_values, param_vals, tol=1e-12)
+        # fd_grad = approx_fprime(
+        #     param_vals.detach().numpy()[:, None], partial(fun, jac=False),
+        #     eps=1e-6)
+        # print(fd_grad.T, 'fd')
+        # print(grad, 'g')
+        p0 = param_vals.numpy()[:, None]
+        errors = check_gradients(
+            fun, True, p0, fd_eps=np.logspace(-13, 0, 14)[::-1])
+        assert errors.max() > 0.1 and errors.min() < 1e-7
+
     def test_decoupled_ode_adjoint(self):
         orders = [2]  # only mid point will be correct applying bndry_conds
         domain_bounds = [0, 1] # does not effect result
@@ -379,8 +406,8 @@ class TestAutoPDE(unittest.TestCase):
             newton_kwargs={"tol": 1e-8})
 
         def functional(sols, params):
+            # return sols[1, -1]
             return deltat*sols[1, :].sum()
-        # param_vals = diff_fun(mesh.mesh_pts)[:, 0]
         param_vals = torch.as_tensor([bparam], dtype=torch.double)
         adj_solver = TransientAdjointPDE(
             DecoupledODE(mesh, bndry_conds, bparam),
@@ -389,31 +416,8 @@ class TestAutoPDE(unittest.TestCase):
         def set_param_values(residual, param_vals):
             # assert param_vals.ndim == 1
             residual._b = param_vals[0]
-
-        from pyapprox.util.utilities import (
-            approx_fprime, approx_jacobian, check_gradients)
-        def fun(params, jac=True):
-            # newton tol must be smaller than finite difference step size
-            qoi, grad = adj_solver.compute_gradient(
-                init_sol, 0, final_time, set_param_values,
-                torch.as_tensor(params[:, 0]))
-            print(qoi)
-            if jac:
-                return qoi, grad
-            return qoi
-
-        # qoi, grad = adj_solver.compute_gradient(
-        #     init_sol, 0, final_time,
-        #     set_param_values, param_vals, tol=1e-12)
-        # fd_grad = approx_fprime(
-        #     param_vals.detach().numpy()[:, None], partial(fun, jac=False),
-        #     eps=1e-6)
-        # print(fd_grad.T, 'fd')
-        # print(grad, 'g')
-        p0 = np.atleast_1d(bparam)[:, None]
-        errors = check_gradients(
-            fun, True, p0, fd_eps=np.logspace(-13, 0, 14)[::-1])
-        assert errors.max() > 0.1 and errors.min() < 1e-7
+        self._check_adjoint(adj_solver, param_vals, functional,
+                            set_param_values, init_sol, final_time)
 
     def _check_transient_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_string,
@@ -434,7 +438,7 @@ class TestAutoPDE(unittest.TestCase):
             nphys_vars, bndry_types, sol_fun, flux_funs)
 
         deltat = 0.1
-        final_time = deltat*3# 5
+        final_time = deltat*5
         mesh = CartesianProductCollocationMesh(domain_bounds, orders)
         solver = TransientPDE(
             AdvectionDiffusionReaction(
@@ -443,8 +447,7 @@ class TestAutoPDE(unittest.TestCase):
         sol_fun.set_time(0)
         init_sol = sol_fun(mesh.mesh_pts)
         sols, times = solver.solve(
-            init_sol, 0, final_time,
-            newton_kwargs={"tol": 1e-8})
+            init_sol, 0, final_time, newton_kwargs={"tol": 1e-8})
 
         for ii, time in enumerate(times):
             sol_fun.set_time(time)
@@ -464,10 +467,10 @@ class TestAutoPDE(unittest.TestCase):
             if bndry_cond[1] != "D":
                 return
 
-        print("#######")
-        # init_sol *= 0
         def functional(sols, params):
             return sols[:, -1].sum()
+            # idx = sols.shape[0] // 3
+            # return deltat*sols[idx, :].sum()
         # param_vals = diff_fun(mesh.mesh_pts)[:, 0]
         param_vals = diff_fun(mesh.mesh_pts)[0:1, 0]
         adj_solver = TransientAdjointPDE(AdvectionDiffusionReaction(
@@ -479,38 +482,9 @@ class TestAutoPDE(unittest.TestCase):
             mesh_vals = torch.tile(param_vals, (mesh.mesh_pts.shape[1], ))
             residual._diff_fun = partial(
                 residual.mesh.interpolate, mesh_vals)
-        grad = adj_solver.compute_gradient(
-            init_sol, 0, final_time,
-            set_param_values, param_vals, tol=1e-12)
 
-        from pyapprox.util.utilities import (
-            approx_fprime, approx_jacobian, check_gradients)
-        def fun(params):
-            sol_fun.set_time(0)
-            init_sol = sol_fun(mesh.mesh_pts)
-            set_param_values(
-                adj_solver.residual, torch.as_tensor(params[:, 0]))
-            # newton tol must be smaller than finite difference step size
-            fd_sols = adj_solver.solve(init_sol, 0, final_time)[0]
-            qoi = np.asarray([functional(fd_sols, params[:, 0])])
-            return qoi
-
-        # def rfun(params):
-        #     set_param_values(
-        #         adj_solver.residual, torch.as_tensor(params[:, 0]))
-        #     # newton tol must be smaller than finite difference step size
-        #     res = adj_solver.residual._raw_residual(
-        #         init_sol[:, 0])[0]
-        #     return res
-
-        # res_jac = approx_jacobian(rfun, param_vals.detach().numpy()[:, None])
-        # print('jac', res_jac)
-
-        fd_grad = approx_fprime(
-            param_vals.detach().numpy()[:, None], fun, eps=1e-6)
-        print(grad.numpy())
-        print(fd_grad.T)
-        assert np.allclose(grad.numpy().T, fd_grad, atol=1e-6)
+        self._check_adjoint(adj_solver, param_vals, functional,
+                            set_param_values, init_sol, final_time)
 
     def test_transient_advection_diffusion_reaction(self):
         test_cases = [
