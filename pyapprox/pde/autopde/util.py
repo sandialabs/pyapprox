@@ -15,17 +15,18 @@ def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
         residual_norms.append(residual_norm)
         if verbosity > 1:
             print("Iter", it, "rnorm", residual_norm.detach().numpy())
-        if it > 0 and not rel_error and residual_norm < tol:
+        if it > 0 and not rel_error and residual_norm <= tol:
             # must take at least one step for cases when residual
             # is under tolerance for init_guess
             exit_msg = f"Tolerance {tol} reached"
             break
-        if it > 0 and rel_error and residual_norm < tol*residual_norms[0]:
+        if it > 0 and rel_error and residual_norm <= tol*residual_norms[0]:
             exit_msg = f"Relative tolerance {tol} reached"
             break
         if it >= maxiters:
             exit_msg = f"Max iterations {maxiters} reached.\n"
-            exit_msg += f"Residual norm os {residual_norm.detach().numpy()}"
+            exit_msg += f"Residual norm is {residual_norm.detach().numpy()} "
+            exit_msg += f"Residual tol is {tol*residual_norms[0]}"
             raise RuntimeError(exit_msg)
         # strict=True needed if computing adjoints and jac computation
         # needs to be part of graph
@@ -36,8 +37,9 @@ def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
                 lambda s: residual_fun(s)[0], sol, strict=True)
         sol = sol-step_size*torch.linalg.solve(jac, residual)
         # np.set_printoptions(precision=2, suppress=True)
-        # print('j', jac.detach().numpy())
-        # print(residual.detach().numpy())
+        # print('j', jac.detach().numpy()[0, 0])
+        # print(residual.detach().numpy()[0])
+        # print(sol.numpy()[0], 's')
         # print(np.linalg.eigh(jac.numpy())[0])
         # print(np.linalg.cond(jac.numpy()))
         # assert False
