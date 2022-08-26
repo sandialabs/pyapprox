@@ -1011,7 +1011,9 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
     row_format = "{:<12.2e} {:<25} {:<25} {:<25}"
     for ii in range(fd_eps.shape[0]):
         zz_perturbed = zz.copy()+fd_eps[ii]*direction
-        perturbed_function_val = fun(zz_perturbed)
+        # perturbed_function_val = fun(zz_perturbed)
+        # add jac=False so that exact gradient is not always computed
+        perturbed_function_val = fun(zz_perturbed, jac=False)
         if jac is True:
             perturbed_function_val = perturbed_function_val[0].squeeze()
         fd_directional_derivative = (

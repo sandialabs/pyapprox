@@ -234,6 +234,12 @@ class TransientAdjointPDE(TransientPDE):
             # bndry_cond[1] = "D"
             bndry_cond[0] = lambda xx: np.zeros((xx.shape[1], 1))
 
+        # must change residual to adjoint residual and apply boundary conditions
+        # to apply adjoint boundary conditions
+        # self.adj_time_integrator = ImplicitRungeKutta(
+        #     deltat, self.residual._transient_residual, tableau_name,
+        #     constraints_fun=self._apply_boundary_conditions)
+
     def _dqdu(self, fwd_sols, time_index, param_vals):
         fwd_sols_copy = torch.clone(fwd_sols).requires_grad_(True)
         param_vals_copy = torch.clone(param_vals).requires_grad_(True)
@@ -246,29 +252,33 @@ class TransientAdjointPDE(TransientPDE):
         adj_sols = torch.empty_like(fwd_sols)
         ndof, ntimes = fwd_sols.shape
         dqdu = self._dqdu(fwd_sols, ntimes-1, param_vals)
-        adj_sols[:, ntimes-1] = dqdu[:, ntimes-1]
+        adj_sols[:, ntimes-1] = 0#dqdu[:, ntimes-1]
         Id = torch.eye(adj_sols.shape[0])
         for ii in range(ntimes-2, -1, -1):
-            print(ii, times[ii])
+            # print(ii, times[ii])
             jac = self.residual._transient_residual(
                 fwd_sols[:, ii], times[ii])[1]
             deltat = times[ii+1]-times[ii]
-            rhs = adj_sols[:, ii+1]+deltat*(dqdu[:, ii])
-            # rhs = adj_sols[:, ii+1]+(-dqdu[:, ii])
+            rhs = adj_sols[:, ii+1]+deltat*(-dqdu[:, ii])
             # need to pass in 0 instead of fwd_sol to apply boundary conditions
             # because we are not updating a residual rhs=sol-bndry_vals
             # but rather just want rhs=bndry_vals.
             # Techincally passing in we should be passing in negative bndry_vals
             # but since for dirichlet boundaries bndry_vals = 0 this is fine
-            print(dqdu[:, ii], 'dqdu')
-            if ii < ntimes-2:
-                rhs *= 0 # hack
             rhs, jac_adjoint = self.residual.mesh._apply_boundary_conditions(
                 self._adj_bndry_conds, rhs, Id-deltat*jac.T, fwd_sols[:, ii]*0)
             adj_sols[:, ii] = torch.linalg.solve(jac_adjoint, rhs)
-            print(rhs, 'rhs')
-            print(adj_sols[:, ii], 'phi', adj_sols[:, ii].sum())
+            # print(rhs, 'rhs')
+            # print(adj_sols[:, ii], 'phi', adj_sols[:, ii].sum())
+        # print('a', adj_sols)
         return adj_sols
+
+    # def solve_adjoint(self, fwd_sols, param_vals, times, verbosity=0,
+    #                   newton_kwargs={}):
+    #     init_sol = torch.zeros_like(fwd_sols[:, 0])
+    #     adj_sols, times = self.adj_time_integrator.integrate(
+    #         init_sol, times[0], times[-1], verbosity, newton_kwargs)
+    #     return adj_sols
 
     def _parameterized_transient_raw_residual(
             self, sol, time, set_param_values, param_vals):
@@ -285,29 +295,24 @@ class TransientAdjointPDE(TransientPDE):
         param_vals_copy = torch.clone(param_vals).requires_grad_(True)
         fwd_sols_copy = torch.clone(fwd_sols).requires_grad_(True)
         functional_vals = self._functional(fwd_sols_copy, param_vals_copy)
+        qoi = functional_vals.detach().numpy()
+        # print(qoi, param_vals)
+        # print(fwd_sols)
+        # print(adj_sols)
         functional_vals.backward()
         dqdp = param_vals_copy.grad
         if dqdp is None:
             dqdp = 0
 
         phi_dRdp = 0
-        # skip initial time step because residual not effected by params
-        # because we simply use the initial condition. TOTO:
-        # Need to check what happens
-        # when initial condition is effected by params
         for ii in range(fwd_sols.shape[1]-1):
             dRdp_ii = torch.autograd.functional.jacobian(
                 partial(self._parameterized_transient_raw_residual,
-                        fwd_sols[:, ii], times[ii], set_param_values),
+                        fwd_sols[:, ii+1], times[ii], set_param_values),
                 param_vals, strict=True)
-            # print(dRdp_ii, 'dRdp')
+            # print(ii, dRdp_ii.flatten(), 'dRdp')
+            # print(adj_sols[:, ii:ii+1].T)
             phi_dRdp += torch.linalg.multi_dot(
                 (adj_sols[:, ii:ii+1].T, dRdp_ii))
-            #print(phi_dRdp, torch.linalg.multi_dot(
-            #    (adj_sols[:, ii:ii+1].T, dRdp_ii)))
-        # assumes deltat is constant throughout simulation
-        # must compute int_0^T dqdx*dudx+dqp dt so multiply sum by delta t
-        deltat = times[1]-times[0]
-        grad = dqdp + deltat*phi_dRdp
-        print(grad)
-        return grad
+        grad = dqdp - phi_dRdp
+        return np.atleast_1d(qoi), grad.numpy()
