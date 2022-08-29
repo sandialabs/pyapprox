@@ -257,7 +257,7 @@ class Canonical1DMeshBoundary():
 
 class Canonical2DMeshBoundary():
     def __init__(self, bndry_name, order, tol=1e-15):
-        active_bounds = [-1, 1]
+        active_bounds = np.array([-1, 1])
         if len(active_bounds) != 2:
             msg = "Bounds must be specfied for the dimension with the "
             msg += "varying coordinates"
@@ -276,12 +276,12 @@ class Canonical2DMeshBoundary():
     def normals(self, samples):
         return torch.tile(self._normal[:, None], (1, samples.shape[1])).T
 
-    def quadrature_rule(self):
+    def canonical_quadrature_rule(self):
         nsamples = self._order+3
         xquad_1d, wquad_1d = gauss_jacobi_pts_wts_1D(nsamples, 0, 0)
         xlist = [None, None]
         xlist[int(self._bndry_index < 2)] = xquad_1d
-        xlist[int(self._bndry_index >= 2)] = self._inactive_coord
+        xlist[int(self._bndry_index >= 2)] = np.array([self._inactive_coord])
         xquad = cartesian_product(xlist)
         wquad = wquad_1d[:, None]*np.prod(
             self._active_bounds[1::2]-self._active_bounds[::2])
@@ -311,13 +311,14 @@ class Transformed2DMeshBoundary(Canonical2DMeshBoundary):
         normal_vals = self._normal_fun(samples)
         return normal_vals
 
-    def _normals_from_derivs(self, samples):
+    def _normals_from_derivs(self, canonical_samples):
         # compute normals numerically using mesh transforms
-        # this will not give exact normals so we know pass in normal
-        # function instead. This function is left incase it is needed in the future
-        surface_derivs = self._interpolate(
-            self._bndary_deriv_vals, samples[self._active_var])
-        normals = torch.empty((samples.shape[1], 2))
+        # this will not give exact normals so we now pass in normal
+        # function instead. This function is left incase it is needed in the
+        # future
+        surface_derivs = self._canonical_interpolate(
+            self._bndary_deriv_vals, canonical_samples[self._active_var])
+        normals = torch.empty((canonical_samples.shape[1], 2))
         normals[:, self._active_var] = -torch.tensor(surface_derivs)
         normals[:, self._inactive_var] = 1
         factor = torch.sqrt(torch.sum(normals**2, axis=1))
@@ -325,9 +326,9 @@ class Transformed2DMeshBoundary(Canonical2DMeshBoundary):
         normals *= (-1)**((self._bndry_index+1) % 2)
         return normals
 
-    def _interpolate(self, values, samples):
+    def _canonical_interpolate(self, values, canonical_samples):
         return barycentric_interpolation_1d(
-            self._pts[0, :], self._bary_weights, values, samples)
+            self._pts[0, :], self._bary_weights, values, canonical_samples)
 
 
 def partial_deriv(deriv_mats, quantity, dd, idx=None):
@@ -789,7 +790,7 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
         if idx is not None:
             return self._transform_inv_derivs[dd][ii](
                 self.mesh_pts[:, idx])
-        
+
         return self._transform_inv_derivs[dd][ii](
             self.mesh_pts)
 
@@ -968,7 +969,7 @@ class VectorMesh():
 class CanonicalInteriorCollocationMesh(CanonicalCollocationMesh):
     def __init__(self, orders):
         super().__init__(orders, None)
-        
+
         self._canonical_deriv_mats_alt = (
             self._form_derivative_matrices_alt())
 
@@ -1043,7 +1044,7 @@ class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
     def __init__(self, orders, transform, transform_inv, transform_inv_derivs):
 
         super().__init__(orders)
-        
+
         self._transform = transform
         self._transform_inv = transform_inv
         self._transform_inv_derivs = transform_inv_derivs
@@ -1068,7 +1069,7 @@ class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
 
     def _deriv_scale(self, quantity, dd, ii, idx=None):
         if (self._transform_inv_derivs[dd][ii] == 0 or
-            self._transform_inv_derivs[dd][ii] is None):
+                self._transform_inv_derivs[dd][ii] is None):
             return None
 
         if self._transform_inv_derivs[dd][ii] == 1:
@@ -1080,7 +1081,7 @@ class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
             mesh_pts = self.mesh_pts
         else:
             RuntimeError()
-            
+
         if idx is not None:
             return self._transform_inv_derivs[dd][ii](
                 mesh_pts[:, idx])
@@ -1106,7 +1107,7 @@ class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
                     dmat += scale[:, None]*self._get_canonical_deriv_mats(
                         quantity1)[ii]
         return dmat
-    
+
     # def partial_deriv(self, quantity, dd, idx=None):
     #     # dq/du = dq/dx * dx/du + dq/dy * dy/du
     #     vals = 0

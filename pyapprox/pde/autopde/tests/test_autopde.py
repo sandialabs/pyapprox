@@ -215,6 +215,11 @@ class TestAutoPDE(unittest.TestCase):
         assert np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol) < 1e-9
 
+        # import matplotlib.pyplot as plt
+        # im = mesh.plot(sol, nplot_pts_1d=40)
+        # plt.colorbar(im)
+        # plt.show()
+
         for bndry_cond in bndry_conds:
             # adjoint gradient currently only works for all dirichlet boundaries
             if bndry_cond[1] != "D":
@@ -236,8 +241,8 @@ class TestAutoPDE(unittest.TestCase):
             mesh_vals = torch.tile(param_vals, (mesh.mesh_pts.shape[1], ))
             residual._diff_fun = partial(
                 residual.mesh.interpolate, mesh_vals)
-        grad = adj_solver.compute_gradient(
-            set_param_values, param_vals, tol=1e-8)
+        # grad = adj_solver.compute_gradient(
+        #     set_param_values, param_vals, tol=1e-8)
 
         from pyapprox.util.utilities import (
             approx_fprime, approx_jacobian, check_gradients)
@@ -288,7 +293,7 @@ class TestAutoPDE(unittest.TestCase):
     def test_advection_diffusion_reaction(self):
         s0, depth, L, alpha = 2, .1, 1, 1e-1
         mesh_transforms = get_vertical_2d_mesh_transforms_from_string(
-            [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
+            [-L, L], f"{s0}-{alpha}*x**2", f"{s0}-{alpha}*x**2-{depth}")
 
         test_cases = [
             #[[0, 1], [40], "-(x/2-1)*x", "1", ["0"],  # sol.sum()
@@ -623,7 +628,7 @@ class TestAutoPDE(unittest.TestCase):
     def test_stokes_solver_mms(self):
         s0, depth, L, alpha = 2, .1, 1, 1e-1
         mesh_transforms = get_vertical_2d_mesh_transforms_from_string(
-            [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
+            [-L, L], f"{s0}-{alpha}*x**2", f"{s0}-{alpha}*x**2-{depth}")
         test_cases = [
             [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "D"], False],
             [[0, 1], [4], ["(1-x)**2"], "x**2", ["N", "D"], False],
@@ -1207,7 +1212,7 @@ class TestAutoPDE(unittest.TestCase):
         s0 = 2
         depth = 1
         mesh_transforms = get_vertical_2d_mesh_transforms_from_string(
-            [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
+            [-L, L], f"{s0}-{alpha}*x**2", f"{s0}-{alpha}*x**2-{depth}")
 
         vel_meshes = [TransformedCollocationMesh(orders, *mesh_transforms)]*(
             nphys_vars-1)
@@ -1340,7 +1345,7 @@ class TestAutoPDE(unittest.TestCase):
 
         s0, depth, L, alpha = 2, .1, 1, 1e-1
         transforms = get_vertical_2d_mesh_transforms_from_string(
-            [-L, L], f"{s0}-{alpha}*x**2-{depth}", f"{s0}-{alpha}*x**2")
+            [-L, L], f"{s0}-{alpha}*x**2", f"{s0}-{alpha}*x**2-{depth}")
         mesh = TransformedCollocationMesh(
             orders, transforms[0], transforms[1], transforms[2],
             transforms[3])
@@ -1355,7 +1360,7 @@ class TestAutoPDE(unittest.TestCase):
         depth_string += f"-8/315*(pi*x/{L})**7+4/2835*(pi*x/{L})**9"
         depth_string += f"-8/155925*(pi*x/{L})**11+8/6081075*(pi*x/{L})**13)"
         transforms = get_vertical_2d_mesh_transforms_from_string(
-            [0, L], f"{surf_string}-{depth_string}", surf_string)
+            [0, L], surf_string, f"{surf_string}-{depth_string}")
         mesh = TransformedCollocationMesh(
             orders, transforms[0], transforms[1], transforms[2],
             transforms[3])
