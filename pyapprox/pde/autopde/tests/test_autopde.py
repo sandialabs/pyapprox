@@ -207,10 +207,10 @@ class TestAutoPDE(unittest.TestCase):
             react_funs[1]))
 
         assert np.allclose(
-            solver.residual._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
-        # print(solver.residual._residual(sol_fun(mesh.mesh_pts)[:, 0])[0])
+            solver.physics._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
+        # print(solver.physics._residual(sol_fun(mesh.mesh_pts)[:, 0])[0])
         assert np.allclose(
-            solver.residual._residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
+            solver.physics._residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
         sol = solver.solve(tol=1e-8)[:, None]
         assert np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol) < 1e-9
@@ -248,14 +248,14 @@ class TestAutoPDE(unittest.TestCase):
             approx_fprime, approx_jacobian, check_gradients)
         def fun(params):
             set_param_values(
-                fwd_solver.residual, torch.as_tensor(params[:, 0]))
+                fwd_solver.physics, torch.as_tensor(params[:, 0]))
             # newton tol must be smaller than finite difference step size
             fd_sol = fwd_solver.solve(tol=1e-8, verbosity=0)
             qoi = np.asarray([functional(fd_sol, params[:, 0])])
             return qoi
 
         # pp = torch.clone(param_vals).requires_grad_(True)
-        # set_param_values(fwd_solver.residual, pp)
+        # set_param_values(fwd_solver.physics, pp)
         # sol = fwd_solver.solve()
         # qoi = functional(sol, pp)
         # qoi.backward()
@@ -296,8 +296,7 @@ class TestAutoPDE(unittest.TestCase):
             [-L, L], f"{s0}-{alpha}*x**2", f"{s0}-{alpha}*x**2-{depth}")
 
         test_cases = [
-            #[[0, 1], [40], "-(x/2-1)*x", "1", ["0"],  # sol.sum()
-            [[0, 1], [4], "-(x-1)*x/2", "1", ["0"],  # sol[sol.shape[0]//2]
+            [[0, 1], [4], "-(x-1)*x/2", "1", ["0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "D"], ["C"]],
@@ -313,7 +312,7 @@ class TestAutoPDE(unittest.TestCase):
              [lambda sol: sol**2, lambda sol: torch.diag(2*sol[:, 0])],
              # [lambda sol: 1*sol, lambda sol: 1*torch.eye(sol.shape[0])],
              ["D", "D"], ["C"]],
-            [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
+            [[0, 1], [4], "0.5*(x-3)*x", "2+x", ["0"],
                 [lambda sol: 0*sol,
                 lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["N", "D"], ["C"]],
@@ -349,7 +348,7 @@ class TestAutoPDE(unittest.TestCase):
              mesh_transforms]
         ]
         ii = 0
-        for test_case in test_cases:
+        for test_case in test_cases[4:]:
             np.random.seed(2)  # controls direction of finite difference
             self._check_advection_diffusion_reaction(*test_case)
             ii += 1
@@ -456,14 +455,14 @@ class TestAutoPDE(unittest.TestCase):
 
         for ii, time in enumerate(times):
             sol_fun.set_time(time)
-            exact_sol_t = sol_fun(solver.residual.mesh.mesh_pts).numpy()
+            exact_sol_t = sol_fun(solver.physics.mesh.mesh_pts).numpy()
             model_sol_t = sols[:, ii:ii+1].numpy()
             # print(exact_sol_t)
             # print(model_sol_t, 'm')
             L2_error = np.sqrt(
-                solver.residual.mesh.integrate((exact_sol_t-model_sol_t)**2))
+                solver.physics.mesh.integrate((exact_sol_t-model_sol_t)**2))
             factor = np.sqrt(
-                solver.residual.mesh.integrate(exact_sol_t**2))
+                solver.physics.mesh.integrate(exact_sol_t**2))
             # print(time, L2_error, 1e-8*factor)
             assert L2_error < 1e-8*factor
 
@@ -577,19 +576,19 @@ class TestAutoPDE(unittest.TestCase):
             [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T] +
             [pres_fun(pres_mesh.mesh_pts)])
 
-        print(np.abs(solver.residual._raw_residual(exact_sol[:, 0])[0]).max())
+        print(np.abs(solver.physics._raw_residual(exact_sol[:, 0])[0]).max())
         assert np.allclose(
-            solver.residual._raw_residual(exact_sol[:, 0])[0], 0, atol=2e-8)
+            solver.physics._raw_residual(exact_sol[:, 0])[0], 0, atol=2e-8)
         assert np.allclose(
-            solver.residual._residual(exact_sol[:, 0])[0], 0, atol=2e-8)
+            solver.physics._residual(exact_sol[:, 0])[0], 0, atol=2e-8)
 
         def fun(s):
-            return solver.residual._raw_residual(torch.as_tensor(s))[0].numpy()
+            return solver.physics._raw_residual(torch.as_tensor(s))[0].numpy()
         j_fd = approx_jacobian(fun, exact_sol[:, 0].numpy())
-        j_man = solver.residual._raw_residual(
+        j_man = solver.physics._raw_residual(
             torch.as_tensor(exact_sol[:, 0]))[1].numpy()
         j_auto = torch.autograd.functional.jacobian(
-            lambda s: solver.residual._raw_residual(s)[0],
+            lambda s: solver.physics._raw_residual(s)[0],
             exact_sol[:, 0].clone().requires_grad_(True), strict=True).numpy()
         np.set_printoptions(precision=2, suppress=True, threshold=100000,
                             linewidth=1000)
@@ -679,17 +678,17 @@ class TestAutoPDE(unittest.TestCase):
             mesh, bndry_conds, bed_fun, beta_fun, forc_fun, A, rho, n, g))
 
         exact_sol = depth_fun(mesh.mesh_pts)
-        print(np.abs(solver.residual._raw_residual(exact_sol[:, 0])[0]).max())
-        print(np.abs(solver.residual._raw_residual(exact_sol[:, 0])))
+        print(np.abs(solver.physics._raw_residual(exact_sol[:, 0])[0]).max())
+        print(np.abs(solver.physics._raw_residual(exact_sol[:, 0])))
 
         def fun(s):
-            return solver.residual._raw_residual(torch.as_tensor(s))[0].numpy()
+            return solver.physics._raw_residual(torch.as_tensor(s))[0].numpy()
         j_fd = approx_jacobian(fun, exact_sol[:, 0].numpy())
-        # j_man = solver.residual._raw_residual(torch.as_tensor(exact_sol[:, 0]))[1].numpy()
+        # j_man = solver.physics._raw_residual(torch.as_tensor(exact_sol[:, 0]))[1].numpy()
         j_auto = torch.autograd.functional.jacobian(
-            lambda s: solver.residual._raw_residual(s)[0],
+            lambda s: solver.physics._raw_residual(s)[0],
             exact_sol[:, 0].clone().requires_grad_(True), strict=True).numpy()
-        j_man = solver.residual._raw_jacobian(exact_sol[:, 0].clone()).numpy()
+        j_man = solver.physics._raw_jacobian(exact_sol[:, 0].clone()).numpy()
         # np.set_printoptions(precision=2, suppress=True, threshold=100000, linewidth=1000)
         # print(j_fd)
         # print(j_auto)
@@ -697,9 +696,9 @@ class TestAutoPDE(unittest.TestCase):
         assert np.allclose(j_auto, j_man)
 
         assert np.allclose(
-            solver.residual._raw_residual(exact_sol[:, 0])[0], 0, atol=2e-8)
+            solver.physics._raw_residual(exact_sol[:, 0])[0], 0, atol=2e-8)
         assert np.allclose(
-            solver.residual._residual(exact_sol[:, 0])[0], 0, atol=2e-8)
+            solver.physics._residual(exact_sol[:, 0])[0], 0, atol=2e-8)
 
 
     def test_shallow_ice_solver_mms(self):
@@ -733,7 +732,7 @@ class TestAutoPDE(unittest.TestCase):
 
         exact_sol_vals = sol_fun(mesh.mesh_pts)
         assert np.allclose(
-            solver.residual._raw_residual(
+            solver.physics._raw_residual(
                 torch.tensor(exact_sol_vals[:, 0]))[0], 0)
 
         sol = solver.solve().detach()[:, None]
@@ -844,15 +843,15 @@ class TestAutoPDE(unittest.TestCase):
         # split_sols = [q1, q2, q3] = [h, uh, vh]
         init_guess = torch.cat([exact_depth_vals] + exact_mom_vals)
 
-        # solver.residual._auto_jac = True
-        res_vals = solver.residual._raw_residual(init_guess.squeeze())[0]
+        # solver.physics._auto_jac = True
+        res_vals = solver.physics._raw_residual(init_guess.squeeze())[0]
         assert np.allclose(res_vals, 0)
 
         init_guess = init_guess+torch.randn(init_guess.shape)*1e-3
         np.set_printoptions(precision=2, suppress=True, threshold=100000, linewidth=1000)
-        j_man = solver.residual._raw_residual(init_guess.squeeze())[1]
+        j_man = solver.physics._raw_residual(init_guess.squeeze())[1]
         j_auto = torch.autograd.functional.jacobian(
-            lambda s: solver.residual._raw_residual(s)[0],
+            lambda s: solver.physics._raw_residual(s)[0],
             init_guess[:, 0].clone().requires_grad_(True), strict=True).numpy()
         # print((j_man.numpy()-j_auto)[32:, 32:])
         assert np.allclose(j_man, j_auto)
@@ -1031,7 +1030,7 @@ class TestAutoPDE(unittest.TestCase):
         np.set_printoptions(
             precision=2, suppress=True, threshold=100000, linewidth=1000)
         # print(init_guess, 'i')
-        res_vals = solver.residual._raw_residual(init_guess.squeeze())[0]
+        res_vals = solver.physics._raw_residual(init_guess.squeeze())[0]
         print(np.abs(res_vals.detach().numpy()).max(), 'r')
         assert np.allclose(res_vals, 0, atol=5e-8)
 
@@ -1040,13 +1039,13 @@ class TestAutoPDE(unittest.TestCase):
         else:
             init_guess = (init_guess+torch.randn(init_guess.shape)*5e-3)
 
-        dudx_ij = solver.residual._derivs(
+        dudx_ij = solver.physics._derivs(
             mesh.split_quantities(init_guess[:, 0]))
-        j_visc_man = torch.hstack(solver.residual._effective_strain_rate_jac(
+        j_visc_man = torch.hstack(solver.physics._effective_strain_rate_jac(
             dudx_ij))
         j_visc_auto = torch.autograd.functional.jacobian(
-            lambda s: solver.residual._effective_strain_rate(
-                solver.residual._derivs(mesh.split_quantities(s))),
+            lambda s: solver.physics._effective_strain_rate(
+                solver.physics._derivs(mesh.split_quantities(s))),
             init_guess[:, 0].clone().requires_grad_(True), strict=True).numpy()
         # print(j_visc_man.numpy()[:16, :16]-j_visc_auto[:16, :16])
         # print(j_visc_man.numpy()[:16, 16:]-j_visc_auto[:16, 16:32])
@@ -1054,12 +1053,12 @@ class TestAutoPDE(unittest.TestCase):
         assert np.allclose(
             j_visc_auto[:, :j_visc_man.shape[1]], j_visc_man.numpy())
 
-        j_man = solver.residual._vector_components_jac(dudx_ij)
+        j_man = solver.physics._vector_components_jac(dudx_ij)
         for ii in range(nphys_vars):
             for jj in range(nphys_vars):
                 j_auto = torch.autograd.functional.jacobian(
-                    lambda s: solver.residual._vector_components(
-                        solver.residual._derivs(
+                    lambda s: solver.physics._vector_components(
+                        solver.physics._derivs(
                             mesh.split_quantities(s)))[ii][:, jj],
                     init_guess[:, 0].clone().requires_grad_(True),
                     strict=True).numpy()
@@ -1068,9 +1067,9 @@ class TestAutoPDE(unittest.TestCase):
                     assert np.allclose(j_man[ii][dd][jj].numpy(),
                                        j_auto[:, dd*cnt:(dd+1)*cnt])
 
-        j_man = solver.residual._raw_residual(init_guess.squeeze())[1]
+        j_man = solver.physics._raw_residual(init_guess.squeeze())[1]
         j_auto = torch.autograd.functional.jacobian(
-            lambda s: solver.residual._raw_residual(s)[0],
+            lambda s: solver.physics._raw_residual(s)[0],
             init_guess[:, 0].clone().requires_grad_(True), strict=True).numpy()
         assert np.allclose(j_man, j_auto)
 
@@ -1237,19 +1236,19 @@ class TestAutoPDE(unittest.TestCase):
                 depth_fun, A, rho, 0))
         # define correct custom boundaries
         for ii in range(len(mesh._meshes[0]._bndrys)):
-            solver.residual._bndry_conds[0][ii] = [
+            solver.physics._bndry_conds[0][ii] = [
                 Function(bndry_funs[ii]), "C",
-                solver.residual._strain_boundary_conditions]
-        solver.residual._n = n
+                solver.physics._strain_boundary_conditions]
+        solver.physics._n = n
         init_guess = torch.cat(exact_vel_vals)
-        res_vals = solver.residual._raw_residual(init_guess.squeeze())[0]
+        res_vals = solver.physics._raw_residual(init_guess.squeeze())[0]
         res_error = (np.linalg.norm(res_vals.detach().numpy()) /
-                     np.linalg.norm(solver.residual._forc_vals[:, 0].numpy()))
+                     np.linalg.norm(solver.physics._forc_vals[:, 0].numpy()))
         # print(np.linalg.norm(res_vals.detach().numpy()))
         print(res_error, 'r')
         assert res_error < 4e-5
 
-        # solver.residual._n = 1
+        # solver.physics._n = 1
         # init_guess = torch.randn(init_guess.shape, dtype=torch.double)
         sol = solver.solve(
             init_guess, tol=1e-5, verbosity=2, maxiters=20).detach()[:, None]
