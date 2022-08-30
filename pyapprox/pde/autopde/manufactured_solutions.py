@@ -87,7 +87,7 @@ def setup_advection_diffusion_reaction_manufactured_solution(
     # following is true definition of flux
     # flux_exprs = [diff_expr*sol_expr.diff(symb, 1) for symb in symbs]
     # but in unit tests only grad of sol is considered as flux
-    flux_exprs = [sol_expr.diff(symb, 1) for symb in symbs]
+    flux_exprs = [diff_expr*sol_expr.diff(symb, 1) for symb in symbs]
     flux_lambdas = [
         sp.lambdify(all_symbs, flux_expr, "numpy") for flux_expr in flux_exprs]
     if transient:

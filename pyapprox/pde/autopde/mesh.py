@@ -628,7 +628,7 @@ class CanonicalCollocationMesh():
         return residual
 
     def _apply_neumann_and_robin_boundary_conditions_to_residual(
-            self, bndry_conds, residual, sol):
+            self, bndry_conds, residual, sol, flux_jac):
         for ii, bndry_cond in enumerate(bndry_conds):
             if bndry_cond[1] == "N" or bndry_cond[1] == "R":
                 if self._basis_types[ii//2] == "F":
@@ -638,22 +638,22 @@ class CanonicalCollocationMesh():
                 idx = self._bndry_indices[ii]
                 bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
                 normal_vals = self._bndrys[ii].normals(self.mesh_pts[:, idx])
-                # warning flux is not dependent on diffusivity (
-                # diffusion equation not the usual boundary formulation used
-                # for spectral Galerkin methods)
-                flux_vals = self.grad(sol, idx)
+                flux_jac_vals = flux_jac(idx)
+                flux_vals = torch.hstack([
+                    torch.linalg.multi_dot((flux_jac_vals[dd], sol))[:, None]
+                    for dd in range(len(flux_jac_vals))])
                 residual[idx] = self.dot(flux_vals, normal_vals)-bndry_vals
                 if bndry_cond[1] == "R":
                     residual[idx] += bndry_cond[2]*sol[idx]
         return residual
 
     def _apply_boundary_conditions_to_residual(
-            self, bndry_conds, residual, sol):
+            self, bndry_conds, residual, sol, flux_jac):
         residual = self._apply_dirichlet_boundary_conditions_to_residual(
             bndry_conds, residual, sol)
         residual = (
             self._apply_neumann_and_robin_boundary_conditions_to_residual(
-                bndry_conds, residual, sol))
+                bndry_conds, residual, sol, flux_jac))
         residual = (self._apply_periodic_boundary_conditions_to_residual(
             bndry_conds, residual, sol))
         residual = (self._apply_custom_boundary_conditions_to_residual(
@@ -684,17 +684,21 @@ class CanonicalCollocationMesh():
         return residual, jac
 
     def _apply_neumann_and_robin_boundary_conditions(
-            self, bndry_conds, residual, jac, sol):
+            self, bndry_conds, residual, jac, sol, flux_jac):
         for ii, bndry_cond in enumerate(bndry_conds):
             if bndry_cond[1] != "N" and bndry_cond[1] != "R":
                 continue
             idx = self._bndry_indices[ii]
             normal_vals = self._bndrys[ii].normals(
                 self.mesh_pts[:, idx])
-            grad_vals = [normal_vals[:, dd:dd+1]*self._dmat(dd)[idx]
-                         for dd in range(self.nphys_vars)]
+            flux_jac_vals = flux_jac(idx)
+            flux_normal_vals = [
+                normal_vals[:, dd:dd+1]*flux_jac_vals[dd]
+                for dd in range(self.nphys_vars)]
+            # flux_normal_vals = [normal_vals[:, dd:dd+1]*self._dmat(dd)[idx]
+            #                    for dd in range(self.nphys_vars)]
             # (D2*u)*n2+D2*u*n2
-            jac[idx] = sum(grad_vals)
+            jac[idx] = sum(flux_normal_vals)
             bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
             residual[idx] = torch.linalg.multi_dot((jac[idx], sol))-bndry_vals
             if bndry_cond[1] == "R":
@@ -719,16 +723,17 @@ class CanonicalCollocationMesh():
                     torch.linalg.multi_dot((self._dmat(ii//2)[idx2], sol)))
         return residual, jac
 
-    def _apply_boundary_conditions(self, bndry_conds, residual, jac, sol):
+    def _apply_boundary_conditions(self, bndry_conds, residual, jac, sol,
+                                   flux_jac):
         if jac is None:
             return self._apply_boundary_conditions_to_residual(
-                bndry_conds, residual, sol), None
+                bndry_conds, residual, sol, flux_jac), None
         residual, jac = self._apply_dirichlet_boundary_conditions(
                 bndry_conds, residual, jac, sol)
         residual, jac = self._apply_periodic_boundary_conditions(
             bndry_conds, residual, jac, sol)
         residual, jac = self._apply_neumann_and_robin_boundary_conditions(
-            bndry_conds, residual, jac, sol)
+            bndry_conds, residual, jac, sol, flux_jac)
         return residual, jac
 
 
@@ -883,14 +888,6 @@ class VectorMesh():
             cnt += ndof
         return split_vector
 
-    def _apply_boundary_conditions_to_residual(self, bndry_conds, residual, sol):
-        split_sols = self.split_quantities(sol)
-        split_residual = self.split_quantities(residual)
-        for ii, mesh in enumerate(self._meshes):
-            split_residual[ii] = mesh._apply_boundary_conditions_to_residual(
-                bndry_conds[ii], split_residual[ii], split_sols[ii])
-        return torch.cat(split_residual)
-
     def _zero_boundary_equations(self, mesh, bndry_conds, jac):
         for ii in range(len(bndry_conds)):
             if bndry_conds[ii][1] is not None:
@@ -898,20 +895,21 @@ class VectorMesh():
         return jac
 
     def _apply_boundary_conditions_to_residual(
-            self, bndry_conds, residual, sol):
+            self, bndry_conds, residual, sol, flux_jac):
         split_sols = self.split_quantities(sol)
         split_residual = self.split_quantities(residual)
         for ii, mesh in enumerate(self._meshes):
             split_residual[ii] = (
                 mesh._apply_boundary_conditions(
                     bndry_conds[ii], split_residual[ii], None,
-                    split_sols[ii]))[0]
+                    split_sols[ii], flux_jac[ii]))[0]
         return torch.cat(split_residual), None
 
-    def _apply_boundary_conditions(self, bndry_conds, residual, jac, sol):
+    def _apply_boundary_conditions(
+            self, bndry_conds, residual, jac, sol, flux_jac):
         if jac is None:
             return self._apply_boundary_conditions_to_residual(
-                bndry_conds, residual, sol)
+                bndry_conds, residual, sol, flux_jac)
 
         split_sols = self.split_quantities(sol)
         split_residual = self.split_quantities(residual)
@@ -923,7 +921,7 @@ class VectorMesh():
             split_residual[ii], tmp = (
                 mesh._apply_boundary_conditions(
                     bndry_conds[ii], split_residual[ii], ssjac[ii].T,
-                    split_sols[ii]))
+                    split_sols[ii], flux_jac[ii]))
             ssjac = [s.T for s in ssjac]
             ssjac[ii] = tmp
             split_jac[ii] = torch.hstack(ssjac)

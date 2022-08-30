@@ -13,6 +13,15 @@ class AbstractSpectralCollocationPhysics(ABC):
         self._bndry_conds = self._set_boundary_conditions(
             bndry_conds)
         self._auto_jac = True
+        self._define_flux()
+
+    def _define_flux(self):
+        if type(self.mesh) == VectorMesh:
+            self.flux_jac = [
+                partial(self._scalar_flux_jac, mesh)
+                for mesh in self.mesh._meshes]
+        else:
+            self.flux_jac = partial(self._scalar_flux_jac, self.mesh)
 
     def _set_boundary_conditions(self, bndry_conds):
         if type(self.mesh) == VectorMesh:
@@ -43,7 +52,7 @@ class AbstractSpectralCollocationPhysics(ABC):
         if jac is None:
             assert self._auto_jac
         res, jac = self.mesh._apply_boundary_conditions(
-            self._bndry_conds, res, jac, sol)
+            self._bndry_conds, res, jac, sol, self.flux_jac)
         return res, jac
 
     def _set_time(self, time):
@@ -65,6 +74,9 @@ class AbstractSpectralCollocationPhysics(ABC):
         if jac is None:
             assert self._auto_jac
         return res, jac
+
+    def _scalar_flux_jac(self, mesh, idx):
+        return [mesh._dmat(dd)[idx] for dd in range(mesh.nphys_vars)]
 
 
 class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
@@ -108,6 +120,11 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         if not self._auto_jac:
             return res, jac
         return res, None
+
+    def _scalar_flux_jac(self, mesh, idx):
+        diff_vals = self._diff_fun(self.mesh.mesh_pts[:, idx])
+        return [diff_vals*mesh._dmat(dd)[idx]
+                for dd in range(mesh.nphys_vars)]
 
 
 class IncompressibleNavierStokes(AbstractSpectralCollocationPhysics):
