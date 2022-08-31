@@ -11,7 +11,7 @@ from pyapprox.analysis.visualize import get_meshgrid_function_data_from_variable
 def fwd_solver_finite_difference_wrapper(
         fwd_solver, functional, set_params, params, **newton_kwargs):
     # Warning newton tol must be smaller than finite difference step size
-    set_params(fwd_solver.residual, torch.as_tensor(params[:, 0]))
+    set_params(fwd_solver.physics, torch.as_tensor(params[:, 0]))
     fd_sol = fwd_solver.solve(**newton_kwargs)
     qoi = np.asarray([functional(fd_sol, torch.as_tensor(params[:, 0]))])
     return qoi
@@ -62,7 +62,7 @@ def advection_diffusion():
     p = plt.contourf(X, Y, Z, np.linspace(Z.min(), Z.max(), 20))
     plt.plot(true_params[0], true_params[1], 'ko')
     # X, Y, Z = get_meshgrid_function_data(
-    #     obs_model._fwd_solver.residual._diff_fun, domain_bounds, 50)
+    #     obs_model._fwd_solver.physics._diff_fun, domain_bounds, 50)
     # X, Y, Z = get_meshgrid_function_data(
     #     partial(mesh.interpolate, kle.eig_vecs[:, 1]), domain_bounds, 50)
     # p = plt.contourf(X, Y, Z, np.linspace(Z.min(), Z.max(), 20))

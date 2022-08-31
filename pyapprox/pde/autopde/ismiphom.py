@@ -140,12 +140,12 @@ if __name__ == "__main__":
             Function(benchmark.friction_fun),
             Function(benchmark.thickness_fun), A, rho, homotopy_val))
     for ii in range(nhomotopy_steps):
-        print(solver.residual._homotopy_val)
+        print(solver.physics._homotopy_val)
         sol = solver.solve(
             init_guess, step_size=1, verbosity=2, maxiters=100, tol=2e-8)
         init_guess = torch.tensor(sol)
         homotopy_alpha += 0.1
-        solver.residual._homotopy_val = 10**(-homotopy_alpha)
+        solver.physics._homotopy_val = 10**(-homotopy_alpha)
 
     print(sol)
     nplot_pts_1d = 100

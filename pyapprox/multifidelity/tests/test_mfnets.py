@@ -5,7 +5,7 @@ from pyapprox.util.utilities import check_gradients, approx_jacobian
 
 from pyapprox.multifidelity.mfnets import (
     MFNets, nx, np, partial, monomial_1d, least_squares_objective,
-    multiplicative_additive_discrepancy_fun,
+    multiplicative_additive_discrepancy_fun, monomial_nd, 
     populate_functions_multiplicative_additive_graph,
     mfnets_node_objective  # , mfnets_graph_objective, get_graph_params
 )
@@ -241,20 +241,36 @@ class TestMFNets(unittest.TestCase):
 
     def test_evaluation_and_gradient_three_models_peer(self):
         """
+        ninputs = 1
         y = f_3(x, f_1(x), f_2(x))
           = d_3(x) + 3f_1(x)+4f_2(x)
-          = d_2(x) + 3(1+x+x^2) + 4(1+x+x^2)
+          = d_3(x) + 3(1+x+x^2) + 4(1+x+x^2)
           = 2+2x+2x^2 + 3(1+x+x^2) + 4(1+x+x^2)
+
+        ninputs = 2
+        y = f_3(x, f_1(x), f_2(x))
+          = d_3(x) + 3f_1(x)+4f_2(x)
+          = d_3(x) + 3(1+x+y) + 4(1+x+y)
+          = 2+2x+2y + 3(1+x+y) + 4(1+x+y)
         """
-        ninputs = 1
+        ninputs = 2
         nnodes = 3
-        ndiscrepancy_params, nscaling_params = 3, 1
+        discrep_order, scaling_order = 1, 0
         graph = setup_peer_mfnets_graph(nnodes)
+        from pyapprox.surrogates.interp.indexing import (
+            compute_hyperbolic_indices)
+        discrep_indices = compute_hyperbolic_indices(ninputs, discrep_order)
+        scaling_indices = compute_hyperbolic_indices(ninputs, scaling_order)
+        ndiscrepancy_params, nscaling_params = (
+            discrep_indices.shape[1], scaling_indices.shape[1])
+        discrep_fun = partial(monomial_nd, discrep_indices)
+        scaling_fun = partial(monomial_nd, scaling_indices)
         populate_functions_multiplicative_additive_graph(
-            graph, monomial_1d, monomial_1d, ndiscrepancy_params,
+            graph, discrep_fun, scaling_fun, ndiscrepancy_params,
             nscaling_params, ninputs)
 
-        input_samples = np.linspace(0, 2, 11)[None, :]
+        # input_samples = np.linspace(0, 2, 11)[None, :]
+        input_samples = np.random.uniform(0, 2, (ninputs, 11))
         mfnets = MFNets(graph)
         params = np.hstack((
             np.ones(2*ndiscrepancy_params),
@@ -263,15 +279,24 @@ class TestMFNets(unittest.TestCase):
         node_id = mfnets.get_nnodes()
         values = mfnets.forward_pass(input_samples, node_id)
 
-        true_values = 9*(1+input_samples+input_samples**2).T
+        # ninputs = 1
+        # true_values = 9*(1+input_samples+input_samples**2).T
+        # ninputs = 2
+        true_values = 9*(1+input_samples.sum(axis=0))[:, None]
+        # print(values)
+        # print(true_values)
         assert np.allclose(values, true_values)
 
         def fun(samples):
-            return 9*(1+samples+samples**2).T
+            # ninput = 1
+            # return 9*(1+samples+samples**2).T
+            # ninput = 2
+            return 9*(1+samples.sum(axis=0))[:, None]
 
         noise_std = 1.0
         obj_fun = least_squares_objective
-        train_samples = np.linspace(0, 2, 5)[None, :]
+        # train_samples = np.linspace(0, 2, 5)[None, :]
+        train_samples = np.random.uniform(0, 2, (ninputs, 5))
         train_values = fun(train_samples)
         params0 = np.arange(params.shape[0])[:, None]
 

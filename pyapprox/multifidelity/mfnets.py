@@ -97,6 +97,39 @@ def monomial_1d(params, input_samples, return_grad):
     return vals, grad
 
 
+def monomial_nd(indices, params, input_samples, return_grad):
+    """Linear Model with Monomial basis functions
+
+    p[0]+sum(x**p[1:])
+
+    Parameters
+    ----------
+    params : np.ndarray (nparams)
+       The parameters of the model
+
+    input_samples : np.ndarray (nsamples,nparams)
+       The independent variables of the model
+
+    Returns
+    -------
+    vals : np.ndarray (nsamples)
+        Evaluation of the linear model
+
+    grad : np.ndarray (nsamples,nparams)
+      gradient of the linear model with respect to the model parameters
+    """
+    from pyapprox.surrogates.interp.monomial import monomial_basis_matrix
+    if indices.shape[1] != params.shape[0]:
+        raise ValueError("indices and params are inconsistent")
+    basis = monomial_basis_matrix(indices, input_samples)
+    vals = basis.dot(params)
+    if not return_grad:
+        return vals
+
+    grad = basis
+    return vals, grad
+
+
 def least_squares_objective(obs_vals, pred_vals, noise_std=1,
                             return_grad=True):
     r"""Evaluate the least squares objective function
