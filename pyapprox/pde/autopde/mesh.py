@@ -391,6 +391,7 @@ class CanonicalCollocationMesh():
         self.nunknowns = self._canonical_mesh_pts.shape[1]
         self._partial_derivs = [partial(self.partial_deriv, dd=dd)
                                 for dd in range(self.nphys_vars)]
+        self._dmats = [None for dd in range(self.nphys_vars)]
 
     @staticmethod
     def _get_basis_types(nphys_vars, basis_types):
@@ -661,12 +662,15 @@ class CanonicalCollocationMesh():
         return residual
 
     def _dmat(self, dd):
+        if self._dmats[dd] is not None:
+            return self._dmats[dd]
         dmat = 0
         for ii in range(self.nphys_vars):
             if self._transform_inv_derivs[dd][ii] is not None:
                 scale = self._deriv_scale(dd, ii, None)
                 if scale is not None:
                     dmat += scale[:, None]*self._canonical_deriv_mats[ii]
+        self._dmats[dd] = dmat
         return dmat
 
     def _apply_dirichlet_boundary_conditions(
