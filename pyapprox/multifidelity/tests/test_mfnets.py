@@ -2,12 +2,13 @@ import unittest
 import copy
 
 from pyapprox.util.utilities import check_gradients, approx_jacobian
+from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
 
 from pyapprox.multifidelity.mfnets import (
     MFNets, nx, np, partial, monomial_1d, least_squares_objective,
-    multiplicative_additive_discrepancy_fun, monomial_nd, 
+    multiplicative_additive_discrepancy_fun, monomial_nd,
     populate_functions_multiplicative_additive_graph,
-    mfnets_node_objective  # , mfnets_graph_objective, get_graph_params
+    mfnets_node_objective
 )
 
 
@@ -257,8 +258,6 @@ class TestMFNets(unittest.TestCase):
         nnodes = 3
         discrep_order, scaling_order = 1, 0
         graph = setup_peer_mfnets_graph(nnodes)
-        from pyapprox.surrogates.interp.indexing import (
-            compute_hyperbolic_indices)
         discrep_indices = compute_hyperbolic_indices(ninputs, discrep_order)
         scaling_indices = compute_hyperbolic_indices(ninputs, scaling_order)
         ndiscrepancy_params, nscaling_params = (
@@ -306,14 +305,12 @@ class TestMFNets(unittest.TestCase):
                 mfnets, node_id, train_samples, train_values, obj_fun,
                 noise_std, pp, return_grad)
 
-        node_obj_val, node_grad = node_objective(params0, True)
+        node_grad = node_objective(params0, True)[1]
 
         node_grad_fd = approx_jacobian(
             partial(node_objective, return_grad=False), params0)
-        true_node_grad = np.array(
-            [[7852.5, 11925., 20451.375, 8725., 13250., 22723.75, 872.5,
-              1325., 2272.375,  5869.75,  19279.375]]).T
-        assert np.allclose(true_node_grad, node_grad_fd.T)
+        # print(node_grad_fd)
+        # print(node_grad)
         assert np.allclose(node_grad, node_grad_fd.T)
 
         def node_objective_wrapper(pp):
@@ -396,13 +393,22 @@ class TestMFNets(unittest.TestCase):
         diffs = check_gradients(node_objective_wrapper, True, params0)
         assert diffs.min() < 1e-7 and diffs.max() > 1e-2
 
-    def test_least_squares_optimization(self):
-        ninputs = 1
-        ndiscrepancy_params, nscaling_params = 3, 1
-        true_graph = setup_4_model_graph()
-
+    def _check_least_squares_optimization(self, ninputs, nmodels,
+                                          discrep_order, scaling_order):
+        if nmodels == 4:
+            true_graph = setup_4_model_graph()
+        elif nmodels == 3:
+            true_graph = setup_peer_mfnets_graph(nmodels)
+        else:
+            raise ValueError()
+        discrep_indices = compute_hyperbolic_indices(ninputs, discrep_order)
+        scaling_indices = compute_hyperbolic_indices(ninputs, scaling_order)
+        ndiscrepancy_params, nscaling_params = (
+            discrep_indices.shape[1], scaling_indices.shape[1])
+        discrep_fun = partial(monomial_nd, discrep_indices)
+        scaling_fun = partial(monomial_nd, scaling_indices)
         populate_functions_multiplicative_additive_graph(
-            true_graph, monomial_1d, monomial_1d, ndiscrepancy_params,
+            true_graph, discrep_fun, scaling_fun, ndiscrepancy_params,
             nscaling_params, ninputs)
 
         true_mfnets = MFNets(true_graph)
@@ -411,7 +417,7 @@ class TestMFNets(unittest.TestCase):
         nnodes = true_mfnets.get_nnodes()
         print(true_params, 'pp')
 
-        ninputs, ntrain_samples_list = 1, [4]*nnodes
+        ntrain_samples_list = [ndiscrepancy_params+nscaling_params+1]*nnodes
         train_samples_list = [
             np.random.uniform(0, 2, (ninputs, n)) for n in ntrain_samples_list]
         train_values_list = [
@@ -439,7 +445,7 @@ class TestMFNets(unittest.TestCase):
                            objective_wrapper(true_params)[1])
 
         diffs = check_gradients(objective_wrapper, True, init_params)
-        assert diffs.min() < 6e-7 and diffs.max() > 1
+        assert diffs.min()/diffs.max() < 2e-6
 
         tol = 1e-10
         # opts = {'disp': True, "iprint": 3, "gtol": tol, "ftol": tol,
@@ -462,6 +468,10 @@ class TestMFNets(unittest.TestCase):
         assert np.allclose(
             true_mfnets(validation_samples), mfnets(validation_samples))
 
+    def test_least_squares_optimization(self):
+        test_cases = [[1, 4, 1, 0], [2, 3, 2, 0]]
+        for test_case in test_cases:
+            self._check_least_squares_optimization(*test_case)
 
 
 if __name__ == "__main__":
