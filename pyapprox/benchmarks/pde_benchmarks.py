@@ -100,16 +100,6 @@ class AdvectionDiffusionReactionKLEModel():
                  functional, functional_deriv_funs=[None, None],
                  newton_kwargs={}):
 
-        import inspect
-        if "mesh" == inspect.getfullargspec(functional).args[0]:
-            functional = partial(functional, mesh)
-        for ii in range(len(functional_deriv_funs)):
-            if (functional_deriv_funs[ii] is not None and
-                "mesh" == inspect.getfullargspec(
-                    functional_deriv_funs[ii]).args[0]):
-                functional_deriv_funs[ii] = partial(
-                    functional_deriv_funs[ii], mesh)
-
         self._newton_kwargs = newton_kwargs
         self._kle = kle
         # TODO pass in parameterized functions for diffusiviy and forcing and
@@ -117,8 +107,23 @@ class AdvectionDiffusionReactionKLEModel():
 
         self._fwd_solver = self._set_forward_solver(
             mesh, bndry_conds, vel_fun, react_funs, forc_fun)
+
+        import inspect
+        if "mesh" == inspect.getfullargspec(functional).args[0]:
+            if "physics" == inspect.getfullargspec(functional).args[1]:
+                functional = partial(
+                    functional, mesh, self._fwd_solver.physics)
+            else:
+                functional = partial(functional, mesh)
+        for ii in range(len(functional_deriv_funs)):
+            if (functional_deriv_funs[ii] is not None and
+                "mesh" == inspect.getfullargspec(
+                    functional_deriv_funs[ii]).args[0]):
+                functional_deriv_funs[ii] = partial(
+                    functional_deriv_funs[ii], mesh)
+
         self._functional = functional
-        
+
         self._mesh_basis_mat = mesh._get_lagrange_basis_mat(
             mesh._canonical_mesh_pts_1d,
             mesh._map_samples_to_canonical_domain(mesh.mesh_pts))
@@ -145,7 +150,7 @@ class AdvectionDiffusionReactionKLEModel():
 
     def _fast_interpolate(self, values, xx):
         # interpolate assuming need to evaluate all mesh points
-        mesh = self._fwd_solver.residual.mesh
+        mesh = self._fwd_solver.physics.mesh
         assert xx.shape[1] == mesh.mesh_pts.shape[1]
         assert np.allclose(xx, mesh.mesh_pts)
         interp_vals = torch.linalg.multi_dot((self._mesh_basis_mat, values))
@@ -153,7 +158,7 @@ class AdvectionDiffusionReactionKLEModel():
         return interp_vals
 
     def _set_random_sample(self, sample):
-        self._fwd_solver.residual._diff_fun = partial(
+        self._fwd_solver.physics._diff_fun = partial(
             self._fast_interpolate,
             self._kle(sample[:, None]))
 
@@ -174,7 +179,7 @@ class AdvectionDiffusionReactionKLEModel():
 
     def get_num_degrees_of_freedom_cost(self, config_vals):
         if (len(config_vals) !=
-                self._fwd_solver.residual.mesh.mesh_pts.shape[0]):
+                self._fwd_solver.physics.mesh.mesh_pts.shape[0]):
             msg = "config_vals provided has an incorrect shape"
             raise ValueError(msg)
         orders = config_vals
@@ -208,10 +213,10 @@ class TransientAdvectionDiffusionReactionKLEModel(
         sample_copy = torch.as_tensor(sample.copy())
         self._set_random_sample(sample_copy)
         if self._init_sol is None:
-            self._steady_state_fwd_solver.residual._diff_fun = partial(
+            self._steady_state_fwd_solver.physics._diff_fun = partial(
                 self._fast_interpolate,
                 self._kle(sample_copy[:, None]))
-            self._fwd_solver.residual._set_time(self._init_time)
+            self._fwd_solver.physics._set_time(self._init_time)
             init_sol = self._steady_state_fwd_solver.solve(
                 **self._newton_kwargs)
         else:
@@ -235,7 +240,7 @@ class TransientAdvectionDiffusionReactionKLEModel(
 
     def get_num_degrees_of_freedom_cost(self, config_vals):
         if (len(config_vals) !=
-                self._fwd_solver.residual.mesh.mesh_pts.shape[0]+1):
+                self._fwd_solver.physics.mesh.mesh_pts.shape[0]+1):
             msg = "config_vals provided has an incorrect shape"
             raise ValueError(msg)
         ntsteps = int(self._final_time/config_vals[-1])
@@ -361,7 +366,7 @@ def _setup_inverse_advection_diffusion_benchmark(
 
     return (inv_model, variable, true_kle_params, noiseless_obs, obs,
             obs_indices, obs_model, obs_model._kle,
-            obs_model._fwd_solver.residual.mesh)
+            obs_model._fwd_solver.physics.mesh)
 
 
 def _setup_multi_index_advection_diffusion_benchmark(
@@ -410,7 +415,7 @@ def _setup_multi_index_advection_diffusion_benchmark(
     hf_model, variable = _setup_advection_diffusion_benchmark(
         amp, scale, loc, length_scale, sigma, nvars, hf_orders, functional,
         newton_kwargs=newton_kwargs, time_scenario=time_scenario)
-    kle_args = [hf_model._fwd_solver.residual.mesh, hf_model._kle]
+    kle_args = [hf_model._fwd_solver.physics.mesh, hf_model._kle]
 
     def setup_model(config_vals):
         orders = config_vals[:2]

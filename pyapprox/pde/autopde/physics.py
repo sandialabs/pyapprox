@@ -122,7 +122,8 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         return res, None
 
     def _scalar_flux_jac(self, mesh, idx):
-        diff_vals = self._diff_fun(self.mesh.mesh_pts[:, idx])
+        # idx used afterwards to allow for fast interpolate routines
+        diff_vals = self._diff_fun(self.mesh.mesh_pts)[idx]
         return [diff_vals*mesh._dmat(dd)[idx]
                 for dd in range(mesh.nphys_vars)]
 

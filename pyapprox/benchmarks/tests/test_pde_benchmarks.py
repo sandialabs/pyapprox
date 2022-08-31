@@ -73,10 +73,10 @@ class TestPDEBenchmarks(unittest.TestCase):
         # import matplotlib.pyplot as plt
         # import torch
         # pde1 = model._model_ensemble.functions[-1]
-        # mesh1 = pde1._fwd_solver.residual.mesh
+        # mesh1 = pde1._fwd_solver.physics.mesh
         # kle_vals1 = pde1._kle(torch.as_tensor(random_samples[:, :1]))
         # pde2 = model._model_ensemble.functions[0]
-        # mesh2 = pde2._fwd_solver.residual.mesh
+        # mesh2 = pde2._fwd_solver.physics.mesh
         # kle_vals2 = pde2._kle(torch.as_tensor(random_samples[:, :1]))
         # kle_vals2 = mesh2.interpolate(kle_vals2, mesh1.mesh_pts)
         # im = mesh1.plot(
