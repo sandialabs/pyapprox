@@ -11,7 +11,8 @@ from pyapprox.pde.autopde.manufactured_solutions import (
     setup_helmholtz_manufactured_solution,
     setup_shallow_water_wave_equations_manufactured_solution,
     setup_shallow_shelf_manufactured_solution,
-    setup_first_order_stokes_ice_manufactured_solution
+    setup_first_order_stokes_ice_manufactured_solution,
+    setup_two_species_advection_diffusion_reaction_manufactured_solution
 )
 from pyapprox.pde.autopde.mesh import (
     CartesianProductCollocationMesh,
@@ -27,7 +28,7 @@ from pyapprox.pde.autopde.physics import (
     AdvectionDiffusionReaction, IncompressibleNavierStokes,
     LinearIncompressibleStokes, ShallowIce, EulerBernoulliBeam,
     Helmholtz, ShallowWaterWave, ShallowShelfVelocities,
-    ShallowShelf, FirstOrderStokesIce
+    ShallowShelf, FirstOrderStokesIce, MultiSpeciesAdvectionDiffusionReaction
 )
 from pyapprox.util.utilities import approx_jacobian
 
@@ -1366,6 +1367,87 @@ class TestAutoPDE(unittest.TestCase):
             orders, transforms[0], transforms[1], transforms[2],
             transforms[3])
         self._check_gradients_of_transformed_mesh(mesh, degree)
+
+    def _check_transient_multi_species_advection_diffusion_reaction(
+            self, domain_bounds, orders, sol_strings,
+            diff_strings, vel_strings, react_funs, react_jacs, bndry_types,
+            tableau_name):
+        (sol_fun_1, diff_fun_1, vel_fun_1, forc_fun_1, flux_funs_1,
+         sol_fun_2, diff_fun_2, vel_fun_2, forc_fun_2, flux_funs_2) = (
+            setup_two_species_advection_diffusion_reaction_manufactured_solution(
+                sol_strings[0], diff_strings[0], vel_strings[0], react_funs[0],
+                sol_strings[1], diff_strings[1], vel_strings[1], react_funs[1],
+                True))
+
+        diff_funs = [Function(diff_fun_1), Function(diff_fun_2)]
+        vel_funs = [Function(vel_fun_1), Function(vel_fun_2)]
+        forc_funs = [
+            TransientFunction(forc_fun_1, name='forcing_1'),
+            TransientFunction(forc_fun_2, name='forcing_2')]
+        sol_funs = [TransientFunction(sol_fun_1, name='sol_1'),
+                    TransientFunction(sol_fun_2, name='sol_2')]
+        flux_funs = [TransientFunction(flux_funs_1, name='flux_1'),
+                     TransientFunction(flux_funs_2, name='flux_2')]
+
+        nphys_vars = len(orders)
+        bndry_conds = [_get_boundary_funs(
+            nphys_vars, bndry_types[ii], sol_funs[ii], flux_funs[ii])
+                       for ii in range(len(sol_funs))]
+
+        deltat = 0.1
+        final_time = deltat*3# 5
+        mesh = VectorMesh(
+            [CartesianProductCollocationMesh(domain_bounds, orders)]*2)
+        print(react_funs)
+        solver = TransientPDE(
+            MultiSpeciesAdvectionDiffusionReaction(
+                mesh, bndry_conds, diff_funs, vel_funs, react_funs, forc_funs,
+                react_jacs), deltat, tableau_name)
+        for sol_fun in sol_funs:
+            sol_fun.set_time(0)
+        init_sol = torch.cat(
+            [sol_fun(mesh.mesh_pts)
+             for sol_fun, mesh in zip(sol_funs, mesh._meshes)])
+        sols, times = solver.solve(
+            init_sol, 0, final_time, newton_kwargs={"tol": 1e-8})
+
+        for ii, time in enumerate(times):
+            sol_fun.set_time(time)
+            exact_sols_t = [
+                sol_fun(mesh.mesh_pts).numpy()
+                for sol_fun, mesh in zip(sol_funs, mesh._meshes)]
+            model_sols_t = [
+                s.numpy() for s in mesh.split_quantities(sols[:, ii:ii+1])]
+            # print(exact_sol_t)
+            # print(model_sol_t, 'm')
+            for jj in range(len(model_sols_t)):
+                print(exact_sols_t[jj].shape, model_sols_t[jj].shape)
+                L2_error = np.sqrt(
+                    mesh._meshes[jj].integrate(
+                        (exact_sols_t[jj]-model_sols_t[jj])**2))
+                factor = np.sqrt(
+                    mesh._meshes[jj].integrate(exact_sols_t[jj]**2))
+                print(time, L2_error, 1e-8*factor)
+                assert L2_error < 1e-8*factor
+
+    def test_transient_multi_species_advection_diffusion_reaction(self):
+        test_cases = [
+            [[0, 1], [4], ["0.5*(x-3)*x", "x**3+1"], ["1", "2"], [["0"], ["0"]],
+             # [lambda sol: sol[0]**3, lambda sol: sol[1]**2],
+             # [lambda sol: [torch.diag(3*sol[0]**2),
+             #               torch.diag(0*sol[1])],
+             #  lambda sol: [torch.diag(0*sol[0]),
+             #               torch.diag(2*sol[1])]],
+             [lambda sol: sol[0]*sol[1], lambda sol: -sol[0]*sol[1]],
+             [lambda sol: [torch.diag(sol[1]),
+                           torch.diag(sol[0])],
+              lambda sol: [torch.diag(-sol[1]),
+                           torch.diag(-sol[0])]],
+[["D", "D"], ["D", "D"]], "im_beuler1"],
+        ]
+        for test_case in test_cases:
+            self._check_transient_multi_species_advection_diffusion_reaction(
+                *test_case)
 
 
 if __name__ == "__main__":

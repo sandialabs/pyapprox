@@ -1045,7 +1045,7 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
 
 
 def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True, rel=True,
-                  direction=None):
+                  direction=None, fd_eps=np.logspace(-13, 0, 14)[::-1]):
     """
     Compare a user specified Hessian matrix-vector product with the
     Hessian matrix vector produced computed with finite
@@ -1104,7 +1104,6 @@ def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True, rel=True,
         direction = np.random.normal(0, 1, (zz.shape[0], 1))
         direction /= np.linalg.norm(direction)
     directional_derivative = hessian_matvec(zz, direction)
-    fd_eps = np.logspace(-13, 0, 14)[::-1]
     errors = []
     row_format = "{:<12} {:<25} {:<25} {:<25}"
     if disp:
