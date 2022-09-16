@@ -104,6 +104,117 @@ def setup_advection_diffusion_reaction_manufactured_solution(
     return sol_fun, diff_fun, vel_fun, forc_fun, flux_funs
 
 
+def setup_two_species_advection_diffusion_reaction_manufactured_solution(
+        sol_string_1, diff_string_1, vel_strings_1, react_fun_1,
+        sol_string_2, diff_string_2, vel_strings_2, react_fun_2,
+        transient=False):
+    nphys_vars = len(vel_strings_1)
+    sp_x, sp_y = sp.symbols(['x', 'y'])
+    symbs = (sp_x, sp_y)[:nphys_vars]
+    if transient:
+        # These manufacture solutions assume
+        # only solution and forcing are time dependent
+        all_symbs = symbs + (sp.symbols('t'),)
+    else:
+        all_symbs = symbs
+    sol_expr_1 = sp.sympify(sol_string_1)
+    sol_lambda_1 = sp.lambdify(all_symbs, sol_expr_1, "numpy")
+    sol_expr_2 = sp.sympify(sol_string_2)
+    sol_lambda_2 = sp.lambdify(all_symbs, sol_expr_2, "numpy")
+    if transient:
+        sol_fun_1 = partial(_evaluate_transient_sp_lambda, sol_lambda_1)
+        sol_fun_2 = partial(_evaluate_transient_sp_lambda, sol_lambda_2)
+    else:
+        sol_fun_1 = partial(_evaluate_sp_lambda, sol_lambda_1)
+        sol_fun_2 = partial(_evaluate_sp_lambda, sol_lambda_1)
+
+    diff_expr_1 = sp.sympify(diff_string_1)
+    diff_lambda_1 = sp.lambdify(symbs, diff_expr_1, "numpy")
+    diff_fun_1 = partial(_evaluate_sp_lambda, diff_lambda_1)
+    diffusion_expr_1 = sum(
+        [(diff_expr_1*sol_expr_1.diff(symb, 1)).diff(symb, 1)
+         for symb in symbs])
+
+    diff_expr_2 = sp.sympify(diff_string_2)
+    diff_lambda_2 = sp.lambdify(symbs, diff_expr_2, "numpy")
+    diff_fun_2 = partial(_evaluate_sp_lambda, diff_lambda_2)
+    diffusion_expr_2 = sum(
+        [(diff_expr_2*sol_expr_2.diff(symb, 1)).diff(symb, 1)
+         for symb in symbs])
+
+    vel_exprs_1 = [sp.sympify(vel_string) for vel_string in vel_strings_1]
+    vel_lambdas_1 = [
+        sp.lambdify(symbs, vel_expr, "numpy") for vel_expr in vel_exprs_1]
+    vel_fun_1 = partial(
+        _evaluate_list_of_sp_lambda, vel_lambdas_1, as_list=False)
+    advection_expr_1 = sum(
+        [vel_expr*sol_expr_1.diff(symb, 1)
+         for vel_expr, symb in zip(vel_exprs_1, symbs)])
+
+    reaction_expr_1 = react_fun_1([sol_expr_1, sol_expr_2])
+
+    vel_exprs_2 = [sp.sympify(vel_string) for vel_string in vel_strings_2]
+    vel_lambdas_2 = [
+        sp.lambdify(symbs, vel_expr, "numpy") for vel_expr in vel_exprs_2]
+    vel_fun_2 = partial(
+        _evaluate_list_of_sp_lambda, vel_lambdas_2, as_list=False)
+    advection_expr_2 = sum(
+        [vel_expr*sol_expr_2.diff(symb, 1)
+         for vel_expr, symb in zip(vel_exprs_2, symbs)])
+
+    reaction_expr_2 = react_fun_2([sol_expr_1, sol_expr_2])
+
+    # du/dt - diff + advec + react = forc
+    forc_expr_1 = -diffusion_expr_1+advection_expr_1+reaction_expr_1
+    forc_expr_2 = -diffusion_expr_2+advection_expr_2+reaction_expr_2
+    if transient:
+        forc_expr_1 += sol_expr_1.diff(all_symbs[-1], 1)
+        forc_expr_2 += sol_expr_2.diff(all_symbs[-1], 1)
+
+    forc_lambda_1 = sp.lambdify(all_symbs, forc_expr_1, "numpy")
+    forc_lambda_2 = sp.lambdify(all_symbs, forc_expr_2, "numpy")
+    if transient:
+        forc_fun_1 = partial(_evaluate_transient_sp_lambda, forc_lambda_1)
+        forc_fun_2 = partial(_evaluate_transient_sp_lambda, forc_lambda_2)
+    else:
+        forc_fun_1 = partial(_evaluate_sp_lambda, forc_lambda_1)
+        forc_fun_2 = partial(_evaluate_sp_lambda, forc_lambda_2)
+
+    # following is true definition of flux
+    # flux_exprs = [diff_expr*sol_expr.diff(symb, 1) for symb in symbs]
+    # but in unit tests only grad of sol is considered as flux
+    flux_exprs_1 = [diff_expr_1*sol_expr_1.diff(symb, 1) for symb in symbs]
+    flux_lambdas_1 = [
+        sp.lambdify(all_symbs, flux_expr, "numpy")
+        for flux_expr in flux_exprs_1]
+    flux_exprs_2 = [diff_expr_2*sol_expr_2.diff(symb, 1) for symb in symbs]
+    flux_lambdas_2 = [
+        sp.lambdify(all_symbs, flux_expr, "numpy")
+        for flux_expr in flux_exprs_2]
+    if transient:
+        flux_funs_1 = partial(
+            _evaluate_list_of_transient_sp_lambda, flux_lambdas_1)
+        flux_funs_2 = partial(
+            _evaluate_list_of_transient_sp_lambda, flux_lambdas_2)
+    else:
+        flux_funs_1 = partial(_evaluate_list_of_sp_lambda, flux_lambdas_1)
+        flux_funs_2 = partial(_evaluate_list_of_sp_lambda, flux_lambdas_2)
+
+    print("solu_1", sol_expr_1)
+    print("diff_1", diff_expr_1)
+    print("forc_1", forc_expr_1)
+    print("vel_1", vel_exprs_1)
+    print("react_1", reaction_expr_1)
+    print("solu_2", sol_expr_2)
+    print("diff_2", diff_expr_2)
+    print("forc_2", forc_expr_2)
+    print("vel_2", vel_exprs_2)
+    print("react_2", reaction_expr_2)
+
+    return (sol_fun_1, diff_fun_1, vel_fun_1, forc_fun_1, flux_funs_1,
+            sol_fun_2, diff_fun_2, vel_fun_2, forc_fun_2, flux_funs_2)
+
+
 def setup_helmholtz_manufactured_solution(sol_string, wnum_string, nphys_vars):
     sp_x, sp_y = sp.symbols(['x', 'y'])
     symbs = (sp_x, sp_y)[:nphys_vars]
@@ -541,4 +652,3 @@ def setup_shallow_ice_manufactured_solution(
     print(forc_expr)
 
     return depth_fun, bed_fun, beta_fun, forc_fun, flux_funs
-

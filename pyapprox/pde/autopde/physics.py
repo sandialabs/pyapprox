@@ -101,31 +101,90 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
     #     forc_vals = params[ndof:2*ndof]
     #     vel_vals = params[2*ndof:].reshape((ndof, 2))
 
-    def _raw_residual(self, sol):
-        diff_vals = self._diff_fun(self.mesh.mesh_pts)
-        vel_vals = self._vel_fun(self.mesh.mesh_pts)
+    @staticmethod
+    def _linear_raw_residual(
+            mesh, sol, diff_fun, vel_fun, forc_fun, auto_jac):
+        diff_vals = diff_fun(mesh.mesh_pts)
+        vel_vals = vel_fun(mesh.mesh_pts)
         linear_jac = 0
-        for dd in range(self.mesh.nphys_vars):
+        for dd in range(mesh.nphys_vars):
             linear_jac += (
                 multi_dot(
-                    (self.mesh._dmats[dd], diff_vals*self.mesh._dmats[dd])) -
-                vel_vals[:, dd:dd+1]*self.mesh._dmats[dd])
+                    (mesh._dmats[dd], diff_vals*mesh._dmats[dd])) -
+                vel_vals[:, dd:dd+1]*mesh._dmats[dd])
         res = multi_dot((linear_jac, sol))
-        jac = linear_jac - self._react_jac(sol[:, None])
-        res -= self._react_fun(sol[:, None])[:, 0]
-        res += self._forc_fun(self.mesh.mesh_pts)[:, 0]
-        # print('res',res)
-        # print('f', self._forc_fun(self.mesh.mesh_pts)[:, 0].min(),
-        #       self._forc_fun(self.mesh.mesh_pts)[:, 0].max())
-        if not self._auto_jac:
-            return res, jac
+        res += forc_fun(mesh.mesh_pts)[:, 0]
+        if not auto_jac:
+            return res, linear_jac
         return res, None
+
+    def _raw_residual(self, sol):
+        linear_res, linear_jac = self._linear_raw_residual(
+            self.mesh, sol, self._diff_fun, self._vel_fun, self._forc_fun,
+            self._auto_jac)
+        if linear_jac is not None:
+            jac = linear_jac - self._react_jac(sol[:, None])
+        else:
+            jac = None
+        res = linear_res - self._react_fun(sol[:, None])[:, 0]
+        return res, jac
 
     def _scalar_flux_jac(self, mesh, idx):
         # idx used afterwards to allow for fast interpolate routines
         diff_vals = self._diff_fun(self.mesh.mesh_pts)[idx]
         return [diff_vals*mesh._dmat(dd)[idx]
                 for dd in range(mesh.nphys_vars)]
+
+
+class MultiSpeciesAdvectionDiffusionReaction(
+        AbstractSpectralCollocationPhysics):
+    def __init__(self, mesh, bndry_conds,
+                 diff_funs, vel_funs, react_funs, forc_funs, react_jacs):
+        super().__init__(mesh, bndry_conds)
+
+        if type(self.mesh) != VectorMesh:
+            raise ValueError("mesh is not of type VectorMesh")
+
+        self._diff_funs = diff_funs
+        self._vel_funs = vel_funs
+        self._react_funs = react_funs
+        self._forc_funs = forc_funs
+        self._react_jacs = react_jacs
+
+        self._funs = itertools.chain(
+            self._diff_funs, self._vel_funs, self._react_funs,
+            self._forc_funs)
+
+        self._auto_jac = False
+
+    def _raw_residual(self, sol):
+        split_sols = self.mesh.split_quantities(sol)
+        nspecies = len(split_sols)
+        residual, jac = [], []
+        jac = [[0 for jj in range(nspecies)] for ii in range(nspecies)]
+        for ii in range(nspecies):
+            res_ii, jac_ii = AdvectionDiffusionReaction._linear_raw_residual(
+                self.mesh._meshes[ii], split_sols[ii], self._diff_funs[ii],
+                self._vel_funs[ii], self._forc_funs[ii],
+                self._auto_jac)
+            res_ii -= self._react_funs[ii](split_sols)
+            residual.append(res_ii)
+            if jac is not None:
+                react_jac_ii = self._react_jacs[ii](split_sols)
+                for jj in range(nspecies):
+                    jac[ii][jj] = jac_ii-react_jac_ii[jj]
+
+        if not self._auto_jac:
+            return (torch.cat(residual),
+                    torch.vstack([torch.hstack(j) for j in jac]))
+        return torch.cat(residual), None
+
+    # need to extend to use vectormesh needed here
+    # def _scalar_flux_jac(self, mesh, idx):
+    #     # idx used afterwards to allow for fast interpolate routines
+    #     diff_vals = self._diff_fun(self.mesh.mesh_pts)[idx]
+    #     return [diff_vals*mesh._dmat(dd)[idx]
+    #             for dd in range(mesh.nphys_vars)]
 
 
 class IncompressibleNavierStokes(AbstractSpectralCollocationPhysics):

@@ -89,7 +89,8 @@ class TransientPDE():
         self.physics = physics
         self.time_integrator = ImplicitRungeKutta(
             deltat, self.physics._transient_residual, tableau_name,
-            constraints_fun=self._apply_boundary_conditions)
+            constraints_fun=self._apply_boundary_conditions,
+            auto=physics._auto_jac)
 
     def _apply_boundary_conditions(self, raw_residual, raw_jac, sol, time):
         # boundary conditions are updated when residual is computed
