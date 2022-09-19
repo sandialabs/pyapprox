@@ -36,8 +36,9 @@ def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
             jac = torch.autograd.functional.jacobian(
                 lambda s: residual_fun(s)[0], sol, strict=True)
         sol = sol-step_size*torch.linalg.solve(jac, residual)
+        # import numpy as np
         # np.set_printoptions(precision=2, suppress=True)
-        # print('j', jac.detach().numpy()[0, 0])
+        # print('j', jac.detach().numpy())
         # print(residual.detach().numpy()[0])
         # print(sol.numpy()[0], 's')
         # print(np.linalg.eigh(jac.numpy())[0])

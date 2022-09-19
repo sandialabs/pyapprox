@@ -1396,11 +1396,31 @@ class TestAutoPDE(unittest.TestCase):
         final_time = deltat*3# 5
         mesh = VectorMesh(
             [CartesianProductCollocationMesh(domain_bounds, orders)]*2)
-        print(react_funs)
         solver = TransientPDE(
             MultiSpeciesAdvectionDiffusionReaction(
                 mesh, bndry_conds, diff_funs, vel_funs, react_funs, forc_funs,
                 react_jacs), deltat, tableau_name)
+
+        for sol_fun in sol_funs:
+            sol_fun.set_time(0)
+        for forc_fun in forc_funs:
+            forc_fun.set_time(0)
+        exact_sol = torch.cat(
+            [sol_fun(mesh.mesh_pts)
+             for sol_fun, mesh in zip(sol_funs, mesh._meshes)])[:, 0]
+        print(exact_sol.shape)
+        j_man = solver.physics._raw_residual(
+            exact_sol)[1].numpy()
+        j_auto = torch.autograd.functional.jacobian(
+            lambda s: solver.physics._raw_residual(s)[0],
+            exact_sol.clone().requires_grad_(True), strict=True).numpy()
+
+        import numpy as np
+        np.set_printoptions(precision=2, suppress=True, linewidth=500)
+        print('j_man', j_man)
+        print('j_auto', j_auto)
+        assert np.allclose(j_man, j_auto)
+        
         for sol_fun in sol_funs:
             sol_fun.set_time(0)
         init_sol = torch.cat(
@@ -1430,18 +1450,14 @@ class TestAutoPDE(unittest.TestCase):
 
     def test_transient_multi_species_advection_diffusion_reaction(self):
         test_cases = [
-            [[0, 1], [4], ["0.5*(x-3)*x", "x**3+1"], ["1", "2"], [["0"], ["0"]],
-             # [lambda sol: sol[0]**3, lambda sol: sol[1]**2],
-             # [lambda sol: [torch.diag(3*sol[0]**2),
-             #               torch.diag(0*sol[1])],
-             #  lambda sol: [torch.diag(0*sol[0]),
-             #               torch.diag(2*sol[1])]],
-             [lambda sol: sol[0]*sol[1], lambda sol: -sol[0]*sol[1]],
-             [lambda sol: [torch.diag(sol[1]),
-                           torch.diag(sol[0])],
-              lambda sol: [torch.diag(-sol[1]),
-                           torch.diag(-sol[0])]],
-[["D", "D"], ["D", "D"]], "im_beuler1"],
+            [[0, 1], [4], ["0.5*(x-3)*x", "x**3+1"], ["1", "2"],
+             [["0"], ["0"]],
+             [lambda sol: sol[0]**2*sol[1], lambda sol: -sol[0]**2*sol[1]],
+             [lambda sol: [torch.diag(2*sol[0]*sol[1]),
+                           torch.diag(sol[0]**2)],
+              lambda sol: [torch.diag(-2*sol[0]*sol[1]),
+                           torch.diag(-sol[0]**2)]],
+             [["D", "D"], ["D", "D"]], "im_beuler1"],
         ]
         for test_case in test_cases:
             self._check_transient_multi_species_advection_diffusion_reaction(
