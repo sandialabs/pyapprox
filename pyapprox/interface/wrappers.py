@@ -841,7 +841,7 @@ class PoolModel(object):
 
 def get_active_set_model_from_variable(function, variable, active_var_indices,
                                        nominal_values):
-    from pyapprox import IndependentMarginalsVariable
+    from pyapprox.variables.joint import IndependentMarginalsVariable
     active_variable = IndependentMarginalsVariable(
         [variable.marginals()[ii] for ii in active_var_indices])
     mask = np.ones(variable.num_vars(), dtype=bool)

@@ -961,10 +961,16 @@ class VectorMesh():
         Z = self.interpolate(sol_vals, pts)
         objs = []
         for ii in range(len(Z)):
-            obj = axs[ii].contourf(
-                X, Y, Z[ii].reshape(X.shape),
-                levels=np.linspace(Z[ii].min(), Z[ii].max(), 20))
-            objs.append(obj)
+            if abs(Z[ii].min()-Z[ii].max()) <= 1e-12:
+                levels = np.linspace(Z[ii].min(), Z[ii].max(), 2)
+                Z[ii][0, 0] += 1e-12
+                obj = axs[ii].contourf(
+                    X, Y, Z[ii].reshape(X.shape), levels=levels)
+            else:
+                levels = np.linspace(Z[ii].min(), Z[ii].max(), 20)
+                obj = axs[ii].contourf(
+                    X, Y, Z[ii].reshape(X.shape), levels=levels)
+            objs += (obj.collections)
         return objs
 
 
@@ -1237,3 +1243,32 @@ def cartesian_mesh_solution_functional(
     time_mesh = np.linspace(0, 1, vals0.shape[1])
     vals1 = piecewise_quadratic_interpolation(tt, time_mesh, vals0.T, [0, 1])
     return vals1.flatten()  # append each row to last
+
+
+def generate_animation(mesh, sols, times, filename=None, maxn_frames=100,
+                       duration=2):
+    # duration: in seconds
+    # filename:
+    # osx use .mp4 extension
+    # linux use.avi
+    ims = []
+    fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
+    nframes = min(maxn_frames, len(times))
+    stride = len(times)//nframes
+    for tt in range(0, len(times), stride):
+        im = mesh.plot(
+            mesh.split_quantities(sols[:, tt]), axs=axs, color="k")
+        ims.append(im)
+
+    import matplotlib.animation as animation
+    nframes = len(ims)
+    fps = nframes/duration  # for saving animation
+    # interval in milliseconds
+    interval = duration/nframes*1000  # for displaying animation
+    ani = animation.ArtistAnimation(
+        fig, ims, interval=interval, blit=True, repeat_delay=1000)
+
+    if filename is None:
+        return ani
+    writervideo = animation.FFMpegWriter(fps=fps)
+    ani.save(filename, writer=writervideo)
