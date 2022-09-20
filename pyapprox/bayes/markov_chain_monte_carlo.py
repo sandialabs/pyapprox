@@ -43,7 +43,7 @@ class GaussianLogLike(object):
             assert noise_covar.shape[0] == self.data.shape[0]
             return 1/noise_covar, np.log(np.prod(noise_covar))
         elif noise_covar.ndim == 2:
-            assert noise_covar.shape == [self.ndata, self.ndata]
+            assert noise_covar.shape == (self.ndata, self.ndata)
             return np.linalg.inv(noise_covar), np.log(
                 np.linalg.det(noise_covar))
         raise ValueError("noise_covar has the wrong shape")
