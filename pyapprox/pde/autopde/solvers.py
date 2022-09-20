@@ -54,6 +54,8 @@ class TransientFunction(AbstractFunction):
         self._time = None
 
     def _eval(self, samples):
+        if self._time is None:
+            raise ValueError("Must call set_time before calling eval")
         # print(self._time, self._name)
         return self._partial_fun(samples)
 

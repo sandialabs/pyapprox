@@ -169,10 +169,13 @@ class MultiSpeciesAdvectionDiffusionReaction(
                 self._auto_jac)
             res_ii -= self._react_funs[ii](split_sols)
             residual.append(res_ii)
-            if jac is not None:
+            if jac_ii is not None:
                 react_jac_ii = self._react_jacs[ii](split_sols)
                 for jj in range(nspecies):
-                    jac[ii][jj] = jac_ii-react_jac_ii[jj]
+                    if ii != jj:
+                        jac[ii][jj] = -react_jac_ii[jj]
+                    else:
+                        jac[ii][jj] = jac_ii-react_jac_ii[ii]
 
         if not self._auto_jac:
             return (torch.cat(residual),
