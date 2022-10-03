@@ -1,5 +1,5 @@
 from functools import partial
-
+import inspect
 from warnings import warn
 
 import numpy as np
@@ -989,7 +989,10 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
     elif callable(jacp):
         directional_derivative = jacp(zz, direction)
     elif jac is True:
-        function_val, grad_val = fun(zz)
+        if "jac" in inspect.getfullargspec(fun).args:
+            function_val, grad_val = fun(zz, jac=True)
+        else:
+            function_val, grad_val = fun(zz)
         directional_derivative = grad_val.dot(direction).squeeze()
     else:
         raise Exception
@@ -1013,13 +1016,12 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
         zz_perturbed = zz.copy()+fd_eps[ii]*direction
         # perturbed_function_val = fun(zz_perturbed)
         # add jac=False so that exact gradient is not always computed
-        import inspect
         if "jac" in inspect.getfullargspec(fun).args:
             perturbed_function_val = fun(zz_perturbed, jac=False)
         else:
             perturbed_function_val = fun(zz_perturbed)
-        if jac is True:
-            perturbed_function_val = perturbed_function_val[0].squeeze()
+        if type(perturbed_function_val) == np.ndarray:
+            perturbed_function_val = perturbed_function_val.squeeze()
         fd_directional_derivative = (
             perturbed_function_val-function_val).squeeze()/fd_eps[ii]
         errors.append(np.linalg.norm(

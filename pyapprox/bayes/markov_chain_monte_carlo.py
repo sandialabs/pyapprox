@@ -13,7 +13,7 @@ class GaussianLogLike(object):
     sample
     """
 
-    def __init__(self, model, data, noise_covar):
+    def __init__(self, model, data, noise_covar, model_jac=None):
         r"""
         Initialise the Op with various things that our log-likelihood
         function requires.
@@ -28,8 +28,12 @@ class GaussianLogLike(object):
 
         noise_covar : float, np.ndarray (nobs), np.ndarray (nobs,nobs)
             The noise covariance
+
+        model_jac : callable
+            The Jacobian of the model with respect to the parameters
         """
         self.model = model
+        self.model_jac = model_jac
         self.data = data
         assert self.data.ndim == 1
         self.ndata = data.shape[0]
@@ -60,21 +64,36 @@ class GaussianLogLike(object):
     #         determinant = np.linalg.det(noise_covar)
     #     return determinant
 
-    def __call__(self, samples):
+    def __call__(self, samples, jac=False):
+        nsamples = samples.shape[1]
         model_vals = self.model(samples)
         assert model_vals.ndim == 2
         assert model_vals.shape[1] == self.ndata
-        vals = np.empty((model_vals.shape[0], 1))
-        for ii in range(model_vals.shape[0]):
+        vals = np.empty((nsamples, 1))
+        for ii in range(nsamples):
             residual = self.data - model_vals[ii, :]
-            if (np.isscalar(self.noise_covar_inv) or
-                    self.noise_covar_inv.ndim == 1):
-                vals[ii] = (residual.T*self.noise_covar_inv).dot(residual)
+            if np.isscalar(self.noise_covar_inv):
+                tmp = self.noise_covar_inv*residual
+            elif self.noise_covar_inv.ndim == 1:
+                tmp = self.noise_covar_inv[:, None]*residual
+                #vals[ii] = (residual.T*self.noise_covar_inv).dot(residual)
             else:
-                vals[ii] = residual.T.dot(self.noise_covar_inv).dot(residual)
+                tmp = self.noise_covar_inv[:, None].dot(residual)
+                #vals[ii] = residual.T.dot(self.noise_covar_inv).dot(residual)
+        vals = residual.dot(tmp)
         vals += self.ndata*np.log(2*np.pi) + self.log_noise_covar_det
         vals *= -0.5
-        return vals
+
+        vals = np.atleast_2d(vals)
+        if not jac:
+            return vals
+
+        if nsamples != 1:
+            raise ValueError("nsamples must be 1 when jac is True")
+        if self.model_jac is None:
+            raise ValueError("model_jac is none but gradient requested")
+        grad = tmp.dot(self.model_jac(samples))
+        return vals, grad
 
 
 class LogLike(tt.Op):
