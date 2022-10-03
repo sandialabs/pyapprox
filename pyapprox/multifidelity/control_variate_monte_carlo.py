@@ -1573,7 +1573,7 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None):
     im = ax.matshow(corr_matrix, cmap="jet", aspect="auto")
     for (i, j), z in np.ndenumerate(corr_matrix):
         ax.text(j, i, '{:1.3f}'.format(z), ha='center', va='center',
-                fontsize=12)
+                fontsize=12, color='w')
     plt.colorbar(im, ax=ax)
     if model_names is None:
         nmodels = corr_matrix.shape[0]

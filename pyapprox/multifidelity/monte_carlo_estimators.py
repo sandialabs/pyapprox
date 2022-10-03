@@ -1207,8 +1207,8 @@ def plot_acv_sample_allocation_comparison(
     # but target cost is not rounded
     ax.set_xticklabels(
         ['$%1.2f$' % est.rounded_target_cost for est in estimators])
-    ax.set_xlabel(mathrm_label("Total cost"))
+    ax.set_xlabel(mathrm_label("Target cost"))
     # / $N_\alpha$')
     ax.set_ylabel(
-        mathrm_label("Precentage of total cost"))
+        mathrm_label("Precentage of target cost"))
     ax.legend(loc=[0.925, 0.25])

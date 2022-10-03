@@ -444,7 +444,7 @@ def run_bayesian_inference_gaussian_error_model(
 
        ``loglikegrad(z) -> np.ndarray (nvars)``
 
-        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples
+        where ``z`` is a 2D np.ndarray with shape (nvars, nsamples)
 
     random_seed : int or list of ints
         A list is accepted if ``cores`` is greater than one. PyMC3 does not
@@ -453,6 +453,9 @@ def run_bayesian_inference_gaussian_error_model(
     """
 
     if loglike_grad is None:
+        if algorithm == "nuts":
+            raise ValueError(
+                "nuts must set loglike_grad to 'FD' or a function")
         logl = LogLike(loglike)
     elif loglike_grad == "FD":
         logl = LogLikeWithGrad(loglike)
