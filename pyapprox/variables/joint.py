@@ -196,9 +196,10 @@ class IndependentMarginalsVariable(JointVariable):
         assert x.shape[0] == self.num_vars()
         if log is False:
             marginal_vals = self.evaluate("pdf", x)
-        else:
-            marginal_vals = self.evaluate("logpdf", x)
-        return np.prod(marginal_vals, axis=0)[:, None]
+            return np.prod(marginal_vals, axis=0)[:, None]
+
+        marginal_vals = self.evaluate("logpdf", x)
+        return np.sum(marginal_vals, axis=0)[:, None]
 
     def __str__(self):
         variable_labels = self.variable_labels
