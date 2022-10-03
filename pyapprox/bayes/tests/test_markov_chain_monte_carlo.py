@@ -75,8 +75,14 @@ class TestMCMC(unittest.TestCase):
 
         # make data
         data = noise_stdev*np.random.randn(nobs)+model(true_sample)[0, :]
-        loglike = GaussianLogLike(model, data, noise_stdev**2)
-        loglike = PYMC3LogLikeWrapper(loglike)
+
+        jac, model_grad = True, lambda p: Amatrix
+
+        loglike = GaussianLogLike(model, data, noise_stdev**2, model_grad)
+        loglike = PYMC3LogLikeWrapper(loglike, jac)
+        from pyapprox.util.utilities import check_gradients
+        errors = check_gradients(loglike, True, true_sample)
+        assert errors.min()/errors.max() < 1e-6
 
         # number of draws from the distribution
         nsamples = 5000
@@ -85,13 +91,14 @@ class TestMCMC(unittest.TestCase):
         # number of parallel chains
         njobs = 4
 
-        # algorithm='nuts'
-        algorithm = 'metropolis'
+        algorithm = 'nuts'
+        # algorithm = 'metropolis'
         # samples, effective_sample_size, map_sample = \
         #     run_bayesian_inference_gaussian_error_model(
         #         loglike, variable, nsamples, nburn, njobs,
         #         algorithm=algorithm, get_map=True, print_summary=False)
-        mcmc_variable = MCMCVariable(variable, loglike, algorithm, njobs=njobs)
+        mcmc_variable = MCMCVariable(
+            variable, loglike, algorithm, njobs=njobs, loglike_grad=True)
         map_sample = mcmc_variable.maximum_aposteriori_point()
         samples = mcmc_variable.rvs(nsamples)
 
