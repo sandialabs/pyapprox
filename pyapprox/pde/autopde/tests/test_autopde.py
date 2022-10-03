@@ -221,14 +221,11 @@ class TestAutoPDE(unittest.TestCase):
         # plt.colorbar(im)
         # plt.show()
 
-        for bndry_cond in bndry_conds:
-            # adjoint gradient currently only works for all dirichlet boundaries
-            if bndry_cond[1] != "D":
-                return
+        # print(bndry_conds)
 
         def functional(sol, params):
-            return sol.sum()
-            # return sol[sol.shape[0]//2]
+            # return sol[1:-1].sum()
+            return sol[sol.shape[0]//2]
 
         param_vals = diff_fun(mesh.mesh_pts)[0:1, 0]
         residual = AdvectionDiffusionReaction(
@@ -261,7 +258,8 @@ class TestAutoPDE(unittest.TestCase):
         # qoi = functional(sol, pp)
         # qoi.backward()
         # grad_pure_ad = pp.grad
-        # print(grad_pure_ad.numpy(), 'pg')
+        # print(grad_pure_ad.numpy()[0], 'pg')
+        # print((sol[sol.shape[0]//2]/param_vals[0]).item())
 
         # fd_grad = approx_fprime(param_vals.detach().numpy()[:, None], fun)
         # print(grad.numpy(), 'g')
@@ -287,9 +285,10 @@ class TestAutoPDE(unittest.TestCase):
             fun, lambda p: adj_solver.compute_gradient(
                 set_param_values, torch.as_tensor(p)[:, 0]).numpy(),
             param_vals.numpy()[:, None], plot=False,
-            fd_eps=3*np.logspace(-13, 0, 14)[::-1])
+            fd_eps=3*np.logspace(-13, 0, 14)[::-1],
+            direction=np.array([1])[:, None])
         print(errors.min()/errors.max())
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min()/errors.max() < 2.5e-6
 
     def test_advection_diffusion_reaction(self):
         s0, depth, L, alpha = 2, .1, 1, 1e-1
@@ -297,7 +296,7 @@ class TestAutoPDE(unittest.TestCase):
             [-L, L], f"{s0}-{alpha}*x**2", f"{s0}-{alpha}*x**2-{depth}")
 
         test_cases = [
-            [[0, 1], [4], "-(x-1)*x/2", "1", ["0"],
+            [[0, 1], [4], "-(x-1)*x/2", "4", ["0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "D"], ["C"]],
@@ -313,10 +312,14 @@ class TestAutoPDE(unittest.TestCase):
              [lambda sol: sol**2, lambda sol: torch.diag(2*sol[:, 0])],
              # [lambda sol: 1*sol, lambda sol: 1*torch.eye(sol.shape[0])],
              ["D", "D"], ["C"]],
-            [[0, 1], [4], "0.5*(x-3)*x", "2+x", ["0"],
+            [[0, 1], [20], "0.5*(x-3)*x", "2+x", ["0"],
                 [lambda sol: 0*sol,
                 lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["N", "D"], ["C"]],
+            [[0, 1], [4], "x**2", "1", ["0"],
+             [lambda sol: 0*sol,
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+             ["D", "N"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
@@ -326,11 +329,11 @@ class TestAutoPDE(unittest.TestCase):
             [[0, 2*torch.pi], [30], "sin(x)", "1", ["0"],
              [lambda sol: 1*sol, lambda sol: torch.eye(sol.shape[0])],
              ["P", "P"], ["C"]],
-            [[0, 1, 0, 1], [3, 3], "y**2*x**2", "1", ["0", "0"],
+            [[0, 1, 0, 1], [4, 4], "y**2*x**2", "1", ["0", "0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "N", "N", "D"], ["C", "C"]],
-            [[0, .5, 0, 1], [14, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
+            [[0, .5, 0, 1], [16, 14], "y**2*sin(pi*x)", "1", ["0", "0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "N", "N", "D"], ["C", "C"]],
@@ -349,10 +352,11 @@ class TestAutoPDE(unittest.TestCase):
              mesh_transforms]
         ]
         ii = 0
-        for test_case in test_cases[4:]:
+        for test_case in test_cases:
+            # print(ii)
             np.random.seed(2)  # controls direction of finite difference
             self._check_advection_diffusion_reaction(*test_case)
-            ii += 1
+            # ii += 1
 
     def _check_adjoint(self, adj_solver, param_vals, functional,
                        set_param_values, init_sol, final_time):
@@ -361,12 +365,15 @@ class TestAutoPDE(unittest.TestCase):
             approx_fprime, approx_jacobian, check_gradients)
         def fun(params, jac=True):
             # newton tol must be smaller than finite difference step size
+            if jac is False:
+                qoi = adj_solver.compute_qoi(
+                    init_sol, 0, final_time, set_param_values,
+                    torch.as_tensor(params[:, 0]))[2]
+                return np.atleast_1d(qoi)
             qoi, grad = adj_solver.compute_gradient(
                 init_sol, 0, final_time, set_param_values,
                 torch.as_tensor(params[:, 0]))
-            if jac:
-                return qoi, grad
-            return qoi
+            return qoi, grad
 
         # qoi, grad = adj_solver.compute_gradient(
         #     init_sol, 0, final_time,
@@ -379,13 +386,15 @@ class TestAutoPDE(unittest.TestCase):
         p0 = param_vals.numpy()[:, None]
         errors = check_gradients(
             fun, True, p0, fd_eps=np.logspace(-13, 0, 14)[::-1])
-        assert errors.max() > 0.1 and errors.min() < 2e-7
+        print(errors.min()/errors.max())
+        assert errors.min()/errors.max() < 2.5e-7
 
     def test_decoupled_ode_adjoint(self):
         orders = [2]  # only mid point will be correct applying bndry_conds
-        domain_bounds = [0, 1] # does not effect result
+        domain_bounds = [0, 1]  # does not effect result
 
-        from pyapprox.pde.autopde.physics import AbstractSpectralCollocationPhysics
+        from pyapprox.pde.autopde.physics import (
+            AbstractSpectralCollocationPhysics)
 
         class DecoupledODE(AbstractSpectralCollocationPhysics):
             def __init__(self, mesh, bndry_conds, b):
@@ -394,33 +403,37 @@ class TestAutoPDE(unittest.TestCase):
                 self._funs = []
 
             def _raw_residual(self, sol):
-                return self._b*sol, torch.eye(
-                    sol.shape[0], dtype=torch.double)*self._b
+                return -self._b**2*sol+1, -torch.eye(
+                    sol.shape[0], dtype=torch.double)*self._b**2
 
         bndry_conds = [[lambda x: torch.zeros((1, 1)), "D"] for ii in range(2)]
-        bparam = -1.0
-        deltat = 0.5
-        final_time = deltat*3
+        aparam = 3
+        bparam = -2
+        deltat = 0.125
+        final_time = deltat*2
         tableau_name = "im_beuler1"
         mesh = CartesianProductCollocationMesh(domain_bounds, orders)
         solver = TransientPDE(
             DecoupledODE(mesh, bndry_conds, bparam), deltat, tableau_name)
-        init_sol = torch.ones(mesh.mesh_pts.shape[1], dtype=torch.double)
+        init_sol = aparam**2*torch.ones(
+            mesh.mesh_pts.shape[1], dtype=torch.double)
         sols, times = solver.solve(
-            init_sol, 0, final_time,
-            newton_kwargs={"tol": 1e-8})
+            init_sol, 0, final_time, newton_kwargs={"tol": 1e-8})
+        # print(sols)
 
         def functional(sols, params):
             # return sols[1, -1]
-            return deltat*sols[1, :].sum()
+            return deltat*sols[1, 1:].sum()
         param_vals = torch.as_tensor([bparam], dtype=torch.double)
         adj_solver = TransientAdjointPDE(
             DecoupledODE(mesh, bndry_conds, bparam),
             deltat, tableau_name, functional)
 
-        def set_param_values(residual, param_vals):
+        def set_param_values(residual, init_sol, param_vals):
             # assert param_vals.ndim == 1
             residual._b = param_vals[0]
+            # update init sol if params effects it. In this case it does not
+            return init_sol
         self._check_adjoint(adj_solver, param_vals, functional,
                             set_param_values, init_sol, final_time)
 
@@ -442,8 +455,8 @@ class TestAutoPDE(unittest.TestCase):
         bndry_conds = _get_boundary_funs(
             nphys_vars, bndry_types, sol_fun, flux_funs)
 
-        deltat = 0.1
-        final_time = deltat*3# 5
+        deltat = 1  # 0.1
+        final_time = deltat*2  # 5
         mesh = CartesianProductCollocationMesh(domain_bounds, orders)
         solver = TransientPDE(
             AdvectionDiffusionReaction(
@@ -465,28 +478,26 @@ class TestAutoPDE(unittest.TestCase):
             # print(time, L2_error, 1e-8*factor)
             assert L2_error < 1e-8*factor
 
-        for bndry_cond in bndry_conds:
-            # adjoint gradient currently only works for all dirichlet boundarie
-            if bndry_cond[1] != "D":
-                return
+        # print(bndry_conds)
         if tableau_name != "im_beuler1":
             return
 
         def functional(sols, params):
-            return sols[:, -1].sum()
-            # idx = sols.shape[0] // 3
-            # return deltat*sols[idx, :].sum()
-        # param_vals = diff_fun(mesh.mesh_pts)[:, 0]
-        param_vals = diff_fun(mesh.mesh_pts)[0:1, 0]
+            # return sols[:, -1].sum()
+            idx = sols.shape[0] // 2
+            return deltat*sols[idx, 1:].sum()
+        param_vals = diff_fun(mesh.mesh_pts)[:1, 0]
+        # param_vals = diff_fun(mesh.mesh_pts)[0:1, 0]*0+1
         adj_solver = TransientAdjointPDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
             react_funs[1]), deltat, tableau_name, functional)
 
-        def set_param_values(residual, param_vals):
+        def set_param_values(residual, init_sol, param_vals):
             # assert param_vals.ndim == 1
             mesh_vals = torch.tile(param_vals, (mesh.mesh_pts.shape[1], ))
             residual._diff_fun = partial(
                 residual.mesh.interpolate, mesh_vals)
+            return init_sol
 
         self._check_adjoint(adj_solver, param_vals, functional,
                             set_param_values, init_sol, final_time)
@@ -497,10 +508,14 @@ class TestAutoPDE(unittest.TestCase):
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "D"], "im_beuler1"],
-            [[0, 1], [3], "x**2*(1+t)", "1", ["0"],
+            [[0, 1], [4], "x**2*(1+t)", "3", ["0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "D"], "im_beuler1"],
+            [[0, 1], [4], "x**2*(1+t)", "3", ["0"],
+             [lambda sol: 0*sol,
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+             ["D", "N"], "im_beuler1"],
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
@@ -575,7 +590,7 @@ class TestAutoPDE(unittest.TestCase):
             [v[:, None] for v in vel_fun(vel_meshes[0].mesh_pts).T] +
             [pres_fun(pres_mesh.mesh_pts)])
 
-        print(np.abs(solver.physics._raw_residual(exact_sol[:, 0])[0]).max())
+        # print(np.abs(solver.physics._raw_residual(exact_sol[:, 0])[0]).max())
         assert np.allclose(
             solver.physics._raw_residual(exact_sol[:, 0])[0], 0, atol=2e-8)
         assert np.allclose(
@@ -589,8 +604,8 @@ class TestAutoPDE(unittest.TestCase):
         j_auto = torch.autograd.functional.jacobian(
             lambda s: solver.physics._raw_residual(s)[0],
             exact_sol[:, 0].clone().requires_grad_(True), strict=True).numpy()
-        np.set_printoptions(precision=2, suppress=True, threshold=100000,
-                            linewidth=1000)
+        # np.set_printoptions(precision=2, suppress=True, threshold=100000,
+        #                     linewidth=1000)
         # print(j_auto[:16, 32:])
         # # print(j_fd[:16, 32:])
         # print(j_man[:16, 32:])
@@ -677,8 +692,8 @@ class TestAutoPDE(unittest.TestCase):
             mesh, bndry_conds, bed_fun, beta_fun, forc_fun, A, rho, n, g))
 
         exact_sol = depth_fun(mesh.mesh_pts)
-        print(np.abs(solver.physics._raw_residual(exact_sol[:, 0])[0]).max())
-        print(np.abs(solver.physics._raw_residual(exact_sol[:, 0])))
+        # print(np.abs(solver.physics._raw_residual(exact_sol[:, 0])[0]).max())
+        # print(np.abs(solver.physics._raw_residual(exact_sol[:, 0])))
 
         def fun(s):
             return solver.physics._raw_residual(torch.as_tensor(s))[0].numpy()
@@ -847,7 +862,7 @@ class TestAutoPDE(unittest.TestCase):
         assert np.allclose(res_vals, 0)
 
         init_guess = init_guess+torch.randn(init_guess.shape)*1e-3
-        np.set_printoptions(precision=2, suppress=True, threshold=100000, linewidth=1000)
+        # np.set_printoptions(precision=2, suppress=True, threshold=100000, linewidth=1000)
         j_man = solver.physics._raw_residual(init_guess.squeeze())[1]
         j_auto = torch.autograd.functional.jacobian(
             lambda s: solver.physics._raw_residual(s)[0],
@@ -951,12 +966,12 @@ class TestAutoPDE(unittest.TestCase):
                     1, mesh.nphys_vars+1, figsize=(8*(mesh.nphys_vars+1), 6))
                 # mesh.plot(mesh.split_quantities(exact_sol_t), axs=axs)
                 mesh.plot(mesh.split_quantities(model_sol_t), axs=axs, ls='--')
-            print(exact_sol_t.shape)
-            print(model_sol_t.shape)
+            # print(exact_sol_t.shape)
+            # print(model_sol_t.shape)
             L2_error = np.sqrt(
                 mesh.integrate(
                     mesh.split_quantities((exact_sol_t-model_sol_t)**2)))
-            print(time, L2_error, 'l')
+            # print(time, L2_error, 'l')
             # plt.show()
             assert np.all(L2_error < 1e-8)
 
@@ -1026,11 +1041,11 @@ class TestAutoPDE(unittest.TestCase):
                              beta_fun, depth_forc_fun, A, rho, 1e-15))
             init_guess = torch.cat(exact_vel_vals+[exact_depth_vals])
 
-        np.set_printoptions(
-            precision=2, suppress=True, threshold=100000, linewidth=1000)
+        # np.set_printoptions(
+        #     precision=2, suppress=True, threshold=100000, linewidth=1000)
         # print(init_guess, 'i')
         res_vals = solver.physics._raw_residual(init_guess.squeeze())[0]
-        print(np.abs(res_vals.detach().numpy()).max(), 'r')
+        # print(np.abs(res_vals.detach().numpy()).max(), 'r')
         assert np.allclose(res_vals, 0, atol=5e-8)
 
         if velocities_only:
@@ -1393,7 +1408,7 @@ class TestAutoPDE(unittest.TestCase):
                        for ii in range(len(sol_funs))]
 
         deltat = 0.1
-        final_time = deltat*3# 5
+        final_time = deltat*3  # 5
         mesh = VectorMesh(
             [CartesianProductCollocationMesh(domain_bounds, orders)]*2)
         solver = TransientPDE(
@@ -1408,7 +1423,7 @@ class TestAutoPDE(unittest.TestCase):
         exact_sol = torch.cat(
             [sol_fun(mesh.mesh_pts)
              for sol_fun, mesh in zip(sol_funs, mesh._meshes)])[:, 0]
-        print(exact_sol.shape)
+        # print(exact_sol.shape)
         j_man = solver.physics._raw_residual(
             exact_sol)[1].numpy()
         j_auto = torch.autograd.functional.jacobian(
@@ -1416,9 +1431,9 @@ class TestAutoPDE(unittest.TestCase):
             exact_sol.clone().requires_grad_(True), strict=True).numpy()
 
         import numpy as np
-        np.set_printoptions(precision=2, suppress=True, linewidth=500)
-        print('j_man', j_man)
-        print('j_auto', j_auto)
+        # np.set_printoptions(precision=2, suppress=True, linewidth=500)
+        # print('j_man', j_man)
+        # print('j_auto', j_auto)
         assert np.allclose(j_man, j_auto)
         
         for sol_fun in sol_funs:
@@ -1439,13 +1454,13 @@ class TestAutoPDE(unittest.TestCase):
             # print(exact_sol_t)
             # print(model_sol_t, 'm')
             for jj in range(len(model_sols_t)):
-                print(exact_sols_t[jj].shape, model_sols_t[jj].shape)
+                # print(exact_sols_t[jj].shape, model_sols_t[jj].shape)
                 L2_error = np.sqrt(
                     mesh._meshes[jj].integrate(
                         (exact_sols_t[jj]-model_sols_t[jj])**2))
                 factor = np.sqrt(
                     mesh._meshes[jj].integrate(exact_sols_t[jj]**2))
-                print(time, L2_error, 1e-8*factor)
+                print(time, L2_error.item(), 1e-8*factor.item())
                 assert L2_error < 1e-8*factor
 
     def test_transient_multi_species_advection_diffusion_reaction(self):

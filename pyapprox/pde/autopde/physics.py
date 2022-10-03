@@ -105,6 +105,7 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
     def _linear_raw_residual(
             mesh, sol, diff_fun, vel_fun, forc_fun, auto_jac):
         diff_vals = diff_fun(mesh.mesh_pts)
+        assert torch.all(diff_vals > 0)
         vel_vals = vel_fun(mesh.mesh_pts)
         linear_jac = 0
         for dd in range(mesh.nphys_vars):
