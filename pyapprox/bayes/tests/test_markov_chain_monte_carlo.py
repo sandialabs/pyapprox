@@ -100,7 +100,6 @@ class TestMCMC(unittest.TestCase):
         mcmc_variable = MCMCVariable(
             variable, loglike, algorithm, njobs=njobs, loglike_grad=True)
         map_sample = mcmc_variable.maximum_aposteriori_point()
-        samples = mcmc_variable.rvs(nsamples)
 
         # from pyapprox.util.visualization import (
         #     get_meshgrid_function_data, plt)
@@ -124,12 +123,14 @@ class TestMCMC(unittest.TestCase):
                 Amatrix, prior_mean, prior_hessian,
                 noise_covariance_inv, data)
 
+        print('MAP sample', map_sample)
+        print('exact mean', exact_mean)
+        assert np.allclose(map_sample, exact_mean)
+
+        samples = mcmc_variable.rvs(nsamples)
         print('mcmc mean error', samples.mean(axis=1)-exact_mean)
         print('mcmc cov error', np.cov(samples)-exact_covariance)
-        print('MAP sample', map_sample)
-        print('exact mean', exact_mean.squeeze())
         print('exact cov', exact_covariance)
-        assert np.allclose(map_sample, exact_mean)
         assert np.allclose(
             exact_mean.squeeze(), samples.mean(axis=1), atol=1e-2)
         assert np.allclose(exact_covariance, np.cov(samples), atol=1e-2)

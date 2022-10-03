@@ -272,10 +272,24 @@ class MCMCVariable(JointVariable):
         map_sample : np.ndarray (nvars, 1)
             the MAP point
         """
-        return run_bayesian_inference_gaussian_error_model(
-            self._loglike, self._variable, 0, 0, self._njobs,
-            algorithm=self._algorithm, get_map=True, print_summary=False,
-            loglike_grad=self._loglike_grad, seed=None)[2]
+        # MAP = run_bayesian_inference_gaussian_error_model(
+        #     self._loglike, self._variable, 0, 0, self._njobs,
+        #     algorithm=self._algorithm, get_map=True, print_summary=False,
+        #     loglike_grad=self._loglike_grad, seed=None)[2]
+
+        def obj(x):
+            return -(self._loglike(x[:, None]).squeeze()+self._variable.pdf(
+                x[:, None], log=True)[0, 0])
+        from scipy.optimize import minimize
+        x0 = self._variable.get_statistics("mean")[:, 0]
+        # TODO only uses finite difference need to implement gradients of
+        # scipy log pdf of scipy variables
+        res = minimize(obj, x0, method="bfgs",
+                       options={"gtol": 1e-8, "disp": True})
+        #, jac=self._loglike_grad)
+        MAP = res.x[:, None]
+
+        return MAP
 
     def rvs(self, num_samples):
         """
@@ -470,7 +484,6 @@ def run_bayesian_inference_gaussian_error_model(
         produce consistent results by setting numpy.random.seed instead
         seed must be passed in
     """
-
     if loglike_grad is None:
         if algorithm == "nuts":
             raise ValueError(
@@ -510,19 +523,27 @@ def run_bayesian_inference_gaussian_error_model(
             trace = pm.sample_smc(nsamples)
         else:
             if algorithm == 'metropolis':
-                step = pm.Metropolis(pymc_variables)
+                std = variable.get_statistics("std")[:, 0]
+                step = pm.Metropolis(pymc_variables, S=std)
             elif algorithm == 'nuts':
                 step = pm.NUTS(pymc_variables)
             else:
                 msg = f"Algorithm {algorithm} not supported"
                 raise ValueError(msg)
 
-            trace = pm.sample(
-                nsamples, tune=nburn, discard_tuned_samples=True,
-                start=None, cores=njobs, step=step,
-                compute_convergence_checks=False, random_seed=seed,
-                progressbar=False)
-                # return_inferencedata=False)
+            if pm.__version__[0] == 3:
+                trace = pm.sample(
+                    nsamples, tune=nburn, discard_tuned_samples=True,
+                    cores=njobs, step=step,
+                    compute_convergence_checks=False, random_seed=seed,
+                    progressbar=False)
+            else:
+                trace = pm.sample(
+                    nsamples, tune=nburn, discard_tuned_samples=True,
+                    cores=njobs, step=step,
+                    compute_convergence_checks=False, random_seed=seed,
+                    progressbar=False,
+                    return_inferencedata=False)
             # compute_convergence_checks=False avoids bugs in theano
 
         if print_summary:
