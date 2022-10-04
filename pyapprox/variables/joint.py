@@ -201,6 +201,48 @@ class IndependentMarginalsVariable(JointVariable):
         marginal_vals = self.evaluate("logpdf", x)
         return np.sum(marginal_vals, axis=0)[:, None]
 
+
+    def _evaluate(self, function_name, x):
+        """
+        Evaluate a frunction for each univariate random variable using rv.dist
+        This is faster than evaluate because it avoids error checks. 
+        Use with caution
+
+        Parameters
+        ----------
+        function_name : string
+            The function name of the scipy random variable statistic of
+            interest
+
+        x : np.ndarray (nsamples)
+            The input to the scipy statistic function
+
+        Returns
+        -------
+        stat : np.ndarray (nsamples, nqoi)
+            The outputs of the stat function for each variable
+        """
+        stats = None
+        for ii in range(self.nunique_vars):
+            var = self.unique_variables[ii]
+            indices = self.unique_variable_indices[ii]
+            for jj in indices:
+                stats_jj = np.atleast_1d(
+                    getattr(var.dist, function_name)(x[jj, :]))
+                assert stats_jj.ndim == 1
+                if stats is None:
+                    stats = np.empty((self.num_vars(), stats_jj.shape[0]))
+                stats[jj] = stats_jj
+        return stats
+
+    def _pdf(self, x, log=False):
+        if not log:
+            marginal_vals = self._evaluate("_pdf", x)
+            return np.prod(marginal_vals, axis=0)[:, None]
+
+        marginal_vals = self._evaluate("_logpdf", x)
+        return np.sum(marginal_vals, axis=0)[:, None]
+
     def __str__(self):
         variable_labels = self.variable_labels
         if variable_labels is None:
