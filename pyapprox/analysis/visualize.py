@@ -132,16 +132,7 @@ def plot_1d_cross_sections(fun, variable, nominal_sample=None,
     return axs
 
 
-def plot_2d_cross_sections(fun, variable, nominal_sample=None,
-                           nsamples_1d=100, variable_pairs=None,
-                           subplot_tuple=None, qoi=0, num_contour_levels=20,
-                           plot_samples=None, marginals=False):
-    """
-    Plot the 2D cross sections of a multivariate function.
-    """
-    if nominal_sample is None:
-        nominal_sample = variable.get_statistics("mean")
-
+def setup_2d_cross_section_axes(variable, variable_pairs, subplot_tuple):
     if variable_pairs is None:
         variable_pairs = np.array(
             compute_anova_level_indices(variable.num_vars(), 2))
@@ -162,7 +153,24 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
         raise ValueError("Number of subplots is insufficient")
 
     fig, axs = plt.subplots(
-        nfig_rows, nfig_cols)#, figsize=(nfig_cols*8, nfig_rows*6))
+        nfig_rows, nfig_cols, sharex="col")
+    #, figsize=(nfig_cols*8, nfig_rows*6))
+    return fig, axs, variable_pairs
+
+
+def plot_2d_cross_sections(fun, variable, nominal_sample=None,
+                           nsamples_1d=100, variable_pairs=None,
+                           subplot_tuple=None, qoi=0, num_contour_levels=20,
+                           plot_samples=None, marginals=False):
+    """
+    Plot the 2D cross sections of a multivariate function.
+    """
+    if nominal_sample is None:
+        nominal_sample = variable.get_statistics("mean")
+
+    fig, axs, variable_pairs = setup_2d_cross_section_axes(
+        variable, variable_pairs, subplot_tuple)
+
     all_variables = variable.marginals()
 
     if plot_samples is not None and type(plot_samples) == np.ndarray:

@@ -201,12 +201,12 @@ class IndependentMarginalsVariable(JointVariable):
         marginal_vals = self.evaluate("logpdf", x)
         return np.sum(marginal_vals, axis=0)[:, None]
 
-
     def _evaluate(self, function_name, x):
         """
         Evaluate a frunction for each univariate random variable using rv.dist
-        This is faster than evaluate because it avoids error checks. 
-        Use with caution
+        This is faster than evaluate because it avoids error checks.
+        Use with caution. dist is only for canonical distribution so
+        user must transform variables before using this function
 
         Parameters
         ----------

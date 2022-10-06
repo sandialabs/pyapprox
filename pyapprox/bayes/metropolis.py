@@ -1,8 +1,13 @@
 import numpy as np
 from tqdm import tqdm
 from scipy.linalg import solve_triangular
+from scipy.optimize import (
+    minimize, differential_evolution, dual_annealing)
+import matplotlib.pyplot as plt
 
 from pyapprox.variables.joint import JointVariable
+from pyapprox.analysis.visualize import setup_2d_cross_section_axes
+from pyapprox.variables.joint import get_truncated_range
 
 
 def update_mean_and_covariance(
@@ -127,11 +132,12 @@ def delayed_rejection(y0, proposal_chol_tuple, logpost_fun, cov_scaling,
 
 def DRAM(logpost_fun, init_sample, proposal_cov, nsamples,
          ndraws_init_update=20, nugget=1e-6, cov_scaling=1e-2,
-         verbosity=0):
+         verbosity=0, sd=None):
     nvars = init_sample.shape[0]
 
     samples = np.empty((nvars, nsamples))
-    sd = 2.4**2 / nvars  # page 341 of Haario. Stat Comput (2006) 16:339–354
+    if sd is None:
+        sd = 2.4**2 / nvars  # page 341 of Haario. Stat Comput (2006) 16:339–354
     # do not scale initial proposal cov by sd.
     # Assume user provides a good guess
     proposal_cov = proposal_cov  # * sd
@@ -146,7 +152,7 @@ def DRAM(logpost_fun, init_sample, proposal_cov, nsamples,
     samples[:, 0] = sample[:, 0]
     accepted = np.empty(nsamples)
     accepted[ndraws] = 1
-    
+
     if verbosity > 0:
         pbar = tqdm(total=nsamples)
         pbar.update(1)
@@ -163,6 +169,27 @@ def DRAM(logpost_fun, init_sample, proposal_cov, nsamples,
         if verbosity > 0:
             pbar.update(1)
     return samples, accepted
+
+
+def auto_correlation(time_series, lag):
+    assert time_series.ndim == 1
+    X_t = time_series[:-lag]
+    assert lag < time_series.shape[0]-1
+    X_tpk = time_series[lag:]
+    corr = np.corrcoef(X_t, y=X_tpk)
+    return corr[1, 0]
+
+
+def plot_auto_correlations(timeseries, maxlag=100):
+    nvars, ndata = timeseries.shape
+    maxlag = min(maxlag, ndata-1)
+    fig, axs = plt.subplots(1, nvars, figsize=(nvars*8, 6))
+    lags = np.arange(0, maxlag+1)
+    for ii in range(nvars):
+        auto_correlations = [1]
+        for lag in lags[1:]:
+            auto_correlations.append(auto_correlation(timeseries[ii], lag))
+        axs[ii].bar(lags, np.array(auto_correlations))
 
 
 class MetropolisMCMCVariable(JointVariable):
@@ -186,11 +213,14 @@ class MetropolisMCMCVariable(JointVariable):
         loglike = self._loglike(sample)
         if type(loglike) == np.ndarray:
             loglike = loglike.squeeze()
-        logprior = self._variable._pdf(sample, log=True)[0, 0]
+        # _pdf is faster but requires mapping of x to canonical domain
+        logprior = self._variable.pdf(sample, log=True)[0, 0]
         return loglike+logprior
 
-    def rvs(self, num_samples):
-        init_sample = self._variable.get_statistics("mean")
+    def rvs(self, num_samples, init_sample=None):
+        if init_sample is None:
+            # init_sample = self._variable.get_statistics("mean")
+            init_sample = self.maximum_aposteriori_point()
         if self._init_proposal_cov is None:
             init_proposal_cov = np.diag(
                 self._variable.get_statistics("std")[:, 0]**2)
@@ -200,13 +230,94 @@ class MetropolisMCMCVariable(JointVariable):
         if self._algorithm == "DRAM":
             nugget = self._method_opts.get("nugget", 1e-6)
             cov_scaling = self._method_opts.get("cov_scaling", 1e-2)
+            sd = self._method_opts.get("sd", None)
+            print(sd)
             samples, accepted = DRAM(
                 self._log_bayes_numerator, init_sample, init_proposal_cov,
                 num_samples+nburn_samples, self._nsamples_per_tuning, nugget,
-                cov_scaling, verbosity=self._verbosity)
+                cov_scaling, verbosity=self._verbosity, sd=sd)
             acceptance_rate = accepted[nburn_samples:].sum()/num_samples
         else:
-            # TODO allow all combinations of adaptive and delayed rejection metropolis
+            # TODO allow all combinations of adaptive and delayed
+            # rejection metropolis
             raise ValueError(f"Algorithm {self._algorithm} not supported")
         self._acceptance_rate = acceptance_rate
         return samples[:, nburn_samples:]
+
+    def maximum_aposteriori_point(self, init_guess=None):
+        def obj(x):
+            return -self._log_bayes_numerator(x[:, None])
+        if init_guess is None:
+            bounds = self._variable.get_statistics("interval", alpha=1)
+            trunc_bounds = self._variable.get_statistics(
+                "interval", alpha=1-1e-6)
+            for ii in range(bounds.shape[0]):
+                if bounds[ii, 0] == -np.inf:
+                    bounds[ii, 0] = trunc_bounds[ii, 0]
+                if bounds[ii, 1] == np.inf:
+                    bounds[ii, 1] = trunc_bounds[ii, 1]
+            bounds = [(bb[0], bb[1]) for bb in bounds]
+            res = differential_evolution(
+                obj, bounds, maxiter=100, popsize=15)
+            # res = dual_annealing(
+            #     obj, bounds, maxiter=100, maxfun=10000)
+            print(res)
+            init_guess = res.x[:, None]
+            # init_guess = self._variable.get_statistics("mean")
+
+        assert init_guess.ndim == 2 and init_guess.shape[1] == 1
+        assert init_guess.shape[0] == self._variable.num_vars()
+        init_guess = init_guess[:, 0]
+        res = minimize(obj, init_guess, method="bfgs", options={"disp": True})
+        MAP = res.x[:, None]
+        return MAP
+
+    @staticmethod
+    def plot_traces(samples):
+        nvars = samples.shape[0]
+        fig, axs = plt.subplots(1, nvars, figsize=(nvars*8, 6))
+        for ii in range(nvars):
+            axs[ii].plot(
+                np.arange(1, samples.shape[1]+1), samples[ii, :], lw=0.5)
+
+    @staticmethod
+    def plot_auto_correlations(samples):
+        return plot_auto_correlations(samples)
+
+    def plot_2d_marginals(self, samples, variable_pairs=None,
+                          subplot_tuple=None, unbounded_alpha=0.99,
+                          map_sample=None, true_sample=None):
+        fig, axs, variable_pairs = setup_2d_cross_section_axes(
+            self._variable, variable_pairs, subplot_tuple)
+        all_variables = self._variable.marginals()
+        nsamples = samples.shape[1]
+
+        for ii, var in enumerate(all_variables):
+            axs[ii, ii].axis("off")
+        #     lb, ub = get_truncated_range(var, unbounded_alpha)
+        #     # axs[ii][ii].set_xlim(lb, ub)
+        #     axs[ii][ii].hist(samples[ii, :], bins=max(10, nsamples//100))
+        #     if map_sample is not None:
+        #         axs[ii][ii].plot(map_sample[ii, 0], 0, 'ro')
+        #     if true_sample is not None:
+        #         axs[ii][ii].plot(true_sample[ii, 0], 0, 'gD')
+
+        for ii, pair in enumerate(variable_pairs):
+            # use pair[1] for x and pair[0] for y because we reverse
+            # pairs above
+            var1, var2 = all_variables[pair[1]], all_variables[pair[0]]
+            axs[pair[1], pair[0]].axis("off")
+            lb1, ub1 = get_truncated_range(var1, unbounded_alpha)
+            lb2, ub2 = get_truncated_range(var2, unbounded_alpha)
+            ax = axs[pair[0]][pair[1]]
+            # ax.set_xlim(lb1, ub1)
+            # ax.set_ylim(lb2, ub2)
+            ax.plot(samples[pair[1], :], samples[pair[0], :],
+                    'ko', alpha=0.4)
+            if map_sample is not None:
+                ax.plot(map_sample[pair[1], 0], map_sample[pair[0], 0],
+                        marker='X', color='r')
+            if true_sample is not None:
+                ax.plot(true_sample[pair[1], 0], true_sample[pair[0], 0],
+                        marker='D', color='g')
+        return fig, axs

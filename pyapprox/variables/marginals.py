@@ -148,7 +148,7 @@ def scipy_raw_pdf(pdf, loc, scale, shapes, x):
     return pdf((x - loc)/scale, **shapes)/scale
 
 
-def get_pdf(rv):
+def get_pdf(rv, log=False):
     """
     Return a version of rv.pdf that does not use all the error checking.
     Use with caution. Does speed up calculation significantly though
@@ -158,9 +158,15 @@ def get_pdf(rv):
     if name == "ncf":
         raise ValueError("scipy implementation prevents generic wraping")
 
-    pdf = partial(
-        scipy_raw_pdf, rv.dist._pdf, scales['loc'], scales['scale'], shapes)
-    return pdf
+    if not log:
+        pdf = partial(
+            scipy_raw_pdf, rv.dist._pdf, scales['loc'], scales['scale'],
+            shapes)
+        return pdf
+    else:
+        return partial(
+            scipy_raw_pdf, rv.dist._logpdf, scales['loc'], scales['scale'],
+            shapes)
 
 
 def transform_scale_parameters(var):
