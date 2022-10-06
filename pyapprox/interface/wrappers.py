@@ -8,11 +8,12 @@ from multiprocessing import Pool
 import sys
 import pickle
 import copy
+from tqdm import tqdm
 
 from pyapprox.util.utilities import (
     get_all_sample_combinations, hash_array, cartesian_product
 )
-from pyapprox.util.sys_utilities import get_num_args, has_kwarg
+from pyapprox.util.sys_utilities import has_kwarg
 from pyapprox.variables.transforms import ConfigureVariableTransformation
 
 
@@ -69,6 +70,9 @@ def evaluate_1darray_function_on_2d_array(
     num_qoi = values_0.shape[0]
     values = np.empty((num_samples, num_qoi), float)
     values[0, :] = values_0
+    if statusbar:
+        pbar = tqdm(total=num_samples)
+        pbar.update(1)
     for ii in range(1, num_samples):
         if not has_jac or jac is False:
             values[ii, :] = function(samples[:, ii])
@@ -77,14 +81,7 @@ def evaluate_1darray_function_on_2d_array(
             values[ii, :] = val_ii
             grads.append(grad_ii)
         if statusbar:
-            sys.stdout.write('\r')
-            sys.stdout.write("[{:{}}] {:.1f}%".format(
-                "="*int(ii/(num_samples-1)*10), 10, (100/(num_samples-1)*ii)))
-            sys.stdout.flush()
-    if statusbar:
-        sys.stdout.write('\n')
-        sys.stdout.flush()
-
+            pbar.update(1)
     if not jac:
         return values
     if num_qoi == 1:
