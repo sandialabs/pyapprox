@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from pyapprox.variables.joint import JointVariable
 from pyapprox.analysis.visualize import setup_2d_cross_section_axes
 from pyapprox.variables.joint import get_truncated_range
+from pyapprox.variables.density import beta_pdf_derivative
 
 
 def update_mean_and_covariance(
@@ -208,14 +209,46 @@ class MetropolisMCMCVariable(JointVariable):
         # will be set each time self.rvs is called
         self._acceptance_rate = None
 
-    def _log_bayes_numerator(self, sample):
+    @staticmethod
+    def _univariate_logprior_grad(rv, x):
+        if rv.dist.name == "beta":
+            # todo only extract this info once
+            from pyapprox.variables.marginals import get_distribution_info
+            from pyapprox.variables.density import pdf_derivative_under_affine_map
+            from functools import partial
+            scales, shapes = get_distribution_info(rv)[1:]
+            loc, scale = scales["loc"], scales["scale"]
+            a, b = shapes["a"], shapes["b"]
+            val = (loc*(-(a+b-2))+x*(a+b-2)-a*scale+scale)/((loc-x)*(loc+scale-x))
+            return val
+        if rv.dist.name == "uniform":
+            return 0
+        if rv.dist.name == "norm":
+            mu, sigma = rv.args
+            return -(x-mu)/sigma**2
+        raise ValueError(f"rv type {rv.name} is not supported")
+
+    def _logprior_grad(self, sample):
+        grad = np.zeros_like(sample)
+        for ii, rv in enumerate(self._variable.marginals()):
+            grad[ii] += self._univariate_logprior_grad(rv, sample[ii, 0])
+        return grad.T
+
+    def _log_bayes_numerator(self, sample, jac=False):
         assert sample.ndim == 2 and sample.shape[1] == 1
-        loglike = self._loglike(sample)
+        if not jac:
+            loglike = self._loglike(sample)
+        else:
+            loglike, loglike_grad = self._loglike(sample, jac)
         if type(loglike) == np.ndarray:
             loglike = loglike.squeeze()
         # _pdf is faster but requires mapping of x to canonical domain
         logprior = self._variable.pdf(sample, log=True)[0, 0]
-        return loglike+logprior
+        if not jac:
+            return loglike+logprior
+
+        logprior_grad = self._logprior_grad(sample)
+        return loglike+logprior, loglike_grad + logprior_grad
 
     def rvs(self, num_samples, init_sample=None):
         if init_sample is None:
@@ -231,12 +264,15 @@ class MetropolisMCMCVariable(JointVariable):
             nugget = self._method_opts.get("nugget", 1e-6)
             cov_scaling = self._method_opts.get("cov_scaling", 1e-2)
             sd = self._method_opts.get("sd", None)
-            print(sd)
             samples, accepted = DRAM(
                 self._log_bayes_numerator, init_sample, init_proposal_cov,
                 num_samples+nburn_samples, self._nsamples_per_tuning, nugget,
                 cov_scaling, verbosity=self._verbosity, sd=sd)
             acceptance_rate = accepted[nburn_samples:].sum()/num_samples
+        elif self._algorithm == "hmc":
+            L, eps = self._method_opts["L"], self._method_opts["eps"]
+            return hamiltonian_monte_carlo(
+                L, eps, self._log_bayes_numerator, init_sample, num_samples)
         else:
             # TODO allow all combinations of adaptive and delayed
             # rejection metropolis
@@ -245,8 +281,11 @@ class MetropolisMCMCVariable(JointVariable):
         return samples[:, nburn_samples:]
 
     def maximum_aposteriori_point(self, init_guess=None):
+        import inspect
         def obj(x):
             return -self._log_bayes_numerator(x[:, None])
+        jac = None
+
         if init_guess is None:
             bounds = self._variable.get_statistics("interval", alpha=1)
             trunc_bounds = self._variable.get_statistics(
@@ -265,11 +304,20 @@ class MetropolisMCMCVariable(JointVariable):
             init_guess = res.x[:, None]
             # init_guess = self._variable.get_statistics("mean")
 
+        if "jac" in inspect.getfullargspec(self._loglike).args:
+            def obj(x):
+                vals, jac = self._log_bayes_numerator(x[:, None], True)
+                return -vals, -jac[0, :]
+            jac = True
+
         assert init_guess.ndim == 2 and init_guess.shape[1] == 1
         assert init_guess.shape[0] == self._variable.num_vars()
         init_guess = init_guess[:, 0]
-        res = minimize(obj, init_guess, method="bfgs", options={"disp": True})
+        bounds = self._variable.get_statistics("interval", alpha=1)
+        res = minimize(obj, init_guess, jac=jac, method="l-bfgs-b",
+                       options={"disp": False}, bounds=bounds)
         MAP = res.x[:, None]
+        print(res)
         return MAP
 
     @staticmethod
@@ -321,3 +369,44 @@ class MetropolisMCMCVariable(JointVariable):
                 ax.plot(true_sample[pair[1], 0], true_sample[pair[0], 0],
                         marker='D', color='g')
         return fig, axs
+
+
+def leapfrog(loglikefun, theta, momentum, eps):
+    updated_momentum = momentum + eps/2 * loglikefun(theta, jac=True)[1]
+    updated_theta = theta+eps*updated_momentum
+    updated_momentum += eps/2 * loglikefun(updated_theta, jac=True)[1]
+    return updated_theta, updated_momentum
+
+
+def hamiltonian_monte_carlo(L, eps, logpost_fun, init_sample, nsamples):
+    nvars = init_sample.shape[0]
+    samples = np.empty((nvars, nsamples))
+    sample = init_sample
+    samples[:, 0] = sample[:, 0]
+    accepted = np.empty(nsamples, dtype=bool)
+    for ii in range(nsamples):
+        momentum = np.random.normal(0, 1, (nvars, 1))
+        log_denom = logpost_fun(sample)-momentum.T.dot(momentum)/2
+        new_sample = sample
+        for jj in range(L):
+            new_sample, momentum = leapfrog(
+                logpost_fun, new_sample, momentum, eps)
+        log_numer = logpost_fun(new_sample)-momentum.T.dot(momentum)/2
+        alpha = min(1, np.exp(log_numer)/np.exp(log_denom))
+        u = np.random.uniform(0, 1)
+        if u < alpha:
+            samples[:, ii] = new_sample
+            accepted[ii] = True
+            sample = new_sample
+        else:
+            samples[:, ii] = sample
+            accepted[ii] = False
+
+    return samples
+
+
+# class HamiltonianMonteCarlo(MetropolisMCMCVariable):
+#     def rvs(self, nsamples, init_sample=None):
+#         L, eps = self._method_opts["L"], self._method_opts["eps"]
+#         return hamiltonian_monte_carlo(
+#             L, eps, self._log_bayes_numerator, init_sample, nsamples)
