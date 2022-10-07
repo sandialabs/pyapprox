@@ -769,7 +769,7 @@ def beta_pdf_on_ab(alpha_stat, beta_stat, a, b, x):
 
 def beta_pdf_derivative(alpha_stat, beta_stat, x):
     r"""
-    x in [0,1]
+    x in [0, 1]
     """
     # beta_const = gamma_fn(alpha_stat+beta_stat)/(
     # gamma_fn(alpha_stat)*gamma_fn(beta_stat))
