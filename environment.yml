@@ -18,6 +18,7 @@ dependencies:
   - networkx
   - pytorch
   - pymc3 # requires conda-forge
+  - tqdm
   # make html in docs folder
   - sphinx
 #  - sphinx-gallery # requires conda-forge

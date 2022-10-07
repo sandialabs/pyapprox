@@ -61,6 +61,7 @@ setuptools.setup(
         'pytest-cov',
         'pytest>=4.6',
         'networkx',
+        'tqdm',
     ],
     extras_require={
         'docs': ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
