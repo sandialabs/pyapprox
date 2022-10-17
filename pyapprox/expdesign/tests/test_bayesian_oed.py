@@ -5,6 +5,7 @@ from scipy import stats
 from functools import partial
 from scipy.special import erfinv
 
+from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence
 from pyapprox.expdesign.bayesian_oed import (
     gaussian_loglike_fun,
     precompute_expected_kl_utility_data,
@@ -19,9 +20,6 @@ from pyapprox.expdesign.bayesian_oed import (
     gaussian_noise_fun, get_bayesian_oed_optimizer
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.variables.sampling import (
-    generate_independent_random_samples
-)
 from pyapprox.surrogates.orthopoly.quadrature import (
     gauss_hermite_pts_wts_1D
 )
@@ -43,7 +41,8 @@ from pyapprox.variables.transforms import (
 from pyapprox.util.utilities import (
     cartesian_product, outer_product
 )
-from pyapprox.surrogates.interp.tensorprod import piecewise_univariate_linear_quad_rule
+from pyapprox.surrogates.interp.tensorprod import (
+    piecewise_univariate_linear_quad_rule)
 from pyapprox.variables.algebra import (
     weighted_sum_dependent_gaussian_variables
 )
@@ -313,7 +312,7 @@ def linear_gaussian_prediction_deviation_based_oed(
 
     data_quantile : float
         The quantile of the conditional value at risk used to
-        compute the statistic summarizing the deviation at each 
+        compute the statistic summarizing the deviation at each
         prediction point for all outerloop observation data
 
     Returns
@@ -655,49 +654,186 @@ class TestBayesianOED(unittest.TestCase):
         self.check_gaussian_loglike_fun_3d(
             np.array([[0.25, 0.3, 0.35, 0.4]]).T, np.array([0, 2, 3]))
 
-    def test_compute_expected_kl_utility_monte_carlo(self):
+    def _setup_linear_gaussian_problem(
+            self, inner_quad_type, ninner_loop_samples, noise_std,
+            outer_quad_type):
         nrandom_vars = 1
-        noise_std = .3
         design = np.linspace(-1, 1, 2)[None, :]
         Amat = design.T
 
         def obs_fun(x):
             return (Amat.dot(x)).T
 
+        # TODO noise fun is not used by precompute_utility_data
         def noise_fun(values):
             return np.random.normal(0, noise_std, (values.shape))
-
-        # specify the first design point
-        collected_design_indices = np.array([0])
 
         prior_variable = IndependentMarginalsVariable(
             [stats.norm(0, 1)]*nrandom_vars)
 
-        prior_mean = prior_variable.get_statistics('mean')
-        prior_cov = np.diag(prior_variable.get_statistics('var')[:, 0])
-        prior_cov_inv = np.linalg.inv(prior_cov)
-        noise_cov_inv = np.eye(Amat.shape[0])/noise_std**2
+        def generate_random_prior_samples_mc(n, nlatent_vars=None):
+            return prior_variable.rvs(n), np.ones((n, 1))/n
 
-        def generate_random_prior_samples(n):
-            return (generate_independent_random_samples(prior_variable, n),
-                    np.ones(n)/n)
+        def generate_random_prior_samples_qmc(n, nlatent_vars=None):
+            if nlatent_vars is None:
+                nlatent_vars = nrandom_vars
+            samples = sobol_sequence(nlatent_vars, n, 1)
+            samples = prior_variable.evaluate("ppf", samples[:nrandom_vars])
+            return samples, np.ones((n, 1))/n
 
         def generate_inner_prior_samples_mc(n):
-            return generate_random_prior_samples(n), np.ones(n)/n
+            return generate_random_prior_samples_mc(n), np.ones((n, 1))/n
 
-        ninner_loop_samples = 300
         x, w = gauss_hermite_pts_wts_1D(ninner_loop_samples)
 
         def generate_inner_prior_samples_gauss(n):
             # use precomputed samples so to avoid cost of regenerating
             assert n == x.shape[0]
-            return x[None, :], w
+            return x[None, :], w[:, None]
 
-        generate_inner_prior_samples = generate_inner_prior_samples_gauss
+        if inner_quad_type == "gauss":
+            generate_inner_prior_samples = generate_inner_prior_samples_gauss
+        else:
+            generate_inner_prior_samples = generate_inner_prior_samples_mc
 
-        nouter_loop_samples = 10000
+        if outer_quad_type == "mc":
+            generate_random_prior_samples = generate_random_prior_samples_mc
+        else:
+            generate_random_prior_samples = generate_random_prior_samples_qmc
+
+        return (generate_random_prior_samples, generate_inner_prior_samples,
+                obs_fun, noise_fun, prior_variable, Amat)
+
+    def test_kl_separability(self):
+        inner_quad_type = "gauss"
+        # outer_quad_type = "mc"
+        outer_quad_type = "qmc"
+        ninner_loop_samples = 30
+        nouter_loop_samples_mc = 10000
+        nouter_loop_samples_quad_1d = 30
+        noise_std = 1  # .3
+        (generate_random_prior_samples, generate_inner_prior_samples,
+         obs_fun, noise_fun, prior_variable, Amat) = (
+             self._setup_linear_gaussian_problem(
+                 inner_quad_type, ninner_loop_samples, noise_std,
+                 outer_quad_type))
+
+        generate_outerloop_prior_samples = partial(
+            generate_random_prior_samples,
+            nlatent_vars=prior_variable.num_vars()+Amat.shape[0])
+
         outer_loop_pred_obs, inner_loop_pred_obs, \
-            inner_loop_weights, __, __ = \
+            inner_loop_weights, __, __, outer_loop_weights = \
+            precompute_expected_kl_utility_data(
+                generate_outerloop_prior_samples,
+                nouter_loop_samples_mc, obs_fun,
+                noise_fun, ninner_loop_samples,
+                generate_inner_prior_samples=generate_inner_prior_samples)
+
+        new_design_indices = np.array([1])
+
+        # compute noise once so it can be reproduced
+        noise_mc = np.random.normal(0, noise_std, outer_loop_pred_obs.shape)
+        # start_index must be the same that used for prior
+        # as well as order of random vars and noise vars
+        noise_qmc = sobol_sequence(
+            prior_variable.num_vars()+outer_loop_pred_obs.shape[1],
+            outer_loop_pred_obs.shape[0],
+            start_index=1)[prior_variable.num_vars():]
+        noise_qmc = IndependentMarginalsVariable(
+            [stats.norm(0, noise_std)]*outer_loop_pred_obs.shape[1]).evaluate(
+                "ppf", noise_qmc).T
+        if outer_quad_type == "mc":
+            noise = noise_mc
+        else:
+            noise = noise_qmc
+
+        def log_likelihood_fun(noiseless_obs, pred_obs, active_indices=None):
+            obs = noiseless_obs + noise
+            return gaussian_loglike_fun(
+                obs, pred_obs, noise_std, active_indices)
+
+        # specify the first design point
+        collected_design_indices = np.array([0])
+        utility = compute_expected_kl_utility_monte_carlo(
+            log_likelihood_fun, outer_loop_pred_obs,
+            inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
+            collected_design_indices, new_design_indices, False)['utility_val']
+        print(utility)
+
+        # compute noise once so it can be reproduced
+        noise_quad_x, noise_quad_w = gauss_hermite_pts_wts_1D(
+            nouter_loop_samples_quad_1d)
+        noise_quad_x *= noise_std
+        nvars = prior_variable.num_vars()
+        nobs = collected_design_indices.shape[0]
+        outer_loop_samples = cartesian_product(
+            [gauss_hermite_pts_wts_1D(nouter_loop_samples_quad_1d)[0]]*nvars +
+            [noise_quad_x]*(nobs+1))
+        outer_loop_weights = outer_product(
+            [gauss_hermite_pts_wts_1D(nouter_loop_samples_quad_1d)[1]]*nvars +
+            [noise_quad_w]*(nobs+1))[:, None]
+
+        def generate_random_prior_samples(nsamples):
+            print(nsamples, outer_loop_samples.shape[1])
+            assert nsamples == outer_loop_samples.shape[1]
+            return outer_loop_samples[:nvars], outer_loop_weights
+
+        outer_loop_pred_obs, inner_loop_pred_obs, \
+            inner_loop_weights, __, __, outer_loop_weights = \
+            precompute_expected_kl_utility_data(
+                generate_random_prior_samples,
+                nouter_loop_samples_quad_1d**(nobs+1+nvars),
+                obs_fun, noise_fun, ninner_loop_samples,
+                generate_inner_prior_samples=generate_inner_prior_samples)
+
+        def log_likelihood_fun(noiseless_obs, pred_obs, active_indices=None):
+            obs = noiseless_obs + outer_loop_samples[nvars:].T
+            return gaussian_loglike_fun(
+                obs, pred_obs, noise_std, active_indices)
+
+        print(inner_loop_pred_obs.shape)
+        # specify the first design point
+        collected_design_indices = np.array([0])
+        utility = compute_expected_kl_utility_monte_carlo(
+            log_likelihood_fun, outer_loop_pred_obs,
+            inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
+            collected_design_indices, new_design_indices, False)['utility_val']
+        print(utility)
+
+        # kl_divs = []
+        # noisy_outer_loop_pred_obs = outer_loop_pred_obs+noise
+        # for ii in range(nouter_loop_samples):
+        #     idx = np.hstack(
+        #         (collected_design_indices, new_design_indices))
+        #     obs_ii = noisy_outer_loop_pred_obs[ii:ii+1, idx]
+
+        #     idx = np.hstack((collected_design_indices, new_design_indices))
+        #     exact_post_mean, exact_post_cov = \
+        #         laplace_posterior_approximation_for_linear_models(
+        #             Amat[idx, :], prior_mean, prior_cov_inv,
+        #             extract_independent_noise_cov(noise_cov_inv, idx),
+        #             obs_ii.T)
+
+        #     kl_div = gaussian_kl_divergence(
+        #         exact_post_mean, exact_post_cov, prior_mean, prior_cov)
+        #     kl_divs.append(kl_div)
+
+        # # print(utility-np.mean(kl_divs), utility, np.mean(kl_divs))
+        # assert np.allclose(utility, np.mean(kl_divs), rtol=2e-2)
+
+    def test_compute_expected_kl_utility_monte_carlo(self):
+        inner_quad_type = "gauss"
+        ninner_loop_samples = 300
+        nouter_loop_samples = 10000
+        noise_std = .3
+        (generate_random_prior_samples, generate_inner_prior_samples,
+         obs_fun, noise_fun, prior_variable, Amat) = (
+             self._setup_linear_gaussian_problem(
+                 inner_quad_type, ninner_loop_samples, noise_std, "mc"))
+
+        outer_loop_pred_obs, inner_loop_pred_obs, \
+            inner_loop_weights, __, __, outer_loop_weights = \
             precompute_expected_kl_utility_data(
                 generate_random_prior_samples, nouter_loop_samples, obs_fun,
                 noise_fun, ninner_loop_samples,
@@ -705,8 +841,8 @@ class TestBayesianOED(unittest.TestCase):
 
         new_design_indices = np.array([1])
 
-        outer_loop_weights = np.ones(
-            (nouter_loop_samples, 1))/nouter_loop_samples
+        # outer_loop_weights = np.ones(
+        #     (nouter_loop_samples, 1))/nouter_loop_samples
 
         # compute noise once so it can be reproduced
         noise = np.random.normal(0, noise_std, outer_loop_pred_obs.shape)
@@ -715,17 +851,26 @@ class TestBayesianOED(unittest.TestCase):
             obs = noiseless_obs + noise
             return gaussian_loglike_fun(
                 obs, pred_obs, noise_std, active_indices)
+
+        # specify the first design point
+        collected_design_indices = np.array([0])
         utility = compute_expected_kl_utility_monte_carlo(
             log_likelihood_fun, outer_loop_pred_obs,
             inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
             collected_design_indices, new_design_indices, False)['utility_val']
 
+        prior_mean = prior_variable.get_statistics('mean')
+        prior_cov = np.diag(prior_variable.get_statistics('var')[:, 0])
+        prior_cov_inv = np.linalg.inv(prior_cov)
+        noise_cov_inv = np.eye(Amat.shape[0])/noise_std**2
+
         kl_divs = []
+        noisy_outer_loop_pred_obs = outer_loop_pred_obs+noise
         for ii in range(nouter_loop_samples):
             idx = np.hstack(
                 (collected_design_indices, new_design_indices))
             # obs_ii = outer_loop_obs_copy[ii:ii+1, idx]
-            obs_ii = (outer_loop_pred_obs+noise)[ii:ii+1, idx]
+            obs_ii = noisy_outer_loop_pred_obs[ii:ii+1, idx]
 
             idx = np.hstack((collected_design_indices, new_design_indices))
             exact_post_mean, exact_post_cov = \
@@ -770,8 +915,6 @@ class TestBayesianOED(unittest.TestCase):
             # use precomputed samples so to avoid cost of regenerating
             assert n == x_quad.shape[0]
             return x_quad[None, :], w_quad
-
-        generate_inner_prior_samples = generate_inner_prior_samples_gauss
 
         # Define initial design
         init_design_indices = np.array([ncandidates//2])
@@ -912,11 +1055,11 @@ class TestBayesianOED(unittest.TestCase):
                 # print(f"Candidate {jj}", exact_variance_risk)
             else:
                 data.append([None, -np.inf])
-        jdx = np.argmax([d[1] for d in data])
-        # print(np.mean(pointwise_post_variance))
-        # print(np.mean(
-        #     conditional_value_at_risk(pointwise_post_variance, quantile)))
-        # print(jdx, oed.collected_design_indices)
+                jdx = np.argmax([d[1] for d in data])
+                # print(np.mean(pointwise_post_variance))
+                # print(np.mean(
+                #     conditional_value_at_risk(pointwise_post_variance, quantile)))
+                # print(jdx, oed.collected_design_indices)
         assert jdx == oed.collected_design_indices[-1]
         # print(utility_vals[oed.collected_design_indices[-1]]-data[jdx][1])
         assert np.allclose(
@@ -1232,8 +1375,7 @@ class TestBayesianOED(unittest.TestCase):
             obs += oed.noise_fun(obs)
             return obs
 
-        generate_random_prior_samples = partial(
-            generate_independent_random_samples, prior_variable)
+        generate_random_prior_samples = prior_variable.rvs
 
         def generate_inner_prior_samples_mc(n):
             # fix seed that when econ is False we are still creating
@@ -1247,7 +1389,7 @@ class TestBayesianOED(unittest.TestCase):
         def generate_inner_prior_samples_gauss(n):
             # use precomputed samples so to avoid cost of regenerating
             assert n == x_quad.shape[0]
-            return x_quad[None, :], w_quad
+            return x_quad[None, :], w_quad[:, None]
 
         if use_gauss_quadrature:
             generate_inner_prior_samples = generate_inner_prior_samples_gauss
@@ -1323,8 +1465,7 @@ class TestBayesianOED(unittest.TestCase):
                                  axis=0))[:, None]
 
         nsamples = int(1e6)
-        prior_samples = generate_independent_random_samples(
-            prior_variable, nsamples)
+        prior_samples = prior_variable.rvs(nsamples)
         posterior_samples = chol_factor.dot(
             np.random.normal(0, 1, (nrandom_vars, nsamples)))+exact_post_mean
 
@@ -1399,7 +1540,7 @@ class TestBayesianOED(unittest.TestCase):
 
             def generate_inner_prior_samples(nsamples):
                 assert nsamples == x_quad.shape[1], (nsamples, x_quad.shape)
-                return x_quad, w_quad
+                return x_quad, w_quad[:, None]
         else:
             # use default Monte Carlo sampling
             generate_inner_prior_samples = None
@@ -1455,9 +1596,9 @@ class TestBayesianOED(unittest.TestCase):
 
                 exact_deviations[jj] = gauss_deviation_fun(
                     exact_post_mean_jj, exact_post_cov_jj)
-            # print('d', np.absolute(exact_deviations-deviations[:, 0]).max(),
-            #       tol)
-            # print('eee', exact_deviations, deviations[:, 0])
+                # print('d', np.absolute(exact_deviations-deviations[:, 0]).max(),
+                #       tol)
+                # print('eee', exact_deviations, deviations[:, 0])
             assert np.allclose(exact_deviations, deviations[:, 0], atol=tol)
             assert np.allclose(
                 utility_vals[selected_indices], -np.mean(exact_deviations),
@@ -1561,7 +1702,7 @@ class TestBayesianOED(unittest.TestCase):
         nn, outer_loop_idx = 2, 0
         fun = get_posterior_2d_interpolant_from_oed_data(
             oed, prior_variable, nn, outer_loop_idx, method)
-        samples = generate_independent_random_samples(prior_variable, 100)
+        samples = prior_variable.rvs(100)
         post_vals = fun(samples)
 
         prior_mean = oed.prior_variable.get_statistics('mean')
@@ -1577,7 +1718,7 @@ class TestBayesianOED(unittest.TestCase):
                 Amat[oed.collected_design_indices[:nn], :], prior_mean,
                 prior_cov_inv, noise_cov_inv, obs.T)
         true_pdf = stats.multivariate_normal(
-                mean=exact_post_mean[:, 0], cov=exact_post_cov).pdf
+            mean=exact_post_mean[:, 0], cov=exact_post_cov).pdf
         true_post_vals = true_pdf(samples.T)
         # II = np.where(
         #     np.absolute(post_vals[:, 0]-true_post_vals) >
@@ -1651,7 +1792,7 @@ class TestBayesianOED(unittest.TestCase):
 
         (prior_mean, prior_cov, noise_cov, prior_cov_inv,
          noise_cov_inv) = setup_linear_gaussian_model_inference(
-            prior_variable, noise_std, obs_mat)
+             prior_variable, noise_std, obs_mat)
 
         collected_indices, data = \
             linear_gaussian_prediction_deviation_based_oed(
@@ -1705,9 +1846,9 @@ class TestBayesianOED(unittest.TestCase):
             sign = 1
         else:
             sign = -1
-        assert np.allclose(
-            metrics.mean(axis=0),
-            sign*data[-1][collected_indices[-1]]['utility_val'], rtol=rtol)
+            assert np.allclose(
+                metrics.mean(axis=0),
+                sign*data[-1][collected_indices[-1]]['utility_val'], rtol=rtol)
 
     def test_analytical_gaussian_prediction_deviation_based_oed(self):
         self.check_analytical_gaussian_prediction_deviation_based_oed(

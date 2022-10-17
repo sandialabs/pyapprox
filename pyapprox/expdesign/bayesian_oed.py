@@ -9,9 +9,6 @@ from abc import ABC, abstractmethod
 from pyapprox.util.sys_utilities import trace_error_with_msg
 from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.variables.risk import conditional_value_at_risk
-from pyapprox.variables.sampling import (
-    generate_independent_random_samples
-)
 from pyapprox.variables.transforms import (
     AffineTransform
 )
@@ -298,7 +295,7 @@ def gaussian_loglike_fun(obs, pred_obs, noise_stdev, active_indices=None):
             obs, pred_obs, noise_stdev, active_indices)
 
 
-def __compute_expected_kl_utility_monte_carlo(
+def _compute_expected_kl_utility_monte_carlo(
         log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         active_indices, return_all):
@@ -307,6 +304,7 @@ def __compute_expected_kl_utility_monte_carlo(
     ninner_loop_samples = int(
         inner_loop_pred_obs.shape[0]//nouter_loop_samples)
 
+    print(outer_loop_pred_obs.shape, outer_loop_pred_obs.shape)
     outer_log_likelihood_vals = log_likelihood_fun(
         outer_loop_pred_obs, outer_loop_pred_obs, active_indices)
     nobs = outer_loop_pred_obs.shape[1]
@@ -417,8 +415,11 @@ def precompute_expected_kl_utility_data(
     """
 
     # generate samples and values for the outer loop
-    outer_loop_prior_samples = generate_outer_prior_samples(
-        nouter_loop_samples)[0]
+    # outer_loop_prior_samples = generate_outer_prior_samples(
+    #     nouter_loop_samples)[0]
+    outer_loop_prior_samples, outer_loop_weights = (
+        generate_outer_prior_samples(nouter_loop_samples))
+    assert outer_loop_weights.ndim == 2
     print(f"Running {outer_loop_prior_samples.shape[1]} model evaluations")
     outer_loop_pred_obs = obs_fun(outer_loop_prior_samples)
 
@@ -442,12 +443,14 @@ def precompute_expected_kl_utility_data(
             # when econ is True use samples from ii == 0 for all ii
             in_samples, in_weights = generate_inner_prior_samples(
                 ninner_loop_samples)
+            assert in_weights.ndim == 2
+            in_weights = in_weights[:, 0]
             if in_samples.ndim != 2:
                 msg = "Generate_inner_prior_samples must return 2d np.ndarray"
                 raise ValueError(msg)
-        inner_loop_prior_samples[:, idx1:idx2] = in_samples
-        inner_loop_weights[ii, :] = in_weights
-        idx1 = idx2
+            inner_loop_prior_samples[:, idx1:idx2] = in_samples
+            inner_loop_weights[ii, :] = in_weights
+            idx1 = idx2
 
     if not econ:
         print(f"Running {inner_loop_prior_samples.shape[1]} model evaluations")
@@ -460,7 +463,7 @@ def precompute_expected_kl_utility_data(
 
     return (outer_loop_pred_obs, inner_loop_pred_obs,
             inner_loop_weights, outer_loop_prior_samples,
-            inner_loop_prior_samples)
+            inner_loop_prior_samples, outer_loop_weights)
 
 
 def precompute_expected_deviation_data(
@@ -469,7 +472,8 @@ def precompute_expected_deviation_data(
         generate_inner_prior_samples=None, econ=False):
     (outer_loop_pred_obs, inner_loop_pred_obs,
      inner_loop_weights, outer_loop_prior_samples,
-     inner_loop_prior_samples) = precompute_expected_kl_utility_data(
+     inner_loop_prior_samples, outer_loop_weights) = \
+         precompute_expected_kl_utility_data(
              generate_outer_prior_samples, nouter_loop_samples, obs_fun,
              noise_fun, ninner_loop_samples, generate_inner_prior_samples,
              econ)
@@ -499,7 +503,7 @@ def precompute_expected_deviation_data(
     #         (nouter_loop_samples, ninner_loop_samples))
     # inner_loop_pred_qois = tmp
     inner_loop_pred_qois = inner_loop_pred_qois.reshape(
-            (nouter_loop_samples, ninner_loop_samples, nqois))
+        (nouter_loop_samples, ninner_loop_samples, nqois))
     # assert np.allclose(tmp, inner_loop_pred_qois.reshape(
     #         (nouter_loop_samples, ninner_loop_samples, nqois)))
     return (outer_loop_pred_obs, inner_loop_pred_obs,
@@ -563,13 +567,13 @@ def compute_expected_kl_utility_monte_carlo(
         # assume the observations at the collected_design_indices are already
         # incorporated into the inner and outer loop weights
         active_indices = np.asarray(new_design_indices)
-    return __compute_expected_kl_utility_monte_carlo(
+    return _compute_expected_kl_utility_monte_carlo(
         log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         active_indices, return_all)
 
 
-def __compute_negative_expected_deviation_monte_carlo(
+def _compute_negative_expected_deviation_monte_carlo(
         log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         inner_loop_pred_qois, deviation_fun, active_indices, pred_risk_fun,
@@ -626,7 +630,7 @@ def compute_negative_expected_deviation_monte_carlo(
         # assume the observations at the collected_design_indices are already
         # incorporated into the inner and outer loop weights
         active_indices = np.asarray(new_design_indices, dtype=int)
-    return __compute_negative_expected_deviation_monte_carlo(
+    return _compute_negative_expected_deviation_monte_carlo(
         log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         inner_loop_pred_qois, deviation_fun, active_indices, pred_risk_fun,
@@ -891,7 +895,7 @@ class AbstractBayesianOED(ABC):
         nunique_indices = np.unique(
             active_indices, return_counts=True)[1].max()
         if self.noise_realizations is None:
-            # make noise the same each time this funciton is called
+            # make noise the same each time this function is called
             self.noise_realizations = self.noise_fun(values)[:, :, None]
         if self.noise_realizations.shape[2] < nunique_indices:
             self.noise_realizations = np.dstack(
@@ -905,19 +909,19 @@ class AbstractBayesianOED(ABC):
         return noise
 
     def generate_prior_samples(self, nsamples):
-        return generate_independent_random_samples(
-            self.prior_variable, nsamples), np.ones(nsamples)/nsamples
+        return (self.prior_variable.rvs(nsamples),
+                np.ones((nsamples, 1))/nsamples)
 
     def loglike_fun(self, obs, pred_obs, active_indices=None):
         return gaussian_loglike_fun(
             obs, pred_obs, self.noise_std, active_indices)
 
-    def __get_outer_loop_obs(self, noiseless_obs, active_indices):
+    def _get_outer_loop_obs(self, noiseless_obs, active_indices):
         noise = self.reproducible_noise_fun(noiseless_obs, active_indices)
         return noiseless_obs[:, active_indices] + noise
 
     def get_outer_loop_obs(self, active_indices):
-        return self.__get_outer_loop_obs(
+        return self._get_outer_loop_obs(
             self.outer_loop_pred_obs, active_indices)
 
     def loglike_fun_from_noiseless_obs(
@@ -930,7 +934,7 @@ class AbstractBayesianOED(ABC):
         # are repeat entries in active_indices we need to generate different
         # noise realization for the same noiseless obs. This is not possible
         # with special indexing as it will just copy the same value twice.
-        obs = self.__get_outer_loop_obs(noiseless_obs, active_indices)
+        obs = self._get_outer_loop_obs(noiseless_obs, active_indices)
         if pred_obs.ndim == 3:
             return gaussian_loglike_fun_3d_prereduced(
                 obs, pred_obs, self.noise_std, active_indices)
@@ -975,7 +979,8 @@ class BayesianBatchKLOED(AbstractBayesianOED):
     def populate(self):
         (self.outer_loop_pred_obs,
          self.inner_loop_pred_obs, self.inner_loop_weights,
-         self.outer_loop_prior_samples, self.inner_loop_prior_samples) = \
+         self.outer_loop_prior_samples, self.inner_loop_prior_samples,
+         self.outer_loop_weights) = \
              precompute_expected_kl_utility_data(
                  self.generate_prior_samples, self.nouter_loop_samples,
                  self.obs_fun, self.noise_fun, self.ninner_loop_samples,
@@ -1316,7 +1321,7 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
         self.pred_risk_fun = pred_risk_fun
         self.data_risk_fun = data_risk_fun
 
-    def __populate(self):
+    def _populate(self):
         """
         Compute the data needed to initialize the OED algorithm.
         """
@@ -1337,7 +1342,7 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
             (self.inner_loop_weights.shape[0], 1)) / \
             self.inner_loop_weights.shape[0]
 
-    def __sort_qoi(self):
+    def _sort_qoi(self):
         # Sort inner_loop_pred_qois and use this order to sort
         # inner_loop_prior_samples so that cvar deviation does not have to
         # constantly sort samples
@@ -1361,10 +1366,10 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
         """
         Compute the data needed to initialize the OED algorithm.
         """
-        self.__populate()
+        self._populate()
         if self.inner_loop_pred_qois.shape[2] == 1:
             # speeds up calcualtion of avar
-            self.__sort_qoi()
+            self._sort_qoi()
 
     def compute_expected_utility(self, collected_design_indices,
                                  new_design_indices, return_all=False):
@@ -1425,7 +1430,7 @@ class BayesianSequentialOED(AbstractBayesianOED):
         self.evidence_from_prior = 1
         self.evidence = None
 
-    def __compute_evidence(self):
+    def _compute_evidence(self):
         """
         Compute the evidence associated with using the true collected data.
 
@@ -1516,7 +1521,7 @@ class BayesianSequentialOED(AbstractBayesianOED):
         else:
             self.collected_obs = np.hstack(
                 (self.collected_obs, new_obs))
-        self.__compute_evidence()
+        self._compute_evidence()
         self.compute_importance_weights()
         self.outer_loop_weights_up = \
             self.outer_loop_weights*self.outer_importance_weights
@@ -1788,7 +1793,8 @@ class BayesianSequentialDeviationOED(
             self, design_candidates, obs_fun, noise_std,
             prior_variable, qoi_fun, nouter_loop_samples,
             ninner_loop_samples, generate_inner_prior_samples,
-            econ, deviation_fun, max_eval_concurrency, pred_risk_fun, data_risk_fun)
+            econ, deviation_fun, max_eval_concurrency, pred_risk_fun,
+            data_risk_fun)
         BayesianSequentialOED.__init__(self, obs_process)
 
     def compute_expected_utility(self, collected_design_indices,
@@ -1836,7 +1842,7 @@ def get_oed_inner_quadrature_rule(ninner_loop_samples, prior_variable,
         x_quad, w_quad = get_tensor_product_quadrature_rule(
             [ninner_loop_samples_1d]*nrandom_vars, nrandom_vars,
             univariate_quad_rules, transform_samples=None)
-        return x_quad, w_quad
+        return x_quad, w_quad[:, None]
 
     degree = {'linear': 1, 'quadratic': 2}[quad_method]
     if prior_variable.is_bounded_continuous_variable():
@@ -1849,7 +1855,7 @@ def get_oed_inner_quadrature_rule(ninner_loop_samples, prior_variable,
         get_tensor_product_piecewise_polynomial_quadrature_rule(
             ninner_loop_samples_1d, new_ranges, degree)
     w_quad *= prior_variable.pdf(x_quad)[:, 0]
-    return x_quad, w_quad
+    return x_quad, w_quad[:, None]
 
 
 def get_posterior_vals_at_inner_loop_samples(
