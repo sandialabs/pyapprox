@@ -652,3 +652,68 @@ def setup_shallow_ice_manufactured_solution(
     print(forc_expr)
 
     return depth_fun, bed_fun, beta_fun, forc_fun, flux_funs
+
+
+def setup_linear_elasticity_manufactured_solution(
+        disp_strings, lambda_string, mu_string, body_forc_strings,
+        transient=False):
+
+    assert not transient
+
+    nphys_vars = len(disp_strings)
+    sp_x, sp_y = sp.symbols(["x", "y"])
+    symbs = (sp_x, sp_y)[:nphys_vars]
+    all_symbs = symbs
+
+    disp_expr = [sp.sympify(s) for s in disp_strings]
+    disp_lambda = [sp.lambdify(symbs, disp, "numpy") for disp in disp_expr]
+    disp_fun = partial(_evaluate_list_of_sp_lambda, disp_lambda, as_list=False)
+
+    lambda_expr = sp.sympify(lambda_string)
+    lambda_lambda = sp.lambdify(symbs, lambda_expr, "numpy")
+    lambda_fun = partial(_evaluate_sp_lambda, lambda_lambda)
+
+    mu_expr = sp.sympify(mu_string)
+    mu_lambda = sp.lambdify(symbs, mu_expr, "numpy")
+    mu_fun = partial(_evaluate_sp_lambda, mu_lambda)
+
+    body_forc_expr = [sp.sympify(s) for s in body_forc_strings]
+    # body_forc_lambda = [sp.lambdify(symbs, body_forc, "numpy")
+    #                     for body_forc in body_forc_expr]
+    # body_forc_fun = partial(_evaluate_list_of_sp_lambda, body_forc_lambda,
+    #     as_list=False)
+
+    exx = disp_expr[0].diff(sp_x, 1)
+    exy = 0.5 * (disp_expr[0].diff(sp_y, 1) + disp_expr[1].diff(sp_x, 1))
+    eyy = disp_expr[1].diff(sp_y, 1)
+
+    lambda_plus_2_mu_expr = lambda_expr + 2. * mu_expr
+
+    tauxx = lambda_plus_2_mu_expr * exx + lambda_expr * eyy
+    tauxy = 2. * mu_expr * exy
+    tauyy = lambda_expr * exx + lambda_plus_2_mu_expr * eyy
+
+    tau = [[tauxx, tauxy], [tauxy, tauyy]]
+
+    forc_expr = [
+        -sum([tau[ii][jj].diff(symbs[jj], 1) - body_forc_expr[ii]
+              for jj in range(nphys_vars)]) for ii in range(nphys_vars)]
+    forc_lambda = [sp.lambdify(all_symbs, f, "numpy") for f in forc_expr]
+    forc_fun = partial(_evaluate_list_of_sp_lambda, forc_lambda, as_list=False)
+
+    flux_comp_exprs = tau
+    flux_comp_lambdas = [
+        [sp.lambdify(all_symbs, flux_expr, "numpy")
+         for flux_expr in flux_exprs]
+        for flux_exprs in flux_comp_exprs]
+    flux_funs = [
+        partial(_evaluate_list_of_sp_lambda, flux_lambdas, as_list=False)
+        for flux_lambdas in flux_comp_lambdas]
+
+    print(f"\ndisp = {disp_expr}")
+    print(f"lambda = {lambda_expr}")
+    print(f"mu = {mu_expr}")
+    print(f"body_forc = {body_forc_expr}")
+    print(f"forc = {forc_expr}")
+
+    return disp_fun, lambda_fun, mu_fun, forc_fun, flux_funs

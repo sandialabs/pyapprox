@@ -12,7 +12,8 @@ from pyapprox.pde.autopde.manufactured_solutions import (
     setup_shallow_water_wave_equations_manufactured_solution,
     setup_shallow_shelf_manufactured_solution,
     setup_first_order_stokes_ice_manufactured_solution,
-    setup_two_species_advection_diffusion_reaction_manufactured_solution
+    setup_two_species_advection_diffusion_reaction_manufactured_solution,
+    setup_linear_elasticity_manufactured_solution
 )
 from pyapprox.pde.autopde.mesh import (
     CartesianProductCollocationMesh,
@@ -28,7 +29,8 @@ from pyapprox.pde.autopde.physics import (
     AdvectionDiffusionReaction, IncompressibleNavierStokes,
     LinearIncompressibleStokes, ShallowIce, EulerBernoulliBeam,
     Helmholtz, ShallowWaterWave, ShallowShelfVelocities,
-    ShallowShelf, FirstOrderStokesIce, MultiSpeciesAdvectionDiffusionReaction
+    ShallowShelf, FirstOrderStokesIce, MultiSpeciesAdvectionDiffusionReaction,
+    LinearElasticity
 )
 from pyapprox.util.utilities import approx_jacobian
 
@@ -1477,6 +1479,71 @@ class TestAutoPDE(unittest.TestCase):
         for test_case in test_cases:
             self._check_transient_multi_species_advection_diffusion_reaction(
                 *test_case)
+
+    def _check_linear_elasticity(
+            self, domain_bounds, orders, disp_strings, lambda_string, mu_string,
+            body_forc_strings, bndry_types, basis_types):
+        disp_fun, lambda_fun, mu_fun, forc_fun, flux_funs = (
+            setup_linear_elasticity_manufactured_solution(
+                disp_strings, lambda_string, mu_string, body_forc_strings))
+
+        disp_fun = Function(disp_fun)
+        lambda_fun = Function(lambda_fun)
+        mu_fun = Function(mu_fun)
+        forc_fun = Function(forc_fun)
+
+        nphys_vars = len(orders)
+        bndry_conds = [_get_boundary_funs(
+            nphys_vars, bndry_types,
+            partial(_vel_component_fun, disp_fun, ii),
+            flux_funs[ii]) for ii in range(nphys_vars)]
+
+        disp_meshes = [
+            CartesianProductCollocationMesh(domain_bounds, orders)]*nphys_vars
+        mesh = VectorMesh(disp_meshes)
+
+        solver = SteadyStatePDE(LinearElasticity(
+            mesh, bndry_conds, forc_fun, lambda_fun, mu_fun))
+
+        # change N (really R) BCs to custom
+        for ii in range(nphys_vars):
+            for jj in range(len(mesh._meshes[0]._bndrys)):
+                res_bcs = solver.physics._bndry_conds[ii][jj]
+                if res_bcs[1] == "R":
+                    # res_bcs[0] is already the correct flux function
+                    res_bcs[1] = "C"
+                    res_bcs[2] = partial(solver.physics._traction_bcs, ii)
+
+        exact_disp_vals = [
+            v[:, None] for v in disp_fun(disp_meshes[0].mesh_pts).T]
+        init_guess = torch.cat(exact_disp_vals)
+        res_vals = solver.physics._raw_residual(init_guess.squeeze())[0]
+        res_error = (np.linalg.norm(res_vals.detach().numpy()) /
+                     np.linalg.norm(solver.physics._forc_vals[:, 0].numpy()))
+        print(res_error, 'r')
+        assert res_error < 1e-12
+
+        sol = solver.solve().detach().numpy()
+
+        split_sols = mesh.split_quantities(sol)
+        exact_disp_vals = disp_fun(disp_meshes[0].mesh_pts).numpy()
+        # import matplotlib.pyplot as plt
+        # mesh.plot(split_sols)
+        # mesh.plot([v for v in exact_disp_vals.T])
+        # plt.show()
+        for exact_disp, disp in zip(exact_disp_vals.T, split_sols):
+            print(np.abs(exact_disp - disp).max())
+            assert np.allclose(exact_disp, disp)
+
+    def test_linear_elasticity(self):
+        test_cases = [
+            [[0, 1, 0, 1], [4, 4], ["y**2 * x**2", "x**3 * y**4"], "1", "1",
+             ["0", "0"], ["D", "D", "D", "D"], ["C", "C"]],
+            [[0, 1, 0, 1], [4, 4], ["y**2 * x**2", "x**3 * y**4"], "1", "1",
+             ["0", "0"], ["D", "D", "N", "N"], ["C", "C"]]
+        ]
+        for test_case in test_cases:
+            self._check_linear_elasticity(*test_case)
 
 
 if __name__ == "__main__":
