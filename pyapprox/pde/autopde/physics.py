@@ -802,3 +802,74 @@ class FirstOrderStokesIce(AbstractSpectralCollocationPhysics):
         if bndry_index == 2:
             return vals + self._beta_vals[idx, 0]*sol[idx]
         return vals
+
+
+class LinearElasticity(AbstractSpectralCollocationPhysics):
+    def __init__(self, mesh, bndry_conds, forc_fun, lambda_fun, mu_fun):
+        super().__init__(mesh, bndry_conds)
+
+        self._forc_fun = forc_fun
+        self._lambda_fun = lambda_fun
+        self._mu_fun = mu_fun
+
+        # only needs to be time dependent funs
+        self._funs = [self._forc_fun]
+        self._forc_vals = self._forc_fun(self.mesh._meshes[0].mesh_pts)
+
+        # assumed to be time independent
+        self._lambda_vals = self._lambda_fun(self.mesh._meshes[0].mesh_pts)
+        self._mu_vals = self._mu_fun(self.mesh._meshes[0].mesh_pts)
+
+    def _stress_2d(self, sol_vals):
+        pderiv = self.mesh._meshes[0].partial_deriv
+        mu = self._mu_vals[:, 0]
+        lam = self._lambda_vals[:, 0]
+        lp2mu = lam+2*mu
+        # strains
+        exx = pderiv(sol_vals[:, 0], 0)
+        eyy = pderiv(sol_vals[:, 1], 1)
+        exy = 0.5*(pderiv(sol_vals[:, 0], 1)+pderiv(sol_vals[:, 1], 0))
+        # stresses
+        tauxy = 2*mu*exy
+        tauxx = lp2mu*exx+lam*eyy
+        tauyy = lam*exx+lp2mu*eyy
+
+        self._stress_tensor = [[tauxx, tauxy], [tauxy, tauyy]]
+
+        return tauxx, tauxy, tauyy
+
+    def _raw_residual_2d(self, sol_vals, forc_vals):
+        pderiv = self.mesh._meshes[0].partial_deriv
+        residual = [0, 0]
+        tauxx, tauxy, tauyy = self._stress_2d(sol_vals)
+        residual[0] = pderiv(tauxx, 0)+pderiv(tauxy, 1)
+        residual[0] += forc_vals[:, 0]
+        residual[1] = pderiv(tauxy, 0)+pderiv(tauyy, 1)
+        residual[1] += forc_vals[:, 1]
+        return torch.cat(residual)
+
+    def _raw_residual(self, sol):
+        split_sols = self.mesh.split_quantities(sol)
+        sol_vals = torch.hstack(
+            [s[:, None] for s in split_sols[:self.mesh.nphys_vars]])
+        forc_vals = self._forc_fun(self.mesh._meshes[0].mesh_pts)
+        if self.mesh.nphys_vars == 2:
+            return self._raw_residual_2d(sol_vals, forc_vals), None
+        else:
+            raise NotImplementedError()
+
+    def _traction_bcs(self, comp_idx, sol, pt_idx, mesh,
+                      bndry_index):
+        normal_vals = mesh._bndrys[bndry_index].normals(
+            mesh.mesh_pts[:, pt_idx])
+        stress_vec = self._stress_as_vector_components(comp_idx)[pt_idx, :]
+        vals = mesh.dot(stress_vec, normal_vals)
+        return vals
+
+    def _stress_as_vector_components(self, idx):
+        if self.mesh.nphys_vars == 2:
+            vals = torch.hstack(
+                [self._stress_tensor[idx][0][:, None],
+                 self._stress_tensor[idx][1][:, None]])
+            return vals
+        raise NotImplementedError()
