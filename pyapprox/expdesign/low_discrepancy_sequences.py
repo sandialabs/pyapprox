@@ -201,6 +201,7 @@ def sobol_sequence(nvars, nsamples, start_index=0, variable=None):
     samples = _sobol_sequence(nvars, nsamples+start_index)[:, start_index:]
     if variable is None:
         return samples
+    assert variable.num_vars() == nvars
     samples = variable.evaluate('ppf', samples)
     return samples
 
