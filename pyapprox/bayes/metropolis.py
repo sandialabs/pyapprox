@@ -128,6 +128,8 @@ def delayed_rejection(y0, proposal_chol_tuple, logpost_fun, cov_scaling,
     if (np.log(np.random.uniform(0, 1)) < log_alpha_2_y0_y2):  # acceptance
         return y2, 1, log_f_y2
 
+    print(y1[:, 0])
+    print("reject")
     return y0, 0, log_f_y0
 
 
@@ -148,11 +150,12 @@ def DRAM(logpost_fun, init_sample, proposal_cov, nsamples,
     sample_cov = np.zeros((nvars, nvars))
 
     # use init samples as first sample in chain
-    ndraws = 1
+    ndraws = 0
     sample = init_sample
     samples[:, 0] = sample[:, 0]
     accepted = np.empty(nsamples)
     accepted[ndraws] = 1
+    ndraws = +1
 
     if verbosity > 0:
         pbar = tqdm(total=nsamples)
@@ -169,7 +172,7 @@ def DRAM(logpost_fun, init_sample, proposal_cov, nsamples,
         ndraws += 1
         if verbosity > 0:
             pbar.update(1)
-    return samples, accepted
+    return samples, accepted, sample_cov
 
 
 def auto_correlation(time_series, lag):
@@ -264,10 +267,13 @@ class MetropolisMCMCVariable(JointVariable):
             nugget = self._method_opts.get("nugget", 1e-6)
             cov_scaling = self._method_opts.get("cov_scaling", 1e-2)
             sd = self._method_opts.get("sd", None)
-            samples, accepted = DRAM(
+            # hack remove self._sample_covariance
+            samples, accepted, self._sample_covariance = DRAM(
                 self._log_bayes_numerator, init_sample, init_proposal_cov,
                 num_samples+nburn_samples, self._nsamples_per_tuning, nugget,
                 cov_scaling, verbosity=self._verbosity, sd=sd)
+            # print(accepted)
+            print(accepted[nburn_samples:].sum(), num_samples, nburn_samples)
             acceptance_rate = accepted[nburn_samples:].sum()/num_samples
         elif self._algorithm == "hmc":
             L, eps = self._method_opts["L"], self._method_opts["eps"]
