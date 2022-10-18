@@ -448,9 +448,9 @@ def precompute_expected_kl_utility_data(
             if in_samples.ndim != 2:
                 msg = "Generate_inner_prior_samples must return 2d np.ndarray"
                 raise ValueError(msg)
-            inner_loop_prior_samples[:, idx1:idx2] = in_samples
-            inner_loop_weights[ii, :] = in_weights
-            idx1 = idx2
+        inner_loop_prior_samples[:, idx1:idx2] = in_samples
+        inner_loop_weights[ii, :] = in_weights
+        idx1 = idx2
 
     if not econ:
         print(f"Running {inner_loop_prior_samples.shape[1]} model evaluations")

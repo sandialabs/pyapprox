@@ -1382,7 +1382,7 @@ class TestBayesianOED(unittest.TestCase):
             # the samples each time. This is just for testing purposes
             # to make sure that econ is True does this in effect
             np.random.seed(1)
-            return generate_random_prior_samples(n), np.ones(n)/n
+            return generate_random_prior_samples(n), np.ones((n, 1))/n
 
         x_quad, w_quad = gauss_hermite_pts_wts_1D(ninner_loop_samples)
 
