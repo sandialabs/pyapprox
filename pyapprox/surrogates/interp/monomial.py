@@ -101,7 +101,6 @@ def monomial_basis_matrix(indices, samples, deriv_order=0):
     return basis_matrix
 
 
-
 def evaluate_monomial(indices, coeffs, samples):
     """
     Evaluate a multivariate monomial at a set of samples.

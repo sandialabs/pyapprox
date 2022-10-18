@@ -489,18 +489,15 @@ def _precompute_expected_kl_utility_data(
             inner_loop_prior_samples, inner_loop_weights)
 
 
-def precompute_expected_deviation_data(
-        generate_outer_prior_samples, nouter_loop_samples, obs_fun,
-        noise_fun, qoi_fun, ninner_loop_samples,
-        generate_inner_prior_samples=None, econ=False):
+def _precompute_expected_deviation_data(
+        outer_loop_quad_data, generate_inner_prior_samples,
+        ninner_loop_samples, obs_fun, qoi_fun, econ=False):
     (outer_loop_pred_obs, inner_loop_pred_obs,
-     inner_loop_weights, outer_loop_prior_samples,
-     inner_loop_prior_samples, outer_loop_weights) = \
+     inner_loop_prior_samples, inner_loop_weights) = \
          _precompute_expected_kl_utility_data(
-             generate_outer_prior_samples, nouter_loop_samples, obs_fun,
-             noise_fun, ninner_loop_samples, generate_inner_prior_samples,
-             econ)
-
+             outer_loop_quad_data, generate_inner_prior_samples,
+             ninner_loop_samples, obs_fun, econ)
+    nouter_loop_samples = outer_loop_quad_data[0].shape[1]
     if not econ:
         inner_loop_pred_qois = qoi_fun(inner_loop_prior_samples)
         if inner_loop_pred_qois.shape[0] != inner_loop_prior_samples.shape[1]:
@@ -530,8 +527,8 @@ def precompute_expected_deviation_data(
     # assert np.allclose(tmp, inner_loop_pred_qois.reshape(
     #         (nouter_loop_samples, ninner_loop_samples, nqois)))
     return (outer_loop_pred_obs, inner_loop_pred_obs,
-            inner_loop_weights, outer_loop_prior_samples,
-            inner_loop_prior_samples, inner_loop_pred_qois)
+            inner_loop_prior_samples, inner_loop_weights,
+            inner_loop_pred_qois)
 
 
 def compute_expected_kl_utility_monte_carlo(
@@ -930,10 +927,6 @@ class AbstractBayesianOED(ABC):
         noise = self.noise_realizations[:, :active_indices.shape[0]]
         return noise
 
-    def generate_prior_samples(self, nsamples):
-        return (self.prior_variable.rvs(nsamples),
-                np.ones((nsamples, 1))/nsamples)
-
     def generate_prior_noise_samples(self, nsamples):
         if self.outer_quad_type == "mc":
             samples = self.prior_noise_variable.rvs(nsamples)
@@ -978,6 +971,16 @@ class AbstractBayesianOED(ABC):
                 obs, pred_obs, self.noise_std, active_indices)
         return self.loglike_fun(obs, pred_obs[:, active_indices])
 
+    def _populate_outer_loop_quad_data(self):
+        (outer_loop_quad_data, self.noise_realizations) = \
+            _precompute_outer_loop_quadrature_rule(
+                self.prior_variable.num_vars(),
+                self.generate_prior_noise_samples, self.nouter_loop_samples)
+        self.noise_realizations = self.noise_realizations.T
+        self.outer_loop_prior_samples, self.outer_loop_weights = \
+            outer_loop_quad_data
+        return outer_loop_quad_data
+
     @abstractmethod
     def populate(self):
         raise NotImplementedError()
@@ -1015,13 +1018,7 @@ class BayesianBatchKLOED(AbstractBayesianOED):
     """
 
     def populate(self):
-        (outer_loop_quad_data, self.noise_realizations) = \
-             _precompute_outer_loop_quadrature_rule(
-                 self.prior_variable.num_vars(),
-                 self.generate_prior_noise_samples, self.nouter_loop_samples)
-        self.noise_realizations = self.noise_realizations.T
-        self.outer_loop_prior_samples, self.outer_loop_weights = \
-            outer_loop_quad_data
+        outer_loop_quad_data = self._populate_outer_loop_quad_data()
         (self.outer_loop_pred_obs, self.inner_loop_pred_obs,
          self.inner_loop_prior_samples, self.inner_loop_weights) = \
             _precompute_expected_kl_utility_data(
@@ -1068,7 +1065,7 @@ def oed_variance_deviation(samples, weights):
          The samples
 
     weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
-        Weights associated with each innner loop sample
+        Weights associated with each inner loop sample
 
     Returns
     -------
@@ -1100,7 +1097,7 @@ def oed_entropic_deviation(samples, weights):
          The samples
 
     weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
-        Weights associated with each innner loop sample
+        Weights associated with each inner loop sample
 
     Returns
     -------
@@ -1124,7 +1121,7 @@ def oed_data_expectation(deviations, weights):
          The samples
 
     weights : np.ndarray (nouter_loop_samples, 1)
-        Weights associated with each innner loop sample
+        Weights associated with each inner loop sample
 
     Returns
     -------
@@ -1147,7 +1144,7 @@ def oed_data_cvar(deviations, weights, quantile=None):
          The samples
 
     weights : np.ndarray (nouter_loop_samples, 1)
-        Weights associated with each innner loop sample
+        Weights associated with each inner loop sample
 
     quantile : float
         The quantile used to compute of the conditional value at risk
@@ -1177,7 +1174,7 @@ def oed_standard_deviation(samples, weights):
          The samples
 
     weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
-        Weights associated with each innner loop sample
+        Weights associated with each inner loop sample
 
     Returns
     -------
@@ -1202,7 +1199,7 @@ def oed_conditional_value_at_risk_deviation(samples, weights, quantile=None,
          The samples
 
     weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
-        Weights associated with each innner loop sample
+        Weights associated with each inner loop sample
 
     quantile : float
         The quantile of the conditional value at risk used to
@@ -1236,7 +1233,8 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
                  prior_variable, qoi_fun=None, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
                  econ=False, deviation_fun=oed_standard_deviation,
-                 max_eval_concurrency=1,
+                 max_eval_concurrency=1, max_ncollected_obs=2,
+                 outer_quad_type="mc",
                  pred_risk_fun=oed_prediction_average,
                  data_risk_fun=oed_data_expectation):
         r"""
@@ -1339,7 +1337,9 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
         super().__init__(design_candidates, obs_fun, noise_std,
                          prior_variable, nouter_loop_samples,
                          ninner_loop_samples, generate_inner_prior_samples,
-                         econ=econ, max_eval_concurrency=max_eval_concurrency)
+                         econ=econ, max_eval_concurrency=max_eval_concurrency,
+                         max_ncollected_obs=max_ncollected_obs,
+                         outer_quad_type=outer_quad_type)
         # qoi fun deafult is None so that same api can be used for KL based OED
         # which does not require qoi_fun
         if not callable(qoi_fun):
@@ -1355,17 +1355,14 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
         """
         Compute the data needed to initialize the OED algorithm.
         """
+        outer_loop_quad_data = self._populate_outer_loop_quad_data()
         print("nouter_loop_samples * ninner_loop_samples: ",
               self.ninner_loop_samples*self.nouter_loop_samples)
-        (self.outer_loop_pred_obs,
-         self.inner_loop_pred_obs, self.inner_loop_weights,
-         self.outer_loop_prior_samples, self.inner_loop_prior_samples,
-         self.inner_loop_pred_qois
-         ) = precompute_expected_deviation_data(
-             self.generate_prior_samples, self.nouter_loop_samples,
-             self.obs_fun, self.noise_fun, self.qoi_fun,
-             self.ninner_loop_samples,
-             generate_inner_prior_samples=self.generate_inner_prior_samples,
+        (self.outer_loop_pred_obs, self.inner_loop_pred_obs,
+         self.inner_loop_prior_samples, self.inner_loop_weights,
+         self.inner_loop_pred_qois) = _precompute_expected_deviation_data(
+             outer_loop_quad_data, self.generate_inner_prior_samples,
+             self.ninner_loop_samples, self.obs_fun, self.qoi_fun,
              econ=self.econ)
 
         self.outer_loop_weights = np.ones(
@@ -1585,7 +1582,8 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, obs_process=None, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
-                 econ=False, max_eval_concurrency=1):
+                 econ=False, max_eval_concurrency=1,
+                 max_ncollected_obs=2, outer_quad_type="mc"):
         r"""
         Constructor.
 
@@ -1659,7 +1657,9 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
         BayesianBatchKLOED.__init__(
             self, design_candidates, obs_fun, noise_std, prior_variable,
             nouter_loop_samples, ninner_loop_samples,
-            generate_inner_prior_samples, econ, max_eval_concurrency)
+            generate_inner_prior_samples, econ, max_eval_concurrency,
+            max_ncollected_obs=max_ncollected_obs,
+            outer_quad_type=outer_quad_type)
         BayesianSequentialOED.__init__(self, obs_process)
 
     def compute_expected_utility(self, collected_design_indices,
@@ -1703,6 +1703,8 @@ class BayesianSequentialDeviationOED(
                  generate_inner_prior_samples=None, econ=False,
                  deviation_fun=oed_standard_deviation,
                  max_eval_concurrency=1,
+                 max_ncollected_obs=2,
+                 outer_quad_type="mc",
                  pred_risk_fun=oed_prediction_average,
                  data_risk_fun=oed_data_expectation):
         r"""
@@ -1807,7 +1809,8 @@ class BayesianSequentialDeviationOED(
             self, design_candidates, obs_fun, noise_std,
             prior_variable, qoi_fun, nouter_loop_samples,
             ninner_loop_samples, generate_inner_prior_samples,
-            econ, deviation_fun, max_eval_concurrency, pred_risk_fun,
+            econ, deviation_fun, max_eval_concurrency,
+            max_ncollected_obs, outer_quad_type, pred_risk_fun,
             data_risk_fun)
         BayesianSequentialOED.__init__(self, obs_process)
 
@@ -2328,6 +2331,10 @@ def gaussian_noise_fun(noise_std, values, active_indices=None):
         0, noise_std[active_indices], shape)
 
 
+def monte_carlo_quadrature_rule(variable, nsamples):
+    samples = variable.rvs(nsamples)
+    return samples, np.ones((nsamples, 1))/nsamples
+
 def get_bayesian_oed_optimizer(
         short_oed_type, design_candidates, obs_fun, noise_std,
         prior_variable, nouter_loop_samples=None,
@@ -2427,7 +2434,8 @@ def get_bayesian_oed_optimizer(
         # use default Monte Carlo sampling
         if ninner_loop_samples is None:
             ninner_loop_samples = 1000
-        generate_inner_prior_samples = None
+        generate_inner_prior_samples = partial(
+            monte_carlo_quadrature_rule, prior_variable)
     else:
         raise ValueError(f"Incorrect quad_method {quad_method} specified")
     econ = True
