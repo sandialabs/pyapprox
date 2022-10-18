@@ -113,7 +113,7 @@ def __compute_direction_numbers(seq, max_nbits, power, a_val):
     size = len(seq)
 
     if max_nbits < size:
-        raise Exception()
+        raise RuntimeError(f"{max_nbits}<{size}")
     # TODO change loop not to be over min(max_nbits, size) to just be to
     # max_nbits
 

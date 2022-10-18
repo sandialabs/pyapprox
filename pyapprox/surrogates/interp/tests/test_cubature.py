@@ -24,7 +24,7 @@ class TestCubature(unittest.TestCase):
 
     def test_cubature_rules(self):
         for degree in [2, 3, 5]:
-            for nvars in np.arange(2, 5):
+            for nvars in np.arange(2, 10):
                 self._check_cubature_rule(nvars, degree)
 
 

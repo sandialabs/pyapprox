@@ -488,17 +488,6 @@ def exponential_qoi_fun(samples):
     return np.exp(samples.sum(axis=0))[:, None]
 
 
-def monte_carlo_quadrature_rule(variable, nsamples):
-    samples = variable.rvs(nsamples)
-    return samples, np.ones((nsamples, 1))/nsamples
-
-
-def quasi_monte_carlo_quadrature_rule(variable, nsamples):
-    samples = sobol_sequence(variable.num_vars(), nsamples, 1)
-    samples = variable.evaluate("ppf", samples)
-    return samples, np.ones((nsamples, 1))/nsamples
-
-
 class TestBayesianOED(unittest.TestCase):
 
     def setUp(self):
@@ -812,6 +801,7 @@ class TestBayesianOED(unittest.TestCase):
         degree = 2
         nrandom_vars = degree+1
         quad_method = "quadratic"
+        # quad_method = "gauss"
         pred_risk_fun = None
         quantile = 0.8
         pred_risk_fun = partial(conditional_value_at_risk, alpha=quantile)
@@ -851,6 +841,8 @@ class TestBayesianOED(unittest.TestCase):
 
         generate_inner_prior_samples = generate_inner_prior_samples_gauss
 
+        # generate_inner_prior_samples(x_quad.shape[1])
+
         # Define initial design
         # init_design_indices = np.array([0])
         init_design_indices = np.empty((0), dtype=int)
@@ -858,9 +850,20 @@ class TestBayesianOED(unittest.TestCase):
             design_candidates, obs_fun, noise_std, prior_variable,
             qoi_fun, nouter_loop_samples, ninner_loop_samples,
             generate_inner_prior_samples, deviation_fun=oed_variance_deviation,
-            pred_risk_fun=pred_risk_fun)
+            pred_risk_fun=pred_risk_fun, max_ncollected_obs=ndesign)
         oed.populate()
         oed.set_collected_design_indices(init_design_indices)
+
+        # for some reason on RHEL8 this interface causes
+        # pyapprox.cython.utilities.variance_3D_pyx} to run much slower
+        # oed = get_bayesian_oed_optimizer(
+        #     "dev_pred", design_candidates, obs_fun, noise_std,
+        #     prior_variable, nouter_loop_samples,
+        #     ninner_loop_samples_1d, quad_method,
+        #     pre_collected_design_indices=init_design_indices,
+        #     qoi_fun=qoi_fun, deviation_fun=oed_variance_deviation,
+        #     pred_risk_fun=pred_risk_fun,
+        #     outer_quad_type="mc", max_ncollected_obs=ndesign)
 
         for ii in range(len(init_design_indices), ndesign):
             utility_vals, selected_indices = oed.update_design(False)[:2]
@@ -882,30 +885,27 @@ class TestBayesianOED(unittest.TestCase):
         ii = 0
         data = []
         for jj in range(design_candidates.shape[1]):
-            if jj not in oed.collected_design_indices[:-1]:
-                idx = np.hstack((
-                    oed.collected_design_indices[:-1], jj))
-                # realization of data does not matter
-                # obs_ii = oed.outer_loop_obs[ii:ii+1, idx]
-                obs_ii = oed.get_outer_loop_obs(idx)[ii:ii+1, :]
-                exact_post_mean, exact_post_cov = \
-                    laplace_posterior_approximation_for_linear_models(
-                        obs_matrix[idx, :], prior_mean, prior_cov_inv,
-                        extract_independent_noise_cov(noise_cov_inv, idx),
-                        obs_ii.T)
-                pointwise_post_variance = np.diag(
-                    pred_matrix.dot(exact_post_cov.dot(pred_matrix.T))
-                )[:, None]
-                exact_variance_risk = oed.pred_risk_fun(pointwise_post_variance)
-                data.append([pointwise_post_variance, -exact_variance_risk])
-                # print(f"Candidate {jj}", exact_variance_risk)
-            else:
-                data.append([None, -np.inf])
-                jdx = np.argmax([d[1] for d in data])
-                # print(np.mean(pointwise_post_variance))
-                # print(np.mean(
-                #     conditional_value_at_risk(pointwise_post_variance, quantile)))
-                # print(jdx, oed.collected_design_indices)
+            idx = np.hstack((
+                oed.collected_design_indices[:-1], jj))
+            # realization of data does not matter
+            # obs_ii = oed.outer_loop_obs[ii:ii+1, idx]
+            obs_ii = oed.get_outer_loop_obs(idx)[ii:ii+1, :]
+            exact_post_mean, exact_post_cov = \
+                laplace_posterior_approximation_for_linear_models(
+                    obs_matrix[idx, :], prior_mean, prior_cov_inv,
+                    extract_independent_noise_cov(noise_cov_inv, idx),
+                    obs_ii.T)
+            pointwise_post_variance = np.diag(
+                pred_matrix.dot(exact_post_cov.dot(pred_matrix.T))
+            )[:, None]
+            exact_variance_risk = oed.pred_risk_fun(pointwise_post_variance)
+            data.append([pointwise_post_variance, -exact_variance_risk])
+            print(f"Candidate {jj}", exact_variance_risk)
+        jdx = np.argmax([d[1] for d in data])
+        # print(np.mean(pointwise_post_variance))
+        # print(np.mean(
+        #     conditional_value_at_risk(pointwise_post_variance, quantile)))
+        print(jdx, oed.collected_design_indices)
         assert jdx == oed.collected_design_indices[-1]
         # print(utility_vals[oed.collected_design_indices[-1]]-data[jdx][1])
         assert np.allclose(
@@ -926,7 +926,7 @@ class TestBayesianOED(unittest.TestCase):
         #     plt.axvline(x=design_candidates[0, idx], ls='--', c='k')
         # plt.show()
 
-    def check_sequential_kl_oed(self, oed_type, step_tols):
+    def _check_sequential_kl_oed(self, oed_type, step_tols):
         """
         Observations collected ARE used to inform subsequent designs
         """
@@ -971,7 +971,8 @@ class TestBayesianOED(unittest.TestCase):
             oed_type, design_candidates, obs_fun, noise_std,
             prior_variable, nouter_loop_samples,
             ninner_loop_samples_1d, "gauss",
-            pre_collected_design_indices=init_design_indices, **kwargs)
+            pre_collected_design_indices=init_design_indices,
+            outer_quad_type="qmc", **kwargs)
         # following assumes oed.econ = True
         x_quad = oed.inner_loop_prior_samples[:, :oed.ninner_loop_samples]
         w_quad = oed.inner_loop_weights[0, :oed.ninner_loop_samples]
@@ -1179,8 +1180,8 @@ class TestBayesianOED(unittest.TestCase):
             # these samples are used to compute the kl divergences
             laplace_utility = np.sum(exact_stats*post_weights)
             # print(utility, laplace_utility, exact_stats)
-            # print('u', (utility-laplace_utility)/laplace_utility, step,
-            #       step_tols[step-1])
+            print('u', (utility-laplace_utility)/laplace_utility, step,
+                  step_tols[step-1])
             assert np.allclose(
                 utility, laplace_utility, rtol=step_tols[step-1])
 
@@ -1189,8 +1190,8 @@ class TestBayesianOED(unittest.TestCase):
             post_var_prev = post_var
 
     def test_sequential_kl_oed(self):
-        self.check_sequential_kl_oed("kl_params", [2e-2, 1.3e-2, 7e-3, 3e-3])
-        self.check_sequential_kl_oed("dev_pred", [2e-15, 3e-12, 3e-6, 9e-9])
+        self._check_sequential_kl_oed("kl_params", [2e-3, 3.e-3, 3e-3, 3e-3])
+        self._check_sequential_kl_oed("dev_pred", [2e-15, 3e-12, 3e-6, 9e-9])
 
     def help_compare_sequential_kl_oed_econ(self, use_gauss_quadrature):
         """
@@ -1344,7 +1345,7 @@ class TestBayesianOED(unittest.TestCase):
         assert np.allclose(variances, samples.var(axis=1))
 
     def help_compare_prediction_based_oed(
-            self, deviation_fun, gauss_deviation_fun, use_gauss_quadrature,
+            self, deviation_fun, gauss_deviation_fun, inner_quad_type,
             ninner_loop_samples, ndesign_vars, tol):
         ncandidates_1d = 5
         design_candidates = cartesian_product(
@@ -1372,35 +1373,21 @@ class TestBayesianOED(unittest.TestCase):
 
         # Define OED options
         nouter_loop_samples = 9 #100
-        if use_gauss_quadrature:
-            # 301 needed for cvar deviation
-            # only 31 needed for variance deviation
-            ninner_loop_samples_1d = ninner_loop_samples
-            var_trans = AffineTransform(prior_variable)
-            x_quad, w_quad = gauss_hermite_pts_wts_1D(
-                ninner_loop_samples_1d)
-            x_quad = cartesian_product([x_quad]*nrandom_vars)
-            w_quad = outer_product([w_quad]*nrandom_vars)
-            x_quad = var_trans.map_from_canonical(x_quad)
-            ninner_loop_samples = x_quad.shape[1]
-
-            def generate_inner_prior_samples(nsamples):
-                assert nsamples == x_quad.shape[1], (nsamples, x_quad.shape)
-                return x_quad, w_quad[:, None]
-        else:
-            # use default Monte Carlo sampling
-            generate_inner_prior_samples = None
 
         # Define initial design
         init_design_indices = np.array([ncandidates//2])
 
         # Setup OED problem
-        oed = BayesianBatchDeviationOED(
-            design_candidates, obs_fun, noise_std, prior_variable,
-            qoi_fun, nouter_loop_samples, ninner_loop_samples,
-            generate_inner_prior_samples, deviation_fun=deviation_fun)
-        oed.populate()
-        oed.set_collected_design_indices(init_design_indices)
+        nexperiments = 3
+
+        # np.random.seed(1)
+        oed = get_bayesian_oed_optimizer(
+            "dev_pred", design_candidates, obs_fun, noise_std,
+            prior_variable, nouter_loop_samples,
+            ninner_loop_samples, inner_quad_type, qoi_fun=qoi_fun,
+            pre_collected_design_indices=init_design_indices,
+            deviation_fun=deviation_fun,
+            outer_quad_type="qmc", max_ncollected_obs=nexperiments)
 
         prior_mean = oed.prior_variable.get_statistics('mean')
         prior_cov = np.diag(prior_variable.get_statistics('var')[:, 0])
@@ -1408,7 +1395,6 @@ class TestBayesianOED(unittest.TestCase):
         selected_indices = init_design_indices
 
         # Generate experimental design
-        nexperiments = 3
         for step in range(len(init_design_indices), nexperiments):
             # Copy current state of OED before new data is determined
             # This copy will be used to compute Laplace based utility and
@@ -1442,9 +1428,9 @@ class TestBayesianOED(unittest.TestCase):
 
                 exact_deviations[jj] = gauss_deviation_fun(
                     exact_post_mean_jj, exact_post_cov_jj)
-                # print('d', np.absolute(exact_deviations-deviations[:, 0]).max(),
-                #       tol)
-                # print('eee', exact_deviations, deviations[:, 0])
+            # print('d', np.absolute(exact_deviations-deviations[:, 0]).max(),
+            #       tol)
+            # print('eee', exact_deviations, deviations[:, 0])
             assert np.allclose(exact_deviations, deviations[:, 0], atol=tol)
             assert np.allclose(
                 utility_vals[selected_indices], -np.mean(exact_deviations),
@@ -1458,16 +1444,6 @@ class TestBayesianOED(unittest.TestCase):
             pred_variable = stats.lognorm(s=sigma_g, scale=np.exp(mu_g))
             return pred_variable.var()
 
-        ndesign_vars = 1
-        self.help_compare_prediction_based_oed(
-            oed_variance_deviation, gauss_oed_variance_deviation, True,
-            21, ndesign_vars, 1e-8)
-
-        ndesign_vars = 2
-        self.help_compare_prediction_based_oed(
-            oed_variance_deviation, gauss_oed_variance_deviation, True,
-            21, ndesign_vars, 1e-8)
-
         def gauss_cvar_fun(p, mean, cov):
             # compute conditionalv value at risk of exp(X) where X has
             # mean and variance mean, cov. I.e. compute CVaR of lognormal
@@ -1478,12 +1454,22 @@ class TestBayesianOED(unittest.TestCase):
                 (mu_g+sigma_g**2-np.log(value_at_risk))/sigma_g)/(1-p)
             return cvar-mean
 
+        ndesign_vars = 1
+        self.help_compare_prediction_based_oed(
+            oed_variance_deviation, gauss_oed_variance_deviation, "gauss",
+            21, ndesign_vars, 1e-8)
+
+        ndesign_vars = 2
+        self.help_compare_prediction_based_oed(
+            oed_variance_deviation, gauss_oed_variance_deviation, "gauss",
+            21, ndesign_vars, 1e-8)
+
         beta = 0.5
         ndesign_vars = 1
         self.help_compare_prediction_based_oed(
             partial(oed_conditional_value_at_risk_deviation, quantile=beta,
                     samples_sorted=True), partial(gauss_cvar_fun, beta),
-            True, 301, ndesign_vars, 3e-3)
+            "gauss", 301, ndesign_vars, 3e-3)
 
         # Warning can only use samples_sorted=True for a single QoI
         # it will return an incorrect answer when more QoI are present
@@ -1494,14 +1480,14 @@ class TestBayesianOED(unittest.TestCase):
         self.help_compare_prediction_based_oed(
             partial(oed_conditional_value_at_risk_deviation, quantile=beta,
                     samples_sorted=True), partial(gauss_cvar_fun, beta),
-            False, 10000, ndesign_vars, 3e-2)
+            "monte_carlo", 10000, ndesign_vars, 3e-2)
 
         beta = 0.5
         ndesign_vars = 2
         self.help_compare_prediction_based_oed(
             partial(oed_conditional_value_at_risk_deviation, quantile=beta,
                     samples_sorted=True), partial(gauss_cvar_fun, beta),
-            False, 10000, ndesign_vars, 7e-2)
+            "monte_carlo", 10000, ndesign_vars, 7e-2)
 
     def check_get_posterior_2d_interpolant_from_oed_data(
             self, method, rtol, ninner_loop_samples_1d):
@@ -1538,7 +1524,7 @@ class TestBayesianOED(unittest.TestCase):
         oed = BayesianBatchKLOED(
             design_candidates, obs_fun, noise_std, prior_variable,
             nouter_loop_samples, ninner_loop_samples,
-            generate_inner_prior_samples)
+            generate_inner_prior_samples, max_ncollected_obs=ndesign)
         oed.populate()
         oed.set_collected_design_indices(init_design_indices)
 
