@@ -915,87 +915,8 @@ def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps)):
     return jac.transpose()
 
 
-def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
-                    direction=None, jacp=None, fd_eps=None):
-    """
-    Compare a user specified jacobian with the jacobian computed with finite
-    difference with multiple step sizes.
-
-    Parameters
-    ----------
-    fun : callable
-
-        A function with signature
-
-        ``fun(z) -> np.ndarray``
-
-        where ``z`` is a 2D np.ndarray with shape (nvars, 1) and the
-        output is a 2D np.ndarray with shape (nqoi, 1)
-
-    jac : callable
-        The jacobian of ``fun`` with signature
-
-        ``jac(z) -> np.ndarray``
-
-        where ``z`` is a 2D np.ndarray with shape (nvars, 1) and the
-        output is a 2D np.ndarray with shape (nqoi, nvars)
-
-    zz : np.ndarray (nvars, 1)
-        A sample of ``z`` at which to compute the gradient
-
-    plot : boolean
-        Plot the errors as a function of the finite difference step size
-
-    disp : boolean
-        True - print the errors
-        False - do not print
-
-    rel : boolean
-        True - compute the relative error in the directional derivative,
-        i.e. the absolute error divided by the directional derivative using
-        ``jac``.
-        False - compute the absolute error in the directional derivative
-
-    direction : np.ndarray (nvars, 1)
-        Direction to which Jacobian is applied. Default is None in which
-        case random direction is chosen.
-
-    fd_eps : np.ndarray (nstep_sizes)
-        The finite difference step sizes used to compute the gradient. 
-        If None then fd_eps=np.logspace(-13, 0, 14)[::-1]
-
-    Returns
-    -------
-    errors : np.ndarray (14, nqoi)
-        The errors in the directional derivative of ``fun`` at 14 different
-        values of finite difference tolerance for each quantity of interest
-    """
-    assert zz.ndim == 2
-    assert zz.shape[1] == 1
-
-    if direction is None:
-        direction = np.random.normal(0, 1, (zz.shape[0], 1))
-        direction /= np.linalg.norm(direction)
-    assert direction.ndim == 2 and direction.shape[1] == 1
-
-    if ((jacp is None and jac is None) or
-            (jac is not None and jacp is not None)):
-        raise Exception('Must specify jac or jacp')
-
-    if callable(jac):
-        function_val = fun(zz)
-        grad_val = jac(zz)
-        directional_derivative = grad_val.dot(direction).squeeze()
-    elif callable(jacp):
-        directional_derivative = jacp(zz, direction)
-    elif jac is True:
-        if "jac" in inspect.getfullargspec(fun).args:
-            function_val, grad_val = fun(zz, jac=True)
-        else:
-            function_val, grad_val = fun(zz)
-        directional_derivative = grad_val.dot(direction).squeeze()
-    else:
-        raise Exception
+def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
+    function_val, directional_derivative = fun(zz, direction)
 
     if fd_eps is None:
         fd_eps = np.logspace(-13, 0, 14)[::-1]
@@ -1022,6 +943,8 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
             perturbed_function_val = fun(zz_perturbed)
         if type(perturbed_function_val) == np.ndarray:
             perturbed_function_val = perturbed_function_val.squeeze()
+        print(inspect.getfullargspec(fun).args)
+        print(perturbed_function_val.shape, function_val.shape, fd_eps[ii])
         fd_directional_derivative = (
             perturbed_function_val-function_val).squeeze()/fd_eps[ii]
         errors.append(np.linalg.norm(
@@ -1044,6 +967,112 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
         plt.show()
 
     return np.asarray(errors)
+
+
+def _wrap_function_with_gradient(fun, jac):
+    if jac is not None and not callable(jac) and jac != "jacp":
+        raise ValueError("jac must be callable, 'jacp', or None")
+
+    if jac is not None and jac != "jacp":
+        def fun_wrapper(x, direction=None):
+            if direction is None:
+                return fun(x)
+            return fun(x), jac(x).dot(direction)
+        return fun_wrapper
+
+    if jac == "jacp":
+        def fun_wrapper(x, direction=None):
+            if direction is None:
+                return fun(x, jac=False)
+            val, grad = fun(x, jac=True)
+            return fun(x), jac(x).dot(direction)
+        return fun_wrapper
+    return fun
+
+
+def check_gradients(fun, zz, jac=None, plot=False, disp=True, rel=True,
+                    direction=None, fd_eps=None):
+    """
+    Compare a user specified jacobian with the jacobian computed with finite
+    difference with multiple step sizes.
+
+    Parameters
+    ----------
+    fun : callable
+
+        A function with one of the following signatures
+
+        ``fun(z) -> (vals)``
+
+        or
+
+        ``fun(z, jac) -> (vals, grad)``
+
+        or
+
+        ``fun(z, direction) -> (vals, directional_grad)``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars, 1) and the
+        first output is a 2D np.ndarray with shape (nqoi, 1) and the second
+        output is a gradient with shape (nqoi, nvars).
+        jac is a flag that specifies if the function returns only
+        the funciton value (False) or the function value and gradient (True)
+
+    jac : callable or string
+        If jac="jacp" then provided the jacobian of ``fun`` with signature
+
+        ``jac(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars, 1) and the
+        output is a 2D np.ndarray with shape (nqoi, nvars).
+        This assumes that fun
+        only returns a value (not gradient) and has signature
+
+        ``fun(z) -> np.ndarray``
+
+
+    zz : np.ndarray (nvars, 1)
+        A sample of ``z`` at which to compute the gradient
+
+    plot : boolean
+        Plot the errors as a function of the finite difference step size
+
+    disp : boolean
+        True - print the errors
+        False - do not print
+
+    rel : boolean
+        True - compute the relative error in the directional derivative,
+        i.e. the absolute error divided by the directional derivative using
+        ``jac``.
+        False - compute the absolute error in the directional derivative
+
+    direction : np.ndarray (nvars, 1)
+        Direction to which Jacobian is applied. Default is None in which
+        case random direction is chosen.
+
+    fd_eps : np.ndarray (nstep_sizes)
+        The finite difference step sizes used to compute the gradient.
+        If None then fd_eps=np.logspace(-13, 0, 14)[::-1]
+
+    Returns
+    -------
+    errors : np.ndarray (14, nqoi)
+        The errors in the directional derivative of ``fun`` at 14 different
+        values of finite difference tolerance for each quantity of interest
+    """
+    assert zz.ndim == 2
+    assert zz.shape[1] == 1
+
+    fun_wrapper = _wrap_function_with_gradient(fun, jac)
+
+    if direction is None:
+        direction = np.random.normal(0, 1, (zz.shape[0], 1))
+        direction /= np.linalg.norm(direction)
+    assert direction.ndim == 2 and direction.shape[1] == 1
+
+    return _check_gradients(fun_wrapper, zz, direction, plot, disp, rel, fd_eps)
+
 
 
 def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True, rel=True,

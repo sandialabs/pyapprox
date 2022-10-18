@@ -6,7 +6,8 @@ from functools import partial
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.bayes.laplace import (
     laplace_posterior_approximation_for_linear_models, laplace_evidence)
-from pyapprox.bayes.metropolis import MetropolisMCMCVariable
+from pyapprox.bayes.metropolis import (
+    MetropolisMCMCVariable, compute_mvn_cholesky_based_data, mvn_log_pdf)
 from pyapprox.surrogates.interp.monomial import (
     univariate_monomial_basis_matrix)
 from pyapprox.util.utilities import (
@@ -54,6 +55,23 @@ class TestMetropolis(unittest.TestCase):
 
     def setUp(self):
         np.random.seed(1)
+
+    def test_mvnpdf(self):
+        nvars = 3
+        m = np.random.normal(0, 1, (nvars, 1))
+        C = np.random.normal(0, 1, (nvars, nvars))
+        C = C.T.dot(C)
+
+        L, L_inv, logdet = compute_mvn_cholesky_based_data(C)
+        L = np.linalg.cholesky(C)
+        assert np.allclose(L_inv, np.linalg.inv(L))
+        logdet = 2*np.log(np.diag(L)).sum()
+        assert np.allclose(logdet, np.linalg.slogdet(C)[1])
+
+        xx = np.random.uniform(-3, 3, (nvars, 100))
+        assert np.allclose(
+            np.exp(mvn_log_pdf(xx, m, C)),
+            stats.multivariate_normal(m.squeeze(), C).pdf(xx.T))
 
     def test_loglike_fun_linear_model(self):
         nvars = 2
