@@ -5,6 +5,7 @@ from pyapprox.util.pya_numba import njit
 from functools import partial
 from multiprocessing import Pool
 from abc import ABC, abstractmethod
+from scipy import stats
 
 from pyapprox.util.sys_utilities import trace_error_with_msg
 from pyapprox.util.utilities import get_tensor_product_quadrature_rule
@@ -12,6 +13,7 @@ from pyapprox.variables.risk import conditional_value_at_risk
 from pyapprox.variables.transforms import (
     AffineTransform
 )
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.interp.tensorprod import (
     get_tensor_product_piecewise_polynomial_quadrature_rule
 )
@@ -22,6 +24,7 @@ from pyapprox.surrogates.interp.barycentric_interpolation import (
     compute_barycentric_weights_1d,
     multivariate_barycentric_lagrange_interpolation
 )
+from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence
 
 
 def gaussian_loglike_fun_broadcast(
@@ -187,7 +190,7 @@ def sq_dists_numba_3d_XX_prereduced(XX, YY, a, b, active_indices):
 
     b : float
         scalar added to l2 distance
-    
+
     Returns
     -------
     ss : np.ndarray (LL, MM)
@@ -304,7 +307,6 @@ def _compute_expected_kl_utility_monte_carlo(
     ninner_loop_samples = int(
         inner_loop_pred_obs.shape[0]//nouter_loop_samples)
 
-    print(outer_loop_pred_obs.shape, outer_loop_pred_obs.shape)
     outer_log_likelihood_vals = log_likelihood_fun(
         outer_loop_pred_obs, outer_loop_pred_obs, active_indices)
     nobs = outer_loop_pred_obs.shape[1]
@@ -339,10 +341,8 @@ def _compute_expected_kl_utility_monte_carlo(
     return result
 
 
-def precompute_expected_kl_utility_data(
-        generate_outer_prior_samples, nouter_loop_samples, obs_fun,
-        noise_fun, ninner_loop_samples, generate_inner_prior_samples=None,
-        econ=False):
+def _precompute_outer_loop_quadrature_rule(
+        nvars, generate_prior_noise_samples, nouter_loop_samples):
     r"""
     Parameters
     ----------
@@ -360,24 +360,36 @@ def precompute_expected_kl_utility_data(
         The number of Monte Carlo samples used to compute the outer integral
         over all possible observations
 
-    obs_fun : callable
-        Function with the signature
+    Returns
+    -------
+    outer_loop_quad_data : tuple(outerquad_x, outerquad_w)
+        Tuple containing the points and weights of the outer quadrature rule
+        with respect to the joint density of the prior and noise.
+        outerquad_x is np.ndarray(nprior_vars, nquad)
+        outerquad_w is np.ndarray(nquad, 1)
 
-        `obs_fun(samples) -> np.ndarray(nsamples, nqoi)`
+    outer_loop_noise_samples : np.ndarray (max_ncollected_obs, nquad)
+    """
+    outer_loop_samples, outer_loop_weights = \
+        generate_prior_noise_samples(nouter_loop_samples)
+    outer_loop_prior_samples = outer_loop_samples[:nvars]
+    outer_loop_noise_samples = outer_loop_samples[nvars:]
+    outer_loop_prior_quad_data = (
+        outer_loop_prior_samples, outer_loop_weights)
+    return (outer_loop_prior_quad_data, outer_loop_noise_samples)
 
-        That returns noiseless evaluations of the forward model.
 
-    noise_fun : callable
-        Function with the signature
-
-        `noise_fun(samples) -> np.ndarray(nsamples)`
-
-        That returns the noise of observations
-
-    ninner_loop_samples : integer
-        The number of quadrature samples used for the inner integral that
-        computes the evidence for each realiaztion of the predicted
-        observations
+def _precompute_expected_kl_utility_data(
+        outer_loop_quad_data, generate_inner_prior_samples,
+        ninner_loop_samples, obs_fun, econ=False):
+    r"""
+    Parameters
+    ----------
+    outer_loop_quad_data : tuple(outerquad_x, outerquad_w)
+        Tuple containing the points and weights of the outer quadrature rule
+        with respect to the joint density of the prior and noise.
+        outerquad_x is np.ndarray(nprior_vars, nquad)
+        outerquad_w is np.ndarray(nquad, 1)
 
     generate_inner_prior_samples : callable
        Function with the signature
@@ -390,6 +402,18 @@ def precompute_expected_kl_utility_data(
         weights are assumed to be 1/nsamples. This function is useful if
         wanting to use multivariate quadrature to evaluate the evidence
 
+    ninner_loop_samples : integer
+        The number of quadrature samples used for the inner integral that
+        computes the evidence for each realiaztion of the predicted
+        observations
+
+    obs_fun : callable
+        Function with the signature
+
+        `obs_fun(samples) -> np.ndarray(nsamples, nqoi)`
+
+        That returns noiseless evaluations of the forward model.
+
     econ : boolean
         Make all inner loop samples the same for all outer loop samples.
         This reduces number of evaluations of prediction model. Currently
@@ -400,7 +424,6 @@ def precompute_expected_kl_utility_data(
 
     Returns
     -------
-
     outer_loop_pred_obs : np.ndarray (nouter_loop_samples, ncandidates)
         The noiseless values of outer_loop_obs with noise removed
 
@@ -408,6 +431,10 @@ def precompute_expected_kl_utility_data(
         The noiseless values of obs_fun at all sets of innerloop samples
         used for each outerloop iteration. The values are stacked such
         that np.vstack((inner_loop1_vals, inner_loop2_vals, ...))
+
+    inner_loop_prior_samples  : np.ndarray (nprior_vars, nouter_loop_samples*ninner_loop_samples)
+        The quadrature samples associated with each inner_loop_pred_obs set
+        used to compute the inner integral.
 
     inner_loop_weights  : np.ndarray (nouter_loop_samples, ninner_loop_samples)
         The quadrature weights associated with each inner_loop_pred_obs set
@@ -417,8 +444,7 @@ def precompute_expected_kl_utility_data(
     # generate samples and values for the outer loop
     # outer_loop_prior_samples = generate_outer_prior_samples(
     #     nouter_loop_samples)[0]
-    outer_loop_prior_samples, outer_loop_weights = (
-        generate_outer_prior_samples(nouter_loop_samples))
+    outer_loop_prior_samples, outer_loop_weights = outer_loop_quad_data
     assert outer_loop_weights.ndim == 2
     print(f"Running {outer_loop_prior_samples.shape[1]} model evaluations")
     outer_loop_pred_obs = obs_fun(outer_loop_prior_samples)
@@ -428,9 +454,7 @@ def precompute_expected_kl_utility_data(
         raise ValueError(msg)
 
     # generate samples and values for all inner loops
-    if generate_inner_prior_samples is None:
-        generate_inner_prior_samples = generate_outer_prior_samples
-
+    nouter_loop_samples = outer_loop_prior_samples.shape[1]
     inner_loop_prior_samples = np.empty(
         (outer_loop_prior_samples.shape[0],
          ninner_loop_samples*nouter_loop_samples))
@@ -462,8 +486,7 @@ def precompute_expected_kl_utility_data(
             shared_inner_loop_pred_obs, (nouter_loop_samples, 1))
 
     return (outer_loop_pred_obs, inner_loop_pred_obs,
-            inner_loop_weights, outer_loop_prior_samples,
-            inner_loop_prior_samples, outer_loop_weights)
+            inner_loop_prior_samples, inner_loop_weights)
 
 
 def precompute_expected_deviation_data(
@@ -784,7 +807,8 @@ class AbstractBayesianOED(ABC):
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
-                 econ=False, max_eval_concurrency=1):
+                 econ=False, max_eval_concurrency=1, max_ncollected_obs=2,
+                 outer_quad_type="mc"):
         """
         Constructor.
 
@@ -829,14 +853,6 @@ class AbstractBayesianOED(ABC):
             The number of Monte Carlo samples used to compute the outer
             integral over all possible observations
 
-        quad_method : string
-            The method used to compute the inner loop integral needed to
-            evaluate the evidence for an outer loop sample. Options are
-            ["linear", "quadratic", "gaussian", "monte_carlo"]
-            The first 3 construct tensor product quadrature rules from
-            univariate rules that are respectively piecewise linear,
-            piecewise quadratic or Gauss-quadrature.
-
         pre_collected_design_indices : np.ndarray (nobs)
             The indices into the qoi vector associated with the
             collected observations
@@ -853,6 +869,14 @@ class AbstractBayesianOED(ABC):
             The number of threads used to compute OED design. Warning:
             this uses multiprocessing.Pool and seems to provide very little
             benefit and in many cases increases the CPU time.
+
+        max_ncollected_obs : integer
+            The maximum number of observations that will be collected.
+
+        outer_quad_type : string
+            The type of quadrature used for the outerloop. Choose from
+            ["mc", :"qmc:, "gauss"]
+
         """
 
         self.design_candidates = design_candidates
@@ -865,6 +889,12 @@ class AbstractBayesianOED(ABC):
         self.ninner_loop_samples = ninner_loop_samples
         self.generate_inner_prior_samples = generate_inner_prior_samples
         self.econ = econ
+        self.max_ncollected_obs = max_ncollected_obs
+        self.outer_quad_type = outer_quad_type
+        noise_variable_marginals = [
+            stats.norm(0, self.noise_std)]*self.max_ncollected_obs
+        self.prior_noise_variable = IndependentMarginalsVariable(
+            prior_variable.marginals()+noise_variable_marginals)
 
         self.collected_design_indices = None
         self.outer_loop_pred_obs = None
@@ -890,27 +920,35 @@ class AbstractBayesianOED(ABC):
         return gaussian_noise_fun(self.noise_std, values, active_indices)
 
     def reproducible_noise_fun(self, values, active_indices):
+        """
+        Assumes the same noise is used for each design candidate and
+        that sequential observations are independent
+        """
         active_indices = np.atleast_1d(active_indices)
+        assert active_indices.shape[0] <= self.max_ncollected_obs
         assert values.shape[0] == self.nouter_loop_samples
-        nunique_indices = np.unique(
-            active_indices, return_counts=True)[1].max()
-        if self.noise_realizations is None:
-            # make noise the same each time this function is called
-            self.noise_realizations = self.noise_fun(values)[:, :, None]
-        if self.noise_realizations.shape[2] < nunique_indices:
-            self.noise_realizations = np.dstack(
-                (self.noise_realizations, self.noise_fun(values)[:, :, None]))
-        counts = np.zeros(values.shape[1], dtype=int)
-        noise = np.empty((values.shape[0], active_indices.shape[0]))
-        for ii in range(active_indices.shape[0]):
-            idx = active_indices[ii]
-            noise[:, ii] = self.noise_realizations[:, idx, counts[idx]]
-            counts[idx] += 1
+        noise = self.noise_realizations[:, :active_indices.shape[0]]
         return noise
 
     def generate_prior_samples(self, nsamples):
         return (self.prior_variable.rvs(nsamples),
                 np.ones((nsamples, 1))/nsamples)
+
+    def generate_prior_noise_samples(self, nsamples):
+        if self.outer_quad_type == "mc":
+            samples = self.prior_noise_variable.rvs(nsamples)
+            return samples, np.ones((nsamples, 1))/nsamples
+        if self.outer_quad_type == "qmc":
+            # todo start sequence =1 will not allow for estimating
+            # variability when changing seed
+            samples = sobol_sequence(
+                self.prior_noise_variable.num_vars(), nsamples, 1)
+            samples = self.prior_noise_variable.evaluate("ppf", samples)
+            return samples, np.ones((nsamples, 1))/nsamples
+        if self.outer_quad_type == "gauss":
+            raise NotImplementedError()
+        msg = f"Outerloop quad type {self.outer_quad_type} not supported"
+        raise ValueError(msg)
 
     def loglike_fun(self, obs, pred_obs, active_indices=None):
         return gaussian_loglike_fun(
@@ -942,7 +980,7 @@ class AbstractBayesianOED(ABC):
 
     @abstractmethod
     def populate(self):
-        pass
+        raise NotImplementedError()
 
     def update_design(self, return_all=False, rounding_decimals=16):
         if not hasattr(self, "outer_loop_pred_obs"):
@@ -977,18 +1015,18 @@ class BayesianBatchKLOED(AbstractBayesianOED):
     """
 
     def populate(self):
-        (self.outer_loop_pred_obs,
-         self.inner_loop_pred_obs, self.inner_loop_weights,
-         self.outer_loop_prior_samples, self.inner_loop_prior_samples,
-         self.outer_loop_weights) = \
-             precompute_expected_kl_utility_data(
-                 self.generate_prior_samples, self.nouter_loop_samples,
-                 self.obs_fun, self.noise_fun, self.ninner_loop_samples,
-                 generate_inner_prior_samples=self.generate_inner_prior_samples,
-                 econ=self.econ)
-        self.outer_loop_weights = np.ones(
-            (self.inner_loop_weights.shape[0], 1)) / \
-            self.inner_loop_weights.shape[0]
+        (outer_loop_quad_data, self.noise_realizations) = \
+             _precompute_outer_loop_quadrature_rule(
+                 self.prior_variable.num_vars(),
+                 self.generate_prior_noise_samples, self.nouter_loop_samples)
+        self.noise_realizations = self.noise_realizations.T
+        self.outer_loop_prior_samples, self.outer_loop_weights = \
+            outer_loop_quad_data
+        (self.outer_loop_pred_obs, self.inner_loop_pred_obs,
+         self.inner_loop_prior_samples, self.inner_loop_weights) = \
+            _precompute_expected_kl_utility_data(
+                outer_loop_quad_data, self.generate_inner_prior_samples,
+                self.ninner_loop_samples, self.obs_fun, econ=self.econ)
 
     def compute_expected_utility(self, collected_design_indices,
                                  new_design_indices, return_all=False):
@@ -1039,11 +1077,11 @@ def oed_variance_deviation(samples, weights):
     """
     # For large arrays variance_3D_pyx is the same speed as einsum
     # implementation below
-    # try:
-    #     from pyapprox.cython.utilities import variance_3D_pyx
-    #     return variance_3D_pyx(samples, weights)
-    # except:
-    #     pass
+    try:
+        from pyapprox.cython.utilities import variance_3D_pyx
+        return variance_3D_pyx(samples, weights)
+    except:
+        pass
     means = np.einsum(
          "ijk,ij->ik", samples, weights)
     variances = np.einsum(
@@ -1253,14 +1291,6 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
         nouter_loop_samples : integer
             The number of Monte Carlo samples used to compute the outer
             integral over all possible observations
-
-        quad_method : string
-            The method used to compute the inner loop integral needed to
-            evaluate the evidence for an outer loop sample. Options are
-            ["linear", "quadratic", "gaussian", "monte_carlo"]
-            The first 3 construct tensor product quadrature rules from
-            univariate rules that are respectively piecewise linear,
-            piecewise quadratic or Gauss-quadrature.
 
         pre_collected_design_indices : np.ndarray (nobs)
             The indices into the qoi vector associated with the
@@ -1607,14 +1637,6 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
             The number of Monte Carlo samples used to compute the outer
             integral over all possible observations
 
-        quad_method : string
-            The method used to compute the inner loop integral needed to
-            evaluate the evidence for an outer loop sample. Options are
-            ["linear", "quadratic", "gaussian", "monte_carlo"]
-            The first 3 construct tensor product quadrature rules from
-            univariate rules that are respectively piecewise linear,
-            piecewise quadratic or Gauss-quadrature.
-
         pre_collected_design_indices : np.ndarray (nobs)
             The indices into the qoi vector associated with the
             collected observations
@@ -1743,14 +1765,6 @@ class BayesianSequentialDeviationOED(
             The number of Monte Carlo samples used to compute the outer
             integral over all possible observations
 
-        quad_method : string
-            The method used to compute the inner loop integral needed to
-            evaluate the evidence for an outer loop sample. Options are
-            ["linear", "quadratic", "gaussian", "monte_carlo"]
-            The first 3 construct tensor product quadrature rules from
-            univariate rules that are respectively piecewise linear,
-            piecewise quadratic or Gauss-quadrature.
-
         pre_collected_design_indices : np.ndarray (nobs)
             The indices into the qoi vector associated with the
             collected observations
@@ -1832,6 +1846,18 @@ class BayesianSequentialDeviationOED(
 
 def get_oed_inner_quadrature_rule(ninner_loop_samples, prior_variable,
                                   quad_method='gauss'):
+    """
+    Parameters
+    ----------
+    quad_method : string
+        The method used to compute the inner loop integral needed to
+        evaluate the evidence for an outer loop sample. Options are
+        ["linear", "quadratic", "gaussian", "monte_carlo"]
+        The first 3 construct tensor product quadrature rules from
+        univariate rules that are respectively piecewise linear,
+        piecewise quadratic or Gauss-quadrature.
+
+    """
     nrandom_vars = prior_variable.num_vars()
     ninner_loop_samples_1d = ninner_loop_samples
     if quad_method == "gauss":
