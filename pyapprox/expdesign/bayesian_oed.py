@@ -496,7 +496,7 @@ def precompute_expected_deviation_data(
     (outer_loop_pred_obs, inner_loop_pred_obs,
      inner_loop_weights, outer_loop_prior_samples,
      inner_loop_prior_samples, outer_loop_weights) = \
-         precompute_expected_kl_utility_data(
+         _precompute_expected_kl_utility_data(
              generate_outer_prior_samples, nouter_loop_samples, obs_fun,
              noise_fun, ninner_loop_samples, generate_inner_prior_samples,
              econ)
