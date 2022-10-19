@@ -462,9 +462,9 @@ def get_sparse_grid_samples_and_weights(num_vars, level,
     else:
         smolyak_coefficients = get_smolyak_coefficients(
             sparse_grid_subspace_indices)
-        I = np.where(np.absolute(smolyak_coefficients) > 1e-8)[0]
-        smolyak_coefficients = smolyak_coefficients[I]
-        sparse_grid_subspace_indices = sparse_grid_subspace_indices[:, I]
+        II = np.where(np.absolute(smolyak_coefficients) > 1e-8)[0]
+        smolyak_coefficients = smolyak_coefficients[II]
+        sparse_grid_subspace_indices = sparse_grid_subspace_indices[:, II]
 
     for ii in range(sparse_grid_subspace_indices.shape[1]):
         subspace_index = sparse_grid_subspace_indices[:, ii]
@@ -494,11 +494,11 @@ def get_sparse_grid_samples_and_weights(num_vars, level,
     # get list of unique polynomial indices
     poly_indices = np.asarray(poly_indices).T
     samples = get_sparse_grid_samples(poly_indices, samples_1d)
-    data_structures = [poly_indices_dict, poly_indices,
-                       sparse_grid_subspace_indices, np.asarray(
-                           smolyak_coefficients),
-                       sparse_grid_subspace_poly_indices_list, samples_1d, weights_1d,
-                       sparse_grid_subspace_values_indices_list]
+    data_structures = [
+        poly_indices_dict, poly_indices,
+        sparse_grid_subspace_indices, np.asarray(smolyak_coefficients),
+        sparse_grid_subspace_poly_indices_list, samples_1d, weights_1d,
+        sparse_grid_subspace_values_indices_list]
     # subspace_poly_indices can be recomputed but return here to save
     # computations at the expense of more memory
     return samples, np.asarray(weights), data_structures
