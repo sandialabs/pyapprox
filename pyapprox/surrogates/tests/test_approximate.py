@@ -578,7 +578,7 @@ class TestApproximate(unittest.TestCase):
             result.approx.coefficients[:poly.coefficients.shape[0]],
             poly.coefficients)
 
-        
+
 if __name__ == "__main__":
     approximate_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestApproximate)

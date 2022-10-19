@@ -290,6 +290,21 @@ def gauss_jacobi_pts_wts_1D(num_samples, alpha_poly, beta_poly):
     return gauss_quadrature(ab, num_samples)
 
 
+def one_point_growth_rule(level):
+    """
+    Parameters
+    ----------
+    level : integer
+       The level of the quadrature rule
+
+    Return
+    ------
+    num_samples_1d : integer
+        The number of samples in the quadrature rule
+    """
+    return level+1
+
+
 def leja_growth_rule(level):
     """
     The number of samples in the 1D Leja quadrature rule of a given

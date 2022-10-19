@@ -8,6 +8,8 @@ from pyapprox.util.utilities import (
 from pyapprox.surrogates.orthopoly.quadrature import (
     clenshaw_curtis_poly_indices_to_quad_rule_indices,
     clenshaw_curtis_rule_growth)
+from pyapprox.surrogates.orthopoly.leja_quadrature import (
+    get_univariate_leja_quadrature_rule)
 
 
 def piecewise_quadratic_interpolation(samples, mesh, mesh_vals, ranges):
@@ -429,3 +431,19 @@ def canonical_univariate_piecewise_polynomial_quad_rule(
         return ordered_samples_1d, ordered_weights_1d
 
     return ordered_samples_1d, w[quad_indices]
+
+
+def get_univariate_leja_quadrature_rules_from_variable(
+        variable, growth_rules, levels, canonical=False, **kwargs):
+    levels = np.atleast_1d(levels)
+    if levels.shape[0] == 1:
+        levels = np.ones(variable.num_vars(), dtype=int)*levels[0]
+    if levels.shape[0] != variable.num_vars():
+        raise ValueError(
+            "levels must be an integer or specfied for each marginal")
+    univariate_quad_rules = []
+    for ii, marginal in enumerate(variable.marginals()):
+        quad_rule = get_univariate_leja_quadrature_rule(
+            marginal, growth_rules[ii], **kwargs)
+        univariate_quad_rules.append(quad_rule)
+    return univariate_quad_rules

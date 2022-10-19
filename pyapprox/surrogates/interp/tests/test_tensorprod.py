@@ -45,14 +45,29 @@ class TestTensorProd(unittest.TestCase):
         print(integral-true_integral)
         assert np.allclose(integral, true_integral, atol=1e-3)
 
+        nsamples_1d = 3
+
+        def fun(xx):
+            return np.sum(xx**2, axis=0)[:, None]
+        xx, ww = get_tensor_product_piecewise_polynomial_quadrature_rule(
+            nsamples_1d, [-1, 1, -1, 1], 2)
+        vals = fun(xx)
+        integral = vals[:, 0].dot(ww)
+        true_integral = 2/3*4
+        print(xx)
+        print(ww)
+        print(integral-true_integral)
+        assert np.allclose(integral, true_integral, atol=1e-3)
+
+        num_samples_1d = 101
+
         def fun(xx):
             return np.sum(xx**3, axis=0)[:, None]
         xx, ww = get_tensor_product_piecewise_polynomial_quadrature_rule(
             nsamples_1d, [0, 1, 0, 2], 2)
         vals = fun(xx)
         integral = vals[:, 0].dot(ww)
-        true_integral = 9./2.
-        print(integral-true_integral)
+        true_integral = 9/2
         assert np.allclose(integral, true_integral, atol=1e-3)
 
     def check_piecewise_poly_basis(self, basis_type, levels, tol):

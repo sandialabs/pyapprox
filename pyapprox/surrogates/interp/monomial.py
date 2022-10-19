@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.special import factorial
+
 from pyapprox.surrogates.interp.manipulate_polynomials import (
     multiply_multivariate_polynomials
 )
@@ -44,6 +46,35 @@ def monomial_variance_uniform_variables(indices, coeffs):
     variance = monomial_mean_uniform_variables(
         squared_indices, squared_coeffs)-mean**2
     return variance
+
+
+def monomial_mean_gaussian_variables(indices, coeffs):
+    """
+    Integrate a multivaiate monomial with respect to the Gaussian probability
+    measure N(0,1).
+
+    Parameters
+    ----------
+    indices : np.ndarray (num_vars, num_indices)
+        The exponents of each monomial term
+
+    coeffs : np.ndarray (num_indices, nqoi)
+        The coefficients of each monomial term
+
+    Return
+    ------
+    integral : float
+        The integral of the monomial
+    """
+    num_vars, num_indices = indices.shape
+    assert coeffs.ndim == 2
+    assert coeffs.shape[0] == num_indices
+    vals = np.prod((2)**(-indices/2)*factorial(indices)/factorial(indices/2),
+                   axis=0)
+    II = np.any(indices % 2 == 1, axis=0)
+    vals[II] = 0
+    integral = np.sum(vals[:, None]*coeffs, axis=0)
+    return integral
 
 
 def monomial_basis_matrix(indices, samples, deriv_order=0):
