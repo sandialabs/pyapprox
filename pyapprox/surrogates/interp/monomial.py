@@ -13,10 +13,13 @@ def univariate_monomial_basis_matrix(max_level, samples):
     return basis_matrix
 
 
-def monomial_mean_uniform_variables(indices, coeffs):
+# int x^p dx x=a..b
+# 1/(p+1)*b^(p+1)-1/(p+1)*a^(p+1)
+
+def monomial_mean_uniform_variables(indices, coeffs, bounds=[-1, 1]):
     """
     Integrate a multivaiate monomial with respect to the uniform probability
-    measure on [-1,1].
+    measure on [a,b].
 
     Parameters
     ----------
@@ -26,6 +29,10 @@ def monomial_mean_uniform_variables(indices, coeffs):
     coeffs : np.ndarray (num_indices, nqoi)
         The coefficients of each monomial term
 
+    bounds : iterable (2)
+        Upper and lower bounds [a, b] of integration.
+        Bounds assumed same for each variable
+
     Return
     ------
     integral : float
@@ -34,7 +41,11 @@ def monomial_mean_uniform_variables(indices, coeffs):
     num_vars, num_indices = indices.shape
     assert coeffs.ndim == 2
     assert coeffs.shape[0] == num_indices
-    vals = np.prod(((-1.0)**indices+1)/(2.0*(indices+1.0)), axis=0)
+    assert len(bounds) == 2
+    # vals = np.prod(((-1.0)**indices+1)/(2.0*(indices+1.0)), axis=0)
+    L = (bounds[1]-bounds[0])**num_vars
+    vals = np.prod(((bounds[1]**(indices+1.0)) -
+                    (bounds[0]**(indices+1.0)))/(indices+1.0), axis=0)/L
     integral = np.sum(vals[:, None]*coeffs, axis=0)
     return integral
 
