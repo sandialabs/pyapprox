@@ -56,7 +56,7 @@ class TestIntegrate(unittest.TestCase):
                     self._check_monomial_integration(
                         *test_scenario, bounds=bounds)
 
-    def xtest_gaussian_integration(self):
+    def test_gaussian_integration(self):
         for nvars in [2, 3]:
             test_scenarios = [
                 [1, "tensorproduct", [stats.norm(0, 1)]*nvars,
