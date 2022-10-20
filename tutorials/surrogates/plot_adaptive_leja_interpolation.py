@@ -31,10 +31,10 @@ np.random.seed(1)
 #%%
 #Our goal is to demonstrate how to use a polynomial chaos expansion (PCE) to approximate a function :math:`f(z): \reals^d \rightarrow \reals` parameterized by the random variables :math:`z=(z_1,\ldots,z_d)`. with the joint probability density function :math:`\pdf(\V{\rv})`. In the following we will use a function commonly used in the literature, the oscillatory Genz function. This function is well suited for testing as the number of variables and the non-linearity can be adjusted. We define the random variables and the function with the following code
 
-c = np.array([10, 0.01])
-w = np.zeros(2)
+c = np.array([[10, 0.01]]).T
+w = np.full((2, 1), 0.25)
 benchmark = setup_benchmark('genz', nvars=2, test_name='oscillatory',
-                            coefficients=(c, w))
+                            coeff=(c, w))
 model = benchmark.fun
 variable = benchmark.variable
 

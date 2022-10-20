@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 from functools import partial
 import torch
 import time
-import warnings
 from pyapprox.util.configure_plots import mathrm_label, mathrm_labels
 from pyapprox.variables import (
     IndependentMarginalsVariable, print_statistics, AffineTransform)
@@ -24,10 +23,12 @@ from pyapprox.surrogates import adaptive_approximate
 from pyapprox.analysis.sensitivity_analysis import (
     run_sensitivity_analysis, plot_sensitivity_indices)
 from pyapprox.bayes.markov_chain_monte_carlo import (
-    loglike_from_negloglike, MCMCVariable)
+    loglike_from_negloglike, plot_unnormalized_2d_marginals)
+from pyapprox.bayes.metropolis import MetropolisMCMCVariable
 from pyapprox.expdesign.bayesian_oed import get_bayesian_oed_optimizer
 from pyapprox import multifidelity
-warnings.filterwarnings("ignore", category=DeprecationWarning)
+import warnings
+# warnings.filterwarnings("ignore", category=DeprecationWarning)
 np.random.seed(2)
 torch.manual_seed(2)
 
@@ -199,13 +200,13 @@ print("Surrogate", error)
 #Uncomment the commented code to use the numerical model instead of the surrogate
 #with the MCMC algorithm. Again note the significant increase in computational
 #time
-algorithm, npost_samples, njobs = "nuts", 100, 1
-# loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)
+npost_samples = 1000
 loglike = partial(loglike_from_negloglike, approx)
-mcmc_variable = MCMCVariable(
-    inv_benchmark.variable, loglike, algorithm, njobs=njobs, loglike_grad=True)
+mcmc_variable = MetropolisMCMCVariable(
+    inv_benchmark.variable, loglike, method_opts={"cov_scaling": 1})
 print(mcmc_variable)
 post_samples = mcmc_variable.rvs(npost_samples)
+print("Acceptance rate", mcmc_variable._acceptance_rate)
 map_sample = mcmc_variable.maximum_aposteriori_point()
 
 #%%
@@ -213,10 +214,11 @@ map_sample = mcmc_variable.maximum_aposteriori_point()
 #do not do this with the numerical model as this would take an eternity due
 #to the cost of evaluating the numerical model, which is much higher relative
 #to the cost of running the surrogate.
-mcmc_variable.plot_2d_marginals(
-    nsamples_1d=30,
+plot_unnormalized_2d_marginals(
+    mcmc_variable._variable, mcmc_variable._loglike, nsamples_1d=30,
     plot_samples=[
-        [post_samples, {}], [map_sample, {"c": "k", "marker": "X", "s": 100}]])
+        [post_samples, {"alpha": 0.3, "c": "orange"}],
+        [map_sample, {"c": "k", "marker": "X", "s": 100}]])
 if savefig:
     plt.savefig("posterior-samples.pdf", bbox_inches="tight")
 
@@ -232,12 +234,12 @@ fig, ax = plt.subplots(1, 1, figsize=(8, 6))
 inv_benchmark.mesh.plot(
     inv_benchmark.obs_fun._fwd_solver.solve()[:, None], 50, ax=ax)
 
+ndesign = 3
 design_candidates = inv_benchmark.mesh.mesh_pts[:, inv_benchmark.obs_indices]
 oed = get_bayesian_oed_optimizer(
     "kl_params", design_candidates, inv_benchmark.obs_fun, noise_stdev,
-    inv_benchmark.variable)
+    inv_benchmark.variable, max_ncollected_obs=ndesign)
 oed_results = []
-ndesign = 3
 for step in range(ndesign):
     results_step = oed.update_design()[1]
     oed_results.append(results_step)
@@ -368,4 +370,4 @@ plt.show()
 #%%
 #References
 #^^^^^^^^^^
-#.. [PYAPPROX2022] `Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022)`_
+#.. [PYAPPROX2022] `Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022) <https://www.osti.gov/biblio/1879614>`_

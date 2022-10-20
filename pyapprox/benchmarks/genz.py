@@ -20,28 +20,27 @@ class GenzFunction(object):
             (self._discontinuous, self._discontinuous_integrate)}
 
     @staticmethod
-    def _get_c_coefficients(coef_type, nvars, min_c):
+    def _get_c_coefficients(decay, nvars, min_c):
         ind = np.arange(nvars)[:, None]
-        if (coef_type == "no_decay"):
+        if (decay == "none"):
             return (ind+0.5)/nvars
-        if (coef_type == "quadratic_decay"):
+        if (decay == "quadratic"):
             return 1.0 / (ind + 1.)**2
-        if (coef_type == "quartic_decay"):
+        if (decay == "quartic"):
             return 1.0 / (ind + 1.)**4
-        if (coef_type == "exponential_decay"):
+        if (decay == "exp"):
             # smallest value will be 1e-8
             return np.exp((ind+1)*np.log(min_c)/nvars)
-        if (coef_type == "squared_exponential_decay"):
+        if (decay == "sqexp"):
             # smallest value will be 1e-8
             return 10**(np.log10(min_c)*((ind+1)/nvars)**2)
-        msg = f"coef_type: {coef_type} not supported"
+        msg = f"decay: {decay} not supported"
         raise ValueError(msg)
 
-    def set_coefficients(self, nvars, c_factor, coef_type, w_factor=0.5,
-                         seed=0):
+    def set_coefficients(self, nvars, c_factor, decay, w_factor=0.5):
         self._nvars = nvars
         self._w = np.full((self._nvars, 1), w_factor, dtype=np.double)
-        self._c = self._get_c_coefficients(coef_type, self._nvars, self._min_c)
+        self._c = self._get_c_coefficients(decay, self._nvars, self._min_c)
         self._c *= c_factor/self._c.sum()
 
     def _oscillatory(self, samples, jac):
@@ -175,6 +174,3 @@ class GenzFunction(object):
 
     def integrate(self, name):
         return self._funs[name][1]()
-
-    def __reduce__(self):
-        return (type(self), (self._nvars, self._c, self._w))

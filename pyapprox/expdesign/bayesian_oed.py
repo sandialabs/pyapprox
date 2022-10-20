@@ -806,7 +806,7 @@ class AbstractBayesianOED(ABC):
                  prior_variable, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
                  econ=False, max_eval_concurrency=1, max_ncollected_obs=2,
-                 outer_quad_type="mc"):
+                 outer_quad_type="qmc"):
         """
         Constructor.
 
