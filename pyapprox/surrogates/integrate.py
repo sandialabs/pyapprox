@@ -2,19 +2,19 @@ import numpy as np
 from functools import partial
 
 from pyapprox.surrogates.interp.sparse_grid import (
-    get_sparse_grid_samples_and_weights
-)
+    get_sparse_grid_samples_and_weights)
 from pyapprox.surrogates.orthopoly.quadrature import (
     clenshaw_curtis_rule_growth, leja_growth_rule,
     one_point_growth_rule)
 from pyapprox.surrogates.polychaos.gpc import (
-    get_univariate_quadrature_rules_from_variable
-)
+    get_univariate_quadrature_rules_from_variable)
 from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.variables.transforms import AffineTransform
 from pyapprox.surrogates.interp.tensorprod import (
     get_univariate_leja_quadrature_rules_from_variable,
     get_tensor_product_piecewise_polynomial_quadrature_rule)
+from pyapprox.expdesign.low_discrepancy_sequences import (
+    sobol_sequence, halton_sequence)
 
 
 def _nested_1D_quadrature_all_level_weights(quad_rule, level):
@@ -78,7 +78,9 @@ def _piecewise_poly_tensorprod_integration(
 
 
 def integrate(method, variable, *args, **kwargs):
-    if method == "sparse_grid" or "tensor_product":
+    methods = [
+        "sparsegrid", "tensorproduct", "quasimontecarlo", "montecarlo"]
+    if method == "sparsegrid" or method == "tensorproduct":
         growth_rules = {
             "clenshaw_curtis": clenshaw_curtis_rule_growth,
             "two_point":  leja_growth_rule,
@@ -92,7 +94,7 @@ def integrate(method, variable, *args, **kwargs):
         if levels.shape[0] == 1:
             levels = np.full((nvars), levels[0])
         assert len(levels) == nvars
-        if method == "sparse_grid":
+        if method == "sparsegrid":
             if not np.allclose(levels, levels[0]):
                 raise ValueError("only isotropic sparse grids supported")
             univariate_quadrature_rules = \
@@ -123,5 +125,23 @@ def integrate(method, variable, *args, **kwargs):
             #     assert growth == "clenshaw_curtis"
             return rules[rule](variable, growth_rules, levels)
 
-    msg = f"Method: {method} not supported"
+    if method == "quasimontecarlo":
+        nsamples = int(kwargs["nsamples"])
+        start_index = kwargs.get("startindex", 1)
+        rule = kwargs.get("rule", "sobol")
+        if rule == "sobol":
+            samples = sobol_sequence(
+                variable.num_vars(), nsamples, start_index, variable)
+        elif rule == "halton":
+            samples = sobol_sequence(
+                variable.num_vars(), nsamples, start_index, variable)
+        else:
+            raise NotImplementedError(f"QMC rule {rule} not implemented")
+        return samples, np.full((nsamples, 1), 1/nsamples)
+
+    if method == "montecarlo":
+        nsamples = kwargs["nsamples"]
+        return variable.rvs(nsamples), np.full((nsamples, 1), 1/nsamples)
+
+    msg = f"Method: {method} not supported. Choose from {methods}"
     raise NotImplementedError(msg)
