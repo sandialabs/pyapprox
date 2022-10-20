@@ -421,10 +421,10 @@ class AbstractACVEstimator(AbstractMonteCarloEstimator):
         nsample_ratios, log10_var = self._allocate_samples(target_cost)
         if use_torch and pkg.is_tensor(nsample_ratios):
             nsample_ratios = nsample_ratios.detach().numpy()
-        print(nsample_ratios, "nsample_ratios")
+        # print(nsample_ratios, "nsample_ratios")
         nsample_ratios, rounded_target_cost = round_nsample_ratios(
             target_cost, self.costs, nsample_ratios)
-        print(nsample_ratios, "rounded nsample_ratios")
+        # print(nsample_ratios, "rounded nsample_ratios")
         variance = self.get_variance(rounded_target_cost, nsample_ratios)
         self.set_optimized_params(
             nsample_ratios, rounded_target_cost, variance)

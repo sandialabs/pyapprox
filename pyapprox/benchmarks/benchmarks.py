@@ -7,8 +7,7 @@ from scipy.optimize import OptimizeResult
 from pyapprox.benchmarks.sensitivity_benchmarks import (
     get_sobol_g_function_statistics, get_ishigami_funciton_statistics,
     oakley_function, oakley_function_statistics, sobol_g_function,
-    ishigami_function, ishigami_function_jacobian, ishigami_function_hessian
-    )
+    ishigami_function, ishigami_function_jacobian, ishigami_function_hessian)
 from pyapprox.benchmarks.surrogate_benchmarks import (
     rosenbrock_function,
     rosenbrock_function_jacobian, rosenbrock_function_hessian_prod,
@@ -22,19 +21,13 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     RandomOscillator, piston_function_gradient, CoupledSprings,
     define_coupled_springs_random_variables, HastingsEcology,
     define_nondim_hastings_ecology_random_variables,
-    ParameterizedNonlinearModel
-    )
+    ParameterizedNonlinearModel)
 from pyapprox.benchmarks.genz import GenzFunction
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    PolynomialModelEnsemble, TunableModelEnsemble, ShortColumnModelEnsemble
-)
+    PolynomialModelEnsemble, TunableModelEnsemble, ShortColumnModelEnsemble)
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.variables.transforms import (
-    ConfigureVariableTransformation
-)
 from pyapprox.interface.wrappers import (
-    TimerModel, PoolModel, WorkTrackingModel
-)
+    TimerModel, PoolModel, WorkTrackingModel)
 from pyapprox.benchmarks.pde_benchmarks import (
     _setup_inverse_advection_diffusion_benchmark,
     _setup_multi_index_advection_diffusion_benchmark
@@ -378,9 +371,15 @@ def setup_rosenbrock_function(nvars):
     return benchmark
 
 
-def setup_genz_function(nvars, test_name, coefficients=None):
+def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
+                        coeff=None):
     r"""
-    Setup the Genz Benchmarks.
+    Setup one of the six Genz integration benchmarks
+    :math:`f_i(x):\mathbb{R}^D\to\mathbb{R}`,
+    where :math:`x=[x_1,\ldots,x_D]^\top`.
+    The number of inputs $D$ and the anisotropy (relative importance of
+    each variable and interactions) of the functions can be adjusted.
+    The definition of each function is in the Notes section.
 
     For example, the two-dimensional oscillatory Genz problem can be defined
     using
@@ -398,13 +397,23 @@ def setup_genz_function(nvars, test_name, coefficients=None):
     test_name : string
         The test_name of the specific Genz function. See notes
         for options the string needed is given in brackets
-        e.g. ('oscillatory')
+        e.g. ('oscillatory'). Choose from
+        ["oscillatory", "product_peak", "corner_peak", "c0continuous", "discontinuous"]
 
-    coefficients : tuple (ndarray (nvars), ndarray (nvars))
-        The coefficients :math:`c_i` and :math:`w_i`
-        If None (default) then
-        :math:`c_j = \hat{c}_j\left(\sum_{i=1}^d \hat{c}_i\right)^{-1}` where
-        :math:`\hat{c}_i=(10^{-15\left(\frac{i}{d}\right)^2)})`
+    coef_type : string
+        Choose from ["no_decay", "quadratic_decay", "quartic_decay",
+        "exponential_decay". "squared_exponential_decay"]
+
+    w : float 0<=w<=1
+        Set :math:`w_d=w, d=1,\ldots,D`.
+
+    c_factor : float `c_factor>0`
+        Scale the integrand.
+
+    coeff : tuple (ndarray (nvars), ndarray (nvars))
+        The coefficients :math:`c_d` and :math:`w_d`
+        If provided it will overwite the coefficients defined by
+        `coeff_type`, `w` and `c_factor`
 
     Returns
     -------
@@ -426,42 +435,80 @@ def setup_genz_function(nvars, test_name, coefficients=None):
 
     Notes
     -----
-
-    Corner Peak ('corner-peak')
-
-    .. math:: f(z)=\left( 1+\sum_{i=1}^d c_iz_i\right)^{-(d+1)}
+    The six Genz test function are:
 
     Oscillatory ('oscillatory')
 
     .. math:: f(z) = \cos\left(2\pi w_1 + \sum_{i=1}^d c_iz_i\right)
 
-    Gaussian Peak ('gaussian-peak')
-
-    .. math:: f(z) = \exp\left( -\sum_{i=1}^d c_i^2(z_i-w_i)^2\right)
-
-    Continuous ('continuous')
-
-    .. math:: f(z) = \exp\left( -\sum_{i=1}^d c_i\lvert z_i-w_i\rvert\right)
-
-    Product Peak ('product-peak')
+    Product Peak ('product_peak')
 
     .. math:: f(z) = \prod_{i=1}^d \left(c_i^{-2}+(z_i-w_i)^2\right)^{-1}
 
+    Corner Peak ('corner_peak')
+
+    .. math:: f(z)=\left( 1+\sum_{i=1}^d c_iz_i\right)^{-(d+1)}
+
+    Gaussian Peak ('gaussian')
+
+    .. math:: f(z) = \exp\left( -\sum_{i=1}^d c_i^2(z_i-w_i)^2\right)
+
+    C0 Continuous ('c0continuous')
+
+    .. math:: f(z) = \exp\left( -\sum_{i=1}^d c_i\lvert z_i-w_i\rvert\right)
+
     Discontinuous ('discontinuous')
 
-    .. math:: f(z) = \begin{cases}0 & x_1>u_1 \;\mathrm{or}\; x_2>u_2\\\exp\left(\sum_{i=1}^d c_iz_i\right) & \mathrm{otherwise}\end{cases}
+    .. math:: f(z) = \begin{cases}0 & x_1>w_1 \;\mathrm{or}\; x_2>w_2\\\exp\left(\sum_{i=1}^d c_iz_i\right) & \mathrm{otherwise}\end{cases}
 
+    Increasing :math:`\lVert c \rVert` will in general make
+    the integrands more difficult.
+
+    The :math:`0\le w_d \le 1` parameters do not affect the difficulty
+    of the integration problem. We set :math:`w_1=w_2=\ldots=W_D`.
+
+    The coefficient types implement different decay rates for :math:`c_d`.
+    This allows tessting of methods that can identify and exploit anisptropy.
+    They are as follows:
+
+    No decay (none)
+
+    .. math:: \hat{c}_d=\frac{d+0.5}{D}
+
+    Quadratic decay (qudratic)
+
+    .. math:: \hat{c}_d = \frac{1}{(d + 1)^2}
+
+    Quartic decay (quartic)
+
+    .. math:: \hat{c}_d = \frac{1}{(d + 1)^4}
+
+    Exponential decay (exp)
+
+    .. math:: \hat{c}_d=\exp\left(\log(c_\min)\frac{d+1}{D}\right)
+
+    Squared-exponential decay (sqexp)
+
+    .. math:: \hat{c}_d=10^\left(\log_{10}(c_\min)\frac{(d+1)^2}{D}\right)
+
+    Here :math:`c_\min` is argument that sets the minimum value of :math:`c_D`.
+
+    Once the formula are used the coefficients are normalized such that
+
+    .. math:: c_d = c_\text{factor}\frac{\hat{c}_d}{\sum_{d=1}^D \hat{c}_d}.
     """
-    genz = GenzFunction(test_name, nvars)
+    genz = GenzFunction()
     univariate_variables = [stats.uniform(0, 1)]*nvars
     variable = IndependentMarginalsVariable(univariate_variables)
-    if coefficients is None:
-        genz.set_coefficients(1, 'squared-exponential-decay', 0.25)
-    else:
-        genz.c, genz.w = coefficients
-    attributes = {'fun': genz, 'mean': genz.integrate(), 'variable': variable}
-    if test_name == 'corner-peak':
-        attributes['variance'] = genz.variance()
+    if coeff_type is None:
+        coeff_type = 'none'
+    genz.set_coefficients(nvars, c_factor, coeff_type, w)
+    if coeff is not None:
+        genz._c, genz._w = coeff
+        assert genz._c.ndim == 2 and genz._w.ndim == 2
+    attributes = {'fun': partial(genz, test_name),
+                  'mean': genz.integrate(test_name),
+                  'variable': variable}
     return Benchmark(attributes)
 
 

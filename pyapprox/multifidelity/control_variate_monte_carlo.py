@@ -1682,10 +1682,8 @@ def round_nsample_ratios(target_cost, costs, nsample_ratios):
         raise RuntimeError("Rounding likely caused nhf samples to be zero")
     elif nsamples_floor[0] < 1:
         nsamples_floor[0] = 1
-    print(nsamples_floor, "nsf1")
     II = np.where(nsamples_floor[1:] == nsamples_floor[0])[0]+1
     nsamples_floor[II] = 2
-    print(nsamples_floor, "nsf2")
     nsample_ratios_floor = nsamples_floor[1:]/nsamples_floor[0]
     rounded_target_cost = nsamples_floor[0]*(costs[0]+np.dot(
         nsample_ratios_floor, costs[1:]))

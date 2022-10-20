@@ -2,13 +2,12 @@ import numpy as np
 from tqdm import tqdm
 from scipy.linalg import solve_triangular
 from scipy.optimize import (
-    minimize, differential_evolution, dual_annealing)
+    minimize, differential_evolution)
 import matplotlib.pyplot as plt
 
 from pyapprox.variables.joint import JointVariable
 from pyapprox.analysis.visualize import setup_2d_cross_section_axes
 from pyapprox.variables.joint import get_truncated_range
-from pyapprox.variables.density import beta_pdf_derivative
 
 
 def update_mean_and_covariance(
@@ -128,8 +127,6 @@ def delayed_rejection(y0, proposal_chol_tuple, logpost_fun, cov_scaling,
     if (np.log(np.random.uniform(0, 1)) < log_alpha_2_y0_y2):  # acceptance
         return y2, 1, log_f_y2
 
-    print(y1[:, 0])
-    print("reject")
     return y0, 0, log_f_y0
 
 
@@ -262,6 +259,7 @@ class MetropolisMCMCVariable(JointVariable):
                 self._variable.get_statistics("std")[:, 0]**2)
         if init_proposal_cov.shape[0] != self._variable.num_vars():
             raise ValueError("init_proposal_cov specified has wrong shape")
+        print(num_samples, self._burn_fraction)
         nburn_samples = int(np.ceil(num_samples*self._burn_fraction))
         if self._algorithm == "DRAM":
             nugget = self._method_opts.get("nugget", 1e-6)
