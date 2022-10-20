@@ -25,6 +25,7 @@ from pyapprox.surrogates.interp.barycentric_interpolation import (
     multivariate_barycentric_lagrange_interpolation
 )
 from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence
+from pyapprox.surrogates.integrate import integrate
 
 
 def gaussian_loglike_fun_broadcast(
@@ -928,6 +929,13 @@ class AbstractBayesianOED(ABC):
         return noise
 
     def generate_prior_noise_samples(self, nsamples):
+        # TODO need to convert nsamples to levels needed by integrate
+        # or instead of using nouterloop_samples and ninnerloop samples
+        # as arguments during setup, pass in options for quadrature rule
+        # and remove nsamples from arg list here
+        # return integrate(
+        #     self.outer_quad_type, self.prior_noise_variable,
+        #     self.outer_quad_opts)
         if self.outer_quad_type == "mc":
             samples = self.prior_noise_variable.rvs(nsamples)
             return samples, np.ones((nsamples, 1))/nsamples

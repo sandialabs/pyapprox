@@ -1,310 +1,180 @@
-from scipy.special import factorial
-from functools import partial
 import numpy as np
-from scipy import stats
-
-from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
-from pyapprox.variables.algebra import (
-    get_pdf_from_monomial_expansion, sum_of_independent_random_variables_pdf
-)
+from scipy import special
 
 
 class GenzFunction(object):
-    def __init__(self, func_type, num_vars, c=None, w=None, name=None):
+    def __init__(self):
+        self._nvars = None
+        self._c = None
+        self._w = None
+        self._min_c = 5e-6
+
+        self._funs = {
+            "oscillatory": (self._oscillatory, self._oscillatory_integrate),
+            "product_peak": (self._product_peak, self._product_peak_integrate),
+            "corner_peak": (self._corner_peak, self._corner_peak_integrate),
+            "gaussian": (self._gaussian, self._gaussian_integrate),
+            "c0continuous":
+            (self._c0_continuous, self._c0_continuous_integrate),
+            "discontinuous":
+            (self._discontinuous, self._discontinuous_integrate)}
+
+    @staticmethod
+    def _get_c_coefficients(coef_type, nvars, min_c):
+        ind = np.arange(nvars)[:, None]
+        if (coef_type == "no_decay"):
+            return (ind+0.5)/nvars
+        if (coef_type == "quadratic_decay"):
+            return 1.0 / (ind + 1.)**2
+        if (coef_type == "quartic_decay"):
+            return 1.0 / (ind + 1.)**4
+        if (coef_type == "exponential_decay"):
+            # smallest value will be 1e-8
+            return np.exp((ind+1)*np.log(min_c)/nvars)
+        if (coef_type == "squared_exponential_decay"):
+            # smallest value will be 1e-8
+            return 10**(np.log10(min_c)*((ind+1)/nvars)**2)
+        msg = f"coef_type: {coef_type} not supported"
+        raise ValueError(msg)
+
+    def set_coefficients(self, nvars, c_factor, coef_type, w_factor=0.5,
+                         seed=0):
+        self._nvars = nvars
+        self._w = np.full((self._nvars, 1), w_factor, dtype=np.double)
+        self._c = self._get_c_coefficients(coef_type, self._nvars, self._min_c)
+        self._c *= c_factor/self._c.sum()
+
+    def _oscillatory(self, samples, jac):
+        result = 2.0 * np.pi * self._w[0]
+        tmp = samples.T.dot(self._c)
+        result = np.cos(tmp)
+        if not jac:
+            return result
+        grad = -self._c*np.sin(tmp)
+        return grad
+
+    def _product_peak(self, samples, jac):
+        result = 1/np.prod(
+            (1/self._c**2+(samples-self._w)**2), axis=0)[:, None]
+        if not jac:
+            return result
+        grad = 2.*(samples.T - self._w)*result
+        return result, grad
+
+    def _corner_peak(self, samples, jac):
+        tmp = 1+samples.T.dot(self._c)
+        result = tmp**(-(self._nvars+1))
+        if not jac:
+            return result
+        grad = -self._c*(self._nvars+1)/tmp**(self._nvars+2)
+        return result, grad
+
+    def _gaussian(self, samples, jac):
+        tmp = -np.sum(self._c**2*(samples-self._w)**2, axis=0)
+        result = np.exp(tmp)[:, None]
+        if not jac:
+            return result
+        grad = 2.*self._c**2*(self._w-samples.T)*result
+        return result, grad
+
+    def _c0_continuous(self, samples, jac):
+        tmp = -np.sum(self._c*np.abs(samples-self._w), axis=0)
+        result = np.exp(tmp)[:, None]
+        if not jac:
+            return result
+        msg = "grad of c0_continuous function is not supported"
+        raise ValueError(msg)
+
+    def _discontinuous(self, samples, jac):
+        result = np.exp(samples.T.dot(self._c))
+        II = np.where((samples[0] > self._w[0]) & (samples[1] > self._w[1]))
+        result[II] = 0.0
+        if not jac:
+            return result
+        msg = "grad of discontinuous function is not supported"
+        raise ValueError(msg)
+
+    def __call__(self, name, samples, jac=False):
+        return self._funs[name][0](samples, jac)
+
+    def _oscillatory_recursive_integrate(self, var_id, cosine):
+        C1 = np.sin(self._c[var_id])/self._c[var_id]
+        C2 = (1-np.cos(self._c[var_id]))/self._c[var_id]
+        if var_id == self._nvars-1:
+            if cosine:
+                return C1
+            return C2
+        if cosine:
+            return (C1*self._oscillatory_recursive_integrate(var_id+1, True) -
+                    C2*self._oscillatory_recursive_integrate(var_id+1, False))
+        return (C2*self._oscillatory_recursive_integrate(var_id+1, True) +
+                C1*self._oscillatory_recursive_integrate(var_id+1, False))
+
+    def _oscillatory_integrate(self):
         """
-        having c and w as arguments are required to enable pickling
-        name allows name to be consistent when pickling
-        because name set here is appended to when set_coefficients is called
-        and that function is not called when pickling
+        use
+        cos(x+y)=cos(x)cos(y)-sin(x)sin(y)
+        sin(x+y)=sin(x)cos(y)+cos(x)sin(y)
+        and if y=w+z
+        sin(x+w+z)=sin(x)sin(w+z)+cos(x)cos(w+z)
+        so expand sin(w+z)
+        then exploit separability
+        and
+        int_0^1 cos(ax)dx = sin(a)/a
+        int_0^1 sin(ax)dx = (1-cos(a))/a
         """
+        C1 = np.cos(2.*np.pi*self._w[0])
+        C2 = np.sin(2.*np.pi*self._w[0])
+        integral = (C1*self._oscillatory_recursive_integrate(0, True) -
+                    C2*self._oscillatory_recursive_integrate(0, False))
+        return integral
 
-        self.func_type = func_type
-        self.num_vars = num_vars
-        self.num_qoi = 1
-        if name is None:
-            self.name = 'genz-' + self.func_type + '-%d' % self.num_vars
-        else:
-            self.name = name
-        self.c = c
-        self.w = w
+    def _product_peak_integrate(self):
+        return np.prod(
+            self._c*(np.arctan(self._c*(1.0-self._w)) +
+                     np.arctan(self._c*self._w)))
 
-    def __call__(self, samples, opts=dict()):
-        return self.value(samples, opts)
+    def _corner_peak_integrate_recursive(self, integral, D):
+        if D == 0:
+            return 1.0 / (1.0 + integral)
+        return 1/(D*self._c[D-1])*(
+            self._corner_peak_integrate_recursive(integral, D-1) -
+            self._corner_peak_integrate_recursive(integral+self._c[D-1], D-1))
 
-    def value(self, samples, opts=dict()):
-        eval_type = opts.get('eval_type', 'value')
-        if (('grad' in eval_type) and
-                (self.func_type == "discontinuous" or
-                 self.func_type == "continuous")):
-            msg = "gradients cannot be computed for %s Genz function" % self.func_type
-            raise Exception(msg)
-        assert samples.min() >= 0 and samples.max() <= 1.
-        vals = evaluate_1darray_function_on_2d_array(self.value_, samples, {})
-        if eval_type == 'value':
-            return vals[:, :1]
-        if eval_type == 'value-grad':
-            return vals
-        if eval_type == 'grad':
-            return vals[:, 1:]
+    def _corner_peak_integrate(self):
+        r"""
+        int_0^1 ((c+ax)^{-d-1}dx = c^{-d}-(a+c)^{-d})/(ad)
+        let c = b*y
+        int_0^1 \int_0^1 ((by+ax)^{-d-1}dxdy =
+           1/(ad) \int_0^1 ((by)^{-d}-(a+by)^{-d})dy
+        """
+        if self._c.prod() < 1e-14:
+            msg = "coefficients to small for corner_peak integral to be "
+            msg += " computedaccurately with recursion. increase self._min_c"
+            raise ValueError(msg)
+        return self._corner_peak_integrate_recursive(0.0, self._nvars)
 
-    def value_(self, samples):
-        assert samples.ndim == 1
-        if (self.func_type == "discontinuous" or
-                self.func_type == "continuous"):
-            result = np.empty((1), np.double)
-        else:
-            result = np.empty((self.num_vars+1), np.double)
-        self.num_vars = self.c.shape[0]
-        if (self.func_type == "oscillatory"):
-            result[0] = 2.0 * np.pi * self.w[0]
-            for d in range(self.num_vars):
-                result[0] += self.c[d] * samples[d]
-            for d in range(self.num_vars):
-                result[1+d] = -self.c[d] * np.sin(result[0])
-            result[0] = np.cos(result[0])
-        elif (self.func_type == "product-peak"):
-            result[0] = 1.0
-            for d in range(self.num_vars):
-                result[0] *= (1.0 / (self.c[d] * self.c[d]) +
-                              (samples[d] - self.w[d]) * (
-                    samples[d]-self.w[d]))
-            for d in range(self.num_vars):
-                result[1+d] = 2. * (samples[d] - self.w[d]) / result[0]
-            result[0] = 1.0 / result[0]
-        elif (self.func_type == "corner-peak"):
-            result[0] = 1.0
-            for d in range(self.num_vars):
-                result[0] += self.c[d] * samples[d]
-            for d in range(self.num_vars):
-                result[1+d] = -self.c[d] * (self.num_vars+1) / \
-                    result[0]**(self.num_vars+2)
-            result[0] = 1.0 / result[0]**(self.num_vars+1)
-        elif (self.func_type == "gaussian-peak"):
-            result[0] = 0.0
-            for d in range(self.num_vars):
-                result[0] += self.c[d] * self.c[d] * (samples[d] - self.w[d]) * \
-                    (samples[d] - self.w[d])
-            for d in range(self.num_vars):
-                result[1+d] = 2. * self.c[d]**2 * (self.w[d]-samples[d]) * \
-                    np.exp(-result[0])
-            result[0] = np.exp(-result[0])
-        elif (self.func_type == "continuous"):
-            result[0] = 0.0
-            for d in range(self.num_vars):
-                result[0] += self.c[d] * np.abs(samples[d] - self.w[d])
-            result[0] = np.exp(-result[0])
-            result[1:] = 0.
-        elif (self.func_type == "discontinuous"):
-            result[0] = 0.0
-            if (self.num_vars == 1):
-                if (samples[0] <= self.w[0]):
-                    for d in range(self.num_vars):
-                        result[0] += self.c[d] * samples[d]
-                    result[0] = np.exp(result[0])
-            else:
-                if ((samples[0] <= self.w[0]) and (samples[1] <= self.w[1])):
-                    for d in range(self.num_vars):
-                        result[0] += self.c[d] * samples[d]
-                    result[0] = np.exp(result[0])
-        elif (self.func_type == 'corner-peak-second-order'):
-            result[0] = 0.
-            for d in range(self.num_vars-1):
-                result[0] += (1.+self.c[d]*samples[d] +
-                              self.c[d+1]*samples[d+1])**(-3)
-        else:
-            msg = "ensure func_num in [\"oscillatory\",\"product-peak\","
-            msg += "\"corner-peak\",\"gaussian-peak\","
-            msg += "\"continuous\",\"discontinuous\"]"
-            raise Exception(msg)
-
+    def _gaussian_integrate(self):
+        result = np.prod(
+            (special.erf(self._c*self._w)+special.erf(self._c-self._c*self._w)) *
+            np.sqrt(np.pi)/(2*self._c))
         return result
 
-    def set_coefficients(self, c_factor, coef_type, w_factor=0., seed=0):
+    def _c0_continuous_integrate(self):
+        return np.prod(
+            (2.0-np.exp(-self._c*self._w)-np.exp(self._c*(self._w-1.0)))/self._c)
 
-        self.c = np.empty((self.num_vars), np.double)
-        self.w = np.empty((self.num_vars), np.double)
-        self.name += '-' + coef_type
+    def _discontinuous_integrate(self):
+        assert self._nvars >= 2
+        idx = min(self._nvars, 2)
+        tmp = np.prod(
+            (np.exp(self._c[:idx]*self._w[:idx])-1)/self._c[:idx])
+        if self._nvars <= 2:
+            return tmp
+        return tmp*np.prod((np.exp(self._c[2:])-1)/self._c[2:])
 
-        if (coef_type == "no-decay"):
-            csum = 0.0
-            for d in range(self.num_vars):
-                self.w[d] = w_factor
-                self.c[d] = (d + 0.5) / self.num_vars
-                csum += self.c[d]
-
-            self.c *= (c_factor / csum)
-        elif (coef_type == "quadratic-decay"):
-            csum = 0.0
-            for d in range(self.num_vars):
-                self.w[d] = w_factor
-                self.c[d] = 1.0 / (d + 1.)**2
-                csum += self.c[d]
-            for d in range(self.num_vars):
-                self.c[d] *= (c_factor / csum)
-        elif (coef_type == "quartic-decay"):
-            csum = 0.0
-            for d in range(self.num_vars):
-                self.w[d] = w_factor
-                self.c[d] = 1.0 / (d + 1.)**4
-                csum += self.c[d]
-            for d in range(self.num_vars):
-                self.c[d] *= (c_factor / csum)
-        elif (coef_type == "squared-exponential-decay"):
-            csum = 0.0
-            self.w[:] = w_factor
-            # equivalent to below
-            self.c[:] = 10**(-15 *
-                             ((np.arange(1, self.num_vars+1)/self.num_vars)**2))
-            # cself.[:] = np.exp(np.arange(1,d+1)**2*np.log(1.e-15)/d**2)
-            csum = self.c.sum()
-            for d in range(self.num_vars):
-                self.c[d] *= (c_factor / csum)
-        elif (coef_type == "exponential-decay"):
-            csum = 0.0
-            for d in range(self.num_vars):
-                self.w[d] = w_factor
-                #self.c[d] = np.exp( (d+1)*np.log( 1.e-15 )/self.num_vars )
-                self.c[d] = np.exp((d+1)*np.log(1.e-8)/self.num_vars)
-                csum += self.c[d]
-            for d in range(self.num_vars):
-                self.c[d] *= (c_factor / csum)
-        elif (coef_type == 'random'):
-            np.random.seed(seed)
-            self.c = np.random.uniform(0., 1., (self.num_vars))
-            csum = np.sum(self.c)
-            self.c *= c_factor/csum
-            #self.w = np.random.uniform( 0.,1.,(self.num_vars))
-            self.w = 0.
-        else:
-            msg = "Ensure coef_type in [\"no-decay\",\"quadratic-decay\""
-            msg += ",\"quartic-decay\", \"squared-exponential-decay,\""
-            msg += ",\"exponential-decay\"]"
-            raise Exception(msg)
-
-    def variance(self):
-        mean = self.integrate()
-        return self.recursive_uncentered_moment(self.num_vars, 0.0, self.num_vars+1)-mean**2
-
-    def recursive_uncentered_moment(self, d, integral_sum, r):
-        if (self.func_type == "corner-peak"):
-            if (d > 0):
-                return (self.recursive_uncentered_moment(
-                    d-1, integral_sum, r) -
-                    self.recursive_uncentered_moment(
-                        d-1, integral_sum + self.c[d-1], r)) / \
-                    ((d+r) * self.c[d-1])
-            else:
-                return 1.0 / (1.0 + integral_sum)**(1+r)
-        else:
-            return 0.
-
-    def integrate(self):
-        return self.recursive_integrate(self.num_vars, 0.0)
-
-    def recursive_integrate(self, d, integral_sum):
-        if (self.func_type == "oscillatory"):
-            if (d > 0):
-                return (self.recursive_integrate(d-1,
-                                                 integral_sum+self.c[d-1])
-                        - self.recursive_integrate(d-1,
-                                                   integral_sum)) /\
-                    self.c[d-1]
-            else:
-                case = self.num_vars % 4
-                if (case == 0):
-                    return np.cos(2.0 * np.pi * self.w[0] + integral_sum)
-                if (case == 1):
-                    return np.sin(2.0 * np.pi * self.w[0] + integral_sum)
-                if (case == 2):
-                    return -np.cos(2.0 * np.pi * self.w[0] + integral_sum)
-                if (case == 3):
-                    return -np.sin(2.0 * np.pi * self.w[0] + integral_sum)
-
-        elif (self.func_type == "product-peak"):
-            prod = 1.0
-            for i in range(self.num_vars):
-                prod = prod * self.c[i] * (np.arctan(self.c[i] *
-                                                     (1.0 - self.w[i])) +
-                                           np.arctan(self.c[i] * self.w[i]))
-            return prod
-        elif (self.func_type == "corner-peak"):
-            if (d > 0):
-                return (self.recursive_integrate(d-1, integral_sum) -
-                        self.recursive_integrate(d-1, integral_sum +
-                                                 self.c[d-1])) / \
-                    (d * self.c[d-1])
-            else:
-                return 1.0 / (1.0 + integral_sum)
-
-        elif (self.func_type == "gaussian-peak"):
-            msg = "GenzModel::recursive_integrate() integration of "
-            msg += "gaussian_peak function  has not been implmemented."
-            raise Exception(msg)
-
-        elif (self.func_type == "continuous"):
-            prod = 1.0
-            for i in range(self.num_vars):
-                prod /= (self.c[i] * (2.0 - np.exp(-self.c[i]*self.w[i]) -
-                                      np.exp(self.c[i]*(self.w[i]-1.0))))
-            return prod
-        elif (self.func_type == "discontinuous"):
-            prod = 1.0
-            if (self.num_vars < 2):
-                for i in range(self.num_vars):
-                    prod *= (np.exp(self.c[i] * self.w[i])-1.0)/self.c[i]
-            else:
-                for i in range(2):
-                    prod *= (np.exp(self.c[i] * self.w[i]) - 1.0)/self.c[i]
-                for i in range(2, self.num_vars):
-                    prod *= (np.exp(self.c[i]) - 1.0) / self.c[i]
-            return prod
-        elif (self.func_type == 'corner-peak-second-order'):
-            self.func_type = 'corner-peak'
-            c = self.c.copy()
-            num_vars = self.num_vars
-            result = 0
-            for d in range(num_vars-1):
-                self.num_vars = 2
-                self.c = c[d:d+2]
-                result += self.recursive_integrate(2, 0.)
-                self.func_type = 'corner-peak-second-order'
-            self.c = c.copy()
-            self.num_vars = num_vars
-            return result
-        else:
-            msg = "GenzModel::recursive_integrate() incorrect f_type_ "
-            msg += "was provided"
-            raise Exception(msg)
+    def integrate(self, name):
+        return self._funs[name][1]()
 
     def __reduce__(self):
-        return (type(self), (self.func_type, self.num_vars, self.c, self.w,
-                             self.name))
-
-
-def oscillatory_genz_pdf(c, w1, values):
-    nvars = c.shape[0]
-    x, w = np.polynomial.legendre.leggauss(100)
-    w *= 0.5
-    x = (x+1)/2  # scale from [-1,1] to [0,1]
-    pdf1 = partial(stats.uniform.pdf, loc=0+2*np.pi*w1, scale=c[0])
-    quad_rules = [[c[ii]*x, w] for ii in range(1, nvars)]
-    conv_pdf = partial(sum_of_independent_random_variables_pdf,
-                       pdf1, [[x, w]]*(nvars-1))
-
-    # samples = np.random.uniform(0,1,(nvars,10000))
-    # Y = np.sum(c[:,np.newaxis]*samples,axis=0)+w1*np.pi*2
-    # plt.hist(Y,bins=100,density=True)
-    # zz = np.linspace(Y.min(),Y.max(),100)
-    # plt.plot(zz,conv_pdf(zz))
-    # plt.show()
-
-    # approximate cos(x)
-    N = 20
-    lb, ub = 2*np.pi*w1, c.sum()+2*np.pi*w1
-    nonzero_coef = [1]+[
-        (-1)**n * (1)**(2*n)/factorial(2*n) for n in range(1, N+1)]
-    coef = np.zeros(2*N+2)
-    coef[::2] = nonzero_coef
-    z_pdf_vals = get_pdf_from_monomial_expansion(
-        coef, lb, ub, conv_pdf, values[:, 0])
-    return z_pdf_vals
+        return (type(self), (self._nvars, self._c, self._w))

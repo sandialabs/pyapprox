@@ -141,7 +141,8 @@ def integrate(method, variable, *args, **kwargs):
 
     if method == "montecarlo":
         nsamples = kwargs["nsamples"]
-        return variable.rvs(nsamples), np.full((nsamples, 1), 1/nsamples)
+        return (variable.rvs(nsamples),
+                np.full((int(nsamples), 1), 1/int(nsamples)))
 
     msg = f"Method: {method} not supported. Choose from {methods}"
     raise NotImplementedError(msg)
