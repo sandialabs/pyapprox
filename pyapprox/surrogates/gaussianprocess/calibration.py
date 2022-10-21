@@ -95,7 +95,7 @@ class GPCalibrationVariable(MCMCVariable):
     def maximum_aposteriori_point(self, init_sample=None):
         if self.MAP is not None:
             return self.MAP
-    
+
         if init_sample is None:
             init_sample = self._variable.get_statistics("mean")
         # fit overwrite gp.kernel_ with gp.kernel so set length_bounds
@@ -111,8 +111,8 @@ class GPCalibrationVariable(MCMCVariable):
         init_guess = np.hstack((init_hyperparams, init_sample[:, 0]))
         sample_bounds = self._variable.get_statistics("interval", alpha=1)
         bounds = np.vstack((np.exp(hyperparams_bounds), sample_bounds))
-        fd_eps = 2*np.sqrt(np.finfo(float).eps)
-        fd_eps = 1e-7
+        # fd_eps = 2*np.sqrt(np.finfo(float).eps)
+        # fd_eps = 1e-7
         # USE powell because do not want to use finite difference gradients
         # which are very sensitive to finite difference size
         # TODO compute gradient analytically

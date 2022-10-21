@@ -130,11 +130,6 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
                 lambda s: self.physics._raw_residual(s)[0], fwd_sol,
                 strict=True)
             fwd_sol.requires_grad_(False)
-        adj_bndry_conds = copy.deepcopy(self._fwd_solver.physics._bndry_conds)
-        # for bndry_cond in adj_bndry_conds:
-        #     # for now only support dirichlet boundary conds
-        #     assert bndry_cond[1] == "D"
-        #     bndry_cond[0] = lambda xx: np.zeros((xx.shape[1], 1))
         fwd_sol_copy = torch.clone(fwd_sol)
         param_vals_copy = torch.clone(param_vals)
         if self._dqdu is None:
@@ -191,7 +186,7 @@ class SteadyStateAdjointPDE(SteadyStatePDE):
             dRdp = self._dRdp(
                 self._fwd_solver.physics, fwd_sol_copy, param_vals)
         # print("dqdp", dqdp)
-        # print(dRdp[:, 0], 'dRdp')
+        # print(dRdp, 'dRdp')
         # print(adj_sol, 'asol')
         # print(fwd_sol, 'fsol')
         grad = dqdp+torch.linalg.multi_dot((adj_sol[None, :], dRdp))
