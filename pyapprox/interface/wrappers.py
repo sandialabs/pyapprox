@@ -18,7 +18,7 @@ from pyapprox.variables.transforms import ConfigureVariableTransformation
 
 
 def evaluate_1darray_function_on_2d_array(
-        function, samples, statusbar=False, jac=False):
+        function, samples, statusbar=False, return_grad=False):
     """
     Evaluate a function at a set of samples using a function that only takes
     one sample at a time
@@ -41,28 +41,29 @@ def evaluate_1darray_function_on_2d_array(
         True - print status bar showing progress to stdout
         False - do not print
 
-    jac : boolean
+    return_grad : boolean
         True - values and return gradient
         False - return just gradient
-        If function does not accept the jac kwarg an exception wil be raised
+        If function does not accept the return_grad kwarg an exception will
+         be raised
 
     Returns
     -------
     values : np.ndarray (num_samples, num_qoi)
         The value of each requested QoI of the model for each sample
     """
-    has_jac = has_kwarg(function, "jac")
-    if jac and not has_jac:
-        msg = "jac set to true but function does not return jac"
+    has_return_grad = has_kwarg(function, "return_grad")
+    if return_grad and not has_return_grad:
+        msg = "return_grad set to true but function does not return grad"
         raise ValueError(msg)
 
     assert samples.ndim == 2
     num_samples = samples.shape[1]
     grads = []
-    if not has_jac or jac is False:
+    if not has_return_grad or return_grad is False:
         values_0 = function(samples[:, 0])
     else:
-        values_0, grad_0 = function(samples[:, 0], jac=jac)
+        values_0, grad_0 = function(samples[:, 0], return_grad=return_grad)
         assert grad_0.ndim == 1
         grads.append(grad_0)
     values_0 = np.atleast_1d(values_0)
@@ -74,15 +75,15 @@ def evaluate_1darray_function_on_2d_array(
         pbar = tqdm(total=num_samples)
         pbar.update(1)
     for ii in range(1, num_samples):
-        if not has_jac or jac is False:
+        if not has_return_grad or return_grad is False:
             values[ii, :] = function(samples[:, ii])
         else:
-            val_ii, grad_ii = function(samples[:, ii], jac=jac)
+            val_ii, grad_ii = function(samples[:, ii], return_grad=return_grad)
             values[ii, :] = val_ii
             grads.append(grad_ii)
         if statusbar:
             pbar.update(1)
-    if not jac:
+    if not return_grad:
         return values
     if num_qoi == 1:
         return values, np.vstack(grads)
@@ -266,7 +267,7 @@ class DataFunctionModel(object):
         # ran samples
         self.num_evaluations_ran = self.samples.shape[1]
 
-    def _batch_call(self, samples, jac):
+    def _batch_call(self, samples, return_grad):
         assert self.save_frequency > 0
         num_batch_samples = self.save_frequency
         lb = 0
@@ -276,11 +277,11 @@ class DataFunctionModel(object):
             ub = min(lb+num_batch_samples, samples.shape[1])
             num_evaluations_ran = self.num_evaluations_ran
             batch_vals, batch_grads, new_sample_indices = self._call(
-                samples[:, lb:ub], jac)
+                samples[:, lb:ub], return_grad)
             data_filename = self.data_basename+'-%d-%d.pkl' % (
                 num_evaluations_ran,
                 num_evaluations_ran+len(new_sample_indices)-1)
-            if jac:
+            if return_grad:
                 grads_4_save = [batch_grads[ii] for ii in new_sample_indices]
             else:
                 grads_4_save = [None for ii in new_sample_indices]
@@ -300,14 +301,14 @@ class DataFunctionModel(object):
                 vals = np.vstack((vals, batch_vals))
                 grads += copy.deepcopy(batch_grads)
             lb = ub
-        if not jac:
+        if not return_grad:
             return vals
         return vals, grads
 
-    def _call(self, samples, jac):
-        has_jac = has_kwarg(self.function, "jac")
-        if jac and not has_jac:
-            msg = "jac set to true but function does not return jac"
+    def _call(self, samples, return_grad):
+        has_return_grad = has_kwarg(self.function, "return_grad")
+        if return_grad and not has_return_grad:
+            msg = "return_grad set to true but function does not return return_grad"
             raise ValueError(msg)
 
         evaluated_sample_indices = []
@@ -334,12 +335,13 @@ class DataFunctionModel(object):
         evaluated_sample_indices = np.asarray(evaluated_sample_indices)
         if len(new_sample_indices) > 0:
             new_samples = samples[:, new_sample_indices]
-            if not has_jac or not jac:
+            if not has_return_grad or not return_grad:
                 new_values = self.function(new_samples)
                 num_qoi = new_values.shape[1]
                 new_grads = None
             else:
-                new_values, new_grads = self.function(new_samples, jac=jac)
+                new_values, new_grads = self.function(
+                    new_samples, return_grad=return_grad)
                 num_qoi = new_values.shape[1]
 
         else:
@@ -352,7 +354,7 @@ class DataFunctionModel(object):
             new_grads_list = [None for ii in range(len(new_sample_indices))]
             if new_grads is not None:
                 for ii in range(len(new_sample_indices)):
-                    # TODO need to make sure fun(sampels, jac)=True
+                    # TODO need to make sure fun(sampels, return_grad)=True
                     # can return list of grads for each sample
                     # or a 2d array if nqoi=1
                     new_grads_list[ii] = np.atleast_2d(new_grads[ii]).copy()
@@ -363,7 +365,7 @@ class DataFunctionModel(object):
         if len(new_sample_indices) < samples.shape[1]:
             values[evaluated_sample_indices[:, 0]] = \
                 self.values[evaluated_sample_indices[:, 1], :]
-            if has_jac:
+            if has_return_grad:
                 for ii in range(evaluated_sample_indices.shape[0]):
                     grads[evaluated_sample_indices[ii, 0]] = copy.deepcopy(
                         self.grads[
@@ -373,14 +375,14 @@ class DataFunctionModel(object):
                 jj = 0
                 self.samples = samples
                 self.values = values
-                if has_jac:
+                if has_return_grad:
                     self.grads = copy.deepcopy(grads)
             else:
                 jj = self.samples.shape[0]
                 self.samples = np.hstack(
                     (self.samples, samples[:, new_sample_indices]))
                 self.values = np.vstack((self.values, new_values))
-                if has_jac:
+                if has_return_grad:
                     self.grads += copy.deepcopy(new_grads)
 
             for ii in range(len(new_sample_indices)):
@@ -401,19 +403,20 @@ class DataFunctionModel(object):
         for g in grads:
             if g is None:
                 # TODO remove exception and rerun samples to get grads
-                msg = "jac=True but previous samples evaluated did not have grads"
+                msg = "return_grad=True but previous samples evaluated did "
+                msg += "not have grads"
                 raise ValueError(msg)
 
-    def __call__(self, samples, jac=False):
+    def __call__(self, samples, return_grad=False):
         if self.save_frequency is not None and self.save_frequency > 0:
-            out = self._batch_call(samples, jac)
-            if not jac:
+            out = self._batch_call(samples, return_grad)
+            if not return_grad:
                 return out
             self._grads_valid(out[1])
             return out
 
-        values, grads = self._call(samples, jac)[:-1]
-        if jac:
+        values, grads = self._call(samples, return_grad)[:-1]
+        if return_grad:
             self._grads_valid(grads)
             return values, grads
         return values
@@ -453,42 +456,42 @@ def run_model_samples_in_parallel(model, max_eval_concurrency, samples,
     if type(result[0]) == tuple:
         assert len(result[0]) == 2
         num_qoi = result[0][0].shape[1]
-        jac = True
-        jacs = []
+        return_grad = True
+        return_grads = []
     else:
         num_qoi = result[0].shape[1]
-        jac = False
+        return_grad = False
     values = np.empty((num_samples, num_qoi))
     for ii in range(len(result)):
-        if not jac:
+        if not return_grad:
             values[ii, :] = result[ii][0, :]
         else:
             values[ii, :] = result[ii][0][0, :]
             if type(result[ii][1]) == list:
-                jacs += result[ii][1]
+                return_grads += result[ii][1]
             else:
-                jacs += [result[ii][1]]
-    if not jac:
+                return_grads += [result[ii][1]]
+    if not return_grad:
         return values
-    return values, jacs
+    return values, return_grads
 
 
-def time_function_evaluations(function, samples, jac=False):
-    has_jac = has_kwarg(function, "jac")
-    if jac and not has_jac:
-        msg = "jac set to true but function does not return jac"
+def time_function_evaluations(function, samples, return_grad=False):
+    has_return_grad = has_kwarg(function, "return_grad")
+    if return_grad and not has_return_grad:
+        msg = "return_grad set to true but function does not return grad"
         raise ValueError(msg)
 
     vals = []
     grads = []
     times = []
-    has_jac = has_kwarg(function, "jac")
+    has_return_grad = has_kwarg(function, "return_grad")
     for ii in range(samples.shape[1]):
         t0 = time.time()
-        if not has_jac or not jac:
+        if not has_return_grad or not return_grad:
             val = function(samples[:, ii:ii+1])[0, :]
         else:
-            out = function(samples[:, ii:ii+1], jac=jac)
+            out = function(samples[:, ii:ii+1], return_grad=return_grad)
             val = out[0][0, :]
             grads.append(out[1])
         t1 = time.time()
@@ -560,9 +563,9 @@ class TimerModel(object):
     #     raise AttributeError(
     #         f" {self} or its member {self}.function has no attribute '{name}'")
 
-    def __call__(self, samples, jac=False):
+    def __call__(self, samples, return_grad=False):
         return time_function_evaluations(
-            self.function_to_time, samples, jac=jac)
+            self.function_to_time, samples, return_grad=return_grad)
 
 
 class WorkTracker(object):
@@ -682,7 +685,7 @@ class WorkTrackingModel(object):
         self.base_model = base_model
         self.num_config_vars = num_config_vars
 
-    def __call__(self, samples, jac=False):
+    def __call__(self, samples, return_grad=False):
         """
         Evaluate self.function
 
@@ -699,15 +702,15 @@ class WorkTrackingModel(object):
             is the cost of the simulation. This column is not included in
             values.
         """
-        has_jac = has_kwarg(self.wt_function, "jac")
-        if jac and not has_jac:
-            msg = "jac set to true but function does not return jac"
+        has_return_grad = has_kwarg(self.wt_function, "return_grad")
+        if return_grad and not has_return_grad:
+            msg = "return_grad set to true but function does not return grad"
             raise ValueError(msg)
 
-        if not has_jac or not jac:
+        if not has_return_grad or not return_grad:
             data = self.wt_function(samples)
         else:
-            data, grads = self.wt_function(samples, jac=jac)
+            data, grads = self.wt_function(samples, return_grad=return_grad)
         values = data[:, :-1]
         work = data[:, -1]
         if self.num_config_vars > 0:
@@ -715,7 +718,7 @@ class WorkTrackingModel(object):
         else:
             config_samples = np.zeros((1, samples.shape[1]))
         self.work_tracker.update(config_samples, work)
-        if not jac:
+        if not return_grad:
             return values
         return values, grads
 
@@ -805,7 +808,7 @@ class PoolModel(object):
         """
         self.max_eval_concurrency = max_eval_concurrency
 
-    def __call__(self, samples, verbose=False, jac=False):
+    def __call__(self, samples, verbose=False, return_grad=False):
         """
         Evaluate a function at multiple samples in parallel using
         multiprocessing.Pool
@@ -815,15 +818,15 @@ class PoolModel(object):
         samples : np.ndarray (nvars,nsamples)
             Samples used to evaluate self.function
         """
-        has_jac = has_kwarg(self.pool_function, "jac")
-        if jac and not has_jac:
-            msg = "jac set to true but function does not return jac"
+        has_return_grad = has_kwarg(self.pool_function, "return_grad")
+        if return_grad and not has_return_grad:
+            msg = "return_grad set to true but function does not return grad"
             raise ValueError(msg)
 
-        if not has_jac or not jac:
+        if not has_return_grad or not return_grad:
             fun = self.pool_function
         else:
-            fun = partial(self.pool_function, jac=jac)
+            fun = partial(self.pool_function, return_grad=return_grad)
 
         t0 = time.time()
         vals = run_model_samples_in_parallel(
@@ -869,10 +872,10 @@ class ActiveSetVariableModel(object):
         self.inactive_var_indices = np.delete(
             np.arange(self.num_vars), active_var_indices)
 
-    def __call__(self, reduced_samples, jac=False):
-        has_jac = has_kwarg(self.function, "jac")
-        if jac and not has_jac:
-            msg = "jac set to true but function does not return jac"
+    def __call__(self, reduced_samples, return_grad=False):
+        has_return_grad = has_kwarg(self.function, "return_grad")
+        if return_grad and not has_return_grad:
+            msg = "return_grad set to true but function does not return grad"
             raise ValueError(msg)
 
         raw_samples = get_all_sample_combinations(
@@ -882,9 +885,9 @@ class ActiveSetVariableModel(object):
                 :] = raw_samples[:self.inactive_var_indices.shape[0]]
         samples[self.active_var_indices,
                 :] = raw_samples[self.inactive_var_indices.shape[0]:]
-        if not has_jac:
+        if not has_return_grad:
             return self.function(samples)
-        return self.function(samples, jac)
+        return self.function(samples, return_grad)
 
     def num_active_vars(self):
         return len(self.inactive_var_indices)

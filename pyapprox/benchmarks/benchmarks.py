@@ -375,9 +375,9 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
                         coeff=None):
     r"""
     Setup one of the six Genz integration benchmarks
-    :math:`f_i(x):\mathbb{R}^D\to\mathbb{R}`,
+    :math:`f_d(x):\mathbb{R}^D\to\mathbb{R}`,
     where :math:`x=[x_1,\ldots,x_D]^\top`.
-    The number of inputs $D$ and the anisotropy (relative importance of
+    The number of inputs :math:`D` and the anisotropy (relative importance of
     each variable and interactions) of the functions can be adjusted.
     The definition of each function is in the Notes section.
 
@@ -410,7 +410,7 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
     c_factor : float `c_factor>0`
         Scale the integrand.
 
-    coeff : tuple (ndarray (nvars), ndarray (nvars))
+    coeff : tuple (ndarray (nvars, 1), ndarray (nvars, 1))
         The coefficients :math:`c_d` and :math:`w_d`
         If provided it will overwite the coefficients defined by
         `coeff_type`, `w` and `c_factor`

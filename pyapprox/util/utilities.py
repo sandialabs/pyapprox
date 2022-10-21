@@ -1,4 +1,3 @@
-from functools import partial
 import inspect
 from warnings import warn
 
@@ -13,6 +12,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.util.pya_numba import njit
 from pyapprox.util.sys_utilities import hash_array
+from pyapprox.util.sys_utilities import has_kwarg
 
 
 def sub2ind(sizes, multi_index):
@@ -917,6 +917,7 @@ def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps)):
 
 def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
     function_val, directional_derivative = fun(zz, direction)
+    function_val = function_val.squeeze()
 
     if fd_eps is None:
         fd_eps = np.logspace(-13, 0, 14)[::-1]
@@ -937,13 +938,10 @@ def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
         zz_perturbed = zz.copy()+fd_eps[ii]*direction
         # perturbed_function_val = fun(zz_perturbed)
         # add jac=False so that exact gradient is not always computed
-        if "jac" in inspect.getfullargspec(fun).args:
-            perturbed_function_val = fun(zz_perturbed, jac=False)
-        else:
-            perturbed_function_val = fun(zz_perturbed)
+        perturbed_function_val = fun(zz_perturbed, direction=None)
         if type(perturbed_function_val) == np.ndarray:
             perturbed_function_val = perturbed_function_val.squeeze()
-        print(inspect.getfullargspec(fun).args)
+        # print(inspect.getfullargspec(fun).args)
         print(perturbed_function_val.shape, function_val.shape, fd_eps[ii])
         fd_directional_derivative = (
             perturbed_function_val-function_val).squeeze()/fd_eps[ii]
@@ -969,28 +967,50 @@ def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
     return np.asarray(errors)
 
 
-def _wrap_function_with_gradient(fun, jac):
-    if jac is not None and not callable(jac) and jac != "jacp":
-        raise ValueError("jac must be callable, 'jacp', or None")
+def _wrap_function_with_gradient(fun, return_grad):
+    if ((return_grad is not None) and not callable(return_grad) and
+            (return_grad != "return_gradp") and (return_grad != True)):
+        raise ValueError("return_grad must be callable, 'jacp', or None")
 
-    if jac is not None and jac != "jacp":
+    if callable(return_grad):
         def fun_wrapper(x, direction=None):
             if direction is None:
                 return fun(x)
-            return fun(x), jac(x).dot(direction)
+            return fun(x), return_grad(x).dot(direction)
         return fun_wrapper
 
-    if jac == "jacp":
+    if return_grad == True and has_kwarg(fun, "return_grad"):
+        # this is PyApprox's preferred convention
         def fun_wrapper(x, direction=None):
             if direction is None:
-                return fun(x, jac=False)
-            val, grad = fun(x, jac=True)
-            return fun(x), jac(x).dot(direction)
+                val = fun(x, return_grad=False)
+                print(val)
+                return val
+            vals, grad = fun(x, return_grad=True)
+            return vals, grad.dot(direction)
+        return fun_wrapper
+
+    if return_grad == True:
+        def fun_wrapper(x, direction=None):
+            if direction is None:
+                return fun(x)[0]
+            vals, grad = fun(x)
+            return vals, grad.dot(direction)
+        return fun_wrapper
+
+    if return_grad == "jacp":
+        assert has_kwarg(fun, "return_grad")
+        # this is PyApprox's other preferred convention
+        def fun_wrapper(x, direction=None):
+            if direction is None:
+                return fun(x, return_grad=False)
+            val, grad = fun(x, return_grad=True)
+            return fun(x), grad.dot(direction)
         return fun_wrapper
     return fun
 
 
-def check_gradients(fun, zz, jac=None, plot=False, disp=True, rel=True,
+def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
                     direction=None, fd_eps=None):
     """
     Compare a user specified jacobian with the jacobian computed with finite

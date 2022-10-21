@@ -31,23 +31,28 @@ class TestPDEBenchmarks(unittest.TestCase):
         #     inv_model.base_model._adj_solver._dqdu, ignore_constants=True)
 
         # TODO add std to params list
-        init_guess = true_params + np.random.normal(0, 0.01, true_params.shape)
+        init_guess = true_params# + np.random.normal(0, 0.01, true_params.shape)
+
+        from pyapprox.util.utilities import approx_fprime
+        print(approx_fprime(init_guess, inv_model), 'fd')
+        print(inv_model(init_guess, return_grad=True), 'g')
+        assert False
+        
         # init_guess = variable.rvs(1)
         errors = check_gradients(
-            partial(inv_model, jac=True),
-            True, init_guess, plot=False,
+            inv_model, True, init_guess, plot=False,
             fd_eps=3*np.logspace(-12, 1, 14)[::-1])
-        # print(np.log10(errors[0]/errors.min()))
+        print(errors[0]/errors.min())
         assert np.log10(errors[0]/errors.min()) > 5.3
 
         def scipy_obj(sample):
-            vals, grad = inv_model(sample[:, None], jac=jac)
+            vals, grad = inv_model(sample[:, None], return_grad=return_grad)
             return vals[:, 0], grad[0, :]
 
-        jac = True
+        return_grad = True
         opt_result = pyapprox_minimize(
             scipy_obj, init_guess,
-            method="trust-constr", jac=jac,
+            method="trust-constr", jac=return_grad,
             options={"verbose": 2, "gtol": 1e-7, "xtol": 1e-16})
         # print(opt_result.x)
         # print(true_params.T)

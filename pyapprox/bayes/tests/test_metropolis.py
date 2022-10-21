@@ -15,14 +15,14 @@ from pyapprox.util.utilities import (
 from pyapprox.surrogates.orthopoly.quadrature import gauss_hermite_pts_wts_1D
 
 
-def _loglike_fun_linear_model(Amatrix, obs, noise_stdev, x, jac=False):
+def _loglike_fun_linear_model(Amatrix, obs, noise_stdev, x, return_grad=False):
     nobs = Amatrix.shape[0]
     if x.ndim == 1:
         x = x[:, None]
     residual = (Amatrix.dot(x)-obs)
     llike = -(nobs*np.log(np.pi)/2+nobs/2*np.log(noise_stdev**2) +
               1/(2*noise_stdev**2)*np.sum(residual**2))
-    if not jac:
+    if not return_grad:
         return llike
     llike_grad = -1/(noise_stdev**2)*residual.T.dot(Amatrix)
     return llike, llike_grad

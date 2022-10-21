@@ -62,7 +62,7 @@ class TestNeuralNetwork(unittest.TestCase):
         zz = parameters[:, None]
 
         errors = check_gradients(fun, jac, zz, plot=False, disp=disp, rel=True,
-                                 direction=None, jacp=None)
+                                 direction=None)
         # make sure gradient changes by six orders of magnitude
         assert np.log10(errors.max())-np.log10(errors.min()) > 6
 
@@ -99,7 +99,7 @@ class TestNeuralNetwork(unittest.TestCase):
             return network.forward_propagate(x, parameters).T
 
         errors = check_gradients(fun, jac, x0, plot=False, disp=disp, rel=True,
-                                 direction=None, jacp=None)
+                                 direction=None)
         # print(np.log10(errors.max())-np.log10(errors.min()))
         assert np.log10(errors.max())-np.log10(errors.min()) > 5.7  # 6
 

@@ -12,6 +12,7 @@ from pyapprox.bayes.markov_chain_monte_carlo import (
     GaussianLogLike, PYMC3LogLikeWrapper,
     run_bayesian_inference_gaussian_error_model, MCMCVariable)
 
+
 class LinearModel(object):
     def __init__(self, Amatrix):
         """
@@ -55,6 +56,9 @@ class ExponentialQuarticLogLikelihoodModel(object):
 
 class TestMCMC(unittest.TestCase):
 
+    def _linear_model_grad(self, Amatrix, p):
+        return Amatrix
+
     def test_linear_gaussian_inference(self):
         # set random seed, so the data is reproducible each time
         np.random.seed(1)
@@ -76,7 +80,8 @@ class TestMCMC(unittest.TestCase):
         # make data
         data = noise_stdev*np.random.randn(nobs)+model(true_sample)[0, :]
 
-        jac, model_grad = True, lambda p: Amatrix
+        from functools import partial
+        jac, model_grad = True, partial(self._linear_model_grad, Amatrix)
 
         loglike = GaussianLogLike(model, data, noise_stdev**2, model_grad)
         loglike = PYMC3LogLikeWrapper(loglike, jac)

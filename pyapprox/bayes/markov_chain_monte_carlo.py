@@ -64,7 +64,7 @@ class GaussianLogLike(object):
     #         determinant = np.linalg.det(noise_covar)
     #     return determinant
 
-    def __call__(self, samples, jac=False):
+    def __call__(self, samples, return_grad=False):
         nsamples = samples.shape[1]
         model_vals = self.model(samples)
         assert model_vals.ndim == 2
@@ -85,11 +85,11 @@ class GaussianLogLike(object):
         vals *= -0.5
 
         vals = np.atleast_2d(vals)
-        if not jac:
+        if not return_grad:
             return vals
 
         if nsamples != 1:
-            raise ValueError("nsamples must be 1 when jac is True")
+            raise ValueError("nsamples must be 1 when return_grad is True")
         if self.model_jac is None:
             raise ValueError("model_jac is none but gradient requested")
         grad = tmp.dot(self.model_jac(samples))
@@ -188,7 +188,7 @@ class LogLikeGrad(tt.Op):
             if samples.ndim == 1:
                 samples = samples[:, None]
             if self.likelihood_grad == True:
-                grads = self.likelihood(samples, jac=True)[1]
+                grads = self.likelihood(samples, return_grad=True)[1]
             else:
                 grads = self.likelihood_grad(samples)
             if grads.ndim == 2:
@@ -536,7 +536,8 @@ def run_bayesian_inference_gaussian_error_model(
                 msg = f"Algorithm {algorithm} not supported"
                 raise ValueError(msg)
 
-            if pm.__version__[0] == 3:
+            print(pm.__version__)
+            if True: #pm.__version__[0] == 2:
                 trace = pm.sample(
                     nsamples, tune=nburn, discard_tuned_samples=True,
                     cores=njobs, step=step,
@@ -574,16 +575,16 @@ class PYMC3LogLikeWrapper():
         self.loglike = loglike
         self.loglike_grad = loglike_grad
 
-    def __call__(self, x, jac=False):
+    def __call__(self, x, return_grad=False):
         if x.ndim == 1:
             xr = x[:, np.newaxis]
         else:
             xr = x
-        if jac is False:
+        if return_grad is False:
             vals = self.loglike(xr)
             return vals.squeeze()
         if self.loglike_grad == True:
-            return self.loglike(xr, jac=True)
+            return self.loglike(xr, return_grad=True)
         return self.loglike(xr).squeeze(), self.gradient(xr)
 
     def gradient(self, x):
@@ -597,8 +598,8 @@ class PYMC3LogLikeWrapper():
         return self.loglike_grad(xr).squeeze()
 
 
-def loglike_from_negloglike(negloglike, samples, jac=False):
-    if not jac:
+def loglike_from_negloglike(negloglike, samples, return_grad=False):
+    if not return_grad:
         return -negloglike(samples)
-    vals, grads = negloglike(samples, jac=jac)
+    vals, grads = negloglike(samples, return_grad=return_grad)
     return -vals, -grads
