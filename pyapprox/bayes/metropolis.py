@@ -310,8 +310,8 @@ class MetropolisMCMCVariable(JointVariable):
 
         if "return_grad" in inspect.getfullargspec(self._loglike).args:
             def obj(x):
-                vals, return_grad = self._log_bayes_numerator(x[:, None], True)
-                return -vals, -return_grad[0, :]
+                vals, grad = self._log_bayes_numerator(x[:, None], True)
+                return -vals, -grad[0, :]
             return_grad = True
 
         assert init_guess.ndim == 2 and init_guess.shape[1] == 1

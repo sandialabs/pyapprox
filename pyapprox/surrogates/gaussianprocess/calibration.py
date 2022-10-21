@@ -148,18 +148,18 @@ class GPCalibrationVariable(MCMCVariable):
             self.gp.kernel_.theta, clone_kernel=False)
         return val
 
-    def _loglike_sample_with_grad(self, sample, jac):
+    def _loglike_sample_with_grad(self, sample, return_grad):
         val = self._loglike_sample(sample)
-        if not jac:
+        if not return_grad:
             return val
         # Warning map point is very sensitive to finite difference
         # step size. TODO compute gradients analytically
         grad = approx_fprime(sample, self._loglike_sample, 1e-8)
         return val, grad
 
-    def loglike_calibration_params(self, sample, jac=False):
+    def loglike_calibration_params(self, sample, return_grad=False):
         assert sample.ndim == 2 and sample.shape[1] == 1
-        return self._loglike_sample_with_grad(sample[:, 0], jac)
+        return self._loglike_sample_with_grad(sample[:, 0], return_grad)
 
     def negloglike_calibration_and_hyperparams(self, zz):
         assert zz.ndim == 2 and zz.shape[1] == 1

@@ -46,11 +46,11 @@ class TestL1Minimization(unittest.TestCase):
         true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]] = 1.
         vals = basis_matrix.dot(true_coef)
 
-        def objective(x, return_jac=True):
+        def objective(x, return_grad=True):
             residual = basis_matrix.dot(x)-vals
             obj = 0.5*residual.T.dot(residual)[0, 0]
             jac = basis_matrix.T.dot(residual).T
-            if return_jac:
+            if return_grad:
                 return obj, jac
             return obj
 
@@ -67,7 +67,7 @@ class TestL1Minimization(unittest.TestCase):
         assert errors.min() < 2e-7
 
         method = 'trust-constr'
-        func = partial(objective, return_jac=True)
+        func = partial(objective, return_grad=True)
         jac = True
         hess = hessian
         options = {'gtol': tol, 'verbose': 0,

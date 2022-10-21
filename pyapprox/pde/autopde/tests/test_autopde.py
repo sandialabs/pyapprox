@@ -365,9 +365,9 @@ class TestAutoPDE(unittest.TestCase):
 
         from pyapprox.util.utilities import (
             approx_fprime, approx_jacobian, check_gradients)
-        def fun(params, jac=True):
+        def fun(params, return_grad=True):
             # newton tol must be smaller than finite difference step size
-            if jac is False:
+            if return_grad is False:
                 qoi = adj_solver.compute_qoi(
                     init_sol, 0, final_time, set_param_values,
                     torch.as_tensor(params[:, 0]))[2]
@@ -381,7 +381,7 @@ class TestAutoPDE(unittest.TestCase):
         #     init_sol, 0, final_time,
         #     set_param_values, param_vals, tol=1e-12)
         # fd_grad = approx_fprime(
-        #     param_vals.detach().numpy()[:, None], partial(fun, jac=False),
+        #     param_vals.detach().numpy()[:, None], partial(fun, return_grad=False),
         #     eps=1e-6)
         # print(fd_grad.T, 'fd')
         # print(grad, 'g')

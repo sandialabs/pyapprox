@@ -576,7 +576,7 @@ class TestSparseGrid(unittest.TestCase):
         approx_values, grads = evaluate_sparse_grid(
             validation_samples, values, poly_indices_dict,
             subspace_indices, subspace_poly_indices, smolyak_coefficients,
-            samples_1d, subspace_values_indices, jac=True)
+            samples_1d, subspace_values_indices, return_grad=True)
 
         assert np.allclose(approx_values, validation_values)
 

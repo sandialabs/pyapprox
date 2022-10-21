@@ -19,6 +19,7 @@ dependencies:
   - pytorch
   - pymc3 # requires conda-forge
   - tqdm
+  - numba
   # make html in docs folder
   - sphinx
 #  - sphinx-gallery # requires conda-forge

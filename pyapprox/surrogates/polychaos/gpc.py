@@ -408,9 +408,9 @@ class PolynomialChaosExpansion(object):
     def num_vars(self):
         return self.var_trans.num_vars()
 
-    def __call__(self, samples, jac=False):
+    def __call__(self, samples, return_grad=False):
         vals = self.value(samples)
-        if not jac:
+        if not return_grad:
             return vals
         jacs = [self.jacobian(sample[:, None]) for sample in samples.T]
         if samples.shape[1] == 1:

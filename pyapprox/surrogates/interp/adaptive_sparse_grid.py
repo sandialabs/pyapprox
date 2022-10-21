@@ -1354,7 +1354,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         return get_sparse_grid_samples(
             unique_poly_indices, self.samples_1d, self.config_variables_idx)
 
-    def __call__(self, samples, jac=False):
+    def __call__(self, samples, return_grad=False):
         """
         config values are ignored. The sparse grid just returns its best
         approximation of the highest fidelity model. TODO: consider enforcing
@@ -1374,8 +1374,9 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
             self.subspace_poly_indices_list,
             self.smolyak_coefficients, self.samples_1d,
             self.subspace_values_indices_list,
-            self.config_variables_idx, jac=jac, basis_type=self.basis_type)
-        if not jac:
+            self.config_variables_idx, return_grad=return_grad,
+            basis_type=self.basis_type)
+        if not return_grad:
             return result
         vals, jacs = result
         if samples.shape[1] == 1:

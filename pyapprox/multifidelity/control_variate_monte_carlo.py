@@ -1275,16 +1275,17 @@ def generate_samples_and_values_mfmc(nsamples_per_model, functions,
     return samples, values
 
 
-def acv_sample_allocation_objective_all(estimator, target_cost, x, jac=False):
+def acv_sample_allocation_objective_all(
+        estimator, target_cost, x, return_grad=False):
     if use_torch:
         ratios = torch.tensor(x, dtype=pkg.double)
-        if jac:
+        if return_grad:
             ratios.requires_grad = True
     else:
         ratios = x
     variance = estimator._get_variance_for_optimizer(target_cost, ratios)
     log_10_var = pkg.log10(variance)
-    if not jac:
+    if not return_grad:
         if use_torch:
             return log_10_var.item()
         return log_10_var
@@ -1388,9 +1389,9 @@ def solve_allocate_samples_acv_slsqp_optimization(
     # r >= 1+1/nhf
     # smallest lower bound whenn nhf = max_nhf
 
-    jac = False
+    return_grad = False
     if use_torch:
-        jac = True
+        return_grad = True
     method = "SLSQP"
     # method = "trust-constr"
     # print(optim_options)
@@ -1399,8 +1400,8 @@ def solve_allocate_samples_acv_slsqp_optimization(
     # optim_options["maxiter"] = 10000
     # optim_options["gtol"] = 1e-6
     opt = minimize(
-        partial(estimator.objective, target_cost, jac=jac),
-        initial_guess, method=method, jac=jac,
+        partial(estimator.objective, target_cost, return_grad=return_grad),
+        initial_guess, method=method, jac=return_grad,
         bounds=bounds, constraints=cons, options=optim_options)
     return opt
 

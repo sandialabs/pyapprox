@@ -942,7 +942,7 @@ def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
         if type(perturbed_function_val) == np.ndarray:
             perturbed_function_val = perturbed_function_val.squeeze()
         # print(inspect.getfullargspec(fun).args)
-        print(perturbed_function_val.shape, function_val.shape, fd_eps[ii])
+        # print(perturbed_function_val.shape, function_val.shape, fd_eps[ii])
         fd_directional_derivative = (
             perturbed_function_val-function_val).squeeze()/fd_eps[ii]
         errors.append(np.linalg.norm(
@@ -984,7 +984,6 @@ def _wrap_function_with_gradient(fun, return_grad):
         def fun_wrapper(x, direction=None):
             if direction is None:
                 val = fun(x, return_grad=False)
-                print(val)
                 return val
             vals, grad = fun(x, return_grad=True)
             return vals, grad.dot(direction)
