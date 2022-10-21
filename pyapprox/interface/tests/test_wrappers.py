@@ -16,10 +16,10 @@ def function(x):
     return np.sum(x, axis=0)[:, np.newaxis]
 
 
-def function_with_jac(x, jac=False):
+def function_with_jac(x, return_grad=False):
     vals = np.sum(x**2, axis=0)[:, np.newaxis]
     grads = 2*x.T
-    if jac:
+    if return_grad:
         return vals, grads
     return vals
 
@@ -33,18 +33,19 @@ class TestModelwrappers(unittest.TestCase):
         num_vars, num_samples = 3, 10
         samples = np.random.uniform(0., 1., (num_vars, num_samples))
 
-        def fun(sample, jac=False):
+        def fun(sample, return_grad=False):
             assert sample.ndim == 1
-            if not jac:
-                return function_with_jac(sample[:, None], jac)[:, 0]
-            val, grad = function_with_jac(sample[:, None], jac)
+            if not return_grad:
+                return function_with_jac(sample[:, None], return_grad)[:, 0]
+            val, grad = function_with_jac(sample[:, None], return_grad)
             return val[:, 0], grad[0, :]
 
-        exact_values, exact_grads = function_with_jac(samples, jac=True)
+        exact_values, exact_grads = function_with_jac(
+            samples, return_grad=True)
         values = evaluate_1darray_function_on_2d_array(fun, samples)
         assert np.allclose(values, exact_values)
         values, grads = evaluate_1darray_function_on_2d_array(
-            fun, samples, jac=True)
+            fun, samples, return_grad=True)
         assert np.allclose(values, exact_values)
         assert np.allclose(grads, exact_grads)
 
@@ -85,8 +86,8 @@ class TestModelwrappers(unittest.TestCase):
         model = ActiveSetVariableModel(
             function_with_jac, num_vars, nominal_var_values,
             active_var_indices)
-        values, grads = model(reduced_samples, jac=True)
-        exact_values, exact_grads = function_with_jac(samples, jac=True)
+        values, grads = model(reduced_samples, return_grad=True)
+        exact_values, exact_grads = function_with_jac(samples, return_grad=True)
         assert np.allclose(values, exact_values)
         assert np.allclose(grads, exact_grads)
 
@@ -103,9 +104,10 @@ class TestModelwrappers(unittest.TestCase):
 
         samples = np.random.normal(0, 1, (nvars, nsamples))
         values = model(samples)
-        exact_values, exact_grads = function_with_jac(samples, jac=True)
+        exact_values, exact_grads = function_with_jac(
+            samples, return_grad=True)
         assert np.allclose(values, exact_values)
-        values, grads = model(samples, jac=True)
+        values, grads = model(samples, return_grad=True)
         assert np.allclose(values, exact_values)
         print(grads)
         print(np.vstack(grads))
@@ -129,8 +131,8 @@ class TestModelwrappers(unittest.TestCase):
         samples = np.random.uniform(0., 1., (num_vars, num_samples))
         model = PoolModel(
             function_with_jac, max_eval_concurrency, assert_omp=False)
-        values, jacs = model(samples, jac=True)
-        exact_values, exact_jacs = function_with_jac(samples, jac=True)
+        values, jacs = model(samples, return_grad=True)
+        exact_values, exact_jacs = function_with_jac(samples, return_grad=True)
         assert np.allclose(values, exact_values)
         assert np.allclose(np.hstack([j[:, None] for j in jacs]), exact_jacs)
 
@@ -144,7 +146,6 @@ class TestModelwrappers(unittest.TestCase):
 
         pool_model = PoolModel(
             function, max_eval_concurrency, assert_omp=False)
-        from pyapprox.util.sys_utilities import has_kwarg
         model = DataFunctionModel(
             pool_model, None, data_basename, save_frequency)
 
@@ -191,7 +192,7 @@ class TestModelwrappers(unittest.TestCase):
         assert unique_matrix_rows(data[0].T).T.shape[1] == 3*num_samples
 
         # test requesting values and grads when function does not return grads
-        self.assertRaises(ValueError, model_2, samples_2, jac=True)
+        self.assertRaises(ValueError, model_2, samples_2, return_grad=True)
 
         num_samples = 4 #102
         samples = np.random.uniform(0., 1., (num_vars, num_samples))
@@ -200,8 +201,9 @@ class TestModelwrappers(unittest.TestCase):
         model_3 = DataFunctionModel(
             function_with_jac, None, data_basename, save_frequency)
         # set half of new samples to be replicates from previous study
-        values, grads = model_3(samples, jac=True)
-        exact_values, exact_grads = function_with_jac(samples, jac=True)
+        values, grads = model_3(samples, return_grad=True)
+        exact_values, exact_grads = function_with_jac(
+            samples, return_grad=True)
         assert np.allclose(values, exact_values)
         assert model_3.num_evaluations == samples.shape[1]
         assert np.allclose(np.vstack(grads), exact_grads)
@@ -213,8 +215,9 @@ class TestModelwrappers(unittest.TestCase):
         # set half of new samples to be replicates from previous study
         II = np.random.permutation(np.arange(num_samples*2))[:num_samples]
         samples_4[:, II] = samples
-        values, grads = model_4(samples_4, jac=True)
-        exact_values, exact_grads = function_with_jac(samples_4, jac=True)
+        values, grads = model_4(samples_4, return_grad=True)
+        exact_values, exact_grads = function_with_jac(
+            samples_4, return_grad=True)
         assert np.allclose(values, exact_values)
         assert model_4.num_evaluations == samples_4.shape[1]
         assert np.allclose(np.vstack(grads), exact_grads)
@@ -223,12 +226,14 @@ class TestModelwrappers(unittest.TestCase):
         samples_5 = np.random.uniform(0., 1., (num_vars, num_samples*2))
         samples_5[:, II] = samples
         values = model_4(samples_5)
-        assert np.allclose(values, function_with_jac(samples_5, jac=False))
+        assert np.allclose(
+            values, function_with_jac(samples_5, return_grad=False))
 
-        # test requesting values and grads when stored samples do not have grads
+        # test requesting values and grads when stored samples do not have
+        # grads
         samples_6 = np.random.uniform(0., 1., (num_vars, num_samples))
         model_4(samples_6)
-        self.assertRaises(ValueError, model_4, samples_6, jac=True)
+        self.assertRaises(ValueError, model_4, samples_6, return_grad=True)
 
         tmp_dir.cleanup()
 

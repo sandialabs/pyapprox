@@ -67,7 +67,8 @@ class GaussianProcess(GaussianProcessRegressor):
         canonical_train_samples = self.map_to_canonical(train_samples)
         return super().fit(canonical_train_samples.T, train_values)
 
-    def __call__(self, samples, return_std=False, return_cov=False, jac=False):
+    def __call__(self, samples, return_std=False, return_cov=False,
+                 return_grad=False):
         r"""
         A light weight wrapper of sklearn GaussianProcessRegressor.predict
         function. See sklearn documentation for more info. This wrapper
@@ -80,19 +81,20 @@ class GaussianProcess(GaussianProcessRegressor):
             Samples at which to evaluate the GP. Sklearn requires the
             transpose of this matrix, i.e a matrix with size (nsamples,nvars)
         """
-        if jac and (return_std or return_cov):
-            msg = "if jac is True then return_std and return_cov must be False"
+        if return_grad and (return_std or return_cov):
+            msg = "if return_grad is True then return_std and return_cov "
+            msg += "must be False"
             raise ValueError(msg)
 
         canonical_samples = self.map_to_canonical(samples)
         result = self.predict(canonical_samples.T, return_std, return_cov)
 
-        if jac:
+        if return_grad:
             kernel = extract_covariance_kernel(self.kernel_, [Matern])
             if kernel is None:
                 kernel = extract_covariance_kernel(self.kernel_, [RBF])
                 if kernel is None:
-                    msg = "jac only available when using the Matern kernel"
+                    msg = "return_grad only available when using the Matern kernel"
                     raise ValueError(msg)
                 nu = np.inf
             else:

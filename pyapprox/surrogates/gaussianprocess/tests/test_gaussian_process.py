@@ -1080,7 +1080,7 @@ class TestGaussianProcess(unittest.TestCase):
         gp.fit(train_samples, train_vals)
 
         x0 = np.full((nvars, 1), 0.5)
-        errors = check_gradients(partial(gp, jac=True), True, x0, disp=False)
+        errors = check_gradients(gp, True, x0, disp=False)
         assert errors.min() < 8.2e-6 and errors.max() > 0.6
 
         kernel = Matern(0.4, length_scale_bounds='fixed', nu=nu)
@@ -1088,7 +1088,7 @@ class TestGaussianProcess(unittest.TestCase):
         gp.fit(train_samples, train_vals)
 
         x0 = np.full((nvars, 1), 0.5)
-        errors = check_gradients(partial(gp, jac=True), True, x0, disp=False)
+        errors = check_gradients(gp, True, x0, disp=False)
         assert errors.min() < 1.1e-5 and errors.max() > 0.6
 
         if nu != np.inf:
@@ -1100,7 +1100,7 @@ class TestGaussianProcess(unittest.TestCase):
         gp.fit(train_samples, train_vals)
 
         x0 = np.full((nvars, 1), 0.5)
-        errors = check_gradients(partial(gp, jac=True), True, x0, disp=False)
+        errors = check_gradients(gp, True, x0, disp=False)
         assert errors.min() < 9.2e-6 and errors.max() > 0.6
 
     def test_gp_with_matern_gradient_wrt_samples(self):

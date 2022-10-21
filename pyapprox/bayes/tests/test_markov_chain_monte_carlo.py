@@ -47,9 +47,9 @@ class ExponentialQuarticLogLikelihoodModel(object):
                           4.*x[1]-2.*x[0]**2])
         return grad
 
-    def __call__(self, x, jac=False):
+    def __call__(self, x, return_grad=False):
         vals = np.array([self.loglikelihood_function(x)]).T
-        if not jac:
+        if not return_grad:
             return vals
         return vals, self.gradient(x)
 

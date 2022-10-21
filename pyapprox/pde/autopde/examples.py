@@ -42,16 +42,16 @@ def advection_diffusion():
     init_guess = variable.rvs(1)
     # init_guess = true_params
     errors = check_gradients(
-        lambda zz: inv_model._eval(zz[:, 0], jac=True),
+        lambda zz: inv_model._eval(zz[:, 0], return_grad=True),
         True, init_guess, plot=False,
         fd_eps=np.logspace(-13, 0, 14)[::-1])
 
     from pyapprox.optimization.pya_minimize import pyapprox_minimize
-    jac = True
+    return_grad = True
     opt_result = pyapprox_minimize(
-        partial(inv_model._eval, jac=jac),
+        partial(inv_model._eval, return_grad=return_grad),
         init_guess,
-        method="trust-constr", jac=jac,
+        method="trust-constr", return_grad=return_grad,
         options={"verbose": 2, "gtol": 1e-6, "xtol": 1e-16})
     print(opt_result.x)
     print(true_params.T)

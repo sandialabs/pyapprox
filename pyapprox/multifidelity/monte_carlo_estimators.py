@@ -684,10 +684,10 @@ class AbstractNumericalACVEstimator(AbstractACVEstimator):
         self.cons = []
         self.set_initial_guess(None)
 
-    def objective(self, target_cost, x, jac=True):
-        # jac argument used for testing with finte difference
+    def objective(self, target_cost, x, return_grad=True):
+        # return_grad argument used for testing with finte difference
         out = acv_sample_allocation_objective_all(
-            self, target_cost, x, (use_torch and jac))
+            self, target_cost, x, (use_torch and return_grad))
         return out
 
     def set_initial_guess(self, initial_guess):

@@ -650,7 +650,7 @@ def evaluate_sparse_grid(samples, values,
                          sparse_grid_subspace_poly_indices_list,
                          smolyak_coefficients, samples_1d,
                          sparse_grid_subspace_values_indices_list,
-                         config_variables_idx=None, jac=False,
+                         config_variables_idx=None, return_grad=False,
                          basis_type="barycentric"):
 
     num_vars, num_samples = samples.shape
@@ -668,7 +668,7 @@ def evaluate_sparse_grid(samples, values,
             subspace_index = sparse_grid_subspace_indices[:, ii]
             subspace_values = get_subspace_values(
                 values, sparse_grid_subspace_values_indices_list[ii])
-            if not jac:
+            if not return_grad:
                 subspace_approx_vals = evaluate_sparse_grid_subspace(
                     samples, subspace_index, subspace_values,
                     samples_1d, config_variables_idx, basis_type)
@@ -678,9 +678,9 @@ def evaluate_sparse_grid(samples, values,
                         samples, subspace_index, subspace_values,
                         samples_1d, config_variables_idx))
             approx_values += smolyak_coefficients[ii]*subspace_approx_vals
-            if jac:
+            if return_grad:
                 grads += smolyak_coefficients[ii]*subspace_grads
-    if not jac:
+    if not return_grad:
         return approx_values
 
     return approx_values, grads
@@ -695,16 +695,18 @@ def integrate_sparse_grid_subspace(subspace_index, subspace_values,
     return np.vstack((mean[np.newaxis, :], variance[np.newaxis, :]))
 
 
-def integrate_sparse_grid(values,
-                          poly_indices_dict,  # not needed with new implementation
-                          sparse_grid_subspace_indices,
-                          sparse_grid_subspace_poly_indices_list,
-                          smolyak_coefficients, weights_1d,
-                          sparse_grid_subspace_values_indices_list,
-                          config_variables_idx=None):
+def integrate_sparse_grid(
+        values,
+        poly_indices_dict,  # not needed with new implementation
+        sparse_grid_subspace_indices,
+        sparse_grid_subspace_poly_indices_list,
+        smolyak_coefficients, weights_1d,
+        sparse_grid_subspace_values_indices_list,
+        config_variables_idx=None):
     assert values.ndim == 2
     assert values.shape[0] == len(poly_indices_dict)
-    assert sparse_grid_subspace_indices.shape[1] == smolyak_coefficients.shape[0]
+    assert (sparse_grid_subspace_indices.shape[1] ==
+            smolyak_coefficients.shape[0])
 
     num_qoi = values.shape[1]
     # must initialize to zero
@@ -715,7 +717,8 @@ def integrate_sparse_grid(values,
             subspace_values = get_subspace_values(
                 values, sparse_grid_subspace_values_indices_list[ii])
             subspace_integral_vals = integrate_sparse_grid_subspace(
-                subspace_index, subspace_values, weights_1d, config_variables_idx)
+                subspace_index, subspace_values, weights_1d,
+                config_variables_idx)
             integral_values += smolyak_coefficients[ii]*subspace_integral_vals
     return integral_values
 

@@ -43,58 +43,58 @@ class GenzFunction(object):
         self._c = self._get_c_coefficients(decay, self._nvars, self._min_c)
         self._c *= c_factor/self._c.sum()
 
-    def _oscillatory(self, samples, jac):
+    def _oscillatory(self, samples, return_grad):
         result = 2.0 * np.pi * self._w[0]
         tmp = samples.T.dot(self._c)
         result = np.cos(tmp)
-        if not jac:
+        if not return_grad:
             return result
         grad = -self._c*np.sin(tmp)
         return grad
 
-    def _product_peak(self, samples, jac):
+    def _product_peak(self, samples, return_grad):
         result = 1/np.prod(
             (1/self._c**2+(samples-self._w)**2), axis=0)[:, None]
-        if not jac:
+        if not return_grad:
             return result
         grad = 2.*(samples.T - self._w)*result
         return result, grad
 
-    def _corner_peak(self, samples, jac):
+    def _corner_peak(self, samples, return_grad):
         tmp = 1+samples.T.dot(self._c)
         result = tmp**(-(self._nvars+1))
-        if not jac:
+        if not return_grad:
             return result
         grad = -self._c*(self._nvars+1)/tmp**(self._nvars+2)
         return result, grad
 
-    def _gaussian(self, samples, jac):
+    def _gaussian(self, samples, return_grad):
         tmp = -np.sum(self._c**2*(samples-self._w)**2, axis=0)
         result = np.exp(tmp)[:, None]
-        if not jac:
+        if not return_grad:
             return result
         grad = 2.*self._c**2*(self._w-samples.T)*result
         return result, grad
 
-    def _c0_continuous(self, samples, jac):
+    def _c0_continuous(self, samples, return_grad):
         tmp = -np.sum(self._c*np.abs(samples-self._w), axis=0)
         result = np.exp(tmp)[:, None]
-        if not jac:
+        if not return_grad:
             return result
         msg = "grad of c0_continuous function is not supported"
         raise ValueError(msg)
 
-    def _discontinuous(self, samples, jac):
+    def _discontinuous(self, samples, return_grad):
         result = np.exp(samples.T.dot(self._c))
         II = np.where((samples[0] > self._w[0]) & (samples[1] > self._w[1]))
         result[II] = 0.0
-        if not jac:
+        if not return_grad:
             return result
         msg = "grad of discontinuous function is not supported"
         raise ValueError(msg)
 
-    def __call__(self, name, samples, jac=False):
-        return self._funs[name][0](samples, jac)
+    def __call__(self, name, samples, return_grad=False):
+        return self._funs[name][0](samples, return_grad)
 
     def _oscillatory_recursive_integrate(self, var_id, cosine):
         C1 = np.sin(self._c[var_id])/self._c[var_id]
