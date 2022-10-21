@@ -137,16 +137,12 @@ class TestPolynomialSampling(unittest.TestCase):
         valid_samples = var_trans.variable.rvs(1e3)
         assert np.allclose(poly(valid_samples), fun(valid_samples))
 
-        print(fun(var_trans.variable.rvs(1e6)).mean() -
-              genz_function.integrate(genz_name), 'q')
-
         quad_w = get_quadrature_weights_from_fekete_samples(
             canonical_samples, data_structures)
         values_at_quad_x = values[:, 0]
         # increase degree if want smaller atol
-        print(np.dot(values_at_quad_x, quad_w) -
-              genz_function.integrate(genz_name))
-        print(poly.mean()-genz_function.integrate(genz_name), 'i')
+        # print(np.dot(values_at_quad_x, quad_w) -
+        #       genz_function.integrate(genz_name))
         assert np.allclose(
             np.dot(values_at_quad_x, quad_w),
             genz_function.integrate(genz_name), atol=1e-4)
@@ -183,8 +179,13 @@ class TestPolynomialSampling(unittest.TestCase):
         c *= 20/c.sum()
         w = np.zeros_like(c)
         w[0] = np.random.uniform(0., 1., 1)
-        genz_function = GenzFunction('oscillatory', num_vars, c=c, w=w)
-        values = genz_function(samples)
+        genz_function = GenzFunction()
+        genz_function.set_coefficients(num_vars, 1, 'none')
+        # genz_function._c, genz_function._w = c, w
+        genz_name = 'oscillatory'
+        fun = partial(genz_function, genz_name)
+
+        values = fun(samples)
 
         # Ensure coef produce an interpolant
         coef = interpolate_lu_leja_samples(samples, values, data_structures)
@@ -203,7 +204,8 @@ class TestPolynomialSampling(unittest.TestCase):
         # will get closer if degree is increased
         # print (np.dot(values_at_quad_x,quad_w),genz_function.integrate())
         assert np.allclose(
-            np.dot(values_at_quad_x, quad_w), genz_function.integrate(),
+            np.dot(values_at_quad_x, quad_w),
+            genz_function.integrate(genz_name),
             atol=1e-4)
 
     def test_lu_leja_interpolation_with_intial_samples(self):
@@ -254,8 +256,12 @@ class TestPolynomialSampling(unittest.TestCase):
         c *= 20/c.sum()
         w = np.zeros_like(c)
         w[0] = np.random.uniform(0., 1., 1)
-        genz_function = GenzFunction('oscillatory', num_vars, c=c, w=w)
-        values = genz_function(samples)
+        genz_function = GenzFunction()
+        genz_function.set_coefficients(num_vars, 1, 'none')
+        # genz_function._c, genz_function._w = c, w
+        genz_name = 'oscillatory'
+        fun = partial(genz_function, genz_name)
+        values = fun(samples)
 
         # Ensure coef produce an interpolant
         coef = interpolate_lu_leja_samples(samples, values, data_structures)
@@ -271,7 +277,8 @@ class TestPolynomialSampling(unittest.TestCase):
             samples, data_structures)
         values_at_quad_x = values[:, 0]
         assert np.allclose(
-            np.dot(values_at_quad_x, quad_w), genz_function.integrate(),
+            np.dot(values_at_quad_x, quad_w),
+            genz_function.integrate(genz_name),
             atol=1e-4)
 
     def test_oli_leja_interpolation(self):
@@ -372,11 +379,13 @@ class TestPolynomialSampling(unittest.TestCase):
         c *= 20/c.sum()
         w = np.zeros_like(c)
         w[0] = np.random.uniform(0., 1., 1)
-        genz_function = GenzFunction('oscillatory', num_vars, c=c, w=w)
-        values = genz_function(samples)
-        # function = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
-        # values = function(samples)
-
+        genz_function = GenzFunction()
+        genz_function.set_coefficients(num_vars, 1, 'none')
+        # genz_function._c, genz_function._w = c, w
+        genz_name = 'oscillatory'
+        fun = partial(genz_function, genz_name)
+        values = fun(samples)
+        
         # Ensure coef produce an interpolant
         coef = interpolate_fekete_samples(
             canonical_samples, values, data_structures)

@@ -109,7 +109,7 @@ class TestMetropolis(unittest.TestCase):
         test_sample = prior_variable.get_statistics("mean")
         errors = check_gradients(loglike_fun, True, test_sample, fd_eps=fd_eps)
         print(errors.min()/errors.max())
-        assert errors.min()/errors.max() < 6e-7
+        assert errors.min()/errors.max() < 3e-6
 
         mcmc_variable = MetropolisMCMCVariable(prior_variable, loglike_fun)
 
