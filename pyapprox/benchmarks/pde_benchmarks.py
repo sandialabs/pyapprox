@@ -162,20 +162,20 @@ class AdvectionDiffusionReactionKLEModel():
             self._fast_interpolate,
             self._kle(sample[:, None]))
 
-    def _eval(self, sample, jac=False):
+    def _eval(self, sample, return_grad=False):
         sample_copy = torch.as_tensor(sample.copy())
         self._set_random_sample(sample_copy)
         sol = self._fwd_solver.solve(**self._newton_kwargs)
         qoi = self._functional(sol, sample_copy).numpy()
-        if not jac:
+        if not return_grad:
             return qoi
         grad = self._adj_solver.compute_gradient(
             lambda r, p: None, sample_copy, **self._newton_kwargs)
         return qoi, grad.detach().numpy().squeeze()
 
-    def __call__(self, samples, jac=False):
+    def __call__(self, samples, return_grad=False):
         return evaluate_1darray_function_on_2d_array(
-            self._eval, samples, jac=jac)
+            self._eval, samples, return_grad=return_grad)
 
     def get_num_degrees_of_freedom_cost(self, config_vals):
         if (len(config_vals) !=
@@ -207,9 +207,9 @@ class TransientAdvectionDiffusionReactionKLEModel(
         self._steady_state_fwd_solver = super()._set_forward_solver(
             mesh, bndry_conds, vel_fun, react_funs, forc_fun)
 
-    def _eval(self, sample, jac=False):
-        if jac:
-            raise ValueError("jac=True is not supported")
+    def _eval(self, sample, return_grad=False):
+        if return_grad:
+            raise ValueError("return_grad=True is not supported")
         sample_copy = torch.as_tensor(sample.copy())
         self._set_random_sample(sample_copy)
         if self._init_sol is None:

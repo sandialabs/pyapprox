@@ -234,17 +234,17 @@ class MetropolisMCMCVariable(JointVariable):
             grad[ii] += self._univariate_logprior_grad(rv, sample[ii, 0])
         return grad.T
 
-    def _log_bayes_numerator(self, sample, jac=False):
+    def _log_bayes_numerator(self, sample, return_grad=False):
         assert sample.ndim == 2 and sample.shape[1] == 1
-        if not jac:
+        if not return_grad:
             loglike = self._loglike(sample)
         else:
-            loglike, loglike_grad = self._loglike(sample, jac)
+            loglike, loglike_grad = self._loglike(sample, return_grad)
         if type(loglike) == np.ndarray:
             loglike = loglike.squeeze()
         # _pdf is faster but requires mapping of x to canonical domain
         logprior = self._variable.pdf(sample, log=True)[0, 0]
-        if not jac:
+        if not return_grad:
             return loglike+logprior
 
         logprior_grad = self._logprior_grad(sample)
@@ -288,7 +288,7 @@ class MetropolisMCMCVariable(JointVariable):
         import inspect
         def obj(x):
             return -self._log_bayes_numerator(x[:, None])
-        jac = None
+        return_grad = None
 
         if init_guess is None:
             bounds = self._variable.get_statistics("interval", alpha=1)
@@ -308,17 +308,17 @@ class MetropolisMCMCVariable(JointVariable):
             init_guess = res.x[:, None]
             # init_guess = self._variable.get_statistics("mean")
 
-        if "jac" in inspect.getfullargspec(self._loglike).args:
+        if "return_grad" in inspect.getfullargspec(self._loglike).args:
             def obj(x):
-                vals, jac = self._log_bayes_numerator(x[:, None], True)
-                return -vals, -jac[0, :]
-            jac = True
+                vals, return_grad = self._log_bayes_numerator(x[:, None], True)
+                return -vals, -return_grad[0, :]
+            return_grad = True
 
         assert init_guess.ndim == 2 and init_guess.shape[1] == 1
         assert init_guess.shape[0] == self._variable.num_vars()
         init_guess = init_guess[:, 0]
         bounds = self._variable.get_statistics("interval", alpha=1)
-        res = minimize(obj, init_guess, jac=jac, method="l-bfgs-b",
+        res = minimize(obj, init_guess, jac=return_grad, method="l-bfgs-b",
                        options={"disp": False}, bounds=bounds)
         MAP = res.x[:, None]
         print(res)
@@ -376,9 +376,10 @@ class MetropolisMCMCVariable(JointVariable):
 
 
 def leapfrog(loglikefun, theta, momentum, eps):
-    updated_momentum = momentum + eps/2 * loglikefun(theta, jac=True)[1]
+    updated_momentum = momentum + eps/2 * loglikefun(
+        theta, return_grad=True)[1]
     updated_theta = theta+eps*updated_momentum
-    updated_momentum += eps/2 * loglikefun(updated_theta, jac=True)[1]
+    updated_momentum += eps/2 * loglikefun(updated_theta, return_grad=True)[1]
     return updated_theta, updated_momentum
 
 
