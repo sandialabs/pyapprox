@@ -1,12 +1,15 @@
 import unittest
 import numpy as np
 from functools import partial
+import torch
 
 from pyapprox.optimization.pya_minimize import pyapprox_minimize
 from pyapprox.pde.autopde.mesh import cartesian_mesh_solution_functional
 from pyapprox.util.utilities import (
     check_gradients, get_all_sample_combinations)
 from pyapprox.benchmarks.benchmarks import setup_benchmark
+from pyapprox.benchmarks.pde_benchmarks import (
+    negloglike_functional, negloglike_functional_dqdu)
 
 
 class TestPDEBenchmarks(unittest.TestCase):
@@ -14,30 +17,76 @@ class TestPDEBenchmarks(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
+    def test_negloglike_functional_dqdu(self):
+        nvars = 4
+        noise_std = 1e-8  # 0.01 make sure it does not dominate observed values
+
+        degree = nvars-1
+        xx = np.linspace(0, 1, 11)
+        from pyapprox.surrogates.interp.monomial import (
+            univariate_monomial_basis_matrix)
+        Amatrix = univariate_monomial_basis_matrix(degree, xx)
+
+        def obs_fun(params):
+            return Amatrix.dot(params)
+
+        true_params = np.full((nvars, 1), 1)
+        obs_indices = np.array([0, 1, 2])
+        obs = torch.as_tensor(obs_fun(true_params)[obs_indices, 0])
+
+        inv_functional = partial(
+            negloglike_functional, obs, obs_indices, noise_std)
+        sol = torch.tensor(obs_fun(
+            true_params + np.random.normal(0, 0.001, true_params.shape))[:, 0],
+                              requires_grad=True)
+        val = inv_functional(sol, true_params)
+        val.backward()
+        grad_ad = sol.grad
+
+        grad = negloglike_functional_dqdu(
+                obs, obs_indices, noise_std, sol.detach(), true_params,
+                ignore_constants=False)
+
+        assert np.allclose(grad_ad, grad.numpy(), rtol=1e-12)
+
     def test_setup_inverse_advection_diffusion_benchmark(self):
         nobs = 10
         noise_std = 1e-8  # 0.01 make sure it does not dominate observed values
         nvars = 4
         benchmark = setup_benchmark(
             "advection_diffusion_kle_inversion", kle_nvars=nvars,
-            noise_stdev=noise_std, nobs=nobs)
+            noise_stdev=noise_std, nobs=nobs, orders=[3, 3])
         inv_model, variable, true_params, noiseless_obs, obs = (
             benchmark.negloglike, benchmark.variable, benchmark.true_sample,
             benchmark.noiseless_obs, benchmark.obs)
 
-        # inv_model.base_model._functional = partial(
-        #     inv_model.base_model._functional, ignore_constants=True)
-        # inv_model.base_model._adj_solver._dqdu = partial(
-        #     inv_model.base_model._adj_solver._dqdu, ignore_constants=True)
+        sample = torch.full((nvars,), 0.5, dtype=torch.double)
+        inv_model.base_model._set_random_sample(sample)
+        fwd_sol = inv_model.base_model._fwd_solver.solve()
+
+        def set_random_sample(physics, sample):
+            physics._diff_fun = partial(
+                inv_model.base_model._fast_interpolate,
+                inv_model.base_model._kle(sample[:, None]))
+        sample.requires_grad_= True
+        dRdp_ad = torch.autograd.functional.jacobian(
+            partial(inv_model.base_model._adj_solver._parameterized_residual,
+                    fwd_sol, set_random_sample),
+            sample, strict=True)
+        dRdp = inv_model.base_model._adj_solver._dRdp(
+            inv_model.base_model._fwd_solver.physics, fwd_sol.clone(),
+            sample)
+        assert np.allclose(dRdp, dRdp_ad)
 
         # TODO add std to params list
-        init_guess = true_params# + np.random.normal(0, 0.01, true_params.shape)
+        init_guess = true_params + np.random.normal(0, 0.01, true_params.shape)
+        # init_guess = sample.numpy()[:, None]
 
-        from pyapprox.util.utilities import approx_fprime
-        print(approx_fprime(init_guess, inv_model), 'fd')
-        print(inv_model(init_guess, return_grad=True), 'g')
-        assert False
-        
+        # from pyapprox.util.utilities import approx_fprime
+        # print(approx_fprime(init_guess, inv_model), 'fd')
+        # print(inv_model(init_guess, return_grad=True), 'g')
+        # assert False
+
         # init_guess = variable.rvs(1)
         errors = check_gradients(
             inv_model, True, init_guess, plot=False,
@@ -53,7 +102,7 @@ class TestPDEBenchmarks(unittest.TestCase):
         opt_result = pyapprox_minimize(
             scipy_obj, init_guess,
             method="trust-constr", jac=return_grad,
-            options={"verbose": 2, "gtol": 1e-7, "xtol": 1e-16})
+            options={"verbose": 2, "gtol": 1e-6, "xtol": 1e-16})
         # print(opt_result.x)
         # print(true_params.T)
         # print(opt_result.x-true_params.T)
@@ -189,7 +238,7 @@ class TestPDEBenchmarks(unittest.TestCase):
             functional=None)
         model, variable = benchmark.fun, benchmark.variable
         values = model(samples)
-        
+
         np.set_printoptions(precision=16)
         values = values.reshape((nrandom_samples, config_samples.shape[1]))
         qoi_means = values.mean(axis=0)

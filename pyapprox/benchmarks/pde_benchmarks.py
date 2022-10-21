@@ -78,7 +78,7 @@ def loglike_functional_dqdp(obs, obs_indices, noise_std, sol, params):
     return params*0
 
 
-def advection_diffusion_reaction_kle_dRdp(kle, residual, sol, param_vals):
+def raw_advection_diffusion_reaction_kle_dRdp(kle, residual, sol, param_vals):
     mesh = residual.mesh
     dmats = [residual.mesh._dmat(dd) for dd in range(mesh.nphys_vars)]
     if kle.use_log:
@@ -92,6 +92,14 @@ def advection_diffusion_reaction_kle_dRdp(kle, residual, sol, param_vals):
     kDu = [Du[dd][:, None]*dkdp for dd in range(mesh.nphys_vars)]
     dRdp = sum([torch.linalg.multi_dot((dmats[dd], kDu[dd]))
                for dd in range(mesh.nphys_vars)])
+    return dRdp
+
+
+def advection_diffusion_reaction_kle_dRdp(
+        bndry_indices, kle, residual, sol, param_vals):
+    dRdp = raw_advection_diffusion_reaction_kle_dRdp(
+        kle, residual, sol, param_vals)
+    dRdp[np.hstack(bndry_indices)] = 0.0
     return dRdp
 
 
@@ -130,7 +138,11 @@ class AdvectionDiffusionReactionKLEModel():
 
         if issubclass(type(self._fwd_solver), SteadyStatePDE):
             dqdu, dqdp = functional_deriv_funs
-            dRdp = partial(advection_diffusion_reaction_kle_dRdp, self._kle)
+            dRdp = partial(advection_diffusion_reaction_kle_dRdp,
+                           mesh._bndry_indices, self._kle)
+            # dRdp must be after boundary conditions are applied.
+            # For now assume that parameters do not effect boundary conditions
+            # so dRdp at boundary indices is zero
             self._adj_solver = SteadyStateAdjointPDE(
                 self._fwd_solver, self._functional, dqdu, dqdp, dRdp)
 
