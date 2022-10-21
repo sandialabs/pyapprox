@@ -1,5 +1,5 @@
-import inspect
 from warnings import warn
+from functools import partial
 
 import numpy as np
 from numpy.polynomial.legendre import leggauss

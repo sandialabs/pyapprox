@@ -44,8 +44,7 @@ class GenzFunction(object):
         self._c *= c_factor/self._c.sum()
 
     def _oscillatory(self, samples, return_grad):
-        result = 2.0 * np.pi * self._w[0]
-        tmp = samples.T.dot(self._c)
+        tmp = 2.0*np.pi*self._w[0] + samples.T.dot(self._c)
         result = np.cos(tmp)
         if not return_grad:
             return result
@@ -86,7 +85,7 @@ class GenzFunction(object):
 
     def _discontinuous(self, samples, return_grad):
         result = np.exp(samples.T.dot(self._c))
-        II = np.where((samples[0] > self._w[0]) & (samples[1] > self._w[1]))
+        II = np.where((samples[0] > self._w[0]) | (samples[1] > self._w[1]))
         result[II] = 0.0
         if not return_grad:
             return result
@@ -95,6 +94,24 @@ class GenzFunction(object):
 
     def __call__(self, name, samples, return_grad=False):
         return self._funs[name][0](samples, return_grad)
+
+    def _oscillatory_recursive_integrate_alternate(self, var_id, integral):
+        if var_id > 0:
+            return (self._oscillatory_recursive_integrate(
+                var_id-1, integral+self._c[var_id-1]) -
+                    self._oscillatory_recursive_integrate(
+                        var_id-1, integral))/self._c[var_id-1]
+        case = self._nvars % 4
+        if (case == 0):
+            return np.cos(2.0*np.pi*self._w[0]+integral)
+        if (case == 1):
+            return np.sin(2.0*np.pi*self._w[0]+integral)
+        if (case == 2):
+            return-np.cos(2.0*np.pi*self._w[0]+integral)
+        return -np.sin(2.0*np.pi*self._w[0]+integral)
+
+    def _oscillatory_integrate_alternate(self):
+        return self._oscillatory_recursive_integrate(self._nvars, 0.0)
 
     def _oscillatory_recursive_integrate(self, var_id, cosine):
         C1 = np.sin(self._c[var_id])/self._c[var_id]
@@ -111,6 +128,7 @@ class GenzFunction(object):
 
     def _oscillatory_integrate(self):
         """
+        This is Better conditioned than alternate implementation
         use
         cos(x+y)=cos(x)cos(y)-sin(x)sin(y)
         sin(x+y)=sin(x)cos(y)+cos(x)sin(y)
@@ -166,8 +184,9 @@ class GenzFunction(object):
     def _discontinuous_integrate(self):
         assert self._nvars >= 2
         idx = min(self._nvars, 2)
+        print(idx)
         tmp = np.prod(
-            (np.exp(self._c[:idx]*self._w[:idx])-1)/self._c[:idx])
+            (np.exp(self._c[:idx]*self._w[:idx])-1.0)/self._c[:idx])
         if self._nvars <= 2:
             return tmp
         return tmp*np.prod((np.exp(self._c[2:])-1)/self._c[2:])
