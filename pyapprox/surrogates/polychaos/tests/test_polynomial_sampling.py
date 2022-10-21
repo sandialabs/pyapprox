@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 from scipy import stats
+from functools import partial
 
 from pyapprox.surrogates.orthopoly.leja_sequences import (
     christoffel_function, christoffel_weights, get_lu_leja_samples,
@@ -92,7 +93,7 @@ class TestPolynomialSampling(unittest.TestCase):
 
     def test_fekete_interpolation(self):
         num_vars = 2
-        degree = 15
+        degree = 30
 
         poly = PolynomialChaosExpansion()
         var_trans = define_iid_random_variable_transformation(
@@ -109,32 +110,46 @@ class TestPolynomialSampling(unittest.TestCase):
 
         # must use canonical_basis_matrix to generate basis matrix
         def precond_func(matrix, samples): return christoffel_weights(matrix)
-        samples, data_structures = get_fekete_samples(
+        canonical_samples, data_structures = get_fekete_samples(
             poly.canonical_basis_matrix, generate_candidate_samples,
             num_candidate_samples, preconditioning_function=precond_func)
-        samples = var_trans.map_from_canonical(samples)
+        samples = var_trans.map_from_canonical(canonical_samples)
 
         assert samples.max() <= 1 and samples.min() >= 0.
 
-        c = np.random.uniform(0., 1., num_vars)
+        c = np.random.uniform(0., 1., (num_vars, 1))
         c *= 20/c.sum()
         w = np.zeros_like(c)
         w[0] = np.random.uniform(0., 1., 1)
-        genz_function = GenzFunction('oscillatory', num_vars, c=c, w=w)
-        values = genz_function(samples)
+        genz_function = GenzFunction()
+        genz_function.set_coefficients(num_vars, 1, 'none')
+        # genz_function._c, genz_function._w = c, w
+        genz_name = 'oscillatory'
+        fun = partial(genz_function, genz_name)
+        values = fun(samples)
 
         # Ensure coef produce an interpolant
-        coef = interpolate_fekete_samples(samples, values, data_structures)
+        coef = interpolate_fekete_samples(
+            canonical_samples, values, data_structures)
         poly.set_coefficients(coef)
         assert np.allclose(poly(samples), values)
 
+        valid_samples = var_trans.variable.rvs(1e3)
+        assert np.allclose(poly(valid_samples), fun(valid_samples))
+
+        print(fun(var_trans.variable.rvs(1e6)).mean() -
+              genz_function.integrate(genz_name), 'q')
+
         quad_w = get_quadrature_weights_from_fekete_samples(
-            samples, data_structures)
+            canonical_samples, data_structures)
         values_at_quad_x = values[:, 0]
         # increase degree if want smaller atol
+        print(np.dot(values_at_quad_x, quad_w) -
+              genz_function.integrate(genz_name))
+        print(poly.mean()-genz_function.integrate(genz_name), 'i')
         assert np.allclose(
-            np.dot(values_at_quad_x, quad_w), genz_function.integrate(),
-            atol=1e-4)
+            np.dot(values_at_quad_x, quad_w),
+            genz_function.integrate(genz_name), atol=1e-4)
 
     def test_lu_leja_interpolation(self):
         num_vars = 2
