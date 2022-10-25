@@ -31,6 +31,7 @@ import warnings
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
 np.random.seed(2)
 torch.manual_seed(2)
+print("BEGIN")
 
 #%%
 #The tutorial can save the figures to file if desired. If you do want the plots
@@ -205,9 +206,10 @@ loglike = partial(loglike_from_negloglike, approx)
 mcmc_variable = MetropolisMCMCVariable(
     inv_benchmark.variable, loglike, method_opts={"cov_scaling": 1})
 print(mcmc_variable)
+map_sample = mcmc_variable.maximum_aposteriori_point()
+print("Computed Map Point", map_sample[:, 0])
 post_samples = mcmc_variable.rvs(npost_samples)
 print("Acceptance rate", mcmc_variable._acceptance_rate)
-map_sample = mcmc_variable.maximum_aposteriori_point()
 
 #%%
 #Now plot the posterior samples with the 2D Marginals of the posterior. Note

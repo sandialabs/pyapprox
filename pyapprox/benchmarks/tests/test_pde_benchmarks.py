@@ -90,7 +90,7 @@ class TestPDEBenchmarks(unittest.TestCase):
         # init_guess = variable.rvs(1)
         errors = check_gradients(
             inv_model, True, init_guess, plot=False,
-            fd_eps=3*np.logspace(-12, 1, 14)[::-1])
+            fd_eps=np.logspace(-12, 0, 13)[::-1])
         print(errors[0]/errors.min())
         assert np.log10(errors[0]/errors.min()) > 5.3
 
