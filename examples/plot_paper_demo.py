@@ -31,7 +31,6 @@ import warnings
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
 np.random.seed(2)
 torch.manual_seed(2)
-print("BEGIN")
 
 #%%
 #The tutorial can save the figures to file if desired. If you do want the plots
@@ -194,15 +193,15 @@ print("Surrogate", error)
 #%%
 #Now create a MCMCVariable to sample from the posterior. The benchmark
 #has already formulated the negative log likelihood that is needed. Here
-#we will use the NUTS sampler from PyMC3. This can run many MCMC chains at once
-#by setting njobs > 1. However using njobs>1 cannot be used unless the srcipt
-#is invoked inside if __name__ == __main__: and so njobs>1
-#is not used for this tutorial.
+#we will use PyApprox's native delayed rejection adaptive metropolis (DRAM)
+#sampler.
+#
 #Uncomment the commented code to use the numerical model instead of the surrogate
 #with the MCMC algorithm. Again note the significant increase in computational
 #time
 npost_samples = 1000
 loglike = partial(loglike_from_negloglike, approx)
+# loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)
 mcmc_variable = MetropolisMCMCVariable(
     inv_benchmark.variable, loglike, method_opts={"cov_scaling": 1})
 print(mcmc_variable)
