@@ -21,7 +21,7 @@ from pyapprox.expdesign.bayesian_oed import (
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.orthopoly.quadrature import (
-    gauss_hermite_pts_wts_1D
+    gauss_hermite_pts_wts_1D, gauss_jacobi_pts_wts_1D
 )
 from pyapprox.bayes.laplace import (
     laplace_posterior_approximation_for_linear_models
@@ -654,9 +654,7 @@ class TestBayesianOED(unittest.TestCase):
         self._check_gaussian_loglike_fun_3d(
             np.array([[0.25, 0.3, 0.35, 0.4]]).T, np.array([0, 2, 3]))
 
-    def _setup_linear_gaussian_problem(
-            self, inner_quad_type, ninner_loop_samples, noise_std,
-            outer_quad_type, prior_std):
+    def _setup_linear_gaussian_problem(self, prior_std):
         nrandom_vars = 1
         design = np.linspace(-1, 1, 2)[None, :]
         Amat = design.T
@@ -669,14 +667,137 @@ class TestBayesianOED(unittest.TestCase):
 
         return obs_fun, prior_variable, Amat, design
 
+    def test_avoid_inner_loop(self):
+        prior_std, noise_std = 2, 0.5
+        (obs_fun, prior_variable, Amat, design_candidates) = \
+            self._setup_linear_gaussian_problem(prior_std)
+        prior_mean = prior_variable.get_statistics('mean')
+        prior_cov = np.diag(prior_variable.get_statistics('var')[:, 0])
+        prior_cov_inv = np.linalg.inv(prior_cov)
+        noise_cov_inv = np.eye(Amat.shape[0])/noise_std**2
+
+        prior_mean, prior_cov, noise_cov, prior_cov_inv, noise_cov_inv = (
+            setup_linear_gaussian_model_inference(
+                prior_variable, noise_std, Amat))
+
+        quad_x_1d, quad_w_1d = gauss_hermite_pts_wts_1D(101)
+        data_quad_x = quad_x_1d*noise_std
+        theta_quad_x = quad_x_1d*prior_std
+        quad_x = cartesian_product([theta_quad_x, data_quad_x])
+        quad_w = outer_product([quad_w_1d]*2)
+
+        def qoi_fun(theta):
+            return theta.T
+
+        idx = np.array([1])
+
+        vals = np.empty(quad_x.shape[1])
+        for ii in range(quad_x.shape[1]):
+            theta = quad_x[:1, ii:ii+1]
+            noise = quad_x[1:, ii:ii+1]
+            obs_ii = obs_fun(theta)[:, idx]+noise
+            exact_post_mean, exact_post_cov = \
+                laplace_posterior_approximation_for_linear_models(
+                    Amat[idx, :], prior_mean, prior_cov_inv,
+                    extract_independent_noise_cov(noise_cov_inv, idx),
+                    obs_ii.T)
+            qx_post = quad_x_1d*np.sqrt(exact_post_cov)+exact_post_mean
+            vals[ii] = np.sqrt(np.dot(qoi_fun(qx_post)[:, 0]**2, quad_w_1d) -
+                               np.dot(qoi_fun(qx_post)[:, 0], quad_w_1d)**2)
+        # print(vals[0], quad_x[1, quad_x_1d.shape[0]**2//2])
+        print('Expected posterior QoI stdev', vals.dot(quad_w))
+
+        leb_quad_x, leb_quad_w = gauss_jacobi_pts_wts_1D(30, 0, 0)
+        leb_quad_x *= .8 # should be range of data
+        leb_quad_w *= 2*.8
+
+        obs = np.ones((1, 1))
+
+        exact_post_mean, exact_post_cov = \
+            laplace_posterior_approximation_for_linear_models(
+                Amat[idx, :], prior_mean, prior_cov_inv,
+                extract_independent_noise_cov(noise_cov_inv, idx),
+                obs.T)
+        qx_post = quad_x_1d*np.sqrt(exact_post_cov)+exact_post_mean
+        # val1 = np.sqrt(np.dot(qoi_fun(qx_post)[:, 0]**2, quad_w_1d) -
+        #                np.dot(qoi_fun(qx_post)[:, 0], quad_w_1d)**2)
+        val1 = np.dot(np.exp(qoi_fun(qx_post)[:, 0])-1, quad_w_1d)
+        val1 = conditional_value_at_risk(
+            qoi_fun(qx_post)[:, 0], 0.0, quad_w_1d, prob=False)
+
+        def lfun(theta):
+            print(obs.shape, obs_fun(theta).shape)
+            val = np.exp(gaussian_loglike_fun(
+                obs, obs_fun(theta)[:, idx],
+                np.full((idx.shape[0], 1), noise_std)))
+            print(val.shape)
+            return val[:, 0]
+        evidence = laplace_evidence(
+            lfun, prior_variable.pdf, exact_post_cov, exact_post_mean)
+
+        # theta_quad_x = np.random.normal(0, prior_std, (int(1e4)))
+        # quad_w_1d = np.full((theta_quad_x.shape[0]), 1.0/theta_quad_x.shape[0])
+        pred_obs = Amat[idx, :].dot(theta_quad_x[None, :]).T
+        lvals = np.exp(
+            gaussian_loglike_fun(
+                obs, pred_obs, np.full((idx.shape[0], 1), noise_std))[:, 0])
+        qvals = qoi_fun(theta_quad_x[None, :])[:, 0]
+        # print(lvals.dot(quad_w_1d), 'e')
+        # print(evidence)
+        # val2 = np.sqrt((qvals**2*lvals).dot(quad_w_1d)/evidence -
+        #                (qvals*lvals).dot(quad_w_1d)**2/evidence**2)
+        # print(theta_quad_x)
+        # print(qvals)
+        # print((np.exp(qvals)-1))
+        val2 = np.dot((np.exp(qvals)-1)*lvals, quad_w_1d)/evidence
+        val2 = conditional_value_at_risk(
+            qvals*lvals, 0.0, quad_w_1d, prob=False)/evidence
+
+
+        print(val1, 'v1')
+        print(val2, 'v2')
+        assert False
+
+        print(leb_quad_w.sum())
+        print(leb_quad_x)
+        nleb_quad_x = leb_quad_x.shape[0]
+        vals2 = np.empty(nleb_quad_x)
+        for ii in range(nleb_quad_x):
+            qvals = qoi_fun(theta_quad_x[None, :])[:, 0]
+            pred_obs = Amat[idx, :].dot(theta_quad_x[None, :]).T
+            obs = leb_quad_x[ii:ii+1]
+            lvals = np.exp(gaussian_loglike_fun(
+                obs, pred_obs, np.full((idx.shape[0], 1), noise_std))[:, 0])
+            vals2[ii] = np.sqrt(
+                (qvals**2*lvals).dot(quad_w_1d) -
+                (qvals*lvals).dot(quad_w_1d)**2)
+        print(vals2)
+        print('Expected posterior QoI stdev no inner loop',
+              vals2.dot(leb_quad_w))
+
+        nouter_loop_samples, ninner_loop_samples = 10000, 100
+        oed = get_bayesian_oed_optimizer(
+            "dev_pred", design_candidates, obs_fun, noise_std,
+            prior_variable, nouter_loop_samples,
+            ninner_loop_samples, "gauss", qoi_fun=qoi_fun,
+            pre_collected_design_indices=None,  outer_quad_type="qmc")
+
+        ovals = obs_fun(oed.outer_loop_prior_samples)
+        print(ovals.min(), ovals.max())
+
+
+        utility_vals, selected_index, results = select_design(
+            oed.design_candidates, oed.collected_design_indices,
+            oed.compute_expected_utility, oed.max_eval_concurrency,
+            True, 16)
+        print(utility_vals)
+
     def _check_compute_expected_kl_utility(
             self, outer_quad_type, inner_quad_type, ninner_loop_samples,
             nouter_loop_samples, prior_std, tol):
         noise_std = .3
         (obs_fun, prior_variable, Amat, design_candidates) = \
-            self._setup_linear_gaussian_problem(
-                inner_quad_type, ninner_loop_samples, noise_std, "mc",
-                prior_std)
+            self._setup_linear_gaussian_problem(prior_std)
 
         init_design_indices = np.array([0])
         oed = get_bayesian_oed_optimizer(
