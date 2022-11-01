@@ -686,30 +686,34 @@ class TestBayesianOED(unittest.TestCase):
         quad_x = cartesian_product([theta_quad_x, data_quad_x])
         quad_w = outer_product([quad_w_1d]*2)
 
+        quad_x_1d = np.random.normal(0, prior_std, 100000)
+        quad_w_1d = np.full(quad_x_1d.shape[0], 1/quad_x_1d.shape[0])
+        theta_quad_x = quad_x_1d
+
         def qoi_fun(theta):
             return theta.T
 
         idx = np.array([1])
 
-        vals = np.empty(quad_x.shape[1])
-        for ii in range(quad_x.shape[1]):
-            theta = quad_x[:1, ii:ii+1]
-            noise = quad_x[1:, ii:ii+1]
-            obs_ii = obs_fun(theta)[:, idx]+noise
-            exact_post_mean, exact_post_cov = \
-                laplace_posterior_approximation_for_linear_models(
-                    Amat[idx, :], prior_mean, prior_cov_inv,
-                    extract_independent_noise_cov(noise_cov_inv, idx),
-                    obs_ii.T)
-            qx_post = quad_x_1d*np.sqrt(exact_post_cov)+exact_post_mean
-            vals[ii] = np.sqrt(np.dot(qoi_fun(qx_post)[:, 0]**2, quad_w_1d) -
-                               np.dot(qoi_fun(qx_post)[:, 0], quad_w_1d)**2)
-        # print(vals[0], quad_x[1, quad_x_1d.shape[0]**2//2])
-        print('Expected posterior QoI stdev', vals.dot(quad_w))
+        # vals = np.empty(quad_x.shape[1])
+        # for ii in range(quad_x.shape[1]):
+        #     theta = quad_x[:1, ii:ii+1]
+        #     noise = quad_x[1:, ii:ii+1]
+        #     obs_ii = obs_fun(theta)[:, idx]+noise
+        #     exact_post_mean, exact_post_cov = \
+        #         laplace_posterior_approximation_for_linear_models(
+        #             Amat[idx, :], prior_mean, prior_cov_inv,
+        #             extract_independent_noise_cov(noise_cov_inv, idx),
+        #             obs_ii.T)
+        #     qx_post = quad_x_1d*np.sqrt(exact_post_cov)+exact_post_mean
+        #     vals[ii] = np.sqrt(np.dot(qoi_fun(qx_post)[:, 0]**2, quad_w_1d) -
+        #                        np.dot(qoi_fun(qx_post)[:, 0], quad_w_1d)**2)
+        # # print(vals[0], quad_x[1, quad_x_1d.shape[0]**2//2])
+        # print('Expected posterior QoI stdev', vals.dot(quad_w))
 
-        leb_quad_x, leb_quad_w = gauss_jacobi_pts_wts_1D(30, 0, 0)
-        leb_quad_x *= .8 # should be range of data
-        leb_quad_w *= 2*.8
+        # leb_quad_x, leb_quad_w = gauss_jacobi_pts_wts_1D(30, 0, 0)
+        # leb_quad_x *= .8 # should be range of data
+        # leb_quad_w *= 2*.8
 
         obs = np.ones((1, 1))
 
@@ -722,8 +726,9 @@ class TestBayesianOED(unittest.TestCase):
         # val1 = np.sqrt(np.dot(qoi_fun(qx_post)[:, 0]**2, quad_w_1d) -
         #                np.dot(qoi_fun(qx_post)[:, 0], quad_w_1d)**2)
         val1 = np.dot(np.exp(qoi_fun(qx_post)[:, 0])-1, quad_w_1d)
+        alpha = 0.5
         val1 = conditional_value_at_risk(
-            qoi_fun(qx_post)[:, 0], 0.0, quad_w_1d, prob=False)
+            qoi_fun(qx_post)[:, 0], alpha, quad_w_1d, prob=False)
 
         def lfun(theta):
             print(obs.shape, obs_fun(theta).shape)
@@ -742,8 +747,8 @@ class TestBayesianOED(unittest.TestCase):
             gaussian_loglike_fun(
                 obs, pred_obs, np.full((idx.shape[0], 1), noise_std))[:, 0])
         qvals = qoi_fun(theta_quad_x[None, :])[:, 0]
-        # print(lvals.dot(quad_w_1d), 'e')
-        # print(evidence)
+        print(lvals.dot(quad_w_1d), 'e')
+        print(evidence)
         # val2 = np.sqrt((qvals**2*lvals).dot(quad_w_1d)/evidence -
         #                (qvals*lvals).dot(quad_w_1d)**2/evidence**2)
         # print(theta_quad_x)
@@ -751,7 +756,7 @@ class TestBayesianOED(unittest.TestCase):
         # print((np.exp(qvals)-1))
         val2 = np.dot((np.exp(qvals)-1)*lvals, quad_w_1d)/evidence
         val2 = conditional_value_at_risk(
-            qvals*lvals, 0.0, quad_w_1d, prob=False)/evidence
+            qvals, alpha, weights=quad_w_1d*lvals/evidence, prob=False)
 
 
         print(val1, 'v1')
