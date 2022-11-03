@@ -847,6 +847,7 @@ class TestBayesianOED(unittest.TestCase):
             oed.outer_loop_pred_obs, active_indices)
         noisy_outer_loop_pred_obs = oed.outer_loop_pred_obs+noise
         for ii in range(nouter_loop_samples):
+            print(ii)
             idx = np.hstack(
                 (oed.collected_design_indices, new_design_indices))
             # obs_ii = outer_loop_obs_copy[ii:ii+1, idx]
@@ -868,7 +869,8 @@ class TestBayesianOED(unittest.TestCase):
 
     def test_compute_expected_kl_utility(self):
         test_scenarios = [
-            ["qmc", "gauss", 300, 10000, 1, 1e-2],
+            ["qmc", "gauss", 2, 5, 1, 1e-2],
+            # ["qmc", "gauss", 300, 10000, 1, 1e-2],
             ["qmc", "gauss", 300, 10000, 2, 1e-2],
             ["mc", "gauss", 300, 10000, 1, 2e-2]]
         for test_scenario in test_scenarios:
