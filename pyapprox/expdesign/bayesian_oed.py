@@ -1,4 +1,5 @@
 import os
+import math
 import numpy as np
 from scipy.spatial.distance import cdist
 from pyapprox.util.pya_numba import njit
@@ -238,8 +239,12 @@ def gaussian_loglike_fun_3d_prereduced(
     tmp2 = 0.5*np.sum(np.log(-tmp1[active_indices]/np.pi))
     llike = sq_dists_numba_3d_XX_prereduced(
         obs, pred_obs, tmp1, tmp2, active_indices)
+    print(obs, pred_obs, 'z')
+    print(sq_dists_numba_3d_XX_prereduced(
+        obs, pred_obs, tmp1*0+1, 0, active_indices), 'd')
     if llike.ndim == 1:
         llike = llike[:, None]
+    print(llike.shape, 'l1', obs.shape, pred_obs.shape)
     return llike
 
 
@@ -309,7 +314,6 @@ def _exp(x):
 #         inner_loop_weights)[:, None]
 #     return vals
 
-import math
 @njit(cache=True)
 def _evidences(inner_log_likelihood_vals, inner_loop_weights):
     MM, NN = inner_log_likelihood_vals.shape
@@ -317,14 +321,79 @@ def _evidences(inner_log_likelihood_vals, inner_loop_weights):
     for mm in range(MM):
         evidences[mm, 0] = 0.0
         for nn in range(NN):
-            evidences[mm, 0] += math.exp(inner_log_likelihood_vals[mm, nn])*inner_loop_weights[mm, nn]
+            evidences[mm, 0] += math.exp(
+                inner_log_likelihood_vals[mm, nn])*inner_loop_weights[mm, nn]
     return evidences
+
+
+@njit(cache=True)
+def _sq_dists_numba_3d(XX, YY, a):
+    
+    Yshape = YY.shape
+    ss = np.empty(Yshape)
+    for ii in range(Yshape[0]):
+        for jj in range(Yshape[1]):
+            for kk in range(Yshape[2]):
+                ss[ii, jj, kk] = a[kk]*(XX[ii, kk] - YY[ii, jj, kk])**2
+    return ss
+
+
+class OEDSimulationData():
+    def __init__(self, inner_loop_samples, inner_loop_weights,
+                 outer_loop_samples, outer_loop_weights,
+                 inner_loop_pred_obs, outer_loop_pred_obs,
+                 noise_std, noise_samples, nobs_per_design_location,
+                 store_dists=True):
+        self.inner_loop_samples = inner_loop_samples
+        self.inner_loop_weights = inner_loop_weights
+        self.outer_loop_samples = outer_loop_samples
+        self.outer_loop_weights = outer_loop_weights
+        self.inner_loop_pred_obs = inner_loop_pred_obs
+        self.outer_loop_pred_obs = outer_loop_pred_obs
+        self.noise_samples = noise_samples
+        if not isinstance(noise_std, np.ndarray):
+            noise_std = np.full((outer_loop_pred_obs.shape[-1], 1), noise_std)
+        assert noise_std.shape[0] == outer_loop_pred_obs.shape[-1]
+        self.noise_std = noise_std
+        self.nouter_loop_samples = self.outer_loop_pred_obs.shape[0]
+        self.ninner_loop_samples = int(
+            self.inner_loop_pred_obs.shape[0]//self.nouter_loop_samples)
+        self.nobs_per_design_location = nobs_per_design_location
+        if nobs_per_design_location > 1:
+            raise NotImplementedError("Not yet implemented. TODO")
+        if store_dists:
+            self.dists = self._compute_dists()
+        else:
+            self.dists = None
+
+    def _compute_dists(self):
+        nobs = self.outer_loop_pred_obs.shape[1]
+        noisy_obs = (
+            self.outer_loop_pred_obs +
+            self.noise_samples)
+        tmp1 = -1/(2*self.noise_std[:, 0]**2)
+        tmp2 = self.inner_loop_pred_obs.reshape(
+            self.nouter_loop_samples, self.ninner_loop_samples, nobs)
+        tmp1 = tmp1*0+1
+        print(noisy_obs, tmp2, 'z1')
+        # dists = (noisy_obs[:, None, :]-tmp2)**2*tmp1
+        dists = _sq_dists_numba_3d(noisy_obs, tmp2, tmp1)
+        return dists
+
+    def loglike(self, active_indices):
+        tmp1 = -1/(2*self.noise_std[active_indices, 0]**2)
+        tmp2 = 0.5*np.sum(np.log(-tmp1/np.pi))
+        print(self.dists[...,active_indices].sum(axis=-1), 'd1', tmp2)
+        assert False
+        vals = self.dists[..., active_indices].sum(axis=-1) + tmp2
+        print(vals)
+        return vals
 
 
 def _compute_expected_kl_utility_monte_carlo(
         log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
-        active_indices, return_all):
+        active_indices, return_all, oed_sim_data):
 
     nouter_loop_samples = outer_loop_pred_obs.shape[0]
     ninner_loop_samples = int(
@@ -337,26 +406,14 @@ def _compute_expected_kl_utility_monte_carlo(
         nouter_loop_samples, ninner_loop_samples, nobs)
     inner_log_likelihood_vals = log_likelihood_fun(
         outer_loop_pred_obs, tmp, active_indices)
+    print(inner_log_likelihood_vals, 'i')
+    print(oed_sim_data.loglike(active_indices))
+    print(inner_log_likelihood_vals-oed_sim_data.loglike(active_indices), 'e')
+    assert np.allclose(
+        inner_log_likelihood_vals, oed_sim_data.loglike(active_indices))
 
-    # above is a faster version of loop below
-    # outer_log_likelihood_vals = np.empty((nouter_loop_samples, 1))
-    # inner_log_likelihood_vals = np.empty(
-    #     (nouter_loop_samples, ninner_loop_samples))
-    # idx1 = 0
-    # for ii in range(nouter_loop_samples):
-    #     outer_log_likelihood_vals[ii] = log_likelihood_fun(
-    #         outer_loop_obs[ii:ii+1, :], outer_loop_pred_obs[ii:ii+1, :])
-    #     idx2 = idx1 + ninner_loop_samples
-    #     inner_log_likelihood_vals[ii, :] = log_likelihood_fun(
-    #         outer_loop_obs[ii:ii+1, :], inner_loop_pred_obs[idx1:idx2, :])
-    #     idx1 = idx2
-
-    # this is the expensive calculation
-    # evidences = np.einsum(
-    #     "ij,ij->i", np.exp(inner_log_likelihood_vals),
-    #     inner_loop_weights)[:, None]
     evidences = _evidences(inner_log_likelihood_vals, inner_loop_weights)
-    
+
     utility_val = np.sum((outer_log_likelihood_vals - np.log(evidences)) *
                          outer_loop_weights)
     if not return_all:
@@ -561,7 +618,7 @@ def compute_expected_kl_utility_monte_carlo(
         log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         collected_design_indices, new_design_indices,
-        return_all):
+        return_all, oed_sim_data):
     r"""
     Compute the expected Kullback–Leibler (KL) divergence.
 
@@ -616,7 +673,7 @@ def compute_expected_kl_utility_monte_carlo(
     return _compute_expected_kl_utility_monte_carlo(
         log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
-        active_indices, return_all)
+        active_indices, return_all, oed_sim_data)
 
 
 def _evidences_and_weights(inner_log_likelihood_vals, inner_loop_weights):
@@ -1076,6 +1133,14 @@ class BayesianBatchKLOED(AbstractBayesianOED):
             _precompute_expected_kl_utility_data(
                 outer_loop_quad_data, self.generate_inner_prior_samples,
                 self.ninner_loop_samples, self.obs_fun, econ=self.econ)
+        # TODO remove pointers to data in this class that is now stored in
+        # OEDSimulationData
+        self.oed_sim_data = OEDSimulationData(
+            self.inner_loop_prior_samples, self.inner_loop_weights,
+            self.outer_loop_prior_samples, self.outer_loop_weights,
+            self.inner_loop_pred_obs, self.outer_loop_pred_obs,
+            self.noise_std, self.noise_realizations, 1, True)
+
 
     def compute_expected_utility(self, collected_design_indices,
                                  new_design_indices, return_all=False):
@@ -1091,10 +1156,13 @@ class BayesianBatchKLOED(AbstractBayesianOED):
         # computed using
         # the associated outerloop data
         return compute_expected_kl_utility_monte_carlo(
-            self.loglike_fun_from_noiseless_obs, self.outer_loop_pred_obs,
-            self.inner_loop_pred_obs, self.inner_loop_weights,
-            self.outer_loop_weights, collected_design_indices,
-            new_design_indices, return_all)
+            self.loglike_fun_from_noiseless_obs,
+            self.oed_sim_data.outer_loop_pred_obs,
+            self.oed_sim_data.inner_loop_pred_obs,
+            self.oed_sim_data.inner_loop_weights,
+            self.oed_sim_data.outer_loop_weights,
+            collected_design_indices,
+            new_design_indices, return_all,self.oed_sim_data)
 
 
 def oed_prediction_average(qoi_vals, weights=None):
