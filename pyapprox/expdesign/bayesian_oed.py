@@ -299,6 +299,28 @@ def gaussian_loglike_fun(obs, pred_obs, noise_stdev, active_indices=None):
             obs, pred_obs, noise_stdev, active_indices)
 
 
+def _exp(x):
+    return np.exp(x)
+
+
+# def _evidences(inner_log_likelihood_vals, inner_loop_weights):
+#     vals = np.einsum(
+#         "ij,ij->i", _exp(inner_log_likelihood_vals),
+#         inner_loop_weights)[:, None]
+#     return vals
+
+import math
+@njit(cache=True)
+def _evidences(inner_log_likelihood_vals, inner_loop_weights):
+    MM, NN = inner_log_likelihood_vals.shape
+    evidences = np.empty((MM, 1))
+    for mm in range(MM):
+        evidences[mm, 0] = 0.0
+        for nn in range(NN):
+            evidences[mm, 0] += math.exp(inner_log_likelihood_vals[mm, nn])*inner_loop_weights[mm, nn]
+    return evidences
+
+
 def _compute_expected_kl_utility_monte_carlo(
         log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
@@ -329,9 +351,12 @@ def _compute_expected_kl_utility_monte_carlo(
     #         outer_loop_obs[ii:ii+1, :], inner_loop_pred_obs[idx1:idx2, :])
     #     idx1 = idx2
 
-    evidences = np.einsum(
-        "ij,ij->i", np.exp(inner_log_likelihood_vals),
-        inner_loop_weights)[:, None]
+    # this is the expensive calculation
+    # evidences = np.einsum(
+    #     "ij,ij->i", np.exp(inner_log_likelihood_vals),
+    #     inner_loop_weights)[:, None]
+    evidences = _evidences(inner_log_likelihood_vals, inner_loop_weights)
+    
     utility_val = np.sum((outer_log_likelihood_vals - np.log(evidences)) *
                          outer_loop_weights)
     if not return_all:
@@ -594,6 +619,28 @@ def compute_expected_kl_utility_monte_carlo(
         active_indices, return_all)
 
 
+def _evidences_and_weights(inner_log_likelihood_vals, inner_loop_weights):
+    inner_likelihood_vals = np.exp(inner_log_likelihood_vals)
+    evidences = np.einsum(
+        "ij,ij->i", inner_likelihood_vals, inner_loop_weights)[:, None]
+    weights = inner_likelihood_vals*inner_loop_weights/evidences
+    return evidences, weights
+
+
+# @njit(cache=True)
+# def _evidences_and_weights(inner_log_likelihood_vals, inner_loop_weights):
+#     MM, NN = inner_log_likelihood_vals.shape
+#     evidences = np.empty((MM, 1))
+#     weights = inner_loop_weights.copy()
+#     for mm in range(MM):
+#         evidences[mm, 0] = 0.0
+#         for nn in range(NN):
+#             likelihood_val = math.exp(inner_log_likelihood_vals[mm, nn])
+#             weights[mm, nn] *= likelihood_val
+#             evidences[mm, 0] += weights[mm, nn]
+#     return evidences, weights/evidences
+
+
 def _compute_negative_expected_deviation_monte_carlo(
         log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
@@ -609,11 +656,8 @@ def _compute_negative_expected_deviation_monte_carlo(
 
     inner_log_likelihood_vals = log_likelihood_fun(
         outer_loop_pred_obs, tmp, active_indices)
-    inner_likelihood_vals = np.exp(inner_log_likelihood_vals)
-    evidences = np.einsum(
-        "ij,ij->i", inner_likelihood_vals, inner_loop_weights)[:, None]
-
-    weights = inner_likelihood_vals*inner_loop_weights/evidences
+    evidences, weights = _evidences_and_weights(
+        inner_log_likelihood_vals, inner_loop_weights)
 
     # make deviation_fun operate on columns of samples
     # so that it returns a vector of deviations one for each column
