@@ -883,7 +883,7 @@ class TestBayesianOED(unittest.TestCase):
         noise_std = 1
         ndesign = 4
         nouter_loop_samples = 10000
-        ninner_loop_samples = 51 #31
+        ninner_loop_samples = 81 #31
 
         ncandidates = 11
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
@@ -935,7 +935,6 @@ class TestBayesianOED(unittest.TestCase):
         np.random.seed(1)
         noise_std = 1
         ndesign = 5
-        nouter_loop_samples = 2
         # outerloop samples does not effect this problem
         # because variance is independent of noise only on design
         ninner_loop_samples_1d = 41
@@ -943,15 +942,20 @@ class TestBayesianOED(unittest.TestCase):
         nrandom_vars = degree+1
         quad_method = "quadratic"
         # quad_method = "gauss"
-        pred_risk_fun = None
+
+        nouter_loop_samples = 2
+        nprediction_samples = 201
         quantile = 0.8
         pred_risk_fun = partial(conditional_value_at_risk, alpha=quantile)
+
+        # nouter_loop_samples = 100
+        # nprediction_samples = 1
+        # pred_risk_fun = oed_prediction_average
 
         ncandidates = 21
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
         # design_candidates = np.hstack(
         #    (design_candidates, np.array([[-1/np.sqrt(5), 1/np.sqrt(5)]])))
-        nprediction_samples = 201
         prediction_candidates = np.linspace(
             -1, 1, nprediction_samples)[None, :]
 
@@ -966,7 +970,9 @@ class TestBayesianOED(unittest.TestCase):
 
         def qoi_fun(samples):
             Amat = basis_matrix(degree, prediction_candidates)
-            return Amat.dot(samples).T
+            qoi = Amat.dot(samples).T
+            print(qoi.shape)
+            return qoi
 
         prior_variable = IndependentMarginalsVariable(
             [stats.norm(0, 1)]*nrandom_vars)
