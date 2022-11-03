@@ -680,15 +680,15 @@ class TestBayesianOED(unittest.TestCase):
             setup_linear_gaussian_model_inference(
                 prior_variable, noise_std, Amat))
 
-        quad_x_1d, quad_w_1d = gauss_hermite_pts_wts_1D(101)
+        quad_x_1d, quad_w_1d = gauss_hermite_pts_wts_1D(201)
         data_quad_x = quad_x_1d*noise_std
         theta_quad_x = quad_x_1d*prior_std
         quad_x = cartesian_product([theta_quad_x, data_quad_x])
         quad_w = outer_product([quad_w_1d]*2)
 
-        quad_x_1d = np.random.normal(0, prior_std, 100000)
-        quad_w_1d = np.full(quad_x_1d.shape[0], 1/quad_x_1d.shape[0])
-        theta_quad_x = quad_x_1d
+        # quad_x_1d = np.random.normal(0, prior_std, 100000)
+        # quad_w_1d = np.full(quad_x_1d.shape[0], 1/quad_x_1d.shape[0])
+        # theta_quad_x = quad_x_1d
 
         def qoi_fun(theta):
             return theta.T
@@ -723,12 +723,14 @@ class TestBayesianOED(unittest.TestCase):
                 extract_independent_noise_cov(noise_cov_inv, idx),
                 obs.T)
         qx_post = quad_x_1d*np.sqrt(exact_post_cov)+exact_post_mean
+        val1 = (np.dot(qoi_fun(qx_post)[:, 0]**2, quad_w_1d) -
+                np.dot(qoi_fun(qx_post)[:, 0], quad_w_1d)**2)
         # val1 = np.sqrt(np.dot(qoi_fun(qx_post)[:, 0]**2, quad_w_1d) -
         #                np.dot(qoi_fun(qx_post)[:, 0], quad_w_1d)**2)
-        val1 = np.dot(np.exp(qoi_fun(qx_post)[:, 0])-1, quad_w_1d)
-        alpha = 0.5
-        val1 = conditional_value_at_risk(
-            qoi_fun(qx_post)[:, 0], alpha, quad_w_1d, prob=False)
+        # val1 = np.dot(np.exp(qoi_fun(qx_post)[:, 0])-1, quad_w_1d)
+        # alpha = 0.5
+        # val1 = conditional_value_at_risk(
+        #     qoi_fun(qx_post)[:, 0], alpha, quad_w_1d, prob=False)
 
         def lfun(theta):
             print(obs.shape, obs_fun(theta).shape)
@@ -749,18 +751,31 @@ class TestBayesianOED(unittest.TestCase):
         qvals = qoi_fun(theta_quad_x[None, :])[:, 0]
         print(lvals.dot(quad_w_1d), 'e')
         print(evidence)
+        tmp2 = (qvals).dot(lvals*quad_w_1d)
+        # min does not depend on evidence but argmin does. so need
+        # to find min by optimization
+        val2 = ((qvals-tmp2/evidence)**2).dot(lvals*quad_w_1d)/evidence
+        def obj(t, jac=True):
+            val = ((qvals-t)**2).dot(lvals*quad_w_1d)
+            if not jac:
+                return val
+            return val, -2*(qvals-t).dot(lvals*quad_w_1d)
+        t0 = np.zeros((1, 1))
+        # from pyapprox.util.utilities import check_gradients
+        # check_gradients(obj, True, t0)
+        # assert False
+        from scipy.optimize import minimize
+        val3 = minimize(obj, t0, jac=True).fun
         # val2 = np.sqrt((qvals**2*lvals).dot(quad_w_1d)/evidence -
-        #                (qvals*lvals).dot(quad_w_1d)**2/evidence**2)
-        # print(theta_quad_x)
-        # print(qvals)
-        # print((np.exp(qvals)-1))
-        val2 = np.dot((np.exp(qvals)-1)*lvals, quad_w_1d)/evidence
-        val2 = conditional_value_at_risk(
-            qvals, alpha, weights=quad_w_1d*lvals/evidence, prob=False)
+        #                tmp2/evidence**2)
+        # val2 = np.dot((np.exp(qvals)-1)*lvals, quad_w_1d)/evidence
+        # val2 = conditional_value_at_risk(
+        #     qvals, alpha, weights=quad_w_1d*lvals/evidence, prob=False)
 
 
         print(val1, 'v1')
         print(val2, 'v2')
+        print(val3/evidence, 'v3')
         assert False
 
         print(leb_quad_w.sum())
@@ -864,19 +879,21 @@ class TestBayesianOED(unittest.TestCase):
         No observations collected to inform subsequent designs
         """
         np.random.seed(1)
-        nrandom_vars = 1
+        nrandom_vars = 2
         noise_std = 1
         ndesign = 4
         nouter_loop_samples = 10000
-        ninner_loop_samples = 31
+        ninner_loop_samples = 51 #31
 
         ncandidates = 11
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
 
+        Amat = np.hstack(
+            (np.ones((design_candidates.shape[1], 1)), design_candidates.T))
+
         def obs_fun(samples):
             assert design_candidates.ndim == 2
             assert samples.ndim == 2
-            Amat = design_candidates.T
             return Amat.dot(samples).T
 
         prior_variable = IndependentMarginalsVariable(
@@ -898,11 +915,9 @@ class TestBayesianOED(unittest.TestCase):
             d_utility_vals = np.zeros(ncandidates)
             for kk in range(ncandidates):
                 if kk not in oed.collected_design_indices:
-                    new_design = np.hstack(
-                        (design_candidates[:, oed.collected_design_indices],
-                         design_candidates[:, kk:kk+1]))
-                    Amat = new_design.T
-                    d_utility_vals[kk] = d_optimal_utility(Amat, noise_std)
+                    indices = np.hstack((oed.collected_design_indices, kk))
+                    Amat_kk = Amat[indices]
+                    d_utility_vals[kk] = d_optimal_utility(Amat_kk, noise_std)
 
             utility_vals, selected_indices = oed.update_design()[:2]
             # ignore entries of previously collected data
@@ -2013,3 +2028,7 @@ if __name__ == "__main__":
     bayesian_oed_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestBayesianOED)
     unittest.TextTestRunner(verbosity=2).run(bayesian_oed_test_suite)
+
+# We assume that the experiment can completely determine the model, i.e., is a full rank matrix even without help from the prior. After equation (9)
+
+# The key step is propagating the uncertainty from the parameters to the quantity of interest using a small noise approximation. Therefore, the pdf of the quantity of interest can be approximated by a Gaussian one. Last para section 2.
