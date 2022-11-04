@@ -885,7 +885,7 @@ class TestBayesianOED(unittest.TestCase):
         noise_std = 1
         ndesign = 4
         nouter_loop_samples = 10000
-        ninner_loop_samples = 81 #31
+        ninner_loop_samples = 31 #31
 
         ncandidates = 11
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
@@ -908,7 +908,7 @@ class TestBayesianOED(unittest.TestCase):
             prior_variable, nouter_loop_samples,
             ninner_loop_samples, "gauss",
             pre_collected_design_indices=init_design_indices,
-            outer_quad_type="qmc", max_ncollected_obs=ndesign)
+            outer_quad_type="mc", max_ncollected_obs=ndesign)
 
         for ii in range(len(init_design_indices), ndesign):
             # loop must be before oed.updated design because

@@ -1234,3 +1234,10 @@ def get_tensor_product_quadrature_rule(
     if transform_samples is not None:
         samples = transform_samples(samples)
     return samples, weights
+
+
+def split_indices(nelems, nsplits):
+    indices = np.hstack((
+        np.full((nelems % nsplits), nelems//nsplits+1),
+        np.full(nsplits-(nelems % nsplits), nelems//nsplits)))
+    return np.hstack((0, np.cumsum(indices)))
