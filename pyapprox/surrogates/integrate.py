@@ -133,7 +133,7 @@ def integrate(method, variable, *args, **kwargs):
             samples = sobol_sequence(
                 variable.num_vars(), nsamples, start_index, variable)
         elif rule == "halton":
-            samples = sobol_sequence(
+            samples = halton_sequence(
                 variable.num_vars(), nsamples, start_index, variable)
         else:
             raise NotImplementedError(f"QMC rule {rule} not implemented")
