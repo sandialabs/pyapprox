@@ -332,13 +332,32 @@ def _loglike_fun_from_noiseless_obs(
         obs, pred_obs[:, active_indices], noise_std[active_indices])
 
 
+@njit(cache=True)
+def _compute_evidences_repeated_in_samples(
+        out_obs, in_pred_obs, in_weights, active_indices, noise_std):
+    nout_samples = out_obs.shape[0]
+    nin_samples = in_pred_obs.shape[0]
+    nactive_indices = active_indices.shape[0]
+    const1 = -1/(2*noise_std[:, 0]**2)
+    evidences = np.empty((nout_samples, 1))
+    const2 = 0.5*np.sum(np.log(-const1[active_indices]/np.pi))
+    for ii in range(nout_samples):
+        evidences[ii, 0] = 0.0
+        for jj in range(nin_samples):
+            loglike_val = const2
+            for kk in range(nactive_indices):
+                loglike_val += const1[active_indices[kk]]*(
+                    out_obs[ii, kk] -
+                    in_pred_obs[jj, active_indices[kk]])**2
+            evidences[ii, 0] += math.exp(loglike_val)*in_weights[jj]
+    return evidences
+
+
 def _compute_evidences(
         out_pred_obs, in_pred_obs, in_weights,
         out_weights, active_indices, noise_samples, noise_std):
 
     nout_samples = out_pred_obs.shape[0]
-    nin_samples = int(
-        in_pred_obs.shape[0]//nout_samples)
 
     # warning outerloop_pred_obs has already been reduced down to
     # the active indices but in_pred_obs has not. The cost of
@@ -350,13 +369,25 @@ def _compute_evidences(
         noise_std, active_indices)
 
     nobs = out_pred_obs.shape[1]
-    tmp = in_pred_obs.reshape(
-        nout_samples, nin_samples, nobs)
-    inner_log_likelihood_vals = _loglike_fun_from_noiseless_obs(
-        out_pred_obs, tmp, noise_samples,
-        noise_std, active_indices)
+    if in_pred_obs.shape[0] == np.prod(in_weights.shape):
+        #TODO remove this conditional
+        nin_samples = int(in_pred_obs.shape[0]//nout_samples)
+        tmp = in_pred_obs.reshape(
+            nout_samples, nin_samples, nobs)
+        # inner_log_likelihood_vals = _loglike_fun_from_noiseless_obs(
+        #     out_pred_obs, tmp, noise_samples,
+        #     noise_std, active_indices)
+        # evidences = _evidences(inner_log_likelihood_vals, in_weights)
+    else:
+        nin_samples = in_pred_obs.shape[0]
+        tmp = in_pred_obs.reshape(1, nin_samples, nobs)
+    out_obs = out_pred_obs[:, active_indices].copy()
+    out_obs += noise_samples[:, :active_indices.shape[0]]
+    evidences = _compute_evidences_repeated_in_samples(
+        out_obs, tmp[0], in_weights[0], active_indices, noise_std)
+    inner_log_likelihood_vals = None
+    # assert np.allclose(evidences, evidences1)
 
-    evidences = _evidences(inner_log_likelihood_vals, in_weights)
     return outer_log_likelihood_vals, inner_log_likelihood_vals, evidences
 
 
@@ -927,8 +958,10 @@ class AbstractBayesianOED(ABC):
         splits = split_indices(ndesign_candidates, self.nprocs)
         args = [(splits[ii], splits[ii+1], collected_design_indices,
                  return_all) for ii in range(splits.shape[0]-1)]
+        t0 = time.time()
         with Pool(processes=self.nprocs, initializer=init_worker,
                   initargs=_get_compute_utilities_initargs(self)) as pool:
+            print("pool startup", time.time()-t0)
             result = pool.map(worker_fun, args)
         utility_vals = np.hstack([r[0] for r in result])
         results = []
@@ -1015,34 +1048,22 @@ global_oed_shared_data = OEDSharedData()
 
 
 def _create_global_array_from_name(obj, name):
-    t0 = time.time()
     array = getattr(obj, name)
     X = RawArray('d', int(np.prod(array.shape)))
-    print("creation time", name, time.time()-t0)
-    t0 = time.time()
     # X[:] = array.ravel() very slow
     X_np = np.frombuffer(X).reshape(array.shape)
-    print("frombuffer time", name, time.time()-t0)
-    t0 = time.time()
     np.copyto(X_np, array)
-    print("copy time", name, time.time()-t0)
-    t0 = time.time()
-    array.copy()
-    print("copy time 1", name, time.time()-t0)
     return X, array.shape
 
 
 import time
 def _get_compute_utilities_initargs(obj):
-    print("Start")
     t0 = time.time()
     initargs = []
     for name in global_oed_shared_data.attr_names:
         X, shape = _create_global_array_from_name(obj, name)
         initargs += [X, shape]
     print("data time", time.time()-t0)
-    
-    print("DONE")
     return (initargs, )
 
 
@@ -1064,7 +1085,7 @@ def worker_fun(arg):
     noise_samples = from_buffer("noise_samples")
     noise_std = from_buffer("noise_std")
     collected_design_indices, return_all = arg[2], arg[3]
-    print("Took start", time.time()-t0, arg[0], arg[1])
+    print("worker_fun start time", time.time()-t0, arg[0], arg[1])
 
 
     t0 = time.time()
@@ -1099,6 +1120,9 @@ class BayesianBatchKLOED(AbstractBayesianOED):
          self.in_samples, self.in_weights) = \
             _precompute_expected_kl_utility_data(
                 self.out_quad_data, self.in_quad_data, self.obs_fun)
+        if self.nprocs > 1:
+            # copy to shared memory is expensive and we have already
+            self.in_pred_obs = self.in_pred_obs[:self.nin_samples, :]
 
     def compute_expected_utility(self, collected_design_indices,
                                  new_design_indices, return_all=False):
