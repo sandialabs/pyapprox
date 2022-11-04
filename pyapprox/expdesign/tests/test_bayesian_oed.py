@@ -745,7 +745,7 @@ class TestBayesianOED(unittest.TestCase):
         ndesign = 4
         nprocs = 1
 
-        ncandidates = 11
+        ncandidates = 101
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
 
         Amat = np.hstack(
