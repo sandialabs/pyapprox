@@ -8,6 +8,7 @@ from pyapprox.util.utilities import (
     get_random_k_fold_sample_indices,
     get_cross_validation_rsquared_coefficient_of_variation,
     integrate_using_univariate_gauss_legendre_quadrature_unbounded,
+    split_indices
 )
 
 
@@ -165,6 +166,17 @@ class TestUtilities(unittest.TestCase):
         res = integrate_using_univariate_gauss_legendre_quadrature_unbounded(
             integrand, lb, ub, nquad_samples, interval_size=2)
         assert np.allclose(res, [1, 2, 3**2+2**2])
+
+    def _check_split_indices(self, nelems, nsplits):
+        indices = split_indices(nelems, nsplits)
+        split_array = np.array_split(np.arange(nelems), nsplits)
+        true_indices = np.hstack([0]+[[a[-1]+1] for a in split_array])
+        assert np.allclose(true_indices, indices)
+
+    def test_split_indices(self):
+        test_cases = [[10, 3], [6, 3], [3, 3]]
+        for test_case in test_cases:
+            self._check_split_indices(*test_case)
 
 
 if __name__ == "__main__":
