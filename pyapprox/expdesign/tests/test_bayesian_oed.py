@@ -798,11 +798,11 @@ class TestBayesianOED(unittest.TestCase):
         """
         np.random.seed(1)
         noise_std = 1
-        ndesign = 1#5
+        ndesign = 5
         degree = 2
         nrandom_vars = degree+1
 
-        nprediction_samples = 3 #201
+        nprediction_samples = 201
         quantile = 0.8
         pred_risk_fun = partial(conditional_value_at_risk, alpha=quantile)
 
@@ -918,8 +918,12 @@ class TestBayesianOED(unittest.TestCase):
         nrandom_vars = degree+1
         noise_std = 1
         ndesign = 5
-        nout_samples = int(1e4)
-        nin_samples_1d = 51
+
+        out_quad_opts = {
+            "method": "quasimontecarlo", "kwargs": {"nsamples": 1e4}}
+        in_quad_opts = {
+            "method": "tensorproduct",
+            "kwargs": {"levels": 51, "rule": "gauss"}}
 
         ncandidates = 6
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
@@ -953,12 +957,13 @@ class TestBayesianOED(unittest.TestCase):
         init_design_indices = np.array([ncandidates//2])
         oed = get_bayesian_oed_optimizer(
             oed_type, design_candidates, obs_fun, noise_std,
-            prior_variable, nout_samples,
-            nin_samples_1d, "gauss",
+            prior_variable, out_quad_opts, in_quad_opts,
             pre_collected_design_indices=init_design_indices,
-            outer_quad_type="qmc", **kwargs)
+            max_ncollected_obs=ndesign,
+            **kwargs)
+        print(oed)
         # following assumes oed.econ = True
-        x_quad = oed.in_prior_samples[:, :oed.nin_samples]
+        x_quad = oed.in_samples[:, :oed.nin_samples]
         w_quad = oed.in_weights[0, :oed.nin_samples]
 
         prior_mean = oed.prior_variable.get_statistics('mean')
@@ -1031,7 +1036,7 @@ class TestBayesianOED(unittest.TestCase):
             # print(quad_evidence, gauss_evidence)
             assert np.allclose(gauss_evidence, quad_evidence), step
 
-            # print('G', gauss_evidence, oed.evidence)
+            print('G', gauss_evidence, oed.evidence)
             assert np.allclose(gauss_evidence, oed.evidence), step
 
             # compute the evidence of moving from the initial prior
@@ -1054,7 +1059,7 @@ class TestBayesianOED(unittest.TestCase):
             oed.update_observations(new_obs)
             utility = utility_vals[selected_indices]
             # ensure noise realizations are the same for both approaches
-            oed_copy.noise_realizations = oed.noise_realizations
+            oed_copy.noise_samples = oed.noise_samples
 
             # Re-compute the evidences that were used to update the design
             # above. This will be used for testing later
@@ -1072,20 +1077,16 @@ class TestBayesianOED(unittest.TestCase):
             # considers all possible candidate design indices
             # Here we just test the one that was chosen last when
             # design was updated
-            exact_evidences = np.empty(nout_samples)
+            exact_evidences = np.empty(oed.nout_samples)
             exact_stats = np.empty_like(exact_evidences)
-            for jj in range(nout_samples):
+            for jj in range(oed.nout_samples):
                 # Fill obs with those predicted by outer loop sample
                 idx = oed.collected_design_indices
                 # Merge collected observations and new predicted observation.
-                # Do not call oed_copy.get_out_obs(idx) as this
-                # will likely cause new noise realizations to be used because
-                # number of unique active indices entries may become greater
-                # than one
-                obs_jj = np.hstack(
-                    (oed_copy.collected_obs,
-                     oed_copy.get_out_obs(
-                         selected_indices)[jj:jj+1, :]))
+                noisy_obs = oed_copy.out_pred_obs[jj:jj+1, selected_indices] +\
+                    oed_copy.noise_samples[jj, :selected_indices.shape[0]]
+                # noisy_obs = oed_copy.get_out_obs(selected_indices)[jj:jj+1, :]
+                obs_jj = np.hstack((oed_copy.collected_obs, noisy_obs))
 
                 # Compute the posterior obtained by using predicted value
                 # of outer loop sample
@@ -1142,6 +1143,7 @@ class TestBayesianOED(unittest.TestCase):
                 else:
                     exact_stats[jj] = -pred_mat.dot(
                         exact_post_cov_jj.dot(pred_mat.T))[0, 0]
+                    # print(results["deviations"][jj], -exact_stats[jj], "D")
                     assert np.allclose(
                         results["deviations"][jj], -exact_stats[jj])
 
@@ -1155,15 +1157,16 @@ class TestBayesianOED(unittest.TestCase):
             # of parameters. Closed loop design (not used here)
             # never collects data and so it always samples from the prior.
             # post_weights = post_var.pdf(
-            #     oed.out_prior_samples.T)/post_var_prev.pdf(
-            #         oed.out_prior_samples.T)/oed.nout_samples
+            #     oed.out_prior_samples.T)/prior_variable.pdf(
+            #         oed.out_prior_samples)[:, 0]/oed.nout_samples
             post_weights = post_var.pdf(
                 oed.out_prior_samples.T)/prior_variable.pdf(
-                    oed.out_prior_samples)[:, 0]/oed.nout_samples
+                    oed.out_prior_samples)[:, 0]*oed.out_weights[:, 0]
             # accuracy of expected KL depends on nout_samples because
             # these samples are used to compute the kl divergences
             laplace_utility = np.sum(exact_stats*post_weights)
-            # print(utility, laplace_utility, exact_stats)
+            print(utility, laplace_utility, "U")
+            print(exact_stats)
             print('u', (utility-laplace_utility)/laplace_utility, step,
                   step_tols[step-1])
             assert np.allclose(
@@ -1875,3 +1878,8 @@ if __name__ == "__main__":
 # We assume that the experiment can completely determine the model, i.e., is a full rank matrix even without help from the prior. After equation (9)
 
 # The key step is propagating the uncertainty from the parameters to the quantity of interest using a small noise approximation. Therefore, the pdf of the quantity of interest can be approximated by a Gaussian one. Last para section 2.
+
+
+#TODO shrink oed.in_weights to just in weights for a single outerloop
+# we now assume that all inner weights are the same
+#Also shrink oed.in_pred_obs

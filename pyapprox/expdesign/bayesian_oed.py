@@ -26,7 +26,7 @@ from pyapprox.surrogates.integrate import integrate
 
 
 def gaussian_loglike_fun_broadcast(
-        obs, pred_obs, noise_stdev, active_indices=None):
+        obs, pred_obs, noise_std, active_indices=None):
     """
     Conmpute the log-likelihood values from a set of real and predicted
     observations
@@ -39,7 +39,7 @@ def gaussian_loglike_fun_broadcast(
     pred_obs : np.ndarray (nsamples, nobs)
         The observations predicited by the model for a set of samples
 
-    noise_stdev : float or np.ndarray (nobs, 1)
+    noise_std : float or np.ndarray (nobs, 1)
         The standard deviation of Gaussian noise added to each observation
 
     active_indices : np.ndarray (nobs, 1)
@@ -55,22 +55,22 @@ def gaussian_loglike_fun_broadcast(
     This can handle 1d, 2d, 3d arrays but is slower
     due to broadcasting when computing obs-pred_obs
     """
-    if (type(noise_stdev) == np.ndarray and
-            noise_stdev.shape[0] != obs.shape[-1]):
-        raise ValueError("noise must be provided for each observation")
+    if (type(noise_std) == np.ndarray and
+            noise_std.shape[0] != obs.shape[-1]):
+        raise ValueError("noise_std must be provided for each observation")
 
-    if type(noise_stdev) != np.ndarray:
-        noise_stdev = np.ones((obs.shape[-1], 1), dtype=float)*noise_stdev
+    if type(noise_std) != np.ndarray:
+        noise_std = np.ones((obs.shape[-1], 1), dtype=float)*noise_std
 
     if active_indices is None:
         # avoid copy if possible
         # using special indexing with array e.g array[:, I] where I is an array
         # makes a copy which is slow
-        tmp = 1/(2*noise_stdev[:, 0]**2)
+        tmp = 1/(2*noise_std[:, 0]**2)
         llike = 0.5*np.sum(np.log(tmp/np.pi))
         llike += np.sum(-(obs-pred_obs)**2*tmp, axis=-1)
     else:
-        tmp = 1/(2*noise_stdev[active_indices, 0]**2)
+        tmp = 1/(2*noise_std[active_indices, 0]**2)
         llike = 0.5*np.sum(np.log(tmp/np.pi))
         llike += np.sum(
             -(obs[..., active_indices]-pred_obs[..., active_indices])**2*tmp,
@@ -144,16 +144,16 @@ def sq_dists_3d(XX, YY, a=1, b=0, active_indices=None):
 
 
 def gaussian_loglike_fun_economial_3D(
-        obs, pred_obs, noise_stdev, active_indices=None):
+        obs, pred_obs, noise_std, active_indices=None):
     if pred_obs.ndim != 3:
         raise ValueError("pred_obs must be 3D")
     # cdist has a lot of overhead and cannot be used with active_indices
     # sq_dists = sq_dists_cdist_3d(obs, pred_obs)
 
-    if type(noise_stdev) != np.ndarray:
-        noise_stdev = np.ones((pred_obs.shape[-1], 1), dtype=float)*noise_stdev
+    if type(noise_std) != np.ndarray:
+        noise_std = np.ones((pred_obs.shape[-1], 1), dtype=float)*noise_std
 
-    tmp1 = -1/(2*noise_stdev[:, 0]**2)
+    tmp1 = -1/(2*noise_std[:, 0]**2)
     if active_indices is None:
         tmp2 = 0.5*np.sum(np.log(-tmp1/np.pi))
     else:
@@ -227,11 +227,11 @@ def sq_dists_3d_prereduced(XX, YY, a=1, b=0, active_indices=None):
 
 
 def gaussian_loglike_fun_3d_prereduced(
-        obs, pred_obs, noise_stdev, active_indices):
-    if type(noise_stdev) != np.ndarray:
-        noise_stdev = np.ones((pred_obs.shape[-1], 1), dtype=float)*noise_stdev
+        obs, pred_obs, noise_std, active_indices):
+    if type(noise_std) != np.ndarray:
+        noise_std = np.ones((pred_obs.shape[-1], 1), dtype=float)*noise_std
 
-    tmp1 = -1/(2*noise_stdev[:, 0]**2)
+    tmp1 = -1/(2*noise_std[:, 0]**2)
     tmp2 = 0.5*np.sum(np.log(-tmp1[active_indices]/np.pi))
     llike = sq_dists_numba_3d_XX_prereduced(
         obs, pred_obs, tmp1, tmp2, active_indices)
@@ -240,16 +240,16 @@ def gaussian_loglike_fun_3d_prereduced(
     return llike
 
 
-def compute_weighted_sqeuclidian_distance(obs, pred_obs, noise_stdev,
+def compute_weighted_sqeuclidian_distance(obs, pred_obs, noise_std,
                                           active_indices):
     if obs.ndim != 2 or pred_obs.ndim != 2:
         raise ValueError("obs and pred_obs must be 2D arrays")
-    if type(noise_stdev) != np.ndarray or noise_stdev.ndim != 2:
-        msg = "noise_stdev must be a 2d np.ndarray with one column"
+    if type(noise_std) != np.ndarray or noise_std.ndim != 2:
+        msg = "noise_std must be a 2d np.ndarray with one column"
         raise ValueError(msg)
 
     if active_indices is None:
-        weights = 1/(np.sqrt(2)*noise_stdev[:, 0])
+        weights = 1/(np.sqrt(2)*noise_std[:, 0])
         # avoid copy is possible
         # using special indexing with array makes a copy which is slow
         weighted_obs = obs*weights
@@ -257,7 +257,7 @@ def compute_weighted_sqeuclidian_distance(obs, pred_obs, noise_stdev,
         sq_dists = cdist(weighted_obs, weighted_pred_obs, "sqeuclidean")
         return sq_dists
 
-    weights = 1/(np.sqrt(2)*noise_stdev[active_indices, 0])
+    weights = 1/(np.sqrt(2)*noise_std[active_indices, 0])
     weighted_obs = obs[:, active_indices]*weights
     weighted_pred_obs = pred_obs[:, active_indices]*weights
     sq_dists = cdist(weighted_obs, weighted_pred_obs, "sqeuclidean")
@@ -265,17 +265,17 @@ def compute_weighted_sqeuclidian_distance(obs, pred_obs, noise_stdev,
 
 
 def gaussian_loglike_fun_economial_2D(
-        obs, pred_obs, noise_stdev, active_indices=None):
-    if type(noise_stdev) != np.ndarray:
-        noise_stdev = np.ones((obs.shape[-1], 1), dtype=float)*noise_stdev
+        obs, pred_obs, noise_std, active_indices=None):
+    if type(noise_std) != np.ndarray:
+        noise_std = np.ones((obs.shape[-1], 1), dtype=float)*noise_std
     sq_dists = compute_weighted_sqeuclidian_distance(
-        obs, pred_obs, noise_stdev, active_indices)
+        obs, pred_obs, noise_std, active_indices)
     if active_indices is None:
-        llike = (0.5*np.sum(np.log(1/(2*np.pi*noise_stdev[:, 0]**2))) -
+        llike = (0.5*np.sum(np.log(1/(2*np.pi*noise_std[:, 0]**2))) -
                  sq_dists[0, :])
     else:
         llike = (0.5*np.sum(
-            np.log(1/(2*np.pi*noise_stdev[active_indices, 0]**2))) -
+            np.log(1/(2*np.pi*noise_std[active_indices, 0]**2))) -
                  sq_dists[0, :])
 
     if llike.ndim == 1:
@@ -283,17 +283,17 @@ def gaussian_loglike_fun_economial_2D(
     return llike
 
 
-def gaussian_loglike_fun(obs, pred_obs, noise_stdev, active_indices=None):
+def gaussian_loglike_fun(obs, pred_obs, noise_std, active_indices=None):
     assert pred_obs.shape[-1] == obs.shape[-1]
     if pred_obs.ndim == 3 and obs.ndim == 2 and obs.shape[0] != 1:
         return gaussian_loglike_fun_economial_3D(
-            obs, pred_obs, noise_stdev, active_indices)
+            obs, pred_obs, noise_std, active_indices)
     elif obs.ndim == 2 and pred_obs.ndim == 2 and obs.shape != pred_obs.shape:
         return gaussian_loglike_fun_economial_2D(
-            obs, pred_obs, noise_stdev, active_indices)
+            obs, pred_obs, noise_std, active_indices)
     else:
         return gaussian_loglike_fun_broadcast(
-            obs, pred_obs, noise_stdev, active_indices)
+            obs, pred_obs, noise_std, active_indices)
 
 
 # def _exp(x):
@@ -984,7 +984,6 @@ class AbstractBayesianOED(ABC):
         ncandidates = self.design_candidates.shape[1]
         utility_vals, results = self.compute_utilities(
             ncandidates, collected_design_indices, return_all)
-        print(utility_vals, 'utilities')
         selected_index = np.argmax(np.round(utility_vals, 16))
         if not return_all:
             results = None
@@ -1300,9 +1299,9 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, out_quad_opts, in_quad_opts, qoi_fun=None,
                  deviation_fun=oed_standard_deviation,
-                 nprocs=1, max_ncollected_obs=2,
                  pred_risk_fun=oed_prediction_average,
-                 data_risk_fun=oed_data_expectation):
+                 data_risk_fun=oed_data_expectation,
+                 nprocs=1, max_ncollected_obs=2):
         r"""
         Constructor.
 
@@ -1437,8 +1436,9 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
             qoi_indices = np.argsort(self.in_pred_qois[ii, :, 0])
             self.in_pred_qois[ii] = \
                 self.in_pred_qois[ii, qoi_indices]
-            self.in_samples[:, idx1:idx2] = \
-                self.in_samples[:, idx1:idx2][:, qoi_indices]
+            # self.in_samples[:, idx1:idx2] = \
+                #     self.in_samples[:, idx1:idx2][:, qoi_indices]
+            self.in_samples = self.in_samples[:, qoi_indices]
             self.in_pred_obs[idx1:idx2] = \
                 self.in_pred_obs[idx1:idx2][qoi_indices, :]
             self.in_weights[ii] = \
@@ -1512,6 +1512,9 @@ class BayesianSequentialOED(AbstractBayesianOED):
         self.evidence_from_prior = 1
         self.evidence = None
 
+    def _loglike_fun(self, obs, pred_obs, noise_std):
+        return gaussian_loglike_fun(obs, pred_obs, noise_std)
+
     def _compute_evidence(self):
         """
         Compute the evidence associated with using the true collected data.
@@ -1525,10 +1528,12 @@ class BayesianSequentialOED(AbstractBayesianOED):
         To avoid numerical precision problems recompute evidence with
         all data as opposed to updating evidence just using new data
         """
-        log_like_vals = self.loglike_fun(
+        log_like_vals = self._loglike_fun(
             self.collected_obs,
             self.in_pred_obs[:self.nin_samples,
-                                     self.collected_design_indices])
+                             self.collected_design_indices],
+            self.noise_std[self.collected_design_indices])
+
         # compute evidence moving from initial prior to current posterior
         evidence_from_prior = np.sum(
             np.exp(log_like_vals)[:, 0]*self.in_weights[0, :])
@@ -1542,40 +1547,22 @@ class BayesianSequentialOED(AbstractBayesianOED):
         utility that acccount for the fact we want to use the current posterior
         as the prior in the utility formula.
         """
-        self.outer_importance_weights = np.exp(self.loglike_fun(
+        self.outer_importance_weights = np.exp(self._loglike_fun(
             self.collected_obs, self.out_pred_obs[
-                :, self.collected_design_indices]))/self.evidence_from_prior
+                :, self.collected_design_indices],
+            self.noise_std[self.collected_design_indices]))/(
+                self.evidence_from_prior)
         nobs = self.collected_design_indices.shape[0]
         tmp = self.in_pred_obs[
             :, self.collected_design_indices].reshape(
                 self.nout_samples, self.nin_samples, nobs)
 
-        self.inner_importance_weights = np.exp(self.loglike_fun(
-            self.collected_obs, tmp))/self.evidence_from_prior
-
-        # # above is a faster version of loop below
-
-        # outer_importance_weights = np.empty((self.nout_samples, 1))
-        # inner_importance_weights = np.empty(
-        #     (self.nout_samples, self.nin_samples))
-
-        # idx1 = 0
-        # for ii in range(self.nout_samples):
-        #     outer_importance_weights[ii] = np.exp(self.loglike_fun(
-        #         self.collected_obs,
-        #         self.out_pred_obs[
-        #             ii:ii+1, self.collected_design_indices]))/ \
-        #             self.evidence_from_prior
-
-        #     idx2 = idx1 + self.nin_samples
-        #     inner_importance_weights[ii, :] = np.exp(self.loglike_fun(
-        #         self.collected_obs,
-        #         self.in_pred_obs[
-        #             idx1:idx2, self.collected_design_indices]))[:, 0] / \
-        #         self.evidence_from_prior
-        #     idx1 = idx2
-        # np.allclose(self.outer_importance_weights, outer_importance_weights)
-        # np.allclose(self.inner_importance_weights, inner_importance_weights)
+        self.inner_importance_weights = np.exp(
+             self._loglike_fun(self.collected_obs, tmp, self.noise_std[
+                 self.collected_design_indices]))/(
+                 self.evidence_from_prior)
+        # self.inner_importance_weights = np.exp(self._loglike_fun(
+        #     self.collected_obs, tmp))/self.evidence_from_prior
 
     def update_observations(self, new_obs):
         """
@@ -1635,10 +1622,8 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
     """
 
     def __init__(self, design_candidates, obs_fun, noise_std,
-                 prior_variable, obs_process=None, nout_samples=1000,
-                 nin_samples=1000, generate_inner_prior_samples=None,
-                 econ=False, nprocs=1,
-                 max_ncollected_obs=2, outer_quad_type="mc"):
+                 prior_variable, out_quad_opts, in_quad_opts,
+                 obs_process=None, nprocs=1, max_ncollected_obs=2):
         r"""
         Constructor.
 
@@ -1711,10 +1696,8 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
         # open loop design
         BayesianBatchKLOED.__init__(
             self, design_candidates, obs_fun, noise_std, prior_variable,
-            nout_samples, nin_samples,
-            generate_inner_prior_samples, econ, nprocs,
-            max_ncollected_obs=max_ncollected_obs,
-            outer_quad_type=outer_quad_type)
+            out_quad_opts, in_quad_opts,
+            nprocs=nprocs, max_ncollected_obs=max_ncollected_obs)
         BayesianSequentialOED.__init__(self, obs_process)
 
     def compute_expected_utility(self, collected_design_indices,
@@ -1740,10 +1723,10 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
         the data at collected indices is incoroporated into the
         inner and outer loop weights
         """
-        return compute_expected_kl_utility_monte_carlo(
-            self.loglike_fun_from_noiseless_obs, self.out_pred_obs,
-            self.in_pred_obs, self.in_weights_up,
-            self.out_weights_up, None, new_design_indices, return_all)
+        return _compute_expected_kl_utility_monte_carlo(
+            self.out_pred_obs, self.in_pred_obs, self.in_weights_up,
+            self.out_weights_up, new_design_indices, self.noise_samples,
+            self.noise_std, return_all)
 
 
 class BayesianSequentialDeviationOED(
@@ -1753,15 +1736,12 @@ class BayesianSequentialDeviationOED(
     of the posterior through a QoI model.
     """
     def __init__(self, design_candidates, obs_fun, noise_std,
-                 prior_variable, qoi_fun=None, obs_process=None,
-                 nout_samples=1000, nin_samples=1000,
-                 generate_inner_prior_samples=None, econ=False,
+                 prior_variable,  out_quad_opts, in_quad_opts,
+                 qoi_fun=None, obs_process=None,
                  deviation_fun=oed_standard_deviation,
-                 nprocs=1,
-                 max_ncollected_obs=2,
-                 outer_quad_type="mc",
                  pred_risk_fun=oed_prediction_average,
-                 data_risk_fun=oed_data_expectation):
+                 data_risk_fun=oed_data_expectation,
+                 nprocs=1, max_ncollected_obs=2):
         r"""
         Constructor.
 
@@ -1862,11 +1842,9 @@ class BayesianSequentialDeviationOED(
         # open loop design
         BayesianBatchDeviationOED.__init__(
             self, design_candidates, obs_fun, noise_std,
-            prior_variable, qoi_fun, nout_samples,
-            nin_samples, generate_inner_prior_samples,
-            econ, deviation_fun, nprocs,
-            max_ncollected_obs, outer_quad_type, pred_risk_fun,
-            data_risk_fun)
+            prior_variable, out_quad_opts, in_quad_opts, qoi_fun,
+            deviation_fun, pred_risk_fun, data_risk_fun,
+            nprocs, max_ncollected_obs)
         BayesianSequentialOED.__init__(self, obs_process)
 
     def compute_expected_utility(self, collected_design_indices,
@@ -1892,14 +1870,11 @@ class BayesianSequentialDeviationOED(
         the data at collected indices is incoroporated into the
         inner and outer loop weights
         """
-        # TODO pass in these weights so do not have to do so much
-        # multiplications
-        return compute_negative_expected_deviation_monte_carlo(
-            self.loglike_fun_from_noiseless_obs, self.out_pred_obs,
-            self.in_pred_obs, self.in_weights_up,
+        return _compute_negative_expected_deviation_monte_carlo(
+            self.out_pred_obs, self.in_pred_obs, self.in_weights_up,
             self.out_weights_up, self.in_pred_qois,
-            self.deviation_fun, None, new_design_indices,
-            self.pred_risk_fun, return_all, self.data_risk_fun)
+            self.deviation_fun, self.pred_risk_fun, self.data_risk_fun,
+            self.noise_samples, self.noise_std, new_design_indices, return_all)
 
 
 def get_oed_inner_quadrature_rule(nin_samples, prior_variable,
@@ -2322,6 +2297,7 @@ def get_bayesian_oed_optimizer(
         in_quad_opts = {
             "method": "quasimontecarlo", "kwargs": {"nsamples": int(1e3)}}
 
+    print(kwargs.keys())
     oed = oed_types[oed_type](
         design_candidates, obs_fun, noise_std, prior_variable,
         out_quad_opts, in_quad_opts, nprocs=nprocs, **kwargs)
