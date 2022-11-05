@@ -448,9 +448,9 @@ def _compute_expected_kl_utility_monte_carlo(
                          out_weights)
     if not return_all:
         return {"utility_val": utility_val}
-    weights = np.exp(inner_log_likelihood_vals)*in_weights/evidences
-    result = {"utility_val": utility_val, "evidences": evidences,
-              "weights": weights}
+    # weights = np.exp(inner_log_likelihood_vals)*in_weights/evidences
+    result = {"utility_val": utility_val, "evidences": evidences}
+              #"weights": weights}
     return result
 
 
@@ -587,44 +587,24 @@ def _precompute_expected_kl_utility_data(out_quad_data, in_quad_data, obs_fun):
 
 
 def _precompute_expected_deviation_data(
-        out_quad_data, generate_inner_prior_samples,
-        nin_samples, obs_fun, qoi_fun, econ=False):
-    (out_pred_obs, in_pred_obs,
-     in_samples, in_weights) = \
-         _precompute_expected_kl_utility_data(
-             out_quad_data, generate_inner_prior_samples,
-             nin_samples, obs_fun, econ)
+        out_quad_data, in_quad_data, obs_fun, qoi_fun):
+    (out_pred_obs, in_pred_obs, in_samples, in_weights) = \
+        _precompute_expected_kl_utility_data(
+            out_quad_data, in_quad_data, obs_fun)
     nout_samples = out_quad_data[0].shape[1]
-    if not econ:
-        in_pred_qois = qoi_fun(in_samples)
-        if in_pred_qois.shape[0] != in_samples.shape[1]:
-            msg = "qoi_fun is not returning an array with the correct shape. "
-            msg += f"expected nrows to be {in_samples.shape[1]}"
-            msg += f" but got {in_pred_qois.shape[0]}"
-            raise ValueError(msg)
-    else:
-        in_samples = in_samples[:, :nin_samples]
-        shared_in_pred_qois = qoi_fun(in_samples)
-        if shared_in_pred_qois.shape[0] != in_samples.shape[1]:
-            msg = "qoi_fun is not returning an array with the correct shape"
-            raise ValueError(msg)
-        in_pred_qois = np.tile(
-            shared_in_pred_qois, (nout_samples, 1))
+    nin_samples = in_quad_data[0].shape[1]
+    in_samples = in_samples[:, :nin_samples]
+    shared_in_pred_qois = qoi_fun(in_samples)
+    if shared_in_pred_qois.shape[0] != in_samples.shape[1]:
+        msg = "qoi_fun is not returning an array with the correct shape"
+        raise ValueError(msg)
+    in_pred_qois = np.tile(
+        shared_in_pred_qois, (nout_samples, 1))
 
     nqois = in_pred_qois.shape[1]
-    # print(nqois, [nout_samples, nin_samples, nqois],
-    #       np.prod([nout_samples, nin_samples, nqois]))
-    # tmp = np.empty((nout_samples, nin_samples, nqois))
-    # for kk in range(nqois):
-    #     tmp[:, :, kk] = in_pred_qois[:, kk].reshape(
-    #         (nout_samples, nin_samples))
-    # in_pred_qois = tmp
     in_pred_qois = in_pred_qois.reshape(
         (nout_samples, nin_samples, nqois))
-    # assert np.allclose(tmp, in_pred_qois.reshape(
-    #         (nout_samples, nin_samples, nqois)))
-    return (out_pred_obs, in_pred_obs,
-            in_samples, in_weights,
+    return (out_pred_obs, in_pred_obs, in_samples, in_weights,
             in_pred_qois)
 
 
@@ -651,20 +631,22 @@ def _evidences_and_weights(inner_log_likelihood_vals, in_weights):
 
 
 def _compute_negative_expected_deviation_monte_carlo(
-        log_likelihood_fun, out_pred_obs,
-        in_pred_obs, in_weights, out_weights,
-        in_pred_qois, deviation_fun, active_indices, pred_risk_fun,
-        return_all, data_risk_fun):
+        out_pred_obs, in_pred_obs, in_weights, out_weights,
+        in_pred_qois, deviation_fun, pred_risk_fun, data_risk_fun,
+        noise_samples, noise_std, active_indices, return_all):
     nout_samples = out_pred_obs.shape[0]
-    nin_samples = int(
-        in_pred_obs.shape[0]//nout_samples)
-
+    nin_samples = int(in_pred_obs.shape[0]//nout_samples)
     nobs = out_pred_obs.shape[1]
-    tmp = in_pred_obs.reshape(
-        nout_samples, nin_samples, nobs)
 
-    inner_log_likelihood_vals = log_likelihood_fun(
-        out_pred_obs, tmp, active_indices)
+    tmp = in_pred_obs.reshape(nout_samples, nin_samples, nobs)
+    inner_log_likelihood_vals = _loglike_fun_from_noiseless_obs(
+        out_pred_obs, tmp, noise_samples,
+        noise_std, active_indices)
+    # evidences = _evidences(inner_log_likelihood_vals, in_weights)
+    # print(evidences.shape, 'e')
+
+    # inner_log_likelihood_vals = log_likelihood_fun(
+    #     out_pred_obs, tmp, active_indices)
     evidences, weights = _evidences_and_weights(
         inner_log_likelihood_vals, in_weights)
 
@@ -690,25 +672,6 @@ def _compute_negative_expected_deviation_monte_carlo(
         'weights': weights, 'deviations': deviations,
         'expected_deviations': expected_obs_deviations}
     return result
-
-
-def compute_negative_expected_deviation_monte_carlo(
-        log_likelihood_fun, out_pred_obs,
-        in_pred_obs, in_weights, out_weights,
-        in_pred_qois, deviation_fun, collected_design_indices,
-        new_design_indices, pred_risk_fun, return_all, data_risk_fun):
-    if collected_design_indices is not None:
-        active_indices = np.hstack(
-            (collected_design_indices, new_design_indices)).astype(int)
-    else:
-        # assume the observations at the collected_design_indices are already
-        # incorporated into the inner and outer loop weights
-        active_indices = np.asarray(new_design_indices, dtype=int)
-    return _compute_negative_expected_deviation_monte_carlo(
-        log_likelihood_fun, out_pred_obs,
-        in_pred_obs, in_weights, out_weights,
-        in_pred_qois, deviation_fun, active_indices, pred_risk_fun,
-        return_all, data_risk_fun)
 
 
 def update_observations(design_candidates, collected_design_indices,
@@ -1021,7 +984,7 @@ class AbstractBayesianOED(ABC):
         ncandidates = self.design_candidates.shape[1]
         utility_vals, results = self.compute_utilities(
             ncandidates, collected_design_indices, return_all)
-        print(utility_vals)
+        print(utility_vals, 'utilities')
         selected_index = np.argmax(np.round(utility_vals, 16))
         if not return_all:
             results = None
@@ -1141,13 +1104,14 @@ class BayesianBatchKLOED(AbstractBayesianOED):
             active_indices = np.hstack(
                 (collected_design_indices, new_design_indices))
         else:
-            # assume the observations at the collected_design_indices are already
-            # incorporated into the inner and outer loop weights
+            # assume the observations at the collected_design_indices are
+            # already incorporated into the inner and outer loop weights
             active_indices = np.asarray(new_design_indices)
         return _compute_expected_kl_utility_monte_carlo(
             self.out_pred_obs,  self.in_pred_obs,  self.in_weights,
             self.out_weights, active_indices, self.noise_samples,
             self.noise_std, return_all)
+
 
 def oed_prediction_average(qoi_vals, weights=None):
     assert qoi_vals.ndim == 2 and qoi_vals.shape[1] == 1
@@ -1334,11 +1298,9 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
     """
 
     def __init__(self, design_candidates, obs_fun, noise_std,
-                 prior_variable, qoi_fun=None, nout_samples=1000,
-                 nin_samples=1000, generate_inner_prior_samples=None,
-                 econ=False, deviation_fun=oed_standard_deviation,
+                 prior_variable, out_quad_opts, in_quad_opts, qoi_fun=None,
+                 deviation_fun=oed_standard_deviation,
                  nprocs=1, max_ncollected_obs=2,
-                 outer_quad_type="mc",
                  pred_risk_fun=oed_prediction_average,
                  data_risk_fun=oed_data_expectation):
         r"""
@@ -1439,11 +1401,9 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
         """
 
         super().__init__(design_candidates, obs_fun, noise_std,
-                         prior_variable, nout_samples,
-                         nin_samples, generate_inner_prior_samples,
-                         econ=econ, nprocs=nprocs,
-                         max_ncollected_obs=max_ncollected_obs,
-                         outer_quad_type=outer_quad_type)
+                         prior_variable, out_quad_opts,
+                         in_quad_opts, nprocs=nprocs,
+                         max_ncollected_obs=max_ncollected_obs)
         # qoi fun deafult is None so that same api can be used for KL based OED
         # which does not require qoi_fun
         if not callable(qoi_fun):
@@ -1459,19 +1419,11 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
         """
         Compute the data needed to initialize the OED algorithm.
         """
-        out_quad_data = self._populate_out_quad_data()
-        print("nout_samples * nin_samples: ",
-              self.nin_samples*self.nout_samples)
         (self.out_pred_obs, self.in_pred_obs,
          self.in_samples, self.in_weights,
          self.in_pred_qois) = _precompute_expected_deviation_data(
-             out_quad_data, self.generate_inner_prior_samples,
-             self.nin_samples, self.obs_fun, self.qoi_fun,
-             econ=self.econ)
-
-        self.out_weights = np.ones(
-            (self.in_weights.shape[0], 1)) / \
-            self.in_weights.shape[0]
+             self.out_quad_data, self.in_quad_data,
+             self.obs_fun, self.qoi_fun)
 
     def _sort_qoi(self):
         # Sort in_pred_qois and use this order to sort
@@ -1527,19 +1479,18 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
         utility : float
             The negative expected deviation
         """
-        # unlike open loop design (closed loop batch design)
-        # we do not update inner and outer loop weights but rather
-        # just compute likelihood for all collected and new design indices
-        # If want to update weights then we must have a different set of
-        # weights for each inner iteration of the inner loop that is
-        # computed using
-        # the associated outerloop data
-        return compute_negative_expected_deviation_monte_carlo(
-            self.loglike_fun_from_noiseless_obs, self.out_pred_obs,
-            self.in_pred_obs, self.in_weights,
+        if collected_design_indices is not None:
+            active_indices = np.hstack(
+                (collected_design_indices, new_design_indices))
+        else:
+            # assume the observations at the collected_design_indices are
+            # already incorporated into the inner and outer loop weights
+            active_indices = np.asarray(new_design_indices)
+        return _compute_negative_expected_deviation_monte_carlo(
+            self.out_pred_obs, self.in_pred_obs, self.in_weights,
             self.out_weights, self.in_pred_qois,
-            self.deviation_fun, collected_design_indices, new_design_indices,
-            self.pred_risk_fun, return_all, self.data_risk_fun)
+            self.deviation_fun, self.pred_risk_fun, self.data_risk_fun,
+            self.noise_samples, self.noise_std, active_indices, return_all)
 
 
 class BayesianSequentialOED(AbstractBayesianOED):
@@ -2119,153 +2070,6 @@ def generate_inner_prior_samples_fixed(x_quad, w_quad, nsamples):
     """
     assert nsamples == x_quad.shape[1], (nsamples, x_quad.shape)
     return x_quad, w_quad
-
-
-def run_bayesian_batch_deviation_oed_deprecated(
-        prior_variable, obs_fun, qoi_fun, noise_std,
-        design_candidates, pre_collected_design_indices, deviation_fun,
-        pred_risk_fun, nexperiments, nout_samples, nin_samples,
-        quad_method, nprocs=1, return_all=False,
-        rounding_decimals=16):
-    r"""
-    Deprecated. Use get_bayesian_oed_optimizer()
-
-    Parameters
-    ----------
-    prior_variable : pya.IndependentMarginalsVariable
-        The prior variable consisting of independent univariate random
-        variables
-
-    obs_fun : callable
-        Function with the signature
-
-        `obs_fun(samples) -> np.ndarray(nsamples, nobs)`
-
-        which returns evaluations of the noiseless observation model.
-
-    qoi_fun : callable
-        Function with the signature
-
-        `qoi_fun(samples) -> np.ndarray(nsamples, nqoi)`
-
-        which returns evaluations of the prediction model.
-
-    noise_std : float or np.ndarray (nobs, 1)
-        The standard deviation of the mean zero Gaussian noise added to each
-        observation
-
-    design_candidates : np.ndarray (ndesign_vars, nsamples)
-        The location of all design sample candidates
-
-    pre_collected_indices : array_like
-        The indices of the experiments that must be in the final design
-
-    deviation_fun : callable
-        Function with the signature
-
-        `deviation_fun(in_pred_qois, weights) ->
-         np.ndarray(nout_samples, nqois)`
-
-         where
-
-         in_pred_qois : np.ndarray (nout_samples, nin_samples, nqois)
-         weights : np.ndarray (nout_samples, nin_samples)
-
-    pred_risk_fun : callable
-        Function to compute risk over multiple qoi with the signature
-
-         `pred_risk_fun(expected_deviations) -> float`
-
-        where expected_deviations : np.ndarray (nqois, 1)
-
-    nexperiments : integer
-        The number of experiments to be collected
-
-    nout_samples : integer
-        The number of Monte Carlo samples used to compute the outer integral
-        over all possible observations
-
-    nin_samples : integer
-        The number of quadrature samples used for the inner integral that
-        computes the evidence for each realiaztion of the predicted
-        observations. If quad_method is a tensor product rule
-        then this parameter actually specifies the number of points in each
-        univariate rule so the total number of inner loop samples is
-        nin_samples**nvars
-
-    quad_method : string
-        The method used to compute the inner loop integral needed to
-        evaluate the evidence for an outer loop sample. Options are
-        ["linear", "quadratic", "gaussian", "monte_carlo"]
-        The first 3 construct tensor product quadrature rules from univariate
-        rules that are respectively piecewise linear, piecewise quadratic
-        or Gauss-quadrature.
-
-    nprocs : integer
-        The number of threads used to compute OED design. Warning:
-        this uses multiprocessing.Pool and seems to provide very little benefit
-        and in many cases increases the CPU time.
-
-    return_all : boolean
-        Return intermediate quantities used to compute experimental design.
-        This is primarily intended for testing purposes
-
-    rounding_decimals : integer
-        The number of decimal places to round utility_vals to when choosing
-        the optimal design. This can be useful when comparing with
-        numerical solutions where 2 designs are equivalent analytically
-        but numerically there are slight differences that causes design to be
-        different
-
-    Returns
-    -------
-    oed : BayesianBatchDeviationOED
-        OED object
-
-    oed_results : list
-        Contains the intermediate quantities used to compute experimental
-        design at each design iteration. If not return_all then it is a list of
-        None. If return_all then for each iteration entry is another list
-        containing intermediate quantities for each design candidate.
-
-    """
-
-    # Define OED options
-    if quad_method != "monte_carlo":
-        x_quad, w_quad = get_oed_inner_quadrature_rule(
-            nin_samples, prior_variable, quad_method)
-        nin_samples = x_quad.shape[1]
-        generate_inner_prior_samples = partial(
-            generate_inner_prior_samples_fixed, x_quad, w_quad)
-        econ = True
-    else:
-        # use default Monte Carlo sampling
-        generate_inner_prior_samples = None
-        econ = False
-
-    # Setup OED problem
-    oed = BayesianBatchDeviationOED(
-        design_candidates, obs_fun, noise_std, prior_variable,
-        qoi_fun, nout_samples, nin_samples,
-        generate_inner_prior_samples=generate_inner_prior_samples,
-        econ=econ, deviation_fun=deviation_fun, pred_risk_fun=pred_risk_fun,
-        nprocs=nprocs)
-    oed.populate()
-    if pre_collected_design_indices is not None:
-        oed.set_collected_design_indices(pre_collected_design_indices)
-
-    # Generate experimental design
-    if pre_collected_design_indices is None:
-        npre_collected_design_indices = 0
-    else:
-        npre_collected_design_indices = len(pre_collected_design_indices)
-
-    results = []
-    for step in range(npre_collected_design_indices, nexperiments):
-        results_step = oed.update_design(return_all, rounding_decimals)[2]
-        results.append(results_step)
-
-    return oed, results
 
 
 def get_deviation_fun(name, opts={}):
