@@ -1923,10 +1923,22 @@ def get_posterior_vals_at_in_samples(
     # nn : number of data used to form posterior
     # out_idx : the outer loop iteration used to generate the data
     assert nn > 0
-    results = oed.compute_expected_utility(
-        oed.collected_design_indices[:nn-1],
-        oed.collected_design_indices[nn-1:nn], True)
-    weights = results["weights"]
+    # results = oed.compute_expected_utility(
+    #     oed.collected_design_indices[:nn-1],
+    #     oed.collected_design_indices[nn-1:nn], True)
+    # weights = results["weights"]
+    (outer_log_likelihood_vals, _, evidences) = _compute_evidences(
+        oed.out_pred_obs[out_idx:out_idx+1],
+        oed.in_pred_obs[:oed.nin_samples], oed.in_weights[out_idx::out_idx+1],
+        oed.out_weights[out_idx:out_idx+1], oed.collected_design_indices[:nn],
+        oed.noise_samples[out_idx:out_idx+1], oed.noise_std)
+    tmp = oed.in_pred_obs[:oed.nin_samples].reshape(
+        1, oed.nin_samples, oed.out_pred_obs.shape[1])
+    inner_log_likelihood_vals = _loglike_fun_from_noiseless_obs(
+        oed.out_pred_obs[out_idx:out_idx+1], tmp,
+        oed.noise_samples[out_idx:out_idx+1],
+        oed.noise_std, oed.collected_design_indices[:nn])
+    weights = np.exp(inner_log_likelihood_vals)*oed.in_weights/evidences
     return get_posterior_vals_at_in_samples_base(
         oed, prior_variable, out_idx, weights)
 
@@ -1960,18 +1972,13 @@ def get_posterior_vals_at_in_samples_base(
 
 
 def get_posterior_2d_interpolant_from_oed_data(
-        oed, prior_variable, nn, out_idx, quad_method,
-        oed_results=None):
+        oed, prior_variable, nn, out_idx, quad_method):
     # plot posterior for one realization of the data
     # nn : number of data used to form posterior
     # out_idx : the outer loop iteration used to generate the data
     assert prior_variable.num_vars() == 2
-    if oed_results is None:
-        vals = get_posterior_vals_at_in_samples(
-            oed, prior_variable, nn, out_idx)
-    else:
-        vals = get_posterior_vals_at_in_samples_from_oed_results(
-            oed, prior_variable, nn, out_idx, oed_results)
+    vals = get_posterior_vals_at_in_samples(
+        oed, prior_variable, nn, out_idx)
     nin_samples = vals.shape[0]
 
     if quad_method == "gauss":
@@ -2002,9 +2009,9 @@ def plot_2d_posterior_from_oed_data(
         oed, prior_variable, nn, out_idx, method, ax=None,
         oed_results=None):
 
-    from pyapprox import plt, get_meshgrid_function_data
+    from pyapprox.util.visualization import plt, get_meshgrid_function_data
     if ax is None:
-        fig, axs = plt.subplots(1, 1, figsize=(8, 6))
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
 
     if prior_variable.is_bounded_continuous_variable():
         alpha = 1
@@ -2014,7 +2021,7 @@ def plot_2d_posterior_from_oed_data(
         "interval", alpha=alpha).flatten()
 
     fun = get_posterior_2d_interpolant_from_oed_data(
-        oed, prior_variable, nn, out_idx, method, oed_results)
+        oed, prior_variable, nn, out_idx, method)
     X, Y, Z = get_meshgrid_function_data(fun, plot_limits, 100)
     p = ax.contourf(
         X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 21))

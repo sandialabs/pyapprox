@@ -1180,98 +1180,6 @@ class TestBayesianOED(unittest.TestCase):
         self._check_sequential_kl_oed("kl_params", [2e-3, 3.e-3, 3e-3, 3e-3])
         self._check_sequential_kl_oed("dev_pred", [2e-15, 3e-12, 3e-6, 9e-9])
 
-    def help_compare_sequential_kl_oed_econ(self, use_gauss_quadrature):
-        """
-        Use the same inner loop samples for all outer loop samples
-        """
-        nrandom_vars = 1
-        noise_std = 1
-        ndesign = 5
-        nout_samples = int(1e1)
-        nin_samples = 31
-
-        ncandidates = 6
-        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
-
-        def obs_fun(samples):
-            assert design_candidates.ndim == 2
-            assert samples.ndim == 2
-            Amat = design_candidates.T
-            return Amat.dot(samples).T
-
-        prior_variable = IndependentMarginalsVariable(
-            [stats.norm(0, 1)]*nrandom_vars)
-
-        true_sample = np.array([.4]*nrandom_vars)[:, None]
-
-        def obs_process(new_design_indices):
-            obs = obs_fun(true_sample)[:, new_design_indices]
-            obs += oed.noise_fun(obs)
-            return obs
-
-        generate_random_prior_samples = prior_variable.rvs
-
-        def generate_inner_prior_samples_mc(n):
-            # fix seed that when econ is False we are still creating
-            # the samples each time. This is just for testing purposes
-            # to make sure that econ is True does this in effect
-            np.random.seed(1)
-            return generate_random_prior_samples(n), np.ones((n, 1))/n
-
-        x_quad, w_quad = gauss_hermite_pts_wts_1D(nin_samples)
-
-        def generate_inner_prior_samples_gauss(n):
-            # use precomputed samples so to avoid cost of regenerating
-            assert n == x_quad.shape[0]
-            return x_quad[None, :], w_quad[:, None]
-
-        if use_gauss_quadrature:
-            generate_inner_prior_samples = generate_inner_prior_samples_gauss
-        else:
-            generate_inner_prior_samples = generate_inner_prior_samples_mc
-
-        # Define initial design
-        init_design_indices = np.array([ncandidates//2])
-        np.random.seed(1)
-        oed = BayesianSequentialKLOED(
-            design_candidates, obs_fun, noise_std, prior_variable,
-            obs_process, nout_samples, nin_samples,
-            generate_inner_prior_samples)
-        oed.populate()
-        oed.set_collected_design_indices(init_design_indices)
-
-        # randomness only enters during populate and when collecting
-        # real observations, i.e. evaluating obs model so setting seed
-        # here is sufficient when below we just evaluate obs model once
-        # and use same value for both oed instances
-        np.random.seed(1)
-        oed_econ = BayesianSequentialKLOED(
-            design_candidates, obs_fun, noise_std, prior_variable,
-            obs_process, nout_samples, nin_samples,
-            generate_inner_prior_samples, econ=True)
-        oed_econ.populate()
-        oed_econ.set_collected_design_indices(init_design_indices)
-
-        for step in range(len(init_design_indices), ndesign):
-            utility_vals, selected_indices = oed.update_design()[:2]
-            new_obs = oed.obs_process(selected_indices)
-            oed.update_observations(new_obs)
-            # ensure noise realizations are the same for both approaches
-            oed_econ.noise_realizations = oed.noise_realizations
-
-            econ_utility_vals, econ_selected_indices = \
-                oed_econ.update_design()[:2]
-            print(econ_utility_vals, utility_vals)
-            assert np.allclose(econ_utility_vals, utility_vals)
-            assert np.allclose(econ_selected_indices, selected_indices)
-            # use same data as non econ version do not call model
-            # as different noise will be added
-            oed_econ.update_observations(new_obs)
-
-    def test_sequential_kl_oed_econ(self):
-        self.help_compare_sequential_kl_oed_econ(False)
-        self.help_compare_sequential_kl_oed_econ(True)
-
     def test_bayesian_importance_sampling_avar(self):
         np.random.seed(1)
         nrandom_vars = 2
@@ -1359,7 +1267,16 @@ class TestBayesianOED(unittest.TestCase):
         init_design_indices = np.array([ncandidates//2])
 
         # Define OED options
-        nout_samples = 9 #100
+        nout_samples = 9 # 100
+        out_quad_opts = {
+            "method": "quasimontecarlo", "kwargs": {"nsamples": nout_samples}}
+        if inner_quad_type == "montecarlo":
+            in_quad_opts = {
+                "method": "montecarlo", "kwargs": {"nsamples": nin_samples}}
+        elif inner_quad_type == "gauss":
+            in_quad_opts = {
+                "method": "tensorproduct",
+                "kwargs": {"levels": nin_samples, "rule": "gauss"}}
 
         # Define initial design
         init_design_indices = np.array([ncandidates//2])
@@ -1370,11 +1287,9 @@ class TestBayesianOED(unittest.TestCase):
         # np.random.seed(1)
         oed = get_bayesian_oed_optimizer(
             "dev_pred", design_candidates, obs_fun, noise_std,
-            prior_variable, nout_samples,
-            nin_samples, inner_quad_type, qoi_fun=qoi_fun,
+            prior_variable, out_quad_opts, in_quad_opts, qoi_fun=qoi_fun,
             pre_collected_design_indices=init_design_indices,
-            deviation_fun=deviation_fun,
-            outer_quad_type="qmc", max_ncollected_obs=nexperiments)
+            deviation_fun=deviation_fun, max_ncollected_obs=nexperiments)
 
         prior_mean = oed.prior_variable.get_statistics('mean')
         prior_cov = np.diag(prior_variable.get_statistics('var')[:, 0])
@@ -1392,7 +1307,7 @@ class TestBayesianOED(unittest.TestCase):
             utility_vals, selected_indices = oed.update_design()[:2]
             # make sure oed_copy has the same copy of noise_realizations as
             # oed which may have updated its copy when update_design was called
-            oed_copy.noise_realizations = oed.noise_realizations
+            oed_copy.noise_samples = oed.noise_samples
 
             results = oed_copy.compute_expected_utility(
                 oed_copy.collected_design_indices, selected_indices, True)
@@ -1404,8 +1319,9 @@ class TestBayesianOED(unittest.TestCase):
                 # only test intermediate quantities associated with design
                 # chosen by the OED step
                 idx = oed.collected_design_indices
-                # obs_jj = oed_copy.out_obs[jj:jj+1, idx]
-                obs_jj = oed.get_out_obs(idx)[jj:jj+1, :]
+                # obs_jj = oed.get_out_obs(idx)[jj:jj+1, :]
+                obs_jj = (oed.out_pred_obs[jj:jj+1, idx] +
+                          oed.noise_samples[jj, :idx.shape[0]])
 
                 noise_cov_inv_jj = np.eye(idx.shape[0])/noise_std**2
                 exact_post_mean_jj, exact_post_cov_jj = \
@@ -1467,17 +1383,17 @@ class TestBayesianOED(unittest.TestCase):
         self.help_compare_prediction_based_oed(
             partial(oed_conditional_value_at_risk_deviation, quantile=beta,
                     samples_sorted=True), partial(gauss_cvar_fun, beta),
-            "monte_carlo", 10000, ndesign_vars, 3e-2)
+            "montecarlo", 10000, ndesign_vars, 3e-2)
 
         beta = 0.5
         ndesign_vars = 2
         self.help_compare_prediction_based_oed(
             partial(oed_conditional_value_at_risk_deviation, quantile=beta,
                     samples_sorted=True), partial(gauss_cvar_fun, beta),
-            "monte_carlo", 10000, ndesign_vars, 7e-2)
+            "montecarlo", 10000, ndesign_vars, 7e-2)
 
     def check_get_posterior_2d_interpolant_from_oed_data(
-            self, method, rtol, nin_samples_1d):
+            self, rule, rtol, nin_samples_1d):
         np.random.seed(1)
         nrandom_vars = 2
         noise_std = 1
@@ -1496,31 +1412,32 @@ class TestBayesianOED(unittest.TestCase):
         prior_variable = IndependentMarginalsVariable(
             [stats.norm(0, 1)]*nrandom_vars)
 
-        x_quad, w_quad = get_oed_inner_quadrature_rule(
-            nin_samples_1d, prior_variable, method)
-        nin_samples = x_quad.shape[1]
-
-        def generate_inner_prior_samples_gauss(n):
-            # use precomputed samples so to avoid cost of regenerating
-            assert n == x_quad.shape[1]
-            return x_quad, w_quad
-
-        generate_inner_prior_samples = generate_inner_prior_samples_gauss
+        out_quad_opts = {
+            "method": "quasimontecarlo", "kwargs": {"nsamples": nout_samples}}
+        in_quad_opts = {
+            "method": "tensorproduct",
+            "kwargs": {"levels": nin_samples_1d, "rule": rule}}
 
         init_design_indices = np.array([ncandidates//2])
-        oed = BayesianBatchKLOED(
-            design_candidates, obs_fun, noise_std, prior_variable,
-            nout_samples, nin_samples,
-            generate_inner_prior_samples, max_ncollected_obs=ndesign)
-        oed.populate()
-        oed.set_collected_design_indices(init_design_indices)
+        oed = get_bayesian_oed_optimizer(
+            "kl_params", design_candidates, obs_fun, noise_std,
+            prior_variable, out_quad_opts, in_quad_opts,
+            pre_collected_design_indices=init_design_indices,
+            max_ncollected_obs=ndesign)
+
+        # oed = BayesianBatchKLOED(
+        #     design_candidates, obs_fun, noise_std, prior_variable,
+        #     nout_samples, nin_samples,
+        #     generate_inner_prior_samples, max_ncollected_obs=ndesign)
+        # oed.populate()
+        # oed.set_collected_design_indices(init_design_indices)
 
         for ii in range(1, ndesign):
             utility_vals, selected_indices = oed.update_design()[:2]
 
         nn, out_idx = 2, 0
         fun = get_posterior_2d_interpolant_from_oed_data(
-            oed, prior_variable, nn, out_idx, method)
+            oed, prior_variable, nn, out_idx, rule)
         samples = prior_variable.rvs(100)
         post_vals = fun(samples)
 
@@ -1528,10 +1445,11 @@ class TestBayesianOED(unittest.TestCase):
         prior_cov = np.diag(prior_variable.get_statistics('var')[:, 0])
         prior_cov_inv = np.linalg.inv(prior_cov)
         noise_cov_inv = np.eye(nn)/noise_std**2
-        # obs = oed.out_obs[
-        #     out_idx, oed.collected_design_indices[:nn]][None, :]
-        obs = oed.get_out_obs(oed.collected_design_indices[:nn])[
-            out_idx][None, :]
+        # obs = oed.get_out_obs(oed.collected_design_indices[:nn])[
+        #     out_idx][None, :]
+        obs = (
+            oed.out_pred_obs[out_idx, oed.collected_design_indices[:nn]] +
+            oed.noise_samples[out_idx, :nn])[None, :]
         exact_post_mean, exact_post_cov = \
             laplace_posterior_approximation_for_linear_models(
                 Amat[oed.collected_design_indices[:nn], :], prior_mean,
@@ -1546,7 +1464,11 @@ class TestBayesianOED(unittest.TestCase):
         #       rtol*np.absolute(true_post_vals)[II])
         assert np.allclose(post_vals[:, 0], true_post_vals, rtol=rtol)
 
-        # plot_2d_posterior_from_oed_data(oed, prior_variable, 2, 0, method)
+        # from pyapprox.expdesign.bayesian_oed import (
+        #     plot_2d_posterior_from_oed_data)
+        # import matplotlib.pyplot as plt
+        # plot_2d_posterior_from_oed_data(oed, prior_variable, 2, 0, rule)
+        # plt.show()
 
     def test_get_posterior_2d_interpolant_from_oed_data(self):
         nin_samples_1d = 301
@@ -1691,7 +1613,7 @@ class TestBayesianOED(unittest.TestCase):
 
     def check_numerical_gaussian_prediction_deviation_based_oed(
             self, nonlinear, oed_type, deviation_quantile, pred_risk_quantile,
-            nout_samples, nin_samples_1d, quad_method, tols,
+            nout_samples, nin_samples_1d, in_rule, tols,
             data_quantile=None):
         ndesign = 2
         degree = 1
@@ -1758,17 +1680,22 @@ class TestBayesianOED(unittest.TestCase):
                 return vals
             return np.exp(vals)
 
+        out_quad_opts = {
+            "method": "montecarlo", "kwargs": {"nsamples": nout_samples}}
+        in_quad_opts = {
+            "method": "tensorproduct",
+            "kwargs": {"levels": nin_samples_1d, "rule": in_rule}}
+
         oed = get_bayesian_oed_optimizer(
             "dev_pred", design_candidates, obs_fun, noise_std,
-            prior_variable, nout_samples,
-            nin_samples_1d, quad_method,
+            prior_variable, out_quad_opts, in_quad_opts, qoi_fun=qoi_fun,
             pre_collected_design_indices=pre_collected_design_indices,
-            qoi_fun=qoi_fun, deviation_fun=deviation_fun,
+            deviation_fun=deviation_fun,
             pred_risk_fun=pred_risk_fun, data_risk_fun=data_risk_fun)
         oed_results = []
         for step in range(len(pre_collected_design_indices), ndesign):
             results_step = oed.update_design(
-                return_all=True, rounding_decimals=round_decimals)[2]
+                return_all=True)[2]#, rounding_decimals=round_decimals)[2]
             oed_results.append(results_step)
 
         # print(collected_indices, oed.collected_design_indices)
@@ -1875,9 +1802,13 @@ if __name__ == "__main__":
         TestBayesianOED)
     unittest.TextTestRunner(verbosity=2).run(bayesian_oed_test_suite)
 
-# We assume that the experiment can completely determine the model, i.e., is a full rank matrix even without help from the prior. After equation (9)
+# notes about fast oed by tempone
+# We assume that the experiment can completely determine the model, i.e.,
+# is a full rank matrix even without help from the prior. After equation (9)
 
-# The key step is propagating the uncertainty from the parameters to the quantity of interest using a small noise approximation. Therefore, the pdf of the quantity of interest can be approximated by a Gaussian one. Last para section 2.
+# The key step is propagating the uncertainty from the parameters to the
+# quantity of interest using a small noise approximation. Therefore, the pdf of the quantity of interest can be approximated by a Gaussian one.
+# Last para section 2.
 
 
 #TODO shrink oed.in_weights to just in weights for a single outerloop
