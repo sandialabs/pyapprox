@@ -572,7 +572,7 @@ class TestBayesianOED(unittest.TestCase):
         # plt.plot(xx, post_pdf_vals, '--')
         # plt.show()
 
-    def xtest_gaussian_loglike_fun(self):
+    def test_gaussian_loglike_fun(self):
         np.random.seed(1)
         self._check_loglike_fun(0.3, None)
         np.random.seed(1)
@@ -638,7 +638,7 @@ class TestBayesianOED(unittest.TestCase):
             active_indices)[:, 0]
         assert np.allclose(loglike_3d, loglike_3d_econ)
 
-    def xtest_gaussian_loglike_fun_3d(self):
+    def test_gaussian_loglike_fun_3d(self):
         self._check_gaussian_loglike_fun_3d(0.3, None)
         self._check_loglike_fun(
             np.array([[0.25, 0.3, 0.35, 0.4]]).T, None)
@@ -714,7 +714,7 @@ class TestBayesianOED(unittest.TestCase):
         # print(utility-ave_kl_divs, utility, ave_kl_divs)
         assert np.allclose(utility, ave_kl_divs, rtol=tol)
 
-    def xtest_compute_expected_kl_utility(self):
+    def test_compute_expected_kl_utility(self):
         test_scenarios = [
             [{"method": "quasimontecarlo", "kwargs": {"nsamples": 1000}},
              {"method": "quasimontecarlo", "kwargs": {"nsamples": 1000}},
@@ -745,7 +745,7 @@ class TestBayesianOED(unittest.TestCase):
         ndesign = 4
         nprocs = 1
 
-        ncandidates = 101
+        ncandidates = 11
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
 
         Amat = np.hstack(
@@ -792,34 +792,22 @@ class TestBayesianOED(unittest.TestCase):
                 d_utility_vals[II]-utility_vals[II])/d_utility_vals[II]).max())
             assert np.allclose(d_utility_vals[II], utility_vals[II], rtol=1e-2)
 
-    def xtest_batch_prediction_oed(self):
+    def test_batch_prediction_oed(self):
         """
         No observations collected to inform subsequent designs
         """
         np.random.seed(1)
         noise_std = 1
-        ndesign = 5
-        # outerloop samples does not effect this problem
-        # because variance is independent of noise only on design
-        nin_samples_1d = 41
+        ndesign = 1#5
         degree = 2
         nrandom_vars = degree+1
-        quad_method = "quadratic"
-        # quad_method = "gauss"
 
-        nout_samples = 2
-        nprediction_samples = 201
+        nprediction_samples = 3 #201
         quantile = 0.8
         pred_risk_fun = partial(conditional_value_at_risk, alpha=quantile)
 
-        # nout_samples = 100
-        # nprediction_samples = 1
-        # pred_risk_fun = oed_prediction_average
-
         ncandidates = 21
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
-        # design_candidates = np.hstack(
-        #    (design_candidates, np.array([[-1/np.sqrt(5), 1/np.sqrt(5)]])))
         prediction_candidates = np.linspace(
             -1, 1, nprediction_samples)[None, :]
 
@@ -835,46 +823,32 @@ class TestBayesianOED(unittest.TestCase):
         def qoi_fun(samples):
             Amat = basis_matrix(degree, prediction_candidates)
             qoi = Amat.dot(samples).T
-            print(qoi.shape)
             return qoi
 
         prior_variable = IndependentMarginalsVariable(
             [stats.norm(0, 1)]*nrandom_vars)
 
-        x_quad, w_quad = get_oed_inner_quadrature_rule(
-            nin_samples_1d, prior_variable, quad_method)
-        nin_samples = x_quad.shape[1]
-
-        def generate_inner_prior_samples_gauss(n):
-            # use precomputed samples so to avoid cost of regenerating
-            assert n == x_quad.shape[1]
-            return x_quad, w_quad
-
-        generate_inner_prior_samples = generate_inner_prior_samples_gauss
-
-        # generate_inner_prior_samples(x_quad.shape[1])
+        # outerloop samples does not effect this problem
+        # because variance is independent of noise only on design
+        out_quad_opts = {
+            "method": "montecarlo", "kwargs": {"nsamples": 2}}
+        # in_quad_opts = {
+        #     "method": "quasimontecarlo", "kwargs": {"nsamples": 10000}}
+        in_quad_opts = {
+            "method": "tensorproduct",
+            "kwargs": {"levels": 41, "rule": "quadratic"}}
 
         # Define initial design
-        # init_design_indices = np.array([0])
+        # init_design_indices = np.array([ncandidates//2])
         init_design_indices = np.empty((0), dtype=int)
-        oed = BayesianBatchDeviationOED(
-            design_candidates, obs_fun, noise_std, prior_variable,
-            qoi_fun, nout_samples, nin_samples,
-            generate_inner_prior_samples, deviation_fun=oed_variance_deviation,
-            pred_risk_fun=pred_risk_fun, max_ncollected_obs=ndesign)
-        oed.populate()
-        oed.set_collected_design_indices(init_design_indices)
-
-        # for some reason on RHEL8 this interface causes
-        # pyapprox.cython.utilities.variance_3D_pyx} to run much slower
-        # oed = get_bayesian_oed_optimizer(
-        #     "dev_pred", design_candidates, obs_fun, noise_std,
-        #     prior_variable, nout_samples,
-        #     nin_samples_1d, quad_method,
-        #     pre_collected_design_indices=init_design_indices,
-        #     qoi_fun=qoi_fun, deviation_fun=oed_variance_deviation,
-        #     pred_risk_fun=pred_risk_fun,
-        #     outer_quad_type="mc", max_ncollected_obs=ndesign)
+        oed = get_bayesian_oed_optimizer(
+            "dev_pred", design_candidates, obs_fun, noise_std,
+            prior_variable, out_quad_opts, in_quad_opts,
+            qoi_fun=qoi_fun,
+            pre_collected_design_indices=init_design_indices,
+            deviation_fun=oed_variance_deviation,
+            pred_risk_fun=pred_risk_fun,
+            max_ncollected_obs=ndesign, nprocs=1)
 
         for ii in range(len(init_design_indices), ndesign):
             utility_vals, selected_indices = oed.update_design(False)[:2]
@@ -898,9 +872,8 @@ class TestBayesianOED(unittest.TestCase):
         for jj in range(design_candidates.shape[1]):
             idx = np.hstack((
                 oed.collected_design_indices[:-1], jj))
-            # realization of data does not matter
-            # obs_ii = oed.out_obs[ii:ii+1, idx]
-            obs_ii = oed.get_out_obs(idx)[ii:ii+1, :]
+            # realization of data does not matter so just take noisy obs
+            obs_ii = oed.out_pred_obs[ii:ii+1, idx]
             exact_post_mean, exact_post_cov = \
                 laplace_posterior_approximation_for_linear_models(
                     obs_matrix[idx, :], prior_mean, prior_cov_inv,
@@ -1200,7 +1173,7 @@ class TestBayesianOED(unittest.TestCase):
             exact_post_cov_prev = exact_post_cov
             post_var_prev = post_var
 
-    def xtest_sequential_kl_oed(self):
+    def test_sequential_kl_oed(self):
         self._check_sequential_kl_oed("kl_params", [2e-3, 3.e-3, 3e-3, 3e-3])
         self._check_sequential_kl_oed("dev_pred", [2e-15, 3e-12, 3e-6, 9e-9])
 
@@ -1292,11 +1265,11 @@ class TestBayesianOED(unittest.TestCase):
             # as different noise will be added
             oed_econ.update_observations(new_obs)
 
-    def xtest_sequential_kl_oed_econ(self):
+    def test_sequential_kl_oed_econ(self):
         self.help_compare_sequential_kl_oed_econ(False)
         self.help_compare_sequential_kl_oed_econ(True)
 
-    def xtest_bayesian_importance_sampling_avar(self):
+    def test_bayesian_importance_sampling_avar(self):
         np.random.seed(1)
         nrandom_vars = 2
         Amat = np.array([[-0.5, 1]])
@@ -1347,7 +1320,7 @@ class TestBayesianOED(unittest.TestCase):
         assert np.allclose(cvar_exact, cvar_mc, rtol=1e-3)
         assert np.allclose(cvar_exact, cvar_im, rtol=2e-3)
 
-    def xtest_oed_variance_deviation(self):
+    def test_oed_variance_deviation(self):
         MM, NN = 2, 3
         samples = np.random.normal(0, 1, (MM, NN, 1))
         weights = np.ones((MM, NN))/NN
@@ -1447,7 +1420,7 @@ class TestBayesianOED(unittest.TestCase):
                 utility_vals[selected_indices], -np.mean(exact_deviations),
                 atol=tol)
 
-    def xtest_prediction_based_oed(self):
+    def test_prediction_based_oed(self):
         def gauss_oed_variance_deviation(mean, cov):
             # compute variance of exp(X) where X has mean and variance
             # mean, cov. I.e. compute vairance of lognormal
@@ -1572,7 +1545,7 @@ class TestBayesianOED(unittest.TestCase):
 
         # plot_2d_posterior_from_oed_data(oed, prior_variable, 2, 0, method)
 
-    def xtest_get_posterior_2d_interpolant_from_oed_data(self):
+    def test_get_posterior_2d_interpolant_from_oed_data(self):
         nin_samples_1d = 301
         method, rtol = "linear", 2e-2
         self.check_get_posterior_2d_interpolant_from_oed_data(
@@ -1589,7 +1562,7 @@ class TestBayesianOED(unittest.TestCase):
         self.check_get_posterior_2d_interpolant_from_oed_data(
             method, rtol, nin_samples_1d)
 
-    def xtest_oed_entropic_risk_deviation(self):
+    def test_oed_entropic_risk_deviation(self):
         ninner_samples = int(1e4)
         vals = np.vstack((
             np.random.normal(0, 1, (1, ninner_samples)),
@@ -1693,7 +1666,7 @@ class TestBayesianOED(unittest.TestCase):
                 metrics.mean(axis=0),
                 sign*data[-1][collected_indices[-1]]['utility_val'], rtol=rtol)
 
-    def xtest_analytical_gaussian_prediction_deviation_based_oed(self):
+    def test_analytical_gaussian_prediction_deviation_based_oed(self):
         self.check_analytical_gaussian_prediction_deviation_based_oed(
             False, "dev-pred", None, 1e-2)
         self.check_analytical_gaussian_prediction_deviation_based_oed(
@@ -1826,7 +1799,7 @@ class TestBayesianOED(unittest.TestCase):
             analytical_results[-1][idx]["expected_deviations"],
             rtol=tols[1])
 
-    def xtest_numerical_gaussian_prediction_deviation_based_oed(self):
+    def test_numerical_gaussian_prediction_deviation_based_oed(self):
         self.check_numerical_gaussian_prediction_deviation_based_oed(
             False, "dev-pred", None, None, 2, 30, "gauss", [1e-15, 1e-15])
         np.random.seed(1)
@@ -1845,7 +1818,7 @@ class TestBayesianOED(unittest.TestCase):
             True, "dev-pred", 0.8, None, int(2e3), 80, "linear", [2e-3, 2e-3],
             0.9)
 
-    def xtest_linear_gaussian_posterior_mean_moments(self):
+    def test_linear_gaussian_posterior_mean_moments(self):
         degree = 2
         noise_std = 0.5
         nrandom_vars = degree+1
