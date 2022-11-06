@@ -751,7 +751,7 @@ def d_optimal_utility(Amat, noise_std):
 class AbstractBayesianOED(ABC):
     r"""Base Bayesian OED class"""
 
-    def __init__(self, design_candidates, obs_fun, noise_std,
+    def __init__(self, ndesign_candidates, obs_fun, noise_std,
                  prior_variable, out_quad_opts,
                  in_quad_opts, nprocs=1,
                  max_ncollected_obs=2):
@@ -760,13 +760,13 @@ class AbstractBayesianOED(ABC):
 
         Parameters
         ----------
-        design_candidates : np.ndarray (nvars, nsamples)
-            The location of all design sample candidates
+        ndesign_candidates :
+            The number of design candidates
 
         obs_fun : callable
             Function with the signature
 
-            `obs_fun(samples) -> np.ndarray(nsamples, nqoi)`
+            `obs_fun(samples) -> np.ndarray(nsamples, ndesign_candidates*ndata_per_candidate)`
 
             That returns noiseless evaluations of the forward model.
 
@@ -825,15 +825,15 @@ class AbstractBayesianOED(ABC):
 
         """
 
-        self.design_candidates = design_candidates
+        self.ndesign_candidates = ndesign_candidates
         if not callable(obs_fun):
             raise ValueError("obs_fun must be a callable function")
         self.obs_fun = obs_fun
         self.noise_std = noise_std
         if isinstance(self.noise_std, (float, int)):
             self.noise_std = np.full(
-                (design_candidates.shape[1], 1), self.noise_std)
-        if (self.noise_std.shape[0] != design_candidates.shape[1]):
+                (self.ndesign_candidates, 1), self.noise_std)
+        if (self.noise_std.shape[0] != self.ndesign_candidates):
             msg = "noise_std must be scalar or given for each design candidate"
             raise ValueError(msg)
         # for now assume homoscedastic noise. TODO. currently
@@ -841,6 +841,8 @@ class AbstractBayesianOED(ABC):
         # used for all design candidates. IF want to allow for heteroscedastic
         # noise then must scale this quadrule for each design location
         # when computing noisy data in utility functions
+        # Also assume same noise applied to each data point associated
+        # with a design candidate. See compute_expected_utility
         assert np.allclose(self.noise_std, self.noise_std[0])
         self.prior_variable = prior_variable
         self.max_ncollected_obs = max_ncollected_obs
@@ -917,7 +919,7 @@ class AbstractBayesianOED(ABC):
     # @profile(precision=4)
     def _compute_utilities_parallel(self, workder_fun, ncandidates,
                                     collected_design_indices, return_all):
-        ndesign_candidates = self.design_candidates.shape[1]
+        ndesign_candidates = self.ndesign_candidates
         splits = split_indices(ndesign_candidates, self.nprocs)
         args = [(splits[ii], splits[ii+1], collected_design_indices,
                  return_all) for ii in range(splits.shape[0]-1)]
@@ -981,13 +983,49 @@ class AbstractBayesianOED(ABC):
             Dictionary of useful data used to compute expected utility
             At a minimum it has the keys ["utilties", "evidences", "weights"]
         """
-        ncandidates = self.design_candidates.shape[1]
         utility_vals, results = self.compute_utilities(
-            ncandidates, collected_design_indices, return_all)
+            self.ndesign_candidates, collected_design_indices, return_all)
         selected_index = np.argmax(np.round(utility_vals, 16))
         if not return_all:
             results = None
         return utility_vals, selected_index, results
+
+    def _define_design_data(self, collected_design_indices,
+                            new_design_indices):
+        # unlike open loop design (closed loop batch design)
+        # we do not update inner and outer loop weights but rather
+        # just compute likelihood for all collected and new design indices
+        # If want to update weights then we must have a different set of
+        # weights for each inner iteration of the inner loop that is
+        # computed using
+        # the associated outerloop data
+        if collected_design_indices is not None:
+            design_indices = np.hstack(
+                (collected_design_indices, new_design_indices))
+        else:
+            # assume the observations at the collected_design_indices are
+            # already incorporated into the inner and outer loop weights
+            design_indices = np.asarray(new_design_indices)
+
+        # active_indices = design_indices
+        assert self.out_pred_obs.shape[1] % self.ndesign_candidates == 0
+        # TODO make ndata_per_candidate a arg to __init__ and put error check
+        # there
+        ndata_per_candidate = (
+            self.out_pred_obs.shape[1]//self.ndesign_candidates)
+        assert (
+            ndata_per_candidate*design_indices.shape[0] <=
+            self.noise_samples.shape[1]), ("increase max_ncollected_obs", self.max_ncollected_obs, ndata_per_candidate, design_indices.shape[0], self.noise_samples.shape)
+        active_indices = np.hstack([idx*ndata_per_candidate + np.arange(
+            ndata_per_candidate) for idx in design_indices])
+        # assume same noise_std for each data point associated with a design
+        # candidate. Consider adding ndata_per_candidate to self.__init__
+        # and defining noise_std correct length there.
+        noise_std = np.hstack(
+            [[self.noise_std[idx, 0]]*ndata_per_candidate
+             for idx in range(self.ndesign_candidates)])[:, None]
+        return active_indices, noise_std
+
 
 
 class OEDSharedData():
@@ -1092,24 +1130,12 @@ class BayesianBatchKLOED(AbstractBayesianOED):
         return_all true used for debugging returns more than just utilities
         and also returns itermediate data useful for testing
         """
-        # unlike open loop design (closed loop batch design)
-        # we do not update inner and outer loop weights but rather
-        # just compute likelihood for all collected and new design indices
-        # If want to update weights then we must have a different set of
-        # weights for each inner iteration of the inner loop that is
-        # computed using
-        # the associated outerloop data
-        if collected_design_indices is not None:
-            active_indices = np.hstack(
-                (collected_design_indices, new_design_indices))
-        else:
-            # assume the observations at the collected_design_indices are
-            # already incorporated into the inner and outer loop weights
-            active_indices = np.asarray(new_design_indices)
+        active_indices, noise_std = self._define_design_data(
+            collected_design_indices, new_design_indices)
         return _compute_expected_kl_utility_monte_carlo(
             self.out_pred_obs,  self.in_pred_obs,  self.in_weights,
             self.out_weights, active_indices, self.noise_samples,
-            self.noise_std, return_all)
+            noise_std, return_all)
 
 
 def oed_prediction_average(qoi_vals, weights=None):
@@ -1296,7 +1322,7 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
     of the posterior through a QoI model.
     """
 
-    def __init__(self, design_candidates, obs_fun, noise_std,
+    def __init__(self, ndesign_candidates, obs_fun, noise_std,
                  prior_variable, out_quad_opts, in_quad_opts, qoi_fun=None,
                  deviation_fun=oed_standard_deviation,
                  pred_risk_fun=oed_prediction_average,
@@ -1399,7 +1425,7 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
             where deviations : np.ndarray (nout_samples, nqois)
         """
 
-        super().__init__(design_candidates, obs_fun, noise_std,
+        super().__init__(ndesign_candidates, obs_fun, noise_std,
                          prior_variable, out_quad_opts,
                          in_quad_opts, nprocs=nprocs,
                          max_ncollected_obs=max_ncollected_obs)
@@ -1479,18 +1505,13 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
         utility : float
             The negative expected deviation
         """
-        if collected_design_indices is not None:
-            active_indices = np.hstack(
-                (collected_design_indices, new_design_indices))
-        else:
-            # assume the observations at the collected_design_indices are
-            # already incorporated into the inner and outer loop weights
-            active_indices = np.asarray(new_design_indices)
+        active_indices, noise_std = self._define_design_data(
+            collected_design_indices, new_design_indices)
         return _compute_negative_expected_deviation_monte_carlo(
             self.out_pred_obs, self.in_pred_obs, self.in_weights,
             self.out_weights, self.in_pred_qois,
             self.deviation_fun, self.pred_risk_fun, self.data_risk_fun,
-            self.noise_samples, self.noise_std, active_indices, return_all)
+            self.noise_samples, noise_std, active_indices, return_all)
 
 
 class BayesianSequentialOED(AbstractBayesianOED):
@@ -1528,6 +1549,10 @@ class BayesianSequentialOED(AbstractBayesianOED):
         To avoid numerical precision problems recompute evidence with
         all data as opposed to updating evidence just using new data
         """
+        # For now only allow one data per design location
+        assert np.allclose(
+            self.out_pred_obs.shape[1]/self.ndesign_candidates, 1.0,
+            atol=1e-14)
         log_like_vals = self._loglike_fun(
             self.collected_obs,
             self.in_pred_obs[:self.nin_samples,
@@ -1621,7 +1646,7 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
     posterior.
     """
 
-    def __init__(self, design_candidates, obs_fun, noise_std,
+    def __init__(self, ndesign_candidates, obs_fun, noise_std,
                  prior_variable, out_quad_opts, in_quad_opts,
                  obs_process=None, nprocs=1, max_ncollected_obs=2):
         r"""
@@ -1695,7 +1720,7 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
         # obs_process default is None so same API can be used as
         # open loop design
         BayesianBatchKLOED.__init__(
-            self, design_candidates, obs_fun, noise_std, prior_variable,
+            self, ndesign_candidates, obs_fun, noise_std, prior_variable,
             out_quad_opts, in_quad_opts,
             nprocs=nprocs, max_ncollected_obs=max_ncollected_obs)
         BayesianSequentialOED.__init__(self, obs_process)
@@ -1735,7 +1760,7 @@ class BayesianSequentialDeviationOED(
     Compute closed-loop OED by minimizing the deviation on the push forward
     of the posterior through a QoI model.
     """
-    def __init__(self, design_candidates, obs_fun, noise_std,
+    def __init__(self, ndesign_candidates, obs_fun, noise_std,
                  prior_variable,  out_quad_opts, in_quad_opts,
                  qoi_fun=None, obs_process=None,
                  deviation_fun=oed_standard_deviation,
@@ -1841,7 +1866,7 @@ class BayesianSequentialDeviationOED(
         # obs_process default is None so same API can be used as
         # open loop design
         BayesianBatchDeviationOED.__init__(
-            self, design_candidates, obs_fun, noise_std,
+            self, ndesign_candidates, obs_fun, noise_std,
             prior_variable, out_quad_opts, in_quad_opts, qoi_fun,
             deviation_fun, pred_risk_fun, data_risk_fun,
             nprocs, max_ncollected_obs)
@@ -2222,7 +2247,7 @@ def gaussian_noise_fun(noise_std, values, active_indices=None):
 
 
 def get_bayesian_oed_optimizer(
-        short_oed_type, design_candidates, obs_fun, noise_std,
+        short_oed_type, ndesign_candidates, obs_fun, noise_std,
         prior_variable, out_quad_opts=None, in_quad_opts=None, nprocs=1,
         pre_collected_design_indices=None, **kwargs):
     r"""
@@ -2293,7 +2318,7 @@ def get_bayesian_oed_optimizer(
         raise ValueError(msg)
 
     if (type(noise_std) == np.ndarray and
-            noise_std.shape[0] != design_candidates.shape[1]):
+            noise_std.shape[0] != ndesign_candidates):
         msg = "noise_std must be specified for each design candiate"
         raise ValueError(msg)
 
@@ -2304,9 +2329,8 @@ def get_bayesian_oed_optimizer(
         in_quad_opts = {
             "method": "quasimontecarlo", "kwargs": {"nsamples": int(1e3)}}
 
-    print(kwargs.keys())
     oed = oed_types[oed_type](
-        design_candidates, obs_fun, noise_std, prior_variable,
+        ndesign_candidates, obs_fun, noise_std, prior_variable,
         out_quad_opts, in_quad_opts, nprocs=nprocs, **kwargs)
     oed.populate()
     if pre_collected_design_indices is not None:
