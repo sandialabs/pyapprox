@@ -671,9 +671,10 @@ class TestBayesianOED(unittest.TestCase):
         (obs_fun, prior_variable, Amat, design_candidates) = \
             self._setup_linear_gaussian_problem(prior_std)
 
+        ndesign_candidates = design_candidates.shape[1]
         init_design_indices = np.array([0])
         oed = get_bayesian_oed_optimizer(
-            "kl_params", design_candidates, obs_fun, noise_std,
+            "kl_params", ndesign_candidates, obs_fun, noise_std,
             prior_variable, out_quad_opts, in_quad_opts,
             pre_collected_design_indices=init_design_indices)
 
@@ -744,15 +745,18 @@ class TestBayesianOED(unittest.TestCase):
         noise_std = 1
         ndesign = 4
         nprocs = 1
+        ndata_per_candidate = 2
 
-        ncandidates = 11
-        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        ndesign_candidates = 11
+        obs_locations = np.linspace(
+            -1, 1, ndesign_candidates*ndata_per_candidate)[None, :]
 
         Amat = np.hstack(
-            (np.ones((design_candidates.shape[1], 1)), design_candidates.T))
+            (np.ones((ndesign_candidates*ndata_per_candidate, 1)),
+             obs_locations.T))
 
         def obs_fun(samples):
-            assert design_candidates.ndim == 2
+            assert obs_locations.ndim == 2
             assert samples.ndim == 2
             return Amat.dot(samples).T
 
@@ -765,22 +769,26 @@ class TestBayesianOED(unittest.TestCase):
             "method": "quasimontecarlo", "kwargs": {"nsamples": 1000}}
 
         # Define initial design
-        init_design_indices = np.array([ncandidates//2])
+        init_design_indices = np.array([ndesign_candidates//2])
         oed = get_bayesian_oed_optimizer(
-            "kl_params", design_candidates, obs_fun, noise_std,
+            "kl_params", ndesign_candidates, obs_fun, noise_std,
             prior_variable, out_quad_opts, in_quad_opts,
             pre_collected_design_indices=init_design_indices,
-            max_ncollected_obs=ndesign, nprocs=nprocs)
+            max_ncollected_obs=ndesign*ndata_per_candidate, nprocs=nprocs)
 
         for ii in range(len(init_design_indices), ndesign):
             # loop must be before oed.updated design because
             # which updates oed.collected_design_indices and thus
             # changes problem
-            d_utility_vals = np.zeros(ncandidates)
-            for kk in range(ncandidates):
+            d_utility_vals = np.zeros(ndesign_candidates)
+            for kk in range(ndesign_candidates):
                 if kk not in oed.collected_design_indices:
-                    indices = np.hstack((oed.collected_design_indices, kk))
-                    Amat_kk = Amat[indices]
+                    design_indices = np.hstack(
+                        (oed.collected_design_indices, kk))
+                    active_indices = np.hstack(
+                        [idx*ndata_per_candidate + np.arange(
+                            ndata_per_candidate) for idx in design_indices])
+                    Amat_kk = Amat[active_indices]
                     d_utility_vals[kk] = d_optimal_utility(Amat_kk, noise_std)
 
             utility_vals, selected_indices = oed.update_design()[:2]
@@ -801,13 +809,16 @@ class TestBayesianOED(unittest.TestCase):
         ndesign = 5
         degree = 2
         nrandom_vars = degree+1
+        ndata_per_candidate = 2
 
         nprediction_samples = 201
         quantile = 0.8
         pred_risk_fun = partial(conditional_value_at_risk, alpha=quantile)
 
-        ncandidates = 21
-        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        ndesign_candidates = 21
+        obs_locations = np.linspace(
+            -1, 1, ndesign_candidates*ndata_per_candidate)[None, :]
+
         prediction_candidates = np.linspace(
             -1, 1, nprediction_samples)[None, :]
 
@@ -815,9 +826,9 @@ class TestBayesianOED(unittest.TestCase):
             return samples.T**np.arange(degree+1)[None, :]
 
         def obs_fun(samples):
-            assert design_candidates.ndim == 2
+            assert obs_locations.ndim == 2
             assert samples.ndim == 2
-            Amat = basis_matrix(degree, design_candidates)
+            Amat = basis_matrix(degree, obs_locations)
             return Amat.dot(samples).T
 
         def qoi_fun(samples):
@@ -839,16 +850,16 @@ class TestBayesianOED(unittest.TestCase):
             "kwargs": {"levels": 41, "rule": "quadratic"}}
 
         # Define initial design
-        # init_design_indices = np.array([ncandidates//2])
+        # init_design_indices = np.array([ndesign_candidates//2])
         init_design_indices = np.empty((0), dtype=int)
         oed = get_bayesian_oed_optimizer(
-            "dev_pred", design_candidates, obs_fun, noise_std,
+            "dev_pred", ndesign_candidates, obs_fun, noise_std,
             prior_variable, out_quad_opts, in_quad_opts,
             qoi_fun=qoi_fun,
             pre_collected_design_indices=init_design_indices,
             deviation_fun=oed_variance_deviation,
             pred_risk_fun=pred_risk_fun,
-            max_ncollected_obs=ndesign, nprocs=1)
+            max_ncollected_obs=ndesign*ndata_per_candidate, nprocs=1)
 
         for ii in range(len(init_design_indices), ndesign):
             utility_vals, selected_indices = oed.update_design(False)[:2]
@@ -856,8 +867,8 @@ class TestBayesianOED(unittest.TestCase):
         prior_mean = prior_variable.get_statistics("mean")
         prior_cov = np.diag(prior_variable.get_statistics("var")[:, 0])
         prior_cov_inv = np.linalg.inv(prior_cov)
-        obs_matrix = basis_matrix(degree, design_candidates)
-        noise_cov_inv = np.eye(design_candidates.shape[1])/(noise_std**2)
+        obs_matrix = basis_matrix(degree, obs_locations)
+        noise_cov_inv = np.eye(obs_locations.shape[1])/(noise_std**2)
         pred_matrix = basis_matrix(degree, prediction_candidates)
 
         # print(oed.collected_design_indices)
@@ -869,15 +880,17 @@ class TestBayesianOED(unittest.TestCase):
         # realizations of data
         ii = 0
         data = []
-        for jj in range(design_candidates.shape[1]):
-            idx = np.hstack((
+        for jj in range(ndesign_candidates):
+            design_indices = np.hstack((
                 oed.collected_design_indices[:-1], jj))
+            active_idx = np.hstack([idx*ndata_per_candidate + np.arange(
+                ndata_per_candidate) for idx in design_indices])
             # realization of data does not matter so just take noisy obs
-            obs_ii = oed.out_pred_obs[ii:ii+1, idx]
+            obs_ii = oed.out_pred_obs[ii:ii+1, active_idx]
             exact_post_mean, exact_post_cov = \
                 laplace_posterior_approximation_for_linear_models(
-                    obs_matrix[idx, :], prior_mean, prior_cov_inv,
-                    extract_independent_noise_cov(noise_cov_inv, idx),
+                    obs_matrix[active_idx, :], prior_mean, prior_cov_inv,
+                    extract_independent_noise_cov(noise_cov_inv, active_idx),
                     obs_ii.T)
             pointwise_post_variance = np.diag(
                 pred_matrix.dot(exact_post_cov.dot(pred_matrix.T))
@@ -925,8 +938,8 @@ class TestBayesianOED(unittest.TestCase):
             "method": "tensorproduct",
             "kwargs": {"levels": 51, "rule": "gauss"}}
 
-        ncandidates = 6
-        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        ndesign_candidates = 6
+        design_candidates = np.linspace(-1, 1, ndesign_candidates)[None, :]
         Amat = design_candidates.T**np.arange(degree+1)[None, :]
         pred_mat = Amat[:1, :]
 
@@ -954,9 +967,9 @@ class TestBayesianOED(unittest.TestCase):
         kwargs["obs_process"] = obs_process
 
         # Define initial design
-        init_design_indices = np.array([ncandidates//2])
+        init_design_indices = np.array([ndesign_candidates//2])
         oed = get_bayesian_oed_optimizer(
-            oed_type, design_candidates, obs_fun, noise_std,
+            oed_type, ndesign_candidates, obs_fun, noise_std,
             prior_variable, out_quad_opts, in_quad_opts,
             pre_collected_design_indices=init_design_indices,
             max_ncollected_obs=ndesign,
@@ -1242,10 +1255,10 @@ class TestBayesianOED(unittest.TestCase):
     def help_compare_prediction_based_oed(
             self, deviation_fun, gauss_deviation_fun, inner_quad_type,
             nin_samples, ndesign_vars, tol):
-        ncandidates_1d = 5
+        ndesign_candidates_1d = 5
         design_candidates = cartesian_product(
-            [np.linspace(-1, 1, ncandidates_1d)]*ndesign_vars)
-        ncandidates = design_candidates.shape[1]
+            [np.linspace(-1, 1, ndesign_candidates_1d)]*ndesign_vars)
+        ndesign_candidates = design_candidates.shape[1]
 
         # Define model used to predict likely observable data
         indices = compute_hyperbolic_indices(ndesign_vars, 1)[:, 1:]
@@ -1264,7 +1277,7 @@ class TestBayesianOED(unittest.TestCase):
         noise_std = 1
 
         # Define initial design
-        init_design_indices = np.array([ncandidates//2])
+        init_design_indices = np.array([ndesign_candidates//2])
 
         # Define OED options
         nout_samples = 9 # 100
@@ -1279,14 +1292,14 @@ class TestBayesianOED(unittest.TestCase):
                 "kwargs": {"levels": nin_samples, "rule": "gauss"}}
 
         # Define initial design
-        init_design_indices = np.array([ncandidates//2])
+        init_design_indices = np.array([ndesign_candidates//2])
 
         # Setup OED problem
         nexperiments = 3
 
         # np.random.seed(1)
         oed = get_bayesian_oed_optimizer(
-            "dev_pred", design_candidates, obs_fun, noise_std,
+            "dev_pred", ndesign_candidates, obs_fun, noise_std,
             prior_variable, out_quad_opts, in_quad_opts, qoi_fun=qoi_fun,
             pre_collected_design_indices=init_design_indices,
             deviation_fun=deviation_fun, max_ncollected_obs=nexperiments)
@@ -1400,8 +1413,8 @@ class TestBayesianOED(unittest.TestCase):
         ndesign = 4
         nout_samples = 10
 
-        ncandidates = 11
-        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        ndesign_candidates = 11
+        design_candidates = np.linspace(-1, 1, ndesign_candidates)[None, :]
         Amat = np.hstack((design_candidates.T, design_candidates.T**2))
 
         def obs_fun(samples):
@@ -1418,9 +1431,9 @@ class TestBayesianOED(unittest.TestCase):
             "method": "tensorproduct",
             "kwargs": {"levels": nin_samples_1d, "rule": rule}}
 
-        init_design_indices = np.array([ncandidates//2])
+        init_design_indices = np.array([ndesign_candidates//2])
         oed = get_bayesian_oed_optimizer(
-            "kl_params", design_candidates, obs_fun, noise_std,
+            "kl_params", ndesign_candidates, obs_fun, noise_std,
             prior_variable, out_quad_opts, in_quad_opts,
             pre_collected_design_indices=init_design_indices,
             max_ncollected_obs=ndesign)
@@ -1505,14 +1518,14 @@ class TestBayesianOED(unittest.TestCase):
         np.random.seed(1)
         ndesign = 2  # 3
         degree = 2
-        ncandidates = 11
+        ndesign_candidates = 11
         pre_collected_design_indices = []
         nsamples = int(1e5)
 
         def basis_matrix(degree, samples):
             return samples.T**np.arange(degree+1)[None, :]
 
-        nprediction_samples = ncandidates
+        nprediction_samples = ndesign_candidates
         xx, ww = piecewise_univariate_linear_quad_rule(
             [-1, 1], nprediction_samples)
         ww /= 2.0  # assume uniform distribution over prediction space
@@ -1527,7 +1540,7 @@ class TestBayesianOED(unittest.TestCase):
         prior_variable = IndependentMarginalsVariable(
             [stats.norm(-0.25, .5)]*nrandom_vars)
 
-        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        design_candidates = np.linspace(-1, 1, ndesign_candidates)[None, :]
         obs_mat = basis_matrix(degree, design_candidates)
         pred_mat = basis_matrix(degree, prediction_candidates)
 
@@ -1617,7 +1630,7 @@ class TestBayesianOED(unittest.TestCase):
             data_quantile=None):
         ndesign = 2
         degree = 1
-        ncandidates = 3
+        ndesign_candidates = 3
         noise_std = 1
         pre_collected_design_indices = [1]
 
@@ -1637,7 +1650,7 @@ class TestBayesianOED(unittest.TestCase):
         def basis_matrix(degree, samples):
             return samples.T**np.arange(degree+1)[None, :]
 
-        nprediction_samples = ncandidates
+        nprediction_samples = ndesign_candidates
         xx, ww = piecewise_univariate_linear_quad_rule(
             [-1, 1], nprediction_samples)
         ww /= 2.0  # assume uniform distribution over prediction space
@@ -1654,7 +1667,7 @@ class TestBayesianOED(unittest.TestCase):
         prior_variable = IndependentMarginalsVariable(
             [stats.norm(0, .1)]*nrandom_vars)
 
-        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        design_candidates = np.linspace(-1, 1, ndesign_candidates)[None, :]
         obs_mat = basis_matrix(degree, design_candidates)
         pred_mat = basis_matrix(degree, prediction_candidates)
         # pred_mat = pred_mat[:1, :]  # this line is hack for debugging
@@ -1687,7 +1700,7 @@ class TestBayesianOED(unittest.TestCase):
             "kwargs": {"levels": nin_samples_1d, "rule": in_rule}}
 
         oed = get_bayesian_oed_optimizer(
-            "dev_pred", design_candidates, obs_fun, noise_std,
+            "dev_pred", ndesign_candidates, obs_fun, noise_std,
             prior_variable, out_quad_opts, in_quad_opts, qoi_fun=qoi_fun,
             pre_collected_design_indices=pre_collected_design_indices,
             deviation_fun=deviation_fun,
@@ -1695,11 +1708,11 @@ class TestBayesianOED(unittest.TestCase):
         oed_results = []
         for step in range(len(pre_collected_design_indices), ndesign):
             results_step = oed.update_design(
-                return_all=True)[2]#, rounding_decimals=round_decimals)[2]
+                return_all=True)[2]  # , rounding_decimals=round_decimals)[2]
             oed_results.append(results_step)
 
         # print(collected_indices, oed.collected_design_indices)
-        for jj in range(ncandidates):
+        for jj in range(ndesign_candidates):
             print(analytical_results[0][jj]["expected_deviations"][:, 0],
                   oed_results[0][jj]["expected_deviations"][:, 0])
 
@@ -1752,10 +1765,10 @@ class TestBayesianOED(unittest.TestCase):
         degree = 2
         noise_std = 0.5
         nrandom_vars = degree+1
-        ncandidates = 11
+        ndesign_candidates = 11
         prior_variable = IndependentMarginalsVariable(
             [stats.norm(1, 0.5)]*nrandom_vars)
-        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        design_candidates = np.linspace(-1, 1, ndesign_candidates)[None, :]
 
         def basis_matrix(degree, samples):
             return samples.T**np.arange(degree+1)[None, :]
