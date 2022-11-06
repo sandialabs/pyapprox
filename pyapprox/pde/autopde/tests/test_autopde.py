@@ -384,13 +384,13 @@ class TestAutoPDE(unittest.TestCase):
             sol_fun.set_time(time)
             exact_sol_t = sol_fun(solver.residual.mesh.mesh_pts).numpy()
             model_sol_t = sols[:, ii:ii+1].numpy()
-            # print(exact_sol_t)
-            # print(model_sol_t)
+            print(exact_sol_t)
+            print(model_sol_t)
             L2_error = np.sqrt(
                 solver.residual.mesh.integrate((exact_sol_t-model_sol_t)**2))
             factor = np.sqrt(
                 solver.residual.mesh.integrate(exact_sol_t**2))
-            # print(time, L2_error, 1e-8*factor)
+            print(time, L2_error, 1e-8*factor)
             assert L2_error < 1e-8*factor
 
         # for bndry_cond in bndry_conds:
@@ -476,7 +476,7 @@ class TestAutoPDE(unittest.TestCase):
               lambda sol: torch.diag(2*sol[:, 0])],
              ["D", "N", "R", "D"], "im_crank2"]
         ]
-        for test_case in test_cases:
+        for test_case in test_cases[2:3]:
             self._check_transient_advection_diffusion_reaction(*test_case)
 
     def _check_stokes_solver_mms(
