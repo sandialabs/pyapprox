@@ -171,6 +171,9 @@ def conditional_value_at_risk_vectorized(samples, alpha, weights=None,
     quantiles = np.empty(nvars, dtype=samples.dtype)
     CVaR = np.empty_like(quantiles)
     for ii in range(nvars):
+        # effective sample size
+        # print((weights[ii].sum())**2/(weights[ii]**2).sum(), "w",
+        #       nsamples, 'ii', ii)
         ecdf = weights[ii].cumsum()
         ecdf /= ecdf[-1]
         indices[ii] = np.argmax(ecdf >= alpha)
@@ -561,10 +564,6 @@ def gaussian_cvar(mu, sigma, quantile):
     Compute the conditional value at risk of a univariate Gaussian variable
     """
     val = mu+sigma*stats.norm.pdf(stats.norm.ppf(quantile))/(1-quantile)
-    # variable = stats.norm(mu, sigma)
-    # VaR = variable.ppf(quantile)
-    # val = (mu + np.sqrt(2/np.pi)*sigma*np.exp(-(mu-VaR)**2/(2*sigma**2)) +
-    #        mu*erf((mu-VaR)/(np.sqrt(2)*sigma)))*0.5/(1-quantile)
     return val
 
 
