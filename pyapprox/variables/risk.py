@@ -3,6 +3,7 @@ from functools import partial
 import scipy
 from scipy import stats
 from scipy.special import erfinv, gamma as gamma_fn, gammainc
+from pyapprox.util.pya_numba import njit
 
 from pyapprox.variables.algebra import invert_monotone_function
 
@@ -147,6 +148,88 @@ def value_at_risk(samples, alpha, weights=None, samples_sorted=False,
         index = II[index]
         # assert samples[index]==VaR
     return VaR, index
+
+
+@njit(cache=True)
+def conditional_value_at_risk_vectorized(samples, alpha, weights=None,
+                                         samples_sorted=False):
+    nvars, nsamples = samples.shape
+    if weights is None:
+        weights = np.full((nvars, nsamples), 1/nsamples)
+    assert weights.shape == samples.shape
+    samples_sort = np.empty((nsamples))
+    weights_sort = np.empty_like(samples_sort)
+    if not samples_sorted:
+        for ii in range(nvars):
+            sorted_idx = np.argsort(samples[ii, :])
+            for kk in range(nsamples):
+                samples_sort[kk] = samples[ii, sorted_idx[kk]]
+                weights_sort[kk] = weights[ii, sorted_idx[kk]]
+            samples[ii, :] = samples_sort.copy()
+            weights[ii, :] = weights_sort.copy()
+    indices = np.empty(nvars, dtype=np.int64)
+    quantiles = np.empty(nvars, dtype=samples.dtype)
+    CVaR = np.empty_like(quantiles)
+    for ii in range(nvars):
+        ecdf = weights[ii].cumsum()
+        ecdf /= ecdf[-1]
+        indices[ii] = np.argmax(ecdf >= alpha)
+        quantiles[ii] = samples[ii, indices[ii]]
+        CVaR[ii] = quantiles[ii]+1/((1-alpha))*np.sum(
+            (samples[ii, indices[ii]+1:]-quantiles[ii]) *
+            weights[ii, indices[ii]+1:])
+    return CVaR
+
+
+def value_at_risk_np_vectorized(samples, alpha, weights=None,
+                                samples_sorted=False):
+    nvars, nsamples = samples.shape
+    if weights is None:
+        weights = np.full((nvars, nsamples), 1/nsamples)
+    assert weights.shape == samples.shape
+    II = np.arange(nvars).reshape(nvars, 1)
+    if not samples_sorted:
+        sorted_idx = np.argsort(samples, axis=1)
+        samples, weights = samples[II, sorted_idx], weights[II, sorted_idx]
+    ecdf = weights.cumsum(axis=1)
+    ecdf /= ecdf[:, -1:]
+    indices = np.argmax(ecdf >= alpha, axis=1)
+    quantiles = samples[II[:, 0], indices]
+    if not samples_sorted:
+        indices = sorted_idx[indices]
+    return quantiles, indices
+
+
+def conditional_value_at_risk_np_vectorized(samples, alpha, weights=None,
+                                            samples_sorted=False,
+                                            return_var=False):
+    nvars, nsamples = samples.shape
+    if weights is None:
+        weights = np.full((nvars, nsamples), 1/nsamples)
+    assert weights.shape == samples.shape
+    if not samples_sorted:
+        # argsort does not work with numba
+        # sorted_idx = np.argsort(samples, axis=1)
+        sorted_idx = np.empty(samples.shape, dtype=np.int64)
+        for ii in range(nvars):
+            sorted_idx[ii, :] = np.argsort(samples[ii, :])
+        II = np.arange(nvars).reshape(nvars, 1)
+        samples, weights = samples[II, sorted_idx], weights[II, sorted_idx]
+    VaR, indices = value_at_risk_np_vectorized(
+        samples, alpha, weights, samples_sorted=True)
+    # quantile indices will be different for each row
+    # only need to sum above quantiles. So ignore all entries of
+    # samples and weights < imin. Then set to zero any entries > imin
+    # but less than indices[row] for each row
+    imin = indices.min()
+    mask = (np.arange(imin, nsamples) < indices.reshape(indices.shape[0], 1))
+    samples[:, imin:][mask], weights[:, imin:][mask] = 0.0, 0.0
+    CVaR = VaR+1/((1-alpha))*np.sum(
+        (samples[:, imin+1:]-VaR.reshape(nvars, 1))*weights[:, imin+1:],
+        axis=1)
+    if return_var:
+        return CVaR, VaR
+    return CVaR
 
 
 def conditional_value_at_risk(samples, alpha, weights=None,
@@ -447,6 +530,14 @@ def lognormal_cvar_deviation(p, mu, sigma_sq):
     return cvar-mean
 
 
+def gaussian_entropic_risk(mu, sigma):
+    return sigma**2/2+mu
+
+
+def gaussian_entropic_deviation(sigma):
+    return sigma**2/2
+
+
 def lognormal_variance(mu, sigma_sq):
     """
     Compute the variance of a univariate lognormal variable
@@ -598,4 +689,3 @@ def compute_f_divergence(density1, density2, quad_rule, div_type,
     divergence_integrand = f(ratios)*d2_vals
 
     return divergence_integrand.dot(w)
-

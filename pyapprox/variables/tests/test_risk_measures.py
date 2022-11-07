@@ -16,13 +16,11 @@ from pyapprox.variables.risk import (
     univariate_cvar_continuous_variable, weighted_quantiles,
     entropic_risk_measure, lognormal_mean, lognormal_cvar, chi_squared_cvar,
     gaussian_cvar, lognormal_kl_divergence, gaussian_kl_divergence,
-    compute_f_divergence
-    )
+    compute_f_divergence, conditional_value_at_risk_vectorized,
+    conditional_value_at_risk_np_vectorized)
 from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.variables.marginals import get_distribution_info
-from pyapprox.variables.nataf import (
-    scipy_gauss_hermite_pts_wts_1D
-)
+from pyapprox.variables.nataf import scipy_gauss_hermite_pts_wts_1D
 
 
 def cvar_univariate_integrand(f, pdf, t, x):
@@ -79,7 +77,8 @@ def cvar_beta_variable(rv, beta):
 
 def cvar_gaussian_variable(rv, beta):
     mu, sigma = rv.mean(), rv.std()
-    return mu+sigma*rv.pdf(rv.ppf(beta))/(1-beta)
+    rv_std = stats.norm(0, 1)
+    return mu+sigma*rv_std.pdf(rv_std.ppf(beta))/(1-beta)
 
 
 def triangle_quantile(u, c, loc, scale):
@@ -498,9 +497,9 @@ class TestRiskMeasures(unittest.TestCase):
         assert np.allclose(VaR(alpha), empirical_VaR, 1e-2)
 
     def test_weighted_value_at_risk_normal(self):
-        mu, sigma = 1, 1
+        mu, sigma = 1, 2
         # bias_mu,bias_sigma=1.0,1
-        bias_mu, bias_sigma = mu, sigma
+        bias_mu, bias_sigma = mu-1, sigma+1
 
         from scipy.special import erf
         def VaR(alpha): return stats.norm.ppf(alpha, loc=mu, scale=sigma)
@@ -514,10 +513,32 @@ class TestRiskMeasures(unittest.TestCase):
 
         alpha = 0.8
 
-        print(CVaR(alpha), cvar_gaussian_variable(
-            stats.norm(loc=mu, scale=sigma), alpha))
+        # print(CVaR(alpha), cvar_gaussian_variable(
+        #     stats.norm(loc=mu, scale=sigma), alpha))
         assert np.allclose(CVaR(alpha), cvar_gaussian_variable(
             stats.norm(loc=mu, scale=sigma), alpha))
+
+        nsamples = int(1e6)
+        gauss_moms = [[1.5, 0.5], [1, 2]]
+        samples = np.vstack(
+            [np.random.normal(m, s, (1, nsamples)) for m, s in gauss_moms])
+        cvar = conditional_value_at_risk_vectorized(
+            samples, alpha, weights=None, samples_sorted=False)
+        print((cvar-np.array([cvar_gaussian_variable(
+            stats.norm(loc=m, scale=s), alpha) for m, s in gauss_moms])))
+        assert np.allclose(
+            cvar, [cvar_gaussian_variable(
+                stats.norm(loc=m, scale=s), alpha)
+                    for m, s in gauss_moms], rtol=1e-3)
+
+        cvar = conditional_value_at_risk_np_vectorized(
+            samples, alpha, weights=None, samples_sorted=False)
+        print((cvar-np.array([cvar_gaussian_variable(
+            stats.norm(loc=m, scale=s), alpha) for m, s in gauss_moms])))
+        assert np.allclose(
+            cvar, [cvar_gaussian_variable(
+                stats.norm(loc=m, scale=s), alpha)
+                    for m, s in gauss_moms], rtol=1e-3)
 
         num_samples = int(1e5)
         samples = np.random.normal(bias_mu, bias_sigma, num_samples)
@@ -539,6 +560,25 @@ class TestRiskMeasures(unittest.TestCase):
             samples, alpha, weights)
         # print('CVaR',CVaR(alpha),empirical_CVaR)
         assert np.allclose(CVaR(alpha), empirical_CVaR, rtol=1e-2)
+
+        num_samples = int(1e6)
+        samples = np.random.normal(
+            bias_mu, bias_sigma, (len(gauss_moms), num_samples))
+        target_pdf_vals = np.vstack([
+            stats.norm.pdf(samples[ii:ii+1, :], loc=gauss_moms[ii][0],
+                           scale=gauss_moms[ii][1])
+            for ii in range(len(gauss_moms))])
+        bias_pdf_vals = stats.norm.pdf(samples, loc=bias_mu, scale=bias_sigma)
+        weights = target_pdf_vals/bias_pdf_vals * 1/num_samples
+
+        CVaR = conditional_value_at_risk_vectorized(
+            samples, alpha, weights, samples_sorted=False)
+        # print((CVaR-np.array([cvar_gaussian_variable(
+        #     stats.norm(loc=m, scale=s), alpha) for m, s in gauss_moms]))/CVaR)
+        assert np.allclose(
+            CVaR, [cvar_gaussian_variable(
+                stats.norm(loc=m, scale=s), alpha)
+                    for m, s in gauss_moms], rtol=1e-3)
 
     def test_equivalent_formulations_of_cvar(self):
         mu, sigma = 0, 1
