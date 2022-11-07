@@ -963,7 +963,7 @@ class TestBayesianOED(unittest.TestCase):
             def qoi_fun(samples): return pred_mat.dot(samples).T
             kwargs = {
                 "qoi_fun": qoi_fun, "pred_risk_fun": pred_risk_fun,
-                "deviation_fun": oed_variance_deviation}
+                "deviation_fun": OEDQOIDeviation("variance")}
         else:
             kwargs = {}
         kwargs["obs_process"] = obs_process
@@ -978,8 +978,8 @@ class TestBayesianOED(unittest.TestCase):
             **kwargs)
         print(oed)
         # following assumes oed.econ = True
-        x_quad = oed.in_samples[:, :oed.nin_samples]
-        w_quad = oed.in_weights[0, :oed.nin_samples]
+        x_quad = oed.in_samples
+        w_quad = oed.in_weights
 
         prior_mean = oed.prior_variable.get_statistics('mean')
         prior_cov = np.diag(prior_variable.get_statistics('var')[:, 0])
@@ -1616,7 +1616,7 @@ class TestBayesianOED(unittest.TestCase):
                 metrics.mean(axis=0),
                 sign*data[-1][collected_indices[-1]]['utility_val'], rtol=rtol)
 
-    def xtest_analytical_gaussian_prediction_deviation_based_oed(self):
+    def test_analytical_gaussian_prediction_deviation_based_oed(self):
         self.check_analytical_gaussian_prediction_deviation_based_oed(
             False, "dev-pred", None, 1e-2)
         self.check_analytical_gaussian_prediction_deviation_based_oed(
