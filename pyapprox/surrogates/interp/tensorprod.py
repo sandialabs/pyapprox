@@ -98,9 +98,9 @@ def piecewise_univariate_linear_quad_rule(range_1d, npoints):
     """
     if npoints == 1:
         return (np.array([(range_1d[1]+range_1d[0])/2]),
-                np.array([(range_1d[1]-range_1d[0])]))
+                np.array([float(range_1d[1]-range_1d[0])]))
     xx = np.linspace(range_1d[0], range_1d[1], npoints)
-    ww = np.ones((npoints))/(npoints-1)*(range_1d[1]-range_1d[0])
+    ww = np.ones((npoints), dtype=float)/(npoints-1)*(range_1d[1]-range_1d[0])
     ww[0] *= 0.5
     ww[-1] *= 0.5
     return xx, ww

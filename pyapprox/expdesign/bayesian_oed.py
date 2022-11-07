@@ -569,14 +569,9 @@ def _compute_negative_expected_deviation_monte_carlo(
 
     out_obs = out_pred_obs[:, active_indices].copy()
     out_obs += noise_samples[:, :active_indices.shape[0]]
-    # deviations, evidences = _compute_posterior_push_fwd_deviation(
-    #     out_obs, in_pred_obs, in_weights, active_indices, noise_std,
-    #     in_pred_qois, _posterior_push_fwd_variance_deviation)
-    # deviation_fun = OEDQOIDeviation("variance")
     deviations, evidences = deviation_fun(
         out_obs, in_pred_obs, in_weights, active_indices, noise_std,
         in_pred_qois)
-    
 
     # expectation taken with respect to observations
     # assume always want deviation here, but this can be changed
@@ -1134,16 +1129,21 @@ def _posterior_push_fwd_entropic_deviation(
 @njit(cache=True)
 def _posterior_push_fwd_cvar_deviation(
         qoi_vals, nin_samples, weights, beta):
-    nqoi = qoi_vals.shape[1]
-    risks = conditional_value_at_risk_vectorized(
-        qoi_vals.T, beta,
-        # np.tile(weights, (nqoi, 1)), # tile is not compatiable with numba
-        weights.repeat(nqoi).reshape(nqoi, -1),
-        samples_sorted=False)
-    qoi_mean = np.zeros(qoi_vals.shape[1])
+    qoi_means = np.zeros(qoi_vals.shape[1])
+    qoi_vars = np.zeros(qoi_vals.shape[1])
     for jj in range(nin_samples):
-        qoi_mean += qoi_vals[jj, :]*weights[jj]
-    deviations = risks-qoi_mean
+        qoi_means += qoi_vals[jj, :]*weights[jj]
+        qoi_vars += qoi_vals[jj, :]**2*weights[jj]
+    qoi_vars -= qoi_means**2
+    nqoi = qoi_vals.shape[1]
+    weights_expanded = np.empty_like(qoi_vals.T)
+    for kk in range(nqoi):
+        weights_expanded[kk] = weights
+    # qoi_vals.copy() is necessary because numba is updating qoi_vals
+    risks = conditional_value_at_risk_vectorized(
+        qoi_vals.copy().T, beta, weights_expanded,
+        samples_sorted=False)
+    deviations = risks-qoi_means
     return deviations
 
 
@@ -1984,28 +1984,12 @@ def get_posterior_vals_at_in_samples(
         oed.noise_samples[out_idx:out_idx+1],
         oed.noise_std, active_indices)
     weights = np.exp(inner_log_likelihood_vals)*oed.in_weights/evidences
-    print(weights.shape)
 
     vals = weights/oed.in_weights
     # multiply vals by prior.
     vals *= prior_variable.pdf(oed.in_samples)
     return vals
 
-
-def get_posterior_vals_at_in_samples_from_oed_results(
-        oed, prior_variable, nn, out_idx, oed_results):
-    """
-    oed_results : list(list(dict))
-         axis 0: each experimental design step
-         axis 1: each design candidate
-         dict: the data structures returned by the compute expected utility
-              function used. Assumes that weights is returned as the
-              is a key, i.e. index [ii][jj]["weights"] exists
-    """
-    assert nn > 0
-    weights = oed_results[nn-1][oed.collected_design_indices[nn-1]]["weights"]
-    return get_posterior_vals_at_in_samples_base(
-        oed, prior_variable, out_idx, weights)
 
 def get_posterior_2d_interpolant_from_oed_data(
         oed, prior_variable, nn, out_idx, quad_method):
@@ -2033,12 +2017,10 @@ def get_posterior_2d_interpolant_from_oed_data(
     if quad_method != "linear" and quad_method != "quadratic":
         raise ValueError(f"quad_method must be in {quad_methods}")
 
-
     # if using piecewise polynomial quadrature interpolate between using
     # piecewise linear method
     from scipy.interpolate import griddata
     x_quad = oed.in_samples
-    print(vals.shape, x_quad.shape)
     def fun(x): return griddata(x_quad.T, vals, x.T, method="linear")
     return fun
 
