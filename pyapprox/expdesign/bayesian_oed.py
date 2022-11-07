@@ -1093,7 +1093,7 @@ class OEDQOIDeviation():
         return _compute_posterior_push_fwd_deviation(
             out_obs, in_pred_obs, in_weights, active_indices, noise_std,
             in_pred_qois, deviation_fun, *self._args)
-        
+
 
 
 @njit(cache=True)
@@ -1579,13 +1579,12 @@ class BayesianSequentialOED(AbstractBayesianOED):
             atol=1e-14)
         log_like_vals = self._loglike_fun(
             self.collected_obs,
-            self.in_pred_obs[:self.nin_samples,
-                             self.collected_design_indices],
+            self.in_pred_obs[:, self.collected_design_indices],
             self.noise_std[self.collected_design_indices])
 
         # compute evidence moving from initial prior to current posterior
         evidence_from_prior = np.sum(
-            np.exp(log_like_vals)[:, 0]*self.in_weights[0, :])
+            np.exp(log_like_vals)[:, 0]*self.in_weights[:, 0])
         # compute evidence moving from previous posterior to current posterior
         self.evidence = evidence_from_prior/self.evidence_from_prior
         self.evidence_from_prior = evidence_from_prior
@@ -1602,16 +1601,14 @@ class BayesianSequentialOED(AbstractBayesianOED):
             self.noise_std[self.collected_design_indices]))/(
                 self.evidence_from_prior)
         nobs = self.collected_design_indices.shape[0]
-        tmp = self.in_pred_obs[
-            :, self.collected_design_indices].reshape(
-                self.nout_samples, self.nin_samples, nobs)
 
-        self.inner_importance_weights = np.exp(
+        tmp = self.in_pred_obs[:, self.collected_design_indices].reshape(
+            1, self.nin_samples, nobs)
+
+        self.inner_importance_weights = (np.exp(
              self._loglike_fun(self.collected_obs, tmp, self.noise_std[
                  self.collected_design_indices]))/(
-                 self.evidence_from_prior)
-        # self.inner_importance_weights = np.exp(self._loglike_fun(
-        #     self.collected_obs, tmp))/self.evidence_from_prior
+                 self.evidence_from_prior)).T
 
     def update_observations(self, new_obs):
         """
