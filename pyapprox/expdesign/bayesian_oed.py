@@ -8,6 +8,7 @@ from multiprocessing import Pool, RawArray
 from abc import ABC, abstractmethod
 from scipy import stats
 from memory_profiler import profile
+import time
 
 from pyapprox.util.sys_utilities import trace_error_with_msg
 from pyapprox.util.utilities import (
@@ -496,15 +497,19 @@ def _precompute_expected_kl_utility_data(out_quad_data, in_quad_data, obs_fun):
     """
     out_prior_samples, out_weights = out_quad_data
     assert out_weights.ndim == 2
-    print(f"Running {out_prior_samples.shape[1]} model evaluations")
+    print(f"Running {out_prior_samples.shape[1]} outer model evaluations")
+    t0 = time.time()
     out_pred_obs = obs_fun(out_prior_samples)
+    print("Evaluations took", time.time()-t0)
 
     if out_pred_obs.shape[0] != out_prior_samples.shape[1]:
         msg = "obs_fun is not returning an array with the correct shape"
         raise ValueError(msg)
 
-    print(f"Running {in_quad_data[0].shape[1]} model evaluations")
+    print(f"Running {in_quad_data[0].shape[1]} inner model evaluations")
+    t0 = time.time()
     in_pred_obs = obs_fun(in_quad_data[0])
+    print("Evaluations took", time.time()-t0)
 
     return out_pred_obs, in_pred_obs
 
@@ -865,16 +870,16 @@ class AbstractBayesianOED(ABC):
                                  new_design_indices, return_all=False):
         raise NotImplementedError()
 
-    # @profile(precision=4)
-    def _compute_utilities_parallel(self, workder_fun, ncandidates,
-                                    collected_design_indices, return_all):
+    def _compute_utilities_parallel_shared(
+            self, worker_fun, init_worker, _get_initargs, ncandidates,
+            collected_design_indices, return_all):
         splits = split_indices(self.ndesign_candidates, self.nprocs)
         args = [(splits[ii], splits[ii+1], collected_design_indices,
                  return_all, self.ndesign_candidates, self.ndata_per_candidate)
                 for ii in range(splits.shape[0]-1)]
         t0 = time.time()
         with Pool(processes=self.nprocs, initializer=init_worker,
-                  initargs=_get_compute_utilities_initargs(self)) as pool:
+                  initargs=_get_initargs(self)) as pool:
             print("pool startup", time.time()-t0)
             result = pool.map(worker_fun, args)
         utility_vals = np.hstack([r[0] for r in result])
@@ -883,30 +888,53 @@ class AbstractBayesianOED(ABC):
             results += r[1]
         return utility_vals, results
 
-    # @profile(precision=4)
-    def _compute_utilities_serial(self, compute_expected_utility, ncandidates,
-                                  collected_design_indices, return_all):
+    def _compute_utilities_parallel(self, ncandidates,
+                                    collected_design_indices, return_all):
+        splits = split_indices(self.ndesign_candidates, self.nprocs)
+        args = [(splits[ii], splits[ii+1]) for ii in range(splits.shape[0]-1)]
+        t0 = time.time()
+        with Pool(processes=self.nprocs) as pool:
+            print("pool startup", time.time()-t0)
+            result = pool.map(
+                partial(self._compute_utilities_serial,
+                        self.compute_expected_utility, collected_design_indices,
+                        return_all), args)
+        utility_vals = np.hstack([r[0] for r in result])
+        results = []
+        for r in result:
+            results += r[1]
+        return utility_vals, results
+
+    def _compute_utilities_serial(self, compute_expected_utility,
+                                  collected_design_indices, return_all,
+                                  idx_bounds):
         import time
         t0 = time.time()
+        idx1, idx2 = idx_bounds
+        ncandidates = idx2-idx1
         utility_vals = -np.ones(ncandidates)*np.inf
         results = [None for ii in range(ncandidates)]
-        for ii in range(ncandidates):
+        ii = 0
+        for jj in range(idx1, idx2):
             results[ii] = compute_expected_utility(
-                collected_design_indices, np.array([ii], dtype=int),
+                collected_design_indices, np.array([jj], dtype=int),
                 return_all=return_all)
             utility_vals[ii] = results[ii]["utility_val"]
-        print("Took", time.time()-t0)
+            ii += 1
+        print("Computing utilities in serial took", time.time()-t0)
         return utility_vals, results
 
     def compute_utilities(self, ncandidates, collected_design_indices,
                           return_all):
         if self.nprocs == 1:
             return self._compute_utilities_serial(
-                self.compute_expected_utility, ncandidates,
-                collected_design_indices, return_all)
-        worker_fun = None
-        return self._compute_utilities_parallel(
-            worker_fun, ncandidates, collected_design_indices, return_all)
+                self.compute_expected_utility,
+                collected_design_indices, return_all, (0, ncandidates))
+        return self._compute_utilities_parallel_shared(
+            kl_worker_fun, init_kl_worker, _get_kl_compute_utilities_initargs,
+            ncandidates, collected_design_indices, return_all)
+        # return self._compute_utilities_parallel(
+        #     ncandidates, collected_design_indices, return_all)
 
     def select_design(self, collected_design_indices, return_all):
         """
@@ -960,6 +988,18 @@ class OEDSharedData():
 
     def clear(self):
         self.set_data([None]*len(self.attr_names))
+        self.in_pred_qois = None
+        self.set_funs(None, None, None)
+
+    def set_funs(self, deviation_fun, pred_risk_fun,
+                 data_risk_fun,):
+        self.deviation_fun = deviation_fun
+        self.pred_risk_fun = pred_risk_fun
+        self.data_risk_fun = data_risk_fun
+
+    def set_in_pred_qois(self, in_pred_qois, shape):
+        self.in_pred_qois = in_pred_qois
+        self.in_pred_qois_shape = shape
 
 
 global_oed_shared_data = OEDSharedData()
@@ -975,18 +1015,37 @@ def _create_global_array_from_name(obj, name):
 
 
 import time
-def _get_compute_utilities_initargs(obj):
+def _get_kl_compute_utilities_initargs(obj):
     t0 = time.time()
     initargs = []
     for name in global_oed_shared_data.attr_names:
         X, shape = _create_global_array_from_name(obj, name)
         initargs += [X, shape]
-    print("data time", time.time()-t0)
+    # print("data time", time.time()-t0)
     return (initargs, )
 
 
-def init_worker(data):
+def init_kl_worker(data):
     global_oed_shared_data.set_data(data)
+
+
+def _get_deviation_compute_utilities_initargs(obj):
+    init_args = _get_kl_compute_utilities_initargs(obj)[0]
+    t0 = time.time()
+    initargs = []
+    X, shape = _create_global_array_from_name(obj, "in_pred_qois")
+    initargs = (init_args, [X, shape],
+                [obj.deviation_fun, obj.pred_risk_fun, obj.data_risk_fun])
+    # print("data time", time.time()-t0)
+    return (initargs, )
+
+    
+def init_deviation_worker(initargs):
+    data, in_pred_qois, funs = initargs
+    global_oed_shared_data.set_data(data)
+    global_oed_shared_data.set_in_pred_qois(*in_pred_qois)
+    global_oed_shared_data.set_funs(*funs)
+    
 
 
 def from_buffer(name):
@@ -994,7 +1053,7 @@ def from_buffer(name):
         getattr(global_oed_shared_data, name+"_shape"))
 
 
-def worker_fun(arg):
+def kl_worker_fun(arg):
     t0 = time.time()
     in_weights = from_buffer("in_weights")
     out_weights = from_buffer("out_weights")
@@ -1004,7 +1063,7 @@ def worker_fun(arg):
     noise_std = from_buffer("noise_std")
     collected_design_indices, return_all = arg[2], arg[3]
     ndesign_candidates, ndata_per_candidate = arg[4], arg[5]
-    print("worker_fun start time", time.time()-t0, arg[0], arg[1])
+    # print("worker_fun start time", time.time()-t0, arg[0], arg[1])
 
     # TODO this will not work if ndata_per_candidate > 1
     t0 = time.time()
@@ -1031,7 +1090,55 @@ def worker_fun(arg):
             out_weights, active_indices, noise_samples, noise_std, return_all)
         utility_vals[ii] = results[ii]["utility_val"]
         ii += 1
-    print("Took", time.time()-t0, arg[0], arg[1])
+    print("Worker Took", time.time()-t0, arg[0], arg[1])
+    return utility_vals, results
+
+
+def deviation_worker_fun(arg):
+    t0 = time.time()
+    in_weights = from_buffer("in_weights")
+    out_weights = from_buffer("out_weights")
+    in_pred_obs = from_buffer("in_pred_obs")
+    out_pred_obs = from_buffer("out_pred_obs")
+    noise_samples = from_buffer("noise_samples")
+    noise_std = from_buffer("noise_std")
+    in_pred_qois = from_buffer("in_pred_qois")
+    collected_design_indices, return_all = arg[2], arg[3]
+    ndesign_candidates, ndata_per_candidate = arg[4], arg[5]
+    deviation_fun, pred_risk_fun, data_risk_fun = (
+        global_oed_shared_data.deviation_fun,
+        global_oed_shared_data.pred_risk_fun,
+        global_oed_shared_data.data_risk_fun
+        )
+    # print("worker_fun start time", time.time()-t0, arg[0], arg[1])
+
+    # TODO this will not work if ndata_per_candidate > 1
+    t0 = time.time()
+    results = [None for ii in range(arg[1]-arg[0])]
+    utility_vals = -np.ones(arg[1]-arg[0])*np.inf
+    ii = 0
+
+    noise_std = np.hstack(
+        [[noise_std[idx, 0]]*ndata_per_candidate
+         for idx in range(ndesign_candidates)])[:, None]
+    for new_design_indices in range(arg[0], arg[1]):
+        if collected_design_indices is not None:
+            design_indices = np.hstack(
+                (collected_design_indices, new_design_indices))
+        else:
+            # assume the observations at the collected_design_indices
+            # are already incorporated into the inner and outer loop weights
+            design_indices = np.asarray(new_design_indices)
+
+        active_indices = np.hstack([idx*ndata_per_candidate + np.arange(
+            ndata_per_candidate) for idx in design_indices])
+        results[ii] = _compute_negative_expected_deviation_monte_carlo(
+            out_pred_obs,  in_pred_obs,  in_weights, out_weights,
+            in_pred_qois,  deviation_fun, pred_risk_fun,
+            data_risk_fun, noise_samples, noise_std, active_indices, return_all)
+        utility_vals[ii] = results[ii]["utility_val"]
+        ii += 1
+    print("Worker Took", time.time()-t0, arg[0], arg[1])
     return utility_vals, results
 
 
@@ -1537,6 +1644,17 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
             self.deviation_fun, self.pred_risk_fun, self.data_risk_fun,
             self.noise_samples, noise_std, active_indices, return_all)
 
+    def compute_utilities(self, ncandidates, collected_design_indices,
+                          return_all):
+        if self.nprocs == 1:
+            return self._compute_utilities_serial(
+                self.compute_expected_utility,
+                collected_design_indices, return_all, (0, ncandidates))
+        return self._compute_utilities_parallel_shared(
+            deviation_worker_fun, init_deviation_worker,
+            _get_deviation_compute_utilities_initargs,
+            ncandidates, collected_design_indices, return_all)
+
 
 class BayesianSequentialOED(AbstractBayesianOED):
     r"""
@@ -1963,8 +2081,7 @@ def get_oed_inner_quadrature_rule(nin_samples, prior_variable,
     return x_quad, w_quad[:, None]
 
 
-def get_posterior_vals_at_in_samples(
-        oed, prior_variable, nn, out_idx):
+def get_posterior_weights_at_in_samples(oed, nn, out_idx):
     # plot posterior for one realization of the data
     # nn : number of data used to form posterior
     # out_idx : the outer loop iteration used to generate the data
@@ -1981,11 +2098,7 @@ def get_posterior_vals_at_in_samples(
         oed.noise_samples[out_idx:out_idx+1],
         oed.noise_std, active_indices)
     weights = np.exp(inner_log_likelihood_vals)*oed.in_weights/evidences
-
-    vals = weights/oed.in_weights
-    # multiply vals by prior.
-    vals *= prior_variable.pdf(oed.in_samples)
-    return vals
+    return weights
 
 
 def get_posterior_2d_interpolant_from_oed_data(
@@ -1994,8 +2107,11 @@ def get_posterior_2d_interpolant_from_oed_data(
     # nn : number of data used to form posterior
     # out_idx : the outer loop iteration used to generate the data
     assert prior_variable.num_vars() == 2
-    vals = get_posterior_vals_at_in_samples(
-        oed, prior_variable, nn, out_idx)
+    weights = get_posterior_weights_at_in_samples(oed, nn, out_idx)
+    vals = weights/oed.in_weights
+    # multiply vals by prior.
+    vals *= prior_variable.pdf(oed.in_samples)
+    
     nin_samples = vals.shape[0]
 
     if quad_method == "gauss":
