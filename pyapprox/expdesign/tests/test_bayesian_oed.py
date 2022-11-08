@@ -732,6 +732,11 @@ class TestBayesianOED(unittest.TestCase):
         for test_scenario in test_scenarios:
             self._check_compute_expected_kl_utility(*test_scenario)
 
+    def _obs_fun(self, Amat, obs_locations, samples):
+        assert obs_locations.ndim == 2
+        assert samples.ndim == 2
+        return Amat.dot(samples).T
+
     def _check_batch_kl_oed(self, ndata_per_candidate):
         """
         No observations collected to inform subsequent designs
@@ -750,10 +755,11 @@ class TestBayesianOED(unittest.TestCase):
             (np.ones((ndesign_candidates*ndata_per_candidate, 1)),
              obs_locations.T))
 
-        def obs_fun(samples):
-            assert obs_locations.ndim == 2
-            assert samples.ndim == 2
-            return Amat.dot(samples).T
+        # def obs_fun(samples):
+        #     assert obs_locations.ndim == 2
+        #     assert samples.ndim == 2
+        #     return Amat.dot(samples).T
+        obs_fun = partial(self._obs_fun, Amat, obs_locations)
 
         prior_variable = IndependentMarginalsVariable(
             [stats.norm(0, 1)]*nrandom_vars)
@@ -811,6 +817,7 @@ class TestBayesianOED(unittest.TestCase):
         degree = 2
         nrandom_vars = degree+1
         ndata_per_candidate = 2
+        nprocs = 1
 
         nprediction_samples = 201
         quantile = 0.8
@@ -860,7 +867,7 @@ class TestBayesianOED(unittest.TestCase):
             pre_collected_design_indices=init_design_indices,
             deviation_fun=OEDQOIDeviation("variance"),
             pred_risk_fun=pred_risk_fun,
-            max_ncollected_obs=ndesign*ndata_per_candidate, nprocs=1,
+            max_ncollected_obs=ndesign*ndata_per_candidate, nprocs=nprocs,
             ndata_per_candidate=ndata_per_candidate)
 
         for ii in range(len(init_design_indices), ndesign):
