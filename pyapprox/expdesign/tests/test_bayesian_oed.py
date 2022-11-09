@@ -4,6 +4,7 @@ import numpy as np
 from scipy import stats
 from functools import partial
 from scipy.special import erfinv
+import itertools
 
 from pyapprox.expdesign.bayesian_oed import (
     gaussian_loglike_fun, d_optimal_utility, oed_variance_deviation,
@@ -674,9 +675,10 @@ class TestBayesianOED(unittest.TestCase):
             prior_variable, out_quad_opts, in_quad_opts,
             pre_collected_design_indices=init_design_indices)
 
-        utility_vals, selected_index, results = oed.select_design(
-            oed.collected_design_indices, True)
+        utility_vals, selected_indices, results = oed.select_design(
+            oed.collected_design_indices, 1, True)
         new_design_indices = np.array([1])
+        # new_design_indices = selected_indices
         utility = utility_vals[new_design_indices[0]]
         # print(utility_vals[new_design_indices[0]])
 
@@ -708,7 +710,7 @@ class TestBayesianOED(unittest.TestCase):
             kl_divs.append(kl_div)
 
         ave_kl_divs = np.sum(kl_divs*oed.out_quad_data[1][:, 0])
-        # print(utility-ave_kl_divs, utility, ave_kl_divs)
+        print(utility-ave_kl_divs, utility, ave_kl_divs)
         assert np.allclose(utility, ave_kl_divs, rtol=tol)
 
     def test_compute_expected_kl_utility(self):
@@ -737,14 +739,14 @@ class TestBayesianOED(unittest.TestCase):
         assert samples.ndim == 2
         return Amat.dot(samples).T
 
-    def _check_batch_kl_oed(self, ndata_per_candidate):
+    def _check_batch_kl_oed(self, ndata_per_candidate, nnew):
         """
         No observations collected to inform subsequent designs
         """
         np.random.seed(1)
         nrandom_vars = 2
         noise_std = 1
-        ndesign = 4
+        ndesign = 5
         nprocs = 1
 
         ndesign_candidates = 11
@@ -778,52 +780,53 @@ class TestBayesianOED(unittest.TestCase):
             max_ncollected_obs=ndesign*ndata_per_candidate, nprocs=nprocs,
             ndata_per_candidate=ndata_per_candidate)
 
-        for ii in range(len(init_design_indices), ndesign):
+        indices = np.asarray(list(itertools.combinations_with_replacement(
+            np.arange(ndesign_candidates), nnew)))
+
+        for ii in range(len(init_design_indices), ndesign, nnew):
             # loop must be before oed.updated design because
             # which updates oed.collected_design_indices and thus
             # changes problem
-            d_utility_vals = np.zeros(ndesign_candidates)
-            for kk in range(ndesign_candidates):
-                if kk not in oed.collected_design_indices:
-                    design_indices = np.hstack(
-                        (oed.collected_design_indices, kk))
-                    active_indices = np.hstack(
-                        [idx*ndata_per_candidate + np.arange(
-                            ndata_per_candidate) for idx in design_indices])
-                    Amat_kk = Amat[active_indices]
-                    d_utility_vals[kk] = d_optimal_utility(Amat_kk, noise_std)
+            d_utility_vals = np.zeros(indices.shape[0])
+            for kk, idx in enumerate(indices):
+                design_indices = np.hstack(
+                    (oed.collected_design_indices, idx))
+                active_indices = np.hstack(
+                    [idx*ndata_per_candidate + np.arange(
+                        ndata_per_candidate) for idx in design_indices])
+                Amat_idx = Amat[active_indices]
+                d_utility_vals[kk] = d_optimal_utility(Amat_idx, noise_std)
 
-            utility_vals, selected_indices = oed.update_design()[:2]
+            utility_vals, selected_indices = oed.update_design(nnew=nnew)[:2]
             # ignore entries of previously collected data
             II = np.where(d_utility_vals > 0)[0]
-            print(d_utility_vals[II])
-            print(utility_vals[II])
-            print((np.absolute(
-                d_utility_vals[II]-utility_vals[II])/d_utility_vals[II]).max())
+            # print(d_utility_vals[II])
+            # print(utility_vals[II])
+            # print((np.absolute(
+            #     d_utility_vals[II]-utility_vals[II])/d_utility_vals[II]).max())
             assert np.allclose(d_utility_vals[II], utility_vals[II], rtol=1e-2)
 
     def test_batch_kl_oed(self):
-        test_cases = [[1], [2]]
+        test_cases = [[1, 1], [2, 1], [1, 2]]
         for test_case in test_cases:
             self._check_batch_kl_oed(*test_case)
 
-    def test_batch_prediction_oed(self):
+    def _check_batch_prediction_oed(self, ndata_per_candidate, nnew):
         """
         No observations collected to inform subsequent designs
         """
         np.random.seed(1)
         noise_std = 1
-        ndesign = 5
+        ndesign = 4
         degree = 2
         nrandom_vars = degree+1
-        ndata_per_candidate = 2
         nprocs = 1
 
-        nprediction_samples = 201
+        nprediction_samples = 51 # 201
         quantile = 0.8
         pred_risk_fun = partial(conditional_value_at_risk, alpha=quantile)
 
-        ndesign_candidates = 21
+        ndesign_candidates = 11
         obs_locations = np.linspace(
             -1, 1, ndesign_candidates*ndata_per_candidate)[None, :]
 
@@ -870,8 +873,8 @@ class TestBayesianOED(unittest.TestCase):
             max_ncollected_obs=ndesign*ndata_per_candidate, nprocs=nprocs,
             ndata_per_candidate=ndata_per_candidate)
 
-        for ii in range(len(init_design_indices), ndesign):
-            utility_vals, selected_indices = oed.update_design(False)[:2]
+        for ii in range(len(init_design_indices), ndesign, nnew):
+            utility_vals, selected_indices = oed.update_design(False, nnew)[:2]
 
         prior_mean = prior_variable.get_statistics("mean")
         prior_cov = np.diag(prior_variable.get_statistics("var")[:, 0])
@@ -883,18 +886,21 @@ class TestBayesianOED(unittest.TestCase):
         # print(oed.collected_design_indices)
         # print(design_candidates[0, oed.collected_design_indices])
 
+        indices = np.asarray(list(itertools.combinations_with_replacement(
+            np.arange(ndesign_candidates), nnew)))
+
         # Check expected variance when choosing the final design
         # point. Compare with exact value computed using Laplace formula
         # Note variance is independent of data so no need to generate
         # realizations of data
         ii = 0
         data = []
-        for jj in range(ndesign_candidates):
+        for idx in indices:
             design_indices = np.hstack((
-                oed.collected_design_indices[:-1], jj))
+                oed.collected_design_indices[:-nnew], idx))
             active_idx = np.hstack([idx*ndata_per_candidate + np.arange(
                 ndata_per_candidate) for idx in design_indices])
-            # realization of data does not matter so just take noisy obs
+            # realization of data does not matter so just take noisless obs
             obs_ii = oed.out_pred_obs[ii:ii+1, active_idx]
             exact_post_mean, exact_post_cov = \
                 laplace_posterior_approximation_for_linear_models(
@@ -906,17 +912,12 @@ class TestBayesianOED(unittest.TestCase):
             )[:, None]
             exact_variance_risk = oed.pred_risk_fun(pointwise_post_variance)
             data.append([pointwise_post_variance, -exact_variance_risk])
-            print(f"Candidate {jj}", exact_variance_risk)
+            # print(f"Candidate {idx}", exact_variance_risk)
         jdx = np.argmax([d[1] for d in data])
-        # print(np.mean(pointwise_post_variance))
-        # print(np.mean(
-        #     conditional_value_at_risk(pointwise_post_variance, quantile)))
-        # print(jdx, oed.collected_design_indices)
-        assert jdx == oed.collected_design_indices[-1]
+        selected_index = indices[jdx]
+        assert np.allclose(selected_index, oed.collected_design_indices[-nnew:])
         # print(utility_vals[oed.collected_design_indices[-1]]-data[jdx][1])
-        assert np.allclose(
-            utility_vals[oed.collected_design_indices[-1]],
-            data[jdx][1], rtol=1e-4)
+        assert np.allclose(utility_vals[jdx], data[jdx][1], rtol=1e-4)
         # from matplotlib import pyplot as plt
         # pointwise_prior_variance = np.diag(
         #     pred_matrix.dot(prior_cov.dot(pred_matrix.T)))
@@ -931,6 +932,11 @@ class TestBayesianOED(unittest.TestCase):
         # for idx in collected_design_indices:
         #     plt.axvline(x=design_candidates[0, idx], ls='--', c='k')
         # plt.show()
+
+    def test_batch_prediction_oed(self):
+        test_cases = [[1, 1], [2, 1], [1, 2]]
+        for test_case in test_cases:
+            self._check_batch_prediction_oed(*test_case)
 
     def _check_sequential_kl_oed(self, oed_type, step_tols):
         """
