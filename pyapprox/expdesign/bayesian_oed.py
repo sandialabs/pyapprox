@@ -14,7 +14,8 @@ from pyapprox.util.sys_utilities import trace_error_with_msg
 from pyapprox.util.utilities import (
     get_tensor_product_quadrature_rule, split_indices)
 from pyapprox.variables.risk import (
-    conditional_value_at_risk, conditional_value_at_risk_vectorized)
+    conditional_value_at_risk, conditional_value_at_risk_vectorized,
+    entropic_risk_measure)
 from pyapprox.variables.transforms import AffineTransform
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.interp.tensorprod import (
@@ -416,13 +417,14 @@ def _compute_expected_kl_utility_monte_carlo(
          out_pred_obs, in_pred_obs, in_weights, out_weights,
          active_indices, noise_samples, noise_std)
 
-    utility_val = data_risk_fun(
-        outer_log_likelihood_vals - np.log(evidences), out_weights)
+    divergences = outer_log_likelihood_vals - np.log(evidences)
+    utility_val = data_risk_fun(divergences, out_weights)
     # utility_val = np.sum((outer_log_likelihood_vals - np.log(evidences)) *
     #                      out_weights)
     if not return_all:
         return {"utility_val": utility_val}
-    result = {"utility_val": utility_val, "evidences": evidences}
+    result = {"utility_val": utility_val, "evidences": evidences,
+              "divergences": divergences}
     return result
 
 
@@ -2280,6 +2282,20 @@ def get_data_risk_fun(name, opts={}):
         raise ValueError(msg)
 
     fun = partial(risk_funs[name], **opts)
+    return fun
+
+
+def get_pred_risk_fun(name, **kwargs):
+    risk_funs = {
+        "mean": oed_prediction_average,
+        "cvar": conditional_value_at_risk,
+        "entropic": entropic_risk_measure}
+
+    if name not in risk_funs:
+        msg = f"{name} not in {risk_funs.keys()}"
+        raise ValueError(msg)
+
+    fun = partial(risk_funs[name], **kwargs)
     return fun
 
 
