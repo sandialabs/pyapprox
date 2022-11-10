@@ -811,6 +811,86 @@ class TestBayesianOED(unittest.TestCase):
         for test_case in test_cases:
             self._check_batch_kl_oed(*test_case)
 
+    def test_batch_kl_data_risk(self):
+        np.random.seed(1)
+        nrandom_vars = 1 # 2
+        noise_std = 1
+        ndesign = 1
+        nprocs = 1
+        ndata_per_candidate = 1
+        nnew = 1
+
+        ndesign_candidates = 11
+        obs_locations = np.linspace(
+            -1, 1, ndesign_candidates*ndata_per_candidate)[None, :]
+
+        Amat = np.hstack(
+            (np.ones((ndesign_candidates*ndata_per_candidate, 1)),
+             obs_locations.T))[:, :nrandom_vars]
+
+        obs_fun = partial(self._obs_fun, Amat, obs_locations)
+
+        prior_variable = IndependentMarginalsVariable(
+            [stats.norm(0, 1)]*nrandom_vars)
+
+        out_quad_opts = {
+            "method": "quasimontecarlo", "kwargs": {"nsamples": 10}}
+        # out_quad_opts = {
+        #     "method": "tensorproduct",
+        #     "kwargs": {"levels": 30, "rule": "gauss"}}
+        in_quad_opts = {
+            "method": "tensorproduct",
+            "kwargs": {"levels": 100, "rule": "gauss"}}
+
+        data_quantile = 0.5
+        data_risk_fun = get_data_risk_fun(
+            "cvar", {"quantile": data_quantile})
+        # data_risk_fun = get_data_risk_fun("mean")
+
+        # Define initial design
+        init_design_indices = np.array([ndesign_candidates//2])
+        init_design_indices = np.empty(0, dtype=int)
+        oed = get_bayesian_oed_optimizer(
+            "kl_params", ndesign_candidates, obs_fun, noise_std,
+            prior_variable, out_quad_opts, in_quad_opts,
+            pre_collected_design_indices=init_design_indices,
+            max_ncollected_obs=ndesign*ndata_per_candidate, nprocs=nprocs,
+            ndata_per_candidate=ndata_per_candidate,
+            data_risk_fun=data_risk_fun)
+
+        prior_mean, prior_cov, noise_cov, prior_cov_inv, _ = (
+            setup_linear_gaussian_model_inference(
+                prior_variable, noise_std, Amat))
+
+        for ii in range(len(init_design_indices), ndesign):
+            utilities, _, results = oed.update_design(True)
+        
+        kl_divs = np.empty(oed.nout_samples)
+        idx = oed.collected_design_indices
+        noise_cov_inv_idx = np.eye(idx.shape[0])/noise_std**2
+        for jj in range(oed.nout_samples):
+            noisy_obs = oed.out_pred_obs[jj:jj+1, idx] +\
+                    oed.noise_samples[jj, :idx.shape[0]]
+            post_mean, post_cov = \
+                laplace_posterior_approximation_for_linear_models(
+                    Amat[idx], prior_mean, prior_cov_inv,
+                    noise_cov_inv_idx, noisy_obs.T)
+            gauss_evidence = laplace_evidence(
+                lambda x: np.exp(gaussian_loglike_fun(
+                    noisy_obs,
+                    obs_fun(x)[:, idx],
+                    noise_std))[:, 0],
+                lambda y: np.atleast_2d(prior_variable.pdf(y.T)).T,
+                post_cov, post_mean)
+            loglike_val = gaussian_loglike_fun(
+                noisy_obs, oed.out_pred_obs[jj:jj+1, idx],
+                noise_std)[:, 0]
+            # kl_divs is not exactly the KL divergence
+            kl_divs[jj] = loglike_val-np.log(gauss_evidence)
+        ref_utilities = data_risk_fun(kl_divs[:, None], oed.out_weights)
+        # print(ref_utilities, utilities[idx[-1]])
+        assert np.allclose(ref_utilities, utilities)
+
     def _check_batch_prediction_oed(self, ndata_per_candidate, nnew):
         """
         No observations collected to inform subsequent designs
