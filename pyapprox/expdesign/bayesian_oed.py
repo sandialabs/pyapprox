@@ -366,7 +366,7 @@ def _compute_evidences(
 
 def _compute_expected_kl_utility_monte_carlo(
         out_pred_obs, in_pred_obs, in_weights, out_weights,
-        active_indices, noise_samples, noise_std, return_all):
+        active_indices, noise_samples, noise_std, data_risk_fun, return_all):
     r"""
     Compute the expected Kullback–Leibler (KL) divergence.
 
@@ -416,8 +416,10 @@ def _compute_expected_kl_utility_monte_carlo(
          out_pred_obs, in_pred_obs, in_weights, out_weights,
          active_indices, noise_samples, noise_std)
 
-    utility_val = np.sum((outer_log_likelihood_vals - np.log(evidences)) *
-                         out_weights)
+    utility_val = data_risk_fun(
+        outer_log_likelihood_vals - np.log(evidences), out_weights)
+    # utility_val = np.sum((outer_log_likelihood_vals - np.log(evidences)) *
+    #                      out_weights)
     if not return_all:
         return {"utility_val": utility_val}
     result = {"utility_val": utility_val, "evidences": evidences}
@@ -701,13 +703,36 @@ def _define_design_data(collected_design_indices,
     return active_indices, noise_std
 
 
+def oed_data_expectation(deviations, weights):
+    """
+    Compute the expected deviation for each outer loop sample
+
+    Parameters
+    ----------
+    deviations : np.ndarray (nout_samples, nqois)
+         The samples
+
+    weights : np.ndarray (nout_samples, 1)
+        Weights associated with each inner loop sample
+
+    Returns
+    -------
+    expected_obs_deviations : np.ndarray (nqois, 1)
+        The deviation vals
+    """
+    expected_obs_deviations = np.einsum(
+        "ij,i->j", deviations, weights[:, 0])[:, None]
+    return expected_obs_deviations
+
+
 class AbstractBayesianOED(ABC):
     r"""Base Bayesian OED class"""
 
     def __init__(self, ndesign_candidates, obs_fun, noise_std,
                  prior_variable, out_quad_opts,
                  in_quad_opts, nprocs=1,
-                 max_ncollected_obs=2, ndata_per_candidate=1):
+                 max_ncollected_obs=2, ndata_per_candidate=1,
+                 data_risk_fun=oed_data_expectation):
         """
         Constructor.
 
@@ -818,6 +843,7 @@ class AbstractBayesianOED(ABC):
         self.in_pred_obs = None
 
         self.nprocs = self._set_nprocs(nprocs)
+        self.data_risk_fun = data_risk_fun
 
     def _get_quad_rules(self, out_quad_opts, in_quad_opts):
         out_quad_data = integrate(
@@ -1000,7 +1026,7 @@ class OEDSharedData():
         self.set_funs(None, None, None)
 
     def set_funs(self, deviation_fun, pred_risk_fun,
-                 data_risk_fun,):
+                 data_risk_fun):
         self.deviation_fun = deviation_fun
         self.pred_risk_fun = pred_risk_fun
         self.data_risk_fun = data_risk_fun
@@ -1029,20 +1055,23 @@ def _get_kl_compute_utilities_initargs(obj):
     for name in global_oed_shared_data.attr_names:
         X, shape = _create_global_array_from_name(obj, name)
         initargs += [X, shape]
+    initargs = (initargs, obj.data_risk_fun)
     # print("data time", time.time()-t0)
     return (initargs, )
 
 
-def init_kl_worker(data):
+def init_kl_worker(args):
+    data, data_risk_fun = args
     global_oed_shared_data.set_data(data)
+    funs = [None, None, data_risk_fun]
+    global_oed_shared_data.set_funs(*funs)
 
 
 def _get_deviation_compute_utilities_initargs(obj):
-    init_args = _get_kl_compute_utilities_initargs(obj)[0]
     # t0 = time.time()
-    initargs = []
+    initargs = _get_kl_compute_utilities_initargs(obj)[0][0]
     X, shape = _create_global_array_from_name(obj, "in_pred_qois")
-    initargs = (init_args, [X, shape],
+    initargs = (initargs, [X, shape],
                 [obj.deviation_fun, obj.pred_risk_fun, obj.data_risk_fun])
     # print("data time", time.time()-t0)
     return (initargs, )
@@ -1072,7 +1101,7 @@ def kl_worker_fun(arg):
     indices = arg[0]
     collected_design_indices, return_all = arg[1], arg[2]
     ndesign_candidates, ndata_per_candidate = arg[3], arg[4]
-
+    data_risk_fun = global_oed_shared_data.data_risk_fun
     nindices = indices.shape[0]
     t0 = time.time()
     results = [None for ii in range(nindices)]
@@ -1095,7 +1124,8 @@ def kl_worker_fun(arg):
             ndata_per_candidate) for idx in design_indices])
         results[ii] = _compute_expected_kl_utility_monte_carlo(
             out_pred_obs,  in_pred_obs,  in_weights,
-            out_weights, active_indices, noise_samples, noise_std, return_all)
+            out_weights, active_indices, noise_samples, noise_std,
+            data_risk_fun, return_all)
         utility_vals[ii] = results[ii]["utility_val"]
         ii += 1
     print("Worker Took", time.time()-t0, indices[0], indices[-1])
@@ -1171,7 +1201,7 @@ class BayesianBatchKLOED(AbstractBayesianOED):
         return _compute_expected_kl_utility_monte_carlo(
             self.out_pred_obs,  self.in_pred_obs,  self.in_weights,
             self.out_weights, active_indices, self.noise_samples,
-            noise_std, return_all)
+            noise_std, self.data_risk_fun, return_all)
 
 
 def oed_prediction_average(qoi_vals, weights=None):
@@ -1344,28 +1374,6 @@ def oed_entropic_deviation(samples, weights):
     risks = np.log(np.einsum(
         "ijk,ij->ik", np.exp(samples), weights))
     return risks-means
-
-
-def oed_data_expectation(deviations, weights):
-    """
-    Compute the expected deviation for each outer loop sample
-
-    Parameters
-    ----------
-    deviations : np.ndarray (nout_samples, nqois)
-         The samples
-
-    weights : np.ndarray (nout_samples, 1)
-        Weights associated with each inner loop sample
-
-    Returns
-    -------
-    expected_obs_deviations : np.ndarray (nqois, 1)
-        The deviation vals
-    """
-    expected_obs_deviations = np.einsum(
-        "ij,i->j", deviations, weights[:, 0])[:, None]
-    return expected_obs_deviations
 
 
 def oed_data_cvar(deviations, weights, quantile=None):
@@ -1571,7 +1579,8 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
                          prior_variable, out_quad_opts,
                          in_quad_opts, nprocs=nprocs,
                          max_ncollected_obs=max_ncollected_obs,
-                         ndata_per_candidate=ndata_per_candidate)
+                         ndata_per_candidate=ndata_per_candidate,
+                         data_risk_fun=data_risk_fun)
         # qoi fun deafult is None so that same api can be used for KL based OED
         # which does not require qoi_fun
         if not callable(qoi_fun):
@@ -1581,7 +1590,6 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
         self.qoi_fun = qoi_fun
         self.deviation_fun = deviation_fun
         self.pred_risk_fun = pred_risk_fun
-        self.data_risk_fun = data_risk_fun
 
     def _populate(self):
         """
@@ -1895,7 +1903,7 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
         return _compute_expected_kl_utility_monte_carlo(
             self.out_pred_obs, self.in_pred_obs, self.in_weights_up,
             self.out_weights_up, new_design_indices, self.noise_samples,
-            self.noise_std, return_all)
+            self.noise_std, self.data_risk_fun, return_all)
 
 
 class BayesianSequentialDeviationOED(
