@@ -7,7 +7,6 @@ from functools import partial
 from multiprocessing import Pool, RawArray
 from abc import ABC, abstractmethod
 from scipy import stats
-from memory_profiler import profile
 import time
 import itertools
 
