@@ -25,8 +25,13 @@ def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
             break
         if it >= maxiters:
             exit_msg = f"Max iterations {maxiters} reached.\n"
-            exit_msg += f"Residual norm is {residual_norm.detach().numpy()} "
-            exit_msg += f"Residual tol is {tol*residual_norms[0]}"
+            if rel_error:
+                exit_msg += f"Rel residual norm is {rel_error} "
+                exit_msg += f"Residual tol is {tol*residual_norms[0]}"
+                print(residual_norms[0], residual_norm)
+            else:
+                exit_msg += f"Absolute residual norm is {residual_norm} "
+                exit_msg += f"Residual tol is {tol}"
             raise RuntimeError(exit_msg)
         # strict=True needed if computing adjoints and jac computation
         # needs to be part of graph
