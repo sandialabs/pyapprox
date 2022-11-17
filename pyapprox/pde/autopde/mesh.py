@@ -528,7 +528,7 @@ class CanonicalCollocationMesh():
         return get_meshgrid_samples(
             self._canonical_domain_bounds, nplot_pts_1d)
 
-    def _plot_2d(self, mesh_values, nplot_pts_1d=100, ncontour_levels=20,
+    def _plot_2d(self, mesh_values, nplot_pts_1d=100, levels=20,
                  ax=None):
         X, Y, pts = self._create_plot_mesh_2d(nplot_pts_1d)
         Z = self._interpolate(mesh_values, pts)
@@ -540,9 +540,11 @@ class CanonicalCollocationMesh():
         mask = np.where((can_pts[0] >= -1) & (can_pts[0] <= 1) &
                         (can_pts[1] >= -1) & (can_pts[1] <= 1), 0, 1)
         triang.set_mask(mask)
-        return ax.tricontourf(
-            triang, Z[:, 0],
-            levels=np.linspace(Z.min(), Z.max(), ncontour_levels))
+        if isinstance(levels, int):
+            levels = np.linspace(Z.min(), Z.max(), levels)
+        else:
+            levels = levels
+        return ax.tricontourf(triang, Z[:, 0], levels=levels)
 
     def plot(self, mesh_values, nplot_pts_1d=None, ax=None, **kwargs):
         if ax is None:
@@ -553,7 +555,7 @@ class CanonicalCollocationMesh():
         if nplot_pts_1d is None:
             raise ValueError("nplot_pts_1d must be not None for 2D plot")
         return self._plot_2d(
-            mesh_values, nplot_pts_1d, 30, ax=ax)
+            mesh_values, nplot_pts_1d, ax=ax, **kwargs)
 
     def _get_quadrature_rule(self):
         quad_rules = [
