@@ -32,6 +32,9 @@ from pyapprox.pde.autopde.physics import (
     ShallowShelf, FirstOrderStokesIce, MultiSpeciesAdvectionDiffusionReaction,
     LinearElasticity
 )
+from pyapprox.pde.autopde.mesh_transforms import (
+    get_ellipitical_transform_functions
+)
 from pyapprox.util.utilities import approx_jacobian
 
 
@@ -128,6 +131,7 @@ def _sww_momentum_component_fun(vel_fun, depth_fun, ii, x, time=None):
     vals = depth_fun(x)*vel_fun(x)[:, ii:ii+1]
     return vals
 
+
 def _adf_bndry_fun(bndry_fun, diff_fun, xx):
     return bndry_fun(xx)/diff_fun(xx)
 
@@ -208,6 +212,14 @@ class TestAutoPDE(unittest.TestCase):
         solver = SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
             react_funs[1]))
+
+        import matplotlib.pyplot as plt
+        plt.plot(mesh.mesh_pts[0], mesh.mesh_pts[1], 'o')
+        can_pts = mesh._map_samples_to_canonical_domain(mesh.mesh_pts)
+        print(mesh._canonical_mesh_pts, can_pts)
+        # assert np.allclose(mesh._canonical_mesh_pts, can_pts)
+        plt.plot(can_pts[0], can_pts[1], 'X')
+        plt.show()
 
         assert np.allclose(
             solver.physics._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
@@ -351,14 +363,17 @@ class TestAutoPDE(unittest.TestCase):
              [lambda sol: 1*sol**2,
               lambda sol: torch.diag(2*sol[:, 0])],
              ["D", "D", "D", "N"], ["C", "C"],
-             mesh_transforms]
+             mesh_transforms],
+            [None, [2, 21], "y**2*x**2", "1", ["1", "0"],
+             [lambda sol: 1*sol**2,
+              lambda sol: torch.diag(2*sol[:, 0])],
+             ["D", "D", "D", "D"], ["C", "C"],
+             get_ellipitical_transform_functions(
+                 1, [0.5, 1, 0*np.pi, np.pi], "up")] # must test with "N" and with ""Low
         ]
-        ii = 0
-        for test_case in test_cases:
-            # print(ii)
+        for test_case in test_cases[-1:]:
             np.random.seed(2)  # controls direction of finite difference
             self._check_advection_diffusion_reaction(*test_case)
-            # ii += 1
 
     def _check_adjoint(self, adj_solver, param_vals, functional,
                        set_param_values, init_sol, final_time):

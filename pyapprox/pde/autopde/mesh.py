@@ -1140,7 +1140,8 @@ class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
     #     return vals
 
 
-class InteriorCartesianProductCollocationMesh(TransformedInteriorCollocationMesh):
+class InteriorCartesianProductCollocationMesh(
+        TransformedInteriorCollocationMesh):
     def __init__(self, domain_bounds, orders):
         nphys_vars = len(orders)
         self._domain_bounds = np.asarray(domain_bounds)
@@ -1165,51 +1166,6 @@ class InteriorCartesianProductCollocationMesh(TransformedInteriorCollocationMesh
                 canonical_domain_bounds[2*ii:2*ii+2])
         super().__init__(
             orders, transform, transform_inv, transform_inv_derivs)
-
-def vertical_transform_2D_mesh(xdomain_bounds, bed_fun, surface_fun,
-                               canonical_samples):
-    samples = np.empty_like(canonical_samples)
-    xx, yy = canonical_samples[0], canonical_samples[1]
-    samples[0] = (xx+1)/2*(
-        xdomain_bounds[1]-xdomain_bounds[0])+xdomain_bounds[0]
-    bed_vals = bed_fun(samples[0:1])[:, 0]
-    samples[1] = (yy+1)/2*(surface_fun(samples[0:1])[:, 0]-bed_vals)+bed_vals
-    return samples
-
-
-def vertical_transform_2D_mesh_inv(xdomain_bounds, bed_fun, surface_fun,
-                                   samples):
-    canonical_samples = np.empty_like(samples)
-    uu, vv = samples[0], samples[1]
-    canonical_samples[0] = 2*(uu-xdomain_bounds[0])/(
-        xdomain_bounds[1]-xdomain_bounds[0])-1
-    bed_vals = bed_fun(samples[0:1])[:, 0]
-    canonical_samples[1] = 2*(samples[1]-bed_vals)/(
-        surface_fun(samples[0:1])[:, 0]-bed_vals)-1
-    return canonical_samples
-
-
-def vertical_transform_2D_mesh_inv_dxdu(xdomain_bounds, samples):
-    return np.full(samples.shape[1], 2/(xdomain_bounds[1]-xdomain_bounds[0]))
-
-
-def vertical_transform_2D_mesh_inv_dydu(
-        bed_fun, surface_fun, bed_grad_u, surf_grad_u, samples):
-    surf_vals = surface_fun(samples[:1])[:, 0]
-    bed_vals = bed_fun(samples[:1])[:, 0]
-    return 2*(bed_grad_u(samples[:1])[:, 0]*(samples[1]-surf_vals) +
-              surf_grad_u(samples[:1])[:, 0]*(bed_vals-samples[1]))/(
-                  surf_vals-bed_vals)**2
-
-
-def vertical_transform_2D_mesh_inv_dxdv(samples):
-    return np.zeros(samples.shape[1])
-
-
-def vertical_transform_2D_mesh_inv_dydv(bed_fun, surface_fun, samples):
-    surf_vals = surface_fun(samples[:1])[:, 0]
-    bed_vals = bed_fun(samples[:1])[:, 0]
-    return 2/(surf_vals-bed_vals)
 
 
 def subdomain_integral_functional(subdomain_bounds, mesh, sol, params):
