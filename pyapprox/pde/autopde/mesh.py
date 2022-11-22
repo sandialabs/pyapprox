@@ -401,7 +401,6 @@ class CanonicalCollocationMesh():
             raise ValueError("Basis type must be specified for each dimension")
         return basis_types
 
-
     @staticmethod
     def _get_canonical_domain_bounds(nphys_vars, basis_types):
         canonical_domain_bounds = np.tile([-1, 1], nphys_vars)
@@ -825,14 +824,6 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
         X, Y, pts = super()._create_plot_mesh_2d(nplot_pts_1d)
         pts = self._map_samples_from_canonical_domain(pts)
         return X, Y, pts
-
-
-def _derivatives_map_hypercube(current_range, new_range, samples):
-    current_len = current_range[1]-current_range[0]
-    new_len = new_range[1]-new_range[0]
-    map_derivs = torch.full(
-        (samples.shape[1], ), (new_len/current_len), dtype=torch.double)
-    return map_derivs
 
 
 class CartesianProductCollocationMesh(TransformedCollocationMesh):

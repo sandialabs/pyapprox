@@ -21,6 +21,7 @@ def _map_hypercube_samples(current_samples, current_ranges, new_ranges):
     nlbs, nubs = new_ranges[0::2], new_ranges[1::2]
     return ((current_samples.T-clbs)/(cubs-clbs)*(nubs-nlbs)+nlbs).T
 
+
 def map_hypercube_samples(current_samples, current_ranges, new_ranges,
                           active_vars=None, tol=2*np.finfo(float).eps):
     """
