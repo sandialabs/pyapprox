@@ -296,7 +296,6 @@ class SympyTransform(OrthogonalCoordinateTransform2D):
     def _lambdify_map(strings, symbs):
         exprs = [sp.sympify(string) for string in strings]
         lambdas = [sp.lambdify(symbs, expr, "numpy") for expr in exprs]
-        print(exprs)
         return partial(_evaluate_list_of_sp_lambda, lambdas)
 
     @staticmethod
@@ -339,7 +338,6 @@ class SympyTransform(OrthogonalCoordinateTransform2D):
         return self._map_to_orthogonal_trans(samples).T
 
     def scale_factor(self, basis_id, orth_samples):
-        print(self._scale_factor_expr[basis_id])
         return self._scale_factors[basis_id](orth_samples)
 
     def curvelinear_basis(self, orth_samples):

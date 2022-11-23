@@ -25,7 +25,7 @@ class TestMeshTransforms(unittest.TestCase):
         for sample in samples.T:
             grad_fd.append(approx_fprime(sample[:, None], _fun))
         grad_fd = np.asarray(grad_fd)
-        print(grad_fd, "f_x FD")
+        # print(grad_fd, "f_x FD")
 
         def _orth_fun(orth_samples):
             return _fun(transform.map_from_orthogonal(orth_samples))
@@ -36,7 +36,7 @@ class TestMeshTransforms(unittest.TestCase):
         basis = transform.curvelinear_basis(orth_samples)
         orth_grad_fd = np.asarray(orth_grad_fd)
         grad = transform.scale_orthogonal_gradients(basis, orth_grad_fd)
-        print(grad, "fx")
+        # print(grad, "fx")
         # print((grad_fd-grad))
         tol = 1e-7
         assert np.allclose(grad_fd, grad, atol=tol, rtol=tol)
@@ -70,11 +70,10 @@ class TestMeshTransforms(unittest.TestCase):
                     plt.plot(
                         [line[0, ii], line[0, ii]+exact_normals[ii, 0]],
                         [line[1, ii], line[1, ii]+exact_normals[ii, 1]], '--')
-                # plt.show()
+                plt.show()
             II = np.where(np.all(np.isfinite(exact_normals), axis=1))[0]
             assert II.shape[0] > 0
             assert np.allclose(normals[II], exact_normals[II])
-        plt.show()
 
     def test_scale_translation(self):
         nsamples_1d = [3, 3]
@@ -201,58 +200,13 @@ class TestMeshTransforms(unittest.TestCase):
                 foci, ii, scale_transform.map_from_orthogonal(oline), line))
 
     def test_sympy_transform(self):
-        # nsamples_1d = [3, 3]
-        # scale_transform = ScaleAndTranslationTransform(
-        #     [-1, 1, -1, 1], [0.5, 1., np.pi/4, 3*np.pi/4])
-        # # Note this will only work in upper half plane
-        # # dut to non uniqueness of inverse map
-        # sympy_transform = SympyTransform(["r*cos(t)", "r*sin(t)"],
-        #                                  ["sqrt(x**2+y**2)", "atan2(y,x)"])
-        # orth_samples = cartesian_product(
-        #     [np.linspace(-1, 1, nsamples_1d[0]),
-        #      np.linspace(-1, 1, nsamples_1d[1])])
-        # sympy_orth_samples = scale_transform.map_from_orthogonal(orth_samples)
-        # samples = sympy_transform.map_from_orthogonal(sympy_orth_samples)
-        # assert np.allclose(
-        #     sympy_transform.map_to_orthogonal(samples), sympy_orth_samples)
-        # self._check_gradients(sympy_transform, sympy_orth_samples, samples)
-
-        # def _circle_normals(bndry_id, orth_line, line):
-        #     r, theta = orth_line
-        #     y = np.sqrt(r**2-line[0]**2)
-        #     dydx = -line[0]/y
-        #     active_var = int(bndry_id > 1)
-        #     exact_normals = np.ones((line.shape[1], 2))
-        #     if bndry_id < 2:
-        #         exact_normals[theta > np.pi, :] = -1
-        #     else:
-        #         exact_normals *= -1
-        #         exact_normals[theta > np.pi, :] = 1
-        #     exact_normals[:, active_var] = -dydx
-        #     exact_normals /= np.linalg.norm(exact_normals, axis=1)[:, None]
-        #     exact_normals *= (-1)**((bndry_id+1) % 2)
-        #     return exact_normals
-
-        # orth_lines = self._get_orthogonal_boundary_samples(31)
-        # sympy_orth_lines = [scale_transform.map_from_orthogonal(
-        #         orth_lines[bndry_id]) for bndry_id in range(4)]
-        # self._check_normals(sympy_transform, sympy_orth_lines, _circle_normals)
-
-        nsamples_1d = [31, 2]
-        s0, depth, L, alpha = 2, 1, 1, 1e-1
-        surf_string, bed_string = (
-            f"{s0}-{alpha}*r**2", f"{s0}-{alpha}*r**2-{depth}")
-        # brackets are essential around bed string
-        y_from_orth_string = f"({surf_string}-({bed_string}))*t+{bed_string}"
-        y_to_orth_string = (
-            f"(y-({bed_string}))/({surf_string}-({bed_string}))".replace(
-                "r", "x"))
+        nsamples_1d = [3, 3]
         scale_transform = ScaleAndTranslationTransform(
-            [-1, 1, -1, 1], [-L, L, 0., 1.])
+            [-1, 1, -1, 1], [0.5, 1., np.pi/4, 3*np.pi/4])
         # Note this will only work in upper half plane
         # dut to non uniqueness of inverse map
-        sympy_transform = SympyTransform(
-            ["r", y_from_orth_string], ["x", y_to_orth_string])
+        sympy_transform = SympyTransform(["r*cos(t)", "r*sin(t)"],
+                                         ["sqrt(x**2+y**2)", "atan2(y,x)"])
         orth_samples = cartesian_product(
             [np.linspace(-1, 1, nsamples_1d[0]),
              np.linspace(-1, 1, nsamples_1d[1])])
@@ -281,8 +235,50 @@ class TestMeshTransforms(unittest.TestCase):
         orth_lines = self._get_orthogonal_boundary_samples(31)
         sympy_orth_lines = [scale_transform.map_from_orthogonal(
                 orth_lines[bndry_id]) for bndry_id in range(4)]
-        self._check_normals(sympy_transform, sympy_orth_lines, _circle_normals,
-                            plot=True)
+        self._check_normals(sympy_transform, sympy_orth_lines, _circle_normals)
+
+        nsamples_1d = [31, 2]
+        s0, depth, L, alpha = 2, 1, 1, 1e-1
+        surf_string, bed_string = (
+            f"{s0}-{alpha}*r**2", f"{s0}-{alpha}*r**2-{depth}")
+        # brackets are essential around bed string
+        y_from_orth_string = f"({surf_string}-({bed_string}))*t+{bed_string}"
+        y_to_orth_string = (
+            f"(y-({bed_string}))/({surf_string}-({bed_string}))".replace(
+                "r", "x"))
+        scale_transform = ScaleAndTranslationTransform(
+            [-1, 1, -1, 1], [-L, L, 0., 1.])
+        # Note this will only work in upper half plane
+        # dut to non uniqueness of inverse map
+        sympy_transform = SympyTransform(
+            ["r", y_from_orth_string], ["x", y_to_orth_string])
+        orth_samples = cartesian_product(
+            [np.linspace(-1, 1, nsamples_1d[0]),
+             np.linspace(-1, 1, nsamples_1d[1])])
+        sympy_orth_samples = scale_transform.map_from_orthogonal(orth_samples)
+        samples = sympy_transform.map_from_orthogonal(sympy_orth_samples)
+        assert np.allclose(
+            sympy_transform.map_to_orthogonal(samples), sympy_orth_samples)
+        self._check_gradients(sympy_transform, sympy_orth_samples, samples)
+
+        def _normals(bndry_id, orth_line, line):
+            if bndry_id == 0:
+                return np.hstack([-ones, zeros])
+            if bndry_id == 1:
+                return np.hstack([ones, zeros])
+            r, theta = orth_line
+            active_var = int(bndry_id < 2)
+            exact_normals = np.ones((line.shape[1], 2))
+            dydx = -2*alpha*r
+            exact_normals[:, active_var] = -dydx
+            exact_normals /= np.linalg.norm(exact_normals, axis=1)[:, None]
+            exact_normals *= (-1)**((bndry_id+1) % 2)
+            return exact_normals
+
+        orth_lines = self._get_orthogonal_boundary_samples(31)
+        sympy_orth_lines = [scale_transform.map_from_orthogonal(
+                orth_lines[bndry_id]) for bndry_id in range(4)]
+        self._check_normals(sympy_transform, sympy_orth_lines, _normals)
 
 
 if __name__ == "__main__":
