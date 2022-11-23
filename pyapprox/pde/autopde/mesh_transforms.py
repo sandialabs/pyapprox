@@ -1,18 +1,9 @@
 import numpy as np
 from functools import partial
 from abc import ABC, abstractmethod
-
+import sympy as sp
 
 from pyapprox.variables.transforms import _map_hypercube_samples
-
-
-def _map_hypercube_derivatives_scale(
-        current_range, new_range, samples, pkg=np):
-    current_len = current_range[1]-current_range[0]
-    new_len = new_range[1]-new_range[0]
-    map_derivs = pkg.full(
-        (samples.shape[1], ), (new_len/current_len), dtype=pkg.double)
-    return map_derivs
 
 
 def vertical_transform_2D_mesh(xdomain_bounds, bed_fun, surface_fun,
@@ -85,16 +76,142 @@ def get_ellipitical_transform_functions(a, ranges, hemisphere):
 
 class OrthogonalCoordinateTransform2D(ABC):
     @abstractmethod
-    def map_from_orthogonal(self):
+    def map_from_orthogonal(self, orth_samples):
         raise NotImplementedError()
 
     @abstractmethod
-    def map_to_orthogonal(self):
+    def map_to_orthogonal(self, samples):
         raise NotImplementedError()
 
     @abstractmethod
-    def scale_orthogonal_derivatives(self):
+    def curvelinear_basis(self, orth_samples):
         raise NotImplementedError()
+
+    @abstractmethod
+    def scale_factor(self, basis_id, orth_samples):
+        raise NotImplementedError()
+
+    def _normalized_curvelinear_basis(self, orth_samples):
+        basis = self.curvelinear_basis(orth_samples)
+        for ii in range(2):
+            scale = self.scale_factor(ii, orth_samples)
+            basis[:, :, ii] = scale*basis[:, :, ii]
+        return basis
+
+    @staticmethod
+    def _normal(map_to_orthogonal, normalized_curvelinear_basis,
+                bndry_id, samples):
+        orth_samples = map_to_orthogonal(samples)
+        if bndry_id % 2 == 0:
+            sign = -1.0
+        else:
+            sign = 1.0
+        basis_id = int(bndry_id > 1)
+        normals = sign*normalized_curvelinear_basis(
+            orth_samples)[..., basis_id]
+        return normals
+
+    def normal(self, bndry_id, samples):
+        return self._normal(
+            self.map_to_orthogonal, self._normalized_curvelinear_basis,
+            bndry_id, samples)
+
+    @staticmethod
+    def scale_orthogonal_gradients(basis, orth_grads):
+        return np.einsum("ijk,ik->ij", basis, orth_grads)
+
+
+def _sample_ranges(samples):
+    return np.vstack([samples.min(axis=1)[None, :],
+                     samples.max(axis=1)[None, :]]).T
+
+
+class CompositionTransform():
+    def __init__(self, transforms):
+        self._transforms = transforms
+
+    def map_from_orthogonal(self, orth_samples):
+        samples = self._transforms[0].map_from_orthogonal(orth_samples)
+        for transform in self._transforms[1:]:
+            samples = transform.map_from_orthogonal(samples)
+        return samples
+
+    def map_to_orthogonal(self, samples):
+        orth_samples = samples
+        for transform in self._transforms[::-1]:
+            orth_samples = transform.map_to_orthogonal(orth_samples)
+        return orth_samples
+
+    def _basis_product(self, basis1, basis2):
+        basis = np.einsum("ijk,ikl->ijl", basis1, basis2)
+        return basis
+
+    def curvelinear_basis(self, orth_samples):
+        basis = self._transforms[0].curvelinear_basis(orth_samples)
+        for ii, transform in enumerate(self._transforms[1:]):
+            orth_samples = self._transforms[ii].map_from_orthogonal(
+                orth_samples)
+            new_basis = transform.curvelinear_basis(orth_samples)
+            basis = self._basis_product(new_basis, basis)
+        return basis
+
+    def _normalized_curvelinear_basis(self, orth_samples):
+        basis = self._transforms[0]._normalized_curvelinear_basis(orth_samples)
+        for ii, transform in enumerate(self._transforms[1:]):
+            orth_samples = self._transforms[ii].map_from_orthogonal(
+                orth_samples)
+            new_basis = transform._normalized_curvelinear_basis(orth_samples)
+            basis = self._basis_product(new_basis, basis)
+        return basis
+
+    @staticmethod
+    def scale_orthogonal_gradients(basis, orth_grads):
+        return OrthogonalCoordinateTransform2D.scale_orthogonal_gradients(
+            basis, orth_grads)
+
+    def normal(self, bndry_id, samples):
+        return OrthogonalCoordinateTransform2D._normal(
+            self.map_to_orthogonal,
+            self._normalized_curvelinear_basis,
+            bndry_id, samples)
+
+
+class ScaleAndTranslationTransform(OrthogonalCoordinateTransform2D):
+    def __init__(self, orthog_ranges, ranges):
+        self._orthog_ranges = np.asarray(orthog_ranges)
+        self._ranges = np.asarray(ranges)
+
+    def map_from_orthogonal(self, orth_samples):
+        return _map_hypercube_samples(
+            orth_samples, self._orthog_ranges, self._ranges)
+
+    def map_to_orthogonal(self, samples):
+        return _map_hypercube_samples(
+            samples, self._ranges, self._orthog_ranges)
+
+    def scale_factor(self, basis_id, orth_samples):
+        nsamples = orth_samples.shape[1]
+        if basis_id == 0:
+            return np.full(
+                (nsamples, 1),
+                np.diff(self._ranges[:2])/np.diff(self._orthog_ranges[:2]))
+        return np.full(
+            (nsamples, 1),
+            np.diff(self._ranges[2:])/np.diff(self._orthog_ranges[2:]))
+
+    def curvelinear_basis(self, orth_samples):
+        r, theta = orth_samples
+        zeros = np.zeros((r.shape[0], 1))
+        a11 = np.full(
+            zeros.shape,
+            np.diff(self._ranges[:2])/np.diff(self._orthog_ranges[:2]))
+        a22 = np.full(
+            zeros.shape,
+            np.diff(self._ranges[2:])/np.diff(self._orthog_ranges[2:]))
+        basis = np.dstack(
+            [np.hstack([1/a11, zeros])[..., None],
+             np.hstack([zeros, 1/a22])[..., None]])
+        return basis
 
 
 class PolarTransform(OrthogonalCoordinateTransform2D):
@@ -115,26 +232,24 @@ class PolarTransform(OrthogonalCoordinateTransform2D):
         orth_samples[1, II] = -orth_samples[1, II]+2*np.pi
         return orth_samples
 
-    def scale_orthogonal_derivatives(self, orth_samples):
+    def scale_factor(self, basis_id, orth_samples):
+        nsamples = orth_samples.shape[1]
+        if basis_id == 0:
+            return np.ones((nsamples, 1))
+        r = orth_samples[0]
+        return r[:, None]
+
+    def curvelinear_basis(self, orth_samples):
         r, theta = orth_samples
+        r, theta = r[:, None], theta[:, None]
         cos_t = np.cos(theta)
         sin_t = np.sin(theta)
-        scales = 1/r*np.hstack(
-            [np.hstack([(r*cos_t)[None, :], -sin_t[None, :]]),
-             np.hstack([r*sin_t[None, :], cos_t[None, :]])])
-        return scales
-
-    def normal(self, bndry_id, samples):
-        r, theta = self.map_to_orthogonal(samples)
-        cos_t = np.cos(theta)[:, None]
-        sin_t = np.sin(theta)[:, None]
-        if bndry_id % 2 == 0:
-            sign = -1.0
-        else:
-            sign = 1.0
-        if bndry_id >= 2:
-            return sign*np.hstack([cos_t, sin_t])
-        return sign*np.hstack([-sin_t, cos_t])
+        # basis is [b1, b2]
+        # form b1, b2 using hstack then form basis using dstack
+        basis = np.dstack(
+            [np.hstack([cos_t, sin_t])[..., None],
+             np.hstack([-sin_t/r, cos_t/r])[..., None]])
+        return basis
 
 
 class EllipticalTransform(OrthogonalCoordinateTransform2D):
@@ -157,86 +272,77 @@ class EllipticalTransform(OrthogonalCoordinateTransform2D):
         orth_samples[1, II] = orth_samples[1, II]+2*np.pi
         return orth_samples
 
-    def scale_orthogonal_derivatives(self, orth_samples):
+    def curvelinear_basis(self, orth_samples):
         r, theta = orth_samples
-        cos_t = np.cos(theta)
-        sin_t = np.sin(theta)
-        scales = 1/r*np.hstack(
-            [np.hstack([(r*cos_t)[None, :], -sin_t[None, :]]),
-             np.hstack([r*sin_t[None, :], cos_t[None, :]])])
-        return scales
-
-    def normal(self, bndry_id, samples):
-        r, theta = self.map_to_orthogonal(samples)
-        denom = self._a*np.sqrt(np.sinh(r)**2+np.sin(theta)**2)[:, None]
+        denom = (self._a*np.sinh(r)**2+np.sin(theta)**2)[:, None]
         cosh_r = np.cosh(r)[:, None]
         sinh_r = np.sinh(r)[:, None]
         cos_t = np.cos(theta)[:, None]
         sin_t = np.sin(theta)[:, None]
-        if bndry_id % 2 == 0:
-            sign = -1.0
-        else:
-            sign = 1.0
-        if bndry_id >= 2:
-            return sign*np.hstack([sinh_r*cos_t/denom, cosh_r*sin_t/denom])
-        return sign*np.hstack([-cosh_r*sin_t/denom, sinh_r*cos_t/denom])
+        basis = np.dstack(
+            [np.hstack([sinh_r*cos_t/denom, cosh_r*sin_t/denom])[..., None],
+             np.hstack([-cosh_r*sin_t/denom, sinh_r*cos_t/denom])[..., None]])
+        return basis
 
-
-
-class ScaleAndTranslationTransform(OrthogonalCoordinateTransform2D):
-    def __init__(self, orthog_ranges, ranges, transform):
-        self._orthog_ranges = np.asarray(orthog_ranges)
-        self._ranges = np.asarray(ranges)
-        self._transform = transform
-
-    def map_from_orthogonal(self, orth_samples):
-        samples = _map_hypercube_samples(
-            orth_samples, self._orthog_ranges, self._ranges)
-        # print(samples.min(axis=1), samples.max(axis=1), 's1')
-        return self._transform.map_from_orthogonal(samples)
-
-    def map_to_orthogonal(self, samples):
-        # print(samples.min(axis=1), samples.max(axis=1), 's')
-        orth_samples = self._transform.map_to_orthogonal(samples)
-        # print(orth_samples.min(axis=1), orth_samples.max(axis=1), 'o')
-        return _map_hypercube_samples(
-            orth_samples, self._ranges, self._orthog_ranges)
-
-    def scale_orthogonal_derivatives(self, orth_samples):
-        scales = self._transform.scale_orthogonal_derivatives(orth_samples)
+    def scale_factor(self, basis_id, orth_samples):
         r, theta = orth_samples
-        scales = np.hstack(
-            [np.hstack([_map_hypercube_derivatives_scale(
-                self._orthog_ranges[:2], self._ranges[:2])[None, :], 0*r]),
-             np.hstack([0*theta, _map_hypercube_derivatives_scale(
-                 self._orthog_ranges[2:], self._ranges[2:])[None, :]])])
-        return scales
-
-    def normal(self, bndry_id, samples):
-        return self._transform.normal(bndry_id, samples)
+        return self._a*np.sqrt(np.sinh(r)**2+np.sin(theta)**2)[:, None]
 
 
-class IdentityTransform(OrthogonalCoordinateTransform2D):
+from pyapprox.pde.autopde.manufactured_solutions import (
+    _evaluate_list_of_sp_lambda, _evaluate_sp_lambda)
+class SympyTransform(OrthogonalCoordinateTransform2D):
+    @staticmethod
+    def _lambdify_map(strings, symbs):
+        exprs = [sp.sympify(string) for string in strings]
+        lambdas = [sp.lambdify(symbs, expr, "numpy") for expr in exprs]
+        print(exprs)
+        return partial(_evaluate_list_of_sp_lambda, lambdas)
+
+    @staticmethod
+    def _jacobian_expr(strings, symbs):
+        exprs = [sp.sympify(string) for string in strings]
+        jacobian_exprs = [
+            [expr.diff(symb) for expr in exprs]
+            for symb in symbs]
+        return sp.Matrix(jacobian_exprs)
+
+    def __init__(self, map_from_orthogonal_strings, map_to_orthogonal_strings):
+        self._symbs = sp.symbols(['x', 'y'])
+        self._orth_symbs = sp.symbols(['r', 't'])
+        self._map_from_orthogonal_trans = self._lambdify_map(
+              map_from_orthogonal_strings, self._orth_symbs)
+        self._map_to_orthogonal_trans = self._lambdify_map(
+              map_to_orthogonal_strings, self._symbs)
+
+        self._from_orth_jacobian_expr = self._jacobian_expr(
+            map_from_orthogonal_strings, self._orth_symbs)
+        self._to_orth_jacobian_expr = sp.simplify(
+            self._from_orth_jacobian_expr.inv())
+        self._bases = [
+            partial(_evaluate_list_of_sp_lambda,
+                    [sp.lambdify(self._orth_symbs, expr, "numpy")
+                     for expr in self._to_orth_jacobian_expr[:, ii]])
+            for ii in range(2)]
+        self._scale_factor_expr = [
+            1/sp.simplify(sp.sqrt(self._to_orth_jacobian_expr[:, ii].dot(
+                self._to_orth_jacobian_expr[:, ii]))) for ii in range(2)]
+        self._scale_factors = [
+            partial(_evaluate_sp_lambda,
+                    sp.lambdify(self._orth_symbs, expr, "numpy"))
+            for expr in self._scale_factor_expr]
+
     def map_from_orthogonal(self, orth_samples):
-        return orth_samples
+        return self._map_from_orthogonal_trans(orth_samples).T
 
     def map_to_orthogonal(self, samples):
-        return samples
+        return self._map_to_orthogonal_trans(samples).T
 
-    def scale_orthogonal_derivatives(self, orth_samples):
-        ones = np.ones((1, orth_samples.shape[1]))
-        zeros = np.zeros((1, orth_samples.shape[1]))
-        scales = np.hstack(
-            [np.hstack([ones, zeros]),
-             np.hstack([zeros, ones])])
-        return scales
+    def scale_factor(self, basis_id, orth_samples):
+        print(self._scale_factor_expr[basis_id])
+        return self._scale_factors[basis_id](orth_samples)
 
-    def normal(self, bndry_id, samples):
-        zeros = np.zeros((samples.shape[1], 1))
-        if bndry_id % 2 == 0:
-            sign = np.full((samples.shape[1], 1), -1.0)
-        else:
-            sign = 1.0
-        if bndry_id >= 2:
-            return sign*np.hstack([zeros, sign])
-        return sign*np.vstack([sign, zeros])
+    def curvelinear_basis(self, orth_samples):
+        basis = np.dstack(
+            [basis(orth_samples)[..., None] for basis in self._bases])
+        return basis
