@@ -764,7 +764,6 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
             idx = self._bndry_indices[ii]
             self._bndrys[ii] = Transformed2DMeshBoundary(
                 name, self._orders[int(ii < 2)],
-                # self._trans_bndry_normals[ii],
                 partial(self._transform.normal, ii),
                 self._bndrys[ii]._tol)
         return self._bndrys
@@ -780,29 +779,19 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
             eval_samples)
         return super()._interpolate(values, canonical_eval_samples)
 
-    def _deriv_scale(self, dd, ii, idx=None):
-        if self._transform_inv_derivs[dd][ii] == 0:
-            return None
-
-        if self._transform_inv_derivs[dd][ii] == 1:
-            return 1
-
-        if idx is not None:
-            return self._transform_inv_derivs[dd][ii](
-                self.mesh_pts[:, idx])
-
-        return self._transform_inv_derivs[dd][ii](
-            self.mesh_pts)
-
     def partial_deriv(self, quantity, dd, idx=None):
-        # dq/du = dq/dx * dx/du + dq/dy * dy/du
         assert quantity.ndim == 1
         vals = 0
-        for ii in range(self.nphys_vars):
-            scale = self._deriv_scale(dd, ii, idx)
-            if scale is not None:
-                vals += scale*super().partial_deriv(quantity, ii, idx)
-        return vals
+        if idx is None:
+            return torch.linalg.multi_dot((self._dmat(dd), quantity))
+        return torch.linalg.multi_dot((self._dmat(dd)[idx], quantity))
+
+    def high_order_partial_deriv(self, order, quantity, dd, idx=None):
+        if idx is None:
+            return torch.linalg.multi_dot([self._dmat(dd)]*order+[quantity])
+        return  torch.linalg.multi_dot(
+            (torch.linalg.multi_dot([self._dmat(dd)]*order)[idx],
+            quantity))
 
     def _create_plot_mesh_1d(self, nplot_pts_1d):
         if nplot_pts_1d is None:
@@ -824,18 +813,10 @@ class CartesianProductCollocationMesh(TransformedCollocationMesh):
         canonical_domain_bounds = (
             CanonicalCollocationMesh._get_canonical_domain_bounds(
                 nphys_vars, basis_types))
-        transform = ScaleAndTranslationTransform(canonical_domain_bounds,
-                                                 self._domain_bounds)
+        transform = ScaleAndTranslationTransform(
+            canonical_domain_bounds, self._domain_bounds)
         super().__init__(
             orders, transform, basis_types=basis_types)
-
-    def high_order_partial_deriv(self, order, quantity, dd, idx=None):
-        # value of xx does not matter for cartesian_product meshes
-        xx = np.zeros((1, 1))
-        deriv_mats = [tmp[0]*tmp[1][ii](xx)[0] for ii, tmp in enumerate(
-            zip(self._canonical_deriv_mats, self._transform_inv_derivs))]
-        return high_order_partial_deriv(
-            order, self._canonical_deriv_mats, quantity, dd, idx)
 
     def _get_quadrature_rule(self):
         canonical_xquad, canonical_wquad = super()._get_quadrature_rule()
@@ -948,6 +929,7 @@ class CanonicalInteriorCollocationMesh(CanonicalCollocationMesh):
 
         self._canonical_deriv_mats_alt = (
             self._form_derivative_matrices_alt())
+        self._dmats_alt = [None for dd in range(self.nphys_vars)]
 
     def _apply_boundary_conditions_to_residual(self, bndry_conds, residual,
                                                sol):
@@ -977,7 +959,8 @@ class CanonicalInteriorCollocationMesh(CanonicalCollocationMesh):
         canonical_deriv_mats, canonical_mesh_pts = (
             self._form_canonical_deriv_matrices(canonical_mesh_pts_1d))
         canonical_deriv_mats = [
-            torch.tensor(mat, dtype=torch.double) for mat in canonical_deriv_mats]
+            torch.tensor(mat, dtype=torch.double)
+            for mat in canonical_deriv_mats]
         return (canonical_mesh_pts_1d, None,
                 canonical_mesh_pts_1d_baryc_weights,
                 canonical_mesh_pts, canonical_deriv_mats)
@@ -1011,99 +994,71 @@ class CanonicalInteriorCollocationMesh(CanonicalCollocationMesh):
     def _determine_boundary_indices(self):
         self._boundary_indices = None
 
-    def partial_deriv(self, quantity, dd, idx=None):
-        return partial_deriv(
-            self._get_canonical_deriv_mats(quantity), quantity, dd, idx)
-
-
 class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
-    def __init__(self, orders, transform, transform_inv, transform_inv_derivs):
+    def __init__(self, orders, transform):
 
         super().__init__(orders)
 
         self._transform = transform
-        self._transform_inv = transform_inv
-        self._transform_inv_derivs = transform_inv_derivs
-
         self.mesh_pts = self._map_samples_from_canonical_domain(
             self._canonical_mesh_pts)
-
+        self._canonical_mesh_pts_alt = cartesian_product(
+                [-np.cos(np.linspace(0, np.pi, o+1)) for o in self._orders])
         self.mesh_pts_alt = self._map_samples_from_canonical_domain(
-            cartesian_product(
-                [-np.cos(np.linspace(0, np.pi, o+1)) for o in self._orders]))
+            self._canonical_mesh_pts_alt)
 
     def _map_samples_from_canonical_domain(self, canonical_samples):
-        return self._transform(canonical_samples)
+        return self._transform.map_from_orthogonal(canonical_samples)
 
     def _map_samples_to_canonical_domain(self, samples):
-        return self._transform_inv(samples)
+        return self._transform.map_to_orthogonal(samples)
 
     def _interpolate(self, values, eval_samples):
         canonical_eval_samples = self._map_samples_to_canonical_domain(
             eval_samples)
         return super()._interpolate(values, canonical_eval_samples)
 
-    def _deriv_scale(self, quantity, dd, ii, idx=None):
-        if (self._transform_inv_derivs[dd][ii] == 0 or
-                self._transform_inv_derivs[dd][ii] is None):
-            return None
-
-        if self._transform_inv_derivs[dd][ii] == 1:
-            return 1
-
-        if quantity.shape[0] == self.mesh_pts.shape[1]:
-            mesh_pts = self.mesh_pts_alt
-        elif quantity.shape[0] == self.mesh_pts_alt.shape[1]:
-            mesh_pts = self.mesh_pts
-        else:
-            RuntimeError()
-
-        if idx is not None:
-            return self._transform_inv_derivs[dd][ii](
-                mesh_pts[:, idx])
-        return self._transform_inv_derivs[dd][ii](
-            mesh_pts)
-
     def partial_deriv(self, quantity, dd, idx=None):
-        # dq/du = dq/dx * dx/du + dq/dy * dy/du
         assert quantity.ndim == 1
         vals = 0
-        for ii in range(self.nphys_vars):
-            scale = self._deriv_scale(quantity, dd, ii, idx)
-            if scale is not None:
-                vals += scale*super().partial_deriv(quantity, ii, idx)
-        return vals
+        if idx is None:
+            return torch.linalg.multi_dot((self._dmat(quantity, dd), quantity))
+        return torch.linalg.multi_dot((self._dmat(quantity, dd)[idx], quantity))
 
-    def _dmat(self, quantity1, dd):
-        dmat = 0
-        for ii in range(self.nphys_vars):
-            if self._transform_inv_derivs[dd][ii] is not None:
-                scale = self._deriv_scale(quantity1, dd, ii, None)
-                if scale is not None:
-                    dmat += scale[:, None]*self._get_canonical_deriv_mats(
-                        quantity1)[ii]
-        return dmat
+    def _create_dmats(self, canonical_mesh_pts, canonical_deriv_mats):
+        basis = torch.as_tensor(
+            self._transform.curvelinear_basis(canonical_mesh_pts),
+            dtype=torch.double)
+        dmats = []
+        for dd in range(self.nphys_vars):
+            dmat = 0
+            for ii in range(self.nphys_vars):
+                dmat += basis[:, dd, ii:ii+1]*canonical_deriv_mats[ii]
+            dmats.append(dmat)
+        return dmats
 
-    # def partial_deriv(self, quantity, dd, idx=None):
-    #     # dq/du = dq/dx * dx/du + dq/dy * dy/du
-    #     vals = 0
-    #     for ii in range(self.nphys_vars):
-    #         if self._transform_inv_derivs[dd][ii] is not None:
-    #             if idx is not None:
-    #                 scale = self._transform_inv_derivs[dd][ii](
-    #                     self._canonical_mesh_pts[:, idx])
-    #             else:
-    #                  scale = self._transform_inv_derivs[dd][ii](
-    #                      self._canonical_mesh_pts)
-    #             scale = self._transform_inv_derivs[dd][ii](
-    #                 self._canonical_mesh_pts)
-    #             if idx is not None:
-    #                 scale = scale[idx]
-    #             print(idx, scale.shape, quantity.shape)
-    #             print(super().partial_deriv(quantity, ii, idx).shape)
-    #             vals += scale*super().partial_deriv(quantity, ii, idx)
-    #         # else: scale is zero
-    #     return vals
+    def _dmat_alt(self, dd):
+        if self._dmats_alt[dd] is None:
+            self._dmats_alt = self._create_dmats(
+                self._canonical_mesh_pts_alt, self._canonical_deriv_mats)
+        return self._dmats_alt[dd]
+
+    def _dmat_full(self, dd):
+        if self._dmats[dd] is None:
+            self._dmats = self._create_dmats(
+                self._canonical_mesh_pts, self._canonical_deriv_mats_alt)
+        return self._dmats[dd]
+
+    def _dmat(self, quantity, dd):
+        if quantity.shape[0] == self.mesh_pts.shape[1]:
+            alt = True
+        elif quantity.shape[0] == self.mesh_pts_alt.shape[1]:
+            alt = False
+        else:
+            RuntimeError()
+        if alt:
+            return self._dmat_alt(dd)
+        return self._dmat_full(dd)
 
 
 class InteriorCartesianProductCollocationMesh(
@@ -1115,23 +1070,9 @@ class InteriorCartesianProductCollocationMesh(
         canonical_domain_bounds = (
             CanonicalCollocationMesh._get_canonical_domain_bounds(
                 nphys_vars, basis_types))
-        transform = partial(
-            _map_hypercube_samples,
-            current_ranges=canonical_domain_bounds,
-            new_ranges=self._domain_bounds)
-        transform_inv = partial(
-            _map_hypercube_samples,
-            current_ranges=self._domain_bounds,
-            new_ranges=canonical_domain_bounds)
-        transform_inv_derivs = []
-        for ii in range(nphys_vars):
-            transform_inv_derivs.append([None for jj in range(nphys_vars)])
-            transform_inv_derivs[ii][ii] = partial(
-                _derivatives_map_hypercube,
-                self._domain_bounds[2*ii:2*ii+2],
-                canonical_domain_bounds[2*ii:2*ii+2])
-        super().__init__(
-            orders, transform, transform_inv, transform_inv_derivs)
+        transform = ScaleAndTranslationTransform(
+            canonical_domain_bounds, self._domain_bounds)
+        super().__init__(orders, transform)
 
 
 def subdomain_integral_functional(subdomain_bounds, mesh, sol, params):
