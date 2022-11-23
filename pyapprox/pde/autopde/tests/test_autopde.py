@@ -301,17 +301,7 @@ class TestAutoPDE(unittest.TestCase):
         print(errors.min()/errors.max())
         assert errors.min()/errors.max() < 2.5e-6
 
-    def test_advection_diffusion_reaction(self):
-        polar_transform = CompositionTransform(
-            [ScaleAndTranslationTransform(
-                [-1, 1, -1, 1], [0.5, 1, np.pi/4, 3*np.pi/4]),
-             PolarTransform()])
-        ellipse_transform = CompositionTransform(
-            [ScaleAndTranslationTransform(
-                [-1, 1, -1, 1], [0.5, 1, np.pi/4, 3*np.pi/4]),
-             EllipticalTransform(1)])
-        s0, depth, L, alpha = 2, .1, 1, 1e-1
-        # s0, depth, L, alpha = 2, 2, 10, 1e-1 # this produces ill conditioned
+    def _get_vertical_transform(self, s0, depth, L, alpha):
         # transformation
         surf_string, bed_string = (
             f"{s0}-{alpha}*r**2", f"{s0}-{alpha}*r**2-{depth}")
@@ -324,6 +314,20 @@ class TestAutoPDE(unittest.TestCase):
             [ScaleAndTranslationTransform([-1, 1, -1, 1], [-L, L, 0., 1.]),
              SympyTransform(["r", y_from_orth_string],
                             ["x", y_to_orth_string])])
+        return vertical_transform
+
+    def test_advection_diffusion_reaction(self):
+        polar_transform = CompositionTransform(
+            [ScaleAndTranslationTransform(
+                [-1, 1, -1, 1], [0.5, 1, np.pi/4, 3*np.pi/4]),
+             PolarTransform()])
+        ellipse_transform = CompositionTransform(
+            [ScaleAndTranslationTransform(
+                [-1, 1, -1, 1], [0.5, 1, np.pi/4, 3*np.pi/4]),
+             EllipticalTransform(1)])
+        s0, depth, L, alpha = 2, .1, 1, 1e-1
+        # s0, depth, L, alpha = 2, 2, 10, 1e-1 # this produces ill conditioned
+        vertical_transform = self._get_vertical_transform(s0, depth, L, alpha)
 
         test_cases = [
             [[0, 1], [4], "-(x-1)*x/2", "4", ["0"],
@@ -396,10 +400,10 @@ class TestAutoPDE(unittest.TestCase):
              ["D", "D", "D", "N"], ["C", "C"], ellipse_transform],
         ]
         ii = 0
-        for test_case in test_cases[-2:]:
+        for test_case in test_cases:
             np.random.seed(2)  # controls direction of finite difference
-            print(ii)
-            print(test_case)
+            # print(ii)
+            # print(test_case)
             self._check_advection_diffusion_reaction(*test_case)
             ii += 1
 
@@ -583,7 +587,7 @@ class TestAutoPDE(unittest.TestCase):
 
     def _check_stokes_solver_mms(
             self, domain_bounds, orders, vel_strings, pres_string, bndry_types,
-            navier_stokes, mesh_transforms=None):
+            navier_stokes, transform=None):
         (vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, vel_grad_funs,
          pres_grad_fun) = setup_steady_stokes_manufactured_solution(
              vel_strings, pres_string, navier_stokes)
@@ -595,10 +599,11 @@ class TestAutoPDE(unittest.TestCase):
         pres_grad_fun = Function(pres_grad_fun)
 
         nphys_vars = len(orders)
-        if mesh_transforms is None:
+        if transform is None:
             boundary_normals = None
         else:
-            boundary_normals = mesh_transforms[-1]
+            boundary_normals = [
+                partial(transform.normal, ii) for ii in range(2*nphys_vars)]
         vel_bndry_conds = [
             _get_boundary_funs(
                 nphys_vars, bndry_types,
@@ -607,7 +612,7 @@ class TestAutoPDE(unittest.TestCase):
             for ii in range(nphys_vars)]
         bndry_conds = vel_bndry_conds + [[[None, None]]*(2*nphys_vars)]
 
-        if mesh_transforms is None:
+        if transform is None:
             vel_meshes = [
                 CartesianProductCollocationMesh(
                     domain_bounds, orders)]*nphys_vars
@@ -615,9 +620,9 @@ class TestAutoPDE(unittest.TestCase):
                 domain_bounds, orders)
         else:
             vel_meshes = [TransformedCollocationMesh(
-                orders, *mesh_transforms)]*nphys_vars
+                orders, transform)]*nphys_vars
             pres_mesh = TransformedInteriorCollocationMesh(
-                orders, *mesh_transforms[:-1])
+                orders, transform)
         mesh = VectorMesh(vel_meshes + [pres_mesh])
         pres_idx = 0
         pres_val = pres_fun(pres_mesh.mesh_pts[:, pres_idx:pres_idx+1])
@@ -687,8 +692,7 @@ class TestAutoPDE(unittest.TestCase):
 
     def test_stokes_solver_mms(self):
         s0, depth, L, alpha = 2, .1, 1, 1e-1
-        mesh_transforms = get_vertical_2d_mesh_transforms_from_string(
-            [-L, L], f"{s0}-{alpha}*x**2", f"{s0}-{alpha}*x**2-{depth}")
+        vertical_transform = self._get_vertical_transform(s0, depth, L, alpha)
         test_cases = [
             [[0, 1], [4], ["(1-x)**2"], "x**2", ["D", "D"], False],
             [[0, 1], [4], ["(1-x)**2"], "x**2", ["N", "D"], False],
@@ -705,10 +709,10 @@ class TestAutoPDE(unittest.TestCase):
              ["D", "D", "D", "D"], True],
             [[0, 1, 0, 1], [8, 8],
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
-             ["D", "D", "D", "D"], True, mesh_transforms],
+             ["D", "D", "D", "D"], True, vertical_transform],
             [[0, 1, 0, 1], [8, 8],
              ["16*x**2*(1-x)**2*y**2", "20*x*(1-x)*y*(1-y)"], "x**1*y**2",
-             ["D", "D", "D", "N"], True, mesh_transforms]
+             ["D", "D", "D", "N"], True, vertical_transform]
         ]
         for test_case in test_cases:
             self._check_stokes_solver_mms(*test_case)
@@ -1271,10 +1275,9 @@ class TestAutoPDE(unittest.TestCase):
 
         s0 = 2
         depth = 1
-        mesh_transforms = get_vertical_2d_mesh_transforms_from_string(
-            [-L, L], f"{s0}-{alpha}*x**2", f"{s0}-{alpha}*x**2-{depth}")
+        transform = self._get_vertical_transform(s0, depth, L, alpha)
 
-        vel_meshes = [TransformedCollocationMesh(orders, *mesh_transforms)]*(
+        vel_meshes = [TransformedCollocationMesh(orders, transform)]*(
             nphys_vars-1)
         mesh = VectorMesh(vel_meshes)
 
@@ -1350,81 +1353,6 @@ class TestAutoPDE(unittest.TestCase):
         # may need to setup backtracking for Newtons method
         for test_case in test_cases:
             self._check_first_order_stokes_ice_solver_mms(*test_case)
-
-    def _check_gradients_of_transformed_mesh(self, mesh, degree):
-        # degree : degree of function being approximated
-        # necessary for quadratic map
-        assert np.all(np.asarray(mesh._orders) >= 3*degree-2)
-
-        assert np.allclose(
-            mesh._transform_inv(mesh._transform(mesh._canonical_mesh_pts)),
-            mesh._canonical_mesh_pts)
-
-        assert np.allclose(
-            mesh._transform(mesh._transform_inv(mesh.mesh_pts)),
-            mesh.mesh_pts)
-
-        def fun(xx):
-            return (xx[0]**degree*xx[1]**(degree-1))[:, None]
-
-        def grad(xx):
-            return np.hstack(
-                [((degree*xx[0]**(degree-1))*(xx[1]**(degree-1)))[:, None],
-                 ((xx[0]**degree)*((degree-1)*xx[1]**(degree-2)))[:, None]])
-
-        # import matplotlib.pyplot as plt
-        # mesh.plot(fun(mesh.mesh_pts)[:, :1], 50)
-        # plt.plot(mesh.mesh_pts[0, :], mesh.mesh_pts[1, :], 'ko')
-        # plt.show()
-
-        fun_vals = torch.tensor(fun(mesh.mesh_pts))
-
-        from pyapprox.util.utilities import cartesian_product
-        eval_samples = mesh._transform(
-            cartesian_product([np.linspace(-1, 1, 5)]*2))
-        interp_vals = mesh.interpolate(fun_vals, eval_samples)
-        # print(fun(eval_samples))
-        # print(interp_vals)
-        # print(fun(eval_samples)-interp_vals)
-        assert np.allclose(fun(eval_samples), interp_vals)
-
-        for ii in range(2):
-            #print(mesh.partial_deriv(fun_vals[:, 0], ii).numpy())
-            #print(grad(mesh.mesh_pts)[:, ii])
-            assert np.allclose(
-                mesh.partial_deriv(fun_vals[:, 0], ii).numpy(),
-                grad(mesh.mesh_pts)[:, ii])
-
-    def test_gradients_of_transformed_mesh(self):
-        orders, degree = [10, 10], 4
-
-        L = 2
-        mesh = CartesianProductCollocationMesh(
-            [-L, L, -1, 1], orders)
-        self._check_gradients_of_transformed_mesh(mesh, degree)
-
-        s0, depth, L, alpha = 2, .1, 1, 1e-1
-        transforms = get_vertical_2d_mesh_transforms_from_string(
-            [-L, L], f"{s0}-{alpha}*x**2", f"{s0}-{alpha}*x**2-{depth}")
-        mesh = TransformedCollocationMesh(
-            orders, transforms[0], transforms[1], transforms[2],
-            transforms[3])
-        self._check_gradients_of_transformed_mesh(mesh, degree)
-
-        L, alpha = 20, np.pi/180*0.1
-        degree, orders = 2, [15, 4]  # when using taylor series expansion of sine
-        # degree, orders = 2, [20, 4] # hen using sine
-        surf_string = f"-tan({alpha})*x"
-        # depth_string = f"1-1/2*1*sin(2*pi/{L}*x)"
-        depth_string = f"1-1/2*(2*pi*x/{L}-4/3*(pi*x/{L})**3+4/15*(pi*x/{L})**5"
-        depth_string += f"-8/315*(pi*x/{L})**7+4/2835*(pi*x/{L})**9"
-        depth_string += f"-8/155925*(pi*x/{L})**11+8/6081075*(pi*x/{L})**13)"
-        transforms = get_vertical_2d_mesh_transforms_from_string(
-            [0, L], surf_string, f"{surf_string}-{depth_string}")
-        mesh = TransformedCollocationMesh(
-            orders, transforms[0], transforms[1], transforms[2],
-            transforms[3])
-        self._check_gradients_of_transformed_mesh(mesh, degree)
 
     def _check_transient_multi_species_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_strings,
