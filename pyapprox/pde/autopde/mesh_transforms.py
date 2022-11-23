@@ -4,75 +4,8 @@ from abc import ABC, abstractmethod
 import sympy as sp
 
 from pyapprox.variables.transforms import _map_hypercube_samples
-
-
-def vertical_transform_2D_mesh(xdomain_bounds, bed_fun, surface_fun,
-                               canonical_samples):
-    samples = np.empty_like(canonical_samples)
-    xx, yy = canonical_samples[0], canonical_samples[1]
-    samples[0] = (xx+1)/2*(
-        xdomain_bounds[1]-xdomain_bounds[0])+xdomain_bounds[0]
-    bed_vals = bed_fun(samples[0:1])[:, 0]
-    samples[1] = (yy+1)/2*(surface_fun(samples[0:1])[:, 0]-bed_vals)+bed_vals
-    return samples
-
-
-def vertical_transform_2D_mesh_inv(xdomain_bounds, bed_fun, surface_fun,
-                                   samples):
-    canonical_samples = np.empty_like(samples)
-    uu = samples[0]
-    canonical_samples[0] = 2*(uu-xdomain_bounds[0])/(
-        xdomain_bounds[1]-xdomain_bounds[0])-1
-    bed_vals = bed_fun(samples[0:1])[:, 0]
-    canonical_samples[1] = 2*(samples[1]-bed_vals)/(
-        surface_fun(samples[0:1])[:, 0]-bed_vals)-1
-    return canonical_samples
-
-
-def vertical_transform_2D_mesh_inv_dxdu(xdomain_bounds, samples):
-    return np.full(samples.shape[1], 2/(xdomain_bounds[1]-xdomain_bounds[0]))
-
-
-def vertical_transform_2D_mesh_inv_dydu(
-        bed_fun, surface_fun, bed_grad_u, surf_grad_u, samples):
-    surf_vals = surface_fun(samples[:1])[:, 0]
-    bed_vals = bed_fun(samples[:1])[:, 0]
-    return 2*(bed_grad_u(samples[:1])[:, 0]*(samples[1]-surf_vals) +
-              surf_grad_u(samples[:1])[:, 0]*(bed_vals-samples[1]))/(
-                  surf_vals-bed_vals)**2
-
-
-def vertical_transform_2D_mesh_inv_dxdv(samples):
-    return np.zeros(samples.shape[1])
-
-
-def vertical_transform_2D_mesh_inv_dydv(bed_fun, surface_fun, samples):
-    surf_vals = surface_fun(samples[:1])[:, 0]
-    bed_vals = bed_fun(samples[:1])[:, 0]
-    return 2/(surf_vals-bed_vals)
-
-
-
-def elliptical_inv_scale_factor(a, elp_samples):
-    u, v = elp_samples
-    return 1./(a*np.sqrt(np.sinh(u)**2+np.sin(v)**2))
-
-
-
-from pyapprox.pde.autopde.solvers import Function
-def get_ellipitical_transform_functions(a, ranges, hemisphere):
-    """
-    transform maps orthogonal coordinates to cartesian coordinates
-    transform_inv maps cartesian coordinates to orthogonal coordinates
-    """
-    ranges = np.asarray(ranges)
-    return (
-        partial(from_elliptical, a, ranges, hemisphere),
-        partial(to_elliptical, a, ranges, hemisphere),
-        [[Function(partial(elliptical_inv_scale_factor, a), oned=True)]*2,
-         [Function(partial(elliptical_inv_scale_factor, a), oned=True)]*2],
-        [Function(partial(elliptical_cartesian_normal, a), oned=True)]*4)
-
+from pyapprox.pde.autopde.sympy_utils import (
+    _evaluate_list_of_sp_lambda, _evaluate_sp_lambda)
 
 class OrthogonalCoordinateTransform2D(ABC):
     @abstractmethod
@@ -199,7 +132,7 @@ class ScaleAndTranslationTransform(OrthogonalCoordinateTransform2D):
             (nsamples, 1),
             np.diff(self._ranges[2:])/np.diff(self._orthog_ranges[2:]))
 
-    def curvelinear_basis(self, orth_samples):
+    def _curvelinear_basis_2d(self, orth_samples):
         r, theta = orth_samples
         zeros = np.zeros((r.shape[0], 1))
         a11 = np.full(
@@ -212,6 +145,20 @@ class ScaleAndTranslationTransform(OrthogonalCoordinateTransform2D):
             [np.hstack([1/a11, zeros])[..., None],
              np.hstack([zeros, 1/a22])[..., None]])
         return basis
+
+    def _curvelinear_basis_1d(self, orth_samples):
+        r = orth_samples[0]
+        zeros = np.zeros((r.shape[0], 1))
+        a11 = np.full(
+            zeros.shape,
+            np.diff(self._ranges[:2])/np.diff(self._orthog_ranges[:2]))
+        basis = (1/a11)[..., None]
+        return basis
+
+    def curvelinear_basis(self, orth_samples):
+        if orth_samples.shape[0] == 2:
+            return self._curvelinear_basis_2d(orth_samples)
+        return self._curvelinear_basis_1d(orth_samples)
 
 
 class PolarTransform(OrthogonalCoordinateTransform2D):

@@ -10,6 +10,7 @@ from pyapprox.surrogates.interp.barycentric_interpolation import (
     compute_barycentric_weights_1d, barycentric_interpolation_1d
 )
 from pyapprox.util.visualization import plt, get_meshgrid_samples
+from pyapprox.pde.autopde.mesh_transforms import ScaleAndTranslationTransform
 
 
 def full_fun_axis_1(fill_val, xx, oned=True):
@@ -308,7 +309,8 @@ class Transformed2DMeshBoundary(Canonical2DMeshBoundary):
     def normals(self, samples):
         if self._normal_fun is None:
             return super().normals(samples)
-        normal_vals = self._normal_fun(samples)
+        normal_vals = torch.as_tensor(
+            self._normal_fun(samples), dtype=torch.double)
         return normal_vals
 
     def _normals_from_derivs(self, canonical_samples):
@@ -481,9 +483,10 @@ class CanonicalCollocationMesh():
                                 canonical_eval_samples):
         if self.nphys_vars == 1:
             return torch.as_tensor(lagrange_polynomial_derivative_matrix_1d(
-                canonical_eval_samples[0, :], canonical_abscissa_1d[0])[1])
+                canonical_eval_samples[0, :], canonical_abscissa_1d[0])[1],
+                                   dtype=torch.double)
         return torch.as_tensor(lagrange_polynomial_basis_matrix_2d(
-            canonical_eval_samples, canonical_abscissa_1d))
+            canonical_eval_samples, canonical_abscissa_1d), dtype=torch.double)
 
     def _cheby_interpolate(self, canonical_abscissa_1d,
                            canonical_barycentric_weights_1d, values,
@@ -494,7 +497,7 @@ class CanonicalCollocationMesh():
         #     canonical_eval_samples, canonical_abscissa_1d,
         #     canonical_barycentric_weights_1d, values,
         #     np.arange(self.nphys_vars))
-        values = torch.as_tensor(values)
+        values = torch.as_tensor(values, dtype=torch.double)
         basis_mat = self._get_lagrange_basis_mat(
             canonical_abscissa_1d, canonical_eval_samples)
         interp_vals = torch.linalg.multi_dot((basis_mat, values))
@@ -665,12 +668,12 @@ class CanonicalCollocationMesh():
     def _dmat(self, dd):
         if self._dmats[dd] is not None:
             return self._dmats[dd]
+        basis = torch.as_tensor(
+            self._transform.curvelinear_basis(self._canonical_mesh_pts),
+            dtype=torch.double)
         dmat = 0
         for ii in range(self.nphys_vars):
-            if self._transform_inv_derivs[dd][ii] is not None:
-                scale = self._deriv_scale(dd, ii, None)
-                if scale is not None:
-                    dmat += scale[:, None]*self._canonical_deriv_mats[ii]
+            dmat += basis[:, dd, ii:ii+1]*self._canonical_deriv_mats[ii]
         self._dmats[dd] = dmat
         return dmat
 
@@ -743,24 +746,14 @@ class CanonicalCollocationMesh():
 
 
 class TransformedCollocationMesh(CanonicalCollocationMesh):
-    def __init__(self, orders, transform, transform_inv,
-                 transform_inv_derivs, trans_bndry_normals, basis_types=None):
+    def __init__(self, orders, transform, basis_types=None):
 
         super().__init__(orders, basis_types)
 
         self._transform = transform
-        self._transform_inv = transform_inv
-        self._transform_inv_derivs = transform_inv_derivs
-        if len(trans_bndry_normals) != 2*self.nphys_vars:
-            raise ValueError(
-                "Must provide normals for each transformed boundary")
-        self._trans_bndry_normals = trans_bndry_normals
-
         self.mesh_pts = self._map_samples_from_canonical_domain(
             self._canonical_mesh_pts)
-
         self._bndrys = self._transform_boundaries()
-
         self._dmats = [self._dmat(dd) for dd in range(self.nphys_vars)]
 
     def _transform_boundaries(self):
@@ -769,21 +762,18 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
         for ii, name in enumerate(["left", "right", "bottom", "top"]):
             active_var = int(ii > 2)
             idx = self._bndry_indices[ii]
-            # bndry_deriv_vals = self._canonical_deriv_mats_1d[active_var].dot(
-            #     self.mesh_pts[active_var, idx])
-            # self._bndrys[ii] = Transformed2DMeshBoundary(
-            #     name, self._orders[int(ii < 2)], bndry_deriv_vals,
-            #     self._bndrys[ii]._tol)
             self._bndrys[ii] = Transformed2DMeshBoundary(
-                name, self._orders[int(ii < 2)], self._trans_bndry_normals[ii],
+                name, self._orders[int(ii < 2)],
+                # self._trans_bndry_normals[ii],
+                partial(self._transform.normal, ii),
                 self._bndrys[ii]._tol)
         return self._bndrys
 
     def _map_samples_from_canonical_domain(self, canonical_samples):
-        return self._transform(canonical_samples)
+        return self._transform.map_from_orthogonal(canonical_samples)
 
     def _map_samples_to_canonical_domain(self, samples):
-        return self._transform_inv(samples)
+        return self._transform.map_to_orthogonal(samples)
 
     def _interpolate(self, values, eval_samples):
         canonical_eval_samples = self._map_samples_to_canonical_domain(
@@ -834,25 +824,10 @@ class CartesianProductCollocationMesh(TransformedCollocationMesh):
         canonical_domain_bounds = (
             CanonicalCollocationMesh._get_canonical_domain_bounds(
                 nphys_vars, basis_types))
-        transform = partial(
-            _map_hypercube_samples,
-            current_ranges=canonical_domain_bounds,
-            new_ranges=self._domain_bounds)
-        transform_inv = partial(
-            _map_hypercube_samples,
-            current_ranges=self._domain_bounds,
-            new_ranges=canonical_domain_bounds)
-        transform_inv_derivs = []
-        for ii in range(nphys_vars):
-            transform_inv_derivs.append([0 for jj in range(nphys_vars)])
-            transform_inv_derivs[ii][ii] = partial(
-                _derivatives_map_hypercube,
-                self._domain_bounds[2*ii:2*ii+2],
-                canonical_domain_bounds[2*ii:2*ii+2])
-        trans_normals = [None]*(nphys_vars*2)
+        transform = ScaleAndTranslationTransform(canonical_domain_bounds,
+                                                 self._domain_bounds)
         super().__init__(
-            orders, transform, transform_inv,
-            transform_inv_derivs, trans_normals, basis_types=basis_types)
+            orders, transform, basis_types=basis_types)
 
     def high_order_partial_deriv(self, order, quantity, dd, idx=None):
         # value of xx does not matter for cartesian_product meshes
@@ -1169,7 +1144,7 @@ def subdomain_integral_functional(subdomain_bounds, mesh, sol, params):
             subdomain_lens/domain_lens)[:, None])
     ww_quad = ww_quad*np.prod(subdomain_lens/domain_lens, axis=0)
     vals = mesh.interpolate(sol, xx_quad)[:, 0]
-    return vals.dot(torch.as_tensor(ww_quad))
+    return vals.dot(torch.as_tensor(ww_quad, dtype=torch.double))
 
 
 def final_time_functional(functional, mesh, sol, params):

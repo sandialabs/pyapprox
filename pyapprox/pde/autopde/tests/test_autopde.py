@@ -5,7 +5,6 @@ from functools import partial
 
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
-    get_vertical_2d_mesh_transforms_from_string,
     setup_steady_stokes_manufactured_solution,
     setup_shallow_ice_manufactured_solution,
     setup_helmholtz_manufactured_solution,
@@ -33,7 +32,8 @@ from pyapprox.pde.autopde.physics import (
     LinearElasticity
 )
 from pyapprox.pde.autopde.mesh_transforms import (
-    get_ellipitical_transform_functions
+    ScaleAndTranslationTransform, PolarTransform,
+    EllipticalTransform, CompositionTransform, SympyTransform
 )
 from pyapprox.util.utilities import approx_jacobian
 
@@ -104,8 +104,6 @@ def _get_boundary_funs(nphys_vars, bndry_types, sol_fun, flux_funs,
                 normal_fun = bndry_normals[dd]
             bndry_fun = partial(
                  _robin_bndry_fun, sol_fun, flux_funs, normal_fun, alpha)
-            # bndry_fun = partial(_robin_bndry_fun_old, sol_fun, flux_funs, dd//2,
-            #                     (-1)**(dd+1), alpha)
             if hasattr(sol_fun, "set_time") or hasattr(flux_funs, "set_time"):
                 bndry_fun = TransientFunction(bndry_fun)
             bndry_conds.append([bndry_fun, "R", alpha])
@@ -179,7 +177,7 @@ class TestAutoPDE(unittest.TestCase):
 
     def _check_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_string, diff_string, vel_strings,
-            react_funs, bndry_types, basis_types, mesh_transforms=None):
+            react_funs, bndry_types, basis_types, transform=None):
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_funs[0]))
@@ -191,7 +189,7 @@ class TestAutoPDE(unittest.TestCase):
 
         nphys_vars = len(orders)
 
-        if mesh_transforms is None:
+        if transform is None:
             bndry_conds = _get_boundary_funs(
                 nphys_vars, bndry_types, sol_fun, flux_funs)
             mesh = CartesianProductCollocationMesh(
@@ -199,9 +197,8 @@ class TestAutoPDE(unittest.TestCase):
         else:
             bndry_conds = _get_boundary_funs(
                 nphys_vars, bndry_types, sol_fun, flux_funs,
-                mesh_transforms[-1])
-            mesh = TransformedCollocationMesh(
-                orders, *mesh_transforms)
+                [partial(transform.normal, ii) for ii in range(2*nphys_vars)])
+            mesh = TransformedCollocationMesh(orders, transform)
 
         # bndry_cond returned by _get_boundary_funs is du/dx=fun
         # apply boundary condition kdu/dx.n=fun
@@ -213,17 +210,17 @@ class TestAutoPDE(unittest.TestCase):
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
             react_funs[1]))
 
-        import matplotlib.pyplot as plt
-        plt.plot(mesh.mesh_pts[0], mesh.mesh_pts[1], 'o')
-        can_pts = mesh._map_samples_to_canonical_domain(mesh.mesh_pts)
-        print(mesh._canonical_mesh_pts, can_pts)
-        # assert np.allclose(mesh._canonical_mesh_pts, can_pts)
-        plt.plot(can_pts[0], can_pts[1], 'X')
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # plt.plot(mesh.mesh_pts[0], mesh.mesh_pts[1], 'o')
+        # can_pts = mesh._map_samples_to_canonical_domain(mesh.mesh_pts)
+        # print(mesh._canonical_mesh_pts, can_pts)
+        # # assert np.allclose(mesh._canonical_mesh_pts, can_pts)
+        # plt.plot(can_pts[0], can_pts[1], 'X')
+        # plt.show()
 
+        print(np.abs(solver.physics._residual(sol_fun(mesh.mesh_pts)[:, 0])[0]).max())
         assert np.allclose(
             solver.physics._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
-        # print(solver.physics._residual(sol_fun(mesh.mesh_pts)[:, 0])[0])
         assert np.allclose(
             solver.physics._residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
         sol = solver.solve(tol=1e-8)[:, None]
@@ -305,9 +302,28 @@ class TestAutoPDE(unittest.TestCase):
         assert errors.min()/errors.max() < 2.5e-6
 
     def test_advection_diffusion_reaction(self):
+        polar_transform = CompositionTransform(
+            [ScaleAndTranslationTransform(
+                [-1, 1, -1, 1], [0.5, 1, np.pi/4, 3*np.pi/4]),
+             PolarTransform()])
+        ellipse_transform = CompositionTransform(
+            [ScaleAndTranslationTransform(
+                [-1, 1, -1, 1], [0.5, 1, np.pi/4, 3*np.pi/4]),
+             EllipticalTransform(1)])
         s0, depth, L, alpha = 2, .1, 1, 1e-1
-        mesh_transforms = get_vertical_2d_mesh_transforms_from_string(
-            [-L, L], f"{s0}-{alpha}*x**2", f"{s0}-{alpha}*x**2-{depth}")
+        # s0, depth, L, alpha = 2, 2, 10, 1e-1 # this produces ill conditioned
+        # transformation
+        surf_string, bed_string = (
+            f"{s0}-{alpha}*r**2", f"{s0}-{alpha}*r**2-{depth}")
+        # brackets are essential around bed string
+        y_from_orth_string = f"({surf_string}-({bed_string}))*t+{bed_string}"
+        y_to_orth_string = (
+            f"(y-({bed_string}))/({surf_string}-({bed_string}))".replace(
+                "r", "x"))
+        vertical_transform = CompositionTransform(
+            [ScaleAndTranslationTransform([-1, 1, -1, 1], [-L, L, 0., 1.]),
+             SympyTransform(["r", y_from_orth_string],
+                            ["x", y_to_orth_string])])
 
         test_cases = [
             [[0, 1], [4], "-(x-1)*x/2", "4", ["0"],
@@ -351,6 +367,10 @@ class TestAutoPDE(unittest.TestCase):
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "N", "N", "D"], ["C", "C"]],
+            [[0, .5, 0, 1], [16, 14], "x**2*y**2", "1", ["0", "0"],
+             [lambda sol: sol**2,
+              lambda sol: torch.diag(2*sol[:, 0])],
+             ["D", "N", "N", "D"], ["C", "C"]],
             [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
@@ -358,22 +378,30 @@ class TestAutoPDE(unittest.TestCase):
             [None, [6, 6], "y**2*x**2", "1", ["0", "0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
-             ["D", "D", "D", "D"], ["C", "C"], mesh_transforms],
+             ["D", "D", "D", "D"], ["C", "C"], vertical_transform],
             [None, [6, 6], "y**2*x**2", "1", ["1", "0"],
              [lambda sol: 1*sol**2,
               lambda sol: torch.diag(2*sol[:, 0])],
-             ["D", "D", "D", "N"], ["C", "C"],
-             mesh_transforms],
-            [None, [2, 21], "y**2*x**2", "1", ["1", "0"],
+             ["D", "D", "D", "N"], ["C", "C"], vertical_transform],
+            # while solution is quadratic in the user domain
+            # the solution is not quadratic in the canonical domain
+            # due to nonlinearity of polar coordinate transform
+            [None, [20, 20], "y**2*x**2", "1", ["0", "0"],
+             [lambda sol: 0*sol,
+              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+             ["D", "D", "D", "N"], ["C", "C"], polar_transform],
+            [None, [20, 20], "y**2*x**2", "1", ["0", "0"],
              [lambda sol: 1*sol**2,
               lambda sol: torch.diag(2*sol[:, 0])],
-             ["D", "D", "D", "D"], ["C", "C"],
-             get_ellipitical_transform_functions(
-                 1, [0.5, 1, 0*np.pi, np.pi], "up")] # must test with "N" and with ""Low
+             ["D", "D", "D", "N"], ["C", "C"], ellipse_transform],
         ]
-        for test_case in test_cases[-1:]:
+        ii = 0
+        for test_case in test_cases[-2:]:
             np.random.seed(2)  # controls direction of finite difference
+            print(ii)
+            print(test_case)
             self._check_advection_diffusion_reaction(*test_case)
+            ii += 1
 
     def _check_adjoint(self, adj_solver, param_vals, functional,
                        set_param_values, init_sol, final_time):

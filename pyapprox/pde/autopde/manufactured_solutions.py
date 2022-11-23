@@ -2,50 +2,10 @@ from functools import partial
 import numpy as np
 import sympy as sp
 
-from pyapprox.pde.autopde.mesh_transforms import (
-    vertical_transform_2D_mesh, vertical_transform_2D_mesh_inv,
-    vertical_transform_2D_mesh_inv_dxdu,
-    vertical_transform_2D_mesh_inv_dxdv,
-    vertical_transform_2D_mesh_inv_dydu,
-    vertical_transform_2D_mesh_inv_dydv
-)
 from pyapprox.pde.autopde.solvers import Function
-
-
-def _evaluate_sp_lambda(sp_lambda, xx):
-    # sp_lambda returns a single function output
-    sp_args = tuple(x for x in xx)
-    vals = sp_lambda(*sp_args)
-    if type(vals) == np.ndarray:
-        return vals[:, None]
-    return np.full((xx.shape[1], 1), vals, dtype=np.double)
-
-
-def _evaluate_transient_sp_lambda(sp_lambda, xx, time):
-    # sp_lambda returns a single function output
-    sp_args = tuple(x for x in xx)
-    vals = sp_lambda(*sp_args, time)
-    if type(vals) == np.ndarray:
-        return vals[:, None]
-    return np.full((xx.shape[1], 1), vals, dtype=np.double)
-
-
-def _evaluate_list_of_sp_lambda(sp_lambdas, xx, as_list=False):
-    # sp_lambda returns list of values from multiple functions
-    vals = [_evaluate_sp_lambda(sp_lambda, xx)
-            for sp_lambda in sp_lambdas]
-    if as_list:
-        return vals
-    return np.hstack(vals)
-
-
-def _evaluate_list_of_transient_sp_lambda(sp_lambdas, xx, time, as_list=False):
-    # sp_lambda returns list of values from multiple functions
-    vals = [_evaluate_transient_sp_lambda(sp_lambda, xx, time)
-            for sp_lambda in sp_lambdas]
-    if as_list:
-        return vals
-    return np.hstack(vals)
+from pyapprox.pde.autopde.sympy_utils import (
+    _evaluate_sp_lambda, _evaluate_list_of_sp_lambda,
+    _evaluate_transient_sp_lambda, _evaluate_list_of_transient_sp_lambda)
 
 
 def setup_advection_diffusion_reaction_manufactured_solution(
@@ -532,69 +492,6 @@ def setup_first_order_stokes_ice_manufactured_solution(
                 bndry_funs, depth_expr, vel_expr, vel_forc_expr, bed_expr,
                 beta_expr, bndry_expr, ux, visc_expr, surface_normal)
     return depth_fun, vel_fun, vel_forc_fun, bed_fun, beta_fun, bndry_funs
-
-
-def get_vertical_2d_mesh_transforms_from_string(
-        xdomain_bounds, surface_string, bed_string):
-    sp_x, sp_y = sp.symbols(['x', 'y'])
-    symbs = (sp_x, sp_y)
-    bed_expr = sp.sympify(bed_string)
-    bed_fun = partial(
-        _evaluate_sp_lambda, sp.lambdify(symbs[0], bed_expr, "numpy"))
-
-    surface_expr = sp.sympify(surface_string)
-    surface_fun = partial(
-        _evaluate_sp_lambda, sp.lambdify(symbs[0], surface_expr, "numpy"))
-
-    surf_grad_u_expr = surface_expr.diff(symbs[0], 1)
-    surf_grad_u = partial(
-        _evaluate_sp_lambda, sp.lambdify(symbs[0], surf_grad_u_expr, "numpy"))
-    bed_grad_u_expr = bed_expr.diff(symbs[0], 1)
-    bed_grad_u = partial(
-        _evaluate_sp_lambda, sp.lambdify(symbs[0], bed_grad_u_expr, "numpy"))
-
-    print(surface_expr)
-    print(bed_expr)
-
-    transform = partial(
-        vertical_transform_2D_mesh, xdomain_bounds, bed_fun, surface_fun)
-    transform_inv = partial(
-        vertical_transform_2D_mesh_inv, xdomain_bounds, bed_fun, surface_fun)
-    transform_inv_dxdu = partial(
-        vertical_transform_2D_mesh_inv_dxdu, xdomain_bounds)
-    transform_inv_dydu = partial(
-        vertical_transform_2D_mesh_inv_dydu, bed_fun,
-        surface_fun, bed_grad_u, surf_grad_u)
-    transform_inv_dxdv = vertical_transform_2D_mesh_inv_dxdv
-    transform_inv_dydv = partial(
-        vertical_transform_2D_mesh_inv_dydv, bed_fun,
-        surface_fun)
-
-    bndry_normals = []
-    bndry_normals.append(Function(partial(
-        _evaluate_list_of_sp_lambda,
-        [sp.lambdify(symbs, sp.sympify("-1"), "numpy"),
-         sp.lambdify(symbs, sp.sympify("0"), "numpy")])))
-    bndry_normals.append(Function(partial(
-        _evaluate_list_of_sp_lambda,
-        [sp.lambdify(symbs, sp.sympify("1"), "numpy"),
-         sp.lambdify(symbs, sp.sympify("0"), "numpy")])))
-    factor = (bed_grad_u_expr**2+1**2)**(1/2)
-    bndry_normals.append(Function(partial(
-        _evaluate_list_of_sp_lambda,
-        [sp.lambdify(symbs, bed_grad_u_expr/factor, "numpy"),
-        sp.lambdify(symbs, -sp.sympify("1")/factor, "numpy")])))
-    bndry_normals.append(Function(partial(
-        _evaluate_list_of_sp_lambda,
-        [sp.lambdify(symbs, -surf_grad_u_expr/factor, "numpy"),
-         sp.lambdify(symbs, sp.sympify("1")/factor, "numpy")])))
-
-    return (transform, transform_inv,
-            [[Function(transform_inv_dxdu, oned=True),
-              Function(transform_inv_dydu, oned=True)],
-             [Function(transform_inv_dxdv, oned=True),
-              Function(transform_inv_dydv, oned=True)]],
-            bndry_normals)
 
 
 def setup_shallow_ice_manufactured_solution(
