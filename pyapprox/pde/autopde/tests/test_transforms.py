@@ -205,8 +205,9 @@ class TestMeshTransforms(unittest.TestCase):
             [-1, 1, -1, 1], [0.5, 1., np.pi/4, 3*np.pi/4])
         # Note this will only work in upper half plane
         # dut to non uniqueness of inverse map
-        sympy_transform = SympyTransform(["r*cos(t)", "r*sin(t)"],
-                                         ["sqrt(x**2+y**2)", "atan2(y,x)"])
+        sympy_transform = SympyTransform(
+            ["_r_*cos(_t_)", "_r_*sin(_t_)"],
+            ["sqrt(_x_**2+_y_**2)", "atan2(_y_,_x_)"])
         orth_samples = cartesian_product(
             [np.linspace(-1, 1, nsamples_1d[0]),
              np.linspace(-1, 1, nsamples_1d[1])])
@@ -240,18 +241,18 @@ class TestMeshTransforms(unittest.TestCase):
         nsamples_1d = [31, 2]
         s0, depth, L, alpha = 2, 1, 1, 1e-1
         surf_string, bed_string = (
-            f"{s0}-{alpha}*r**2", f"{s0}-{alpha}*r**2-{depth}")
+            f"{s0}-{alpha}*_r_**2", f"{s0}-{alpha}*_r_**2-{depth}")
         # brackets are essential around bed string
-        y_from_orth_string = f"({surf_string}-({bed_string}))*t+{bed_string}"
+        y_from_orth_string = f"({surf_string}-({bed_string}))*_t_+{bed_string}"
         y_to_orth_string = (
-            f"(y-({bed_string}))/({surf_string}-({bed_string}))".replace(
-                "r", "x"))
+            f"(_y_-({bed_string}))/({surf_string}-({bed_string}))".replace(
+                "_r_", "_x_"))
         scale_transform = ScaleAndTranslationTransform(
             [-1, 1, -1, 1], [-L, L, 0., 1.])
         # Note this will only work in upper half plane
         # dut to non uniqueness of inverse map
         sympy_transform = SympyTransform(
-            ["r", y_from_orth_string], ["x", y_to_orth_string])
+            ["_r_", y_from_orth_string], ["_x_", y_to_orth_string])
         orth_samples = cartesian_product(
             [np.linspace(-1, 1, nsamples_1d[0]),
              np.linspace(-1, 1, nsamples_1d[1])])
@@ -262,6 +263,8 @@ class TestMeshTransforms(unittest.TestCase):
         self._check_gradients(sympy_transform, sympy_orth_samples, samples)
 
         def _normals(bndry_id, orth_line, line):
+            zeros = np.zeros_like(orth_line[0])[:, None]
+            ones = np.ones_like(orth_line[0])[:, None]
             if bndry_id == 0:
                 return np.hstack([-ones, zeros])
             if bndry_id == 1:
