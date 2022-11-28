@@ -145,7 +145,7 @@ class TestMetropolis(unittest.TestCase):
             mcmc_variable._log_bayes_numerator, True, test_sample,
             fd_eps=fd_eps)
         print(errors.min()/errors.max())
-        assert errors.min()/errors.max() < 3e-7
+        assert errors.min()/errors.max() < 4e-7
 
     def test_logpost_gradients(self):
         self._check_logpost_gradients(

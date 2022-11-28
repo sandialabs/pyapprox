@@ -28,7 +28,7 @@ class TestIntegrate(unittest.TestCase):
         else:
             exact_integral = monomial_mean_gaussian_variables(indices, coeffs)
         # print(integral)
-        # print('e', (integral-exact_integral)/exact_integral, tol)
+        print('e', (integral-exact_integral)/exact_integral, tol)
         assert np.allclose(integral, exact_integral, rtol=tol)
 
     def test_uniform_integration(self):
@@ -50,7 +50,7 @@ class TestIntegrate(unittest.TestCase):
                     [2, "quasimontecarlo", [stats.uniform(lb, ub-lb)]*nvars,
                      {"rule": "sobol", "nsamples": 1e5}, 2.5e-5],
                     [2, "quasimontecarlo", [stats.uniform(lb, ub-lb)]*nvars,
-                     {"rule": "halton", "nsamples": 1e5}, 6e-5],
+                     {"rule": "halton", "nsamples": 1e5}, 1e-4],
                 ]
                 for test_scenario in test_scenarios:
                     self._check_monomial_integration(

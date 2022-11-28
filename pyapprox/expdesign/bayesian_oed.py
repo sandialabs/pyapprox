@@ -2471,5 +2471,5 @@ def get_bayesian_oed_optimizer(
         out_quad_opts, in_quad_opts, nprocs=nprocs, **kwargs)
     oed.populate()
     if pre_collected_design_indices is not None:
-        oed.set_collected_design_indices(pre_collected_design_indices)
+        oed.set_collected_design_indices(np.asarray(pre_collected_design_indices))
     return oed
