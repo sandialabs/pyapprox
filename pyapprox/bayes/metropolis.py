@@ -604,3 +604,10 @@ class GaussianLogLike(object):
             raise ValueError("model_jac is none but gradient requested")
         grad = tmp.dot(self.model_jac(samples))
         return vals, grad
+
+ 
+def loglike_from_negloglike(negloglike, samples, jac=False):
+    if not jac:
+        return -negloglike(samples)
+    vals, grads = negloglike(samples, jac=jac)
+    return -vals, -grads   

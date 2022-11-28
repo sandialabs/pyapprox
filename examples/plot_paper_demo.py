@@ -22,7 +22,7 @@ from pyapprox.interface.wrappers import (
 from pyapprox.surrogates import adaptive_approximate
 from pyapprox.analysis.sensitivity_analysis import (
     run_sensitivity_analysis, plot_sensitivity_indices)
-from pyapprox.bayes.markov_chain_monte_carlo import (
+from pyapprox.bayes.metropolis import (
     loglike_from_negloglike, plot_unnormalized_2d_marginals)
 from pyapprox.bayes.metropolis import MetropolisMCMCVariable
 from pyapprox.expdesign.bayesian_oed import get_bayesian_oed_optimizer
@@ -237,8 +237,9 @@ inv_benchmark.mesh.plot(
 
 ndesign = 3
 design_candidates = inv_benchmark.mesh.mesh_pts[:, inv_benchmark.obs_indices]
+ndesign_candidates = design_candidates.shape[1]
 oed = get_bayesian_oed_optimizer(
-    "kl_params", design_candidates, inv_benchmark.obs_fun, noise_stdev,
+    "kl_params", ndesign_candidates, inv_benchmark.obs_fun, noise_stdev,
     inv_benchmark.variable, max_ncollected_obs=ndesign)
 oed_results = []
 for step in range(ndesign):
