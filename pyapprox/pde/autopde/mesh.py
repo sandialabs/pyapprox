@@ -670,6 +670,8 @@ class CanonicalCollocationMesh():
     def _dmat(self, dd):
         if self._dmats[dd] is not None:
             return self._dmats[dd]
+        print("CRAZY", type(self._transform.curvelinear_basis(self._canonical_mesh_pts)),
+              self._transform.curvelinear_basis(self._canonical_mesh_pts).dtype)
         basis = torch.as_tensor(
             self._transform.curvelinear_basis(self._canonical_mesh_pts),
             dtype=torch.double)
