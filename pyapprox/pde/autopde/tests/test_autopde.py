@@ -304,16 +304,16 @@ class TestAutoPDE(unittest.TestCase):
     def _get_vertical_transform(self, s0, depth, L, alpha):
         # transformation
         surf_string, bed_string = (
-            f"{s0}-{alpha}*r**2", f"{s0}-{alpha}*r**2-{depth}")
+            f"{s0}-{alpha}*_r_**2", f"{s0}-{alpha}*_r_**2-{depth}")
         # brackets are essential around bed string
-        y_from_orth_string = f"({surf_string}-({bed_string}))*t+{bed_string}"
+        y_from_orth_string = f"({surf_string}-({bed_string}))*_t_+{bed_string}"
         y_to_orth_string = (
-            f"(y-({bed_string}))/({surf_string}-({bed_string}))".replace(
-                "r", "x"))
+            f"(_y_-({bed_string}))/({surf_string}-({bed_string}))".replace(
+                "_r_", "_x_"))
         vertical_transform = CompositionTransform(
             [ScaleAndTranslationTransform([-1, 1, -1, 1], [-L, L, 0., 1.]),
-             SympyTransform(["r", y_from_orth_string],
-                            ["x", y_to_orth_string])])
+             SympyTransform(["_r_", y_from_orth_string],
+                            ["_x_", y_to_orth_string])])
         return vertical_transform
 
     def test_advection_diffusion_reaction(self):
@@ -330,6 +330,7 @@ class TestAutoPDE(unittest.TestCase):
         vertical_transform = self._get_vertical_transform(s0, depth, L, alpha)
 
         test_cases = [
+            # 0
             [[0, 1], [4], "-(x-1)*x/2", "4", ["0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
@@ -346,6 +347,7 @@ class TestAutoPDE(unittest.TestCase):
              [lambda sol: sol**2, lambda sol: torch.diag(2*sol[:, 0])],
              # [lambda sol: 1*sol, lambda sol: 1*torch.eye(sol.shape[0])],
              ["D", "D"], ["C"]],
+            # 4
             [[0, 1], [20], "0.5*(x-3)*x", "2+x", ["0"],
                 [lambda sol: 0*sol,
                 lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
@@ -367,6 +369,7 @@ class TestAutoPDE(unittest.TestCase):
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
              ["D", "N", "N", "D"], ["C", "C"]],
+            # 9
             [[0, .5, 0, 1], [16, 14], "y**2*sin(pi*x)", "1", ["0", "0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
@@ -390,6 +393,7 @@ class TestAutoPDE(unittest.TestCase):
             # while solution is quadratic in the user domain
             # the solution is not quadratic in the canonical domain
             # due to nonlinearity of polar coordinate transform
+            # 14
             [None, [20, 20], "y**2*x**2", "1", ["0", "0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
@@ -403,7 +407,7 @@ class TestAutoPDE(unittest.TestCase):
         for test_case in test_cases:
             np.random.seed(2)  # controls direction of finite difference
             # print(ii)
-            # print(test_case)
+            print(test_case)
             self._check_advection_diffusion_reaction(*test_case)
             ii += 1
 

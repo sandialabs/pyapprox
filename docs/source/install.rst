@@ -32,6 +32,28 @@ Once the new environment, or an existing environment, has been activated run the
 
 The -e argument specifies to install softlinks so that any changes made by the user to the source in the source folders are reflected in the install when importing modules.
 
+Conda+Mamba
+^^^^^^^^^^^
+Installing this package with conda can be slow due to limitations of Conda (not PyApprox). The speed of install can be improved using Mamba
+
+Before creating an enviornment install Mamba with::
+
+    conda install -c conda-forge mamba
+
+To create a new environment use::
+
+    mamba env create -f environment.yml
+
+This will create an environment called pyapprox-base. Activate this environment with::
+
+    conda activate pyapprox-base
+
+Once the new environment, or an existing environment, has been activated run the following in the PyApprox root directory to install PyApprox::
+
+    pip install -e .
+
+The -e argument specifies to install softlinks so that any changes made by the user to the source in the source folders are reflected in the install when importing modules.
+
 Pip
 ^^^
 To install PyApprox entirely with pip simply run the following in the PyApprox root directory to install PyApprox::

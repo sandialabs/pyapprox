@@ -938,7 +938,7 @@ class TestBayesianOED(unittest.TestCase):
         #     "method": "quasimontecarlo", "kwargs": {"nsamples": 10000}}
         in_quad_opts = {
             "method": "tensorproduct",
-            "kwargs": {"levels": 41, "rule": "quadratic"}}
+            "kwargs": {"levels": 51, "rule": "quadratic"}}
 
         # Define initial design
         # init_design_indices = np.array([ndesign_candidates//2])
@@ -995,6 +995,8 @@ class TestBayesianOED(unittest.TestCase):
             # print(f"Candidate {idx}", exact_variance_risk)
         jdx = np.argmax([d[1] for d in data])
         selected_index = indices[jdx]
+        print([d[1] for d in data])
+        print(utility_vals)
         assert np.allclose(selected_index, oed.collected_design_indices[-nnew:])
         # print(utility_vals[oed.collected_design_indices[-1]]-data[jdx][1])
         assert np.allclose(utility_vals[jdx], data[jdx][1], rtol=1e-4)
