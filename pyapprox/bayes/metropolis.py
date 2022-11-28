@@ -415,3 +415,192 @@ def hamiltonian_monte_carlo(L, eps, logpost_fun, init_sample, nsamples):
 #         L, eps = self._method_opts["L"], self._method_opts["eps"]
 #         return hamiltonian_monte_carlo(
 #             L, eps, self._log_bayes_numerator, init_sample, nsamples)
+
+
+def _unnormalized_pdf_for_marginalization(
+        variable, loglike, sub_indices, samples):
+    marginal_pdf_vals = variable.evaluate("pdf", samples)
+    sub_pdf_vals = marginal_pdf_vals[sub_indices, :].prod(axis=0)
+    nll_vals = loglike(samples).squeeze()
+    # only use sub_pdf_vals. The other vals will be accounted for
+    # with quadrature rule used to marginalize
+    return np.exp(nll_vals+np.log(sub_pdf_vals))[:, None]
+
+
+def plot_unnormalized_2d_marginals(
+        variable, loglike, nsamples_1d=100, variable_pairs=None,
+        subplot_tuple=None, qoi=0, num_contour_levels=20,
+        plot_samples=None):
+    from pyapprox.variables.joint import get_truncated_range
+    from pyapprox.surrogates.interp.indexing import (
+        compute_anova_level_indices)
+    from pyapprox.util.configure_plots import plt
+    from pyapprox.util.visualization import get_meshgrid_samples
+    from functools import partial
+
+    if variable_pairs is None:
+        variable_pairs = np.array(
+            compute_anova_level_indices(variable.num_vars(), 2))
+        # make first column values vary fastest so we plot lower triangular
+        # matrix of subplots
+        variable_pairs[:, 0], variable_pairs[:, 1] = \
+            variable_pairs[:, 1].copy(), variable_pairs[:, 0].copy()
+
+    if variable_pairs.shape[1] != 2:
+        raise ValueError("Variable pairs has the wrong shape")
+
+    if subplot_tuple is None:
+        nfig_rows, nfig_cols = (
+            variable.num_vars(), variable.num_vars())
+    else:
+        nfig_rows, nfig_cols = subplot_tuple
+
+    if nfig_rows*nfig_cols < len(variable_pairs):
+        raise ValueError("Number of subplots is insufficient")
+
+    fig, axs = plt.subplots(
+        nfig_rows, nfig_cols, figsize=(nfig_cols*8, nfig_rows*6))
+    all_variables = variable.marginals()
+
+    # if plot_samples is not None and type(plot_samples) == np.ndarray:
+    #     plot_samples = [
+    #         [plot_samples, {"c": "k", "marker": "o", "alpha": 0.4}]]
+
+    for ii, var in enumerate(all_variables):
+        lb, ub = get_truncated_range(var, unbounded_alpha=0.995)
+        quad_degrees = np.array([20]*(variable.num_vars()-1))
+        samples_ii = np.linspace(lb, ub, nsamples_1d)
+        from pyapprox.surrogates.polychaos.gpc import (
+            _marginalize_function_1d, _marginalize_function_nd)
+        values = _marginalize_function_1d(
+            partial(_unnormalized_pdf_for_marginalization,
+                    variable, loglike, np.array([ii])),
+            variable, quad_degrees, ii, samples_ii, qoi=0)
+        axs[ii][ii].plot(samples_ii, values)
+        if plot_samples is not None:
+            for s in plot_samples:
+                axs[ii][ii].scatter(s[0][ii, :], s[0][ii, :]*0, **s[1])
+
+    for ii, pair in enumerate(variable_pairs):
+        # use pair[1] for x and pair[0] for y because we reverse
+        # pairs above
+        var1, var2 = all_variables[pair[1]], all_variables[pair[0]]
+        axs[pair[1], pair[0]].axis("off")
+        lb1, ub1 = get_truncated_range(var1, unbounded_alpha=0.995)
+        lb2, ub2 = get_truncated_range(var2, unbounded_alpha=0.995)
+        X, Y, samples_2d = get_meshgrid_samples(
+            [lb1, ub1, lb2, ub2], nsamples_1d)
+        quad_degrees = np.array([10]*(variable.num_vars()-2))
+        values = _marginalize_function_nd(
+            partial(_unnormalized_pdf_for_marginalization,
+                    variable, loglike, np.array([pair[1], pair[0]])),
+            variable, quad_degrees, np.array([pair[1], pair[0]]),
+            samples_2d, qoi=qoi)
+        Z = np.reshape(values, (X.shape[0], X.shape[1]))
+        ax = axs[pair[0]][pair[1]]
+        # place a text box in upper left in axes coords
+        props = dict(boxstyle='round', facecolor='white', alpha=0.5)
+        ax.text(0.05, 0.95, r"$(\mathrm{%d, %d})$" % (pair[1], pair[0]),
+                transform=ax.transAxes, fontsize=14,
+                verticalalignment='top', bbox=props)
+        ax.contourf(
+            X, Y, Z, levels=np.linspace(Z.min(), Z.max(),
+                                        num_contour_levels),
+            cmap='jet')
+        if plot_samples is not None:
+            for s in plot_samples:
+                # use pair[1] for x and pair[0] for y because we reverse
+                # pairs above
+                axs[pair[0]][pair[1]].scatter(
+                    s[0][pair[1], :], s[0][pair[0], :], **s[1])
+
+    return fig, axs
+
+
+class GaussianLogLike(object):
+    r"""
+    A Gaussian log-likelihood function for a model with parameters given in
+    sample
+    """
+
+    def __init__(self, model, data, noise_covar, model_jac=None):
+        r"""
+        Initialise the Op with various things that our log-likelihood
+        function requires.
+
+        Parameters
+        ----------
+        model : callable
+            The model relating the data and noise
+
+        data : np.ndarray (nobs)
+            The "observed" data
+
+        noise_covar : float, np.ndarray (nobs), np.ndarray (nobs,nobs)
+            The noise covariance
+
+        model_jac : callable
+            The Jacobian of the model with respect to the parameters
+        """
+        self.model = model
+        self.model_jac = model_jac
+        self.data = data
+        assert self.data.ndim == 1
+        self.ndata = data.shape[0]
+        self.noise_covar_inv, self.log_noise_covar_det = (
+            self.noise_covariance_inverse(noise_covar))
+
+    def noise_covariance_inverse(self, noise_covar):
+        if np.isscalar(noise_covar):
+            return 1/noise_covar, np.log(noise_covar)
+        if noise_covar.ndim == 1:
+            assert noise_covar.shape[0] == self.data.shape[0]
+            return 1/noise_covar, np.log(np.prod(noise_covar))
+        elif noise_covar.ndim == 2:
+            assert noise_covar.shape == (self.ndata, self.ndata)
+            return np.linalg.inv(noise_covar), np.log(
+                np.linalg.det(noise_covar))
+        raise ValueError("noise_covar has the wrong shape")
+
+    # def noise_covariance_determinant(self, noise_covar):
+    #     r"""The determinant is only necessary in log likelihood if the noise
+    #     covariance has a hyper-parameter which is being inferred which is
+    #     not currently supported"""
+    #     if np.isscalar(noise_covar):
+    #         determinant = noise_covar**self.ndata
+    #     elif noise_covar.ndim==1:
+    #         determinant = np.prod(noise_covar)
+    #     else:
+    #         determinant = np.linalg.det(noise_covar)
+    #     return determinant
+
+    def __call__(self, samples, return_grad=False):
+        nsamples = samples.shape[1]
+        model_vals = self.model(samples)
+        assert model_vals.ndim == 2
+        assert model_vals.shape[1] == self.ndata
+        vals = np.empty((nsamples, 1))
+        for ii in range(nsamples):
+            residual = self.data - model_vals[ii, :]
+            if np.isscalar(self.noise_covar_inv):
+                tmp = self.noise_covar_inv*residual
+            elif self.noise_covar_inv.ndim == 1:
+                tmp = self.noise_covar_inv[:, None]*residual
+                #vals[ii] = (residual.T*self.noise_covar_inv).dot(residual)
+            else:
+                tmp = self.noise_covar_inv[:, None].dot(residual)
+                #vals[ii] = residual.T.dot(self.noise_covar_inv).dot(residual)
+        vals = residual.dot(tmp)
+        vals += self.ndata*np.log(2*np.pi) + self.log_noise_covar_det
+        vals *= -0.5
+
+        vals = np.atleast_2d(vals)
+        if not return_grad:
+            return vals
+
+        if nsamples != 1:
+            raise ValueError("nsamples must be 1 when return_grad is True")
+        if self.model_jac is None:
+            raise ValueError("model_jac is none but gradient requested")
+        grad = tmp.dot(self.model_jac(samples))
+        return vals, grad

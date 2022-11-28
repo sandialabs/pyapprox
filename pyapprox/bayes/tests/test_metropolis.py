@@ -51,6 +51,28 @@ def _setup_gaussian_linear_inverse_problem(
             post_covariance)
 
 
+class ExponentialQuarticLogLikelihoodModel(object):
+    def __init__(self):
+        self.a = 3.0
+
+    def loglikelihood_function(self, x):
+        value = -(0.1*x[0]**4 + 0.5*(2.*x[1]-x[0]**2)**2)
+        return value
+
+    def gradient(self, x):
+        assert x.ndim == 2
+        assert x.shape[1] == 1
+        grad = -np.array([12./5.*x[0]**3-4.*x[0]*x[1],
+                          4.*x[1]-2.*x[0]**2])
+        return grad
+
+    def __call__(self, x, jac=False):
+        vals = np.array([self.loglikelihood_function(x)]).T
+        if not jac:
+            return vals
+        return vals, self.gradient(x)
+
+
 class TestMetropolis(unittest.TestCase):
 
     def setUp(self):

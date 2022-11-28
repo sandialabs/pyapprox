@@ -100,10 +100,8 @@ is the covariance between the parameters and data.
 
 Now let us setup this problem in Python
 """
-from pyapprox.bayes.markov_chain_monte_carlo import (
-    run_bayesian_inference_gaussian_error_model, PYMC3LogLikeWrapper
-)
-from pyapprox.bayes.tests.test_markov_chain_monte_carlo import (
+from pyapprox.bayes.metropolis import MetropolisMCMCVariable
+from pyapprox.bayes.tests.test_metropolis import (
     ExponentialQuarticLogLikelihoodModel)
 from pyapprox.variables.density import NormalDensity
 from scipy import stats
@@ -303,33 +301,27 @@ axplot = axs[1].plot(x_truth, data_obs, 'ok', ms=10)
 #
 #.. math:: -\log\left(\pi(d\mid\rv)\right)=\frac{1}{10}\rv_1^4 + \frac{1}{2}(2\rv_2-\rv_1^2)^2
 #
-#We can sample the posterior using Sequential Markov Chain Monte Carlo using the following code.
+#We can sample the posterior using Delayed Rejection Adaptive Metropolis (DRAM) Markov Chain Monte Carlo using the following code.
 np.random.seed(1)
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
 univariate_variables = [stats.uniform(-2, 4), stats.uniform(-2, 4)]
 plot_range = np.asarray([-1, 1, -1, 1])*2
-variables = IndependentMarginalsVariable(univariate_variables)
+prior_variable = IndependentMarginalsVariable(univariate_variables)
 
 loglike = ExponentialQuarticLogLikelihoodModel()
-loglike = PYMC3LogLikeWrapper(loglike)
+mcmc_variable = MetropolisMCMCVariable(prior_variable, loglike)
 
 # number of draws from the distribution
 ndraws = 500
-# number of "burn-in points" (which we'll discard)
-nburn = min(1000, int(ndraws*0.1))
-# number of parallel chains
-njobs = 1
-samples, effective_sample_size, map_sample = \
-    run_bayesian_inference_gaussian_error_model(
-        loglike, variables, ndraws, nburn, njobs,
-        algorithm='smc', get_map=True, print_summary=True)
+# number of "burn-in points" (which we'll discard) as a fraction of ndraws
+burn_fraction = 0.1
+map_sample = mcmc_variable.maximum_aposteriori_point()
+samples = mcmc_variable.rvs(ndraws)
 
 print('MAP sample', map_sample.squeeze())
 
 #%%
-#The NUTS sampler offerred by PyMC3 can also be used by specifying `algorithm='nuts'`. This sampler requires gradients of the likelihood function which if not provided will be computed using finite difference.
-#
 #Lets plot the posterior distribution and the MCMC samples. First we must compute the evidence
 
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
@@ -339,9 +331,9 @@ from pyapprox.surrogates.interp.tensorprod import (
 
 
 def unnormalized_posterior(x):
-    vals = np.exp(loglike.loglike(x))
-    rvs = variables.marginals()
-    for ii in range(variables.num_vars()):
+    vals = np.exp(loglike(x))
+    rvs = prior_variable.marginals()
+    for ii in range(prior_variable.num_vars()):
         vals[:, 0] *= rvs[ii].pdf(x[ii, :])
     return vals
 
@@ -353,7 +345,7 @@ def univariate_quadrature_rule(n):
 
 
 x, w = get_tensor_product_quadrature_rule(
-    100, variables.num_vars(), univariate_quadrature_rule)
+    100, prior_variable.num_vars(), univariate_quadrature_rule)
 evidence = unnormalized_posterior(x)[:, 0].dot(w)
 print('evidence', evidence)
 
