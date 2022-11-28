@@ -56,7 +56,6 @@ setuptools.setup(
         'Cython',
         'sympy',
         'torch',
-        'pymc3',
         'scikit-learn',
         'pytest-cov',
         'pytest>=4.6',

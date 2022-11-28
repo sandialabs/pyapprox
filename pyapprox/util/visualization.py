@@ -302,7 +302,7 @@ def create_3d_axis():
     fig = plt.figure()
     try:
         ax = fig.gca(projection='3d')
-    except ValueError:
+    except TypeError:
         # Add following import to avoid error Unknown projection '3d'
         # when using ax = fig.gca(projection='3d')
         from mpl_toolkits.mplot3d import Axes3D
