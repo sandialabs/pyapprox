@@ -7,6 +7,7 @@ from pyapprox.variables.transforms import _map_hypercube_samples
 from pyapprox.pde.autopde.sympy_utils import (
     _evaluate_list_of_sp_lambda, _evaluate_sp_lambda)
 
+
 class OrthogonalCoordinateTransform2D(ABC):
     @abstractmethod
     def map_from_orthogonal(self, orth_samples):
@@ -254,8 +255,8 @@ class SympyTransform(OrthogonalCoordinateTransform2D):
         return sp.Matrix(jacobian_exprs)
 
     def __init__(self, map_from_orthogonal_strings, map_to_orthogonal_strings):
-        self._symbs = sp.symbols(['x', 'y'])
-        self._orth_symbs = sp.symbols(['r', 't'])
+        self._symbs = sp.symbols(['_x_', '_y_'])
+        self._orth_symbs = sp.symbols(['_r_', '_t_'])
         self._map_from_orthogonal_trans = self._lambdify_map(
               map_from_orthogonal_strings, self._orth_symbs)
         self._map_to_orthogonal_trans = self._lambdify_map(
