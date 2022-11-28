@@ -5,7 +5,7 @@ from scipy.optimize import approx_fprime, minimize
 from pyapprox.surrogates.gaussianprocess.multilevel import (
     MultilevelGaussianProcess)
 from pyapprox.util.utilities import get_all_sample_combinations
-from pyapprox.bayes.markov_chain_monte_carlo import MCMCVariable
+from pyapprox.bayes.metropolis import MetropolisMCMCVariable
 
 
 class CalibrationGaussianProcess(MultilevelGaussianProcess):
@@ -44,7 +44,7 @@ class CalibrationGaussianProcess(MultilevelGaussianProcess):
         return ax
 
 
-class GPCalibrationVariable(MCMCVariable):
+class GPCalibrationVariable(MetropolisMCMCVariable):
     # TODO create new MCMCVariable base class without normalized pdf etc
     # and inherit this from that here and for old MCMCVariable
     def __init__(self, variable, kernel, train_samples, train_values,
@@ -60,9 +60,7 @@ class GPCalibrationVariable(MCMCVariable):
         self._rho_bounds = kernel.rho_bounds
 
         loglike = self.loglike_calibration_params
-        super().__init__(
-            variable, loglike, algorithm, loglike_grad=loglike_grad,
-            burn_fraction=0.1, njobs=1)
+        super().__init__(variable, loglike)
 
         self.MAP = None
         self._set_hyperparams(kernel, **gp_kwargs)
