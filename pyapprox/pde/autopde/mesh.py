@@ -241,7 +241,8 @@ def kronecker_product_2d(matrix1, matrix2):
 class Canonical1DMeshBoundary():
     def __init__(self, bndry_name, tol=1e-15):
         self._bndry_index = {"left": 0, "right": 1}[bndry_name]
-        self._normal = torch.tensor([[-1], [1]])[self._bndry_index]
+        self._normal = torch.as_tensor(
+            [[-1], [1]], dtype=torch.double)[self._bndry_index]
         self._inactive_coord = {"left": -1, "right": 1}[bndry_name]
         self._tol = tol
 
@@ -266,8 +267,8 @@ class Canonical2DMeshBoundary():
 
         self._bndry_index = {
             "left": 0, "right": 1, "bottom": 2, "top": 3}[bndry_name]
-        self._normal = torch.tensor(
-            [[-1, 0], [1, 0], [0, -1], [0, 1]])[self._bndry_index]
+        self._normal = torch.as_tensor(
+            [[-1, 0], [1, 0], [0, -1], [0, 1]], dtype=torch.double)[self._bndry_index]
         self._order = order
         self._active_bounds = active_bounds
         self._inactive_coord = {
@@ -321,7 +322,8 @@ class Transformed2DMeshBoundary(Canonical2DMeshBoundary):
         surface_derivs = self._canonical_interpolate(
             self._bndary_deriv_vals, canonical_samples[self._active_var])
         normals = torch.empty((canonical_samples.shape[1], 2))
-        normals[:, self._active_var] = -torch.tensor(surface_derivs)
+        normals[:, self._active_var] = -torch.as_tensor(
+            surface_derivs, dtype=torch.double)
         normals[:, self._inactive_var] = 1
         factor = torch.sqrt(torch.sum(normals**2, axis=1))
         normals = 1/factor[:, None]*normals
@@ -439,7 +441,7 @@ class CanonicalCollocationMesh():
             canonical_deriv_mats = [
                 np.kron(np.eye(self._orders[1]+1), canonical_deriv_mats_1d[0]),
                 np.kron(canonical_deriv_mats_1d[1], np.eye(self._orders[0]+1))]
-        canonical_deriv_mats = [torch.tensor(mat, dtype=torch.double)
+        canonical_deriv_mats = [torch.as_tensor(mat, dtype=torch.double)
                                 for mat in canonical_deriv_mats]
         canonical_mesh_pts = cartesian_product(canonical_mesh_pts_1d)
 
@@ -569,7 +571,7 @@ class CanonicalCollocationMesh():
     def integrate(self, mesh_values):
         xquad, wquad = self._get_quadrature_rule()
         return self.interpolate(mesh_values, xquad)[:, 0].dot(
-            torch.tensor(wquad))
+            torch.as_tensor(wquad, dtype=torch.double))
 
     def laplace(self, quantity):
         return laplace(self._partial_derivs, quantity)
@@ -959,7 +961,7 @@ class CanonicalInteriorCollocationMesh(CanonicalCollocationMesh):
         canonical_deriv_mats, canonical_mesh_pts = (
             self._form_canonical_deriv_matrices(canonical_mesh_pts_1d))
         canonical_deriv_mats = [
-            torch.tensor(mat, dtype=torch.double)
+            torch.as_tensor(mat, dtype=torch.double)
             for mat in canonical_deriv_mats]
         return (canonical_mesh_pts_1d, None,
                 canonical_mesh_pts_1d_baryc_weights,
@@ -980,7 +982,7 @@ class CanonicalInteriorCollocationMesh(CanonicalCollocationMesh):
                     canonical_mesh_pts_1d[0],
                     -np.cos(np.linspace(0, np.pi, self._orders[0]+1)))[0]]
         canonical_deriv_mats_alt = [
-            torch.tensor(mat, dtype=torch.double)
+            torch.as_tensor(mat, dtype=torch.double)
             for mat in canonical_deriv_mats_alt]
         return canonical_deriv_mats_alt
 

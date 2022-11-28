@@ -440,7 +440,7 @@ class TestAutoPDE(unittest.TestCase):
         errors = check_gradients(
             fun, True, p0, fd_eps=np.logspace(-13, 0, 14)[::-1])
         print(errors.min()/errors.max())
-        assert errors.min()/errors.max() < 2.5e-7
+        assert errors.min()/errors.max() < 6.5e-7
 
     def test_decoupled_ode_adjoint(self):
         orders = [2]  # only mid point will be correct applying bndry_conds
@@ -553,7 +553,7 @@ class TestAutoPDE(unittest.TestCase):
             residual._diff_fun = partial(
                 residual.mesh.interpolate, mesh_vals)
             return init_sol
-
+        
         self._check_adjoint(adj_solver, param_vals, functional,
                             set_param_values, init_sol, final_time)
 
