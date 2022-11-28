@@ -670,15 +670,13 @@ class CanonicalCollocationMesh():
     def _dmat(self, dd):
         if self._dmats[dd] is not None:
             return self._dmats[dd]
-        print("CRAZY", type(self._transform.curvelinear_basis(self._canonical_mesh_pts)),
-              self._transform.curvelinear_basis(self._canonical_mesh_pts).dtype)
         basis = torch.as_tensor(
             self._transform.curvelinear_basis(self._canonical_mesh_pts),
             dtype=torch.double)
         dmat = 0
         for ii in range(self.nphys_vars):
             dmat += basis[:, dd, ii:ii+1]*self._canonical_deriv_mats[ii]
-        self._dmats[dd] = dmat
+            self._dmats[dd] = dmat
         return dmat
 
     def _apply_dirichlet_boundary_conditions(
@@ -716,7 +714,7 @@ class CanonicalCollocationMesh():
             if bndry_cond[1] == "R":
                 jac[idx, idx] += bndry_cond[2]
                 residual[idx] += bndry_cond[2]*sol[idx]
-        # assert False
+                # assert False
         return residual, jac
 
     def _apply_periodic_boundary_conditions(
@@ -741,7 +739,7 @@ class CanonicalCollocationMesh():
             return self._apply_boundary_conditions_to_residual(
                 bndry_conds, residual, sol, flux_jac), None
         residual, jac = self._apply_dirichlet_boundary_conditions(
-                bndry_conds, residual, jac, sol)
+            bndry_conds, residual, jac, sol)
         residual, jac = self._apply_periodic_boundary_conditions(
             bndry_conds, residual, jac, sol)
         residual, jac = self._apply_neumann_and_robin_boundary_conditions(

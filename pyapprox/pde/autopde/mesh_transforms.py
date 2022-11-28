@@ -259,10 +259,8 @@ class SympyTransform(OrthogonalCoordinateTransform2D):
         self._orth_symbs = sp.symbols(['_r_', '_t_'])
         assert ("_r_" in map_from_orthogonal_strings[0] and
                 "_t_" in map_from_orthogonal_strings[1])
-        print(map_from_orthogonal_strings)
         assert ("_x" in map_to_orthogonal_strings[0] and
                 "_y_" in map_to_orthogonal_strings[1])
-        print(map_to_orthogonal_strings[1])
         self._map_from_orthogonal_trans = self._lambdify_map(
               map_from_orthogonal_strings, self._orth_symbs)
         self._map_to_orthogonal_trans = self._lambdify_map(
