@@ -1,5 +1,5 @@
 import numpy as np
-from tqdm import tqdm
+# from tqdm import tqdm
 from scipy.linalg import solve_triangular
 from scipy.optimize import (
     minimize, differential_evolution)
@@ -154,9 +154,9 @@ def DRAM(logpost_fun, init_sample, proposal_cov, nsamples,
     accepted[ndraws] = 1
     ndraws = +1
 
-    if verbosity > 0:
-        pbar = tqdm(total=nsamples)
-        pbar.update(1)
+    # if verbosity > 0:
+    #     pbar = tqdm(total=nsamples)
+    #     pbar.update(1)
     while ndraws < nsamples:
         if ndraws % ndraws_init_update == 0:
             proposal_chol_tuple = compute_mvn_cholesky_based_data(sample_cov)
@@ -167,8 +167,8 @@ def DRAM(logpost_fun, init_sample, proposal_cov, nsamples,
             sample, sample_mean, sample_cov, ndraws, sd, nugget)
         accepted[ndraws] = acc
         ndraws += 1
-        if verbosity > 0:
-            pbar.update(1)
+        # if verbosity > 0:
+        #     pbar.update(1)
     return samples, accepted, sample_cov
 
 
