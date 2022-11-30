@@ -440,7 +440,7 @@ class TestAutoPDE(unittest.TestCase):
         errors = check_gradients(
             fun, True, p0, fd_eps=np.logspace(-13, 0, 14)[::-1])
         print(errors.min()/errors.max())
-        assert errors.min()/errors.max() < 2.5e-7
+        assert errors.min()/errors.max() < 6.5e-7
 
     def test_decoupled_ode_adjoint(self):
         orders = [2]  # only mid point will be correct applying bndry_conds
@@ -524,6 +524,8 @@ class TestAutoPDE(unittest.TestCase):
             sol_fun.set_time(time)
             exact_sol_t = sol_fun(solver.physics.mesh.mesh_pts).numpy()
             model_sol_t = sols[:, ii:ii+1].numpy()
+            # print(exact_sol_t)
+            # print(model_sol_t, 'm')
             L2_error = np.sqrt(
                 solver.physics.mesh.integrate((exact_sol_t-model_sol_t)**2))
             factor = np.sqrt(
@@ -551,7 +553,7 @@ class TestAutoPDE(unittest.TestCase):
             residual._diff_fun = partial(
                 residual.mesh.interpolate, mesh_vals)
             return init_sol
-
+        
         self._check_adjoint(adj_solver, param_vals, functional,
                             set_param_values, init_sol, final_time)
 
@@ -586,7 +588,7 @@ class TestAutoPDE(unittest.TestCase):
               lambda sol: torch.diag(2*sol[:, 0])],
              ["D", "N", "R", "D"], "im_crank2"]
         ]
-        for test_case in test_cases[2:3]:
+        for test_case in test_cases:
             self._check_transient_advection_diffusion_reaction(*test_case)
 
     def _check_stokes_solver_mms(

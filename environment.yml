@@ -17,7 +17,7 @@ dependencies:
   - sympy
   - networkx
   - pytorch
-  - tqdm
+  # - tqdm
   - numba
   # make html in docs folder
   - sphinx

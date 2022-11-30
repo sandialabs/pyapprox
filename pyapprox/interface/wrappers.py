@@ -8,7 +8,7 @@ from multiprocessing import Pool
 import sys
 import pickle
 import copy
-from tqdm import tqdm
+# from tqdm import tqdm
 
 from pyapprox.util.utilities import (
     get_all_sample_combinations, hash_array, cartesian_product
@@ -71,9 +71,9 @@ def evaluate_1darray_function_on_2d_array(
     num_qoi = values_0.shape[0]
     values = np.empty((num_samples, num_qoi), float)
     values[0, :] = values_0
-    if statusbar:
-        pbar = tqdm(total=num_samples)
-        pbar.update(1)
+    # if statusbar:
+    #     pbar = tqdm(total=num_samples)
+    #     pbar.update(1)
     for ii in range(1, num_samples):
         if not has_return_grad or return_grad is False:
             values[ii, :] = function(samples[:, ii])
@@ -81,8 +81,8 @@ def evaluate_1darray_function_on_2d_array(
             val_ii, grad_ii = function(samples[:, ii], return_grad=return_grad)
             values[ii, :] = val_ii
             grads.append(grad_ii)
-        if statusbar:
-            pbar.update(1)
+        # if statusbar:
+        #     pbar.update(1)
     if not return_grad:
         return values
     if num_qoi == 1:
