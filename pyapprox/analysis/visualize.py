@@ -20,6 +20,8 @@ def plot_qoi_marginals(values):
     """
     nqoi = values.shape[1]
     fig, axs = plt.subplots(1, nqoi, figsize=(nqoi*8, 6))
+    if nqoi == 1:
+        axs = [axs]
     for ii in range(nqoi):
         kde = stats.gaussian_kde(values[:, ii])
         yy = np.linspace(values[:, ii].min(), values[:, ii].max(), 101)

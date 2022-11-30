@@ -2,65 +2,24 @@
 Sparse Grid Interpolation
 =========================
 
-We will use the Cantilever Beam benchmark to illustrate how to use a sparse grid
+We will use the Genz benchmark to illustrate how to use a sparse grid
 as a surrogate for uncertainty quantification and sensitivity analysis
-
-.. figure:: ../../source/figures/cantilever-beam.png
-   :align: center
-
-   Conceptual model of the cantilever-beam
-
-.. table:: Uncertain variables
-   :align: center
-
-   =============== ========= =======================
-   Uncertainty     Symbol    Prior
-   =============== ========= =======================
-   Yield stress    :math:`R` :math:`N(40000,2000)`
-   Young's modulus :math:`E` :math:`N(2.9e7,1.45e6)`
-   Horizontal load :math:`X` :math:`N(500,100)`
-   Vertical Load   :math:`Y` :math:`N(1000,100)`
-   =============== ========= =======================
-
-
-.. table:: Design variables
-   :align: center
-
-   =============== ========= =======================
-   Uncertainty     Symbol    Range
-   =============== ========= =======================
-   Width           :math:`w` :math:`[1, 4]`
-   Thickness       :math:`t` :math:`[1, 4]`
-   =============== ========= =======================
 
 First we must load the benchmark
 """
 import numpy as np
 from pyapprox.benchmarks import setup_benchmark
-from pyapprox.variables import combine_uncertain_and_bounded_design_variables
 from pyapprox import surrogates
 from pyapprox.analysis import visualize
 from pyapprox import util
 import matplotlib.pyplot as plt
-benchmark = setup_benchmark('cantilever_beam')
+benchmark = setup_benchmark('genz', nvars=2, test_name="oscillatory")
 np.random.seed(1)
 
-#%%
-#The cantilever beam model is an optimization benchmark. Consequently it
-#defines random and design variables. All surrogates require random variable
-#information so we define a new variable for this purpose
-
-variable = combine_uncertain_and_bounded_design_variables(
-    benchmark.variable, benchmark.design_variable)
-
-#%% The objective fun of the benchmark is not a function of random variables
-#So lets just approximate the contraint function.
-#
 #We can set a maximum number of samples using the options dictionary
-
-options = {"max_nsamples": 1000}
+options = {"max_nsamples": 100, "verbose": 0}
 approx = surrogates.adaptive_approximate(
-    benchmark.constraint_fun, variable, "sparse_grid", options).approx
+    benchmark.fun, benchmark.variable, "sparse_grid", options).approx
 
 #%%
 #Plot the sparse grid samples with
@@ -70,8 +29,8 @@ plt.show()
 
 #%%
 # We can estimate the error in the surrogate using some validation samples.
-validation_samples = variable.rvs(100)
-validation_values = benchmark.constraint_fun(validation_samples)
+validation_samples = benchmark.variable.rvs(100)
+validation_values = benchmark.fun(validation_samples)
 approx_values = approx(validation_samples)
 error = np.linalg.norm(validation_values-approx_values, axis=0)/np.sqrt(
     validation_values.shape[0])
@@ -80,7 +39,7 @@ print(f"The RMSE error is {error}")
 #%% We can estimate the PDF of the two function outputs by sampling the surrogate
 #and building a kernel density estimator. Lets first just plot the marginal
 #PDFs of the output
-surrogate_samples = variable.rvs(10000)
+surrogate_samples = benchmark.variable.rvs(10000)
 approx_values = approx(surrogate_samples)
 visualize.plot_qoi_marginals(approx_values)
 plt.show()
