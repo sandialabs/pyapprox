@@ -44,7 +44,7 @@ MLMC can easily be extended to estimator based on :math:`M+1` models. Letting :m
 
    Q_{0,\mathcal{Z}}^\mathrm{ML} = \sum_{\alpha=0}^M Y_{\alpha,\mathcal{Z}_\alpha}, \quad f_{M+1}=0
 
-To compute this estimator we use the following algorithm, tarting with :math:`\alpha=M`$
+To compute this estimator we use the following algorithm, tarting with :math:`\alpha=M`
 
 #. Draw  :math:`N_\alpha` samples randomly from the PDF  :math:`\pdf` of the random variables.
 #. Estimate :math:`f_{\alpha}` and :math:`f_{\alpha}` at the samples :math:`\mathcal{Z}_\alpha`

@@ -72,7 +72,7 @@ By viewing MLMC as a control variate we can derive its variance reduction [GGEJJ
 
 where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1}{2}}`. Recall that and :math:`\hat{r}_\alpha=\lvert\mathcal{Z}_{\alpha,2}\rvert/N` is the ratio of the cardinality of the sets :math:`\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{0,2}`.
 
-Now consider what happens to this variance reduction if we have unlimited resources to evaluate the low fidelity model. As $\hat{r}_\alpha\to\infty$, for $\alpha=1,\ldots,M$ we have
+Now consider what happens to this variance reduction if we have unlimited resources to evaluate the low fidelity model. As :math:`\hat{r}_\alpha\to\infty$, for $\alpha=1,\ldots,M` we have
 
 .. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1}
 
