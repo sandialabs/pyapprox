@@ -995,14 +995,6 @@ class TestBayesianOED(unittest.TestCase):
             # print(f"Candidate {idx}", exact_variance_risk)
         jdx = np.argmax(np.round(np.array([d[1] for d in data]), 4))
         selected_index = indices[jdx]
-        if len(indices) > 30:
-            print(np.array([d[1] for d in data])[[18, 28]])
-            print(utility_vals[[18, 28]])
-            print(np.round(np.array([d[1] for d in data]), 4))
-            print(np.round(utility_vals, 4)[[18, 28]])
-            print(indices.T[:, [18, 28]])
-            print(indices[np.argmax(np.round(utility_vals, 4))])
-        print(selected_index, oed.collected_design_indices[-nnew:])
         # because of rounding error do not use following assert but the one after
         # that rounds
         # assert np.allclose(selected_index, oed.collected_design_indices[-nnew:])
