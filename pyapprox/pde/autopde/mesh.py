@@ -460,6 +460,10 @@ class CanonicalCollocationMesh():
         for ii in range(2*self.nphys_vars):
             bndry_indices[ii] = self._bndrys[ii].samples_on_boundary(
                 self._canonical_mesh_pts)
+            if ii >= 2 and self.nphys_vars == 2:
+                # corners appear twice. Remove second reference to corners
+                # from top and bottom boundaries
+                bndry_indices[ii] = bndry_indices[ii][1:-1]
         return bndry_indices
 
     def interpolate(self, values, eval_samples):
