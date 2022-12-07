@@ -213,17 +213,19 @@ class TestAutoPDE(unittest.TestCase):
         # import matplotlib.pyplot as plt
         # plt.plot(mesh.mesh_pts[0], mesh.mesh_pts[1], 'o')
         # can_pts = mesh._map_samples_to_canonical_domain(mesh.mesh_pts)
-        # print(mesh._canonical_mesh_pts, can_pts)
+        # # print(mesh._canonical_mesh_pts, can_pts)
         # # assert np.allclose(mesh._canonical_mesh_pts, can_pts)
         # plt.plot(can_pts[0], can_pts[1], 'X')
         # plt.show()
 
-        print(np.abs(solver.physics._residual(sol_fun(mesh.mesh_pts)[:, 0])[0]).max())
+        print(np.abs(solver.physics._raw_residual(
+            sol_fun(mesh.mesh_pts)[:, 0])[0]).max())
+        # print(np.abs(solver.physics._residual(sol_fun(mesh.mesh_pts)[:, 0])[0]))
         assert np.allclose(
             solver.physics._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
         assert np.allclose(
             solver.physics._residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
-        sol = solver.solve(tol=1e-8)[:, None]
+        sol = solver.solve(tol=1e-8, rtol=1e-12)[:, None]
         assert np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol) < 1e-9
 
@@ -259,7 +261,7 @@ class TestAutoPDE(unittest.TestCase):
             set_param_values(
                 fwd_solver.physics, torch.as_tensor(params[:, 0]))
             # newton tol must be smaller than finite difference step size
-            fd_sol = fwd_solver.solve(tol=1e-8, verbosity=0)
+            fd_sol = fwd_solver.solve(tol=1e-8, verbosity=0, rtol=1e-12)
             qoi = np.asarray([functional(fd_sol, params[:, 0])])
             return qoi
 
@@ -404,9 +406,9 @@ class TestAutoPDE(unittest.TestCase):
              ["D", "D", "D", "N"], ["C", "C"], ellipse_transform],
         ]
         ii = 0
-        for test_case in test_cases:
+        for test_case in test_cases[10:]:
             np.random.seed(2)  # controls direction of finite difference
-            # print(ii)
+            print(ii)
             print(test_case)
             self._check_advection_diffusion_reaction(*test_case)
             ii += 1
@@ -671,7 +673,7 @@ class TestAutoPDE(unittest.TestCase):
         # print(np.abs(j_auto-j_fd).max())
         assert np.allclose(j_auto, j_man)
 
-        sol = solver.solve(maxiters=10)[:, None].detach().numpy()
+        sol = solver.solve(maxiters=10, rtol=1e-12)[:, None].detach().numpy()
 
         split_sols = mesh.split_quantities(sol)
 

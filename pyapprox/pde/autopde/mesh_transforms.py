@@ -164,8 +164,11 @@ class ScaleAndTranslationTransform(OrthogonalCoordinateTransform2D):
 
 class PolarTransform(OrthogonalCoordinateTransform2D):
     def map_from_orthogonal(self, orth_samples):
-        if orth_samples[1].max() > 2*np.pi:
+        if orth_samples[1].max() > 2*np.pi or orth_samples[1].min() < 0:
             raise ValueError("theta must be in [0, 2*pi]")
+        if orth_samples[0].min() < 0:
+            print(orth_samples[0])
+            raise ValueError("r must be in [0, np.inf]")
         r, theta = orth_samples
         samples = np.vstack(
             [r*np.cos(theta)[None, :], r*np.sin(theta)[None, :]])
@@ -195,8 +198,8 @@ class PolarTransform(OrthogonalCoordinateTransform2D):
         # basis is [b1, b2]
         # form b1, b2 using hstack then form basis using dstack
         basis = np.dstack(
-            [np.hstack([cos_t, sin_t])[..., None],
-             np.hstack([-sin_t/r, cos_t/r])[..., None]])
+            [np.hstack([cos_t, sin_t])[..., None], # first basis
+             np.hstack([-sin_t/r, cos_t/r])[..., None]]) # second basis
         return basis
 
 

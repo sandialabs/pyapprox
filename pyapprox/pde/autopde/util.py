@@ -2,7 +2,7 @@ import torch
 
 
 def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
-                 verbosity=0, step_size=1, rel_error=False):
+                 verbosity=0, step_size=1, rtol=1e-7):
     if not init_guess.ndim == 1:
         raise ValueError("init_guess must be 1D tensor so AD can be used")
 
@@ -15,23 +15,15 @@ def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
         residual_norms.append(residual_norm)
         if verbosity > 1:
             print("Iter", it, "rnorm", residual_norm.detach().numpy())
-        if it > 0 and not rel_error and residual_norm <= tol:
+        if it > 0 and residual_norm <= tol+rtol*residual_norms[0]:
             # must take at least one step for cases when residual
             # is under tolerance for init_guess
             exit_msg = f"Tolerance {tol} reached"
             break
-        if it > 0 and rel_error and residual_norm <= tol*residual_norms[0]:
-            exit_msg = f"Relative tolerance {tol} reached"
-            break
         if it >= maxiters:
             exit_msg = f"Max iterations {maxiters} reached.\n"
-            if rel_error:
-                exit_msg += f"Rel residual norm is {rel_error} "
-                exit_msg += f"Residual tol is {tol*residual_norms[0]}"
-                print(residual_norms[0], residual_norm)
-            else:
-                exit_msg += f"Absolute residual norm is {residual_norm} "
-                exit_msg += f"Residual tol is {tol}"
+            exit_msg += f"Rel residual norm is {residual_norm} "
+            exit_msg += f"Needs to be {tol+rtol*residual_norms[0]}"
             raise RuntimeError(exit_msg)
         # strict=True needed if computing adjoints and jac computation
         # needs to be part of graph

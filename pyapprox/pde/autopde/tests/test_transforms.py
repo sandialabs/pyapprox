@@ -19,8 +19,6 @@ class TestMeshTransforms(unittest.TestCase):
         def _fun(samples):
             return np.sum(samples**2, axis=0)[:, None]
 
-        orth_sample = np.random.uniform(-1, 1, (2, 1))
-        sample = transform.map_from_orthogonal(orth_sample)
         grad_fd = []
         for sample in samples.T:
             grad_fd.append(approx_fprime(sample[:, None], _fun))
@@ -37,7 +35,8 @@ class TestMeshTransforms(unittest.TestCase):
         orth_grad_fd = np.asarray(orth_grad_fd)
         grad = transform.scale_orthogonal_gradients(basis, orth_grad_fd)
         # print(grad, "fx")
-        # print((grad_fd-grad))
+        # print(grad_fd)
+        # print(grad_fd-grad)
         tol = 1e-7
         assert np.allclose(grad_fd, grad, atol=tol, rtol=tol)
 
@@ -108,8 +107,10 @@ class TestMeshTransforms(unittest.TestCase):
     def test_polar_transform(self):
         nsamples_1d = [3, 3]
         scale_transform = ScaleAndTranslationTransform(
-            #[-1, 1, -1, 1], [0.5, 1., .4*np.pi, 7*np.pi/4])
-            [-1, 1, -1, 1], [0.5, 1., np.pi/4, 3*np.pi/4])
+            # keep counter clockwise direction
+            # [-1, 1, -1, 1], [0.5, 1., np.pi/4, 3*np.pi/4])
+            # reverse direction from counter clockwise to clockwise
+            [-1, 1, -1, 1], [0.5, 1., 3*np.pi/4, np.pi/4])
         polar_transform = PolarTransform()
         orth_samples = cartesian_product(
             [np.linspace(-1, 1, nsamples_1d[0]),
@@ -282,7 +283,6 @@ class TestMeshTransforms(unittest.TestCase):
         sympy_orth_lines = [scale_transform.map_from_orthogonal(
                 orth_lines[bndry_id]) for bndry_id in range(4)]
         self._check_normals(sympy_transform, sympy_orth_lines, _normals)
-
 
 if __name__ == "__main__":
     mesh_transforms_test_suite = \
