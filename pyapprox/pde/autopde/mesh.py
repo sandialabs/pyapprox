@@ -803,7 +803,7 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
         if nplot_pts_1d is None:
             return self.mesh_pts[0, :]
         return np.linspace(
-            self._domain_bounds[0], self._domain_bounds[1], nplot_pts_1d)
+            *self._transform._ranges, nplot_pts_1d)
 
     def _create_plot_mesh_2d(self, nplot_pts_1d):
         X, Y, pts = super()._create_plot_mesh_2d(nplot_pts_1d)
