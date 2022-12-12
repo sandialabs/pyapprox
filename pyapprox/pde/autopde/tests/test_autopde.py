@@ -144,7 +144,7 @@ class TestAutoPDE(unittest.TestCase):
         mesh = CartesianProductCollocationMesh(
             domain_bounds, orders)
         integral = mesh.integrate(fun(mesh.mesh_pts))
-        # print(integral, exact_integral)
+        print(integral, exact_integral)
         assert np.allclose(integral, exact_integral)
 
     def test_mesh_integrate(self):

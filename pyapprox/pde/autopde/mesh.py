@@ -466,14 +466,14 @@ class CanonicalCollocationMesh():
                 bndry_indices[ii] = bndry_indices[ii][1:-1]
         return bndry_indices
 
-    def interpolate(self, values, eval_samples):
-        if eval_samples.ndim == 1:
-            eval_samples = eval_samples[None, :]
-            assert eval_samples.shape[1] == self.nunknowns
+    def interpolate(self, values, canonical_eval_samples):
+        if canonical_eval_samples.ndim == 1:
+            canonical_eval_samples = canonical_eval_samples[None, :]
         if values.ndim == 1:
             values = values[:, None]
-            assert values.ndim == 2
-        return self._interpolate(values, eval_samples)
+        assert values.ndim == 2
+        assert values.shape[0] == self.nunknowns
+        return self._interpolate(values, canonical_eval_samples)
 
     def _interpolate(self, values, canonical_eval_samples):
         if np.all([t == "C" for t in self._basis_types]):
@@ -574,8 +574,8 @@ class CanonicalCollocationMesh():
 
     def integrate(self, mesh_values):
         xquad, wquad = self._get_quadrature_rule()
-        return self.interpolate(mesh_values, xquad)[:, 0].dot(
-            torch.as_tensor(wquad, dtype=torch.double))
+        vals = self.interpolate(mesh_values, xquad)[:, 0]
+        return vals.dot(torch.as_tensor(wquad, dtype=torch.double))
 
     def laplace(self, quantity):
         return laplace(self._partial_derivs, quantity)
@@ -762,6 +762,9 @@ class CanonicalCollocationMesh():
 
 
 class TransformedCollocationMesh(CanonicalCollocationMesh):
+    # TODO need to changes weights of _get_quadrature_rule to account
+    # for any scaling transformations
+    
     def __init__(self, orders, transform, basis_types=None):
 
         super().__init__(orders, basis_types)
@@ -820,6 +823,14 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
         pts = self._map_samples_from_canonical_domain(pts)
         return X, Y, pts
 
+    def _get_quadrature_rule(self):
+        canonical_xquad, canonical_wquad = super()._get_quadrature_rule()
+        xquad = self._map_samples_from_canonical_domain(canonical_xquad)
+        wquad = self._transform.modify_quadrature_weights(
+            canonical_xquad, canonical_wquad)
+        return xquad, wquad
+
+
 
 class CartesianProductCollocationMesh(TransformedCollocationMesh):
     def __init__(self, domain_bounds, orders, basis_types=None):
@@ -833,13 +844,6 @@ class CartesianProductCollocationMesh(TransformedCollocationMesh):
             canonical_domain_bounds, self._domain_bounds)
         super().__init__(
             orders, transform, basis_types=basis_types)
-
-    def _get_quadrature_rule(self):
-        canonical_xquad, canonical_wquad = super()._get_quadrature_rule()
-        xquad = self._map_samples_from_canonical_domain(canonical_xquad)
-        wquad = canonical_wquad*np.prod(
-            (self._domain_bounds[1::2]-self._domain_bounds[::2])/2)
-        return xquad, wquad
 
 
 class VectorMesh():
