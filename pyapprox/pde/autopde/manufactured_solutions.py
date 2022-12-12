@@ -9,16 +9,16 @@ from pyapprox.pde.autopde.sympy_utils import (
 
 
 def setup_advection_diffusion_reaction_manufactured_solution(
-        sol_string, diff_string, vel_strings, react_fun, transient=False):
+        sol_string, linear_diff_string, vel_strings, react_fun, transient=False,
+        nonlinear_diff_fun=None):
     nphys_vars = len(vel_strings)
     sp_x, sp_y = sp.symbols(['x', 'y'])
     symbs = (sp_x, sp_y)[:nphys_vars]
+    all_symbs = symbs
     if transient:
         # These manufacture solutions assume
         # only solution and forcing are time dependent
-        all_symbs = symbs + (sp.symbols('t'),)
-    else:
-        all_symbs = symbs
+        all_symbs += (sp.symbols('t'),)
     sol_expr = sp.sympify(sol_string)
     sol_lambda = sp.lambdify(all_symbs, sol_expr, "numpy")
     if transient:
@@ -26,9 +26,14 @@ def setup_advection_diffusion_reaction_manufactured_solution(
     else:
         sol_fun = partial(_evaluate_sp_lambda, sol_lambda)
 
-    diff_expr = sp.sympify(diff_string)
-    diff_lambda = sp.lambdify(symbs, diff_expr, "numpy")
-    diff_fun = partial(_evaluate_sp_lambda, diff_lambda)
+    linear_diff_expr = sp.sympify(linear_diff_string)
+    linear_diff_lambda = sp.lambdify(symbs, linear_diff_expr, "numpy")
+    linear_diff_fun = partial(_evaluate_sp_lambda, linear_diff_lambda)
+
+    if nonlinear_diff_fun is not None:
+        diff_expr = nonlinear_diff_fun(linear_diff_expr, sol_expr)
+    else:
+        diff_expr = linear_diff_expr
     diffusion_expr = sum([(diff_expr*sol_expr.diff(symb, 1)).diff(symb, 1)
                           for symb in symbs])
 
@@ -70,7 +75,7 @@ def setup_advection_diffusion_reaction_manufactured_solution(
     print("forc", forc_expr)
     print("vel", vel_exprs)
 
-    return sol_fun, diff_fun, vel_fun, forc_fun, flux_funs
+    return sol_fun, linear_diff_fun, vel_fun, forc_fun, flux_funs
 
 
 def setup_two_species_advection_diffusion_reaction_manufactured_solution(

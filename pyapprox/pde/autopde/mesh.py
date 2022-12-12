@@ -687,12 +687,22 @@ class CanonicalCollocationMesh():
             self, bndry_conds, residual, jac, sol):
         # needs to have indices as argument so this fucntion can be used
         # when setting boundary conditions for forward and adjoint solves
+
+        # it is slightly faster to ste jac entries outside loop
+        idx = [self._bndry_indices[ii]
+               for ii in range(len(bndry_conds)) if bndry_conds[ii][1] == "D"]
+        if len(idx) == 0:
+            return residual, jac
+
+        idx = np.hstack(idx)
+        jac[idx, :] = 0.
+        jac[idx, idx] = 1.
         for ii, bndry_cond in enumerate(bndry_conds):
             if bndry_cond[1] != "D":
                 continue
             idx = self._bndry_indices[ii]
-            jac[idx, :] = 0
-            jac[idx, idx] = 1
+            # jac[idx, :] = 0
+            # jac[idx, idx] = 1
             bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
             residual[idx] = sol[idx]-bndry_vals
         return residual, jac

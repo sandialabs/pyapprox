@@ -81,7 +81,7 @@ class AbstractSpectralCollocationPhysics(ABC):
 
 class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
     def __init__(self, mesh, bndry_conds, diff_fun, vel_fun, react_fun,
-                 forc_fun, react_jac):
+                 forc_fun, react_jac, nl_diff_fun=None, nl_diff_jac=None):
         super().__init__(mesh, bndry_conds)
 
         self._diff_fun = diff_fun
@@ -89,12 +89,16 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         self._react_fun = react_fun
         self._forc_fun = forc_fun
         self._react_jac = react_jac
+        # diff is always assumed to be time independent
+        self._nl_diff_fun = nl_diff_fun
+        self._nl_diff_jac = nl_diff_jac # is None then diffusion is assumed linear
+        self._current_sol = None
 
         self._funs = [
             self._diff_fun, self._vel_fun, self._react_fun, self._forc_fun]
 
         self._auto_jac = False
-
+    
     # def _parameterized_raw_residual(self, sol, params):
     #     ndof = sol.shape[0]
     #     diff_vals = params[:ndof]
@@ -105,7 +109,7 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
     def _linear_raw_residual(
             mesh, sol, diff_fun, vel_fun, forc_fun, auto_jac):
         diff_vals = diff_fun(mesh.mesh_pts)
-        assert torch.all(diff_vals > 0)
+        # assert torch.all(diff_vals > 0)
         vel_vals = vel_fun(mesh.mesh_pts)
         linear_jac = 0
         for dd in range(mesh.nphys_vars):
@@ -119,15 +123,43 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
             return res, linear_jac
         return res, None
 
+    def _nonlinear_diff_fun(self, xx):
+        #  assume nl_diff_fun only takes 2D array for linear_diff vals
+        vals = self._nl_diff_fun(self._diff_fun(xx), self._current_sol[:, None])
+        assert vals.shape[1] == 1
+        return vals
+
     def _raw_residual(self, sol):
-        linear_res, linear_jac = self._linear_raw_residual(
-            self.mesh, sol, self._diff_fun, self._vel_fun, self._forc_fun,
-            self._auto_jac)
-        if linear_jac is not None:
-            jac = linear_jac - self._react_jac(sol[:, None])
+        if self._nl_diff_fun is not None:
+            self._current_sol = sol
+            diff_fun = self._nonlinear_diff_fun
         else:
-            jac = None
+            diff_fun = self._diff_fun
+        linear_res, linear_jac = self._linear_raw_residual(
+            self.mesh, sol, diff_fun, self._vel_fun, self._forc_fun,
+            self._auto_jac)
         res = linear_res - self._react_fun(sol[:, None])[:, 0]
+        if linear_jac is None:
+            return res, None
+
+        jac = linear_jac - self._react_jac(sol[:, None])
+        if self._nl_diff_fun is None:
+            return res, jac
+
+        # residual already accounts for nonlinearity but must adjust jacobian
+        # in 1D div term = D[0]*K*D[0]*u
+        # d/du div term = D[0]*K_u*D[0]*u + D[0]*K*D[0]
+        # where K_0 is derivative of diffusion with respect to u
+        # linear jac also accounts for the second term (above) of derivative product rule
+        diff_jac_vals = self._nl_diff_jac(self._diff_fun(self.mesh.mesh_pts), sol[:, None])
+        # diff jac vals should be a diagonal matrix
+        assert diff_jac_vals.shape[1] == 1
+        for dd in range(self.mesh.nphys_vars):
+            # jac += multi_dot(
+            #     (self.mesh._dmats[dd], torch.diag(diff_jac_vals[:, 0]*multi_dot(
+            #         (self.mesh._dmats[dd], sol)))))
+            jac += self.mesh._dmats[dd]*(diff_jac_vals[:, 0]*multi_dot(
+                    (self.mesh._dmats[dd], sol)))
         return res, jac
 
     def _scalar_flux_jac(self, mesh, idx):
@@ -326,10 +358,11 @@ class ShallowIce(AbstractSpectralCollocationPhysics):
                 (dmats[dd], torch.diag(h*multi_dot((dmats[dd], (h+b)))))) +
                      C*multi_dot((dmats[dd], (h[:, None]**2*(dmats[dd])))))
             surf_grad = self.mesh.grad(b+h)
-            # multiplying A*b[:, None] is equivlanet to dot(diag(b), A)
-            # multiplying A*b[None, :] is equivlanet to dot(A, diag(b))
+            # multiplying b[:, None]*A is equivlanet to dot(diag(b), A)
+            # multiplying A*b is equivlanet to dot(A, diag(b)) if b.ndim ==1
             jac1 += (self._n+2)*self._gamma*dmats[dd]*((
-                (h**(self._n+1)*(surf_grad[:, dd]**2+self._eps)**((self._n-1)/2)*surf_grad[:, dd]))[None, :])
+                (h**(self._n+1)*(surf_grad[:, dd]**2+self._eps)**(
+                    (self._n-1)/2)*surf_grad[:, dd]))[None, :])
             # d/dx((h(x)^2)^((n - 1)/2)) = (n - 1) h(x) (h(x)^2)^((n - 3)/2) h'(x)
             tmp = (surf_grad[:, dd]*(
                 self._n-1)*surf_grad[:, dd]*(surf_grad[:, dd]**2+self._eps)**(
@@ -344,7 +377,7 @@ class ShallowIce(AbstractSpectralCollocationPhysics):
     # jac = 2*multi_dot((dmats[0], torch.diag(h))) = 2*dmats[0]*h[None, :]
     # res = multi_dot((dmats[0], sol**2*multi_dot((dmats[0], sol))))
     # jac = (
-    #     2*multi_dot((dmats[0], torch.diag(h[:, None]*multi_dot((dmats[0], h)))))
+    #     2*multi_dot((dmats[0], torch.diag(h*multi_dot((dmats[0], h)))))
     #     +multi_dot((dmats[0], (h[:, None]**2*(dmats[0])))))
 
 
