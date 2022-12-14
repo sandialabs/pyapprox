@@ -54,6 +54,11 @@ class OrthogonalCoordinateTransform2D(ABC):
     def scale_orthogonal_gradients(basis, orth_grads):
         return np.einsum("ijk,ik->ij", basis, orth_grads)
 
+    def modify_quadrature_weights(self, orth_samples, orth_weights):
+        basis = self.curvelinear_basis(orth_samples)
+        dets = np.linalg.det(basis)
+        return orth_weights/np.abs(dets)
+
 
 def _sample_ranges(samples):
     return np.vstack([samples.min(axis=1)[None, :],
@@ -108,6 +113,15 @@ class CompositionTransform():
             self.map_to_orthogonal,
             self._normalized_curvelinear_basis,
             bndry_id, samples)
+
+    def modify_quadrature_weights(self, orth_samples, orth_weights):
+        weights = self._transforms[0].modify_quadrature_weights(
+            orth_samples, orth_weights)
+        for ii, transform in enumerate(self._transforms[1:]):
+            orth_samples = self._transforms[ii].map_from_orthogonal(orth_samples)
+            weights = self._transforms[ii+1].modify_quadrature_weights(
+                orth_samples, weights)
+        return weights
 
 
 class ScaleAndTranslationTransform(OrthogonalCoordinateTransform2D):
@@ -164,8 +178,11 @@ class ScaleAndTranslationTransform(OrthogonalCoordinateTransform2D):
 
 class PolarTransform(OrthogonalCoordinateTransform2D):
     def map_from_orthogonal(self, orth_samples):
-        if orth_samples[1].max() > 2*np.pi:
+        if orth_samples[1].max() > 2*np.pi or orth_samples[1].min() < 0:
             raise ValueError("theta must be in [0, 2*pi]")
+        if orth_samples[0].min() < 0:
+            print(orth_samples[0])
+            raise ValueError("r must be in [0, np.inf]")
         r, theta = orth_samples
         samples = np.vstack(
             [r*np.cos(theta)[None, :], r*np.sin(theta)[None, :]])
@@ -195,8 +212,8 @@ class PolarTransform(OrthogonalCoordinateTransform2D):
         # basis is [b1, b2]
         # form b1, b2 using hstack then form basis using dstack
         basis = np.dstack(
-            [np.hstack([cos_t, sin_t])[..., None],
-             np.hstack([-sin_t/r, cos_t/r])[..., None]])
+            [np.hstack([cos_t, sin_t])[..., None], # first basis
+             np.hstack([-sin_t/r, cos_t/r])[..., None]]) # second basis
         return basis
 
 

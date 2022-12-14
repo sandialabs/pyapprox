@@ -6,7 +6,8 @@ from functools import partial
 from pyapprox.pde.autopde.mesh_transforms import (
     ScaleAndTranslationTransform, PolarTransform,
     EllipticalTransform, CompositionTransform, SympyTransform)
-from pyapprox.util.utilities import cartesian_product, approx_fprime
+from pyapprox.util.utilities import (
+    cartesian_product, approx_fprime, outer_product)
 
 
 class TestMeshTransforms(unittest.TestCase):
@@ -19,8 +20,6 @@ class TestMeshTransforms(unittest.TestCase):
         def _fun(samples):
             return np.sum(samples**2, axis=0)[:, None]
 
-        orth_sample = np.random.uniform(-1, 1, (2, 1))
-        sample = transform.map_from_orthogonal(orth_sample)
         grad_fd = []
         for sample in samples.T:
             grad_fd.append(approx_fprime(sample[:, None], _fun))
@@ -37,9 +36,25 @@ class TestMeshTransforms(unittest.TestCase):
         orth_grad_fd = np.asarray(orth_grad_fd)
         grad = transform.scale_orthogonal_gradients(basis, orth_grad_fd)
         # print(grad, "fx")
-        # print((grad_fd-grad))
+        # print(grad_fd)
+        # print(grad_fd-grad)
         tol = 1e-7
         assert np.allclose(grad_fd, grad, atol=tol, rtol=tol)
+
+    def _check_integral(self, transform, exact_integral, fun, npts_1d=20):
+        # assumes transform is from [-1, -1]*ndims
+        from pyapprox.surrogates.orthopoly.quadrature import (
+            gauss_jacobi_pts_wts_1D)
+        quad_rules = [
+            gauss_jacobi_pts_wts_1D(npts_1d, 0, 0)]*2
+        orth_samples = cartesian_product([q[0] for q in quad_rules])
+        # multiply 1D weights by 2 to get them to remove PDF of uniform
+        # variable on [-1, 1]
+        orth_weights = outer_product([q[1]*2 for q in quad_rules])
+        weights = transform.modify_quadrature_weights(orth_samples, orth_weights)
+        integral = fun(transform.map_from_orthogonal(orth_samples)).dot(weights)
+        print(integral, exact_integral)
+        assert np.allclose(integral, exact_integral)
 
     @staticmethod
     def _get_orthogonal_boundary_samples(npts):
@@ -77,7 +92,7 @@ class TestMeshTransforms(unittest.TestCase):
 
     def test_scale_translation(self):
         nsamples_1d = [3, 3]
-        ranges = [0.5, 1., 0., 3]
+        ranges = np.array([0.5, 1., 0., 3])
         transform = ScaleAndTranslationTransform(
             [-1, 1, -1, 1], ranges)
 
@@ -90,6 +105,8 @@ class TestMeshTransforms(unittest.TestCase):
              np.linspace(*ranges[2:], nsamples_1d[1])]))
         assert np.allclose(transform.map_to_orthogonal(samples), orth_samples)
         self._check_gradients(transform, orth_samples, samples)
+        self._check_integral(transform, np.prod(ranges[1::2]-ranges[::2]),
+                             lambda xx: np.ones(xx.shape[1]))
 
         def _rectangle_normals(bndry_id, orth_line, line):
             zeros = np.zeros_like(orth_line[0])[:, None]
@@ -107,9 +124,13 @@ class TestMeshTransforms(unittest.TestCase):
 
     def test_polar_transform(self):
         nsamples_1d = [3, 3]
+        rmin, rmax = 0.5, 1
+        tmin, tmax = 3*np.pi/4, np.pi/4
         scale_transform = ScaleAndTranslationTransform(
-            #[-1, 1, -1, 1], [0.5, 1., .4*np.pi, 7*np.pi/4])
-            [-1, 1, -1, 1], [0.5, 1., np.pi/4, 3*np.pi/4])
+            # keep counter clockwise direction
+            # [-1, 1, -1, 1], [0.5, 1., np.pi/4, 3*np.pi/4])
+            # reverse direction from counter clockwise to clockwise
+            [-1, 1, -1, 1], [rmin, rmax, 3*np.pi/4, np.pi/4])
         polar_transform = PolarTransform()
         orth_samples = cartesian_product(
             [np.linspace(-1, 1, nsamples_1d[0]),
@@ -119,7 +140,7 @@ class TestMeshTransforms(unittest.TestCase):
         assert np.allclose(
             polar_transform.map_to_orthogonal(samples), polar_orth_samples)
         self._check_gradients(polar_transform, polar_orth_samples, samples)
-
+        
         def _circle_normals(bndry_id, orth_line, line):
             r, theta = orth_line
             y = np.sqrt(r**2-line[0]**2)
@@ -149,6 +170,17 @@ class TestMeshTransforms(unittest.TestCase):
         samples = transform.map_from_orthogonal(orth_samples)
         assert np.allclose(transform.map_to_orthogonal(samples), orth_samples)
         self._check_gradients(transform, orth_samples, samples)
+        # use abs on tmax-tmin because we are just calculating ratio of angle
+        # to possible angle in cicle
+        # exact_integral = (np.pi*rmax**2-np.pi*rmin**2)*(abs(tmax-tmin)/(2*np.pi))
+        # fun = lambda xx: np.ones(xx.shape[1])
+        exact_integral = (np.pi*rmax**2-np.pi*rmin**2)*(abs(tmax-tmin)/(2*np.pi))
+        fun = lambda xx: np.prod(xx**2, axis=0)
+        # Mathematica input
+        # Integrate[x^2*y^2, {x, y} \[Element] Disk[{0, 0}, r]]
+        exact_integral = (np.pi*rmax**6/24-np.pi*rmin**6/24)*(
+            abs(tmax-tmin)/(2*np.pi))
+        self._check_integral(transform, exact_integral, fun)
 
         orth_lines = self._get_orthogonal_boundary_samples(31)
         # _circle_normals assumes ortho_samples have been transformed from
@@ -282,7 +314,6 @@ class TestMeshTransforms(unittest.TestCase):
         sympy_orth_lines = [scale_transform.map_from_orthogonal(
                 orth_lines[bndry_id]) for bndry_id in range(4)]
         self._check_normals(sympy_transform, sympy_orth_lines, _normals)
-
 
 if __name__ == "__main__":
     mesh_transforms_test_suite = \
