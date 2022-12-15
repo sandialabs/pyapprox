@@ -371,7 +371,7 @@ def _setup_inverse_advection_diffusion_benchmark(
                    obs_indices, noise_std)
     inv_functional_deriv_funs = [dqdu, dqdp]
 
-    newton_kwargs = {"maxiters": 1, "rel_error": True, "verbosity": 0}
+    newton_kwargs = {"maxiters": 1, "rtol": 1e-7, "verbosity": 0}
     inv_model, variable = _setup_advection_diffusion_benchmark(
         amp, scale, loc, length_scale, sigma, nvars, orders,
         inv_functional, inv_functional_deriv_funs, newton_kwargs=newton_kwargs)
@@ -397,7 +397,7 @@ def _setup_multi_index_advection_diffusion_benchmark(
     amp, scale = 100.0, 0.1
     loc = torch.tensor([0.25, 0.75])[:, None]
 
-    newton_kwargs = {"maxiters": 1, "rel_error": False}
+    newton_kwargs = {"maxiters": 1, "rtol": 0}
     if config_values is None:
         nlevels = 2
         config_values = [

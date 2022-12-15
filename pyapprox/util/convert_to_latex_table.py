@@ -52,7 +52,7 @@ def convert_to_latex_table(table_data, latex_filename, column_labels,
     table_string = r'\hline '
     if corner_labels is not None:
         if len(corner_labels) == 2:
-            table_string += r' \backslashbox{%s}{%s} &' % (
+            table_string += r' \diagbox{%s}{%s} &' % (
                 corner_labels[0], corner_labels[1])
         else:
             table_string += r' %s &' % (corner_labels[0])
@@ -60,23 +60,22 @@ def convert_to_latex_table(table_data, latex_filename, column_labels,
         table_string += '&'
     for i in range(1, table_data.shape[1]):
         table_string += '%s &' % column_labels[i-1]
-    table_string += r'%s \\\ \n' % column_labels[-1]
+    table_string += r'%s \\' % column_labels[-1] + ' \n'
     for i in range(table_data.shape[0]):
         table_string += r'\hline '
         table_string += '%s ' % row_labels[i]
         for j in range(table_data.shape[1]):
             table_string += convert_table_element_to_string(
                 table_data[i, j], bold_entries[i, j], underline_entries[i, j], precision)
-        table_string += r"\\\ \n"
-    table_string += r'\hline\n'
+        table_string += r"\\ "+"\n"
+    table_string += r'\hline'
 
     file_string = r"""
 \documentclass{standalone}
 \usepackage{amsfonts,amsmath,amssymb,caption}
-\usepackage{slashbox}
+\usepackage{diagbox}
 \usepackage[margin=1in]{geometry}
-\captionsetup{justification=centering,margin=0.05\\textwidth}
-\addtolength{\\tabcolsep}{-0.5pt}
+\captionsetup{justification=centering}
 \begin{document}
 \tiny
 \minipage{%s}
