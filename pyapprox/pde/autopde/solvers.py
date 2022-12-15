@@ -105,8 +105,12 @@ class TransientPDE():
 
     def solve(self, init_sol, init_time, final_time, verbosity=0,
               newton_kwargs={}):
+        self.physics._clear_data()
+        self.physics._store_data = True
         sols, times = self.time_integrator.integrate(
             init_sol, init_time, final_time, verbosity, newton_kwargs)
+        self.physics._clear_data()
+        self.physics._store_data = False
         return sols, times
 
 

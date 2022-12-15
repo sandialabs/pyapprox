@@ -14,6 +14,7 @@ class AbstractSpectralCollocationPhysics(ABC):
             bndry_conds)
         self._auto_jac = True
         self._define_flux()
+        self._store_data = False
 
     def _define_flux(self):
         if type(self.mesh) == VectorMesh:
@@ -78,6 +79,10 @@ class AbstractSpectralCollocationPhysics(ABC):
     def _scalar_flux_jac(self, mesh, idx):
         return [mesh._dmat(dd)[idx] for dd in range(mesh.nphys_vars)]
 
+    def _clear_data(self):
+        # used for data that is the same for entire transient simulation
+        pass
+
 
 class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
     def __init__(self, mesh, bndry_conds, diff_fun, vel_fun, react_fun,
@@ -100,9 +105,18 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
 
         self._auto_jac = False
 
+        # data that persists during transient run
+        # this must assume that diff vals and vel_vals are time independent
+        # if this is not true set _store_data= False
+        self._flux_vals = None
+        self._linear_jac = None
+
+    def _clear_data(self):
+        self._flux_vals = None
+        self._linear_jac = None
+
     @staticmethod
-    def _linear_raw_residual(
-            mesh, sol, diff_fun, vel_fun, forc_fun, auto_jac):
+    def _linear_residual_jac(mesh, diff_fun, vel_fun):
         diff_vals = diff_fun(mesh.mesh_pts)
         # assert torch.all(diff_vals > 0)
         vel_vals = vel_fun(mesh.mesh_pts)
@@ -112,6 +126,16 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
                 multi_dot(
                     (mesh._dmats[dd], diff_vals*mesh._dmats[dd])) -
                 vel_vals[:, dd:dd+1]*mesh._dmats[dd])
+        return linear_jac
+
+    def _linear_raw_residual(
+            self, mesh, sol, diff_fun, vel_fun, forc_fun, auto_jac):
+        if not self._store_data or self._linear_jac is None:
+            linear_jac = self._linear_residual_jac(mesh, diff_fun, vel_fun)
+            if self._store_data:
+                self._linear_jac = linear_jac
+        else:
+            linear_jac = self._linear_jac
         res = multi_dot((linear_jac, sol))
         res += forc_fun(mesh.mesh_pts)[:, 0]
         if not auto_jac:
@@ -130,10 +154,13 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
             diff_fun = self._nonlinear_diff_fun
         else:
             diff_fun = self._diff_fun
-        linear_res, jac = self._linear_raw_residual(
+        linear_res, linear_jac = self._linear_raw_residual(
             self.mesh, sol, diff_fun, self._vel_fun, self._forc_fun,
             self._auto_jac)
         res = linear_res - self._react_fun(sol[:, None])[:, 0]
+        # copy is needed when self_store_data is true so when jac is changed
+        # it does not effect stored value
+        jac = linear_jac.clone()
         if jac is None:
             return res, None
 
@@ -163,9 +190,14 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
 
     def _scalar_flux_jac(self, mesh, idx):
         # idx used afterwards to allow for fast interpolate routines
-        diff_vals = self._diff_fun(self.mesh.mesh_pts)[idx]
-        return [diff_vals*mesh._dmat(dd)[idx]
-                for dd in range(mesh.nphys_vars)]
+        if not self._store_data or self._flux_vals is None:
+            diff_vals = self._diff_fun(self.mesh.mesh_pts)
+            flux_vals = [diff_vals*mesh._dmat(dd)
+                         for dd in range(mesh.nphys_vars)]
+            if self._store_data:
+                self._flux_vals = flux_vals
+            return [f[idx] for f in flux_vals]
+        return [f[idx] for f in self._flux_vals]
 
 
 class MultiSpeciesAdvectionDiffusionReaction(
