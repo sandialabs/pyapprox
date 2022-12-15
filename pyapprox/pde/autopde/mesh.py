@@ -396,11 +396,13 @@ class CanonicalCollocationMesh():
         self._partial_derivs = [partial(self.partial_deriv, dd=dd)
                                 for dd in range(self.nphys_vars)]
         self._dmats = [None for dd in range(self.nphys_vars)]
-        self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
         
-
-    def _clear_flux_normal_vals(self):
-        self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
+        # self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
+        self._normal_vals = [None for dd in range(2*self.nphys_vars)]
+        
+    # turned off because need way to only use when flux does not depend on solution
+    # def _clear_flux_normal_vals(self):
+    #     self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
         
     @staticmethod
     def _get_basis_types(nphys_vars, basis_types):
@@ -718,28 +720,28 @@ class CanonicalCollocationMesh():
             if bndry_cond[1] != "N" and bndry_cond[1] != "R":
                 continue
             idx = self._bndry_indices[ii]
-            normal_vals = self._bndrys[ii].normals(
-                self.mesh_pts[:, idx])
+            mesh_pts_idx =  self.mesh_pts[:, idx]
+            if self._normal_vals[ii] is None:
+                self._normal_vals[ii] = self._bndrys[ii].normals(mesh_pts_idx)
             flux_jac_vals = flux_jac(idx)
             flux_normal_vals = [
-                normal_vals[:, dd:dd+1]*flux_jac_vals[dd]
+                self._normal_vals[ii][:, dd:dd+1]*flux_jac_vals[dd]
                 for dd in range(self.nphys_vars)]
             # flux_normal_vals = [normal_vals[:, dd:dd+1]*self._dmat(dd)[idx]
             #                    for dd in range(self.nphys_vars)]
             # (D2*u)*n2+D2*u*n2
             jac[idx] = sum(flux_normal_vals)
-            bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
+            bndry_vals = bndry_cond[0](mesh_pts_idx)[:, 0]
             
-            # mesh_pts_idx =  self.mesh_pts[:, idx]
-            # if True: #self._flux_normal_vals[ii] is None:
+            # if self._flux_normal_vals[ii] is None:
+            #     # this does not work if flux is dependent on solution
+            #     # i.e. nonlinear diffusion in advection diffusion
             #     normal_vals = self._bndrys[ii].normals(
             #         mesh_pts_idx)
             #     flux_jac_vals = flux_jac(idx)
             #     self._flux_normal_vals[ii] = [
             #         normal_vals[:, dd:dd+1]*flux_jac_vals[dd]
             #         for dd in range(self.nphys_vars)]
-
-            # # (D2*u)*n2+D2*u*n2
             # jac[idx] = sum(self._flux_normal_vals[ii])
             # bndry_vals = bndry_cond[0](mesh_pts_idx)[:, 0]
             

@@ -93,14 +93,18 @@ class SteadyStatePDE():
             physics._store_data = True
         if clear_data:
             physics._clear_data()
-            #physics.mesh._clear_flux_normal_vals()
+            # if hasattr(physics.mesh, "_clear_flux_normal_vals"):
+            #     # todo add this attribute to vector mesh
+            #     physics.mesh._clear_flux_normal_vals()
 
     @staticmethod
     def _post_solve(physics, clear_data):
         physics._store_data = False
         if clear_data:
             physics._clear_data()
-            # physics.mesh._clear_flux_normal_vals()   
+            # if hasattr(physics.mesh, "_clear_flux_normal_vals"):
+            #     # todo add this attribute to vector mesh
+            #     physics.mesh._clear_flux_normal_vals()   
 
 
 class TransientPDE():
