@@ -116,7 +116,7 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         self._linear_jac = None
 
     @staticmethod
-    def _linear_residual_jac(mesh, diff_fun, vel_fun):
+    def _linear_raw_residual_jac(mesh, diff_fun, vel_fun):
         diff_vals = diff_fun(mesh.mesh_pts)
         # assert torch.all(diff_vals > 0)
         vel_vals = vel_fun(mesh.mesh_pts)
@@ -128,16 +128,24 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
                 vel_vals[:, dd:dd+1]*mesh._dmats[dd])
         return linear_jac
 
+    @staticmethod
+    def _linear_raw_residual_from_jac(linear_jac, mesh, sol, forc_fun, auto_jac):
+        res = multi_dot((linear_jac, sol))
+        res += forc_fun(mesh.mesh_pts)[:, 0]
+        return res
+    
     def _linear_raw_residual(
             self, mesh, sol, diff_fun, vel_fun, forc_fun, auto_jac):
-        if not self._store_data or self._linear_jac is None:
-            linear_jac = self._linear_residual_jac(mesh, diff_fun, vel_fun)
+        
+        if not self._store_data or self._linear_jac is None or self._nl_diff_fun is not None:
+            # if nl_diff_fun active then linear jac will change because diff vals
+            # used to construct will change
+            linear_jac = self._linear_raw_residual_jac(mesh, diff_fun, vel_fun)
             if self._store_data:
                 self._linear_jac = linear_jac
         else:
             linear_jac = self._linear_jac
-        res = multi_dot((linear_jac, sol))
-        res += forc_fun(mesh.mesh_pts)[:, 0]
+        res = self._linear_raw_residual_from_jac(linear_jac, mesh, sol, forc_fun, auto_jac)
         if not auto_jac:
             return res, linear_jac
         return res, None
@@ -158,11 +166,12 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
             self.mesh, sol, diff_fun, self._vel_fun, self._forc_fun,
             self._auto_jac)
         res = linear_res - self._react_fun(sol[:, None])[:, 0]
+        if linear_jac is None:
+            return res, None
+
         # copy is needed when self_store_data is true so when jac is changed
         # it does not effect stored value
         jac = linear_jac.clone()
-        if jac is None:
-            return res, None
 
         # _react_jac is actually a digaonal matrix but user is required to only
         # pass in the diagonal
@@ -227,10 +236,15 @@ class MultiSpeciesAdvectionDiffusionReaction(
         residual, jac = [], []
         jac = [[0 for jj in range(nspecies)] for ii in range(nspecies)]
         for ii in range(nspecies):
-            res_ii, jac_ii = AdvectionDiffusionReaction._linear_raw_residual(
-                self.mesh._meshes[ii], split_sols[ii], self._diff_funs[ii],
-                self._vel_funs[ii], self._forc_funs[ii],
+            jac_ii = AdvectionDiffusionReaction._linear_raw_residual_jac(
+                self.mesh._meshes[ii], self._diff_funs[ii], self._vel_funs[ii])
+            res_ii = AdvectionDiffusionReaction._linear_raw_residual_from_jac(
+                jac_ii, self.mesh._meshes[ii], split_sols[ii], self._forc_funs[ii],
                 self._auto_jac)
+            # res_ii, jac_ii = AdvectionDiffusionReaction._linear_raw_residual(
+            #     self.mesh._meshes[ii], split_sols[ii], self._diff_funs[ii],
+            #     self._vel_funs[ii], self._forc_funs[ii],
+            #     self._auto_jac)
             res_ii -= self._react_funs[ii](split_sols)
             residual.append(res_ii)
             if jac_ii is not None:
@@ -242,7 +256,6 @@ class MultiSpeciesAdvectionDiffusionReaction(
                         jac[ii][jj] = torch.diag(-react_jac_ii[jj])
                         #jac[ii][jj] = -react_jac_ii[jj]
                     else:
-                        print(type(jac_ii))
                         jac[ii][jj] = jac_ii - torch.diag(react_jac_ii[ii])
                         #jac[ii][jj] = jac_ii-react_jac_ii[ii]
 

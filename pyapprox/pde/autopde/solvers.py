@@ -68,7 +68,8 @@ class SteadyStatePDE():
     def __init__(self, physics):
         self.physics = physics
 
-    def solve(self, init_guess=None, **newton_kwargs):
+    def solve(self, init_guess=None, store_data=True, clear_data=True, **newton_kwargs):
+        SteadyStatePDE._pre_solve(self.physics, store_data, clear_data)
         if init_guess is None:
             init_guess = torch.ones(
                 (self.physics.mesh.nunknowns), dtype=torch.double)
@@ -83,7 +84,23 @@ class SteadyStatePDE():
             sol = init_guess.clone().detach().requires_grad_(auto_jac)
         sol = newton_solve(
             self.physics._residual, sol, **newton_kwargs)
+        SteadyStatePDE._post_solve(self.physics, clear_data)
         return sol
+
+    @staticmethod
+    def _pre_solve(physics, store_data, clear_data):
+        if store_data:
+            physics._store_data = True
+        if clear_data:
+            physics._clear_data()
+            #physics.mesh._clear_flux_normal_vals()
+
+    @staticmethod
+    def _post_solve(physics, clear_data):
+        physics._store_data = False
+        if clear_data:
+            physics._clear_data()
+            # physics.mesh._clear_flux_normal_vals()   
 
 
 class TransientPDE():
@@ -92,7 +109,7 @@ class TransientPDE():
         self.time_integrator = ImplicitRungeKutta(
             deltat, self.physics._transient_residual, tableau_name,
             constraints_fun=self._apply_boundary_conditions,
-            auto=physics._auto_jac)
+            auto=physics._auto_jac)     
 
     def _apply_boundary_conditions(self, raw_residual, raw_jac, sol, time):
         # boundary conditions are updated when residual is computed
@@ -104,13 +121,14 @@ class TransientPDE():
             self.physics.flux_jac)
 
     def solve(self, init_sol, init_time, final_time, verbosity=0,
-              newton_kwargs={}):
-        self.physics._clear_data()
-        self.physics._store_data = True
+              store_data=True, clear_data=True, newton_kwargs={}):
+        # advise against setting clear_data = False
+        # todo perhaps make hdg schme use derived clas from this oned
+        # that requires clear data = False so user cannot do the wrong thing
+        SteadyStatePDE._pre_solve(self.physics, store_data, clear_data)
         sols, times = self.time_integrator.integrate(
             init_sol, init_time, final_time, verbosity, newton_kwargs)
-        self.physics._clear_data()
-        self.physics._store_data = False
+        SteadyStatePDE._post_solve(self.physics, clear_data)
         return sols, times
 
 

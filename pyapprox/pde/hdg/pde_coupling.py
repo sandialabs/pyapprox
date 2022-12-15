@@ -91,7 +91,8 @@ class SubdomainInterface1D(SubdomainInterface):
             for xx in self._canonical_mesh_pts_1d]
 
         self._subdomain_pts = []
-        self._bases = []
+        
+        self._to_iface_bases = [None for ii in range(4)]
 
     def _set_ndof(self, ndof):
         # currently exact computation of dirichlet to neumann jacobian
@@ -124,7 +125,6 @@ class SubdomainInterface1D(SubdomainInterface):
         basis = univariate_lagrange_polynomial(
             self._canonical_mesh_pts[0],
             canonical_subdomain_pts[0, :])
-        # self._bases.append(basis)
         interp_vals = basis.dot(values)[:, None]
         return interp_vals
 
@@ -148,8 +148,9 @@ class SubdomainInterface1D(SubdomainInterface):
         return interp_vals
 
     def _interpolate_from_subdomain(self, subdomain, bndry_seg, flux):
-        basis = self._to_interface_basis(subdomain, bndry_seg)
-        return basis.dot(flux.numpy())[:, None]
+        # if self._to_iface_basis is None:
+        self._to_iface_bases[bndry_seg] = self._to_interface_basis(subdomain, bndry_seg)
+        return self._to_iface_bases[bndry_seg].dot(flux.numpy())[:, None]
 
     def _from_interface_basis(self, subdomain, bndry_seg):
         # cannot use self._active_dim which only applies to subdomain left of interface
@@ -246,6 +247,7 @@ class AbstractDomainDecomposition(ABC):
         self._solve_subdomain = None
 
         self._iface_bases = []
+        self._normals = None
 
     def get_subdomain_adjacency_matrix(self):
         # TODO make this a sparse matrix
@@ -302,6 +304,9 @@ class AbstractDomainDecomposition(ABC):
         mesh = physics.mesh
         tmp = [-drdu_inv[:, mesh._bndry_indices[ii]]
                for ii in self._subdomain_interface_bndry_indices[jj]]
+        if self._normals is None:
+            self._normals = [[None for ii in range(mesh.nphys_vars*2)]
+                             for jj in range(self._nsubdomains)]
         for ii, bndry_id in enumerate(
                 self._subdomain_interface_bndry_indices[jj]):
             idx = mesh._bndry_indices[bndry_id]
@@ -310,8 +315,12 @@ class AbstractDomainDecomposition(ABC):
                 # boundary are unique) back in so interpolation is more
                 # accurate
                 idx = np.hstack(([idx[0]-1], idx, idx[-1]+1))
-            normal_vals_ii = mesh._bndrys[bndry_id].normals(
-                mesh.mesh_pts[:, idx])
+            if self._normals[jj][ii] is None:
+                normal_vals_ii = mesh._bndrys[bndry_id].normals(
+                    mesh.mesh_pts[:, idx])
+                self._normals[jj][ii] = normal_vals_ii
+            else:
+                normal_vals_ii = self._normals[jj][ii]
             dfdu_ii = physics._scalar_flux_jac(
                 physics.mesh, idx)
             dfdu_ii_n = sum([
@@ -975,10 +984,11 @@ class TransientDomainDecompositionSolver():
         self._dirichlet_vals = None
         self._prev_sols = None
 
-    def _solve_subdomain_expanded(self, prev_sols, time, deltat, jj,
-                                  **subdomain_newton_kwargs):
+    def _solve_subdomain_expanded(
+            self, jj, **subdomain_newton_kwargs):
+        prev_sols, time, deltat, store_data, clear_data = self._data
         sol = self._decomp._subdomain_models[jj].solve(
-            prev_sols[jj], time, time+deltat,
+            prev_sols[jj], time, time+deltat, 0, store_data, clear_data,
             newton_kwargs=subdomain_newton_kwargs)[0][:, -1]
         physics = self._decomp._subdomain_models[jj].physics
         raw_drdu = physics._transient_residual(
@@ -991,12 +1001,12 @@ class TransientDomainDecompositionSolver():
         return sol, drdu
 
     def _update_subdomain_sols(self, prev_sols, time, deltat, subdomain_newton_kwargs,
-                               macro_newton_kwargs):
+                               macro_newton_kwargs, store_data, clear_data):
         if self._dirichlet_vals is None:
             self._dirichlet_vals = np.ones(
                 (self._decomp.get_ninterfaces_dof(), 1))
-        self._decomp._solve_subdomain = partial(
-            self._solve_subdomain_expanded, prev_sols, time, deltat)
+        self._data = prev_sols, time, deltat, store_data, clear_data
+        self._decomp._solve_subdomain = self._solve_subdomain_expanded
         self._dirichlet_vals = self._decomp._compute_interface_values(
             self._dirichlet_vals, subdomain_newton_kwargs, **macro_newton_kwargs)
         # TODO this has already been computed avoid recomputing and store
@@ -1004,7 +1014,8 @@ class TransientDomainDecompositionSolver():
         sols = []
         for jj in range(self._decomp._nsubdomains):
             sol_jj = self._decomp._subdomain_models[jj].solve(
-                prev_sols[jj], time, time+deltat, 0, subdomain_newton_kwargs)[0][:, -1:]
+                prev_sols[jj], time, time+deltat, 0, store_data, clear_data,
+                subdomain_newton_kwargs)[0][:, -1:]
             sols.append(sol_jj)
         return sols
 
@@ -1025,8 +1036,11 @@ class TransientDomainDecompositionSolver():
             if verbosity >= 1:
                 print("Time", time)
             deltat = min(deltat, final_time-time)
+            store_data = True
+            clear_data = abs(time-final_time) <= 1e-12 or time == init_time
             subdomain_sols = self._update_subdomain_sols(
-                sols[-1], time, deltat, subdomain_newton_kwargs, macro_newton_kwargs)
+                sols[-1], time, deltat, subdomain_newton_kwargs, macro_newton_kwargs,
+                store_data, clear_data)
             sols.append(subdomain_sols)
             time += deltat
             times.append(time)

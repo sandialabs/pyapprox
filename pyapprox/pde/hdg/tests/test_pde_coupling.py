@@ -35,7 +35,7 @@ def init_steady_state_subdomain_model(
         orders += subdomain_id
     mesh = TransformedCollocationMesh(orders, mesh_transform)
     react_funs = [lambda sol: 0*sol,
-                  lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))]
+                  lambda sol: torch.zeros((sol.shape[0], ))]
     bndry_conds = [
         [lambda x: torch.as_tensor(exact_sol(x)), "D"]
         for dd in range(nphys_vars*2)]
@@ -145,7 +145,7 @@ class TestPDECoupling(unittest.TestCase):
             assert np.absolute(res_norm) < 2e-14
             for jj in range(ninterfaces):
                 sp_jac[ii, jj] = res.diff(interface_syms[jj])
-
+                
         # boundary conditions cannot be passed into partial
         # as only shallow copy will be made and so when domain decomp
         # sets interpolation on some boundaries it inadvertently effects
@@ -499,9 +499,9 @@ class TestPDECoupling(unittest.TestCase):
                 assert np.allclose(
                     sol, sol_fun(model.physics.mesh.mesh_pts), atol=atol)
 
-            decomp_solver._decomp._solve_subdomain = partial(
-                decomp_solver._solve_subdomain_expanded,
-                exact_prev_sols, time-deltat, deltat)
+            decomp_solver._data = [exact_prev_sols, time-deltat, deltat, False, False]
+            decomp_solver._decomp._solve_subdomain = decomp_solver._solve_subdomain_expanded
+                
             residual, jac = domain_decomp._assemble_dirichlet_neumann_map_jacobian(
                 exact_dirichlet_vals)
             # print('res', residual)
@@ -597,31 +597,26 @@ class TestPDECoupling(unittest.TestCase):
     def test_transient_advection_diffusion_reaction(self):
         test_cases = [
             [[0, 1], [4], "x**2*(1+t)", "4", ["0"],
-             [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+             [lambda sol: 0*sol, lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"]],
             [[0, 1], [4], "x**2*(1+t)", "4", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], np.array([0, 0.2, 0.6, 0.8, 1.])],
             [[0, 1, 0, 1], [4, 4], "(x-1)*x*(1+t)*y**2", "1", ["1", "1"],
-             [lambda sol: 1*sol**2,
-              lambda sol: 1*torch.diag(2*sol[:, 0])],
+             [lambda sol: 1*sol**2, lambda sol: 2*sol[:, 0]],
              ["D", "N", "R", "D"]],
             [[0, 1, 0, 1], [5, 5], "(x-1)*x*(1+t)*y**2", "1", ["1", "1"],
-             [lambda sol: 1*sol**2,
-              lambda sol: 1*torch.diag(2*sol[:, 0])],
+             [lambda sol: sol**2, lambda sol: 2*sol[:, 0]],
              ["D", "N", "R", "D"], [np.array([0, 0.3, 1])]*2, "rectangular", 2e-8],
             [[0, 1, 0, 1], [4, 4], "(x-1)*x*(1+t)*y**2", "1", ["1", "1"],
-             [lambda sol: 1*sol**2,
-              lambda sol: 1*torch.diag(2*sol[:, 0])],
+             [lambda sol: sol**2, lambda sol: 2*sol[:, 0]],
              ["D", "D", "D", "D"], np.array([0, 0.3, 1, 0., 0.3, 1.]),
              "elbow"],
             [[0, 1, 0, 1], [12, 12],
              "x**2*y**2*(t+1)",
              "1", ["1", "1"],
-             [lambda sol: 0*sol**2,
-              lambda sol: 0*torch.diag(2*sol[:, 0])],
+             [lambda sol: 0*sol**2, lambda sol: 0*2*sol[:, 0]],
              ["D", "D", "D", "D"], None, "turbine", 1e-5]
         ]
         ii = 0

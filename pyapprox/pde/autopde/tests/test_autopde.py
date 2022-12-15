@@ -245,8 +245,10 @@ class TestAutoPDE(unittest.TestCase):
             solver.physics._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
         assert np.allclose(
             solver.physics._residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
+        solver.physics._clear_data()
         sol = solver.solve(
-            init_guess=exact_sol[:, 0]+np.random.normal(0, 1e-2, exact_sol.shape[0]), tol=1e-8, rtol=1e-12, verbosity=2)[:, None]
+            init_guess=exact_sol[:, 0]+np.random.normal(
+                0, 1e-2, exact_sol.shape[0]), tol=1e-8, rtol=1e-12, verbosity=2)[:, None]
         assert np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol) < 1e-9
 
@@ -273,8 +275,8 @@ class TestAutoPDE(unittest.TestCase):
             mesh_vals = torch.tile(param_vals, (mesh.mesh_pts.shape[1], ))
             residual._diff_fun = partial(
                 residual.mesh.interpolate, mesh_vals)
-        # grad = adj_solver.compute_gradient(
-        #     set_param_values, param_vals, tol=1e-8)
+            # grad = adj_solver.compute_gradient(
+            #     set_param_values, param_vals, tol=1e-8)
 
         def fun(params):
             set_param_values(

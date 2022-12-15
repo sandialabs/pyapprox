@@ -396,7 +396,12 @@ class CanonicalCollocationMesh():
         self._partial_derivs = [partial(self.partial_deriv, dd=dd)
                                 for dd in range(self.nphys_vars)]
         self._dmats = [None for dd in range(self.nphys_vars)]
+        self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
+        
 
+    def _clear_flux_normal_vals(self):
+        self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
+        
     @staticmethod
     def _get_basis_types(nphys_vars, basis_types):
         if basis_types is None:
@@ -471,8 +476,8 @@ class CanonicalCollocationMesh():
             canonical_eval_samples = canonical_eval_samples[None, :]
         if values.ndim == 1:
             values = values[:, None]
-        assert values.ndim == 2
-        assert values.shape[0] == self.nunknowns
+            assert values.ndim == 2
+            assert values.shape[0] == self.nunknowns
         return self._interpolate(values, canonical_eval_samples)
 
     def _interpolate(self, values, canonical_eval_samples):
@@ -724,6 +729,20 @@ class CanonicalCollocationMesh():
             # (D2*u)*n2+D2*u*n2
             jac[idx] = sum(flux_normal_vals)
             bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
+            
+            # mesh_pts_idx =  self.mesh_pts[:, idx]
+            # if True: #self._flux_normal_vals[ii] is None:
+            #     normal_vals = self._bndrys[ii].normals(
+            #         mesh_pts_idx)
+            #     flux_jac_vals = flux_jac(idx)
+            #     self._flux_normal_vals[ii] = [
+            #         normal_vals[:, dd:dd+1]*flux_jac_vals[dd]
+            #         for dd in range(self.nphys_vars)]
+
+            # # (D2*u)*n2+D2*u*n2
+            # jac[idx] = sum(self._flux_normal_vals[ii])
+            # bndry_vals = bndry_cond[0](mesh_pts_idx)[:, 0]
+            
             residual[idx] = torch.linalg.multi_dot((jac[idx], sol))-bndry_vals
             if bndry_cond[1] == "R":
                 jac[idx, idx] += bndry_cond[2]
