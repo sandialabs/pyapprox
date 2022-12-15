@@ -158,7 +158,7 @@ class AdvectionDiffusionReactionKLEModel():
         return 0*sol
 
     def _default_react_fun_jac(self, sol):
-        return torch.zeros((sol.shape[0], sol.shape[0]))
+        return torch.zeros((sol.shape[0]))
 
     def _fast_interpolate(self, values, xx):
         # interpolate assuming need to evaluate all mesh points

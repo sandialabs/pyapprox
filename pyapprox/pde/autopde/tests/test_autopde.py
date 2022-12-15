@@ -221,9 +221,9 @@ class TestAutoPDE(unittest.TestCase):
         # plt.plot(can_pts[0], can_pts[1], 'X')
         # plt.show()
 
+        exact_sol = sol_fun(mesh.mesh_pts)
         if nl_diff_funs[0] is not None:
             solver.physics._auto_jac = True
-            exact_sol = sol_fun(mesh.mesh_pts)
             np.set_printoptions(linewidth=1000)
             j_auto = torch.autograd.functional.jacobian(
                 lambda s: solver.physics._raw_residual(s)[0],
@@ -357,62 +357,62 @@ class TestAutoPDE(unittest.TestCase):
             # 0
             [[0, 1], [4], "-(x-1)*x/2", "4", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["1"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["1"],
-             [lambda sol: sol**2, lambda sol: torch.diag(2*sol[:, 0])],
+             [lambda sol: sol**2, lambda sol: 2*sol[:, 0]],
              # [lambda sol: 1*sol, lambda sol: 1*torch.eye(sol.shape[0])],
              ["D", "D"], ["C"]],
             # 4
             [[0, 1], [20], "0.5*(x-3)*x", "2+x", ["0"],
                 [lambda sol: 0*sol,
-                lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+                lambda sol: torch.zeros((sol.shape[0],))],
              ["N", "D"], ["C"]],
             [[0, 1], [4], "x**2", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "N"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["R", "D"], ["C"]],
             # When using periodic bcs must have reaction term to have a
             # unique solution
             [[0, 2*torch.pi], [30], "sin(x)", "1", ["0"],
-             [lambda sol: 1*sol, lambda sol: torch.eye(sol.shape[0])],
+             [lambda sol: 1*sol, lambda sol: torch.ones(sol.shape[0])],
              ["P", "P"], ["C"]],
             [[0, 1, 0, 1], [4, 4], "y**2*x**2", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "N", "N", "D"], ["C", "C"]],
             # 9
             [[0, .5, 0, 1], [16, 14], "y**2*sin(pi*x)", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "N", "N", "D"], ["C", "C"]],
             [[0, .5, 0, 1], [16, 14], "x**2*y**2", "1", ["0", "0"],
              [lambda sol: sol**2,
-              lambda sol: torch.diag(2*sol[:, 0])],
+              lambda sol: 2*sol[:, 0]],
              ["D", "N", "N", "D"], ["C", "C"]],
             [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "R", "D", "D"], ["C", "C"]],
             [None, [6, 6], "y**2*x**2", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D", "D", "D"], ["C", "C"], vertical_transform],
             [None, [6, 6], "y**2*x**2", "1", ["1", "0"],
              [lambda sol: 1*sol**2,
-              lambda sol: torch.diag(2*sol[:, 0])],
+              lambda sol: 2*sol[:, 0]],
              ["D", "D", "D", "N"], ["C", "C"], vertical_transform],
             # while solution is quadratic in the user domain
             # the solution is not quadratic in the canonical domain
@@ -420,21 +420,21 @@ class TestAutoPDE(unittest.TestCase):
             # 14
             [None, [20, 20], "y**2*x**2", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D", "D", "N"], ["C", "C"], polar_transform],
             [None, [20, 20], "y**2*x**2", "1", ["0", "0"],
              [lambda sol: 1*sol**2,
-              lambda sol: torch.diag(2*sol[:, 0])],
+              lambda sol: 2*sol[:, 0]],
              ["D", "D", "D", "N"], ["C", "C"], ellipse_transform],
             [[0, 1], [6], "(1+x)**2", "1", ["0"],
                 [lambda sol: 0*sol,
-                lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+                lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], ["C"], None,
              [lambda linear_diff, sol: linear_diff*(sol**2),
               nl_diff_jac]]
         ]
         ii = 0
-        for test_case in test_cases[-1:]:
+        for test_case in test_cases:
             np.random.seed(2)  # controls direction of finite difference
             print(ii)
             print(test_case)
@@ -589,31 +589,31 @@ class TestAutoPDE(unittest.TestCase):
         test_cases = [
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], "im_beuler1"],
             [[0, 1], [4], "x**2*(1+t)", "3", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], "im_beuler1"],
             [[0, 1], [4], "x**2*(1+t)", "3", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "N"], "im_beuler1"],
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], "im_crank2"],
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
              [lambda sol: 1*sol**2,
-              lambda sol: torch.diag(2*sol[:, 0])],
+              lambda sol: 2*sol[:, 0]],
              ["D", "D"], "im_crank2"],
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
              [lambda sol: 1*sol**2,
-              lambda sol: torch.diag(2*sol[:, 0])],
+              lambda sol: 2*sol[:, 0]],
              ["N", "D"], "im_crank2"],
             [[0, 1, 0, 1], [3, 3], "(x-1)*x*(1+t)**2*y**2", "1", ["1", "1"],
              [lambda sol: 1*sol**2,
-              lambda sol: torch.diag(2*sol[:, 0])],
+              lambda sol: 2*sol[:, 0]],
              ["D", "N", "R", "D"], "im_crank2"]
         ]
         for test_case in test_cases:
@@ -1475,10 +1475,8 @@ class TestAutoPDE(unittest.TestCase):
             [[0, 1], [4], ["0.5*(x-3)*x", "x**3+1"], ["1", "2"],
              [["0"], ["0"]],
              [lambda sol: sol[0]**2*sol[1], lambda sol: -sol[0]**2*sol[1]],
-             [lambda sol: [torch.diag(2*sol[0]*sol[1]),
-                           torch.diag(sol[0]**2)],
-              lambda sol: [torch.diag(-2*sol[0]*sol[1]),
-                           torch.diag(-sol[0]**2)]],
+             [lambda sol: [2*sol[0]*sol[1], sol[0]**2],
+              lambda sol: [-2*sol[0]*sol[1], -sol[0]**2]],
              [["D", "D"], ["D", "D"]], "im_beuler1"],
         ]
         for test_case in test_cases:

@@ -91,19 +91,14 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         self._react_jac = react_jac
         # diff is always assumed to be time independent
         self._nl_diff_fun = nl_diff_fun
-        self._nl_diff_jac = nl_diff_jac # is None then diffusion is assumed linear
+        # if nl_diff_jac is None then diffusion is assumed linear
+        self._nl_diff_jac = nl_diff_jac
         self._current_sol = None
 
         self._funs = [
             self._diff_fun, self._vel_fun, self._react_fun, self._forc_fun]
 
         self._auto_jac = False
-    
-    # def _parameterized_raw_residual(self, sol, params):
-    #     ndof = sol.shape[0]
-    #     diff_vals = params[:ndof]
-    #     forc_vals = params[ndof:2*ndof]
-    #     vel_vals = params[2*ndof:].reshape((ndof, 2))
 
     @staticmethod
     def _linear_raw_residual(
@@ -135,14 +130,16 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
             diff_fun = self._nonlinear_diff_fun
         else:
             diff_fun = self._diff_fun
-        linear_res, linear_jac = self._linear_raw_residual(
+        linear_res, jac = self._linear_raw_residual(
             self.mesh, sol, diff_fun, self._vel_fun, self._forc_fun,
             self._auto_jac)
         res = linear_res - self._react_fun(sol[:, None])[:, 0]
-        if linear_jac is None:
+        if jac is None:
             return res, None
 
-        jac = linear_jac - self._react_jac(sol[:, None])
+        # _react_jac is actually a digaonal matrix but user is required to only
+        # pass in the diagonal
+        jac.flatten()[::jac.shape[0]+1] -= self._react_jac(sol[:, None])
         if self._nl_diff_fun is None:
             return res, jac
 
@@ -150,8 +147,10 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         # in 1D div term = D[0]*K*D[0]*u
         # d/du div term = D[0]*K_u*D[0]*u + D[0]*K*D[0]
         # where K_0 is derivative of diffusion with respect to u
-        # linear jac also accounts for the second term (above) of derivative product rule
-        diff_jac_vals = self._nl_diff_jac(self._diff_fun(self.mesh.mesh_pts), sol[:, None])
+        # linear jac also accounts for the second term (above) of
+        # derivative product rule
+        diff_jac_vals = self._nl_diff_jac(
+            self._diff_fun(self.mesh.mesh_pts), sol[:, None])
         # diff jac vals should be a diagonal matrix
         assert diff_jac_vals.shape[1] == 1
         for dd in range(self.mesh.nphys_vars):
@@ -204,11 +203,16 @@ class MultiSpeciesAdvectionDiffusionReaction(
             residual.append(res_ii)
             if jac_ii is not None:
                 react_jac_ii = self._react_jacs[ii](split_sols)
+                # _react_jacs actually digaonal matrices but user is required
+                # to only pass in the diagonal
                 for jj in range(nspecies):
                     if ii != jj:
-                        jac[ii][jj] = -react_jac_ii[jj]
+                        jac[ii][jj] = torch.diag(-react_jac_ii[jj])
+                        #jac[ii][jj] = -react_jac_ii[jj]
                     else:
-                        jac[ii][jj] = jac_ii-react_jac_ii[ii]
+                        print(type(jac_ii))
+                        jac[ii][jj] = jac_ii - torch.diag(react_jac_ii[ii])
+                        #jac[ii][jj] = jac_ii-react_jac_ii[ii]
 
         if not self._auto_jac:
             return (torch.cat(residual),
