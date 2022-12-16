@@ -156,7 +156,7 @@ class SubdomainInterface1D(SubdomainInterface):
         # cannot use self._active_dim which only applies to subdomain left of interface
         mesh = subdomain.physics.mesh
         idx = mesh._bndry_indices[bndry_seg]
-        bndry_pts = mesh.mesh_pts[:, idx]
+        bndry_pts = mesh._bndry_slice(mesh.mesh_pts, idx, 1)
         basis = univariate_lagrange_polynomial(
             self._canonical_mesh_pts[0],
             self._left_transform.map_to_orthogonal(
@@ -172,7 +172,7 @@ class SubdomainInterface1D(SubdomainInterface):
             # add missing corners (deleted so degrees of freedom on boundary
             # are unique) back in so interpolation is more accurate
             idx = np.hstack(([idx[0]-1], idx, idx[-1]+1))
-        bndry_pts = mesh.mesh_pts[:, idx]
+        bndry_pts = mesh._bndry_slice(mesh.mesh_pts, idx, 1)
         basis = univariate_lagrange_polynomial(
             #mesh._transform.map_to_orthogonal(bndry_pts)[active_dim],
             self._left_transform.map_to_orthogonal(bndry_pts)[self._left_active_dim],
@@ -249,6 +249,11 @@ class AbstractDomainDecomposition(ABC):
         self._iface_bases = []
         self._normals = None
 
+        # updated with sols of each subdomain at each newton iteration
+        # After newton sol the final solutions can be obtained from this
+        # variable
+        self._sols =None
+
     def get_subdomain_adjacency_matrix(self):
         # TODO make this a sparse matrix
         adjacency_mat = np.zeros((self._ninterfaces, self._nsubdomains))
@@ -302,7 +307,9 @@ class AbstractDomainDecomposition(ABC):
         drdu_inv = torch.linalg.inv(drdu)
         flux, drdp = [], []
         mesh = physics.mesh
-        tmp = [-drdu_inv[:, mesh._bndry_indices[ii]]
+        # tmp = [-drdu_inv[:, mesh._bndry_indices[ii]]
+        #        for ii in self._subdomain_interface_bndry_indices[jj]]
+        tmp = [-mesh._bndry_slice(drdu_inv, mesh._bndry_indices[ii], 1)
                for ii in self._subdomain_interface_bndry_indices[jj]]
         if self._normals is None:
             self._normals = [[None for ii in range(mesh.nphys_vars*2)]
@@ -317,7 +324,7 @@ class AbstractDomainDecomposition(ABC):
                 idx = np.hstack(([idx[0]-1], idx, idx[-1]+1))
             if self._normals[jj][ii] is None:
                 normal_vals_ii = mesh._bndrys[bndry_id].normals(
-                    mesh.mesh_pts[:, idx])
+                    mesh._bndry_slice(mesh.mesh_pts, idx, 1))
                 self._normals[jj][ii] = normal_vals_ii
             else:
                 normal_vals_ii = self._normals[jj][ii]
@@ -329,18 +336,20 @@ class AbstractDomainDecomposition(ABC):
             drdp.append(
                 [torch.linalg.multi_dot((-dfdu_ii_n, tt)) for tt in tmp])
             flux.append(torch.linalg.multi_dot((dfdu_ii_n, sol)))
-        return flux, drdp
+        return flux, drdp, sol
 
     def _compute_subdomain_flux_jacobians(self, dirichlet_vals,
                                           **subdomain_newton_kwargs):
         self._set_dirichlet_values(dirichlet_vals)
         flux_jacobians = []
         fluxes = []
+        self._sols = []
         for jj in range(self._nsubdomains):
-            flux, drdp = self._compute_interface_fluxes(
+            flux, drdp, sol = self._compute_interface_fluxes(
                 jj, **subdomain_newton_kwargs)
             flux_jacobians.append(drdp)
             fluxes.append(flux)
+            self._sols.append(sol[:, None])
         return fluxes, flux_jacobians
 
     def _assemble_dirichlet_neumann_map_jacobian(
@@ -991,8 +1000,10 @@ class TransientDomainDecompositionSolver():
             prev_sols[jj], time, time+deltat, 0, store_data, clear_data,
             newton_kwargs=subdomain_newton_kwargs)[0][:, -1]
         physics = self._decomp._subdomain_models[jj].physics
+        physics._store_data = store_data
         raw_drdu = physics._transient_residual(
             sol, time+deltat)[1]
+        physics._store_data = False
         Id = torch.eye(sol.shape[0], dtype=torch.double)
         rhs = torch.empty(sol.shape[0], dtype=torch.double)  # dummy
         drdu = physics.mesh._apply_boundary_conditions(
@@ -1009,15 +1020,19 @@ class TransientDomainDecompositionSolver():
         self._decomp._solve_subdomain = self._solve_subdomain_expanded
         self._dirichlet_vals = self._decomp._compute_interface_values(
             self._dirichlet_vals, subdomain_newton_kwargs, **macro_newton_kwargs)
-        # TODO this has already been computed avoid recomputing and store
+        # Sols  has already been computed avoid recomputing and store
         # and reuse here
-        sols = []
-        for jj in range(self._decomp._nsubdomains):
-            sol_jj = self._decomp._subdomain_models[jj].solve(
-                prev_sols[jj], time, time+deltat, 0, store_data, clear_data,
-                subdomain_newton_kwargs)[0][:, -1:]
-            sols.append(sol_jj)
-        return sols
+        # sols = []
+        # for jj in range(self._decomp._nsubdomains):
+        #     sol_jj = self._decomp._subdomain_models[jj].solve(
+        #         prev_sols[jj], time, time+deltat, 0, store_data, clear_data,
+        #         subdomain_newton_kwargs)[0][:, -1:]
+        #     sols.append(sol_jj)
+        #     print(self._decomp._sols[jj])
+        #     print(sol_jj)
+        #     assert np.allclose(self._decomp._sols[jj], sol_jj)
+        # return sols
+        return self._decomp._sols
 
     def solve(self, init_sols, init_time, final_time, deltat, verbosity=0,
               subdomain_newton_kwargs={}, macro_newton_kwargs={}):

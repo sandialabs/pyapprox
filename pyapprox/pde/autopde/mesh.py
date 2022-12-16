@@ -690,12 +690,14 @@ class CanonicalCollocationMesh():
             self._dmats[dd] = dmat
         return dmat
 
-    def _apply_dirichlet_boundary_conditions(
+    def _apply_dirichlet_boundary_conditions_special_indexing(
             self, bndry_conds, residual, jac, sol):
+        # special indexing copies data which slows down function
+        
         # needs to have indices as argument so this fucntion can be used
         # when setting boundary conditions for forward and adjoint solves
 
-        # it is slightly faster to ste jac entries outside loop
+        # it is slightly faster to set jac entries outside loop
         idx = [self._bndry_indices[ii]
                for ii in range(len(bndry_conds)) if bndry_conds[ii][1] == "D"]
         if len(idx) == 0:
@@ -708,11 +710,44 @@ class CanonicalCollocationMesh():
             if bndry_cond[1] != "D":
                 continue
             idx = self._bndry_indices[ii]
+            print(idx)
             # jac[idx, :] = 0
             # jac[idx, idx] = 1
             bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
             residual[idx] = sol[idx]-bndry_vals
         return residual, jac
+
+    
+    @staticmethod
+    def _bndry_slice(vec, idx, axis):
+        # avoid copying data
+        if len(idx) == 1:
+            if axis == 0 :
+                return vec[idx]
+            return vec[:, idx]
+        stride = idx[1]-idx[0]
+        if axis == 0:
+            return vec[idx[0]:idx[-1]+1:stride]
+        return vec[:, idx[0]:idx[-1]+1:stride]
+
+    def _apply_dirichlet_boundary_conditions_slicing(
+            self, bndry_conds, residual, jac, sol):
+        for ii, bndry_cond in enumerate(bndry_conds):
+            if bndry_cond[1] != "D":
+                continue
+            idx = self._bndry_indices[ii]
+            jac[idx, ] = 0.
+            jac[idx, idx] = 1.
+            bndry_vals = bndry_cond[0](self._bndry_slice(self.mesh_pts, idx, 1))[:, 0]
+            residual[idx] = self._bndry_slice(sol, idx, 0)-bndry_vals
+        return residual, jac
+
+    def _apply_dirichlet_boundary_conditions(
+            self, bndry_conds, residual, jac, sol):
+        # return self._apply_dirichlet_boundary_conditions_special_indexing(
+        #     bndry_conds, residual, jac, sol)
+        return self._apply_dirichlet_boundary_conditions_slicing(
+            bndry_conds, residual, jac, sol)
 
     def _apply_neumann_and_robin_boundary_conditions(
             self, bndry_conds, residual, jac, sol, flux_jac):
@@ -720,7 +755,7 @@ class CanonicalCollocationMesh():
             if bndry_cond[1] != "N" and bndry_cond[1] != "R":
                 continue
             idx = self._bndry_indices[ii]
-            mesh_pts_idx =  self.mesh_pts[:, idx]
+            mesh_pts_idx =  self._bndry_slice(self.mesh_pts, idx, 1)
             if self._normal_vals[ii] is None:
                 self._normal_vals[ii] = self._bndrys[ii].normals(mesh_pts_idx)
             flux_jac_vals = flux_jac(idx)
@@ -733,23 +768,13 @@ class CanonicalCollocationMesh():
             jac[idx] = sum(flux_normal_vals)
             bndry_vals = bndry_cond[0](mesh_pts_idx)[:, 0]
             
-            # if self._flux_normal_vals[ii] is None:
-            #     # this does not work if flux is dependent on solution
-            #     # i.e. nonlinear diffusion in advection diffusion
-            #     normal_vals = self._bndrys[ii].normals(
-            #         mesh_pts_idx)
-            #     flux_jac_vals = flux_jac(idx)
-            #     self._flux_normal_vals[ii] = [
-            #         normal_vals[:, dd:dd+1]*flux_jac_vals[dd]
-            #         for dd in range(self.nphys_vars)]
-            # jac[idx] = sum(self._flux_normal_vals[ii])
-            # bndry_vals = bndry_cond[0](mesh_pts_idx)[:, 0]
-            
-            residual[idx] = torch.linalg.multi_dot((jac[idx], sol))-bndry_vals
+            # residual[idx] = torch.linalg.multi_dot((jac[idx], sol))-bndry_vals
+            residual[idx] = torch.linalg.multi_dot((self._bndry_slice(jac, idx, 0), sol))-bndry_vals
             if bndry_cond[1] == "R":
                 jac[idx, idx] += bndry_cond[2]
-                residual[idx] += bndry_cond[2]*sol[idx]
-                # assert False
+                # residual[idx] += bndry_cond[2]*sol[idx]
+                residual[idx] += bndry_cond[2]*self._bndry_slice(sol, idx, 0)
+
         return residual, jac
 
     def _apply_periodic_boundary_conditions(

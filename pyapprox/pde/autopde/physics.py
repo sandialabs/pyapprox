@@ -77,7 +77,7 @@ class AbstractSpectralCollocationPhysics(ABC):
         return res, jac
 
     def _scalar_flux_jac(self, mesh, idx):
-        return [mesh._dmat(dd)[idx] for dd in range(mesh.nphys_vars)]
+        return [mesh._bndry_slice(mesh._dmat(dd), idx, 0) for dd in range(mesh.nphys_vars)]
 
     def _clear_data(self):
         # used for data that is the same for entire transient simulation
@@ -136,7 +136,6 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
     
     def _linear_raw_residual(
             self, mesh, sol, diff_fun, vel_fun, forc_fun, auto_jac):
-        
         if not self._store_data or self._linear_jac is None or self._nl_diff_fun is not None:
             # if nl_diff_fun active then linear jac will change because diff vals
             # used to construct will change
@@ -205,8 +204,8 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
                          for dd in range(mesh.nphys_vars)]
             if self._store_data:
                 self._flux_vals = flux_vals
-            return [f[idx] for f in flux_vals]
-        return [f[idx] for f in self._flux_vals]
+            return [mesh._bndry_slice(f, idx, 0) for f in flux_vals]
+        return [mesh._bndry_slice(f, idx, 0) for f in self._flux_vals]
 
 
 class MultiSpeciesAdvectionDiffusionReaction(
