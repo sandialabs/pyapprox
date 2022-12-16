@@ -710,7 +710,6 @@ class CanonicalCollocationMesh():
             if bndry_cond[1] != "D":
                 continue
             idx = self._bndry_indices[ii]
-            print(idx)
             # jac[idx, :] = 0
             # jac[idx, idx] = 1
             bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]

@@ -768,8 +768,8 @@ class RectangularDomainDecomposition(AbstractTwoDDomainDecomposition):
                             self._nsubdomains_1d[0]+1),
                 np.linspace(self._bounds[2], self._bounds[3],
                             self._nsubdomains_1d[1]+1)]
-        print(len(intervals[0]),  self._nsubdomains_1d[0]+1)
-        print(len(intervals[1]),  self._nsubdomains_1d[1]+1)
+        # print(len(intervals[0]),  self._nsubdomains_1d[0]+1)
+        # print(len(intervals[1]),  self._nsubdomains_1d[1]+1)
         if (len(intervals[0]) != self._nsubdomains_1d[0]+1 or
                 len(intervals[1]) != self._nsubdomains_1d[1]+1):
             raise ValueError("intervals does not match self._nsubdomains")
