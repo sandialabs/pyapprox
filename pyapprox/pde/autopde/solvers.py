@@ -93,18 +93,18 @@ class SteadyStatePDE():
             physics._store_data = True
         if clear_data:
             physics._clear_data()
-            # if hasattr(physics.mesh, "_clear_flux_normal_vals"):
-            #     # todo add this attribute to vector mesh
-            #     physics.mesh._clear_flux_normal_vals()
+            if hasattr(physics.mesh, "_clear_flux_normal_vals"):
+                # todo add this attribute to vector mesh
+                physics.mesh._clear_flux_normal_vals()
 
     @staticmethod
     def _post_solve(physics, clear_data):
         physics._store_data = False
         if clear_data:
             physics._clear_data()
-            # if hasattr(physics.mesh, "_clear_flux_normal_vals"):
-            #     # todo add this attribute to vector mesh
-            #     physics.mesh._clear_flux_normal_vals()   
+            if hasattr(physics.mesh, "_clear_flux_normal_vals"):
+                # todo add this attribute to vector mesh
+                physics.mesh._clear_flux_normal_vals()   
 
 
 class TransientPDE():
@@ -129,6 +129,7 @@ class TransientPDE():
         # advise against setting clear_data = False
         # todo perhaps make hdg schme use derived clas from this oned
         # that requires clear data = False so user cannot do the wrong thing
+        self.physics.mesh._flux_islinear = self.physics._flux_islinear
         SteadyStatePDE._pre_solve(self.physics, store_data, clear_data)
         if self.time_integrator._tableau_name == "im_beuler1":
             # TODO currently prefactoring of linear jacobian only works for

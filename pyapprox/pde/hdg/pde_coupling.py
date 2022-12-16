@@ -99,21 +99,22 @@ class SubdomainInterface1D(SubdomainInterface):
         # assumes that boundary points are subsets of mesh points that lie on
         # boundary. This is purely for convienience so that additional
         # chain rule steps do not need to be applied.
-        # self._canonical_mesh_pts_1d = [
-        #     -np.cos(np.linspace(0., np.pi, ndof+2))[1:-1]]
+        self._canonical_mesh_pts_1d = [
+            -np.cos(np.linspace(0., np.pi, ndof+2))[1:-1]]
         # eps = 1e-2
         # self._canonical_mesh_pts_1d = [
         #     -np.cos(np.linspace(eps, np.pi-eps, ndof))]
-        from pyapprox.surrogates.orthopoly.quadrature import (
-            gauss_jacobi_pts_wts_1D)
-        self._canonical_mesh_pts_1d = [
-            gauss_jacobi_pts_wts_1D(ndof, 0, 0)[0]]
+        # from pyapprox.surrogates.orthopoly.quadrature import (
+        #     gauss_jacobi_pts_wts_1D)
+        # self._canonical_mesh_pts_1d = [
+        #     gauss_jacobi_pts_wts_1D(ndof, 0, 0)[0]]
         self._canonical_mesh_pts = cartesian_product(
             self._canonical_mesh_pts_1d)
         self._ndof = self._canonical_mesh_pts.shape[1]
 
     def _canonical_interpolate(
             self, canonical_subdomain_pts, canonical_mesh_pts_1d):
+        # print(canonical_subdomain_pts.shape, canonical_mesh_pts_1d.shape)
         if torch.is_tensor(self._values):
             values = self._values[:, 0].numpy()
         else:
@@ -331,8 +332,10 @@ class AbstractDomainDecomposition(ABC):
                 self._normals[jj][ii] = normal_vals_ii
             else:
                 normal_vals_ii = self._normals[jj][ii]
+            physics._store_data = True
             dfdu_ii = physics._scalar_flux_jac(
                 physics.mesh, idx)
+            physics._store_data = False
             dfdu_ii_n = sum([
                 normal_vals_ii[:, dd:dd+1]*dfdu_ii[dd]
                 for dd in range(mesh.nphys_vars)])

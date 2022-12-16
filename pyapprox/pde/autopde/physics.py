@@ -17,6 +17,7 @@ class AbstractSpectralCollocationPhysics(ABC):
         self._auto_jac = True
         self._define_flux()
         self._store_data = False
+        self._flux_islinear = False
 
     # @abstractmethod
     # def _islinear(self):
@@ -122,7 +123,7 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
 
         self._islinear = self._determine_if_linear()
         self._linear_jac_factors = None
-        print(self._islinear)
+        self._flux_islinear = self._nl_diff_fun is None
     
     def _determine_if_linear(self):
         # TODO allow react_fun to be set to None

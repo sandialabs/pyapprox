@@ -149,16 +149,11 @@ class AdvectionDiffusionReactionKLEModel():
     def _set_forward_solver(self, mesh, bndry_conds, vel_fun, react_funs,
                             forc_fun):
         if react_funs is None:
-            react_funs = [self._default_react_fun, self._default_react_fun_jac]
+            react_funs = [None, None]
         return SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, partial(full_fun_axis_1, 1), vel_fun,
             react_funs[0], forc_fun, react_funs[1]))
 
-    def _default_react_fun(self, sol):
-        return 0*sol
-
-    def _default_react_fun_jac(self, sol):
-        return torch.zeros((sol.shape[0]))
 
     def _fast_interpolate(self, values, xx):
         # interpolate assuming need to evaluate all mesh points
@@ -243,7 +238,7 @@ class TransientAdvectionDiffusionReactionKLEModel(
     def _set_forward_solver(self, mesh, bndry_conds, vel_fun, react_funs,
                             forc_fun):
         if react_funs is None:
-            react_funs = [self._default_react_fun, self._default_react_fun_jac]
+            react_funs = [None, None]
         return TransientPDE(
             AdvectionDiffusionReaction(
                 mesh, bndry_conds, partial(full_fun_axis_1, 1), vel_fun,

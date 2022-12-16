@@ -396,13 +396,13 @@ class CanonicalCollocationMesh():
         self._partial_derivs = [partial(self.partial_deriv, dd=dd)
                                 for dd in range(self.nphys_vars)]
         self._dmats = [None for dd in range(self.nphys_vars)]
-        
-        # self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
+
+        self._flux_islinear = False
+        self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
         self._normal_vals = [None for dd in range(2*self.nphys_vars)]
         
-    # turned off because need way to only use when flux does not depend on solution
-    # def _clear_flux_normal_vals(self):
-    #     self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
+    def _clear_flux_normal_vals(self):
+        self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
         
     @staticmethod
     def _get_basis_types(nphys_vars, basis_types):
@@ -758,12 +758,15 @@ class CanonicalCollocationMesh():
             mesh_pts_idx =  self._bndry_slice(self.mesh_pts, idx, 1)
             if self._normal_vals[ii] is None:
                 self._normal_vals[ii] = self._bndrys[ii].normals(mesh_pts_idx)
-            flux_jac_vals = flux_jac(idx)
-            flux_normal_vals = [
-                self._normal_vals[ii][:, dd:dd+1]*flux_jac_vals[dd]
-                for dd in range(self.nphys_vars)]
-            # flux_normal_vals = [normal_vals[:, dd:dd+1]*self._dmat(dd)[idx]
-            #                    for dd in range(self.nphys_vars)]
+            if not self._flux_islinear or self._flux_normal_vals[ii] is None:
+                flux_jac_vals = flux_jac(idx)
+                flux_normal_vals = [
+                    self._normal_vals[ii][:, dd:dd+1]*flux_jac_vals[dd]
+                    for dd in range(self.nphys_vars)]
+                if self._flux_islinear:
+                    self._flux_normal_vals[ii] = flux_normal_vals
+            else:
+                flux_normal_vals = self._flux_normal_vals[ii]
             # (D2*u)*n2+D2*u*n2
             jac[idx] = sum(flux_normal_vals)
             bndry_vals = bndry_cond[0](mesh_pts_idx)[:, 0]
