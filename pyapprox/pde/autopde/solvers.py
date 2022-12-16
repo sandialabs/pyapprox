@@ -130,8 +130,15 @@ class TransientPDE():
         # todo perhaps make hdg schme use derived clas from this oned
         # that requires clear data = False so user cannot do the wrong thing
         SteadyStatePDE._pre_solve(self.physics, store_data, clear_data)
+        if self.time_integrator._tableau_name == "im_beuler1":
+            # TODO currently prefactoring of linear jacobian only works for
+            # first order method
+            mod_newton_kwargs = newton_kwargs.copy()
+            mod_newton_kwargs["linear_solve"] = self.physics._linear_solve
+        else:
+            mod_newton_kwargs = newton_kwargs
         sols, times = self.time_integrator.integrate(
-            init_sol, init_time, final_time, verbosity, newton_kwargs)
+            init_sol, init_time, final_time, verbosity, mod_newton_kwargs)
         SteadyStatePDE._post_solve(self.physics, clear_data)
         return sols, times
 

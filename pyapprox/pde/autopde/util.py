@@ -1,7 +1,7 @@
 import torch
 
 
-def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
+def newton_solve(residual_fun, init_guess, linear_solve=None, tol=1e-7, maxiters=10,
                  verbosity=0, step_size=1, rtol=1e-7):
     if not init_guess.ndim == 1:
         raise ValueError("init_guess must be 1D tensor so AD can be used")
@@ -32,7 +32,10 @@ def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
                 raise ValueError("init_guess must have requires_grad=True")
             jac = torch.autograd.functional.jacobian(
                 lambda s: residual_fun(s)[0], sol, strict=True)
-        sol = sol-step_size*torch.linalg.solve(jac, residual)
+        if linear_solve is None:
+            sol = sol-step_size*torch.linalg.solve(jac, residual)
+        else:
+            sol = sol-step_size*linear_solve(jac, residual)
         # import numpy as np
         # np.set_printoptions(precision=2, suppress=True)
         # print('j', jac.detach().numpy())

@@ -45,7 +45,10 @@ def setup_advection_diffusion_reaction_manufactured_solution(
         [vel_expr*sol_expr.diff(symb, 1)
          for vel_expr, symb in zip(vel_exprs, symbs)])
 
-    reaction_expr = react_fun(sol_expr)
+    if react_fun is not None:
+        reaction_expr = react_fun(sol_expr)
+    else:
+        reaction_expr = 0
 
     # du/dt - diff + advec + react = forc
     forc_expr = -diffusion_expr+advection_expr+reaction_expr

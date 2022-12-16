@@ -358,8 +358,7 @@ class TestAutoPDE(unittest.TestCase):
         test_cases = [
             # 0
             [[0, 1], [4], "-(x-1)*x/2", "4", ["0"],
-             [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0],))],
+             [None, None],
              ["D", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
              [lambda sol: 0*sol,
@@ -468,7 +467,7 @@ class TestAutoPDE(unittest.TestCase):
         # print(grad, 'g')
         p0 = param_vals.numpy()[:, None]
         errors = check_gradients(
-            fun, True, p0, fd_eps=np.logspace(-13, 0, 14)[::-1])
+            fun, True, p0, fd_eps=0.5*np.logspace(-13, 0, 14)[::-1])
         print(errors.min()/errors.max())
         assert errors.min()/errors.max() < 6.5e-7
 
@@ -590,13 +589,9 @@ class TestAutoPDE(unittest.TestCase):
     def test_transient_advection_diffusion_reaction(self):
         test_cases = [
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
-             [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0],))],
-             ["D", "D"], "im_beuler1"],
+             [None, None], ["D", "D"], "im_beuler1"],
             [[0, 1], [4], "x**2*(1+t)", "3", ["0"],
-             [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0],))],
-             ["D", "D"], "im_beuler1"],
+             [None, None], ["D", "D"], "im_beuler1"],
             [[0, 1], [4], "x**2*(1+t)", "3", ["0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0],))],
@@ -613,6 +608,8 @@ class TestAutoPDE(unittest.TestCase):
              [lambda sol: 1*sol**2,
               lambda sol: 2*sol[:, 0]],
              ["N", "D"], "im_crank2"],
+            [[0, 1, 0, 1], [3, 3], "(x-1)*x*(1+t)*y**2", "1", ["1", "1"],
+             [None, None], ["D", "N", "R", "D"], "im_beuler1"],
             [[0, 1, 0, 1], [3, 3], "(x-1)*x*(1+t)**2*y**2", "1", ["1", "1"],
              [lambda sol: 1*sol**2,
               lambda sol: 2*sol[:, 0]],

@@ -5,6 +5,8 @@ from torch.linalg import multi_dot
 from pyapprox.pde.autopde.mesh import VectorMesh
 from functools import partial
 
+from pyapprox.pde.autopde.solvers import TransientFunction
+
 
 class AbstractSpectralCollocationPhysics(ABC):
     def __init__(self, mesh, bndry_conds):
@@ -87,6 +89,9 @@ class AbstractSpectralCollocationPhysics(ABC):
         # used for data that is the same for entire transient simulation
         pass
 
+    def _linear_solve(self, jac, residual):
+        return torch.linalg.solve(jac, residual)
+
 
 class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
     def __init__(self, mesh, bndry_conds, diff_fun, vel_fun, react_fun,
@@ -115,13 +120,30 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         self._flux_vals = None
         self._linear_jac = None
 
+        self._islinear = self._determine_if_linear()
+        self._linear_jac_factors = None
+        print(self._islinear)
     
-    # def _islinear(self):
-    #     return self._react_fun is None and self._nl_diff_fun is None
+    def _determine_if_linear(self):
+        # TODO allow react_fun to be set to None
+        return self._react_fun is None and self._nl_diff_fun is None
+
+    def _linear_solve(self, jac, res):
+        if self._islinear:
+            if self._linear_jac_factors is None:
+                self._linear_jac_factors = torch.linalg.qr(jac, mode="complete")
+            # print((torch.linalg.multi_dot(self._linear_jac_factors)))
+            # print(jac)
+            # print((torch.linalg.multi_dot(self._linear_jac_factors))-jac)
+            # assert torch.allclose(torch.linalg.multi_dot(self._linear_jac_factors), jac)
+            tmp = torch.linalg.multi_dot((self._linear_jac_factors[0].T, res))[:, None]
+            return torch.triangular_solve(tmp, self._linear_jac_factors[1], upper=True)[0][:, 0]
+        return super()._linear_solve(jac, res)            
 
     def _clear_data(self):
         self._flux_vals = None
         self._linear_jac = None
+        self._linear_jac_factors = None
 
     @staticmethod
     def _linear_raw_residual_jac(mesh, diff_fun, vel_fun):
@@ -172,7 +194,10 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         linear_res, linear_jac = self._linear_raw_residual(
             self.mesh, sol, diff_fun, self._vel_fun, self._forc_fun,
             self._auto_jac)
-        res = linear_res - self._react_fun(sol[:, None])[:, 0]
+        res = linear_res
+        if self._react_fun is not None:
+            res -= self._react_fun(sol[:, None])[:, 0]
+            
         if linear_jac is None:
             return res, None
 
@@ -182,7 +207,8 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
 
         # _react_jac is actually a digaonal matrix but user is required to only
         # pass in the diagonal
-        jac.flatten()[::jac.shape[0]+1] -= self._react_jac(sol[:, None])
+        if self._react_jac is not None:
+            jac.flatten()[::jac.shape[0]+1] -= self._react_jac(sol[:, None])
         if self._nl_diff_fun is None:
             return res, jac
 

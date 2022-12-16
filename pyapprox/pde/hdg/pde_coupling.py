@@ -1002,11 +1002,15 @@ class TransientDomainDecompositionSolver():
         # is used to make sure timestep is the same before using stored drdu_inv
         self._tstep = None
         self._decomp._invert_drdu = self._invert_drdu
-        
 
     def _invert_drdu(self, drdu, jj):
         # print(self._drdu_inv[jj] is None, self._tstep, self._data[2])
-        if self._drdu_inv[jj] is None or self._tstep != self._data[2]:
+        if (self._drdu_inv[jj] is None or self._tstep != self._data[2]):
+            # only works for linear physics
+            # It does work even for time independent boundary conditions because
+            # the time aspect does not effect jacobian. We assume boundary type is
+            # the same for all time
+            # todo add checks
             self._drdu_inv[jj] = torch.linalg.inv(drdu)
             self._tstep = self._data[2]
         return self._drdu_inv[jj]
