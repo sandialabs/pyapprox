@@ -1007,7 +1007,6 @@ class TransientDomainDecompositionSolver():
         self._decomp._invert_drdu = self._invert_drdu
 
     def _invert_drdu(self, drdu, jj):
-        # print(self._drdu_inv[jj] is None, self._tstep, self._data[2])
         if (self._drdu_inv[jj] is None or self._tstep != self._data[2]):
             # only works for linear physics
             # It does work even for time independent boundary conditions because
@@ -1084,6 +1083,7 @@ class TransientDomainDecompositionSolver():
             sols.append(subdomain_sols)
             time += deltat
             times.append(time)
+        self._drdu_inv = [None for ii in range(self._decomp._nsubdomains)]
         return sols, times
 
 
