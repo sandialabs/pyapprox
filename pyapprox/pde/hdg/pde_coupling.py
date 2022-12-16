@@ -301,10 +301,13 @@ class AbstractDomainDecomposition(ABC):
                 dirichlet_vals[cnt:cnt+self._interfaces[ii]._ndof])
             cnt += self._interfaces[ii]._ndof
 
+    def _invert_drdu(self, drdu, jj):
+        return torch.linalg.inv(drdu)
+
     def _compute_interface_fluxes(self, jj, **subdomain_newton_kwargs):
         physics = self._subdomain_models[jj].physics
         sol, drdu = self._solve_subdomain(jj, **subdomain_newton_kwargs)
-        drdu_inv = torch.linalg.inv(drdu)
+        drdu_inv = self._invert_drdu(drdu, jj)
         flux, drdp = [], []
         mesh = physics.mesh
         # tmp = [-drdu_inv[:, mesh._bndry_indices[ii]]
@@ -992,6 +995,21 @@ class TransientDomainDecompositionSolver():
         self._decomp = domain_decomp
         self._dirichlet_vals = None
         self._prev_sols = None
+
+        # # stores inverse of time stepping jacobian for linear physics
+        self._drdu_inv = [None for ii in range(self._decomp._nsubdomains)]
+        # even for linear physics drdu depends on timstep so this
+        # is used to make sure timestep is the same before using stored drdu_inv
+        self._tstep = None
+        self._decomp._invert_drdu = self._invert_drdu
+        
+
+    def _invert_drdu(self, drdu, jj):
+        # print(self._drdu_inv[jj] is None, self._tstep, self._data[2])
+        if self._drdu_inv[jj] is None or self._tstep != self._data[2]:
+            self._drdu_inv[jj] = torch.linalg.inv(drdu)
+            self._tstep = self._data[2]
+        return self._drdu_inv[jj]
 
     def _solve_subdomain_expanded(
             self, jj, **subdomain_newton_kwargs):

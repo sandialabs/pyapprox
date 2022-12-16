@@ -16,6 +16,10 @@ class AbstractSpectralCollocationPhysics(ABC):
         self._define_flux()
         self._store_data = False
 
+    # @abstractmethod
+    # def _islinear(self):
+    #     raise NotImplementedError()
+
     def _define_flux(self):
         if type(self.mesh) == VectorMesh:
             self.flux_jac = [
@@ -110,6 +114,10 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         # if this is not true set _store_data= False
         self._flux_vals = None
         self._linear_jac = None
+
+    
+    # def _islinear(self):
+    #     return self._react_fun is None and self._nl_diff_fun is None
 
     def _clear_data(self):
         self._flux_vals = None
