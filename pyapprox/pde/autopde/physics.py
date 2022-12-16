@@ -132,11 +132,17 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
     def _linear_solve(self, jac, res):
         if self._islinear:
             if self._linear_jac_factors is None:
-                self._linear_jac_factors = torch.linalg.qr(jac, mode="complete")
+                # this line does not work with pickle
+                #self._linear_jac_factors = torch.linalg.qr(jac, mode="complete")
+                # so use these three lines
+                import numpy as np
+                self._linear_jac_factors = np.linalg.qr(jac.numpy(), mode="complete")
+                self._linear_jac_factors = [torch.as_tensor(f, dtype=torch.double) for f in self._linear_jac_factors]
             # print((torch.linalg.multi_dot(self._linear_jac_factors)))
             # print(jac)
             # print((torch.linalg.multi_dot(self._linear_jac_factors))-jac)
             # assert torch.allclose(torch.linalg.multi_dot(self._linear_jac_factors), jac)
+            
             tmp = torch.linalg.multi_dot((self._linear_jac_factors[0].T, res))[:, None]
             return torch.triangular_solve(tmp, self._linear_jac_factors[1], upper=True)[0][:, 0]
         return super()._linear_solve(jac, res)            

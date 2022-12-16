@@ -408,8 +408,12 @@ class TestPDECoupling(unittest.TestCase):
                 react_funs[1]), deltat, "im_beuler1")
         sol_fun.set_time(0)
         init_sol = sol_fun(mesh.mesh_pts)
+        if react_funs[0] is None:
+            maxiters = 1
+        else:
+            maxiters = 10
         single_dom_sols, times = solver.solve(
-            init_sol, 0, final_time, newton_kwargs={"tol": 1e-8})
+            init_sol, 0, final_time, newton_kwargs={"tol": 1e-8, "maxiters": maxiters})
 
         init_subdomain_model = partial(
             init_transient_subdomain_model,
@@ -428,7 +432,8 @@ class TestPDECoupling(unittest.TestCase):
             domain_decomp = decomp_solver._decomp
             domain_decomp.init_subdomains(init_subdomain_model)
         else:
-            assert np.allclose(orders[0], orders)
+            # assert np.allclose(orders[0], orders)
+            ninterface_dof = np.min(orders)-1
             if domain_type == "rectangular":
                 if intervals is None:
                     nsubdomains_1d = [2, 2]
@@ -436,13 +441,13 @@ class TestPDECoupling(unittest.TestCase):
                     nsubdomains_1d = [len(intv)-1 for intv in intervals]
                 decomp_solver = TransientDomainDecompositionSolver(
                     RectangularDomainDecomposition(
-                        domain_bounds, nsubdomains_1d, orders[0]-1, intervals))
+                        domain_bounds, nsubdomains_1d, ninterface_dof, intervals))
             elif domain_type == "elbow":
                 decomp_solver = TransientDomainDecompositionSolver(
-                    ElbowDomainDecomposition(orders[0]-1, intervals))
+                    ElbowDomainDecomposition(ninterface_dof, intervals))
             elif domain_type == "turbine":
                 decomp_solver = TransientDomainDecompositionSolver(
-                    TurbineDomainDecomposition(orders[0]-1))
+                    TurbineDomainDecomposition(ninterface_dof))
             domain_decomp = decomp_solver._decomp
             domain_decomp.init_subdomains(init_subdomain_model)
 
@@ -507,8 +512,6 @@ class TestPDECoupling(unittest.TestCase):
             # print('res', residual)
             assert np.allclose(residual, 0, atol=atol)
 
-
-
         npts_1d = 21
         if nphys_vars == 1:
             xx = cartesian_product([
@@ -520,8 +523,10 @@ class TestPDECoupling(unittest.TestCase):
                  for model in domain_decomp._subdomain_models])
         subdomain_sols, times = decomp_solver.solve(
             init_sols, 0, final_time, deltat, verbosity=0,
-            subdomain_newton_kwargs={"verbosity": 0, "tol": 1e-8, "rtol": 1e-9},
-            macro_newton_kwargs={"verbosity": 0, "tol": 1e-8, "rtol": 1e-9})
+            subdomain_newton_kwargs={"verbosity": 0, "tol": 1e-8, "rtol": 1e-9,
+                                     "maxiters": maxiters},
+            macro_newton_kwargs={"verbosity": 0, "tol": 1e-8, "rtol": 1e-9,
+                                 "maxiters": maxiters})
         for ii, time in enumerate(times):
             sol_fun.set_time(time)
 
@@ -600,9 +605,11 @@ class TestPDECoupling(unittest.TestCase):
              [lambda sol: 0*sol, lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"]],
             [[0, 1], [4], "x**2*(1+t)", "4", ["0"],
-             [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0],))],
+             [None, None],
              ["D", "D"], np.array([0, 0.2, 0.6, 0.8, 1.])],
+            [[0, 1, 0, 1], [4, 4], "(x-1)*x*(1+t)*y**2", "(2+x*y)", ["1", "1"],
+             [None, None],
+             ["R", "R", "N", "N"]],
             [[0, 1, 0, 1], [4, 4], "(x-1)*x*(1+t)*y**2", "1", ["1", "1"],
              [lambda sol: 1*sol**2, lambda sol: 2*sol[:, 0]],
              ["D", "N", "R", "D"]],
@@ -613,10 +620,10 @@ class TestPDECoupling(unittest.TestCase):
              [lambda sol: sol**2, lambda sol: 2*sol[:, 0]],
              ["D", "D", "D", "D"], np.array([0, 0.3, 1, 0., 0.3, 1.]),
              "elbow"],
-            [[0, 1, 0, 1], [12, 12],
-             "x**2*y**2*(t+1)",
-             "1", ["1", "1"],
-             [lambda sol: 0*sol**2, lambda sol: 0*2*sol[:, 0]],
+            [[0, 1, 0, 1], [8, 12],
+             "x**2*y**2*(t+1)", "1", ["1", "1"],
+             [None, None],
+             # [lambda sol: 0*sol**2, lambda sol: 0*2*sol[:, 0]],
              ["D", "D", "D", "D"], None, "turbine", 1e-5]
         ]
         ii = 0
