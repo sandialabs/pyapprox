@@ -523,7 +523,10 @@ def _precompute_expected_deviation_data(
     out_pred_obs, in_pred_obs = _precompute_expected_kl_utility_data(
         out_quad_data, in_quad_data, obs_fun)
     in_samples = in_quad_data[0]
+    print(f"Running {in_samples.shape[1]} qoi model evaluations")
+    t0 = time.time()
     in_pred_qois = qoi_fun(in_samples)
+    print("Evaluations took", time.time()-t0)
     if in_pred_qois.shape[0] != in_samples.shape[1]:
         msg = "qoi_fun is not returning an array with the correct shape"
         raise ValueError(msg)
@@ -577,6 +580,7 @@ def _compute_negative_expected_deviation_monte_carlo(
     # deviations = deviation_fun(in_pred_qois, weights)
 
     out_obs = out_pred_obs[:, active_indices].copy()
+    # print(out_obs.shape, active_indices.shape, noise_samples.shape)
     out_obs += noise_samples[:, :active_indices.shape[0]]
     deviations, evidences = deviation_fun(
         out_obs, in_pred_obs, in_weights, active_indices, noise_std,
@@ -1175,7 +1179,7 @@ def deviation_worker_fun(arg):
             data_risk_fun, noise_samples, noise_std, active_indices, return_all)
         utility_vals[ii] = results[ii]["utility_val"]
         ii += 1
-    print("Worker Took", time.time()-t0, indices[0], indices[-1])
+    # print("Worker Took", time.time()-t0, indices[0], indices[-1])
     return utility_vals, results
 
 

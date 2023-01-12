@@ -138,7 +138,7 @@ def run_shell_command(shell_command, opts={}):
                             stderr=f, env=env)
     else:
         subprocess.call(shell_command, shell=True, env=env)
-
+        
 
 class DataFunctionModel(object):
     r"""
@@ -149,7 +149,8 @@ class DataFunctionModel(object):
     """
 
     def __init__(self, function, data=None, data_basename=None,
-                 save_frequency=None, use_hash=True, digits=16):
+                 save_frequency=None, use_hash=True, digits=16,
+                 base_model=None):
         """
         Parameters
         ----------
@@ -185,10 +186,11 @@ class DataFunctionModel(object):
             all samples in the database. This is slower.
 
         digits : integer
-            The number of significant digits used to ahs or compare samples
+            The number of significant digits used to has or compare samples
             in the database
         """
         self.function = function
+        self.base_model = base_model
 
         self.data = dict()
         self.samples = np.zeros((0, 0))
@@ -278,15 +280,25 @@ class DataFunctionModel(object):
             num_evaluations_ran = self.num_evaluations_ran
             batch_vals, batch_grads, new_sample_indices = self._call(
                 samples[:, lb:ub], return_grad)
-            data_filename = self.data_basename+'-%d-%d.pkl' % (
-                num_evaluations_ran,
-                num_evaluations_ran+len(new_sample_indices)-1)
             if return_grad:
                 grads_4_save = [batch_grads[ii] for ii in new_sample_indices]
             else:
                 grads_4_save = [None for ii in new_sample_indices]
             # I think this code will work only if function always does or does
             # not return grads
+            if vals is None:
+                vals = batch_vals
+                grads = copy.deepcopy(batch_grads)
+            else:
+                vals = np.vstack((vals, batch_vals))
+                grads += copy.deepcopy(batch_grads)
+
+            if len(new_sample_indices) == 0:
+                lb = ub
+                continue
+            data_filename = self.data_basename+'-%d-%d.pkl' % (
+                num_evaluations_ran,
+                num_evaluations_ran+len(new_sample_indices)-1)
             # np.savez(data_filename, vals=batch_vals[new_sample_indices],
             #          samples=samples[:, lb:ub][:, new_sample_indices],
             #          grads=grads_4_save)
@@ -294,13 +306,8 @@ class DataFunctionModel(object):
                 pickle.dump((
                     batch_vals[new_sample_indices],
                     samples[:, lb:ub][:, new_sample_indices], grads_4_save), f)
-            if vals is None:
-                vals = batch_vals
-                grads = copy.deepcopy(batch_grads)
-            else:
-                vals = np.vstack((vals, batch_vals))
-                grads += copy.deepcopy(batch_grads)
             lb = ub
+
         if not return_grad:
             return vals
         return vals, grads
