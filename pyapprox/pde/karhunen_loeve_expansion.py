@@ -338,6 +338,8 @@ class MeshKLE(object):
             eig_vals, eig_vecs = eigh(
                 K, turbo=False, eigvals=(K.shape[0]-nterms, K.shape[0]-1))
         else:
+            # see https://etheses.lse.ac.uk/2950/1/U615901.pdf
+            # page 42
             sqrt_weights = np.sqrt(self.quad_weights)
             sym_eig_vals, sym_eig_vecs = eigh(
                 sqrt_weights[:, None]*K*sqrt_weights, turbo=False,
