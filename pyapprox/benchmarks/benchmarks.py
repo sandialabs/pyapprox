@@ -485,13 +485,13 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
     Exponential decay (exp)
 
-    .. math:: \hat{c}_d=\exp\left(\log(c_\min)\frac{d+1}{D}\right)
+    .. math:: \hat{c}_d=\exp\left(\log(c_\mathrm{min})\frac{d+1}{D}\right)
 
     Squared-exponential decay (sqexp)
 
-    .. math:: \hat{c}_d=10^\left(\log_{10}(c_\min)\frac{(d+1)^2}{D}\right)
+    .. math:: \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D}\right)}
 
-    Here :math:`c_\min` is argument that sets the minimum value of :math:`c_D`.
+    Here :math:`c_\mathrm{min}` is argument that sets the minimum value of :math:`c_D`.
 
     Once the formula are used the coefficients are normalized such that
 
@@ -739,9 +739,9 @@ def setup_multi_index_advection_diffusion_benchmark(
 
     .. math::
 
-       \frac{\partial u}{\partial t}(x,t,\rv) &= \nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] -\nabla u(x,t,\rv)+g(x,t) &(x,t,\rv)\in D\times [0,1]\times\rvdom\\
-       \mathcal{B}(x,t,\rv)&=0  &(x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
-       u(x,t,\rv)&=u_0(x,\rv) & (x,t,\rv)\in D\times\{t=0\}\times\rvdom
+       \frac{\partial u}{\partial t}(x,t,\rv) = \nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] -\nabla u(x,t,\rv)+g(x,t) &(x,t,\rv)\in D\times [0,1]\times\rvdom\\
+       \mathcal{B}(x,t,\rv)=0  &(x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
+       u(x,t,\rv)=u_0(x,\rv) & (x,t,\rv)\in D\times\{t=0\}\times\rvdom
 
     where
 

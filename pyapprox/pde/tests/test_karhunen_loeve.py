@@ -183,7 +183,7 @@ class TestKLE(unittest.TestCase):
         level1, level2 = 6, 8
         # level1, level2 = 3, 3
         level = max(level1, level2)+1
-        nterms = 3
+        nterms = 6
         len_scale, sigma = 1, 1
         def trapezoid_rule(level):
             npts = 2**level+1
@@ -209,14 +209,14 @@ class TestKLE(unittest.TestCase):
         mesh_coords1, quad_weights1 = quad_rule(level1)
         quad_weights1 *= 2   # remove pdf of uniform variable
         # map to [lb, ub]
-        lb1, ub1 = 0, 1
+        lb1, ub1 = 0, 1.75
         dom_len1 = ub1-lb1
         mesh_coords1 = (mesh_coords1+1)/2*dom_len1+lb1
         quad_weights1 *= dom_len1/2
 
         mesh_coords2, quad_weights2 = quad_rule(level2)
         quad_weights2 *= 2   # remove pdf of uniform variable
-        lb2, ub2 = 1, 2
+        lb2, ub2 = 1.75, 2
         dom_len2 = ub2-lb2
         mesh_coords2 = (mesh_coords2+1)/2*dom_len2+lb2
         quad_weights2 *= dom_len2/2

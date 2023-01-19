@@ -38,7 +38,7 @@ torch.manual_seed(2)
 savefig = False
 
 #%%
-#The following code shows how to create and sample from two independent uniform random variables defined on [−2, 2]. We use uniform variables here, but any marginal from the scipy.stats module can be used.
+#The following code shows how to create and sample from two independent uniform random variables defined on :math:`[-2, 2]`. We use uniform variables here, but any marginal from the scipy.stats module can be used.
 nsamples = 30
 univariate_variables = [stats.uniform(-2, 4), stats.uniform(-2, 4)]
 variable = IndependentMarginalsVariable(univariate_variables)
