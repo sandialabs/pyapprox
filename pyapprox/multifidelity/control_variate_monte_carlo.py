@@ -2076,7 +2076,8 @@ def plot_model_recursion(recursion_index, ax):
             font_size=24)
 
 
-def plot_sample_allocation(reorder_allocation_mat, npartition_samples, ax):
+def plot_sample_allocation(reorder_allocation_mat, npartition_samples, ax,
+                           colors=None):
     from pyapprox.util.configure_plots import plt
     nmodels = reorder_allocation_mat.shape[0]
     active_partitions = []
@@ -2084,21 +2085,27 @@ def plot_sample_allocation(reorder_allocation_mat, npartition_samples, ax):
         active_partitions.append(np.where(
             (reorder_allocation_mat[:, 2*ii] == 1) |
             (reorder_allocation_mat[:, 2*ii+1] == 1))[0])
+    # remove z_0^* which is never nonzero
+    reorder_allocation_mat = reorder_allocation_mat[:, 1:]
     index = np.arange(reorder_allocation_mat.shape[1])+0.3
     y_offset = 0
-    colors = plt.cm.rainbow(np.linspace(0, 0.5, 2*nmodels))
+    if colors is None:
+        colors = plt.cm.rainbow(np.linspace(0, 0.5, 2*nmodels))
+    assert len(colors) == 2*nmodels
     for jj in range(len(npartition_samples)):
         used_by = np.ones(reorder_allocation_mat.shape[1], dtype=bool)
         used_by[reorder_allocation_mat[jj, :] != 1] = False
         selected_colors = [
             colors[jj] if uu else 'white' for uu in used_by]
-        ax.bar(index, npartition_samples[jj], 0.4, bottom=y_offset,
+        ax.bar(index, npartition_samples[jj], 0.8, bottom=y_offset,
                color=selected_colors)
         y_offset += npartition_samples[jj]
 
-    xticklabels = []
-    for ii in range(nmodels):
-        xticklabels += [r"$z_%d^\star$" % ii, r"$z_%d$" % ii]
+    # xticklabels = []
+    xticklabels = [r"$\mathcal{Z}_%d$" % 0]
+    for ii in range(1, nmodels):
+        xticklabels += [
+            r"$\mathcal{Z}_%d^\star$" % ii, r"$\mathcal{Z}_%d$" % ii]
     ax.set_xticks(index)
     ax.set_xticklabels(xticklabels)
 
