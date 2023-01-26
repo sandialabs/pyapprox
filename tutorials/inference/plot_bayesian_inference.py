@@ -204,8 +204,7 @@ prior.plot_density(label='prior', ax=axs[0])
 axs[0].axvline(x=x_truth, lw=3, label=r'$x_\text{truth}$')
 posterior.plot_density(plot_limits=prior.plot_limits,
                        ls='-', label='posterior', ax=axs[0])
-colorbar_lims = None  # [0,1.5]
-joint.plot_density(ax=axs[1], colorbar_lims=colorbar_lims)
+joint.plot_density(ax=axs[1])
 axhline = axs[1].axhline(y=data_obs, color='k')
 axplot = axs[1].plot(x_truth, data_obs, 'ok', ms=10)
 
@@ -277,9 +276,7 @@ for ii in range(num_obs):
     posteriors[ii].plot_density(
         plot_limits=prior.plot_limits, ls='-', label='posterior', ax=axs[0])
 
-colorbar_lims = None
-new_joint.plot_density(ax=axs[1], colorbar_lims=colorbar_lims,
-                       plot_limits=joint.plot_limits)
+new_joint.plot_density(ax=axs[1], plot_limits=joint.plot_limits)
 axhline = axs[1].axhline(y=data_obs, color='k')
 axplot = axs[1].plot(x_truth, data_obs, 'ok', ms=10)
 
