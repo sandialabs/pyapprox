@@ -1,19 +1,13 @@
-import copy
 import numpy as np
 from abc import ABC, abstractmethod
-from functools import partial
 import matplotlib.tri as tri
 import torch
 
 from pyapprox.util.utilities import cartesian_product
-from pyapprox.variables.transforms import _map_hypercube_samples
 from pyapprox.surrogates.interp.barycentric_interpolation import (
-    compute_barycentric_weights_1d, barycentric_interpolation_1d,
-    univariate_lagrange_polynomial)
+    compute_barycentric_weights_1d, univariate_lagrange_polynomial)
 from pyapprox.pde.autopde.mesh import CanonicalCollocationMesh
 from pyapprox.pde.autopde.util import newton_solve
-
-import matplotlib.pyplot as plt
 
 
 class SubdomainInterface(ABC):
@@ -1194,12 +1188,54 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
                 surf_string, bed_string, x3, x_end)
         transform_12 = self._get_subdomain(
                 surf_string_low, bed_string_low, x3, x_end)
-        transforms =  [
+        transforms = [
             transform_0, transform_1, transform_2, transform_3,
             transform_4, transform_5, transform_6, transform_7,
             transform_8, transform_9, transform_10, transform_11, transform_12]
         return transforms
 
+
+class GappyRectangularDomainDecomposition(RectangularDomainDecomposition):
+    """
+    Split rectanugar domain into rectangular subdomains with some subdomains
+    missing. For fluid flow this amounts to placing obstructions to the flow
+    """
+    def __init__(self, bounds, nsubdomains_1d, ninterface_dof,
+                 missing_subdomain_indices, ninterfaces, intervals=None):
+        missing_subdomain_indices = np.asarray(missing_subdomain_indices)
+        assert np.all(
+            missing_subdomain_indices.max(axis=0) < np.asarray(nsubdomains_1d))
+        self._missing_subdomain_indices = [
+            ind[1]*nsubdomains_1d[0]+ind[0]
+            for ind in missing_subdomain_indices]
+        super().__init__(bounds, nsubdomains_1d, ninterface_dof, intervals)
+        self._nsubdomains = np.prod(nsubdomains_1d) - len(
+            self._missing_subdomain_indices)
+        self._ninterfaces = ninterfaces
+
+    def _define_subdomain_transforms(self):
+        subdomain_transforms = super()._define_subdomain_transforms()
+        subdomain_transforms = [
+            trans for jj, trans in enumerate(subdomain_transforms)
+            if jj not in self._missing_subdomain_indices]
+        return subdomain_transforms
+
+    def _set_interface_data(self):
+        return super(RectangularDomainDecomposition,
+                     self)._set_interface_data()
+
+def get_active_subdomain_indices(nsubdomains_1d, missing_indices):
+    indices = cartesian_product([np.arange(nn) for nn in nsubdomains_1d])
+    # indices_flat = np.arange(indices.shape[1])
+    missing_indices_flat = [
+        ind[1]*nsubdomains_1d[0]+ind[0] for ind in missing_indices]
+    mask = np.ones(indices.shape[1], dtype=bool)
+    mask[missing_indices_flat] = False
+    indices = indices[:, mask]
+    return indices
+
+
+    
 # Notes
 # When using interface points that are on the boundary of the interface,
 # e.g. the end of the interval, then need to make sure not to pass in duplicate
