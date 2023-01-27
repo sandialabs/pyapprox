@@ -154,7 +154,6 @@ class AdvectionDiffusionReactionKLEModel():
             mesh, bndry_conds, partial(full_fun_axis_1, 1), vel_fun,
             react_funs[0], forc_fun, react_funs[1]))
 
-
     def _fast_interpolate(self, values, xx):
         # interpolate assuming need to evaluate all mesh points
         mesh = self._fwd_solver.physics.mesh

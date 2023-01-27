@@ -634,10 +634,11 @@ class OneDDomainDecomposition(AbstractDomainDecomposition):
                for jj, model in enumerate(self._subdomain_models)]
         return ims
 
+
 class AbstractTwoDDomainDecomposition(AbstractDomainDecomposition):
-    def interpolate(self, subdomain_mesh_values, samples):
+    def interpolate(self, subdomain_mesh_values, samples, default_val=0.):
         sample_mask_per_subdomain = self._in_subdomains(samples)
-        values = np.ones((samples.shape[1], 1))
+        values = np.full((samples.shape[1], 1), default_val)
         for jj in range(self._nsubdomains):
             if sample_mask_per_subdomain[jj].shape[0] > 0:
                 values[sample_mask_per_subdomain[jj]] = (
