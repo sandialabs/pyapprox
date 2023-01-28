@@ -13,6 +13,14 @@ from pyapprox.pde.hdg.pde_coupling import (
     get_active_subdomain_indices)
 
 
+def full_fun_axis_0(fill_val, xx, oned=True):
+    vals = torch.full((xx.shape[0], ), fill_val, dtype=torch.double)
+    if oned:
+        return vals
+    else:
+        return vals[:, None]
+
+
 def full_fun_axis_1(fill_val, xx, oned=True):
     vals = torch.full((xx.shape[1], ), fill_val, dtype=torch.double)
     if oned:
@@ -87,9 +95,8 @@ def init_steady_pressure_induced_flow_subdomain_model(
 
     diff_fun = partial(full_fun_axis_1, 1, oned=False)
     forc_fun = partial(full_fun_axis_1, 0., oned=False)
-    react_funs = [
-        lambda sol: 0*sol,
-        lambda sol: torch.zeros((sol.shape[0]))]
+    react_funs = [partial(full_fun_axis_0, 0, oned=False),
+                  partial(full_fun_axis_0, 0, oned=True)]
 
     mesh = TransformedCollocationMesh(orders, mesh_transform)
     solver = SteadyStatePDE(
@@ -120,9 +127,8 @@ def init_obstructed_tracer_flow_subdomain_model(
 
     # smaller diffusivity slows diffusion down
     diff_fun = partial(full_fun_axis_1, .1, oned=False)
-    react_funs = [
-        lambda sol: 0*sol,
-        lambda sol: torch.zeros((sol.shape[0]))]
+    react_funs = [partial(full_fun_axis_0, 0, oned=False),
+                  partial(full_fun_axis_0, 0, oned=True)]
 
     mesh = TransformedCollocationMesh(orders, mesh_transform)
     if deltat is not None:
@@ -156,7 +162,7 @@ class SteadyObstructedFlowModel():
         self.nominal_concentration = 1.0
         amp, scale = source_info[:2]
         loc = np.array(source_info[2:])
-        self.functional = functional
+        self._functional = functional
 
         nsubdomains_1d = [5, 3]
         # missing_subdomain_indices = [[1, 0], [1, 2], [3, 1]]
@@ -226,7 +232,10 @@ class SteadyObstructedFlowModel():
         subdomain_vels, vel_mags, norm_vels = self._get_velocities(
             self.psols)
         velmag_min = np.min([v.min() for v in vel_mags])
-        velmag_max = np.max([v.max() for v in vel_mags])*0.3
+        velmag_max = np.max([v.max() for v in vel_mags])
+        tmp = np.hstack(vel_mags).flatten()
+        tmp = tmp[tmp < np.quantile(tmp, 0.99)]
+        velmag_max = tmp.max()
         print(velmag_min, velmag_max)
         levels = np.linspace(velmag_min, velmag_max, 51)
         for jj, model in enumerate(
@@ -255,8 +264,13 @@ class SteadyObstructedFlowModel():
 
     def _eval(self, sample):
         tracer_sols = self._solve(sample)
-        qoi = self.functional(tracer_sols, sample.copy).numpy()
-        return qoi
+        qoi = self._functional(tracer_sols, sample.copy)
+        if isinstance(qoi, np.ndarray):
+            if qoi.ndim == 1:
+                return qoi
+            assert qoi.shape[1] == 1
+            return qoi[:, 0]
+        return np.asarray([qoi])
 
     def __call__(self, samples, return_grad=False):
         return evaluate_1darray_function_on_2d_array(

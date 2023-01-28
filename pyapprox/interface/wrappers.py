@@ -5,7 +5,6 @@ import os
 import glob
 from functools import partial
 from multiprocessing import Pool
-import sys
 import pickle
 import copy
 # from tqdm import tqdm
@@ -138,7 +137,7 @@ def run_shell_command(shell_command, opts={}):
                             stderr=f, env=env)
     else:
         subprocess.call(shell_command, shell=True, env=env)
-        
+
 
 class DataFunctionModel(object):
     r"""
@@ -865,7 +864,7 @@ class ActiveSetVariableModel(object):
     """
 
     def __init__(self, function, num_vars, inactive_var_values,
-                 active_var_indices):
+                 active_var_indices, base_model=None):
         # num_vars can de determined from inputs but making it
         # necessary allows for better error checking
         self.function = function
@@ -878,13 +877,9 @@ class ActiveSetVariableModel(object):
         assert np.all(self.active_var_indices < self.num_vars)
         self.inactive_var_indices = np.delete(
             np.arange(self.num_vars), active_var_indices)
+        self.base_model = base_model
 
-    def __call__(self, reduced_samples, return_grad=False):
-        has_return_grad = has_kwarg(self.function, "return_grad")
-        if return_grad and not has_return_grad:
-            msg = "return_grad set to true but function does not return grad"
-            raise ValueError(msg)
-
+    def _expand_samples(self, reduced_samples):
         raw_samples = get_all_sample_combinations(
             self.inactive_var_values, reduced_samples)
         samples = np.empty_like(raw_samples)
@@ -892,6 +887,14 @@ class ActiveSetVariableModel(object):
                 :] = raw_samples[:self.inactive_var_indices.shape[0]]
         samples[self.active_var_indices,
                 :] = raw_samples[self.inactive_var_indices.shape[0]:]
+        return samples
+
+    def __call__(self, reduced_samples, return_grad=False):
+        has_return_grad = has_kwarg(self.function, "return_grad")
+        if return_grad and not has_return_grad:
+            msg = "return_grad set to true but function does not return grad"
+            raise ValueError(msg)
+        samples = self._expand_samples(reduced_samples)
         if not has_return_grad:
             return self.function(samples)
         return self.function(samples, return_grad)
