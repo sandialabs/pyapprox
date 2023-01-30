@@ -469,6 +469,7 @@ def plot_unnormalized_2d_marginals(
     for ii, var in enumerate(all_variables):
         lb, ub = get_truncated_range(var, unbounded_alpha=0.995)
         quad_degrees = np.array([20]*(variable.num_vars()-1))
+        # quad_degrees = np.array([10]*(variable.num_vars()-1))
         samples_ii = np.linspace(lb, ub, nsamples_1d)
         from pyapprox.surrogates.polychaos.gpc import (
             _marginalize_function_1d, _marginalize_function_nd)
@@ -491,11 +492,15 @@ def plot_unnormalized_2d_marginals(
         X, Y, samples_2d = get_meshgrid_samples(
             [lb1, ub1, lb2, ub2], nsamples_1d)
         quad_degrees = np.array([10]*(variable.num_vars()-2))
-        values = _marginalize_function_nd(
-            partial(_unnormalized_pdf_for_marginalization,
-                    variable, loglike, np.array([pair[1], pair[0]])),
-            variable, quad_degrees, np.array([pair[1], pair[0]]),
-            samples_2d, qoi=qoi)
+        if variable.num_vars() > 2:
+            values = _marginalize_function_nd(
+                partial(_unnormalized_pdf_for_marginalization,
+                        variable, loglike, np.array([pair[1], pair[0]])),
+                variable, quad_degrees, np.array([pair[1], pair[0]]),
+                samples_2d, qoi=qoi)
+        else:
+            values = _unnormalized_pdf_for_marginalization(
+                variable, loglike, np.array([pair[1], pair[0]]), samples_2d)
         Z = np.reshape(values, (X.shape[0], X.shape[1]))
         ax = axs[pair[0]][pair[1]]
         # place a text box in upper left in axes coords
@@ -586,14 +591,13 @@ class GaussianLogLike(object):
                 tmp = self.noise_covar_inv*residual
             elif self.noise_covar_inv.ndim == 1:
                 tmp = self.noise_covar_inv[:, None]*residual
-                #vals[ii] = (residual.T*self.noise_covar_inv).dot(residual)
+                # vals[ii] = (residual.T*self.noise_covar_inv).dot(residual)
             else:
-                tmp = self.noise_covar_inv[:, None].dot(residual)
-                #vals[ii] = residual.T.dot(self.noise_covar_inv).dot(residual)
-        vals = residual.dot(tmp)
+                tmp = self.noise_covar_inv.dot(residual)
+                # vals[ii] = residual.T.dot(self.noise_covar_inv).dot(residual)
+            vals[ii] = residual.dot(tmp)
         vals += self.ndata*np.log(2*np.pi) + self.log_noise_covar_det
         vals *= -0.5
-
         vals = np.atleast_2d(vals)
         if not return_grad:
             return vals
@@ -605,9 +609,9 @@ class GaussianLogLike(object):
         grad = tmp.dot(self.model_jac(samples))
         return vals, grad
 
- 
+
 def loglike_from_negloglike(negloglike, samples, jac=False):
     if not jac:
         return -negloglike(samples)
     vals, grads = negloglike(samples, jac=jac)
-    return -vals, -grads   
+    return -vals, -grads

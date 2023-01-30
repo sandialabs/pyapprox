@@ -504,6 +504,7 @@ def _precompute_expected_kl_utility_data(out_quad_data, in_quad_data, obs_fun):
     print(f"Running {out_prior_samples.shape[1]} outer model evaluations")
     t0 = time.time()
     out_pred_obs = obs_fun(out_prior_samples)
+    print(out_pred_obs.max(), out_pred_obs.min())
     print("Evaluations took", time.time()-t0)
 
     if out_pred_obs.shape[0] != out_prior_samples.shape[1]:
@@ -1082,13 +1083,13 @@ def _get_deviation_compute_utilities_initargs(obj):
     # print("data time", time.time()-t0)
     return (initargs, )
 
-    
+
 def init_deviation_worker(initargs):
     data, in_pred_qois, funs = initargs
     global_oed_shared_data.set_data(data)
     global_oed_shared_data.set_in_pred_qois(*in_pred_qois)
     global_oed_shared_data.set_funs(*funs)
-    
+
 
 
 def from_buffer(name):
@@ -1609,6 +1610,8 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
                 self.ndesign_candidates*self.ndata_per_candidate):
             msg = "out_pred_obs.shape[1] != "
             msg += "self.ndesign_candidates*self.ndata_per_candidate. "
+            msg += f"{self.out_pred_obs.shape[1]}"
+            msg += f"!={self.ndesign_candidates}*{self.ndata_per_candidate} "
             msg += "check ndata_per_candidate.\nEach design candidate"
             msg += " must have the same number of data returned by obs_fun"
             raise ValueError(msg)
@@ -2130,7 +2133,7 @@ def get_posterior_2d_interpolant_from_oed_data(
     vals = weights/oed.in_weights
     # multiply vals by prior.
     vals *= prior_variable.pdf(oed.in_samples)
-    
+
     nin_samples = vals.shape[0]
 
     if quad_method == "gauss":
