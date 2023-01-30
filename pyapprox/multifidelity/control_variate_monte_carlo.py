@@ -1559,7 +1559,8 @@ def compute_covariance_from_control_variate_samples(values):
     return cov
 
 
-def plot_correlation_matrix(corr_matrix, ax=None, model_names=None):
+def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
+                            format_string='{:1.3f}'):
     """
     Plot a correlation matrix
 
@@ -1573,7 +1574,7 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None):
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     im = ax.matshow(corr_matrix, cmap="jet", aspect="auto")
     for (i, j), z in np.ndenumerate(corr_matrix):
-        ax.text(j, i, '{:1.3f}'.format(z), ha='center', va='center',
+        ax.text(j, i, format_string.format(z), ha='center', va='center',
                 fontsize=12, color='w')
     plt.colorbar(im, ax=ax)
     if model_names is None:

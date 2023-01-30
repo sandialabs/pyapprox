@@ -1121,7 +1121,7 @@ def compare_estimator_variances(target_costs, estimators):
 
 def plot_estimator_variances(optimized_estimators,
                              est_labels, ax, ylabel=None,
-                             relative=True):
+                             relative_id=0):
     """
     Plot variance as a function of the total cost for a set of estimators.
 
@@ -1133,7 +1133,7 @@ def plot_estimator_variances(optimized_estimators,
     est_labels : list (nestimators)
         String used to label each estimator
 
-    relative = True
+    relative_id the model id used to normalize variance
     """
     linestyles = ['-', '--', ':', '-.', (0, (5, 10))]
     nestimators = len(est_labels)
@@ -1144,7 +1144,8 @@ def plot_estimator_variances(optimized_estimators,
         est_variances.append(np.array(
             [est.optimized_variance for est in optimized_estimators[ii]]))
     for ii in range(nestimators):
-        ax.loglog(est_total_costs, est_variances[ii]/est_variances[0][0],
+        ax.loglog(est_total_costs,
+                  est_variances[ii]/est_variances[relative_id][0],
                   label=est_labels[ii], ls=linestyles[ii], marker='o')
     if ylabel is None:
         ylabel = r'$\mathrm{Estimator\;variance}$'
@@ -1154,7 +1155,7 @@ def plot_estimator_variances(optimized_estimators,
 
 
 def plot_acv_sample_allocation_comparison(
-        estimators, model_labels, ax):
+        estimators, model_labels, ax, legendloc=[0.925, 0.25]):
     """
     Plot the number of samples allocated to each model for a set of estimators
 
@@ -1211,4 +1212,5 @@ def plot_acv_sample_allocation_comparison(
     # / $N_\alpha$')
     ax.set_ylabel(
         mathrm_label("Precentage of target cost"))
-    ax.legend(loc=[0.925, 0.25])
+    if legendloc is not None:
+        ax.legend(loc=legendloc)

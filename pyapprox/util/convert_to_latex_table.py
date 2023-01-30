@@ -2,15 +2,12 @@ import numpy as np
 import os
 
 
-def convert_table_element_to_string(item, bold=False, underline=False, precision=1,
-                                    float_format='scientific'):
+def convert_table_element_to_string(
+        item, bold=False, underline=False, float_format="{0:.1e}"):
     if type(item) == int or type(item) == np.int64:
         latex_string = '%d' % item
     elif type(item) == float or type(item) == np.float64:
-        if float_format == 'scientific':
-            latex_string = '{0:.{1}e}'.format(item, precision)
-        else:
-            latex_string = '{0:.{1}f}'.format(item, precision)
+        latex_string = float_format.format(item)
     else:
         raise Exception
     if bold:
@@ -23,8 +20,8 @@ def convert_table_element_to_string(item, bold=False, underline=False, precision
 def convert_to_latex_table(table_data, latex_filename, column_labels,
                            row_labels, caption, output_dir=None,
                            bold_entries=None, underline_entries=None,
-                           width=None, corner_labels=None, precision=1,
-                           float_format='scientific'):
+                           width=None, corner_labels=None,
+                           float_format="{0:.1e}"):
     assert table_data.ndim == 2
 
     if width is None:
@@ -66,7 +63,8 @@ def convert_to_latex_table(table_data, latex_filename, column_labels,
         table_string += '%s ' % row_labels[i]
         for j in range(table_data.shape[1]):
             table_string += convert_table_element_to_string(
-                table_data[i, j], bold_entries[i, j], underline_entries[i, j], precision)
+                table_data[i, j], bold_entries[i, j],
+                underline_entries[i, j], float_format)
         table_string += r"\\ "+"\n"
     table_string += r'\hline'
 
