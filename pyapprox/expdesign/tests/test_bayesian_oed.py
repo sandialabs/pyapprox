@@ -245,7 +245,8 @@ def linear_gaussian_prediction_deviation_based_oed(
         noise_cov, obs_mat, pred_mat, pred_risk_fun,
         pre_collected_design_indices=[], oed_type="linear-pred",
         deviation_quantile=None,
-        round_decimals=16, nonlinear=True, data_quantile=None):
+        round_decimals=16, nonlinear=True, data_quantile=None,
+        nnew=1):
     """
     Parameters
     ----------
@@ -304,6 +305,9 @@ def linear_gaussian_prediction_deviation_based_oed(
         compute the statistic summarizing the deviation at each
         prediction point for all outerloop observation data
 
+    nnew : integer
+        The number of design points to choose at once.
+
     Returns
     -------
     collected_design_indices : np.ndarray (nobs)
@@ -334,13 +338,17 @@ def linear_gaussian_prediction_deviation_based_oed(
     # for jj in range(len(pre_collected_design_indices), ndesign):
     # for testing purposes compute utlity even for pre collected design indices
     # so we can plot this information
-    collected_indices = []
-    for jj in range(ndesign):
+    collected_indices = np.asarray([], dtype=int)
+    assert ndesign % nnew == 0
+    assert len(pre_collected_design_indices) % nnew == 0
+    new_indices = np.asarray(list(itertools.combinations_with_replacement(
+            np.arange(design_candidates.shape[1]), nnew)))
+    for jj in range(ndesign//nnew):
         data = []
-        for ii in range(design_candidates.shape[1]):
+        for ii in range(new_indices.shape[0]):
             # realization of data does not matter so if location appears
             # twice we can just use the same data
-            idx = np.hstack((collected_indices, [ii])).astype(int)
+            idx = np.hstack((collected_indices, new_indices[ii])).astype(int)
             post_cov, obs_ii, omat, nmat_inv = \
                 linear_gaussian_posterior_from_observation_subset(
                     obs, obs_mat, noise_cov_inv, prior_cov_inv, prior_mean,
@@ -360,13 +368,17 @@ def linear_gaussian_prediction_deviation_based_oed(
                          "utility_val": utility_val})
         data_history.append(data)
         if jj < len(pre_collected_design_indices):
-            selected_index = pre_collected_design_indices[jj]
+            selected_indices = (
+                pre_collected_design_indices[jj*nnew:(jj+1)*nnew])
         else:
             # round digits to remove numerical noise
-            selected_index = np.argmax(
+            # print(([d["utility_val"] for d in data_history[-1]]))
+            selected_idx = np.argmax(
                 np.round([d["utility_val"] for d in data_history[-1]],
                          round_decimals))
-        collected_indices.append(selected_index)
+            selected_indices = new_indices[selected_idx]
+        collected_indices = np.hstack((collected_indices, selected_indices))
+        # print(collected_indices.shape, len(data_history))
     return collected_indices, data_history
 
 
@@ -1623,33 +1635,38 @@ class TestBayesianOED(unittest.TestCase):
             atol=1e-2)
 
     def check_analytical_gaussian_prediction_deviation_based_oed(
-            self, nonlinear, oed_type, quantile, rtol, noise_std=.5):
+            self, nonlinear, oed_type, quantile, rtol, noise_std=.5,
+            nnew=1, ndesign=2, nsamples=None):
         np.random.seed(1)
-        ndesign = 2  # 3
-        degree = 2
+        degree = 3
         ndesign_candidates = 11
         pre_collected_design_indices = []
-        nsamples = int(1e5)
+        lb, ub = -0.5, 0.5
+        if nsamples is None:
+            nsamples = int(1e4)
 
         def basis_matrix(degree, samples):
             return samples.T**np.arange(degree+1)[None, :]
 
         nprediction_samples = ndesign_candidates
         xx, ww = piecewise_univariate_linear_quad_rule(
-            [-1, 1], nprediction_samples)
-        ww /= 2.0  # assume uniform distribution over prediction space
-        # prediction_candidates = xx[None, :]
-        prediction_candidates = xx[None, :1]
-        ww = ww[:1]*0+1
+            [lb, ub], nprediction_samples)
+        # uncomment if care about prediction everywhere
+        prediction_candidates = xx[None, :]
+        if quantile is not None or nonlinear or oed_type == "KL-pred":
+        # set this so only care about prediction at left point
+            prediction_candidates = xx[None, :1]
+            ww = ww[:1]*0+1
 
         def pred_risk_fun(x):
             return oed_prediction_average(x, weights=ww[:, None])[0]
 
         nrandom_vars = degree+1
         prior_variable = IndependentMarginalsVariable(
-            [stats.norm(-0.25, .5)]*nrandom_vars)
+            # [stats.norm(-0.25, .5)]*nrandom_vars)
+            [stats.norm(0.0, .5)]*nrandom_vars)
 
-        design_candidates = np.linspace(-1, 1, ndesign_candidates)[None, :]
+        design_candidates = np.linspace(lb, ub, ndesign_candidates)[None, :]
         obs_mat = basis_matrix(degree, design_candidates)
         pred_mat = basis_matrix(degree, prediction_candidates)
 
@@ -1662,7 +1679,7 @@ class TestBayesianOED(unittest.TestCase):
                 design_candidates, ndesign, prior_mean, prior_cov,
                 noise_cov, obs_mat, pred_mat, pred_risk_fun,
                 pre_collected_design_indices, oed_type, quantile,
-                nonlinear=nonlinear)
+                nonlinear=nonlinear, nnew=nnew)
         print(collected_indices)
 
         random_samples = prior_variable.rvs(nsamples)
@@ -1695,23 +1712,38 @@ class TestBayesianOED(unittest.TestCase):
         else:
             raise ValueError(f"Incorrect oed_type {oed_type}")
 
-        print(data[-1][collected_indices[-1]]['utility_val'])
+        # print(data[-1][collected_indices[-1]]['utility_val'])
 
         xx = random_samples
         metrics = []
         for ii in range(nsamples):
-            metrics.append(stat_fun(collected_indices, xx[:, ii:ii+1])[0, 0])
+            if quantile is None and not nonlinear:
+                metrics.append(pred_risk_fun(
+                    stat_fun(collected_indices, xx[:, ii:ii+1])))
+            else:
+                metrics.append(
+                    stat_fun(collected_indices, xx[:, ii:ii+1])[0, 0])
 
         metrics = np.array(metrics)
-        print(metrics.mean(axis=0),
-              data[-1][collected_indices[-1]]['utility_val'])
+        # print(metrics)
         if oed_type == "KL-param" or oed_type == "KL-pred":
             sign = 1
         else:
             sign = -1
-            assert np.allclose(
-                metrics.mean(axis=0),
-                sign*data[-1][collected_indices[-1]]['utility_val'], rtol=rtol)
+            
+        new_indices = np.asarray(
+            list(itertools.combinations_with_replacement(
+                np.arange(design_candidates.shape[1]), nnew)))
+        last_selected_indices = collected_indices[-nnew:]
+        for ii in range(new_indices.shape[0]):
+            if np.allclose(last_selected_indices, new_indices[ii]):
+                idx = ii
+                break
+        print(metrics.mean(axis=0)-
+               sign*data[-1][idx]['utility_val'], 'err')
+        assert np.allclose(
+            metrics.mean(axis=0),
+            sign*data[-1][idx]['utility_val'], rtol=rtol)
 
     def test_analytical_gaussian_prediction_deviation_based_oed(self):
         self.check_analytical_gaussian_prediction_deviation_based_oed(
@@ -1732,6 +1764,9 @@ class TestBayesianOED(unittest.TestCase):
         noise_std = np.linspace(0.5, 1, 11)
         self.check_analytical_gaussian_prediction_deviation_based_oed(
             True, "KL-pred", None, 1e-2, noise_std)
+        # test multiple indices selected nnew > 1
+        self.check_analytical_gaussian_prediction_deviation_based_oed(
+            False, "dev-pred", None, 1e-2, 1., 8, 8)
 
     def check_numerical_gaussian_prediction_deviation_based_oed(
             self, nonlinear, oed_type, deviation_quantile, pred_risk_quantile,
