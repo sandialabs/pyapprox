@@ -489,13 +489,16 @@ def univariate_quantile_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
 
 
 def univariate_cvar_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
-                                        quad_opts={}):
+                                        quad_opts={}, return_quantile=False):
     quantile = univariate_quantile_continuous_variable(
         pdf, bounds, beta, opt_tol, quad_opts)
 
     def integrand(x): return x*pdf(x)
-    return 1/(1-beta)*scipy.integrate.quad(
+    cvar = 1/(1-beta)*scipy.integrate.quad(
         integrand, quantile, bounds[1], **quad_opts)[0]
+    if not return_quantile:
+        return cvar
+    return cvar, quantile
 
 
 def lognormal_mean(mu, sigma_sq):
@@ -546,6 +549,12 @@ def lognormal_variance(mu, sigma_sq):
     Compute the variance of a univariate lognormal variable
     """
     return (np.exp(sigma_sq)-1)*np.exp(2*mu+sigma_sq)
+
+
+def beta_entropic_risk(alpha, beta):
+    # x in [0, 1]
+    from mpmath import hyp1f1
+    return np.log(float(hyp1f1(alpha, alpha+beta, 1)))
 
 
 def chi_squared_cvar(k, quantile):
