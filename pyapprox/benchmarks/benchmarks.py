@@ -439,27 +439,28 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
     Oscillatory ('oscillatory')
 
-    .. math:: f(z) = \cos\left(2\pi w_1 + \sum_{i=1}^d c_iz_i\right)
+    .. math:: f(z) = \cos\left(2\pi w_1 + \sum_{d=1}^D c_dz_d\right)
 
     Product Peak ('product_peak')
 
-    .. math:: f(z) = \prod_{i=1}^d \left(c_i^{-2}+(z_i-w_i)^2\right)^{-1}
+    .. math:: f(z) = \prod_{d=1}^D \left(c_d^{-2}+(z_d-w_d)^2\right)^{-1}
 
     Corner Peak ('corner_peak')
 
-    .. math:: f(z)=\left( 1+\sum_{i=1}^d c_iz_i\right)^{-(d+1)}
+    .. math:: f(z)=\left( 1+\sum_{d=1}^D c_dz_d\right)^{-(D+1)}
 
     Gaussian Peak ('gaussian')
 
-    .. math:: f(z) = \exp\left( -\sum_{i=1}^d c_i^2(z_i-w_i)^2\right)
+    .. math:: f(z) = \exp\left( -\sum_{d=1}^D c_d^2(z_d-w_d)^2\right)
 
     C0 Continuous ('c0continuous')
 
-    .. math:: f(z) = \exp\left( -\sum_{i=1}^d c_i\lvert z_i-w_i\rvert\right)
+    .. math:: f(z) = \exp\left( -\sum_{d=1}^D c_d\lvert z_d-w_d\rvert\right)
 
     Discontinuous ('discontinuous')
 
-    .. math:: f(z) = \begin{cases}0 & x_1>w_1 \;\mathrm{or}\; x_2>w_2\\\exp\left(\sum_{i=1}^d c_iz_i\right) & \mathrm{otherwise}\end{cases}
+    .. math:: f(z) = \begin{cases}0 & z_1>w_1 \;\mathrm{or}\; z_2>w_2\\\exp\left(\sum_{d=1
+}^D c_dz_d\right) & \mathrm{otherwise}\end{cases}
 
     Increasing :math:`\lVert c \rVert` will in general make
     the integrands more difficult.
@@ -468,7 +469,7 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
     of the integration problem. We set :math:`w_1=w_2=\ldots=W_D`.
 
     The coefficient types implement different decay rates for :math:`c_d`.
-    This allows tessting of methods that can identify and exploit anisptropy.
+    This allows testing of methods that can identify and exploit anisotropy.
     They are as follows:
 
     No decay (none)
@@ -477,11 +478,11 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
     Quadratic decay (qudratic)
 
-    .. math:: \hat{c}_d = \frac{1}{(d + 1)^2}
+    .. math:: \hat{c}_d = \frac{1}{(D + 1)^2}
 
     Quartic decay (quartic)
 
-    .. math:: \hat{c}_d = \frac{1}{(d + 1)^4}
+    .. math:: \hat{c}_d = \frac{1}{(D + 1)^4}
 
     Exponential decay (exp)
 
