@@ -8,6 +8,7 @@ First lets load all the necessary modules and set the random seeds for reproduci
 """
 from scipy import stats
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from functools import partial
 import torch
@@ -95,10 +96,11 @@ print(model.work_tracker())
 #used to characterize the uncertain diffusivity field of an advection
 #diffusion equation. See documentation of the benchmark for more details).
 print(list_benchmarks())
-noise_stdev = 1e-1
+noise_stdev = 1 #1e-1
 inv_benchmark = setup_benchmark(
+    # change nobs back to 10
     "advection_diffusion_kle_inversion", kle_nvars=3,
-    noise_stdev=noise_stdev, nobs=10, kle_length_scale=0.5)
+    noise_stdev=noise_stdev, nobs=5, kle_length_scale=0.5)
 print(inv_benchmark.keys())
 
 #%%
@@ -146,6 +148,12 @@ ax = plt.subplots(figsize=(8, 6))[1]
 ax.loglog(nsamples, errors, "o-")
 ax.set_xlabel(mathrm_label("No. Samples"))
 ax.set_ylabel(mathrm_label("Error"))
+ax.set_xticks([10, 20, 30])
+ax.set_yticks([0.5, 0.75, 1])
+ax.get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+ax.minorticks_off()
+ax.get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+#ax.tick_params(axis='y', which='minor', bottom=False)
 if savefig:
     plt.savefig("gp-error-plot.pdf")
 
@@ -210,10 +218,11 @@ print("Acceptance rate", mcmc_variable._acceptance_rate)
 #to the cost of evaluating the numerical model, which is much higher relative
 #to the cost of running the surrogate.
 plot_unnormalized_2d_marginals(
-    mcmc_variable._variable, mcmc_variable._loglike, nsamples_1d=30,
+    mcmc_variable._variable, mcmc_variable._loglike, nsamples_1d=50,
     plot_samples=[
         [post_samples, {"alpha": 0.3, "c": "orange"}],
-        [map_sample, {"c": "k", "marker": "X", "s": 100}]])
+        [map_sample, {"c": "k", "marker": "X", "s": 100}]],
+    unbounded_alpha=0.999)
 if savefig:
     plt.savefig("posterior-samples.pdf", bbox_inches="tight")
 
@@ -240,6 +249,7 @@ for step in range(ndesign):
     results_step = oed.update_design()[1]
     oed_results.append(results_step)
 selected_candidates = design_candidates[:, np.hstack(oed_results)]
+print(selected_candidates)
 ax.plot(design_candidates[0, :], design_candidates[1, :], "rs")
 ax.plot(selected_candidates[0, :], selected_candidates[1, :], "ko")
 if savefig:
@@ -283,15 +293,12 @@ model = WorkTrackingModel(
 #So first we must compute the covariance between the QoI returned by
 #each of our models. We use samples from the posterior. But uncommenting
 #the code below will use samples from the prior.
-npilot_samples = 100
+npilot_samples = 20
 # generate_samples = inv_benchmark.variable.rvs # for sampling from prior
 generate_samples = post_samples 
 cov = multifidelity.estimate_model_ensemble_covariance(
     npilot_samples, generate_samples, model,
     fwd_benchmark.model_ensemble.nmodels)[0]
-print(cov)
-print(multifidelity.get_correlation_from_covariance(cov))
-assert False
 
 #%%
 #By using a WorkTrackingModel we can extract the median costs

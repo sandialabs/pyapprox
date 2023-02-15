@@ -481,6 +481,7 @@ def plot_unnormalized_2d_marginals(
         if plot_samples is not None:
             for s in plot_samples:
                 axs[ii][ii].scatter(s[0][ii, :], s[0][ii, :]*0, **s[1])
+        axs[ii][ii].set_yticks([])
 
     for ii, pair in enumerate(variable_pairs):
         # use pair[1] for x and pair[0] for y because we reverse

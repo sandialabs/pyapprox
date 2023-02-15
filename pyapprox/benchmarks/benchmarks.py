@@ -876,7 +876,7 @@ def setup_multi_index_advection_diffusion_benchmark(
     dict_keys(['fun', 'variable'])
     """
     base_model, variable, config_var_trans, model_ensemble = (
-         _setup_multi_index_advection_diffusion_benchmark(
+        _setup_multi_index_advection_diffusion_benchmark(
             kle_length_scale, kle_stdev, kle_nvars, time_scenario=time_scenario,
             functional=functional, config_values=config_values))
     timer_model = TimerModel(base_model, base_model)

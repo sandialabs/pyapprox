@@ -26,11 +26,12 @@ def constant_vel_fun(vels, xx):
 
 
 def gauss_forc_fun(amp, scale, loc, xx):
-    loc = torch.as_tensor(loc)
+    loc = torch.as_tensor(loc, dtype=torch.double)
     if loc.ndim == 1:
         loc = loc[:, None]
     return amp*torch.exp(
-        -torch.sum((torch.as_tensor(xx)-loc)**2/scale**2, axis=0))[:, None]
+        -torch.sum((torch.as_tensor(xx, dtype=torch.double)-loc)**2/scale**2,
+                   axis=0))[:, None]
 
 
 def mesh_locations_obs_functional(obs_indices, sol, params):
@@ -41,9 +42,10 @@ def transient_multi_index_forcing(source1_args, xx, time=0,
                                   source2_args=None):
     vals = gauss_forc_fun(*source1_args, xx)
     if time == 0:
-        return gauss_forc_fun(*source1_args, xx)
-    if source2_args is not None:
-        vals -= gauss_forc_fun(*source2_args, xx)
+        return vals
+    if source2_args is None:
+        return vals*0
+    vals -= gauss_forc_fun(*source2_args, xx)
     return vals
 
 
@@ -169,7 +171,7 @@ class AdvectionDiffusionReactionKLEModel():
             self._kle(sample[:, None]))
 
     def _eval(self, sample, return_grad=False):
-        sample_copy = torch.as_tensor(sample.copy())
+        sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)
         self._set_random_sample(sample_copy)
         sol = self._fwd_solver.solve(**self._newton_kwargs)
         qoi = self._functional(sol, sample_copy).numpy()
@@ -198,7 +200,8 @@ class TransientAdvectionDiffusionReactionKLEModel(
                  functional, init_sol_fun, init_time, final_time,
                  deltat, butcher_tableau, newton_kwargs={}):
         if callable(init_sol_fun):
-            self._init_sol = torch.as_tensor(init_sol_fun(mesh.mesh_pts))
+            self._init_sol = torch.as_tensor(
+                init_sol_fun(mesh.mesh_pts), dtype=torch.double)
             if self._init_sol.ndim == 2:
                 self._init_sol = self._init_sol[:, 0]
         else:
@@ -216,7 +219,7 @@ class TransientAdvectionDiffusionReactionKLEModel(
     def _eval(self, sample, return_grad=False):
         if return_grad:
             raise ValueError("return_grad=True is not supported")
-        sample_copy = torch.as_tensor(sample.copy())
+        sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)
         self._set_random_sample(sample_copy)
         if self._init_sol is None:
             self._steady_state_fwd_solver.physics._diff_fun = partial(
@@ -266,13 +269,23 @@ def _setup_advection_diffusion_benchmark(
 
     domain_bounds = [0, 1, 0, 1]
     mesh = CartesianProductCollocationMesh(domain_bounds, orders)
+    # bndry_conds = [
+    #     [partial(full_fun_axis_1, 0, oned=False), "D"],
+    #     [partial(full_fun_axis_1, 0, oned=False), "D"],
+    #     [partial(full_fun_axis_1, 0, oned=False), "D"],
+    #     [partial(full_fun_axis_1, 0, oned=False), "D"]]
+    alpha, nominal_value = 0.1, 0
     bndry_conds = [
-        [partial(full_fun_axis_1, 0, oned=False), "D"],
-        [partial(full_fun_axis_1, 0, oned=False), "D"],
-        [partial(full_fun_axis_1, 0, oned=False), "D"],
-        [partial(full_fun_axis_1, 0, oned=False), "D"]]
+        [lambda x: torch.full(
+            (x.shape[1], 1), alpha*nominal_value), "R", alpha],
+        [lambda x: torch.full(
+            (x.shape[1], 1), alpha*nominal_value), "R", alpha],
+        [lambda x: torch.full(
+            (x.shape[1], 1), alpha*nominal_value), "R", alpha],
+        [lambda x: torch.full(
+            (x.shape[1], 1), alpha*nominal_value), "R", alpha]]
     react_funs = None
-    vel_fun = partial(constant_vel_fun, [5, 0])
+    vel_fun = partial(constant_vel_fun, [1, 0])
 
     if kle_args is None:
         kle = MeshKLE(mesh.mesh_pts, use_log=True, use_torch=True)
@@ -337,7 +350,7 @@ def _setup_inverse_advection_diffusion_benchmark(
         amp, scale, loc, nobs, noise_std, length_scale, sigma, nvars, orders,
         obs_indices=None):
 
-    loc = torch.as_tensor(loc)
+    loc = torch.as_tensor(loc, dtype=torch.double)
     ndof = np.prod(np.asarray(orders)+1)
     if obs_indices is None:
         bndry_indices = np.hstack(
@@ -357,11 +370,14 @@ def _setup_inverse_advection_diffusion_benchmark(
     obs = noiseless_obs[0, :] + noise
 
     inv_functional = partial(
-        negloglike_functional,  torch.as_tensor(obs), obs_indices,
+        negloglike_functional,
+        torch.as_tensor(obs, dtype=torch.double), obs_indices,
         noise_std)
-    dqdu = partial(negloglike_functional_dqdu, torch.as_tensor(obs),
+    dqdu = partial(negloglike_functional_dqdu,
+                   torch.as_tensor(obs, dtype=torch.double),
                    obs_indices, noise_std)
-    dqdp = partial(loglike_functional_dqdp,  torch.as_tensor(obs),
+    dqdp = partial(loglike_functional_dqdp,
+                   torch.as_tensor(obs, dtype=torch.double),
                    obs_indices, noise_std)
     inv_functional_deriv_funs = [dqdu, dqdp]
 
@@ -381,15 +397,17 @@ def _setup_multi_index_advection_diffusion_benchmark(
 
     if time_scenario is True:
         time_scenario = {
-            "final_time": 0.2,
+            "final_time": 0.4,
             "butcher_tableau": "im_crank2",
             "deltat": 0.1,  # default will be overwritten
             "init_sol_fun": None,
-            "sink": [50, 0.1, [0.75, 0.75]]
+            # "sink": [50, 0.1, [0.75, 0.75]]
+            "sink": None
         }
 
     amp, scale = 100.0, 0.1
     loc = torch.tensor([0.25, 0.75])[:, None]
+    # loc = torch.tensor([0.25, 0.5])[:, None]
 
     newton_kwargs = {"maxiters": 1, "rtol": 0}
     if config_values is None:

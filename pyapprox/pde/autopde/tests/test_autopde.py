@@ -177,7 +177,8 @@ class TestAutoPDE(unittest.TestCase):
 
     def _check_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_string, diff_string, vel_strings,
-            react_funs, bndry_types, basis_types, transform=None, nl_diff_funs=[None, None]):
+            react_funs, bndry_types, basis_types, transform=None,
+            nl_diff_funs=[None, None]):
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_funs[0], False,
