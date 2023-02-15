@@ -294,11 +294,12 @@ model = WorkTrackingModel(
 #each of our models. We use samples from the posterior. But uncommenting
 #the code below will use samples from the prior.
 npilot_samples = 20
-# generate_samples = inv_benchmark.variable.rvs # for sampling from prior
-generate_samples = post_samples 
+generate_samples = inv_benchmark.variable.rvs # for sampling from prior
+# generate_samples = post_samples 
 cov = multifidelity.estimate_model_ensemble_covariance(
     npilot_samples, generate_samples, model,
     fwd_benchmark.model_ensemble.nmodels)[0]
+print(cov)
 
 #%%
 #By using a WorkTrackingModel we can extract the median costs

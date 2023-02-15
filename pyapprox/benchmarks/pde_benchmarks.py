@@ -397,7 +397,7 @@ def _setup_multi_index_advection_diffusion_benchmark(
 
     if time_scenario is True:
         time_scenario = {
-            "final_time": 0.4,
+            "final_time": 0.2,
             "butcher_tableau": "im_crank2",
             "deltat": 0.1,  # default will be overwritten
             "init_sol_fun": None,

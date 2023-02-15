@@ -750,9 +750,9 @@ def setup_multi_index_advection_diffusion_benchmark(
 
         g(x,t)=\frac{100}{2\pi 0.1^2}\exp\left(-\frac{\lvert x-[0.25,0.75]^\top\rvert^2}{2\cdot 0.1^2}\right)-\frac{s_\mathrm{sink}}{2\pi h_\mathrm{sink}^2}\exp\left(-\frac{\lvert x-x_\mathrm{sink}\rvert^2}{2h_\mathrm{sink}^2}\right)
 
-    and :math:`B(x,t,z)` is set to enforce Dirichlet boundary conditions, i.e.
+    and :math:`B(x,t,z)` enforces Robin boundary conditions, i.e.
 
-    .. math:: u(x) = 0 \quad\mathrm{on} \quad\partial D
+    .. math:: K(x,\rv)\nabla u(x,t,\rv)\cdot n -0.1 u(x,t,\rv)= 0 \quad\mathrm{on} \quad\partial D
 
 
     As with the :py:func:`pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark`
@@ -798,10 +798,10 @@ def setup_multi_index_advection_diffusion_benchmark(
                "butcher_tableau": "im_crank2",
                "deltat": 0.1,  # default will be overwritten
                "init_sol_fun": None,
-               "sink": [50, 0.1, [0.75, 0.75]]
+               "sink": None
                }
 
-        Respectively, the entries of sink are :math:`s_\mathrm{sink}, h_\mathrm{sink}, x_\mathrm{sink}`
+        Respectively, the entries of sink are :math:`s_\mathrm{sink}, h_\mathrm{sink}, x_\mathrm{sink}`, e.g. [50, 0.1, [0.75, 0.75]]. If None then the sink will be turned off.
         init_sol is a callable function with signature ``init_sol_fun(x) -> np.ndarray (nx, 1)``
         where ``x`` is np.ndarray (nphys_vars, nx) are physical coordinates in the mesh. ``butcher_tableau`` specifies the time-stepping scheme which can be either
         ``im_beuler1`` or ``im_crank2``. ``final_time`` specifies :math:`T`.
