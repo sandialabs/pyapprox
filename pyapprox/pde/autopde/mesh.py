@@ -561,7 +561,7 @@ class CanonicalCollocationMesh():
             levels = levels
         return ax.tricontourf(triang, Z[:, 0], levels=levels)
 
-    def plot(self, mesh_values, nplot_pts_1d=None, ax=None, **kwargs):
+    def plot(self, mesh_values, nplot_pts_1d=100, ax=None, **kwargs):
         if ax is None:
             ax = plt.subplots(1, 1, figsize=(8, 6))[1]
         if self.nphys_vars == 1:
@@ -1157,6 +1157,14 @@ def subdomain_integral_functional(subdomain_bounds, mesh, sol, params):
 
 
 def final_time_functional(functional, mesh, sol, params):
+    # times = np.arange(sol.shape[1])
+    # generate_animation(mesh, sol, times, filename=None, maxn_frames=100,
+    #                    duration=2)
+    # plt.show()
+    # for s in sol.T:
+    #     print(s.min(), s.max())
+    #     print(functional(mesh, s, params))
+    # assert False
     return functional(mesh, sol[:, -1], params)
 
 
@@ -1168,7 +1176,7 @@ def cartesian_mesh_solution_functional(
     if tt is None:
         assert sols.ndim == 1
         return mesh.interpolate(sols, xx).flatten()
-    ## tt is normalized time assuming [T0, TN] -> [0, 1]
+    # tt is normalized time assuming [T0, TN] -> [0, 1]
     assert tt.min() >= 0 and tt.max() <= 1
     vals0 = mesh.interpolate(sols, xx)
     from pyapprox.surrogates.interp.tensorprod import (
@@ -1179,19 +1187,28 @@ def cartesian_mesh_solution_functional(
 
 
 def generate_animation(mesh, sols, times, filename=None, maxn_frames=100,
-                       duration=2):
+                       duration=2, **kwargs):
     # duration: in seconds
     # filename:
     # osx use .mp4 extension
     # linux use.avi
     ims = []
-    fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
+    if isinstance(mesh, VectorMesh):
+        nsols = len(mesh._meshes)
+    else:
+        nsols = 1
+    fig, axs = plt.subplots(1, nsols, figsize=(nsols*8, 6))
     nframes = min(maxn_frames, len(times))
     stride = len(times)//nframes
     for tt in range(0, len(times), stride):
-        im = mesh.plot(
-            mesh.split_quantities(sols[:, tt]), axs=axs, color="k")
-        ims.append(im)
+        if isinstance(mesh, VectorMesh):
+            sol = mesh.split_quantities(sols[:, tt])
+            im = mesh.plot(sol, axs=axs, **kwargs)
+            ims.append(im)
+        else:
+            sol = sols[:, tt]
+            im = mesh.plot(sol[:, None], ax=axs, **kwargs)
+            ims.append(im.collections)
 
     import matplotlib.animation as animation
     nframes = len(ims)
@@ -1200,6 +1217,7 @@ def generate_animation(mesh, sols, times, filename=None, maxn_frames=100,
     interval = duration/nframes*1000  # for displaying animation
     ani = animation.ArtistAnimation(
         fig, ims, interval=interval, blit=True, repeat_delay=1000)
+    plt.show()
 
     if filename is None:
         return ani

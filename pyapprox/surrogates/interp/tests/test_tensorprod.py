@@ -7,7 +7,9 @@ from pyapprox.surrogates.interp.tensorprod import (
     piecewise_quadratic_interpolation,
     canonical_piecewise_quadratic_interpolation,
     get_tensor_product_piecewise_polynomial_quadrature_rule,
-    tensor_product_piecewise_polynomial_interpolation
+    tensor_product_piecewise_polynomial_interpolation,
+    piecewise_univariate_linear_quad_rule,
+    piecewise_univariate_quadratic_quad_rule
 )
 
 
@@ -135,21 +137,53 @@ class TestTensorProd(unittest.TestCase):
     def test_piecewise_quadratic_interpolation(self):
         def function(x):
             return (x-0.5)**3
+        ranges = [0, 2]
         num_mesh_points = 101
-        mesh = np.linspace(0., 1., num_mesh_points)
+        mesh = np.linspace(*ranges, num_mesh_points)
         mesh_vals = function(mesh)
         # interp_mesh = np.random.uniform(0.,1.,101)
-        interp_mesh = np.linspace(0., 1., 1001)
-        ranges = [0, 1]
+        interp_mesh = np.linspace(*ranges, 1001)
         interp_vals = piecewise_quadratic_interpolation(
             interp_mesh, mesh, mesh_vals, ranges)
         # import pylab as plt
         # II = np.argsort(interp_mesh)
-        # plt.plot(interp_mesh[II], interp_vals[II], 'k-')
         # plt.plot(mesh, mesh_vals, 'o')
+        # plt.plot(interp_mesh[II], interp_vals[II], 'k-')
+        # plt.plot(interp_mesh, function(interp_mesh), 'r--')
         # plt.show()
-        # print(np.linalg.norm(interp_vals[:, 0]-function(interp_mesh)))
-        assert np.allclose(interp_vals[:, 0], function(interp_mesh), atol=1e-6)
+        print(np.linalg.norm(interp_vals[:, 0]-function(interp_mesh)))
+        assert np.allclose(interp_vals[:, 0], function(interp_mesh), atol=1e-5)
+
+    def test_piecewise_poly_quadrature(self):
+        npoints = 3
+        range_1d = [0, 2]
+        xx, ww = piecewise_univariate_linear_quad_rule(range_1d, npoints)
+        assert np.allclose(xx, [0, 1, 2])
+        vals = np.random.uniform(0, 1, npoints)
+        a, b, c = vals
+        true_integral = min(a, b)+min(b, c)+0.5*abs(b-a)+0.5*abs(c-b)
+        print(true_integral, vals.dot(ww))
+        assert np.allclose(true_integral, vals.dot(ww))
+
+        npoints = 3
+        range_1d = [0, 2]
+        xx, ww = piecewise_univariate_quadratic_quad_rule(range_1d, npoints)
+        assert np.allclose(xx, [0, 1, 2])
+        coef = np.random.uniform(0, 1, npoints)
+        vals = coef[0]+coef[1]*xx+coef[2]*xx**2
+        true_integral = coef[0]*2+2**2*coef[1]/2+2**3*coef[2]/3
+        print(true_integral, vals.dot(ww))
+        assert np.allclose(true_integral, vals.dot(ww))
+
+        npoints = 5
+        range_1d = [0, 2]
+        xx, ww = piecewise_univariate_quadratic_quad_rule(range_1d, npoints)
+        mesh_vals = np.random.uniform(*range_1d, npoints)
+        samples = np.random.uniform(*range_1d, int(1e6))
+        vals = piecewise_quadratic_interpolation(
+            samples, xx, mesh_vals, range_1d)
+        assert np.allclose(vals.mean()*(range_1d[1]-range_1d[0]),
+                           mesh_vals.dot(ww), atol=1e-3)
 
 
 if __name__ == '__main__':

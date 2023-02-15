@@ -35,7 +35,8 @@ torch.manual_seed(2)
 #%%
 #The tutorial can save the figures to file if desired. If you do want the plots
 #set savefig=True
-savefig = False
+savefig=True
+#savefig = False
 
 #%%
 #The following code shows how to create and sample from two independent uniform random variables defined on :math:`[-2, 2]`. We use uniform variables here, but any marginal from the scipy.stats module can be used.
@@ -54,12 +55,12 @@ canonical_samples = var_trans.map_to_canonical(samples)
 print_statistics(canonical_samples)
 
 #%%
-#Pyapprox provides many utilities for interfacing with complex numerical codes
-#and show how to use the ModelEnsemble and
-#WorkTrackingModel to evaluate two models at once and time the wall time
-#of each evaluation of each model. The last print statement
-#prints the median execution time of each model. First lest defined
-#two functions with different execution times that can be evaluated for multiple samples
+#Pyapprox provides many utilities for interfacing with complex numerical codes.
+#The following shows how to wrap a model and store the wall time required
+#to evaluate each sample in a set. First define a function
+#with a random execution time that takes in one sample at a time, i.e. a
+#1D array. Then wrap that model so that multiple samples can be evaluated at
+#once.
 def fun_pause_1(sample):
     assert sample.ndim == 1
     time.sleep(np.random.uniform(0, .05))
@@ -70,27 +71,20 @@ def pyapprox_fun_1(samples):
     return evaluate_1darray_function_on_2d_array(fun_pause_1, samples)
 
 
-def fun_pause_2(sample):
-    time.sleep(np.random.uniform(.05, .1))
-    return np.sum(sample**2)
-
-
-def pyapprox_fun_2(samples):
-    return evaluate_1darray_function_on_2d_array(fun_pause_2, samples)
+#%%
+#Now wrap the latter function and run it while tracking
+#their execution times. The last print statement
+#prints the median execution time of the model.
+timer_model = TimerModel(pyapprox_fun_1)
+model = WorkTrackingModel(timer_model)
+values = model(samples)
+print(model.work_tracker())
 
 #%%
-#Now wrap these functions and run them as an ensemble while tracking
-#their execution times
-model_ensemble = ModelEnsemble([pyapprox_fun_1, pyapprox_fun_2])
-timer_fun_ensemble = TimerModel(model_ensemble)
-worktracking_fun_ensemble = WorkTrackingModel(
-    timer_fun_ensemble, num_config_vars=1)
-fun_ids = np.ones(nsamples)
-fun_ids[:nsamples//2] = 0
-ensemble_samples = np.vstack([samples, fun_ids])
-values = worktracking_fun_ensemble(ensemble_samples)
-query_fun_ids = np.atleast_2d([0, 1])
-print(worktracking_fun_ensemble.work_tracker(query_fun_ids))
+#Other wrappers available in PyApprox include those for running multiple models
+#at once, useful for multi-fidelity methods, wrappers that fix a subset of inputs
+#to user specified values, wrappers that only return a subset of all
+#possible model ouputs, and wrappers for evaluating samples in parallel.
 
 #%%
 #Pyapprox provide numerous benchmarks for verifying, validating and comparing
@@ -199,7 +193,7 @@ print("Surrogate", error)
 #Uncomment the commented code to use the numerical model instead of the surrogate
 #with the MCMC algorithm. Again note the significant increase in computational
 #time
-npost_samples = 1000
+npost_samples = 200
 loglike = partial(loglike_from_negloglike, approx)
 # loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)
 mcmc_variable = MetropolisMCMCVariable(
@@ -289,12 +283,15 @@ model = WorkTrackingModel(
 #So first we must compute the covariance between the QoI returned by
 #each of our models. We use samples from the posterior. But uncommenting
 #the code below will use samples from the prior.
-npilot_samples = 10
+npilot_samples = 100
 # generate_samples = inv_benchmark.variable.rvs # for sampling from prior
 generate_samples = post_samples 
 cov = multifidelity.estimate_model_ensemble_covariance(
     npilot_samples, generate_samples, model,
     fwd_benchmark.model_ensemble.nmodels)[0]
+print(cov)
+print(multifidelity.get_correlation_from_covariance(cov))
+assert False
 
 #%%
 #By using a WorkTrackingModel we can extract the median costs
@@ -318,8 +315,8 @@ axs[0].set_title(mathrm_label("Model covariances"))
 axs[1].set_title(mathrm_label("Relative model costs"))
 
 #%%
-#Now find the best multi-fidelity estimator among all avialable option
-#Note, he exact predicted variance will change from run to run even with the
+#Now find the best multi-fidelity estimator among all available option
+#Note, the exact predicted variance will change from run to run even with the
 #same seed because the computational time measured will change slightly
 #for each run
 best_est, best_model_indices = (

@@ -16,6 +16,7 @@ def piecewise_quadratic_interpolation(samples, mesh, mesh_vals, ranges):
     assert mesh.shape[0] == mesh_vals.shape[0]
     vals = 0
     samples = (samples-ranges[0])/(ranges[1]-ranges[0])
+    mesh = (mesh-ranges[0])/(ranges[1]-ranges[0])
     assert mesh.shape[0] % 2 == 1
     for ii in range(0, mesh.shape[0]-2, 2):
         xl = mesh[ii]

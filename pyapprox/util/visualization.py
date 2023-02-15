@@ -215,6 +215,9 @@ def get_meshgrid_samples(plot_limits, num_pts_1d, logspace=False):
         y = np.logspace(
             np.log10(plot_limits[2]), np.log10(plot_limits[3]), num_pts_1d)
 
+    # X, Y =  meshgrid (x,y) same as
+    # X = cartesian_product([x, y])[0].reshape((ny, nx)
+    # Y = cartesian_product([x, y])[1].reshape((ny, nx)
     X, Y = np.meshgrid(x, y)
     pts = np.vstack((X.reshape((1, X.shape[0]*X.shape[1])),
                      Y.reshape((1, Y.shape[0]*Y.shape[1]))))

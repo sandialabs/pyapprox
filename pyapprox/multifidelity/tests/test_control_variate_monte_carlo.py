@@ -107,6 +107,13 @@ class TestCVMC(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
+    def test_estimate_model_ensemble_covariance(self):
+        model, cov, costs, variable = setup_model_ensemble_tunable()
+        print(get_correlation_from_covariance(cov))
+        mc_cov = estimate_model_ensemble_covariance(
+            int(1e6), variable.rvs, model, cov.shape[0])[0]
+        assert np.allclose(cov, mc_cov, atol=1e-2)
+
     def test_model_ensemble(self):
         model = ModelEnsemble([lambda x: x.T, lambda x: x.T**2])
         variable = IndependentMarginalsVariable([stats.uniform(0, 1)])

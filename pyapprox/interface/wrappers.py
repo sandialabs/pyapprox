@@ -584,7 +584,7 @@ class WorkTracker(object):
     def __init__(self):
         self.costs = dict()
 
-    def __call__(self, config_samples):
+    def __call__(self, config_samples=None):
         """
         Read the cost of evaluating the functions with the ids given in
         a set of config_samples.
@@ -592,8 +592,10 @@ class WorkTracker(object):
         Parameters
         ----------
         config_samples : np.ndarray (nconfig_vars,nsamples)
-            The configuration indices
+            The configuration indices. If None the default Id [0] is used
         """
+        if config_samples is None:
+            config_samples = np.asarray([[0]])
         num_config_vars, nqueries = config_samples.shape
         costs = np.empty((nqueries))
         for ii in range(nqueries):
