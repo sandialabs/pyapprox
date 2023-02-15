@@ -30,8 +30,8 @@ from pyapprox.expdesign.bayesian_oed import get_bayesian_oed_optimizer
 from pyapprox import multifidelity
 import warnings
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
-np.random.seed(2)
-torch.manual_seed(2)
+np.random.seed(2023)
+torch.manual_seed(2023)
 
 #%%
 #The tutorial can save the figures to file if desired. If you do want the plots
@@ -98,7 +98,6 @@ print(model.work_tracker())
 print(list_benchmarks())
 noise_stdev = 1 #1e-1
 inv_benchmark = setup_benchmark(
-    # change nobs back to 10
     "advection_diffusion_kle_inversion", kle_nvars=3,
     noise_stdev=noise_stdev, nobs=5, kle_length_scale=0.5)
 print(inv_benchmark.keys())
@@ -132,7 +131,7 @@ def callback(approx):
 
 approx_result = adaptive_approximate(
     inv_benchmark.negloglike, inv_benchmark.variable, "gaussian_process",
-    {"max_nsamples": 30, "ncandidate_samples": 2e3, "verbose": 0,
+    {"max_nsamples": 50, "ncandidate_samples": 2e3, "verbose": 0,
      "callback": callback, "kernel_variance": 400})
 
 # approx_result = adaptive_approximate(
@@ -148,8 +147,8 @@ ax = plt.subplots(figsize=(8, 6))[1]
 ax.loglog(nsamples, errors, "o-")
 ax.set_xlabel(mathrm_label("No. Samples"))
 ax.set_ylabel(mathrm_label("Error"))
-ax.set_xticks([10, 20, 30])
-ax.set_yticks([0.5, 0.75, 1])
+ax.set_xticks([10, 25, 50])
+ax.set_yticks([0.3, 0.75, 1.5])
 ax.get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
 ax.minorticks_off()
 ax.get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
@@ -307,8 +306,8 @@ print(cov)
 #error of the multi-fidelity estimate of the mean which we can
 #compare to a prediction of the single fidelity estimate that only uses
 #the highest fidelity model.
-model_costs = model.work_tracker(
-    np.asarray([np.arange(fwd_benchmark.model_ensemble.nmodels)]))
+model_ids = np.asarray([np.arange(fwd_benchmark.model_ensemble.nmodels)])
+model_costs = model.work_tracker(model_ids)
 # make costs in terms of fraction of cost of high-fidelity evaluation
 model_costs /= model_costs[0]
 
