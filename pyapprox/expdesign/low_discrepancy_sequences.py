@@ -237,12 +237,11 @@ def halton_sequence(num_vars, nsamples, start_index=0, variable=None):
 
     try:
         from pyapprox.cython.utilities import halton_sequence_pyx
-        return halton_sequence_pyx(primes, index1, index2)
+        samples = halton_sequence_pyx(primes, index1, index2)
     except Exception as e:
         trace_error_with_msg('halton_sequence extension failed', e)
+        samples = __halton_sequence(num_vars, index1, index2, primes)
 
-    samples = __halton_sequence(num_vars, index1, index2, primes)
     if variable is None:
         return samples
-
     return variable.evaluate('ppf', samples)
