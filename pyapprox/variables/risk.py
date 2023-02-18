@@ -488,14 +488,19 @@ def univariate_quantile_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
     return quantile
 
 
+def _univariate_cvar_continuous_variable_integrand(pdf, x):
+    return x*pdf(x)
+
+
 def univariate_cvar_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
                                         quad_opts={}, return_quantile=False):
     quantile = univariate_quantile_continuous_variable(
         pdf, bounds, beta, opt_tol, quad_opts)
 
-    def integrand(x): return x*pdf(x)
-    cvar = 1/(1-beta)*scipy.integrate.quad(
-        integrand, quantile, bounds[1], **quad_opts)[0]
+    integrand = partial(_univariate_cvar_continuous_variable_integrand, pdf)
+    integral, err = scipy.integrate.quad(
+        integrand, quantile, bounds[1], **quad_opts)
+    cvar = integral*1/(1-beta)
     if not return_quantile:
         return cvar
     return cvar, quantile
@@ -571,6 +576,10 @@ def chi_squared_cvar(k, quantile):
 def gaussian_cvar(mu, sigma, quantile):
     """
     Compute the conditional value at risk of a univariate Gaussian variable
+    See https://doi.org/10.1007/s10479-019-03373-1
+    Calculating CVaR and bPOE for common probability
+    distributions with application to portfolio optimization
+    and density estimation.
     """
     val = mu+sigma*stats.norm.pdf(stats.norm.ppf(quantile))/(1-quantile)
     return val

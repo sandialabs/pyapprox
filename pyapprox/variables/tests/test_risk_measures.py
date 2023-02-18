@@ -734,6 +734,16 @@ class TestRiskMeasures(unittest.TestCase):
 
     def test_univariate_cvar_continuous_variable(self):
         beta = 0.8
+        var = stats.norm(0, 1)
+        quantile = univariate_quantile_continuous_variable(
+            var.pdf, var.interval(1-1e-6), beta, 1e-6)
+        assert np.allclose(quantile, var.ppf(beta))
+        print(var.support(), var.interval(1-1e-6))
+        cvar = univariate_cvar_continuous_variable(
+            var.pdf, var.interval(1-1e-6), beta, 1e-6)
+        assert np.allclose(cvar, cvar_gaussian_variable(var, beta), atol=2e-5)
+
+        beta = 0.8
         var = stats.beta(3, 5)
         quantile = univariate_quantile_continuous_variable(
             var.pdf, var.support(), beta, 1e-6)
@@ -896,7 +906,7 @@ class TestRiskMeasures(unittest.TestCase):
                                    normalize=False)
         assert np.allclose(div, true_div, rtol=1e-10)
 
-    
+
 
 
 if __name__ == "__main__":

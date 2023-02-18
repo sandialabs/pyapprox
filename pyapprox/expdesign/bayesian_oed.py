@@ -508,7 +508,9 @@ def _precompute_expected_kl_utility_data(out_quad_data, in_quad_data, obs_fun):
     print("Evaluations took", time.time()-t0)
 
     if out_pred_obs.shape[0] != out_prior_samples.shape[1]:
-        msg = "obs_fun is not returning an array with the correct shape"
+        msg = "obs_fun is not returning an array with the correct shape."
+        msg += f" nrows is {out_pred_obs.shape[0]}. Should be "
+        msg += f"{out_prior_samples.shape[1]}"
         raise ValueError(msg)
 
     print(f"Running {in_quad_data[0].shape[1]} inner model evaluations")
