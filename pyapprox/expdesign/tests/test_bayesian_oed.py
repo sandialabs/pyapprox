@@ -876,7 +876,7 @@ class TestBayesianOED(unittest.TestCase):
 
         for ii in range(len(init_design_indices), ndesign):
             utilities, _, results = oed.update_design(True)
-        
+
         kl_divs = np.empty(oed.nout_samples)
         idx = oed.collected_design_indices
         noise_cov_inv_idx = np.eye(idx.shape[0])/noise_std**2
@@ -1730,7 +1730,7 @@ class TestBayesianOED(unittest.TestCase):
             sign = 1
         else:
             sign = -1
-            
+
         new_indices = np.asarray(
             list(itertools.combinations_with_replacement(
                 np.arange(design_candidates.shape[1]), nnew)))
@@ -1739,8 +1739,8 @@ class TestBayesianOED(unittest.TestCase):
             if np.allclose(last_selected_indices, new_indices[ii]):
                 idx = ii
                 break
-        print(metrics.mean(axis=0)-
-               sign*data[-1][idx]['utility_val'], 'err')
+        print(metrics.mean(axis=0) -
+              sign*data[-1][idx]['utility_val'], 'err')
         assert np.allclose(
             metrics.mean(axis=0),
             sign*data[-1][idx]['utility_val'], rtol=rtol)
@@ -1909,7 +1909,7 @@ class TestBayesianOED(unittest.TestCase):
             [True, "dev-pred", 0.8, None, int(2e3), 80, "linear", [2e-3, 2e-3],
              0.90]
         ]
-        for test_case in test_cases[4:]:
+        for test_case in test_cases:
             print('#')
             np.random.seed(1)
             self.check_numerical_gaussian_prediction_deviation_based_oed(

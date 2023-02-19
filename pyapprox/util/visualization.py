@@ -315,6 +315,21 @@ def create_3d_axis():
     return ax
 
 
+def _turn_off_3d_axes(ax):
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    # Get rid of the panes
+    ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+
+    # Get rid of the spines
+    ax.w_xaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+    ax.w_yaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+    ax.w_zaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+
+
 def plot_surface(X, Y, Z, ax, samples=None, limit_state=None,
                  num_contour_levels=0, plot_axes=True, cmap=mpl.cm.coolwarm,
                  axis_labels=None, angle=None, alpha=1., zorder=None,
@@ -376,18 +391,7 @@ def plot_surface(X, Y, Z, ax, samples=None, limit_state=None,
                     zorder=zorder)
 
     if not plot_axes:
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.set_zticks([])
-        # Get rid of the panes
-        ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-        ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-        ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-
-        # Get rid of the spines
-        ax.w_xaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
-        ax.w_yaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
-        ax.w_zaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+        _turn_off_3d_axes(ax)
 
     if (axis_labels is not None):
         ax.set_xlabel(axis_labels[0])
