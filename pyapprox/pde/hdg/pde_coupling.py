@@ -144,11 +144,13 @@ class SubdomainInterface1D(SubdomainInterface):
 
     def _interpolate_from_subdomain(self, subdomain, bndry_seg, flux):
         # if self._to_iface_basis is None:
-        self._to_iface_bases[bndry_seg] = self._to_interface_basis(subdomain, bndry_seg)
+        self._to_iface_bases[bndry_seg] = self._to_interface_basis(
+            subdomain, bndry_seg)
         return self._to_iface_bases[bndry_seg].dot(flux.numpy())[:, None]
 
     def _from_interface_basis(self, subdomain, bndry_seg):
-        # cannot use self._active_dim which only applies to subdomain left of interface
+        # cannot use self._active_dim which only applies to subdomain
+        # left of interface
         mesh = subdomain.physics.mesh
         idx = mesh._bndry_indices[bndry_seg]
         bndry_pts = mesh._bndry_slice(mesh.mesh_pts, idx, 1)
@@ -159,8 +161,9 @@ class SubdomainInterface1D(SubdomainInterface):
         return basis
 
     def _to_interface_basis(self, subdomain, bndry_seg):
-        # cannot use self.active_dim which only applies to subdomain left of interface
-        active_dim = int(bndry_seg < 2)
+        # cannot use self.active_dim which only applies to subdomain
+        # left of interface
+        # active_dim = int(bndry_seg < 2)
         mesh = subdomain.physics.mesh
         idx = mesh._bndry_indices[bndry_seg]
         if bndry_seg >= 2:
@@ -169,8 +172,9 @@ class SubdomainInterface1D(SubdomainInterface):
             idx = np.hstack(([idx[0]-1], idx, idx[-1]+1))
         bndry_pts = mesh._bndry_slice(mesh.mesh_pts, idx, 1)
         basis = univariate_lagrange_polynomial(
-            #mesh._transform.map_to_orthogonal(bndry_pts)[active_dim],
-            self._left_transform.map_to_orthogonal(bndry_pts)[self._left_active_dim],
+            # mesh._transform.map_to_orthogonal(bndry_pts)[active_dim],
+            self._left_transform.map_to_orthogonal(
+                bndry_pts)[self._left_active_dim],
             self._canonical_mesh_pts[0])
         return basis
 
@@ -413,8 +417,8 @@ class AbstractDomainDecomposition(ABC):
                         (basis_to_iface1, jac_part))
                     if return_jac_parts:
                         jac_parts[ii][mm].append(jac_part)
-                    jac[cnt1:cnt1+interface1._ndof, cnt2:cnt2+interface2._ndof] += (
-                        jac_part)
+                    jac[cnt1:cnt1+interface1._ndof,
+                        cnt2:cnt2+interface2._ndof] += (jac_part)
         if not return_jac_parts:
             return residual, jac
         return residual, jac, jac_parts
@@ -488,7 +492,7 @@ class AbstractDomainDecomposition(ABC):
             found = False
             for neigh_id in range(subdomain_id+1, self._nsubdomains):
                 neigh_transform = self._subdomain_transforms[neigh_id]
-                neigh_orth_line = neigh_transform.map_to_orthogonal(line)
+                # neigh_orth_line = neigh_transform.map_to_orthogonal(line)
                 for kk in range(4):
                     #  neigh_orth_inactive_dim = int(kk >= 2)
                     # neigh_orth_active_dim = int(kk < 2)
@@ -611,7 +615,11 @@ class OneDDomainDecomposition(AbstractDomainDecomposition):
 
     def interpolate(self, subdomain_mesh_values, samples):
         sample_mask_per_subdomain = self._in_subdomains(samples)
-        values = np.ones((samples.shape[1], 1))
+        if subdomain_mesh_values[0].ndim == 2:
+            ncols = subdomain_mesh_values[0].shape[1]
+        else:
+            ncols = 1
+        values = np.ones((samples.shape[1], ncols))
         for jj in range(self._nsubdomains):
             values[sample_mask_per_subdomain[jj]] = (
                 self._subdomain_models[jj].physics.mesh.interpolate(
@@ -632,7 +640,11 @@ class OneDDomainDecomposition(AbstractDomainDecomposition):
 class AbstractTwoDDomainDecomposition(AbstractDomainDecomposition):
     def interpolate(self, subdomain_mesh_values, samples, default_val=0.):
         sample_mask_per_subdomain = self._in_subdomains(samples)
-        values = np.full((samples.shape[1], 1), default_val)
+        if subdomain_mesh_values[0].ndim == 2:
+            ncols = subdomain_mesh_values[0].shape[1]
+        else:
+            ncols = 1
+        values = np.full((samples.shape[1], ncols), default_val)
         for jj in range(self._nsubdomains):
             if sample_mask_per_subdomain[jj].shape[0] > 0:
                 values[sample_mask_per_subdomain[jj]] = (
@@ -694,8 +706,7 @@ class AbstractTwoDDomainDecomposition(AbstractDomainDecomposition):
             # the ssame contour levels must be used for all subdomains
             z_min = np.min([sv.min() for sv in subdomain_values])
             z_max = np.max([sv.max() for sv in subdomain_values])
-            levels = np.linspace(z_min-0.99*abs(z_min), z_max+0.99*abs(z_max),
-                                 levels)
+            levels = np.linspace(z_min, z_max, levels)
         subdomain_values = [
             s[:, None] if s.ndim == 1 else s for s in subdomain_values]
         kwargs["levels"] = levels
@@ -732,11 +743,10 @@ class AbstractTwoDDomainDecomposition(AbstractDomainDecomposition):
         Z = self.interpolate(subdomain_values, pts)
         levels = kwargs.get("levels", 21)
         if isinstance(levels, int):
-            # the ssame contour levels must be used for all subdomains
+            # the same contour levels must be used for all subdomains
             z_min = np.min([sv.min() for sv in subdomain_values])
             z_max = np.max([sv.max() for sv in subdomain_values])
-            levels = np.linspace(z_min-0.99*abs(z_min), z_max+0.99*abs(z_max),
-                                 levels)
+            levels = np.linspace(z_min, z_max, levels)
         return ax.tricontourf(triang, Z[:, 0], levels=levels)
 
     def plot(self, subdomain_values, npts_1d, ax, **kwargs):
@@ -1223,6 +1233,18 @@ class GappyRectangularDomainDecomposition(RectangularDomainDecomposition):
     def _set_interface_data(self):
         return super(RectangularDomainDecomposition,
                      self)._set_interface_data()
+
+    def plot_subdomains(self, ax):
+        # TODO make this general by mapping lines of points in canonical domain
+        # via transform
+        for ii in range(self._nsubdomains):
+            ranges = self._subdomain_transforms[ii]._ranges
+            square_pts = np.array(
+                [[ranges[0], ranges[2]], [ranges[0], ranges[3]],
+                 [ranges[1], ranges[3]], [ranges[1], ranges[2]],
+                 [ranges[0], ranges[2]]]).T
+            ax.plot(*square_pts, c='k')
+
 
 def get_active_subdomain_indices(nsubdomains_1d, missing_indices):
     indices = cartesian_product([np.arange(nn) for nn in nsubdomains_1d])

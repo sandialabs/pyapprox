@@ -544,7 +544,7 @@ class CanonicalCollocationMesh():
             self._canonical_domain_bounds, nplot_pts_1d)
 
     def _plot_2d(self, mesh_values, nplot_pts_1d=100, levels=20,
-                 ax=None):
+                 ax=None, cmap="coolwarm"):
         X, Y, pts = self._create_plot_mesh_2d(nplot_pts_1d)
         Z = self._interpolate(mesh_values, pts)
         triang = tri.Triangulation(pts[0], pts[1])
@@ -559,7 +559,7 @@ class CanonicalCollocationMesh():
             levels = np.linspace(Z.min(), Z.max(), levels)
         else:
             levels = levels
-        return ax.tricontourf(triang, Z[:, 0], levels=levels)
+        return ax.tricontourf(triang, Z[:, 0], levels=levels, cmap=cmap)
 
     def plot(self, mesh_values, nplot_pts_1d=100, ax=None, **kwargs):
         if ax is None:

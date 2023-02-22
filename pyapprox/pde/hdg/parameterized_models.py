@@ -228,9 +228,14 @@ class SteadyObstructedFlowModel():
             norm_vels.append(subdomain_vels[-1]/vel_mags[-1])
         return subdomain_vels, vel_mags, norm_vels
 
-    def plot_velocities(self, ax):
+    def plot_velocities(self, ax, **kwargs):
         subdomain_vels, vel_mags, norm_vels = self._get_velocities(
             self.psols)
+        return self._plot_velocities(
+            subdomain_vels, vel_mags, norm_vels, ax, **kwargs)
+
+    def _plot_velocities(self, subdomain_vels, vel_mags, norm_vels,
+                         ax, **kwargs):
         velmag_min = np.min([v.min() for v in vel_mags])
         velmag_max = np.max([v.max() for v in vel_mags])
         tmp = np.hstack(vel_mags).flatten()
@@ -241,7 +246,8 @@ class SteadyObstructedFlowModel():
         for jj, model in enumerate(
                 self.pressure_solver._decomp._subdomain_models):
             mesh = model.physics.mesh
-            mesh.plot(vel_mags[jj], nplot_pts_1d=100, ax=ax, levels=levels)
+            mesh.plot(vel_mags[jj], nplot_pts_1d=100, ax=ax, levels=levels,
+                      **kwargs)
             jdx = np.arange(mesh.mesh_pts.shape[1]).reshape(
                 np.asarray(self.orders)+1)
             mesh_pts = mesh.mesh_pts[:, jdx.flatten()]
