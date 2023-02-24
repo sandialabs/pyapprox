@@ -2,14 +2,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from abc import ABC, abstractmethod
 
-from pyapprox.util.utilities import cartesian_product, hash_array
+from pyapprox.util.utilities import (
+    cartesian_product, hash_array, outer_product)
 from pyapprox.pde.autopde.mesh_transforms import (
     ScaleAndTranslationTransform, _map_hypercube_samples)
+from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 
 
 def canonical_linear_basis_1d(xx, ii):
     """
-    one-dimensional canonical linear basis on [-1,1]
+    one-dimensional canonical linear basis on [-1, 1]
     """
     if (ii==0):
         vals = (1.-xx)/2.
@@ -20,7 +22,6 @@ def canonical_linear_basis_1d(xx, ii):
     else:
         raise ValueError('incorrect basis index given: %d' %ii)
 
-    # II = np.where((xx < -1.) | (xx > 1.))[0]
     vals[II] = 0.
     return vals
 
@@ -29,7 +30,6 @@ def canonical_linear_basis_2d(xx, ii, jj):
     """
     two-dimensional linear basis on [-1,1,-1,1]
     """
-    # assert np.max(xx) <= 1, (np.max(xx, axis=1), np.min(xx, axis=1))
     assert xx.ndim == 2
     assert xx.shape[0] == 2
     return canonical_linear_basis_1d(xx[0, :], ii)*canonical_linear_basis_1d(
@@ -38,11 +38,11 @@ def canonical_linear_basis_2d(xx, ii, jj):
 
 def canonical_quadratic_basis_1d(xx, ii):
     """
-    one-dimensional canonical quadratic basis on [-1,1]
+    one-dimensional canonical quadratic basis on [-1, 1]
     """
     if (ii==0):
-        II = np.where((xx < -1.) | (xx >= 1.))[0]
         vals = -xx*(1.-xx)/2.
+        II = np.where((xx < -1.) | (xx >= 1.))[0]
     elif (ii==1):
         vals = (1.-xx**2)
         II = np.where((xx < -1.) | (xx > 1.))[0]
@@ -60,11 +60,47 @@ def canonical_quadratic_basis_2d(xx, ii, jj):
     """
     two-dimensional quadratic basis on [-1,1,-1,1]
     """
-    # assert np.max(xx) <= 1, (np.max(xx, axis=1), np.min(xx, axis=1))
     assert xx.ndim == 2
     assert xx.shape[0] == 2
     return canonical_quadratic_basis_1d(
         xx[0, :], ii)*canonical_quadratic_basis_1d(xx[1, :], jj)
+
+
+def gradient_canonical_linear_basis_1d(xx, ii):
+    """
+    gradient of the one-dimensional canonical linear basis on [-1, 1]
+    """
+    if ( ii==0 ):
+        grads = -1./2.+0.*x
+        II = np.where((xx < -1.) | (xx >= 1.))[0]
+    elif ( ii==1 ):
+        grads = 1./2.+0.*x
+        II = np.where((xx < -1.) | (xx >= 1.))[0]
+    else:
+        raise ValueError('incorrect basis index given: %d' %ii)
+
+    grads[II] = 0.
+    return grads
+
+
+def gradient_canonical_quadratic_basis_1d(xx, ii):
+    """
+    gradient of the one-dimensional canonical quadratic basis on [-1, 1]
+    """
+    if ( ii==0 ):
+        grads = xx - 1./2.
+        II = np.where((xx < -1.) | (xx >= 1.))[0]
+    elif ( ii==2 ):
+        grads = xx + 1./2.
+        II = np.where((xx < -1.) | (xx > 1.))[0]
+    elif ( ii==1 ):
+        grads = -2.*xx
+        II = np.where((xx < -1.) | (xx >= 1.))[0]
+    else:
+        raise ValueError('incorrect basis index given: %d' %ii)
+
+    grads[II] = 0.
+    return grads
 
 
 def near_1d_bndry(val, xx, tol=1e-12):
@@ -82,6 +118,24 @@ def near_vertical_2d_bndry(val, lb, ub, xx, tol=1e-12):
 
 
 class Basis(ABC):
+    def __init__(self, order, nquad_1d=None):
+        self._order = order
+        self._canonical_dof, self._canonical_bounds, self._indices = (
+            self._setup())
+        # unlike nelems_1d nquad_1d should be a scalar
+        if nquad_1d is None:
+            nquad_1d = self._canonical_basis._order+1
+        self._canonical_quad_mesh, self._canonical_quad_wts = (
+            self._set_canonical_quadrature_rule(nquad_1d))
+
+        # todo store evaluation of basis and its gradient at the
+        # quad_mesh
+
+        # TODO consider defining basis functions by degree of freedom and not
+        # by element. This is more in line with tensor-product and sparse
+        # grid surrogate methods and removes need to worry about incorrect
+        # double summing points on borders of elements
+    
     def basis_matrix(self, xx):
         assert xx.ndim == 2
         basis_matrix = np.empty((xx.shape[1], self._indices.shape[1]))
@@ -89,19 +143,32 @@ class Basis(ABC):
             basis_matrix[:, kk] = self(*index, xx)
         return basis_matrix
 
+    def _set_canonical_quadrature_rule(self, nquad_1d):
+        nphys_vars = self._indices.shape[0]
+        xx_1d, ww_1d = gauss_jacobi_pts_wts_1D(nquad, 0, 0)
+        # remove uniform weight function
+        ww_1d *= 2
+        quad_mesh = cartesian_product([xx_1d for ii in range(nphys_vars)])
+        quad_wts = outer_product([ww_1d for ii in range(nphys_vars)])
+        return quad_mesh, quad_wts
+
+
+    @abstractmethod
+    def _setup(self, order):
+        raise NotImplementedError()
+
     @abstractmethod
     def __call__(self):
         raise NotImplementedError()
 
 
 class CanonicalIntervalBasis(Basis):
-    def __init__(self, order):
-        self._order = order
-
-        self._canonical_dof = cartesian_product(
+    def _setup(self, order):
+        canonical_dof = cartesian_product(
             [np.linspace(-1, 1, (order+1))]*1)
-        self._canonical_bounds = np.array([-1, 1])
-        self._indices = cartesian_product([np.arange(0, (order+1))])
+        canonical_bounds = np.array([-1, 1])
+        indices = cartesian_product([np.arange(0, (order+1))])
+        return canonical_dof, canonical_bounds, indices
 
     def __call__(self, ii, xx):
         if self._order == 1:
@@ -112,28 +179,54 @@ class CanonicalIntervalBasis(Basis):
 
         raise ValueError("Order not supported")
 
+    def gradient(self, ii, phys_var, xx):
+        assert phys_var == 0
+        if self._order == 1:
+            return gradient_canonical_linear_basis_1d(xx[0], ii)
+        
+        if self._order == 2:
+            return gradient_canonical_quadratic_basis_1d(xx[0], ii)
+
+        raise ValueError("Order not supported")
+        
+
 
 class CanonicalRectangularBasis(Basis):
-    def __init__(self, order):
-        self._order = order
-
-        self._canonical_dof = cartesian_product(
+    def _setup(self, order):
+        canonical_dof = cartesian_product(
             [np.linspace(-1, 1, (order+1))]*2)
-        self._canonical_bounds = np.array([-1, 1, -1, 1])
-        self._indices = cartesian_product(
+        canonical_bounds = np.array([-1, 1, -1, 1])
+        indices = cartesian_product(
             [np.arange(0, (order+1))]*2)
+        return canonical_dof, canonical_bounds, indices
 
     def __call__(self, ii, jj, xx):
         if self._order == 1:
             return canonical_linear_basis_2d(xx, ii, jj)
 
         if self._order == 2:
-            print(ii, jj)
             return canonical_quadratic_basis_2d(xx, ii, jj)
 
         raise ValueError("Order not supported")
 
-    
+    def gradient(self, ii, jj, phys_var, xx):
+        assert phys_var == 0 or phys_var == 1
+        if self._order == 1:
+            if phys_var == 0:
+                return gradient_canonical_linear_basis_1d(
+                    xx[0], ii)*canonical_linear_basis_1d(xx[1], jj)
+            return canonical_linear_basis_1d(
+                xx[0], ii)*gradient_canonical_linear_basis_1d(
+                    xx[1], jj)
+        
+        if self._order == 2:
+            if phys_var == 0:
+                return gradient_canonical_quadratic_basis_1d(
+                    xx[0], ii)*canonical_quadratic_basis_1d(xx[1], jj)
+            return canonical_quadratic_basis_1d(
+                xx[0], ii)*gradient_canonical_quadratic_basis_1d(xx[1], jj)
+
+        raise ValueError("Order not supported")
 
 
 class Mesh(ABC):
