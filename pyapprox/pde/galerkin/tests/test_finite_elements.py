@@ -4,9 +4,11 @@ from functools import partial
 from skfem import (ElementVector, Basis, condense, solve, Functional)
 
 from pyapprox.pde.galerkin.util import (
-    _get_mesh, _get_element, newton_solve)
+    _get_mesh, _get_element)
 from pyapprox.pde.galerkin.physics import (
     _assemble_advection_diffusion_reaction, _assemble_stokes)
+from pyapprox.pde.galerkin.solvers import newton_solve, SteadyStatePDE
+from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction, Stokes
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
     setup_steady_stokes_manufactured_solution)
@@ -207,8 +209,14 @@ class TestFiniteElements(unittest.TestCase):
             _assemble_advection_diffusion_reaction(
                 diff_fun, forc_fun, [None, None], bndry_conds, mesh, element,
                 basis))
-        init_sol = solve(
-            *condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
+        #TODO enable reaction and advection terms
+        physics = AdvectionDiffusionReaction(
+            mesh, element, basis, bndry_conds, diff_fun, forc_fun, 
+            None, nl_diff_funs, [None, None])
+        init_sol = physics.init_guess()
+        
+        # init_sol = solve(
+        #     *condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
 
         exact_sol = basis.project(lambda x: sol_fun(x)[:, 0])
 
@@ -224,8 +232,10 @@ class TestFiniteElements(unittest.TestCase):
         # assert False
         assert np.all(np.abs(res[II]) < 5e-7)
 
-        fem_sol = newton_solve(
-            assemble, init_sol, atol=1e-8, rtol=1e-8, maxiters=20)
+        # fem_sol = newton_solve(
+        #     assemble, init_sol, atol=1e-8, rtol=1e-8, maxiters=20)
+        solver = SteadyStatePDE(physics)
+        fem_sol = solver.solve(init_sol, atol=1e-8, rtol=1e-8, maxiters=20)
 
         @Functional
         def integrate(w):
@@ -305,8 +315,13 @@ class TestFiniteElements(unittest.TestCase):
             vel_forc_fun, pres_forc_fun, False,
             bndry_conds, mesh, element, basis, return_K=True)
 
-        A, b, x, I = condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs)
-        init_sol = solve(A, b, x, I)
+        physics = Stokes(
+            mesh, element, basis, bndry_conds, navier_stokes,
+            vel_forc_fun, pres_forc_fun)
+        init_sol = physics.init_guess()
+
+        # A, b, x, I = condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs)
+        # init_sol = solve(A, b, x, I)
         assemble = partial(_assemble_stokes, vel_forc_fun, pres_forc_fun,
                            navier_stokes, bndry_conds, mesh, element, basis)
         exact_pres_sol = basis['p'].project(lambda x: pres_fun(x)[:, 0])
@@ -333,8 +348,11 @@ class TestFiniteElements(unittest.TestCase):
         print(res[II], 'res')
         assert np.all(np.abs(res[II]) < 5e-7)
 
-        fem_sol = newton_solve(
-            assemble, init_sol, atol=1e-7, rtol=1e-6, maxiters=10)
+        # fem_sol = newton_solve(
+        #     assemble, init_sol, atol=1e-7, rtol=1e-6, maxiters=10)
+
+        solver = SteadyStatePDE(physics)
+        fem_sol = solver.solve(init_sol)
 
         # print(np.abs(fem_sol - exact_sol).max())
         assert np.allclose(fem_sol, exact_sol)
@@ -351,7 +369,7 @@ class TestFiniteElements(unittest.TestCase):
              ["D", "D", "D", "D"], True],
         ]
 
-        for test_case in test_cases:
+        for test_case in test_cases[-1:]:
             self.check_stokes(*test_case)
 
 

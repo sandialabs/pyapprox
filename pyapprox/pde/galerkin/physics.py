@@ -1,7 +1,17 @@
 import numpy as np
 from functools import partial
+from abc import ABC, abstractmethod
+from typing import Optional, List, Callable, Tuple, Union
+import sys
+if "pyodide" in sys.modules:
+    from scipy.sparse.base import spmatrix
+else:
+    from scipy.sparse import spmatrix
 
-from skfem import asm, bmat, LinearForm, BilinearForm, FacetBasis
+from skfem import (
+    asm, bmat, LinearForm, BilinearForm, FacetBasis, Basis, solve, condense)
+from skfem.mesh import Mesh
+from skfem.element import Element
 from skfem.helpers import dot, grad
 from skfem.models.poisson import vector_laplace, mass
 from skfem.models.general import divergence
@@ -170,20 +180,13 @@ def _enforce_stokes_boundary_conditions(
     # currently only dirichlet supported and zero neumann condition
     # which is enforced by doing nothing
     assert len(R_bndry_conds) == 0 and len(N_bndry_conds) == 0
+        
     D_bases = [
         FacetBasis(mesh, element['u'], facets=mesh.boundaries[key])
         for key, fun in D_bndry_conds.items()]
 
     # get DOF for Dirichlet boundaries for velocity
     D_dofs = basis['u'].get_dofs(list(D_bndry_conds.keys()))
-
-    # degrees of freedom for vector basis stored [u1, v1, u2, v2, u3, v3...]
-    # set a unique value for pressure at first dof of first element
-    # D_dofs = basis['u'].get_dofs(list(D_bndry_conds.keys()))
-    # A_shape is shape of velocity block in stiffness matrix
-    # need to get DOF for presure in global array
-    D_dofs = np.hstack(
-       [D_dofs, A_shape[0]+basis['p'].get_dofs(0).flatten()[:1]])
 
     # condense requires D_vals to be number of dofs.
     # however only the entries associated with D_dofs are ever used
@@ -192,10 +195,25 @@ def _enforce_stokes_boundary_conditions(
         _dofs = basis['u'].get_dofs(key)
         D_vals[_dofs] = b.project(D_bndry_conds[key][0])[_dofs]
 
-    pres_idx = A_shape[0]+basis['p'].get_dofs(0).flatten()[:1]
-    # setting to zero is an arbitrary choice. Test will only pass
-    # if exact pressure solution is zero at this degree of freedom
-    D_vals[pres_idx] = 0.
+    if (len(D_bndry_conds) == len(mesh.boundaries)):
+        # all boundaries are dirichlet so must set a pressure value to
+        # make presure unique. Otherwise it is only unique up to a constant
+
+        # degrees of freedom for vector basis stored
+        # [u1, v1, u2, v2, u3, v3...]
+        # set a unique value for pressure at first dof of first element
+        # D_dofs = basis['u'].get_dofs(list(D_bndry_conds.keys()))
+        # A_shape is shape of velocity block in stiffness matrix
+        # need to get DOF for presure in global array
+        pres_idx = A_shape[0]+basis['p'].get_dofs(0).flatten()[:1]
+        D_dofs = np.hstack([D_dofs, pres_idx])
+        # setting to zero is an arbitrary choice. Test will only pass
+        # if exact pressure solution is zero at this degree of freedom
+        D_vals[pres_idx] = 0.
+    # else:
+       # Do nothing.  pressure is made unique because it appears in
+       # the boundary integral arising from integration by parts of pressure
+       # term in weak form of stokes equations
 
     if u_prev is not None:
         D_vals = u_prev-D_vals
@@ -204,8 +222,9 @@ def _enforce_stokes_boundary_conditions(
 
 def _assemble_stokes(
         vel_forc_fun, pres_forc_fun, navier_stokes,
-        bndry_conds, mesh, element, basis, u_prev=None, return_K=False):
-    A = asm(vector_laplace, basis['u'])
+        bndry_conds, mesh, element, basis, u_prev=None, return_K=False,
+        viscosity=1):
+    A = viscosity*asm(vector_laplace, basis['u'])
     B = -asm(divergence, basis['u'], basis['p'])
 
     # C = 1e-6*asm(mass, basis['p'])
@@ -247,3 +266,109 @@ def _assemble_stokes(
     if not return_K:
         return bilinear_mat, linear_vec, D_vals, D_dofs
     return bilinear_mat, linear_vec, D_vals, D_dofs, K
+
+
+class Physics(ABC):
+    def __init__(self,
+                 mesh : Mesh,
+                 element : Element,
+                 basis : Basis,
+                 bndry_conds : List):
+        self.mesh = mesh
+        self.element = element
+        self.basis = basis
+        self.bndry_conds = bndry_conds
+    
+    @abstractmethod
+    def init_guess(self) -> np.ndarray:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def assemble(self, sol : np.ndarray = None)-> Tuple[
+            spmatrix,
+            Union[np.ndarray, spmatrix],
+            np.ndarray,
+            np.ndarray]:
+        raise NotImplementedError()
+
+
+class AdvectionDiffusionReaction(Physics):
+    def __init__(
+            self,
+            mesh : Mesh,
+            element : Element,
+            basis : Basis,
+            bndry_conds : List,
+            diff_fun : Callable [[np.ndarray],  np.ndarray],
+            forc_fun : Callable [[np.ndarray],  np.ndarray],
+            vel_fun : Optional[Callable [[np.ndarray],  np.ndarray]],
+            nl_diff_funs : Optional[
+                Tuple[Callable  [[np.ndarray, np.ndarray],  np.ndarray],
+                      Callable  [[np.ndarray, np.ndarray],  np.ndarray]]] = (
+                          [None, None]),
+            react_funs : Optional[
+                Tuple[Callable  [[np.ndarray],  np.ndarray],
+                      Callable  [[np.ndarray],  np.ndarray]]] = [None, None]):
+        
+        super().__init__(mesh, element, basis, bndry_conds)
+        self.diff_fun = diff_fun
+        self.vel_fun = vel_fun
+        self.forc_fun = forc_fun
+        self.nl_diff_funs = nl_diff_funs
+        self.react_funs = react_funs
+
+        if self.vel_fun is not None or self.react_funs[0] is not None:
+            # TODO add these terms
+            raise NotImplementedError("Options currently not supported")
+    
+    def init_guess(self) -> np.ndarray:
+        bilinear_mat, linear_vec, D_vals, D_dofs = (
+            _assemble_advection_diffusion_reaction(
+                self.diff_fun, self.forc_fun, [None, None],
+                self.bndry_conds, self.mesh, self.element, self.basis))
+        return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
+    
+    def assemble(self, sol : np.ndarray = None)-> Tuple[
+            spmatrix,
+            Union[np.ndarray, spmatrix],
+            np.ndarray,
+            np.ndarray]:
+        return _assemble_advection_diffusion_reaction(
+            self.diff_fun, self.forc_fun, self.nl_diff_funs,
+            self.bndry_conds, self.mesh, self.element, self.basis, sol)
+    
+
+class Stokes(Physics):
+    def __init__(
+            self,
+            mesh : Mesh,
+            element : Element,
+            basis : Basis,
+            bndry_conds : List,
+            navier_stokes : bool,
+            vel_forc_fun : Callable [[np.ndarray],  np.ndarray],
+            pres_forc_fun : Callable  [[np.ndarray],  np.ndarray],
+            viscosity : Optional[float] = 1.0):
+        super().__init__(mesh, element, basis, bndry_conds)
+
+        self.vel_forc_fun = vel_forc_fun
+        self.pres_forc_fun = pres_forc_fun
+        self.navier_stokes = navier_stokes
+        self.viscosity = viscosity
+    
+    def init_guess(self) -> np.ndarray:
+        bilinear_mat, linear_vec, D_vals, D_dofs = _assemble_stokes(
+            self.vel_forc_fun, self.pres_forc_fun, False,
+            self.bndry_conds, self.mesh, self.element, self.basis,
+            return_K=False, viscosity=self.viscosity)
+        return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
+
+    def assemble(self, sol : Optional[np.ndarray] = None) -> Tuple[
+            spmatrix,
+            Union[np.ndarray, spmatrix],
+            np.ndarray,
+            np.ndarray]:
+        return _assemble_stokes(
+            self.vel_forc_fun, self.pres_forc_fun, self.navier_stokes,
+            self.bndry_conds, self.mesh, self.element, self.basis, sol,
+            viscosity=self.viscosity)
