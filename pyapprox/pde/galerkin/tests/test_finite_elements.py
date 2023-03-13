@@ -3,9 +3,9 @@ import numpy as np
 from functools import partial
 from skfem import (ElementVector, Basis, condense, solve, Functional)
 
-from pyapprox.pde.spectralgalerkin.util import (
+from pyapprox.pde.galerkin.util import (
     _get_mesh, _get_element, newton_solve)
-from pyapprox.pde.spectralgalerkin.physics import (
+from pyapprox.pde.galerkin.physics import (
     _assemble_advection_diffusion_reaction, _assemble_stokes)
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,

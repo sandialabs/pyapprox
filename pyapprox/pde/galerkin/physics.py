@@ -5,7 +5,7 @@ from skfem import asm, bmat, LinearForm, BilinearForm, FacetBasis
 from skfem.helpers import dot, grad
 from skfem.models.poisson import vector_laplace, mass
 from skfem.models.general import divergence
-from pyapprox.pde.spectralgalerkin.util import (
+from pyapprox.pde.galerkin.util import (
     _forcing, _vector_forcing, _vector_fun_to_skfem_vector_fun,
     _robin, _robin_prev_sol)
 
