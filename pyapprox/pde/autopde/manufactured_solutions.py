@@ -239,6 +239,7 @@ def setup_steady_stokes_manufactured_solution(
         if navier_stokes:
             vel_forc_expr[-1] += sum(
                 [u*vel.diff(s2, 1) for u, s2 in zip(vel_expr, symbs)])
+
     vel_forc_lambda = [sp.lambdify(symbs, f, "numpy") for f in vel_forc_expr]
     vel_forc_fun = partial(
         _evaluate_list_of_sp_lambda, vel_forc_lambda, as_list=False)
@@ -259,6 +260,11 @@ def setup_steady_stokes_manufactured_solution(
         sp.lambdify(symbs, pg, "numpy") for pg in pres_grad_expr]
     pres_grad_fun = partial(
         _evaluate_list_of_sp_lambda, pres_grad_lambda, as_list=False)
+
+    print('vel_expr', vel_expr)
+    print('pres_expr', pres_expr)
+    print('vel_forc', vel_forc_expr)
+    print('pres_forc', pres_forc_expr)
 
     return (vel_fun, pres_fun, vel_forc_fun, pres_forc_fun, vel_grad_funs,
             pres_grad_fun)

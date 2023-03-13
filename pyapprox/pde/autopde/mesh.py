@@ -737,7 +737,8 @@ class CanonicalCollocationMesh():
             idx = self._bndry_indices[ii]
             jac[idx, ] = 0.
             jac[idx, idx] = 1.
-            bndry_vals = bndry_cond[0](self._bndry_slice(self.mesh_pts, idx, 1))[:, 0]
+            bndry_vals = bndry_cond[0](
+                self._bndry_slice(self.mesh_pts, idx, 1))[:, 0]
             residual[idx] = self._bndry_slice(sol, idx, 0)-bndry_vals
         return residual, jac
 

@@ -124,7 +124,7 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         self._islinear = self._determine_if_linear()
         self._linear_jac_factors = None
         self._flux_islinear = self._nl_diff_fun is None
-    
+
     def _determine_if_linear(self):
         # TODO allow react_fun to be set to None
         return self._react_fun is None and self._nl_diff_fun is None
@@ -142,10 +142,10 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
             # print(jac)
             # print((torch.linalg.multi_dot(self._linear_jac_factors))-jac)
             # assert torch.allclose(torch.linalg.multi_dot(self._linear_jac_factors), jac)
-            
+
             tmp = torch.linalg.multi_dot((self._linear_jac_factors[0].T, res))[:, None]
             return torch.triangular_solve(tmp, self._linear_jac_factors[1], upper=True)[0][:, 0]
-        return super()._linear_solve(jac, res)            
+        return super()._linear_solve(jac, res)
 
     def _clear_data(self):
         self._flux_vals = None
@@ -170,10 +170,11 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         res = multi_dot((linear_jac, sol))
         res += forc_fun(mesh.mesh_pts)[:, 0]
         return res
-    
+
     def _linear_raw_residual(
             self, mesh, sol, diff_fun, vel_fun, forc_fun, auto_jac):
-        if not self._store_data or self._linear_jac is None or self._nl_diff_fun is not None:
+        if (not self._store_data or self._linear_jac is None or
+            self._nl_diff_fun is not None):
             # if nl_diff_fun active then linear jac will change because diff vals
             # used to construct will change
             linear_jac = self._linear_raw_residual_jac(mesh, diff_fun, vel_fun)
@@ -181,7 +182,8 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
                 self._linear_jac = linear_jac
         else:
             linear_jac = self._linear_jac
-        res = self._linear_raw_residual_from_jac(linear_jac, mesh, sol, forc_fun, auto_jac)
+        res = self._linear_raw_residual_from_jac(
+            linear_jac, mesh, sol, forc_fun, auto_jac)
         if not auto_jac:
             return res, linear_jac
         return res, None
@@ -204,7 +206,7 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
         res = linear_res
         if self._react_fun is not None:
             res -= self._react_fun(sol[:, None])[:, 0]
-            
+
         if linear_jac is None:
             return res, None
 

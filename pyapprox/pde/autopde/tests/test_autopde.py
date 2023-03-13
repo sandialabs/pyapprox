@@ -212,7 +212,8 @@ class TestAutoPDE(unittest.TestCase):
             assert diff_jac is not None
         solver = SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
-            react_funs[1], nl_diff_fun = nl_diff_funs[0], nl_diff_jac = nl_diff_funs[1]))
+            react_funs[1], nl_diff_fun=nl_diff_funs[0],
+            nl_diff_jac=nl_diff_funs[1]))
 
         # import matplotlib.pyplot as plt
         # plt.plot(mesh.mesh_pts[0], mesh.mesh_pts[1], 'o')
@@ -430,7 +431,7 @@ class TestAutoPDE(unittest.TestCase):
              ["D", "D", "D", "N"], ["C", "C"], ellipse_transform],
             [[0, 1], [6], "(1+x)**2", "1", ["0"],
                 [lambda sol: 0*sol,
-                lambda sol: torch.zeros((sol.shape[0],))],
+                 lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], ["C"], None,
              [lambda linear_diff, sol: linear_diff*(sol**2),
               nl_diff_jac]]
