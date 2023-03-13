@@ -62,6 +62,7 @@ setuptools.setup(
         'networkx',
         # 'tqdm',
         'numba',
+        'scikit-fem',
     ],
     extras_require={
         'docs': ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
