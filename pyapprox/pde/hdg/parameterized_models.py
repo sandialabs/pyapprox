@@ -276,6 +276,7 @@ class SteadyObstructedFlowModel():
                 with open(vel_filename, 'wb') as file_object:
                     pickle.dump([self.subdomain_vels, self.psols], file_object)
         elif os.path.exists(vel_filename):
+            print("Loading velocity file")
             with open(vel_filename, 'rb') as file_object:
                 self.subdomain_vels, self.psols = pickle.load(file_object)
         else:
