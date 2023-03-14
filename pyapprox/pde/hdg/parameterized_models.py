@@ -1,7 +1,8 @@
+import os
+import pickle
 import numpy as np
 from functools import partial
 import torch
-
 
 from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
 from pyapprox.pde.autopde.mesh import TransformedCollocationMesh
@@ -233,7 +234,8 @@ def _forcing_full(fill_value, xx):
 
 class SteadyObstructedFlowModel():
     def __init__(self, L, orders, bndry_info,
-                 source_info, functional=None, flow_type="darcy"):
+                 source_info, functional=None, flow_type="navier_stokes",
+                 vel_filename=None):
         self.domain_bounds = [0, L, 0, 1]
         self.orders = orders
         aa, bb, pleft, pright = bndry_info
@@ -241,52 +243,78 @@ class SteadyObstructedFlowModel():
         amp, scale = source_info[:2]
         loc = np.array(source_info[2:])
         self._functional = functional
+        self._flow_type = flow_type
 
         nsubdomains_1d = [5, 3]
-        # missing_subdomain_indices = [[1, 0], [1, 2], [3, 1]]
         missing_subdomain_indices = [[1, 1], [3, 0], [3, 2]]
-        # missing_subdomain_indices = [[1, 0], [2, 2], [3, 1]]
-        intervals = [
+        self.intervals = [
             np.array([0, 2*L/7, 3*L/7, 4*L/7, 5*L/7, L]),
             np.linspace(*self.domain_bounds[2:], nsubdomains_1d[1]+1)]
         pressure_domain_decomp = GappyRectangularDomainDecomposition(
             self.domain_bounds, nsubdomains_1d, orders[0]-1,
-            missing_subdomain_indices, 12, intervals)
+            missing_subdomain_indices, 12, self.intervals)
 
         active_subdomain_indices = get_active_subdomain_indices(
             nsubdomains_1d, missing_subdomain_indices)
 
-        if flow_type == "darcy":
-            self.pressure_solver = SteadyStateDomainDecompositionSolver(
+        tracer_domain_decomp = GappyRectangularDomainDecomposition(
+            self.domain_bounds, nsubdomains_1d, orders[0]-1,
+            missing_subdomain_indices, 12, self.intervals)
+
+        # set regardless of flow type so can access mesh to interpolate
+        # velocities
+        self.pressure_solver = SteadyStateDomainDecompositionSolver(
                 pressure_domain_decomp)
-            self.pressure_solver._decomp.init_subdomains(
-                partial(init_steady_pressure_induced_flow_subdomain_model,
-                        pressure_domain_decomp, active_subdomain_indices,
-                        nsubdomains_1d, orders, aa, bb, pleft, pright))
+        self.pressure_solver._decomp.init_subdomains(
+            partial(init_steady_pressure_induced_flow_subdomain_model,
+                    pressure_domain_decomp, active_subdomain_indices,
+                    nsubdomains_1d, orders, aa, bb, pleft, pright))
+
+        if vel_filename is None or not os.path.exists(vel_filename):
+            self._subdomain_vels = self._compute_velocities()
+            if vel_filename is not None:
+                with open(vel_filename, 'wb') as file_object:
+                    pickle.dump([self.subdomain_vels, self.psols], file_object)
+        elif os.path.exists(vel_filename):
+            with open(vel_filename, 'rb') as file_object:
+                self.subdomain_vels, self.psols = pickle.load(file_object)
+        else:
+            raise RuntimeError("Should not happen")
+
+        self.tracer_solver = self._set_tracer_solver(
+            tracer_domain_decomp, active_subdomain_indices, nsubdomains_1d,
+            orders, amp, loc, scale)
+
+    def _compute_velocities(self):
+        if self._flow_type == "darcy":
             self.psols = self.pressure_solver.solve()
-            self.subdomain_vels = self._get_velocities(self.psols)[0]
-        elif flow_type == "stokes" or flow_type == "navier_stokes":
-            nrefine = 3 #5
-            mesh = _fem_gappy_mesh(nrefine, intervals)
+            self.subdomain_vels = self._get_collocation_velocities(
+                self.psols)
+        elif self._flow_type == "stokes" or self._flow_type == "navier_stokes":
+            nrefine = 5
+            mesh = _fem_gappy_mesh(nrefine, self.intervals)
             element = {'u': ElementVector(_get_element(mesh, 2)),
                        'p': _get_element(mesh, 1)}
             basis = {variable: Basis(mesh, e, intorder=4)
                      for variable, e in element.items()}
             bndry_conds = _fem_gappy_stokes_bndry_conds(
                 mesh.boundaries.keys())
+            L = self.intervals[0][-1]
             Re = 700
+            # Re = 2100
             self.vel_solver = FEMSteadyStatePDE(
                 Stokes(mesh, element, basis, bndry_conds,
-                       flow_type=="navier_stokes",
+                       self._flow_type=="navier_stokes",
                        partial(_vector_forcing_full, 0),
                        partial(_forcing_full, 0), viscosity=L/Re))
             sol = self.vel_solver.solve()
-            D_vals,  D_dofs = self.vel_solver.physics.assemble(sol)[2:]
+            print("NDOF", sol.shape[0])
+            # D_vals,  D_dofs = self.vel_solver.physics.assemble(sol)[2:]
             # print(D_vals)
             # print(D_dofs)
             # mesh = basis['u'].mesh
             # midp = mesh.p[:, mesh.facets].mean(axis=1)
-            # for name, test in _gappy_bndry_tests(intervals).items():
+            # for name, test in _gappy_bndry_tests(self.intervals).items():
             #     bndry_facets = np.nonzero(test(midp))[0]
             #     print(name, bndry_facets)
             #     plt.plot(*midp, 'o')
@@ -295,38 +323,35 @@ class SteadyObstructedFlowModel():
             # assert False
             vel, pres = np.split(
                 sol, [sol.shape[0]-basis['p'].zeros().shape[0]])
-            # self._get_velocities_fem(vel)
-            # self._fem_plot_solution(sol, basis, intervals)
+            self.subdomain_vels = self._get_velocities_fem(
+                self.pressure_solver._decomp, basis, vel)
+            self.psols = self._get_presure_fem(
+                self.pressure_solver._decomp, basis, pres)
+            # self._fem_plot_solution(sol, basis, self.intervals)
             # plt.show()
            
         else:
             raise ValueError(f"flow_type {flow_type} not supported")
-        assert False
 
-        tracer_domain_decomp = GappyRectangularDomainDecomposition(
-            self.domain_bounds, nsubdomains_1d, orders[0]-1,
-            missing_subdomain_indices, 12, intervals)
-        self.tracer_solver = self._set_tracer_solver(
-            tracer_domain_decomp, active_subdomain_indices, nsubdomains_1d,
-            orders, amp, loc, scale)
-
-    def _get_velocities_fem(self):
+        
+    def _get_velocities_fem(self, decomp, basis, vels):
         subdomain_vels = []
-        for jj, model in enumerate(
-                self.pressure_solver._decomp._subdomain_models):
+        for jj, model in enumerate(decomp._subdomain_models):
             mesh = model.physics.mesh
-            idx = np.arange(mesh.mesh_pts.shape[1])
-            flux_jac_vals = model.physics.flux_jac(idx)
-            # only works because diffusivity field is
-            # constant across each subdomain
             subdomain_vels.append(torch.hstack([
-                -torch.linalg.multi_dot(
-                    (flux_jac_vals[dd], psols[jj]))[:, None]
-                for dd in range(len(flux_jac_vals))]))
-            vel_mags.append(
-                np.linalg.norm(subdomain_vels[-1], axis=1)[:, None])
-            norm_vels.append(subdomain_vels[-1]/vel_mags[-1])
-        return subdomain_vels, vel_mags, norm_vels
+                torch.as_tensor(basis['u'].split_bases()[dd].interpolator(
+                    vels[dd::2])(mesh.mesh_pts)[:, None])
+                for dd in range(2)]))
+        return subdomain_vels
+
+    def _get_presure_fem(self, decomp, basis, pres):
+        subdomain_pres = []
+        for jj, model in enumerate(decomp._subdomain_models):
+            mesh = model.physics.mesh
+            subdomain_pres.append(
+                torch.as_tensor(basis['p'].interpolator(pres)(
+                    mesh.mesh_pts)[:, None]))
+        return subdomain_pres
 
     def _get_meshgrid(self, intervals, npts_1d):
         from pyapprox.util.visualization import get_meshgrid_samples
@@ -349,7 +374,7 @@ class SteadyObstructedFlowModel():
         vel, pres = np.split(
             sol, [sol.shape[0]-basis['p'].zeros().shape[0]])
         axs = plt.subplots(1, 5, figsize=(5*8, 6))[1]
-        X, Y, pts, II = self._get_meshgrid(intervals, 51)
+        X, Y, pts, II = self._get_meshgrid(intervals, 101)
         Z1, Z2 = self._get_fem_velocities_subset(vel, basis, pts, II)
         axs[4].streamplot(X, Y, Z1.reshape(X.shape), Z2.reshape(X.shape),
                           color='k')
@@ -379,8 +404,6 @@ class SteadyObstructedFlowModel():
         # axs[0].quiver(*m.p[:, ::stride], *z.reshape(2, -1)[:, ::stride],
         #               angles='xy', scale_units="xy")
 
-        
-
     def _set_tracer_solver(self, tracer_domain_decomp,
                            active_subdomain_indices, nsubdomains_1d,
                            orders, amp, loc, scale):
@@ -394,10 +417,8 @@ class SteadyObstructedFlowModel():
                 self.nominal_concentration, amp, loc, scale))
         return tracer_solver
 
-    def _get_velocities(self, psols):
+    def _get_collocation_velocities(self, psols):
         norm_vels = []
-        vel_mags = []
-        subdomain_vels = []
         for jj, model in enumerate(
                 self.pressure_solver._decomp._subdomain_models):
             mesh = model.physics.mesh
@@ -409,36 +430,33 @@ class SteadyObstructedFlowModel():
                 -torch.linalg.multi_dot(
                     (flux_jac_vals[dd], psols[jj]))[:, None]
                 for dd in range(len(flux_jac_vals))]))
-            vel_mags.append(
-                np.linalg.norm(subdomain_vels[-1], axis=1)[:, None])
-            norm_vels.append(subdomain_vels[-1]/vel_mags[-1])
-        return subdomain_vels, vel_mags, norm_vels
+        return subdomain_vels
 
     def plot_velocities(self, ax, **kwargs):
-        subdomain_vels, vel_mags, norm_vels = self._get_velocities(
-            self.psols)
-        return self._plot_velocities(
-            subdomain_vels, vel_mags, norm_vels, ax, **kwargs)
+        # use collocation mesh to plot regardless of velocity solver
+        # if want to use fem plot call self._fem_plot_solution
+        return self._plot_collocation_velocities(
+            self.subdomain_vels, ax, **kwargs)
 
-    def _plot_velocities(self, subdomain_vels, vel_mags, norm_vels,
-                         ax, **kwargs):
-        velmag_min = np.min([v.min() for v in vel_mags])
-        velmag_max = np.max([v.max() for v in vel_mags])
-        tmp = np.hstack(vel_mags).flatten()
-        tmp = tmp[tmp < np.quantile(tmp, 0.99)]
-        velmag_max = tmp.max()
-        print(velmag_min, velmag_max)
-        levels = np.linspace(velmag_min, velmag_max, 51)
-        for jj, model in enumerate(
-                self.pressure_solver._decomp._subdomain_models):
+    def _plot_collocation_velocities(
+            self, subdomain_vels, ax, **kwargs):
+
+        X, Y, pts, II = self._get_meshgrid(self.intervals, 101)
+        masks = self.pressure_solver._decomp._in_subdomains(pts)
+        Z1 = np.full((pts.shape[1], 1), np.nan)
+        Z2 = np.full((pts.shape[1], 1), np.nan)
+        Z3 = np.full((pts.shape[1], 1), np.nan)
+        for ii, mask in enumerate(masks):
+            model = self.pressure_solver._decomp._subdomain_models[ii]
             mesh = model.physics.mesh
-            mesh.plot(vel_mags[jj], nplot_pts_1d=100, ax=ax, levels=levels,
-                      **kwargs)
-            jdx = np.arange(mesh.mesh_pts.shape[1]).reshape(
-                np.asarray(self.orders)+1)
-            mesh_pts = mesh.mesh_pts[:, jdx.flatten()]
-            nvels = norm_vels[jj][jdx.flatten()]
-            ax.quiver(*mesh_pts, *nvels.T)
+            Z1[mask] = mesh.interpolate(
+                self.subdomain_vels[ii][:, 0], pts[:, mask])
+            Z2[mask] = mesh.interpolate(
+                self.subdomain_vels[ii][:, 1], pts[:, mask])
+        ax.streamplot(X, Y, Z1.reshape(X.shape), Z2.reshape(X.shape),
+                      color='k', density=2)
+        im = ax.contourf(
+            X, Y, np.sqrt(Z1**2+Z2**2).reshape(X.shape), **kwargs)  
 
     def _set_random_sample(self, sample):
         assert sample.shape[0] == 4
