@@ -21,7 +21,8 @@ from pyapprox.bayes.laplace import (
 from pyapprox.variables.risk import (
     conditional_value_at_risk, lognormal_variance,
     lognormal_cvar_deviation, gaussian_cvar, lognormal_kl_divergence,
-    gaussian_kl_divergence, lognormal_cvar, lognormal_mean
+    gaussian_kl_divergence, lognormal_cvar, lognormal_mean,
+    conditional_value_at_risk_vectorized
 )
 from pyapprox.variables.tests.test_risk_measures import (
     get_lognormal_example_exact_quantities
@@ -145,6 +146,30 @@ def expected_kl_divergence_gaussian_inference(
     kl_div += np.linalg.multi_dot((xi.T, prior_cov_inv, xi))
     kl_div *= 0.5
     return kl_div[0, 0]
+
+
+def compute_linear_gaussian_prior_prediction_stats(
+        pred_mat, mean, cov, deviation_quantile, nonlinear):
+    push_forward_cov = pred_mat.dot(cov.dot(pred_mat.T))
+    pointwise_post_variance = np.diag(push_forward_cov)[:, None]
+    push_forward_mean = pred_mat.dot(mean)
+    if not nonlinear:
+        if deviation_quantile is None:
+            return np.sqrt(pointwise_post_variance)
+        return gaussian_cvar(
+            push_forward_mean, np.sqrt(pointwise_post_variance),
+            deviation_quantile)
+
+    if deviation_quantile is None:
+        return np.sqrt(lognormal_variance(
+            push_forward_mean, pointwise_post_variance))
+
+    pointwise_post_stat = np.empty_like(pointwise_post_variance)
+    for ii in range(pointwise_post_variance.shape[0]):
+        pointwise_post_stat[ii] = lognormal_cvar(
+            deviation_quantile, push_forward_mean[ii],
+            pointwise_post_variance[ii])
+    return pointwise_post_stat
 
 
 def compute_linear_gaussian_oed_prediction_stats(
@@ -495,7 +520,7 @@ class TestBayesianOED(unittest.TestCase):
         np.random.seed(1)
 
     def _check_loglike_fun(self, noise_std, active_indices, design=None,
-                          degree=1):
+                           degree=1):
 
         nvars = degree+1
         if design is None:
@@ -1962,6 +1987,64 @@ class TestBayesianOED(unittest.TestCase):
 
         print(np.cov(means, rowvar=False)-Cmat)
         assert np.allclose(np.cov(means, rowvar=False), Cmat, rtol=1e-2)
+
+    def test_compute_linear_gaussian_prior_prediction_stats(self):
+        noise_std = 0.5
+        degree = 3
+        nrandom_vars = degree+1
+        ndesign_candidates = 11
+        design_candidates = np.linspace(-1, 1, ndesign_candidates)[None, :]
+        npred_candidates = 12
+        pred_candidates = np.linspace(-1, 1, npred_candidates)[None, :]
+        prior_variable = IndependentMarginalsVariable(
+            [stats.norm(1, 0.5)]*nrandom_vars)
+
+        def basis_matrix(degree, samples):
+            return samples.T**np.arange(degree+1)[None, :]
+        obs_mat = basis_matrix(degree, design_candidates)
+        pred_mat = basis_matrix(degree, pred_candidates)
+
+        (prior_mean, prior_cov, noise_cov, prior_cov_inv,
+         noise_cov_inv) = setup_linear_gaussian_model_inference(
+             prior_variable, noise_std, obs_mat)
+
+        deviation_quantile, nonlinear = None, False
+        pred_stats = compute_linear_gaussian_prior_prediction_stats(
+            pred_mat, prior_mean, prior_cov, deviation_quantile, nonlinear)
+        samples = prior_variable.rvs(int(1e6))
+        pred_vals = pred_mat.dot(samples)
+        # print(pred_vals.std(axis=1))
+        # print(pred_stats[:, 0])
+        assert np.allclose(pred_vals.std(axis=1), pred_stats[:, 0], atol=1e-2)
+
+        deviation_quantile, nonlinear = 0.9, False
+        pred_stats = compute_linear_gaussian_prior_prediction_stats(
+            pred_mat, prior_mean, prior_cov, deviation_quantile, nonlinear)
+        pred_stats_mc = conditional_value_at_risk_vectorized(
+            pred_vals, deviation_quantile)
+        # print(pred_vals.shape)
+        # print(pred_stats[:, 0])
+        # print(pred_stats_mc)
+        assert np.allclose(pred_stats_mc, pred_stats[:, 0], atol=1e-2)
+
+        deviation_quantile, nonlinear = None, True
+        pred_stats = compute_linear_gaussian_prior_prediction_stats(
+            pred_mat, prior_mean, prior_cov, deviation_quantile, nonlinear)
+        # print(pred_stats)
+        # print(np.exp(pred_vals).std(axis=1))
+        # print(pred_stats[:, 0])
+        assert np.allclose(
+            np.exp(pred_vals).std(axis=1), pred_stats[:, 0], rtol=1e-2)
+
+        deviation_quantile, nonlinear = 0.9, True
+        pred_stats = compute_linear_gaussian_prior_prediction_stats(
+            pred_mat, prior_mean, prior_cov, deviation_quantile, nonlinear)
+        pred_stats_mc = conditional_value_at_risk_vectorized(
+            np.exp(pred_vals), deviation_quantile)
+        # print(pred_vals.shape)
+        # print(pred_stats[:, 0])
+        # print(pred_stats_mc)
+        assert np.allclose(pred_stats_mc, pred_stats[:, 0], rtol=1e-2)
 
 
 if __name__ == "__main__":

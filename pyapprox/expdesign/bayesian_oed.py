@@ -504,7 +504,8 @@ def _precompute_expected_kl_utility_data(out_quad_data, in_quad_data, obs_fun):
     print(f"Running {out_prior_samples.shape[1]} outer model evaluations")
     t0 = time.time()
     out_pred_obs = obs_fun(out_prior_samples)
-    print(out_pred_obs.max(), out_pred_obs.min())
+    print("Predicted observation bounds",
+          out_pred_obs.max(), out_pred_obs.min())
     print("Evaluations took", time.time()-t0)
 
     if out_pred_obs.shape[0] != out_prior_samples.shape[1]:
@@ -1182,7 +1183,7 @@ def deviation_worker_fun(arg):
             data_risk_fun, noise_samples, noise_std, active_indices, return_all)
         utility_vals[ii] = results[ii]["utility_val"]
         ii += 1
-    # print("Worker Took", time.time()-t0, indices[0], indices[-1])
+    print("Worker Took", time.time()-t0, indices[0], indices[-1])
     return utility_vals, results
 
 
