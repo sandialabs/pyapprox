@@ -1282,11 +1282,11 @@ def _posterior_push_fwd_entropic_deviation(
 def _posterior_push_fwd_cvar_deviation(
         qoi_vals, nin_samples, weights, beta):
     qoi_means = np.zeros(qoi_vals.shape[1])
-    qoi_vars = np.zeros(qoi_vals.shape[1])
+    # qoi_vars = np.zeros(qoi_vals.shape[1])
     for jj in range(nin_samples):
         qoi_means += qoi_vals[jj, :]*weights[jj]
-        qoi_vars += qoi_vals[jj, :]**2*weights[jj]
-    qoi_vars -= qoi_means**2
+        # qoi_vars += qoi_vals[jj, :]**2*weights[jj]
+    # qoi_vars -= qoi_means**2
     nqoi = qoi_vals.shape[1]
     weights_expanded = np.empty_like(qoi_vals.T)
     for kk in range(nqoi):
