@@ -16,7 +16,9 @@ from skfem.element import ElementVector
 from pyapprox.pde.galerkin.util import _get_element
 from pyapprox.pde.galerkin.physics import Stokes, Basis
 from pyapprox.pde.galerkin.solvers import SteadyStatePDE as FEMSteadyStatePDE
-from skfem.visuals.matplotlib import draw, plot, plt
+from skfem.visuals.matplotlib import plot, plt
+from skfem import MeshQuad
+from pyapprox.pde.galerkin.meshes import init_gappy
 
 
 def full_fun_axis_0(fill_val, xx, oned=True):
@@ -159,9 +161,6 @@ def fixed_vel_fun(vel_vals, xx):
     return vel_vals
 
 
-from skfem import MeshQuad
-from pyapprox.pde.galerkin.meshes import init_gappy
-
 def _gappy_bndry_tests(intervals):
     e = 1e-8
     return {
@@ -183,7 +182,7 @@ def _gappy_bndry_tests(intervals):
             (x[0] >= (intervals[0][3]-e)) &
             (x[0] <= (intervals[0][4]+e)) &
             (x[1] >= (intervals[1][2]-e)) &
-            (x[1] <= (intervals[1][3]+e))),}
+            (x[1] <= (intervals[1][3]+e)))}
 
 def _fem_gappy_mesh(nrefine, intervals):
     MeshQuad.init_gappy = init_gappy
@@ -203,8 +202,7 @@ def _stokes_no_slip_bndry_fun(x):
 def _fem_gappy_stokes_inlet_bndry_fun(x):
     """return the plane Poiseuille parabolic inlet profile"""
     vals = np.stack([4 * x[1] * (1. - x[1]), np.zeros_like(x[1])])
-    # print(x[0].min(), x[0].max(), x[1].min(), x[1].max(),
-    #       vals.min(), vals.max())
+    # vals = np.stack([1/.08 * x[1] * (1. - x[1])**4, np.zeros_like(x[1])])
     return vals
 
 
@@ -217,7 +215,7 @@ def _fem_gappy_stokes_bndry_conds(keys):
             D_bndry_conds[key] = [_fem_gappy_stokes_inlet_bndry_fun]
         # else:
         #   apply zero neumann on right boundary, i.e. do nothing
-            
+
     return [D_bndry_conds, {}, {}]
 
         
@@ -235,7 +233,7 @@ def _forcing_full(fill_value, xx):
 class SteadyObstructedFlowModel():
     def __init__(self, L, orders, bndry_info,
                  source_info, functional=None, flow_type="navier_stokes",
-                 vel_filename=None):
+                 vel_filename=None, reynolds_num=None):
         self.domain_bounds = [0, L, 0, 1]
         self.orders = orders
         aa, bb, pleft, pright = bndry_info
@@ -244,6 +242,7 @@ class SteadyObstructedFlowModel():
         loc = np.array(source_info[2:])
         self._functional = functional
         self._flow_type = flow_type
+        self._reynolds_num = reynolds_num
 
         nsubdomains_1d = [5, 3]
         missing_subdomain_indices = [[1, 1], [3, 0], [3, 2]]
@@ -288,10 +287,12 @@ class SteadyObstructedFlowModel():
 
     def _compute_velocities(self):
         if self._flow_type == "darcy":
+            assert self._reynolds_num is None
             self.psols = self.pressure_solver.solve()
             self.subdomain_vels = self._get_collocation_velocities(
                 self.psols)
         elif self._flow_type == "stokes" or self._flow_type == "navier_stokes":
+            assert self._reynolds_num is not None
             nrefine = 5
             mesh = _fem_gappy_mesh(nrefine, self.intervals)
             element = {'u': ElementVector(_get_element(mesh, 2)),
@@ -301,13 +302,12 @@ class SteadyObstructedFlowModel():
             bndry_conds = _fem_gappy_stokes_bndry_conds(
                 mesh.boundaries.keys())
             L = self.intervals[0][-1]
-            Re = 700
-            # Re = 2100
             self.vel_solver = FEMSteadyStatePDE(
                 Stokes(mesh, element, basis, bndry_conds,
-                       self._flow_type=="navier_stokes",
+                       self._flow_type == "navier_stokes",
                        partial(_vector_forcing_full, 0),
-                       partial(_forcing_full, 0), viscosity=L/Re))
+                       partial(_forcing_full, 0),
+                       viscosity=L/self._reynolds_num))
             sol = self.vel_solver.solve()
             print("NDOF", sol.shape[0])
             # D_vals,  D_dofs = self.vel_solver.physics.assemble(sol)[2:]
@@ -330,11 +330,9 @@ class SteadyObstructedFlowModel():
                 self.pressure_solver._decomp, basis, pres)
             # self._fem_plot_solution(sol, basis, self.intervals)
             # plt.show()
-           
         else:
-            raise ValueError(f"flow_type {flow_type} not supported")
+            raise ValueError(f"flow_type {self._flow_type} not supported")
 
-        
     def _get_velocities_fem(self, decomp, basis, vels):
         subdomain_vels = []
         for jj, model in enumerate(decomp._subdomain_models):
@@ -419,7 +417,7 @@ class SteadyObstructedFlowModel():
         return tracer_solver
 
     def _get_collocation_velocities(self, psols):
-        norm_vels = []
+        subdomain_vels = []
         for jj, model in enumerate(
                 self.pressure_solver._decomp._subdomain_models):
             mesh = model.physics.mesh
@@ -457,7 +455,7 @@ class SteadyObstructedFlowModel():
         ax.streamplot(X, Y, Z1.reshape(X.shape), Z2.reshape(X.shape),
                       color='k', density=2)
         im = ax.contourf(
-            X, Y, np.sqrt(Z1**2+Z2**2).reshape(X.shape), **kwargs)  
+            X, Y, np.sqrt(Z1**2+Z2**2).reshape(X.shape), **kwargs)
 
     def _set_random_sample(self, sample):
         assert sample.shape[0] == 4
