@@ -1143,3 +1143,48 @@ class MultiIndexModel():
             model_ids[0, ii] = self._multi_index_to_model_id_map[key]
         return self._model_ensemble(
             np.vstack((samples[:-self._nconfig_vars, :], model_ids)))
+
+
+class ArchivedDataModel():
+    def __init__(self, samples, values):
+        # todo add gradients and hess vec prods as optional args
+        self.samples = samples
+        self._samples_dict = self._set_samples_dict(samples)
+        self.values = values
+
+    def _set_samples_dict(self, samples):
+        samples_dict = dict()
+        for ii in range(samples.shape[1]):
+            key = self._hash_sample(samples[:, ii])
+            if key in samples_dict:
+                raise ValueError("Duplicate samples detected")
+            samples_dict[key] = ii
+        return samples_dict
+
+    def _hash_sample(self, sample):
+        key = hash_array(sample)
+        return key
+
+    def __call__(self, samples):
+        values = []
+        for ii in range(samples.shape[1]):
+            key = self._hash_sample(samples[:, ii])
+            if key not in self._samples_dict:
+                raise ValueError("Sample not found")
+            sample_id = self._samples_dict[key]
+            values.append(self.values[sample_id])
+        return np.array(values)
+
+    def rvs(self, nsamples, weights=None, replace=True, return_indices=False):
+        """
+        Randomly sample with replacement from all available samples
+        if weights is None uniform weights are applied to each sample
+        otherwise sample according to weights
+        """
+        indices = np.random.choice(
+            np.arange(self.samples.shape[1]), nsamples, p=weights,
+            replace=replace)
+        if not return_indices:
+            return self.samples[:, indices]
+        else:
+            return self.samples[:, indices], indices

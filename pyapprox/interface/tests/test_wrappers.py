@@ -8,7 +8,7 @@ import tempfile
 from pyapprox.interface.wrappers import (
     ActiveSetVariableModel, PoolModel, DataFunctionModel,
     combine_saved_model_data, TimerModel, WorkTrackingModel,
-    evaluate_1darray_function_on_2d_array
+    evaluate_1darray_function_on_2d_array, ArchivedDataModel
 )
 
 
@@ -135,6 +135,29 @@ class TestModelwrappers(unittest.TestCase):
         exact_values, exact_jacs = function_with_jac(samples, return_grad=True)
         assert np.allclose(values, exact_values)
         assert np.allclose(np.hstack([j[:, None] for j in jacs]), exact_jacs)
+
+    def test_archived_data_model(self):
+        nvars, nsamples = 2, 100
+        samples = np.random.normal(0, 1, (nvars, nsamples))
+        values = np.sum(samples**2, axis=0)[:, None]
+
+        model = ArchivedDataModel(samples, values)
+        II = np.random.permutation(nsamples)[:nsamples//2]
+        valid_samples = samples[:, II]
+        valid_values = values[II]
+        model_values = model(valid_samples)
+
+        assert np.allclose(model_values, valid_values)
+
+        valid_samples, II = model.rvs(nsamples, return_indices=True)
+        valid_values = values[II]
+        model_values = model(valid_samples)
+
+        assert np.allclose(model_values, valid_values)
+
+        # check error thrown if one sample is not found
+        valid_samples[:, 1] += np.random.normal(0, 1, nvars)
+        self.assertRaises(ValueError, model, valid_samples)
 
     def test_data_function_model(self):
         num_vars = 3
