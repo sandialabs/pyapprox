@@ -146,14 +146,28 @@ class TestModelwrappers(unittest.TestCase):
         valid_samples = samples[:, II]
         valid_values = values[II]
         model_values = model(valid_samples)
-
         assert np.allclose(model_values, valid_values)
 
         valid_samples, II = model.rvs(nsamples, return_indices=True)
         valid_values = values[II]
         model_values = model(valid_samples)
-
         assert np.allclose(model_values, valid_values)
+
+        valid_samples, II = model.rvs(
+            nsamples//2, return_indices=True, randomness=None)
+        valid_values = values[II]
+        model_values = model(valid_samples)
+        assert np.allclose(model_values, valid_values)
+
+        valid_samples, II = model.rvs(
+            2, return_indices=True, randomness=None)
+        valid_values = values[II]
+        model_values = model(valid_samples)
+        assert np.allclose(model_values, valid_values)
+
+        # check error thrown if two many samples are requested
+        # with randomnes=None
+        self.assertRaises(ValueError, model.rvs, nsamples, randomness=None)
 
         # check error thrown if one sample is not found
         valid_samples[:, 1] += np.random.normal(0, 1, nvars)

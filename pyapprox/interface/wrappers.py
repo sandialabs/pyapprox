@@ -1149,8 +1149,12 @@ class ArchivedDataModel():
     def __init__(self, samples, values):
         # todo add gradients and hess vec prods as optional args
         self.samples = samples
-        self._samples_dict = self._set_samples_dict(samples)
         self.values = values
+        # when randomness is zero then rvs just iterates sequentially
+        # through samples until none are left. Useful for methods
+        # that require unique samples
+        self._sample_cnt = 0
+        self._samples_dict = self._set_samples_dict(samples)
 
     def _set_samples_dict(self, samples):
         samples_dict = dict()
@@ -1175,15 +1179,24 @@ class ArchivedDataModel():
             values.append(self.values[sample_id])
         return np.array(values)
 
-    def rvs(self, nsamples, weights=None, replace=True, return_indices=False):
+    def rvs(self, nsamples, weights=None, randomness="replacement",
+            return_indices=False):
         """
         Randomly sample with replacement from all available samples
         if weights is None uniform weights are applied to each sample
         otherwise sample according to weights
         """
-        indices = np.random.choice(
-            np.arange(self.samples.shape[1]), nsamples, p=weights,
-            replace=replace)
+        if randomness is None:
+            if self._sample_cnt+nsamples > self.samples.shape[1]:
+                msg = "Too many samples requested when randomness is None."
+                msg += " This can be overidden by reseting self._sample_cnt=0"
+                raise ValueError(msg)
+            indices = np.arange(self._sample_cnt, self._sample_cnt+nsamples)
+            self._sample_cnt += nsamples
+        else:
+            indices = np.random.choice(
+                np.arange(self.samples.shape[1]), nsamples, p=weights,
+                replace=randomness=="replacement")
         if not return_indices:
             return self.samples[:, indices]
         else:
