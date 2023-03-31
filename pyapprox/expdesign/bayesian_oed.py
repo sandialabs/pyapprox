@@ -2098,7 +2098,7 @@ def get_oed_inner_quadrature_rule(nin_samples, prior_variable,
     else:
         alpha = 1-1e-6
     new_ranges = prior_variable.get_statistics(
-        "interval", alpha=alpha).flatten()
+        "interval", confidence=alpha).flatten()
     x_quad, w_quad = \
         get_tensor_product_piecewise_polynomial_quadrature_rule(
             nin_samples_1d, new_ranges, degree)
@@ -2176,7 +2176,7 @@ def plot_2d_posterior_from_oed_data(
     else:
         alpha = 0.99
     plot_limits = prior_variable.get_statistics(
-        "interval", alpha=alpha).flatten()
+        "interval", confidence=alpha).flatten()
 
     fun = get_posterior_2d_interpolant_from_oed_data(
         oed, prior_variable, nn, out_idx, method)

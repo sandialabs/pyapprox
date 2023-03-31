@@ -53,7 +53,7 @@ class TestJoint(unittest.TestCase):
         mean = variable.get_statistics('mean')
         assert np.allclose(mean.squeeze(), [4, 0, 0])
 
-        intervals = variable.get_statistics('interval', alpha=1)
+        intervals = variable.get_statistics('interval', 1)
         assert np.allclose(intervals, np.array(
             [[2, 6], [-1, 1], [-np.inf, np.inf]]))
 

@@ -291,9 +291,9 @@ class MetropolisMCMCVariable(JointVariable):
         return_grad = None
 
         if init_guess is None:
-            bounds = self._variable.get_statistics("interval", alpha=1)
+            bounds = self._variable.get_statistics("interval", 1)
             trunc_bounds = self._variable.get_statistics(
-                "interval", alpha=1-1e-6)
+                "interval", 1-1e-6)
             for ii in range(bounds.shape[0]):
                 if bounds[ii, 0] == -np.inf:
                     bounds[ii, 0] = trunc_bounds[ii, 0]
@@ -317,7 +317,7 @@ class MetropolisMCMCVariable(JointVariable):
         assert init_guess.ndim == 2 and init_guess.shape[1] == 1
         assert init_guess.shape[0] == self._variable.num_vars()
         init_guess = init_guess[:, 0]
-        bounds = self._variable.get_statistics("interval", alpha=1)
+        bounds = self._variable.get_statistics("interval", 1)
         res = minimize(obj, init_guess, jac=return_grad, method="l-bfgs-b",
                        options={"disp": False}, bounds=bounds)
         MAP = res.x[:, None]

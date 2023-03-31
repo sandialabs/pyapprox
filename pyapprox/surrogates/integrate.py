@@ -69,11 +69,7 @@ def _piecewise_poly_tensorprod_integration(
         alpha = 1
     else:
         alpha = 1-1e-6
-    try:
-        new_ranges = variable.get_statistics("interval", alpha=alpha).flatten()
-    except RuntimeError as e:
-        new_ranges = variable.get_statistics(
-            "interval", confidence=alpha).flatten()
+    new_ranges = variable.get_statistics("interval", alpha).flatten()
     x_quad, w_quad = \
         get_tensor_product_piecewise_polynomial_quadrature_rule(
             nsamples, new_ranges, degree)

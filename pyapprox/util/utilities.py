@@ -372,8 +372,9 @@ def nchoosek(nn, kk):
     except ImportError:
         from scipy.misc import comb
     result = np.asarray(np.round(comb(nn, kk)), dtype=int)
-    if np.isscalar(result):
-        result = np.asscalar(result)
+    if result.ndim == 0:
+        result = result.item()
+        # result = np.asscalar(result)
     return result
 
 

@@ -107,7 +107,7 @@ class GPCalibrationVariable(MetropolisMCMCVariable):
         self._fix_hyperparameters()
         init_hyperparams = np.exp(hyperparams_bounds.sum(axis=1)/2)
         init_guess = np.hstack((init_hyperparams, init_sample[:, 0]))
-        sample_bounds = self._variable.get_statistics("interval", alpha=1)
+        sample_bounds = self._variable.get_statistics("interval", 1)
         bounds = np.vstack((np.exp(hyperparams_bounds), sample_bounds))
         # fd_eps = 2*np.sqrt(np.finfo(float).eps)
         # fd_eps = 1e-7

@@ -126,7 +126,7 @@ class TestInducedSampling(unittest.TestCase):
         samples1 = var_trans.map_from_canonical(canonical_samples1)
 
         def univariate_pdf(var, x):
-            if hasattr(var.dist, 'pdf'):
+            if hasattr(var, 'pdf'):
                 return var.pdf(x)
             else:
                 return var.pmf(x)

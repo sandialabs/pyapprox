@@ -233,7 +233,7 @@ class TestMarginals(unittest.TestCase):
         xk = var1.dist.xk.copy()
         II = np.random.permutation(xk.shape[0])[:3]
         xk[II] = -1
-        pdf_vals = var1.pdf(xk)
+        pdf_vals = var1.pmf(xk)
         assert np.allclose(pdf_vals[II], np.zeros_like(II, dtype=float))
         assert np.allclose(
             np.delete(pdf_vals, II), np.delete(var1.dist.pk, II))

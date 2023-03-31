@@ -1188,16 +1188,20 @@ class ArchivedDataModel():
         """
         if randomness is None:
             if self._sample_cnt+nsamples > self.samples.shape[1]:
-                msg = "Too many samples requested when randomness is None."
+                msg = "Too many samples requested when randomness is None. "
+                msg += f"self._sample+cnt_nsamples={self._sample_cnt+nsamples}"
+                msg += f" but only {self.samples.shape[1]} samples available"
                 msg += " This can be overidden by reseting self._sample_cnt=0"
                 raise ValueError(msg)
-            indices = np.arange(self._sample_cnt, self._sample_cnt+nsamples)
+            indices = np.arange(self._sample_cnt, self._sample_cnt+nsamples,
+                                dtype=int)
             self._sample_cnt += nsamples
         else:
             indices = np.random.choice(
-                np.arange(self.samples.shape[1]), nsamples, p=weights,
+                np.arange(self.samples.shape[1], dtype=int), nsamples, p=weights,
                 replace=randomness=="replacement")
         if not return_indices:
+            print(indices)
             return self.samples[:, indices]
         else:
             return self.samples[:, indices], indices
