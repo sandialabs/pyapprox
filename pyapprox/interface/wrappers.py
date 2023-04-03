@@ -1148,9 +1148,16 @@ class MultiIndexModel():
 class ArchivedDataModel():
     def __init__(self, samples, values):
         # todo add gradients and hess vec prods as optional args
+
+        if values.ndim != 2 or values.shape[0] != samples.shape[1]:
+            msg = "values must have shape (nsamples, nqoi) but has shape"
+            msg += f" {values.shape}"
+            raise ValueError(msg)
+
         self.samples = samples
         self.values = values
-        # when randomness is zero then rvs just iterates sequentially
+        self._samples_dict = self._set_samples_dict(samples)
+        # when randomness is None then rvs just iterates sequentially
         # through samples until none are left. Useful for methods
         # that require unique samples
         self._sample_cnt = 0
@@ -1198,10 +1205,9 @@ class ArchivedDataModel():
             self._sample_cnt += nsamples
         else:
             indices = np.random.choice(
-                np.arange(self.samples.shape[1], dtype=int), nsamples, p=weights,
-                replace=randomness=="replacement")
+                np.arange(self.samples.shape[1], dtype=int), nsamples,
+                p=weights, replace=(randomness == "replacement"))
         if not return_indices:
-            print(indices)
             return self.samples[:, indices]
         else:
             return self.samples[:, indices], indices
