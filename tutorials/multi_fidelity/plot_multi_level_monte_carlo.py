@@ -182,7 +182,7 @@ print("Theoretical 3 model MLMC variance reduction for a pathalogical example",
 #
 #.. math::
 #
-#   C_{\mathrm{tot}}=\sum_{l=0}^M C_\alpha N_\alpha
+#   C_{\mathrm{tot}}=\sum_{\alpha=0}^M C_\alpha N_\alpha
 #
 #Now recall that the variance of the estimator is
 #
@@ -260,10 +260,10 @@ cov_mc = multifidelity.estimate_model_ensemble_covariance(
 
 from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
 estimators = [
+    multifidelity.get_estimator("mc", cov, costs, poly_model.variable),
     multifidelity.get_estimator("mlmc", cov, costs, poly_model.variable),
-    multifidelity.get_estimator("mlmc", cov_mc, costs, poly_model.variable),
-    multifidelity.get_estimator("mc", cov, costs, poly_model.variable)]
-est_labels = mathrm_labels(["MLMC", r"MLMC^\dagger", "MC"])
+    multifidelity.get_estimator("mlmc", cov_mc, costs, poly_model.variable)]
+est_labels = mathrm_labels(["MC", "MLMC", r"MLMC^\dagger"])
 optimized_estimators = multifidelity.compare_estimator_variances(
     target_costs, estimators)
 
@@ -273,7 +273,7 @@ multifidelity.plot_estimator_variances(
     ylabel=mathrm_label("Relative Estimator Variance"))
 axs[0].set_xlim(target_costs.min(), target_costs.max())
 multifidelity.plot_acv_sample_allocation_comparison(
-    optimized_estimators[0], model_labels, axs[1])
+    optimized_estimators[1], model_labels, axs[1])
 plt.show()
 
 #%%

@@ -42,7 +42,7 @@ Starting from two models we introduce the next low fidelity model in a way that 
 
 We repeat this process for all low fidelity models to obtain
 
-.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)
+.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha,2}}\right)
 
 The optimal control variate weights for the MFMC estimator, which minimize the variance of the estimator, are :math:`\eta=(\eta_1,\ldots,\eta_M)^T`, where for :math:`\alpha=1\ldots,M`
 
@@ -116,9 +116,9 @@ cov_mc = multifidelity.estimate_model_ensemble_covariance(
 
 from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
 estimators = [
-    multifidelity.get_estimator("mfmc", cov, costs, poly_model.variable),
-    multifidelity.get_estimator("mc", cov, costs, poly_model.variable)]
-est_labels = mathrm_labels(["MFMC", "MC"])
+    multifidelity.get_estimator("mc", cov, costs, poly_model.variable),
+    multifidelity.get_estimator("mfmc", cov, costs, poly_model.variable)]
+est_labels = mathrm_labels(["MC", "MFMC"])
 optimized_estimators = multifidelity.compare_estimator_variances(
     target_costs, estimators)
 
@@ -128,7 +128,7 @@ multifidelity.plot_estimator_variances(
     ylabel=mathrm_label("Relative Estimator Variance"))
 axs[0].set_xlim(target_costs.min(), target_costs.max())
 multifidelity.plot_acv_sample_allocation_comparison(
-    optimized_estimators[0], model_labels, axs[1])
+    optimized_estimators[1], model_labels, axs[1])
 plt.show()
 #fig # necessary for jupyter notebook to reshow plot in new cell
 
