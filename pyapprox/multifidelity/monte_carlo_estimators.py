@@ -120,30 +120,9 @@ class AbstractMonteCarloEstimator(ABC):
         self.random_state = random_state
         self.set_sampling_method()
 
+    @abstractmethod
     def _estimate(self, values):
-        r"""
-        Return the value of the Monte Carlo like estimator
-
-        Parameters
-        ----------
-        values : list (nmodels)
-        Each entry of the list contains
-
-        values0 : np.ndarray (num_samples_i0,num_qoi)
-           Evaluations  of each model
-           used to compute the estimator :math:`Q_{i,N}` of
-
-        values1: np.ndarray (num_samples_i1,num_qoi)
-            Evaluations used compute the approximate
-            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
-
-        Returns
-        -------
-        est : float
-            The estimate of the mean
-        """
-        eta = self._get_approximate_control_variate_weights()
-        return compute_approximate_control_variate_mean_estimate(eta, values)
+        raise NotImplementedError()
 
     def __call__(self, values):
         r"""
@@ -171,6 +150,36 @@ class AbstractMonteCarloEstimator(ABC):
 
 
 class AbstractACVEstimator(AbstractMonteCarloEstimator):
+
+    def __init__(self, cov, costs, variable, sampling_method="random"):
+        super().__init__(cov, costs, variable, sampling_method)
+        self.nsamples_per_model, self.optimized_variance = None, None
+        self.rounded_target_cost = None
+
+    def _estimate(self, values):
+        r"""
+        Return the value of the Monte Carlo like estimator
+
+        Parameters
+        ----------
+        values : list (nmodels)
+        Each entry of the list contains
+
+        values0 : np.ndarray (num_samples_i0,num_qoi)
+           Evaluations  of each model
+           used to compute the estimator :math:`Q_{i,N}` of
+
+        values1: np.ndarray (num_samples_i1,num_qoi)
+            Evaluations used compute the approximate
+            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
+
+        Returns
+        -------
+        est : float
+            The estimate of the mean
+        """
+        eta = self._get_approximate_control_variate_weights()
+        return compute_approximate_control_variate_mean_estimate(eta, values)
 
     def _variance_reduction(self, cov, nsample_ratios):
         """
@@ -595,7 +604,7 @@ class AbstractACVEstimator(AbstractMonteCarloEstimator):
 
 class MCEstimator(AbstractMonteCarloEstimator):
 
-    def estimate(self, values):
+    def _estimate(self, values):
         return values[0].mean()
 
     def allocate_samples(self, target_cost):
@@ -1214,3 +1223,63 @@ def plot_acv_sample_allocation_comparison(
         mathrm_label("Precentage of target cost"))
     if legendloc is not None:
         ax.legend(loc=legendloc)
+
+
+from pyapprox.multifidelity.multilevelblue import (
+    BLUE_constraint, BLUE_variance, BLUE_Psi, BLUE_RHS, BLUE_evaluate_models)
+from scipy.optimize import minimize
+
+
+class MLBLUE(AbstractMonteCarloEstimator):
+    def __init__(self, cov, costs, variable, sampling_method="random",
+                 reg_blue=1e-6):
+        super().__init__(cov, costs, variable, sampling_method)
+        self.nsamples_per_subset, self.optimized_variance = None, None
+        self.rounded_target_cost = None
+
+    def allocate_samples(self, target_cost, asketch, kappa=1e2,
+                         constraint_reg=1e-10):
+        """
+        Parameters
+        ----------
+        kappa : float
+            Regularization parameter for enforcing budget constraint
+        """
+        nmodels = len(self.costs)
+        assert asketch.shape[0] == self.costs.shape[0]
+        init_guess = np.full(2**nmodels-1, (1/(2**nmodels-1)))
+        obj = partial(BLUE_variance, asketch, self.cov,
+                      self.costs[1:], kappa, self.reg_blue, return_grad=True)
+        constraints = {
+            'type': 'ineq', 'fun': partial(BLUE_constraint, constraint_reg)}
+        res = minimize(obj, init_guess, jac=True, method="SLSQP",
+                       constraints=constraints)
+        variance = res["fun"]
+        nsamples_per_subset_frac = np.maximum(
+            np.zeros_like(res["x"]), res["x"])
+        nsamples_per_subset_frac /= nsamples_per_subset_frac.sum()
+        # transform nsamples as fraction of unit budget to fraction of
+        # target_cost
+        nsamples_per_subset = target_cost*nsamples_per_subset_frac
+        # correct for normalization of nsamples by cost
+        nsamples_per_subset /= self.costs.sum()
+        rounded_target_cost = (nsamples_per_subset*self.costs).sum()
+
+        # set attributes needed for self._estimate
+        self.nsamples_per_subset = nsamples_per_subset
+        self.optimized_variance = variance
+        self.rounded_target_cost = rounded_target_cost
+
+        return nsamples_per_subset, variance, rounded_target_cost
+
+    def generate_data(self, models, variable):
+        # todo consider removing self.variable from baseclass
+        return BLUE_evaluate_models(
+            variable, models, self.nsamples_per_subset)
+
+    def _estimate(self, values, asketch):
+        Psi, _ = BLUE_Psi(
+            self.cov, np.ones_like(self.costs), self.reg_blue,
+            self.nsamples_per_subset)
+        rhs = BLUE_RHS(self.cov, values)
+        return np.linalg.multi_dot((asketch.T, np.linalg.pinv(Psi), rhs))
