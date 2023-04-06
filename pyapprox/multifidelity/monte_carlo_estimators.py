@@ -41,7 +41,8 @@ from pyapprox.multifidelity.multilevelblue import (
     BLUE_bound_constraint, BLUE_bound_constraint_jac,
     BLUE_variance, BLUE_Psi, BLUE_RHS, BLUE_evaluate_models,
     get_model_subsets, BLUE_cost_constraint,
-    BLUE_cost_constraint_jac, BLUE_variance)
+    BLUE_cost_constraint_jac, BLUE_variance,
+    AETC_optimal_loss, AETC_least_squares)
 from scipy.optimize import minimize
 
 
@@ -1298,6 +1299,162 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
                 perturbed_vals.append(values[jj][indices])
             means[ii] = self._estimate(perturbed_vals, asketch)
         return means
+
+class AETCBLUE():
+    def __init__(self, models, rvs, costs=None):
+        r"""
+        Parameters
+        ----------
+        models : list
+            List of callable functions fun with signature
+
+            ``fun(samples)-> np.ndarary (nsamples, nqoi)``
+
+        where samples is np.ndarray (nvars, nsamples)
+
+        rvs : callable
+            Function used to generate random samples with signature
+
+            ``fun(nsamples)-> np.ndarary (nvars, nsamples)``
+
+        costs : iterable
+            Iterable containing the time taken to evaluate a single sample
+            with each model. If None then each model will be assumed to
+            track the evaluation time.
+        """
+        self.models = models
+        self._nmodels = len(models)
+        if not callable(rvs):
+            raise ValueError("rvs must be callabe")
+        self.rvs = rvs
+        self._costs = self._validate_costs(costs)
+
+    def _validate_costs(self, costs):
+        if costs is None:
+            return
+        if len(costs) != self._nmodels:
+            raise ValueError("costs must be provided for each model")
+        return np.asarray(costs)
+
+    def _validate_subsets(self, subsets):
+        # subsets are indexes of low fidelity models
+        if subsets is None:
+            subsets = get_model_subsets(self._nmodels-1)
+        validated_subsets, max_ncovariates = [], -np.inf
+        for subset in subsets:
+            if ((np.unique(subset).shape[0] != len(subset)) or
+                    (np.max(subset) >= self._nmodels-1)):
+                msg = "subsets provided are not valid. First invalid subset"
+                msg += f" {subset}"
+                raise ValueError(msg)
+            validated_subsets.append(np.asarray(subset))
+            max_ncovariates = max(max_ncovariates, len(subset))
+        return validated_subsets, max_ncovariates
+
+    def _explore_step(self, total_budget, subsets, values, alpha, 
+                      reg_blue, constraint_reg):
+        """
+        Parameters
+        ----------
+        subsets : list[np.ndarray]
+           Indices of the low fidelity models in a subset from 0,...,K-2
+           e.g. (0) contains only the first low fidelity model and (0, 2)
+           contains the first and third. 0 DOES NOT correspond to the
+           high-fidelity model
+        """
+        explore_cost = np.sum(self._costs)
+        losses, allocation_fracs, rates, coefs, covariances = (
+            [], [], [], [], [])
+        for subset in subsets:
+            loss, nsamples_per_subset_frac, explore_rate, beta_Sp, Sigma_S = (
+                AETC_optimal_loss(
+                    total_budget, values[:, :1],
+                    values[:, 1:], self._costs, subset,
+                    alpha, reg_blue, constraint_reg))
+            losses.append(loss)
+            allocation_fracs.append(nsamples_per_subset_frac)
+            rates.append(explore_rate)
+            coefs.append(beta_Sp)
+            covariances.append(Sigma_S)
+        # print(losses)
+        # compute optimal model
+        best_subset_idx = np.argmin(losses)
+        best_allocation_frac = allocation_fracs[best_subset_idx]
+        best_rate = rates[best_subset_idx]
+        best_beta_Sp = coefs[best_subset_idx]
+        best_Sigma_S = covariances[best_subset_idx]
+        # use +1 to accound for subset indexing only lf models
+        best_cost = self._costs[subsets[best_subset_idx]+1].sum()
+
+        nsamples = values.shape[0]
+        if best_rate > 2*nsamples:
+            nexplore_samples = 2*nsamples
+        elif best_rate > nsamples:
+            nexplore_samples = int(np.ceil((nsamples+best_rate)/2))
+        else:
+            nexplore_samples = nsamples
+        # print(nexplore_samples)
+
+        # print(subsets[best_subset_idx], nexplore_samples, nsamples)
+        # print(rates)
+
+        # use +1 to accound for subset indexing only lf models
+        best_subset = subsets[best_subset_idx]+1
+        best_subset_costs = self._costs[best_subset]
+        best_subset_groups = get_model_subsets(best_subset.shape[0])
+        best_subset_group_costs = [
+            best_subset_costs[group].sum() for group in best_subset_groups]
+        # transform nsamples as fraction of unit budget to fraction of
+        # target_cost
+        target_cost_fractions = (total_budget-nexplore_samples*explore_cost)*(
+            best_allocation_frac)
+        # recorrect for normalization of nsamples by cost
+        best_allocation = np.floor(
+            target_cost_fractions/best_subset_group_costs).astype(int)
+
+        return (nexplore_samples, best_subset_idx, best_cost, best_beta_Sp,
+                best_Sigma_S, best_allocation)
+
+    def explore(self, total_budget, subsets, alpha=4,
+                reg_blue=1e-15, constraint_reg=0):
+        if self._costs is None:
+            # todo extract costs from models
+            # costs = ...
+            raise NotImplementedError()
+        subsets, max_ncovariates = self._validate_subsets(subsets)
+
+        nexplore_samples = max_ncovariates+2
+        samples = self.rvs(nexplore_samples)
+        values = np.hstack([model(samples) for model in self.models])
+        # will fail if model does not return ndarray (nsamples, nqoi=1)
+        assert values.ndim == 2
+
+        while True:
+            nexplore_samples_prev = nexplore_samples
+            result = self._explore_step(
+                total_budget, subsets, values, alpha, reg_blue, constraint_reg)
+            (nexplore_samples, best_subset_idx, best_cost, best_beta_Sp,
+             best_Sigma_S, best_allocation) = result
+            if nexplore_samples - nexplore_samples_prev <= 0:
+                break
+            # TODO is using archive model then rvs must not select any
+            # previously selected samples
+            nnew_samples = nexplore_samples-nexplore_samples_prev
+            new_samples = self.rvs(nnew_samples)
+            new_values = [
+                model(new_samples) for model in self.models]
+            samples = np.hstack((samples, new_samples))
+            values = np.vstack((values, np.hstack(new_values)))
+            last_result = result
+            print(result[-1])
+        return samples, values, last_result  # akil returns result
+
+    def exploit(self):
+        pass
+
+    def estimate(self, total_budget, subsets=None):
+        samples, values, result = self.explore(total_budget, subsets)
+        self.exploit()
 
 
 monte_carlo_estimators = {"acvmf": ACVMFEstimator,
