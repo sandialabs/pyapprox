@@ -84,8 +84,8 @@ def setup_model_ensemble_short_column(
     return model_ensemble, cov, generate_samples
 
 
-def setup_model_ensemble_tunable():
-    example = TunableModelEnsemble(np.pi/4)
+def setup_model_ensemble_tunable(shifts=None):
+    example = TunableModelEnsemble(np.pi/4, shifts)
     model_ensemble = ModelEnsemble(example.models)
     cov = example.get_covariance_matrix()
     costs = 10.**(-np.arange(cov.shape[0]))
@@ -890,8 +890,9 @@ class TestCVMC(unittest.TestCase):
         #     lambda x: BLUE_cost_constraint_jac(x).T,
         #     nsamples_per_subset)
         
-        target_cost = 1000
-        model, cov, costs, variable = setup_model_ensemble_tunable()
+        target_cost = 1e3
+        shifts = np.array([1, 2])
+        model, cov, costs, variable = setup_model_ensemble_tunable(shifts)
         estimator = get_estimator(
             "mlblue", cov, costs, variable)
         asketch = np.zeros((costs.shape[0], 1))
@@ -899,14 +900,44 @@ class TestCVMC(unittest.TestCase):
         result = estimator.allocate_samples(
             target_cost, asketch, round_nsamples=False)
         assert np.allclose(result[2], target_cost)
-        print(result[:2])
 
-        # round down because it was not done before to allow testing of
+        subset_costs, subsets = estimator._get_model_subset_costs(
+            costs)
+
+
+        # round nsamples because it was not done before to allow testing of
         # cost constraint
-        estimator.nsamples_per_subset = np.asarray(estimator.nsamples_per_subset).astype(int)
+        estimator.nsamples_per_subset = np.asarray(
+            estimator.nsamples_per_subset).astype(int)
+        rounded_target_cost = np.sum(estimator.nsamples_per_subset*subset_costs)
+        # print(target_cost, rounded_target_cost)
         values = estimator.generate_data(model.functions, variable)
-        print(values)
-        print(estimator(values, asketch))
+        # print(estimator.nsamples_per_subset)
+        true_means = np.hstack((0, shifts))
+        for ii in range(model.nmodels):
+            asketch = np.zeros((costs.shape[0], 1))
+            asketch[ii] = 1.0
+            mean = estimator(values, asketch)
+            # print("Mean", mean, true_means[ii])
+            # assert np.allclose(mean, true_means[ii], atol=2e-2)
+            true_var = estimator.get_variance(
+                rounded_target_cost, estimator.nsamples_per_subset, asketch)
+            print("true Var", true_var)
+
+            ntrials = int(1e4)
+            means = np.empty(ntrials)
+            for ii in range(ntrials):
+                values = estimator.generate_data(model.functions, variable)
+                means[ii] = estimator(values, asketch)
+            numerical_var = means.var()
+            # print("Empirical Var", numerical_var)
+            rtol = 4e-2
+            # print(np.absolute(true_var-numerical_var),
+            #       rtol*np.absolute(true_var))
+            assert np.allclose(numerical_var, true_var, rtol=rtol)
+            # bootstrapped_means = estimator.bootstrap_estimator(
+            #     values, asketch, ntrials)
+            # print("Bootstrapped Var", bootstrapped_means.var())
 
 
 if __name__ == "__main__":

@@ -61,14 +61,18 @@ def BLUE_Psi(Sigma, costs, reg_blue, nsamples_per_subset):
     nmodels = Sigma.shape[0]
     # get all model subsets
     subsets = get_model_subsets(nmodels)
-    subset_costs = [costs[subset].sum() for subset in subsets]
+    if costs is not None:
+        subset_costs = [costs[subset].sum() for subset in subsets]
+    else:
+        subset_costs = np.ones(len(subsets))
     mat = np.identity(nmodels)*reg_blue
     submats = []
     for ii, subset in enumerate(subsets):
         R = _restriction_matrix(nmodels, subset)
-        # TODO why pseudo inverse?
-        submat = R.T.dot(np.linalg.pinv(
-            Sigma[np.ix_(subset, subset)])).dot(R)/subset_costs[ii]
+        submat = np.linalg.multi_dot((
+            R.T,
+            np.linalg.inv(Sigma[np.ix_(subset, subset)]),
+            R))/subset_costs[ii]
         submats.append(submat)
         mat += nsamples_per_subset[ii]*submat
     return mat, submats
@@ -90,14 +94,13 @@ def BLUE_RHS(Sigma, values):
     rhs = np.zeros((nmodels))
     for ii, subset in enumerate(subsets):
         R = _restriction_matrix(nmodels, subset)
-        print(values, len(values), subset)
         if len(values[ii]) == 0:
             continue
         if np.any(np.isfinite(
                 np.delete(values[ii], subset, axis=1))):
             raise ValueError("Values not in subset must be set to np.nan")
         rhs += np.linalg.multi_dot((
-            R.T, np.linalg.pinv(Sigma[np.ix_(subset, subset)]),
+            R.T, np.linalg.inv(Sigma[np.ix_(subset, subset)]),
             (values[ii][:, subset].sum(axis=0)).T))
     return rhs[:, None]
 
@@ -129,7 +132,7 @@ def BLUE_variance(asketch, Sigma, costs, reg_blue, nsamples_per_subset,
 
     mat, submats = BLUE_Psi(Sigma, costs, reg_blue, nsamples_per_subset)
     assert asketch.ndim == 2 and asketch.shape[1] == 1
-    mat_inv = np.linalg.pinv(mat)
+    mat_inv = np.linalg.inv(mat)
     variance = asketch.T.dot(mat_inv).dot(asketch)[0, 0]
 
     if not return_grad:
@@ -141,7 +144,6 @@ def BLUE_variance(asketch, Sigma, costs, reg_blue, nsamples_per_subset,
          for smat in submats])
 
     if not return_hess:
-        print(variance, grad.shape)
         return variance, grad
 
     raise NotImplementedError()

@@ -41,7 +41,7 @@ from pyapprox.multifidelity.multilevelblue import (
     BLUE_bound_constraint, BLUE_bound_constraint_jac,
     BLUE_variance, BLUE_Psi, BLUE_RHS, BLUE_evaluate_models,
     get_model_subsets, BLUE_cost_constraint,
-    BLUE_cost_constraint_jac)
+    BLUE_cost_constraint_jac, BLUE_variance)
 from scipy.optimize import minimize
 
 
@@ -1212,19 +1212,17 @@ def plot_acv_sample_allocation_comparison(
 
 class MLBLUEstimator(AbstractMonteCarloEstimator):
     def __init__(self, cov, costs, variable, sampling_method="random",
-                 reg_blue=1e-6):
+                 reg_blue=1e-15):
         super().__init__(cov, costs, variable, sampling_method)
         self.reg_blue = reg_blue
         self.nsamples_per_subset, self.optimized_variance = None, None
         self.rounded_target_cost = None
 
-    def allocate_samples(self, target_cost, asketch, kappa=1e2,
+    def allocate_samples(self, target_cost, asketch,
                          constraint_reg=0, round_nsamples=True):
         """
         Parameters
         ----------
-        kappa : float
-            Regularization parameter for enforcing budget constraint
         """
         nmodels = len(self.costs)
         assert asketch.shape[0] == self.costs.shape[0]
@@ -1243,15 +1241,12 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         variance = res["fun"]
         nsamples_per_subset_frac = np.maximum(
             np.zeros_like(res["x"]), res["x"])
-        print(nsamples_per_subset_frac.sum(), nsamples_per_subset_frac)
         nsamples_per_subset_frac /= nsamples_per_subset_frac.sum()
         # transform nsamples as fraction of unit budget to fraction of
         # target_cost
         nsamples_per_subset = target_cost*nsamples_per_subset_frac
         # correct for normalization of nsamples by cost
-        subsets = get_model_subsets(nmodels)
-        subset_costs = np.array(
-            [self.costs[subset].sum() for subset in subsets])
+        subset_costs, subsets = self._get_model_subset_costs(self.costs)
         nsamples_per_subset /= subset_costs
         if round_nsamples:
             nsamples_per_subset = np.asarray(nsamples_per_subset).astype(int)
@@ -1261,8 +1256,16 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         self.nsamples_per_subset = nsamples_per_subset
         self.optimized_variance = variance
         self.rounded_target_cost = rounded_target_cost
-
+        self.subsets = subsets
         return nsamples_per_subset, variance, rounded_target_cost
+
+    @staticmethod
+    def _get_model_subset_costs(costs):
+        nmodels = len(costs)
+        subsets = get_model_subsets(nmodels)
+        subset_costs = np.array(
+            [costs[subset].sum() for subset in subsets])
+        return subset_costs, subsets
 
     def generate_data(self, models, variable):
         # todo consider removing self.variable from baseclass
@@ -1271,10 +1274,30 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
 
     def _estimate(self, values, asketch):
         Psi, _ = BLUE_Psi(
-            self.cov, np.ones_like(self.costs), self.reg_blue,
-            self.nsamples_per_subset)
+            self.cov, None, self.reg_blue, self.nsamples_per_subset)
         rhs = BLUE_RHS(self.cov, values)
-        return np.linalg.multi_dot((asketch.T, np.linalg.pinv(Psi), rhs))
+        return np.linalg.multi_dot(
+            (asketch.T, np.linalg.lstsq(Psi, rhs, rcond=None)[0]))
+
+    def get_variance(self, target_cost, nsamples_per_subset, asketch):
+        return BLUE_variance(
+            asketch, self.cov, None, self.reg_blue, nsamples_per_subset)
+
+    def bootstrap_estimator(self, values, asketch, nbootstraps=1000):
+        means = np.empty(nbootstraps)
+        for ii in range(nbootstraps):
+            perturbed_vals = []
+            for jj in range(len(values)):
+                if len(values[jj]) == 0:
+                    perturbed_vals.append([])
+                    continue
+                nsubset_samples = values[jj].shape[0]
+                indices = np.random.choice(
+                    np.arange(nsubset_samples, dtype=int), nsubset_samples,
+                    p=None, replace=True)
+                perturbed_vals.append(values[jj][indices])
+            means[ii] = self._estimate(perturbed_vals, asketch)
+        return means
 
 
 monte_carlo_estimators = {"acvmf": ACVMFEstimator,
