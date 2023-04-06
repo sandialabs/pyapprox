@@ -880,6 +880,34 @@ class TestCVMC(unittest.TestCase):
         # plt.savefig("graph.png")
         # plt.show()
 
+    def test_MLBLUE(self):
+        # from pyapprox.multifidelity.multilevelblue import (
+        #     BLUE_cost_constraint, BLUE_cost_constraint_jac)
+        # nsubsets = 3
+        # nsamples_per_subset = np.ones(nsubsets)[:, None]
+        # errors = check_gradients(
+        #     BLUE_cost_constraint,
+        #     lambda x: BLUE_cost_constraint_jac(x).T,
+        #     nsamples_per_subset)
+        
+        target_cost = 1000
+        model, cov, costs, variable = setup_model_ensemble_tunable()
+        estimator = get_estimator(
+            "mlblue", cov, costs, variable)
+        asketch = np.zeros((costs.shape[0], 1))
+        asketch[0] = 1.0
+        result = estimator.allocate_samples(
+            target_cost, asketch, round_nsamples=False)
+        assert np.allclose(result[2], target_cost)
+        print(result[:2])
+
+        # round down because it was not done before to allow testing of
+        # cost constraint
+        estimator.nsamples_per_subset = np.asarray(estimator.nsamples_per_subset).astype(int)
+        values = estimator.generate_data(model.functions, variable)
+        print(values)
+        print(estimator(values, asketch))
+
 
 if __name__ == "__main__":
     cvmc_test_suite = unittest.TestLoader().loadTestsFromTestCase(

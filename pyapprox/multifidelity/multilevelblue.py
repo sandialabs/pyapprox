@@ -41,6 +41,9 @@ def BLUE_evaluate_models(variable, models, nsamples_per_subset):
     subsets = get_model_subsets(nmodels)
     values = []
     for ii, subset in enumerate(subsets):
+        if nsamples_per_subset[ii] == 0:
+            values.append([])
+            continue
         subset_samples = variable.rvs(nsamples_per_subset[ii])
         # todo improve parallelization by using ModelEnsemble
         subset_values = [models[s](subset_samples) for s in subset]
@@ -84,19 +87,39 @@ def BLUE_RHS(Sigma, values):
     """
     nmodels = Sigma.shape[0]
     subsets = get_model_subsets(nmodels)
-    rhs = np.zeros((nmodels, 1))
+    rhs = np.zeros((nmodels))
     for ii, subset in enumerate(subsets):
         R = _restriction_matrix(nmodels, subset)
-        if np.any(np.delete(values[ii][:, subset]) != np.nan):
+        print(values, len(values), subset)
+        if len(values[ii]) == 0:
+            continue
+        if np.any(np.isfinite(
+                np.delete(values[ii], subset, axis=1))):
             raise ValueError("Values not in subset must be set to np.nan")
         rhs += np.linalg.multi_dot((
             R.T, np.linalg.pinv(Sigma[np.ix_(subset, subset)]),
-            values[ii][:, subset].T.sum(axis=0)))
-    return rhs
+            (values[ii][:, subset].sum(axis=0)).T))
+    return rhs[:, None]
 
 
-def BLUE_variance(asketch, Sigma, costs, nsamples_per_subset,
-                  reg_blue, return_grad=False, return_hess=False):
+def BLUE_bound_constraint(tol, nsamples_per_subset):
+    return nsamples_per_subset-tol
+
+
+def BLUE_bound_constraint_jac(nsamples_per_subset):
+    return np.eye(nsamples_per_subset.shape[0])
+
+
+def BLUE_cost_constraint(nsamples_per_subset):
+    return 1-nsamples_per_subset.sum()
+
+
+def BLUE_cost_constraint_jac(nsamples_per_subset):
+    return -np.ones(nsamples_per_subset.shape[0])
+
+
+def BLUE_variance(asketch, Sigma, costs, reg_blue, nsamples_per_subset,
+                  return_grad=False, return_hess=False):
     """Compute variance of BLUE estimator using Equation 4.13 paper.
     We normalize costs so that the variance is for budget B_ept=1 with respect
     to nsamples_per_subset. This is done because ???
@@ -118,6 +141,7 @@ def BLUE_variance(asketch, Sigma, costs, nsamples_per_subset,
          for smat in submats])
 
     if not return_hess:
+        print(variance, grad.shape)
         return variance, grad
 
     raise NotImplementedError()

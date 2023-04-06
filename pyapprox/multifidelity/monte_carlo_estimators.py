@@ -37,6 +37,12 @@ from pyapprox.multifidelity.control_variate_monte_carlo import (
     bootstrap_acv_estimator, get_acv_recursion_indices
 )
 from pyapprox.interface.wrappers import ModelEnsemble
+from pyapprox.multifidelity.multilevelblue import (
+    BLUE_bound_constraint, BLUE_bound_constraint_jac,
+    BLUE_variance, BLUE_Psi, BLUE_RHS, BLUE_evaluate_models,
+    get_model_subsets, BLUE_cost_constraint,
+    BLUE_cost_constraint_jac)
+from scipy.optimize import minimize
 
 
 class AbstractMonteCarloEstimator(ABC):
@@ -121,10 +127,10 @@ class AbstractMonteCarloEstimator(ABC):
         self.set_sampling_method()
 
     @abstractmethod
-    def _estimate(self, values):
+    def _estimate(self, values, *args):
         raise NotImplementedError()
 
-    def __call__(self, values):
+    def __call__(self, values, *args):
         r"""
         Return the value of the Monte Carlo like estimator
 
@@ -146,7 +152,7 @@ class AbstractMonteCarloEstimator(ABC):
         est : float
             The estimate of the mean
         """
-        return self._estimate(values)
+        return self._estimate(values, *args)
 
 
 class AbstractACVEstimator(AbstractMonteCarloEstimator):
@@ -897,27 +903,6 @@ class ACVISEstimator(AbstractNumericalACVEstimator):
         return cons
 
 
-monte_carlo_estimators = {"acvmf": ACVMFEstimator,
-                          "acvis": ACVISEstimator,
-                          "mfmc": MFMCEstimator,
-                          "mlmc": MLMCEstimator,
-                          "acvgmf": ACVGMFEstimator,
-                          "acvgmfb": ACVGMFBEstimator,
-                          "mc": MCEstimator}
-
-
-def get_estimator(estimator_type, cov, costs, variable, **kwargs):
-    """
-    Initialize an monte-carlo estimator.
-    """
-    if estimator_type not in monte_carlo_estimators:
-        msg = f"Estimator {estimator_type} not supported"
-        msg += f"Must be one of {monte_carlo_estimators.keys()}"
-        raise ValueError(msg)
-    return monte_carlo_estimators[estimator_type](
-        cov, costs, variable, **kwargs)
-
-
 def get_best_models_for_acv_estimator(
         estimator_type, cov, costs, variable, target_cost,
         max_nmodels=None, **kwargs):
@@ -1225,20 +1210,16 @@ def plot_acv_sample_allocation_comparison(
         ax.legend(loc=legendloc)
 
 
-from pyapprox.multifidelity.multilevelblue import (
-    BLUE_constraint, BLUE_variance, BLUE_Psi, BLUE_RHS, BLUE_evaluate_models)
-from scipy.optimize import minimize
-
-
-class MLBLUE(AbstractMonteCarloEstimator):
+class MLBLUEstimator(AbstractMonteCarloEstimator):
     def __init__(self, cov, costs, variable, sampling_method="random",
                  reg_blue=1e-6):
         super().__init__(cov, costs, variable, sampling_method)
+        self.reg_blue = reg_blue
         self.nsamples_per_subset, self.optimized_variance = None, None
         self.rounded_target_cost = None
 
     def allocate_samples(self, target_cost, asketch, kappa=1e2,
-                         constraint_reg=1e-10):
+                         constraint_reg=0, round_nsamples=True):
         """
         Parameters
         ----------
@@ -1249,21 +1230,32 @@ class MLBLUE(AbstractMonteCarloEstimator):
         assert asketch.shape[0] == self.costs.shape[0]
         init_guess = np.full(2**nmodels-1, (1/(2**nmodels-1)))
         obj = partial(BLUE_variance, asketch, self.cov,
-                      self.costs[1:], kappa, self.reg_blue, return_grad=True)
-        constraints = {
-            'type': 'ineq', 'fun': partial(BLUE_constraint, constraint_reg)}
+                      self.costs, self.reg_blue, return_grad=True)
+        constraints = [
+            {'type': 'ineq',
+             'fun': partial(BLUE_bound_constraint, constraint_reg),
+             'jac': BLUE_bound_constraint_jac},
+            {'type': 'eq',
+             'fun': BLUE_cost_constraint,
+             'jac': BLUE_cost_constraint_jac}]
         res = minimize(obj, init_guess, jac=True, method="SLSQP",
                        constraints=constraints)
         variance = res["fun"]
         nsamples_per_subset_frac = np.maximum(
             np.zeros_like(res["x"]), res["x"])
+        print(nsamples_per_subset_frac.sum(), nsamples_per_subset_frac)
         nsamples_per_subset_frac /= nsamples_per_subset_frac.sum()
         # transform nsamples as fraction of unit budget to fraction of
         # target_cost
         nsamples_per_subset = target_cost*nsamples_per_subset_frac
         # correct for normalization of nsamples by cost
-        nsamples_per_subset /= self.costs.sum()
-        rounded_target_cost = (nsamples_per_subset*self.costs).sum()
+        subsets = get_model_subsets(nmodels)
+        subset_costs = np.array(
+            [self.costs[subset].sum() for subset in subsets])
+        nsamples_per_subset /= subset_costs
+        if round_nsamples:
+            nsamples_per_subset = np.asarray(nsamples_per_subset).astype(int)
+        rounded_target_cost = np.sum(nsamples_per_subset*subset_costs)
 
         # set attributes needed for self._estimate
         self.nsamples_per_subset = nsamples_per_subset
@@ -1283,3 +1275,25 @@ class MLBLUE(AbstractMonteCarloEstimator):
             self.nsamples_per_subset)
         rhs = BLUE_RHS(self.cov, values)
         return np.linalg.multi_dot((asketch.T, np.linalg.pinv(Psi), rhs))
+
+
+monte_carlo_estimators = {"acvmf": ACVMFEstimator,
+                          "acvis": ACVISEstimator,
+                          "mfmc": MFMCEstimator,
+                          "mlmc": MLMCEstimator,
+                          "acvgmf": ACVGMFEstimator,
+                          "acvgmfb": ACVGMFBEstimator,
+                          "mc": MCEstimator,
+                          "mlblue": MLBLUEstimator}
+
+
+def get_estimator(estimator_type, cov, costs, variable, **kwargs):
+    """
+    Initialize an monte-carlo estimator.
+    """
+    if estimator_type not in monte_carlo_estimators:
+        msg = f"Estimator {estimator_type} not supported"
+        msg += f"Must be one of {monte_carlo_estimators.keys()}"
+        raise ValueError(msg)
+    return monte_carlo_estimators[estimator_type](
+        cov, costs, variable, **kwargs)
