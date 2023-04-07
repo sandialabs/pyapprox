@@ -38,7 +38,7 @@ def get_model_subsets(nmodels, max_subset_nmodels=None):
     return subsets
 
 
-def BLUE_evaluate_models(variable, models, nsamples_per_subset):
+def BLUE_evaluate_models(rvs, models, nsamples_per_subset):
     nmodels = len(models)
     subsets = get_model_subsets(nmodels)
     values = []
@@ -46,7 +46,7 @@ def BLUE_evaluate_models(variable, models, nsamples_per_subset):
         if nsamples_per_subset[ii] == 0:
             values.append([])
             continue
-        subset_samples = variable.rvs(nsamples_per_subset[ii])
+        subset_samples = rvs(nsamples_per_subset[ii])
         # todo improve parallelization by using ModelEnsemble
         subset_values = [models[s](subset_samples) for s in subset]
         if np.any([v.shape[1] != 1 for v in subset_values]):
@@ -368,8 +368,8 @@ def AETC_optimal_loss(
     # print(X_Sp)
     # print(hf_values[:, 0])
     # print(covariate_subset)
-    # k1, k2, nsamples_per_subset_frac = AETC_BLUE_allocate_samples_deprecated(
-    k1, k2, nsamples_per_subset_frac = AETC_BLUE_allocate_samples(
+    k1, k2, nsamples_per_subset_frac = AETC_BLUE_allocate_samples_deprecated(
+    # k1, k2, nsamples_per_subset_frac = AETC_BLUE_allocate_samples(
         beta_Sp, Sigma_S, sigma_S_sq, x_Sp, Lambda_Sp, costs_S, 
         reg_blue, constraint_reg)
     # print(k1, k2, nsamples_per_subset)

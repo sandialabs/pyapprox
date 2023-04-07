@@ -41,8 +41,7 @@ from pyapprox.multifidelity.multilevelblue import (
     BLUE_bound_constraint, BLUE_bound_constraint_jac,
     BLUE_variance, BLUE_Psi, BLUE_RHS, BLUE_evaluate_models,
     get_model_subsets, BLUE_cost_constraint,
-    BLUE_cost_constraint_jac, BLUE_variance,
-    AETC_optimal_loss, AETC_least_squares)
+    BLUE_cost_constraint_jac, AETC_optimal_loss)
 from scipy.optimize import minimize
 
 
@@ -1215,7 +1214,7 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
     def __init__(self, cov, costs, variable, sampling_method="random",
                  reg_blue=1e-15):
         super().__init__(cov, costs, variable, sampling_method)
-        self.reg_blue = reg_blue
+        self._reg_blue = reg_blue
         self.nsamples_per_subset, self.optimized_variance = None, None
         self.rounded_target_cost = None
 
@@ -1229,7 +1228,7 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         assert asketch.shape[0] == self.costs.shape[0]
         init_guess = np.full(2**nmodels-1, (1/(2**nmodels-1)))
         obj = partial(BLUE_variance, asketch, self.cov,
-                      self.costs, self.reg_blue, return_grad=True)
+                      self.costs, self._reg_blue, return_grad=True)
         constraints = [
             {'type': 'ineq',
              'fun': partial(BLUE_bound_constraint, constraint_reg),
@@ -1271,18 +1270,18 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
     def generate_data(self, models, variable):
         # todo consider removing self.variable from baseclass
         return BLUE_evaluate_models(
-            variable, models, self.nsamples_per_subset)
+            variable.rvs, models, self.nsamples_per_subset)
 
     def _estimate(self, values, asketch):
         Psi, _ = BLUE_Psi(
-            self.cov, None, self.reg_blue, self.nsamples_per_subset)
+            self.cov, None, self._reg_blue, self.nsamples_per_subset)
         rhs = BLUE_RHS(self.cov, values)
         return np.linalg.multi_dot(
             (asketch.T, np.linalg.lstsq(Psi, rhs, rcond=None)[0]))
 
     def get_variance(self, target_cost, nsamples_per_subset, asketch):
         return BLUE_variance(
-            asketch, self.cov, None, self.reg_blue, nsamples_per_subset)
+            asketch, self.cov, None, self._reg_blue, nsamples_per_subset)
 
     def bootstrap_estimator(self, values, asketch, nbootstraps=1000):
         means = np.empty(nbootstraps)
@@ -1301,7 +1300,8 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         return means
 
 class AETCBLUE():
-    def __init__(self, models, rvs, costs=None):
+    def __init__(self, models, rvs, costs=None,
+                 reg_blue=1e-15, constraint_reg=0):
         r"""
         Parameters
         ----------
@@ -1328,6 +1328,8 @@ class AETCBLUE():
             raise ValueError("rvs must be callabe")
         self.rvs = rvs
         self._costs = self._validate_costs(costs)
+        self._reg_blue = reg_blue
+        self._constraint_reg = constraint_reg
 
     def _validate_costs(self, costs):
         if costs is None:
@@ -1351,7 +1353,7 @@ class AETCBLUE():
             max_ncovariates = max(max_ncovariates, len(subset))
         return validated_subsets, max_ncovariates
 
-    def _explore_step(self, total_budget, subsets, values, alpha, 
+    def _explore_step(self, total_budget, subsets, values, alpha,
                       reg_blue, constraint_reg):
         """
         Parameters
@@ -1398,9 +1400,9 @@ class AETCBLUE():
         # print(subsets[best_subset_idx], nexplore_samples, nsamples)
         # print(rates)
 
+        best_subset = subsets[best_subset_idx]
         # use +1 to accound for subset indexing only lf models
-        best_subset = subsets[best_subset_idx]+1
-        best_subset_costs = self._costs[best_subset]
+        best_subset_costs = self._costs[best_subset+1]
         best_subset_groups = get_model_subsets(best_subset.shape[0])
         best_subset_group_costs = [
             best_subset_costs[group].sum() for group in best_subset_groups]
@@ -1412,11 +1414,11 @@ class AETCBLUE():
         best_allocation = np.floor(
             target_cost_fractions/best_subset_group_costs).astype(int)
 
-        return (nexplore_samples, best_subset_idx, best_cost, best_beta_Sp,
+        return (nexplore_samples, best_subset, best_cost, best_beta_Sp,
                 best_Sigma_S, best_allocation)
 
-    def explore(self, total_budget, subsets, alpha=4,
-                reg_blue=1e-15, constraint_reg=0):
+    def explore_deprecated(self, total_budget, subsets, alpha=4,
+                           constraint_reg=0):
         if self._costs is None:
             # todo extract costs from models
             # costs = ...
@@ -1432,8 +1434,9 @@ class AETCBLUE():
         while True:
             nexplore_samples_prev = nexplore_samples
             result = self._explore_step(
-                total_budget, subsets, values, alpha, reg_blue, constraint_reg)
-            (nexplore_samples, best_subset_idx, best_cost, best_beta_Sp,
+                total_budget, subsets, values, alpha, self._reg_blue,
+                self._constraint_reg)
+            (nexplore_samples, best_subset, best_cost, best_beta_Sp,
              best_Sigma_S, best_allocation) = result
             if nexplore_samples - nexplore_samples_prev <= 0:
                 break
@@ -1449,12 +1452,55 @@ class AETCBLUE():
             print(result[-1])
         return samples, values, last_result  # akil returns result
 
-    def exploit(self):
-        pass
+    def explore(self, total_budget, subsets, alpha=4):
+        if self._costs is None:
+            # todo extract costs from models
+            # costs = ...
+            raise NotImplementedError()
+        subsets, max_ncovariates = self._validate_subsets(subsets)
+
+        nexplore_samples = max_ncovariates+2
+        nexplore_samples_prev = 0
+        while nexplore_samples - nexplore_samples_prev > 0:
+            nnew_samples = nexplore_samples-nexplore_samples_prev
+            new_samples = self.rvs(nnew_samples)
+            new_values = [
+                model(new_samples) for model in self.models]
+            if nexplore_samples_prev == 0:
+                samples = new_samples
+                values = np.hstack(new_values)
+                # will fail if model does not return ndarray (nsamples, nqoi=1)
+                assert values.ndim == 2
+            else:
+                samples = np.hstack((samples, new_samples))
+                values = np.vstack((values, np.hstack(new_values)))
+            nexplore_samples_prev = nexplore_samples
+            result = self._explore_step(
+                total_budget, subsets, values, alpha, self._reg_blue,
+                self._constraint_reg)
+            (nexplore_samples, best_subset, best_cost, best_beta_Sp,
+             Sigma_best_S, best_allocation) = result
+            last_result = result
+            print(result[-1])
+        return samples, values, last_result  # akil returns result
+
+    def exploit(self, explore_values, result):
+        best_subset = result[1]
+        beta_Sp, Sigma_best_S, nsamples_per_subset = result[3:6]
+        Psi, _ = BLUE_Psi(
+            Sigma_best_S, None, self._reg_blue, nsamples_per_subset)
+        # use +1 to accound for subset indexing only lf models
+        values = BLUE_evaluate_models(
+            self.rvs, [self.models[s+1] for s in best_subset],
+            nsamples_per_subset)
+        rhs = BLUE_RHS(Sigma_best_S, values)
+        beta_S = beta_Sp[1:]
+        return np.linalg.multi_dot(
+            (beta_S.T, np.linalg.lstsq(Psi, rhs, rcond=None)[0])) + beta_Sp[0]
 
     def estimate(self, total_budget, subsets=None):
         samples, values, result = self.explore(total_budget, subsets)
-        self.exploit()
+        return self.exploit(values, result)
 
 
 monte_carlo_estimators = {"acvmf": ACVMFEstimator,
