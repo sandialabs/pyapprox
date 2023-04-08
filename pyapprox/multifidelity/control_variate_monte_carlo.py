@@ -2127,4 +2127,3 @@ def plot_model_costs(costs, model_names=None, ax=None):
 # Notes
 # using pkg.double when ever creating a torch tensor is esssential.
 # Otherwise autograd will not work.
-

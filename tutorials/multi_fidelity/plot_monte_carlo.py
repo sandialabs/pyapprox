@@ -20,7 +20,7 @@ The mean squared error (MSE) of this estimator can be expressed as
    &\qquad\qquad+\mean{2\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)}\\
    &=\var{Q_{\alpha,N}}+\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)^2
    
-Here we used that :math:`Q_{\alpha,N}` is an unbiased estimator, i.e. :math:`\mean{Q_{\alpha,N}}=\mean{Q}` so the third term on the second line is zero. Now using
+Here we used that :math:`\mean{\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)}=0` so the third term on the second line is zero. Now using
 
 .. math::
 

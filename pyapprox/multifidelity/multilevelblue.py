@@ -176,7 +176,7 @@ def AETC_BLUE_allocate_samples(
             np.linalg.multi_dot((Sigma_Sp, beta_Sp, beta_Sp.T)))
         return k1, k2, np.ones(1)
 
-    asketch = beta_Sp[1:] # remove high-fidelity coefficient
+    asketch = beta_Sp[1:]  # remove high-fidelity coefficient
     init_guess = np.full(2**nmodels-1, (1/(2**nmodels-1)))
 
     obj = partial(
@@ -289,7 +289,7 @@ def AETC_BLUE_allocate_samples_deprecated(
             np.linalg.multi_dot((Sigma_Sp, beta_Sp, beta_Sp.T)))
         return k1, k2, np.ones(1)
 
-    asketch = beta_Sp[1:] # remove high-fidelity coefficient
+    asketch = beta_Sp[1:]  # remove high-fidelity coefficient
     init_guess = np.full(2**nmodels-1, (1/(2**nmodels-1)))
 
     obj = partial(
@@ -311,9 +311,21 @@ def AETC_BLUE_allocate_samples_deprecated(
     return k1, k2, nsamples_per_subset_frac
 
 
+def _AETC_subset_oracle_stats(oracle_stats, covariate_subset):
+    cov, means = oracle_stats
+    Sigma_S = cov[np.ix_(covariate_subset+1, covariate_subset+1)]
+    Sp_subset = np.hstack((0, covariate_subset+1))
+    x_Sp = means[Sp_subset]
+    tmp1 = np.zeros_like(cov)
+    tmp1[1:, 1:] = cov[1:, 1:]
+    tmp2 = np.vstack((1, means[1:]))
+    Lambda_Sp = (tmp1+tmp2.dot(tmp2.T))[np.ix_(Sp_subset, Sp_subset)]
+    return Sigma_S, Lambda_Sp, x_Sp
+
+
 def AETC_optimal_loss(
         total_budget, hf_values, covariate_values, costs, covariate_subset,
-        alpha, reg_blue, constraint_reg):
+        alpha, reg_blue, constraint_reg, oracle_stats):
     r"""
     Parameters
     ----------
@@ -346,14 +358,20 @@ def AETC_optimal_loss(
 
     # Compute Lambda_S = \hat{Lambda}_{S} # TODO in paper why not subscript S+
     nsamples = hf_values.shape[0]
-    # TODO in paper $X_{S+}$=X_Sp.T used here
-    Lambda_Sp = X_Sp.T.dot(X_Sp)/nsamples
-
-    # x_Sp = $\bar{x}_{S+}$
-    x_Sp = X_Sp.mean(axis=0)[:, None]
 
     # Sigma_S = $\hat{\Sigma}_S$
-    Sigma_S = np.atleast_2d(np.cov(covariate_values[:, covariate_subset].T))
+    if oracle_stats is None:
+        # x_Sp = $\bar{x}_{S+}$
+        x_Sp = X_Sp.mean(axis=0)[:, None]
+        Sigma_S = np.atleast_2d(
+            np.cov(covariate_values[:, covariate_subset].T))
+        # TODO in paper $X_{S+}$=X_Sp.T used here
+        Lambda_Sp = X_Sp.T.dot(X_Sp)/nsamples
+        # print(Sigma_S, Lambda_Sp, x_Sp)
+    else:
+        Sigma_S, Lambda_Sp, x_Sp = _AETC_subset_oracle_stats(
+            oracle_stats, covariate_subset)
+        # print(Sigma_S, Lambda_Sp, x_Sp)
 
     # extract costs of models in subset
     # covariate_subset+1 is used because high-fidelity assumed
@@ -368,11 +386,10 @@ def AETC_optimal_loss(
     # print(X_Sp)
     # print(hf_values[:, 0])
     # print(covariate_subset)
-    k1, k2, nsamples_per_subset_frac = AETC_BLUE_allocate_samples_deprecated(
-    # k1, k2, nsamples_per_subset_frac = AETC_BLUE_allocate_samples(
-        beta_Sp, Sigma_S, sigma_S_sq, x_Sp, Lambda_Sp, costs_S, 
+    # k1, k2, nsamples_per_subset_frac = AETC_BLUE_allocate_samples_deprecated(
+    k1, k2, nsamples_per_subset_frac = AETC_BLUE_allocate_samples(
+        beta_Sp, Sigma_S, sigma_S_sq, x_Sp, Lambda_Sp, costs_S,
         reg_blue, constraint_reg)
-    # print(k1, k2, nsamples_per_subset)
 
     # cost of exploration (exploration evaluates all models)
     explore_cost = costs.sum()
@@ -386,7 +403,8 @@ def AETC_optimal_loss(
     # print(explore_rate, 'r', total_budget, explore_cost, alpha, nsamples)
 
     # estimate optimal loss
-    opt_loss = k2/(total_budget-explore_cost*explore_rate)+(
-        k1+alpha**(-nsamples))/explore_rate
+    exploit_budget = (total_budget-explore_cost*explore_rate)
+    opt_loss = k2/exploit_budget+(k1+alpha**(-nsamples))/explore_rate
 
-    return opt_loss, nsamples_per_subset_frac, explore_rate, beta_Sp, Sigma_S
+    return (opt_loss, nsamples_per_subset_frac, explore_rate, beta_Sp, Sigma_S,
+            k2, exploit_budget)
