@@ -1267,10 +1267,10 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
             [costs[subset].sum() for subset in subsets])
         return subset_costs, subsets
 
-    def generate_data(self, models, variable):
+    def generate_data(self, models, variable, pilot_values=None):
         # todo consider removing self.variable from baseclass
         return BLUE_evaluate_models(
-            variable.rvs, models, self.nsamples_per_subset)
+            variable.rvs, models, self.nsamples_per_subset, pilot_values)
 
     def _estimate(self, values, asketch):
         Psi, _ = BLUE_Psi(

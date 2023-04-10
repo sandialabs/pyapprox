@@ -38,23 +38,44 @@ def get_model_subsets(nmodels, max_subset_nmodels=None):
     return subsets
 
 
-def BLUE_evaluate_models(rvs, models, nsamples_per_subset):
+def BLUE_evaluate_models(rvs, models, nsamples_per_subset, pilot_values=None):
     nmodels = len(models)
     subsets = get_model_subsets(nmodels)
     values = []
+    if pilot_values is not None:
+        npilot_samples = pilot_values.shape[0]
+    else:
+        npilot_samples = 0
+    npilot_samples_used = 0
+    print(np.random.get_state()[1][:5])
     for ii, subset in enumerate(subsets):
         if nsamples_per_subset[ii] == 0:
             values.append([])
             continue
-        subset_samples = rvs(nsamples_per_subset[ii])
-        # todo improve parallelization by using ModelEnsemble
-        subset_values = [models[s](subset_samples) for s in subset]
-        if np.any([v.shape[1] != 1 for v in subset_values]):
+        nnew_pilot_samples_to_use = max(0, min(
+            npilot_samples-npilot_samples_used, nsamples_per_subset[ii]))
+        nremaining_subset_samples = (
+            nsamples_per_subset[ii]-nnew_pilot_samples_to_use)
+        subset_samples = rvs(nremaining_subset_samples)
+        if ii == len(subsets)-1:
+            print(subset_samples[:, 0], "S")
+        remaining_subset_values = [models[s](subset_samples) for s in subset]
+        if np.any([v.shape[1] != 1 for v in remaining_subset_values]):
             msg = "values returned by models are incorrect shape"
             raise ValueError(msg)
+        remaining_subset_values = np.hstack(remaining_subset_values)
+        if nnew_pilot_samples_to_use > 0:
+            idx1 = npilot_samples_used
+            idx2 = idx1+nnew_pilot_samples_to_use
+            npilot_samples_used += nnew_pilot_samples_to_use
+            subset_values = np.vstack((
+                pilot_values[:, idx1:idx2], remaining_subset_values))
+        else:
+            subset_values = remaining_subset_values
+        # todo improve parallelization by using ModelEnsemble
         values_ii = np.full(
             (nsamples_per_subset[ii], nmodels), np.nan)
-        values_ii[:, subset] = np.hstack(subset_values)
+        values_ii[:, subset] = subset_values
         values.append(values_ii)
     return values
 
