@@ -1212,7 +1212,7 @@ def plot_acv_sample_allocation_comparison(
 
 class MLBLUEstimator(AbstractMonteCarloEstimator):
     def __init__(self, cov, costs, variable, sampling_method="random",
-                 reg_blue=1e-15):
+                 reg_blue=1e-12):
         super().__init__(cov, costs, variable, sampling_method)
         self._reg_blue = reg_blue
         self.nsamples_per_subset, self.optimized_variance = None, None
@@ -1238,6 +1238,7 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
              'jac': BLUE_cost_constraint_jac}]
         res = minimize(obj, init_guess, jac=True, method="SLSQP",
                        constraints=constraints)
+        assert res.success, res
         variance = res["fun"]
         nsamples_per_subset_frac = np.maximum(
             np.zeros_like(res["x"]), res["x"])

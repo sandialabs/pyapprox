@@ -47,7 +47,6 @@ def BLUE_evaluate_models(rvs, models, nsamples_per_subset, pilot_values=None):
     else:
         npilot_samples = 0
     npilot_samples_used = 0
-    print(np.random.get_state()[1][:5])
     for ii, subset in enumerate(subsets):
         if nsamples_per_subset[ii] == 0:
             values.append([])
@@ -57,8 +56,6 @@ def BLUE_evaluate_models(rvs, models, nsamples_per_subset, pilot_values=None):
         nremaining_subset_samples = (
             nsamples_per_subset[ii]-nnew_pilot_samples_to_use)
         subset_samples = rvs(nremaining_subset_samples)
-        if ii == len(subsets)-1:
-            print(subset_samples[:, 0], "S")
         remaining_subset_values = [models[s](subset_samples) for s in subset]
         if np.any([v.shape[1] != 1 for v in remaining_subset_values]):
             msg = "values returned by models are incorrect shape"
