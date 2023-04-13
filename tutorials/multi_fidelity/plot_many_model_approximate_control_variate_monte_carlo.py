@@ -233,6 +233,7 @@ _ = axs[1].legend()
 #
 #where each model is the function of a single uniform random variable defined on the unit interval :math:`[0,1]`.
 
+from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
 plt.figure()
 benchmark = setup_benchmark("polynomial_ensemble")
 poly_model = benchmark.fun
@@ -240,7 +241,7 @@ cov = poly_model.get_covariance_matrix()
 model_costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
 nhf_samples = 10
 nsample_ratios_base = np.array([2, 4, 8, 16])
-cv_labels = [r'$\mathrm{OCV-1}$', r'$\mathrm{OCV-2}$', r'$\mathrm{OCV-4}$']
+cv_labels = mathrm_labels(["OCV-1", "OCV-2", "OCV-4"])
 cv_rsquared_funcs = [
     lambda cov: get_control_variate_rsquared(cov[:2, :2]),
     lambda cov: get_control_variate_rsquared(cov[:3, :3]),
@@ -253,7 +254,6 @@ for ii in range(len(cv_gammas)):
 plt.axhline(y=1, linestyle='--', c='k')
 plt.text(xloc, 1, r'$\mathrm{MC}$', fontsize=16)
 
-from pyapprox.util.configure_plots import mathrm_labels
 acv_labels = mathrm_labels(["MLMC", "MFMC", "ACVMF"])
 estimators = [
     multifidelity.get_estimator("mlmc", cov, model_costs, poly_model.variable),
@@ -272,7 +272,7 @@ for ii in range(len(acv_labels)):
                  label=acv_labels[ii])
 plt.legend()
 plt.xlabel(r'$\log_2(r_i)-i$')
-_ = plt.ylabel(r'$\mathrm{Variance}$ $\mathrm{reduction}$ $\mathrm{ratio}$ $\gamma$')
+_ = plt.ylabel(mathrm_label("Variance reduction ratio ")+r"$\gamma$")
 
 #%%
 #As the theory suggests MLMC and MFMC use multiple models to increase the speed to which we converge to the optimal 2 model CV estimator OCV-2. These two approaches reduce the variance of the estimator more quickly than the ACV estimator, but cannot obtain the optimal variance reduction.

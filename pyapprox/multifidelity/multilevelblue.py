@@ -98,6 +98,20 @@ def BLUE_Psi(Sigma, costs, reg_blue, nsamples_per_subset):
     return mat, submats
 
 
+def BLUE_betas(Sigma, asketch, reg_blue, nsamples_per_subset):
+    nmodels = Sigma.shape[0]
+    subsets = get_model_subsets(nmodels)
+    Psi = BLUE_Psi(Sigma, None, reg_blue, nsamples_per_subset)[0]
+    Psi_inv = np.linalg.inv(Psi)
+    betas = np.empty((len(subsets), nmodels))
+    for ii, subset in enumerate(subsets):
+        Sigma_inv = np.linalg.inv(Sigma[np.ix_(subset, subset)])
+        R = _restriction_matrix(nmodels, subset)
+        betas[ii] = np.linalg.multi_dot(
+            (R.T, Sigma_inv, R, Psi_inv, asketch))[:, 0]*nsamples_per_subset[ii]
+    return betas
+
+
 def BLUE_RHS(Sigma, values):
     """
     Parameters

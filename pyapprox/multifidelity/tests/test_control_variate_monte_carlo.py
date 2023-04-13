@@ -44,6 +44,7 @@ from pyapprox.interface.wrappers import ModelEnsemble
 from pyapprox.benchmarks.multifidelity_benchmarks import (
     ShortColumnModelEnsemble, TunableModelEnsemble, PolynomialModelEnsemble
 )
+from pyapprox.multifidelity.multilevelblue import BLUE_betas, BLUE_variance
 
 
 skiptest = unittest.skipIf(
@@ -911,6 +912,20 @@ class TestCVMC(unittest.TestCase):
             estimator.nsamples_per_subset).astype(int)
         # rounded_target_cost = np.sum(
         #     estimator.nsamples_per_subset*subset_costs)
+
+        # test equivalent formulations for variance
+        betas = BLUE_betas(cov, asketch, 1e-10, estimator.nsamples_per_subset)
+        tmp = np.array(
+            [np.linalg.multi_dot((betas[kk].T, cov, betas[kk]))
+             for kk in range(betas.shape[0])])
+        tmp[estimator.nsamples_per_subset > 0] /= (
+            estimator.nsamples_per_subset[estimator.nsamples_per_subset > 0])
+        variance = tmp.sum()
+        assert np.allclose(
+            variance,
+            BLUE_variance(asketch, cov, None, 1e-10,
+                          estimator.nsamples_per_subset))
+
         values = estimator.generate_data(model.functions, variable)
         for ii in range(model.nmodels):
             asketch = np.zeros((costs.shape[0], 1))
