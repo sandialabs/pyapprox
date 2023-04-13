@@ -132,6 +132,32 @@ class TestBenchmarks(unittest.TestCase):
             g1 = pickle.load(f)
         tmp_dir.cleanup()
 
+    def test_tunable_multifidelity_model(self):
+        g = setup_benchmark("tunable_model_ensemble", shifts=[1, 2])
+        kurtosis = g.fun.get_kurtosis()
+        print(kurtosis)
+        from pyapprox.surrogates.integrate import integrate
+        quad_x, quad_w = integrate("tensorproduct", g.variable, levels=[20]*2)
+        ref_kurtosis = np.hstack([
+            (((m(quad_x)-mu)**4).T.dot(quad_w)[:, 0])
+            for m, mu in zip(g.fun.models, g.fun.get_means())])
+        assert np.allclose(ref_kurtosis, kurtosis)
+
+        nsamples = 100
+        variances = np.diag(g.fun.get_covariance_matrix())
+        variance_est_variance = (
+            kurtosis-(nsamples-3)/(nsamples-1)*variances**2)/nsamples
+        print(variance_est_variance)
+
+        ntrials = int(1e4)
+        estimator_vals = np.empty((ntrials, 3))
+        for ii in range(ntrials):
+            samples = g.variable.rvs(nsamples)
+            estimator_vals[ii] = [m(samples).var() for m in g.fun.models]
+        # print(estimator_vals.var(axis=0))
+        assert np.allclose(estimator_vals.var(axis=0), variance_est_variance,
+                           rtol=3e-2)
+
 
 if __name__ == "__main__":
     benchmarks_test_suite = unittest.TestLoader().loadTestsFromTestCase(

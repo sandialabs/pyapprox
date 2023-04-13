@@ -128,6 +128,12 @@ class TunableModelEnsemble(object):
         return np.array(
             [0, self.shifts[0], self.shifts[1]])
 
+    def get_kurtosis(self):
+        return np.array([
+            (self.A0**4*(213+29*np.cos(4*self.theta0)))/5082,
+            (self.A1**4*(93+5*np.cos(4*self.theta1)))/1274,
+            -(1/30)*self.A2**4*(-7+np.cos(4*self.theta2))])
+
 
 class ShortColumnModelEnsemble(object):
     def __init__(self):
