@@ -1255,7 +1255,13 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
 
         # set attributes needed for self._estimate
         self.nsamples_per_subset = nsamples_per_subset
-        self.optimized_variance = variance
+        # variance for unrounded nsamples_per_subset
+        # self.optimized_variance = variance/target_cost
+        # variance for rounded nsamples_per_subset
+        self.optimized_variance = BLUE_variance(
+            asketch, self.cov, None, self._reg_blue,
+            self.nsamples_per_subset)
+        print(self.optimized_variance, variance/target_cost)
         self.rounded_target_cost = rounded_target_cost
         self.subsets = subsets
         return nsamples_per_subset, variance, rounded_target_cost

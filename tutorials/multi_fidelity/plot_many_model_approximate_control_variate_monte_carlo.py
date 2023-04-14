@@ -334,7 +334,6 @@ _ = plt.ylabel(r'$\mathrm{Variance}$ $\mathrm{reduction}$ $\mathrm{ratio}$ $\gam
 #%%
 #The variance of the best ACV-GMFB still converges to the lowest possible variance. But its variance at small sample sizes is better than ACV-MF  and comparable to MLMC.
 #
-#TODO Make note about how this scheme is useful when one model may have multiple discretizations.!!!!
 
 #%%
 #Optimal Sample Allocation
