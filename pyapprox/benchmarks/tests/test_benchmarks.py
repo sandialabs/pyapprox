@@ -143,20 +143,18 @@ class TestBenchmarks(unittest.TestCase):
             for m, mu in zip(g.fun.models, g.fun.get_means())])
         assert np.allclose(ref_kurtosis, kurtosis)
 
-        nsamples = 100
-        variances = np.diag(g.fun.get_covariance_matrix())
-        variance_est_variance = (
-            kurtosis-(nsamples-3)/(nsamples-1)*variances**2)/nsamples
-        print(variance_est_variance)
-
+        nsamples = 1000
         ntrials = int(1e4)
         estimator_vals = np.empty((ntrials, 3))
         for ii in range(ntrials):
             samples = g.variable.rvs(nsamples)
             estimator_vals[ii] = [m(samples).var() for m in g.fun.models]
-        # print(estimator_vals.var(axis=0))
-        assert np.allclose(estimator_vals.var(axis=0), variance_est_variance,
-                           rtol=3e-2)
+
+        C = g.fun.get_covariance_of_variances(nsamples)
+        # print(np.cov(estimator_vals.T))
+        # print(C)
+        # print((C-np.cov(estimator_vals.T))/C)
+        assert np.allclose(C, np.cov(estimator_vals.T), rtol=4e-2)
 
 
 if __name__ == "__main__":
