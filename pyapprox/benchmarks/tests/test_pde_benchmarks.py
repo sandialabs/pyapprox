@@ -68,7 +68,7 @@ class TestPDEBenchmarks(unittest.TestCase):
             physics._diff_fun = partial(
                 inv_model.base_model._fast_interpolate,
                 inv_model.base_model._kle(sample[:, None]))
-        sample.requires_grad_= True
+        sample.requires_grad_ = True
         dRdp_ad = torch.autograd.functional.jacobian(
             partial(inv_model.base_model._adj_solver._parameterized_residual,
                     fwd_sol, set_random_sample),
@@ -76,13 +76,18 @@ class TestPDEBenchmarks(unittest.TestCase):
         dRdp = inv_model.base_model._adj_solver._dRdp(
             inv_model.base_model._fwd_solver.physics, fwd_sol.clone(),
             sample)
+        print(dRdp)
+        print(dRdp_ad)
         assert np.allclose(dRdp, dRdp_ad)
 
         # TODO add std to params list
         init_guess = true_params + np.random.normal(0, 0.01, true_params.shape)
         # init_guess = sample.numpy()[:, None]
-
-        # from pyapprox.util.utilities import approx_fprime
+        # from pyapprox.util.utilities import approx_fprime, approx_jacobian
+        # fd_jac = approx_jacobian(
+        #     lambda p: inv_model.base_model._adj_solver._parameterized_residual(
+        #         fwd_sol, set_random_sample, torch.as_tensor(p)), sample)
+        # print(fd_jac)
         # print(approx_fprime(init_guess, inv_model), 'fd')
         # print(inv_model(init_guess, return_grad=True), 'g')
         # assert False

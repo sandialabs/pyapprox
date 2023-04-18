@@ -400,10 +400,10 @@ class CanonicalCollocationMesh():
         self._flux_islinear = False
         self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
         self._normal_vals = [None for dd in range(2*self.nphys_vars)]
-        
+
     def _clear_flux_normal_vals(self):
         self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
-        
+
     @staticmethod
     def _get_basis_types(nphys_vars, basis_types):
         if basis_types is None:
@@ -693,7 +693,7 @@ class CanonicalCollocationMesh():
     def _apply_dirichlet_boundary_conditions_special_indexing(
             self, bndry_conds, residual, jac, sol):
         # special indexing copies data which slows down function
-        
+
         # needs to have indices as argument so this fucntion can be used
         # when setting boundary conditions for forward and adjoint solves
 
@@ -716,12 +716,11 @@ class CanonicalCollocationMesh():
             residual[idx] = sol[idx]-bndry_vals
         return residual, jac
 
-    
     @staticmethod
     def _bndry_slice(vec, idx, axis):
         # avoid copying data
         if len(idx) == 1:
-            if axis == 0 :
+            if axis == 0:
                 return vec[idx]
             return vec[:, idx]
         stride = idx[1]-idx[0]
@@ -755,7 +754,7 @@ class CanonicalCollocationMesh():
             if bndry_cond[1] != "N" and bndry_cond[1] != "R":
                 continue
             idx = self._bndry_indices[ii]
-            mesh_pts_idx =  self._bndry_slice(self.mesh_pts, idx, 1)
+            mesh_pts_idx = self._bndry_slice(self.mesh_pts, idx, 1)
             if self._normal_vals[ii] is None:
                 self._normal_vals[ii] = self._bndrys[ii].normals(mesh_pts_idx)
             if not self._flux_islinear or self._flux_normal_vals[ii] is None:
@@ -770,9 +769,10 @@ class CanonicalCollocationMesh():
             # (D2*u)*n2+D2*u*n2
             jac[idx] = sum(flux_normal_vals)
             bndry_vals = bndry_cond[0](mesh_pts_idx)[:, 0]
-            
+
             # residual[idx] = torch.linalg.multi_dot((jac[idx], sol))-bndry_vals
-            residual[idx] = torch.linalg.multi_dot((self._bndry_slice(jac, idx, 0), sol))-bndry_vals
+            residual[idx] = torch.linalg.multi_dot(
+                (self._bndry_slice(jac, idx, 0), sol))-bndry_vals
             if bndry_cond[1] == "R":
                 jac[idx, idx] += bndry_cond[2]
                 # residual[idx] += bndry_cond[2]*sol[idx]
@@ -813,7 +813,7 @@ class CanonicalCollocationMesh():
 class TransformedCollocationMesh(CanonicalCollocationMesh):
     # TODO need to changes weights of _get_quadrature_rule to account
     # for any scaling transformations
-    
+
     def __init__(self, orders, transform, basis_types=None):
 
         super().__init__(orders, basis_types)

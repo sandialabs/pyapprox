@@ -89,6 +89,8 @@ def raw_advection_diffusion_reaction_kle_dRdp(kle, residual, sol, param_vals):
         kle_vals = kle(param_vals[:, None])
         assert kle_vals.ndim == 2
         dkdp = kle_vals*kle.eig_vecs
+    else:
+        dkdp = kle.eig_vecs
     Du = [torch.linalg.multi_dot((dmats[dd], sol))
           for dd in range(mesh.nphys_vars)]
     kDu = [Du[dd][:, None]*dkdp for dd in range(mesh.nphys_vars)]
@@ -98,10 +100,32 @@ def raw_advection_diffusion_reaction_kle_dRdp(kle, residual, sol, param_vals):
 
 
 def advection_diffusion_reaction_kle_dRdp(
-        bndry_indices, kle, residual, sol, param_vals):
+        mesh, kle, bndry_conds, residual, sol, param_vals):
     dRdp = raw_advection_diffusion_reaction_kle_dRdp(
         kle, residual, sol, param_vals)
-    dRdp[np.hstack(bndry_indices)] = 0.0
+    for ii, bndry_cond in enumerate(bndry_conds):
+        idx = mesh._bndry_indices[ii]
+        if bndry_cond[1] == "D":
+            dRdp[idx] = 0.0
+        elif bndry_cond[1] == "R":
+            mesh_pts_idx = mesh._bndry_slice(mesh.mesh_pts, idx, 1)
+            normal_vals = mesh._bndrys[ii].normals(mesh_pts_idx)
+            if kle.use_log:
+                kle_vals = kle(param_vals[:, None])
+                dkdp = kle_vals*kle.eig_vecs
+            else:
+                dkdp = torch.as_tensor(kle.eig_vecs)
+            flux_vals = [
+                (torch.linalg.multi_dot(
+                    (mesh._bndry_slice(mesh._dmat(dd), idx, 0), sol))[:, None]
+                 * mesh._bndry_slice(dkdp, idx, 0))
+                for dd in range(mesh.nphys_vars)]
+            flux_normal_vals = [
+                normal_vals[:, dd:dd+1]*flux_vals[dd]
+                for dd in range(mesh.nphys_vars)]
+            dRdp[idx] = sum(flux_normal_vals)
+        else:
+            raise NotImplementedError()
     return dRdp
 
 
@@ -121,8 +145,7 @@ class AdvectionDiffusionReactionKLEModel():
         import inspect
         if "mesh" == inspect.getfullargspec(functional).args[0]:
             if "physics" == inspect.getfullargspec(functional).args[1]:
-                functional = partial(
-                    functional, mesh, self._fwd_solver.physics)
+                functional = partial(functional, mesh, self._fwd_solver.physics)
             else:
                 functional = partial(functional, mesh)
         for ii in range(len(functional_deriv_funs)):
@@ -141,7 +164,7 @@ class AdvectionDiffusionReactionKLEModel():
         if issubclass(type(self._fwd_solver), SteadyStatePDE):
             dqdu, dqdp = functional_deriv_funs
             dRdp = partial(advection_diffusion_reaction_kle_dRdp,
-                           mesh._bndry_indices, self._kle)
+                           mesh, self._kle, self._fwd_solver.physics._bndry_conds)
             # dRdp must be after boundary conditions are applied.
             # For now assume that parameters do not effect boundary conditions
             # so dRdp at boundary indices is zero

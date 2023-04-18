@@ -84,7 +84,8 @@ class AbstractSpectralCollocationPhysics(ABC):
         return res, jac
 
     def _scalar_flux_jac(self, mesh, idx):
-        return [mesh._bndry_slice(mesh._dmat(dd), idx, 0) for dd in range(mesh.nphys_vars)]
+        return [mesh._bndry_slice(mesh._dmat(dd), idx, 0)
+                for dd in range(mesh.nphys_vars)]
 
     def _clear_data(self):
         # used for data that is the same for entire transient simulation
