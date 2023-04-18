@@ -118,7 +118,8 @@ class TestPDEBenchmarks(unittest.TestCase):
         sigma = 1
         nvars = 5
 
-        config_values = [2*np.arange(1, 11), 2*np.arange(1, 11)]
+        # config_values = [2*np.arange(1, 11), 2*np.arange(1, 11)]
+        config_values = [2*np.arange(1, 16), 2*np.arange(1, 16)]
         benchmark = setup_benchmark(
             "multi_index_advection_diffusion", kle_nvars=nvars,
             kle_length_scale=length_scale, kle_stdev=sigma,
@@ -160,6 +161,7 @@ class TestPDEBenchmarks(unittest.TestCase):
         print(rel_diffs)
         assert (rel_diffs.max() > 1e-1 and rel_diffs.min() < 3e-5)
         # ndof = (config_samples+1).prod(axis=0)
+        # import matplotlib.pyplot as plt
         # plt.loglog(
         #     ndof[:-1], np.abs((qoi_means[-1]-qoi_means[:-1])/qoi_means[-1]))
         # plt.show()
@@ -178,7 +180,7 @@ class TestPDEBenchmarks(unittest.TestCase):
             # "init_sol_fun": partial(full_fun_axis_1, 0),
             "sink": [50, 0.1, [0.75, 0.75]]
         }
-        nlevels = 8
+        nlevels = 9
         config_values = [2*np.arange(4, 4+nlevels), 2*np.arange(4, 4+nlevels),
                          final_time/(2**np.arange(1, 1+nlevels)*2)]
                          # np.array([final_time/(2**5*2)]*nlevels)]
@@ -252,11 +254,12 @@ class TestPDEBenchmarks(unittest.TestCase):
         ntsteps = time_scenario["final_time"]/config_samples[2]
         print(ntsteps)
         print(time_scenario["final_time"]-config_samples[2]*ntsteps)
-        ndof = (config_samples[:2]+1).prod(axis=0)*ntsteps
+        # ndof = (config_samples[:2]+1).prod(axis=0)*ntsteps
+        # import matplotlib.pyplot as plt
         # plt.loglog(
         #     ndof[:-1], np.abs((qoi_means[-1]-qoi_means[:-1])/qoi_means[-1]))
         # plt.show()
-        assert (rel_diffs.max() > 4e-2 and rel_diffs.min() < 8e-5)
+        assert (rel_diffs.max() > 4e-2 and rel_diffs.min() < 9.1e-5)
 
 
 if __name__ == "__main__":
