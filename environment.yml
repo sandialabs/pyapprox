@@ -9,6 +9,7 @@ dependencies:
   - scipy
   - jupyter
   - pytest
+  - coverage>=6.4
   - pytest-cov
   - pip
   - setuptools

@@ -57,6 +57,7 @@ setuptools.setup(
         'sympy',
         'torch',
         'scikit-learn',
+        'coverage>=6.4',
         'pytest-cov',
         'pytest>=4.6',
         'networkx',
