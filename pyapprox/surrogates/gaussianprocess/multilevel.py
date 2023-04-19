@@ -4,8 +4,10 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from pyapprox.surrogates.gaussianprocess.kernels import (
     MultilevelKernel, SequentialMultilevelKernel)
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
-    GaussianProcess
-)
+    GaussianProcess, extract_gaussian_process_attributes_for_integration)
+from pyapprox.surrogates.polychaos.gpc import (
+    get_univariate_quadrature_rules_from_variable)
+from pyapprox.variables.transforms import (AffineTransform)
 
 
 class MultilevelGaussianProcess(GaussianProcessRegressor):
@@ -82,6 +84,55 @@ class MultilevelGaussianProcess(GaussianProcessRegressor):
            **fill_kwargs)
         ax.plot(XX_test[0, :], gp_mean, **plt_kwargs)
         return ax
+
+    def _integrate_tau_P_1d(self, xx_1d, ww_1d, xtr):
+        print(xx_1d.shape, xtr.shape)
+        K = self.kernel_(xx_1d.T, xtr.T)
+        tau = ww_1d.dot(K)
+        P = K.T.dot(ww_1d[:, np.newaxis]*K)
+        return tau, P
+
+    def integrate(self, variable, nquad_samples):
+        (X_train, y_train, K_inv, kernel_length_scale, kernel_var,
+         transform_quad_rules) = (
+             extract_gaussian_process_attributes_for_integration(self))
+        print(X_train.shape)
+
+        var_trans = AffineTransform(variable)
+        nvars = variable.num_vars()
+        degrees = [nquad_samples]*nvars
+        univariate_quad_rules = get_univariate_quadrature_rules_from_variable(
+            variable, np.asarray(degrees)+1, True)
+        # lscale = np.atleast_1d(kernel_length_scale)
+        tau_list, P_list = [], []
+        for ii in range(nvars):
+            # Get 1D quadrature rule
+            xtr = X_train[ii:ii+1, :]
+            xx_1d, ww_1d = univariate_quad_rules[ii](degrees[ii]+1)
+            xx_1d = xx_1d[None, :]
+            if transform_quad_rules:
+                xx_1d = var_trans.map_from_canonical_1d(xx_1d, ii)
+            tmp = []
+            import copy
+            for kk in range(self.kernel.nmodels):
+                tmp.append(copy.deepcopy(self.kernel.kernels[kk].length_scale))
+                self.kernel.kernels[kk].length_scale = (
+                    np.atleast_1d(self.kernel.kernels[kk].length_scale)[ii])
+            tau_ii, P_ii = self._integrate_tau_P_1d(
+                xx_1d, ww_1d, xtr)#, lscale[ii])
+            for kk in range(self.kernel.nmodels):
+                self.kernel.kernels[kk].length_scale = tmp[kk]
+            tau_list.append(tau_ii)
+            P_list.append(P_ii)
+        tau = np.prod(np.array(tau_list), axis=0)
+        P = np.prod(np.array(P_list), axis=0)
+        A_inv = K_inv*kernel_var
+        # No kernel_var because it cancels out because it appears in K (1/s^2)
+        # and t (s^2)
+        A_inv_y = A_inv.dot(y_train)
+        expected_random_mean = tau.dot(A_inv_y)
+        expected_random_mean += self._y_train_mean
+        return expected_random_mean, P
 
 
 class SequentialMultilevelGaussianProcess(MultilevelGaussianProcess):

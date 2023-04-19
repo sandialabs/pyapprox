@@ -319,9 +319,46 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         # print(hf_gp_mean-f2(xx))
         assert np.allclose(f2(xx), hf_gp_mean, atol=5e-2)
 
+        x1 = np.linspace(lb, ub, 30)[None, :]
+        x2 = np.linspace(lb, ub, 5)[None, :]
+        train_samples = [x1, x2]
+        train_values = [f(x) for f, x in zip([f1, f2], train_samples)]
+        nsamples_per_model = [s.shape[1] for s in train_samples]
+
+        rho = np.ones(nmodels-1)
+        length_scale = [1]*(nmodels*(nvars))
+        length_scale_bounds = [(1e-1, 10)]
+
+        # length_scale_bounds='fixed'
+        kernels = [RBF(0.1) for nn in range(nmodels)]
+        mlgp_kernel = MultilevelKernel(
+            nvars, nsamples_per_model, kernels, length_scale=length_scale,
+            length_scale_bounds=length_scale_bounds, rho=rho)
+
+        gp = MultilevelGaussianProcess(mlgp_kernel)
+        gp.set_data(train_samples, train_values)
+        gp.fit()
+
+        from scipy import stats
+        from pyapprox.variables.joint import IndependentMarginalsVariable
+        marginals = [stats.uniform(lb, ub-lb)]
+        variable = IndependentMarginalsVariable(marginals)
+        means = [None, None]
+        gp.kernel_.model_eval_id = 0
+        means[0] = gp.integrate(variable, 100)[0]
+        gp.kernel_.model_eval_id = 1
+        means[1] = gp.integrate(variable, 100)[0]
+        from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
+        xx, ww = gauss_jacobi_pts_wts_1D(100, 0, 0)
+        xx = (xx[None, :]+1)/2
+        true_means = [ww.dot(f1(xx)), ww.dot(f2(xx))]
+        assert np.allclose(true_means, means, rtol=1e-4)
+
     def test_2_models(self):
         self._check_2_models(True)
         self._check_2_models(False)
+
+        # TODO add 2d model check
 
     def test_sequential_multilevel_gaussian_process(self):
         lb, ub = 0, 1

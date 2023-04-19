@@ -10,7 +10,7 @@ from scipy.special import kv, gamma
 from sklearn.gaussian_process import GaussianProcessRegressor
 
 from pyapprox.surrogates.gaussianprocess.kernels import (
-    Matern, Product, Sum, ConstantKernel, WhiteKernel, RBF
+    Matern, Product, Sum, ConstantKernel, WhiteKernel, RBF, MultilevelKernel
 )
 from pyapprox.util.utilities import (
     cartesian_product, outer_product
@@ -28,7 +28,7 @@ from pyapprox.surrogates.interp.indexing import (
 )
 from pyapprox.surrogates.polychaos.gpc import (
     get_univariate_quadrature_rules_from_variable
-)
+) 
 from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
@@ -583,8 +583,10 @@ def extract_gaussian_process_attributes_for_integration(gp):
         raise Exception('kernels with noise not supported')
 
     kernel_types = [
-        RBF, Matern, UnivariateMarginalizedSquaredExponentialKernel]
+        RBF, Matern, UnivariateMarginalizedSquaredExponentialKernel,
+        MultilevelKernel]
     kernel = extract_covariance_kernel(gp.kernel_, kernel_types)
+    print(gp.kernel_, kernel)
 
     constant_kernel = extract_covariance_kernel(gp.kernel_, [ConstantKernel])
     if constant_kernel is not None:
@@ -592,13 +594,21 @@ def extract_gaussian_process_attributes_for_integration(gp):
     else:
         kernel_var = 1
 
-    if (not type(kernel) == RBF and not
-        (type(kernel) == Matern and not np.isfinite(kernel.nu)) and not
-        (type(kernel) == UnivariateMarginalizedSquaredExponentialKernel)):
-        # Squared exponential kernel
-        msg = f'GP Kernel type: {type(kernel)} '
-        msg += 'Only squared exponential kernel supported'
-        raise Exception(msg)
+    if isinstance(kernel, MultilevelKernel):
+        _kernels = [extract_covariance_kernel(k, kernel_types)
+                    for k in kernel.kernels]
+    else:
+        _kernels = [kernel]
+
+    for _kernel in _kernels:
+        if not isinstance(_kernel, tuple(kernel_types[:3])):
+        # if (not type(_kernel) == RBF and not
+        #         (type(kernel) == Matern and not np.isfinite(kernel.nu)) and not
+        #         (type(kernel) == UnivariateMarginalizedSquaredExponentialKernel)):
+            # Squared exponential kernel
+            msg = f'GP Kernel type: {type(_kernel)} '
+            msg += 'Only squared exponential kernel supported'
+            raise Exception(msg)
 
     if not hasattr(gp, '_K_inv') or gp._K_inv is None:
         # scikit-learn < 0.24.2 has _K_inv

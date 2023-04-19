@@ -239,6 +239,7 @@ class MultilevelKernel(RBF):
 
     def _eval_t(self, XX1, XX2, nsamples_per_model, kernels, scalings, kk):
         nmodels = len(nsamples_per_model)
+        print(nsamples_per_model, XX2.shape)
         assert np.sum(nsamples_per_model) == XX2.shape[0]
         samples = self._unpack_samples(XX2, nsamples_per_model)
         # const = self._sprod(scalings, 0, nmodels-1)
@@ -285,6 +286,7 @@ class MultilevelKernel(RBF):
             if eval_gradient:
                 raise ValueError(
                     "Gradient can only be evaluated when XX2 is None.")
+            print(self.model_eval_id)
             K = self._eval_t(
                 XX1, XX2, self.nsamples_per_model, self.kernels, scalings,
                 self.model_eval_id)
