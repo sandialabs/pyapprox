@@ -128,17 +128,20 @@ class TestInducedSampling(unittest.TestCase):
         def univariate_pdf(var, x):
             if hasattr(var, 'pdf'):
                 return var.pdf(x)
-            else:
+            elif hasattr(var, "pmf"):
                 return var.pmf(x)
-                xk, pk = get_probability_masses(var)
-                x = np.atleast_1d(x)
-                vals = np.zeros(x.shape[0])
-                for jj in range(x.shape[0]):
-                    for ii in range(xk.shape[0]):
-                        if xk[ii] == x[jj]:
-                            vals[jj] = pk[ii]
-                            break
-                return vals
+            else:
+                print(var.__dict__.keys())
+                raise RuntimeError()
+            # xk, pk = get_probability_masses(var)
+                # x = np.atleast_1d(x)
+                # vals = np.zeros(x.shape[0])
+                # for jj in range(x.shape[0]):
+                #     for ii in range(xk.shape[0]):
+                #         if xk[ii] == x[jj]:
+                #             vals[jj] = pk[ii]
+                #             break
+                # return vals
 
         def density(x):
             # some issue with native scipy.pmf
