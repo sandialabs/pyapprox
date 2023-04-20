@@ -33,7 +33,7 @@ extensions = cythonize(
 
 setuptools.setup(
     name="pyapprox",
-    version="1.0.0",
+    version="1.0.1",
     author="John D. Jakeman",
     author_email="29109026+jdjakem@users.noreply.github.com",
     description="High-dimensional function approximation and estimation",
