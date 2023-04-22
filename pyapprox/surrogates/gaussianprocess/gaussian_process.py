@@ -10,7 +10,8 @@ from scipy.special import kv, gamma
 from sklearn.gaussian_process import GaussianProcessRegressor
 
 from pyapprox.surrogates.gaussianprocess.kernels import (
-    Matern, Product, Sum, ConstantKernel, WhiteKernel, RBF, MultilevelKernel
+    Matern, ConstantKernel, WhiteKernel, RBF, MultilevelKernel,
+    extract_covariance_kernel
 )
 from pyapprox.util.utilities import (
     cartesian_product, outer_product
@@ -28,7 +29,7 @@ from pyapprox.surrogates.interp.indexing import (
 )
 from pyapprox.surrogates.polychaos.gpc import (
     get_univariate_quadrature_rules_from_variable
-) 
+)
 from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
@@ -400,21 +401,6 @@ class AdaptiveGaussianProcess(GaussianProcess):
         return chol_flag
 
 
-def is_covariance_kernel(kernel, kernel_types):
-    return (type(kernel) in kernel_types)
-
-
-def extract_covariance_kernel(kernel, kernel_types):
-    cov_kernel = None
-    if is_covariance_kernel(kernel, kernel_types):
-        return copy.deepcopy(kernel)
-    if type(kernel) == Product or type(kernel) == Sum:
-        cov_kernel = extract_covariance_kernel(kernel.k1, kernel_types)
-        if cov_kernel is None:
-            cov_kernel = extract_covariance_kernel(kernel.k2, kernel_types)
-    return copy.deepcopy(cov_kernel)
-
-
 def gaussian_tau(train_samples, delta, mu, sigma):
     dists = (train_samples-mu)**2
     return np.prod(np.sqrt(delta/(delta+2*sigma**2))*np.exp(
@@ -578,37 +564,39 @@ def mean_of_variance(zeta, v_sq, kernel_var, expected_random_mean,
     return zeta+v_sq*kernel_var-expected_random_mean**2-variance_random_mean
 
 
-def extract_gaussian_process_attributes_for_integration(gp):
-    if extract_covariance_kernel(gp.kernel_, [WhiteKernel]) is not None:
+def extract_kernel_attributes_for_integration(kernel):
+    if extract_covariance_kernel(kernel, [WhiteKernel]) is not None:
         raise Exception('kernels with noise not supported')
 
     kernel_types = [
         RBF, Matern, UnivariateMarginalizedSquaredExponentialKernel,
         MultilevelKernel]
-    kernel = extract_covariance_kernel(gp.kernel_, kernel_types)
-    print(gp.kernel_, kernel)
+    base_kernel = extract_covariance_kernel(kernel, kernel_types)
 
-    constant_kernel = extract_covariance_kernel(gp.kernel_, [ConstantKernel])
+    constant_kernel = extract_covariance_kernel(kernel, [ConstantKernel])
     if constant_kernel is not None:
         kernel_var = constant_kernel.constant_value
     else:
         kernel_var = 1
 
-    if isinstance(kernel, MultilevelKernel):
+    if isinstance(base_kernel, MultilevelKernel):
         _kernels = [extract_covariance_kernel(k, kernel_types)
-                    for k in kernel.kernels]
+                    for k in base_kernel.kernels]
     else:
-        _kernels = [kernel]
+        _kernels = [base_kernel]
 
     for _kernel in _kernels:
         if not isinstance(_kernel, tuple(kernel_types[:3])):
-        # if (not type(_kernel) == RBF and not
-        #         (type(kernel) == Matern and not np.isfinite(kernel.nu)) and not
-        #         (type(kernel) == UnivariateMarginalizedSquaredExponentialKernel)):
-            # Squared exponential kernel
             msg = f'GP Kernel type: {type(_kernel)} '
             msg += 'Only squared exponential kernel supported'
             raise Exception(msg)
+
+    return base_kernel.length_scale, kernel_var
+
+
+def extract_gaussian_process_attributes_for_integration(gp):
+    length_scale, kernel_var = extract_kernel_attributes_for_integration(
+        gp.kernel_)
 
     if not hasattr(gp, '_K_inv') or gp._K_inv is None:
         # scikit-learn < 0.24.2 has _K_inv
@@ -629,8 +617,8 @@ def extract_gaussian_process_attributes_for_integration(gp):
     y_train = gp._y_train_std*gp.y_train_
     kernel_var *= float(gp._y_train_std**2)
     K_inv /= gp._y_train_std**2
-    return x_train, y_train, K_inv, kernel.length_scale, \
-        kernel_var, transform_quad_rules
+    return (x_train, y_train, K_inv, length_scale, kernel_var,
+            transform_quad_rules)
 
 
 def integrate_gaussian_process(gp, variable, return_full=False,
@@ -642,9 +630,9 @@ def integrate_gaussian_process(gp, variable, return_full=False,
     particularly associated with variance. However setting alpha too large
     will also limit the accuracy that can be achieved
     """
-    x_train, y_train, K_inv, kernel_length_scale, kernel_var, \
-        transform_quad_rules = \
-            extract_gaussian_process_attributes_for_integration(gp)
+    (x_train, y_train, K_inv, kernel_length_scale, kernel_var,
+     transform_quad_rules) = (
+         extract_gaussian_process_attributes_for_integration(gp))
 
     result = integrate_gaussian_process_squared_exponential_kernel(
         x_train, y_train, K_inv, kernel_length_scale,
@@ -934,6 +922,8 @@ def generate_gp_candidate_samples(nvars, num_candidate_samples,
     else:
         num_halton_candidates = num_candidate_samples
         num_random_candidates = 0
+    if num_candidate_samples % 2 == 1:
+        num_halton_candidates += 1
 
     # if variable is None:
     #     marginal_icdfs = None
@@ -1831,7 +1821,6 @@ class GreedyVarianceOfMeanSampler(object):
     ncandidate_samples : integer
         The number of samples used by the greedy downselection procedure
     """
-
     def __init__(self, num_vars, nquad_samples,
                  ncandidate_samples, generate_random_samples, variable=None,
                  use_gauss_quadrature=False, econ=True,
@@ -1845,9 +1834,8 @@ class GreedyVarianceOfMeanSampler(object):
         self.use_gauss_quadrature = use_gauss_quadrature
         self.econ = econ
 
-        self.candidate_samples = generate_gp_candidate_samples(
-            self.nvars, ncandidate_samples, generate_random_samples,
-            self.variable)
+        self.candidate_samples = self._generate_candidate_samples(
+            ncandidate_samples)
         self.nsamples_requested = []
         self.pivots = []
         self.cond_nums = []
@@ -1857,6 +1845,11 @@ class GreedyVarianceOfMeanSampler(object):
         self.initialize()
         self.best_obj_vals = []
         self.pred_samples = None
+
+    def _generate_candidate_samples(self, ncandidate_samples):
+        return generate_gp_candidate_samples(
+            self.nvars, ncandidate_samples, self.generate_random_samples,
+            self.variable)
 
     def initialize(self):
         self.L = np.zeros((0, 0))
@@ -2057,8 +2050,7 @@ class GreedyVarianceOfMeanSampler(object):
     def compute_A(self):
         self.active_candidates = np.ones(
             self.candidate_samples.shape[1], dtype=bool)
-        self.A = self.kernel(
-            self.candidate_samples.T, self.candidate_samples.T)
+        self.A = self.kernel(self.candidate_samples.T)
 
     def set_kernel(self, kernel, kernels_1d=None):
         self.kernel = kernel

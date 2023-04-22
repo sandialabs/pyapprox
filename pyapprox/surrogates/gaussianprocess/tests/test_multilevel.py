@@ -348,10 +348,12 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         means[0] = gp.integrate(variable, 100)[0]
         gp.kernel_.model_eval_id = 1
         means[1] = gp.integrate(variable, 100)[0]
-        from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
+        from pyapprox.surrogates.orthopoly.quadrature import (
+            gauss_jacobi_pts_wts_1D)
         xx, ww = gauss_jacobi_pts_wts_1D(100, 0, 0)
         xx = (xx[None, :]+1)/2
         true_means = [ww.dot(f1(xx)), ww.dot(f2(xx))]
+        print(true_means, means)
         assert np.allclose(true_means, means, rtol=1e-4)
 
     def test_2_models(self):
@@ -413,6 +415,80 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         #     train_samples[1][0, :],
         #     f2(train_samples[1])-rho*sml_gp._gps[0](train_samples[1]), 'ko')
         # plt.show()
+
+    def test_greedy_multilevel_sampler(self):
+        from pyapprox.surrogates.gaussianprocess.multilevel import (
+            GreedyMultilevelIntegratedVarianceSampler)
+        from scipy import stats
+        from pyapprox.variables.joint import IndependentMarginalsVariable
+        nmodels, nvars = 2, 1
+        nquad_samples = 40
+        ncandidate_samples_per_model = 21
+        model_costs = [1, 2.0]
+        variable = IndependentMarginalsVariable(
+            [stats.uniform(0, 1) for ii in range(nvars)])
+        sampler = GreedyMultilevelIntegratedVarianceSampler(
+            nmodels, nvars, nquad_samples, ncandidate_samples_per_model,
+            variable.rvs, variable, use_gauss_quadrature=True, econ=False,
+            compute_cond_nums=False, nugget=0, model_costs=model_costs)
+
+        # important not to start with rho = 1
+        # or kernel matrix will be singular
+        rho = np.full((nmodels-1), 0.8)
+
+        length_scale = [.1]*(nmodels*nvars)
+        length_scale_bounds = "fixed"#[(1e-1, 10)]
+
+        # length_scale_bounds='fixed'
+        # kernels = [RBF(0.1) for nn in range(nmodels)]
+        kernels = [RBF(0.1), 0.1*RBF(0.1)]
+        kernel = MultilevelKernel(
+            nvars, [None for ii in range(nmodels)], kernels,
+            length_scale=length_scale,
+            length_scale_bounds=length_scale_bounds, rho=rho,
+            rho_bounds="fixed")
+
+        np.set_printoptions(linewidth=1000)
+        num_samples = 15 #20
+
+        sampler.set_kernel(kernel)
+        samples = sampler(num_samples)[0]
+        samples_per_model = np.split(
+            samples, np.cumsum(sampler.nsamples_per_model).astype(int)[:-1],
+            axis=1)
+        print(sampler.pivots)
+        print(samples_per_model)
+        print(sampler.A)
+
+        gp = MultilevelGaussianProcess(kernel)
+        gp.set_data(samples_per_model, [s.T*0 for s in samples_per_model])
+        gp.fit()
+        prior_kwargs = {"color": "gray", "alpha": 0.3}
+        gp.plot_1d(101, [0, 1], prior_fill_kwargs=prior_kwargs)
+        import matplotlib.pyplot as plt
+        plt.plot(samples_per_model[-1][0], samples_per_model[-1][0]*0, 'o',
+                 ms=20)
+        plt.plot(samples_per_model[0][0], samples_per_model[0][0]*0, 'ks')
+        # plt.show()
+
+        # print(sampler.nsamples_per_model)
+        # print(sampler.pivots)
+        # print(sampler.candidate_samples)
+
+        # not needed now because samples are stored in the right place
+        # internally to sampler
+        # samples_per_model = [[] for ii in range(sampler.nmodels)]
+        # for ii in range(samples.shape[1]):
+        #     model_id = sampler._model_id(sampler.pivots[ii])
+        #     samples_per_model[model_id].append(samples[:, ii:ii+1])
+        #     # print(ii, model_id, samples[:, ii])
+        # for ii in range(sampler.nmodels):
+        #     if len(samples_per_model[ii]) > 0:
+        #         samples_per_model[ii] = np.hstack(samples_per_model[ii])
+
+        # todo check if candidates and quadrature rules are computed
+        # correctly when variable is and is not specified to __init__
+        # TODO ivar sampler does not account for variance of model kernels
 
 
 if __name__ == "__main__":

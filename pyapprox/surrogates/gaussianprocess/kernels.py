@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 from scipy.spatial.distance import cdist
 
@@ -6,6 +7,9 @@ from sklearn.gaussian_process.kernels import (
     Hyperparameter, _approx_fprime
 )
 from sklearn.gaussian_process.kernels import RBF as SKL_RBF
+from pyapprox.variables.transforms import AffineTransform
+from pyapprox.surrogates.polychaos.gpc import (
+    get_univariate_quadrature_rules_from_variable)
 
 
 class RBF(SKL_RBF):
@@ -87,7 +91,9 @@ class MultilevelKernel(RBF):
         for kernel in kernels:
             # todo add ability to compute gradients when Y is not None
             # to matern kernel
-            if type(kernel) != RBF:
+            kernel_types = [RBF]
+            base_kernel = extract_covariance_kernel(kernel, kernel_types)
+            if type(base_kernel) != RBF:
                 raise ValueError("Only RBF Kernels are curently supported")
             assert len(kernels) == self.nmodels
             self.kernels = kernels
@@ -239,7 +245,6 @@ class MultilevelKernel(RBF):
 
     def _eval_t(self, XX1, XX2, nsamples_per_model, kernels, scalings, kk):
         nmodels = len(nsamples_per_model)
-        print(nsamples_per_model, XX2.shape)
         assert np.sum(nsamples_per_model) == XX2.shape[0]
         samples = self._unpack_samples(XX2, nsamples_per_model)
         # const = self._sprod(scalings, 0, nmodels-1)
@@ -286,7 +291,6 @@ class MultilevelKernel(RBF):
             if eval_gradient:
                 raise ValueError(
                     "Gradient can only be evaluated when XX2 is None.")
-            print(self.model_eval_id)
             K = self._eval_t(
                 XX1, XX2, self.nsamples_per_model, self.kernels, scalings,
                 self.model_eval_id)
@@ -331,6 +335,46 @@ class MultilevelKernel(RBF):
             self.__class__.__name__, self._rho_repr(),
             self._length_scale_repr()
         )
+
+    def _integrate_tau_P_1d(self, xx_1d, ww_1d, xtr):
+        K = self(xx_1d.T, xtr.T)
+        tau = ww_1d.dot(K)
+        P = K.T.dot(ww_1d[:, np.newaxis]*K)
+        return tau, P
+
+    def _integrate_tau_P(self, variable, nquad_samples, X_train,
+                         transform_quad_rules):
+        var_trans = AffineTransform(variable)
+        nvars = variable.num_vars()
+        degrees = [nquad_samples]*nvars
+        univariate_quad_rules = get_univariate_quadrature_rules_from_variable(
+            variable, np.asarray(degrees)+1, True)
+
+        base_kernels = [extract_covariance_kernel(self.kernels[kk], [RBF])
+                        for kk in range(self.nmodels)]
+        length_scales = [copy.deepcopy(base_kernels[kk].length_scale)
+                         for kk in range(self.nmodels)]
+
+        tau_list, P_list = [], []
+        for ii in range(nvars):
+            # Get 1D quadrature rule
+            xtr = X_train[ii:ii+1, :]
+            xx_1d, ww_1d = univariate_quad_rules[ii](degrees[ii]+1)
+            xx_1d = xx_1d[None, :]
+            if transform_quad_rules:
+                xx_1d = var_trans.map_from_canonical_1d(xx_1d, ii)
+            for kk in range(self.nmodels):
+                base_kernels[kk].length_scale = (
+                    np.atleast_1d(base_kernels[kk].length_scale)[ii])
+            tau_ii, P_ii = self._integrate_tau_P_1d(
+                xx_1d, ww_1d, xtr)
+            for kk in range(self.nmodels):
+                base_kernels[kk].length_scale = length_scales[kk]
+            tau_list.append(tau_ii)
+            P_list.append(P_ii)
+        tau = np.prod(np.array(tau_list), axis=0)
+        P = np.prod(np.array(P_list), axis=0)
+        return tau, P
 
 
 def kernel_dd(XX1, XX2, length_scale, var_num1, var_num2):
@@ -676,3 +720,18 @@ class SequentialMultilevelKernel(RBF):
         return "{0}(rho={1:.3g}, length_scale={2:.3g})".format(
             self.__class__.__name__, self.rho, self.length_scale
         )
+
+
+def is_covariance_kernel(kernel, kernel_types):
+    return (type(kernel) in kernel_types)
+
+
+def extract_covariance_kernel(kernel, kernel_types):
+    cov_kernel = None
+    if is_covariance_kernel(kernel, kernel_types):
+        return copy.deepcopy(kernel)
+    if type(kernel) == Product or type(kernel) == Sum:
+        cov_kernel = extract_covariance_kernel(kernel.k1, kernel_types)
+        if cov_kernel is None:
+            cov_kernel = extract_covariance_kernel(kernel.k2, kernel_types)
+    return copy.deepcopy(cov_kernel)
