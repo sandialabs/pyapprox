@@ -1,14 +1,21 @@
 import unittest
 import numpy as np
 from sklearn.gaussian_process.kernels import _approx_fprime
+import copy
+from scipy import stats
 
+from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.surrogates.orthopoly.quadrature import (
+    gauss_jacobi_pts_wts_1D)
+from pyapprox.surrogates.integrate import integrate
 from pyapprox.surrogates.gaussianprocess.kernels import RBF
 from pyapprox.surrogates.gaussianprocess.multilevel import (
     MultilevelKernel, MultilevelGaussianProcess,
-    SequentialMultilevelGaussianProcess
-)
+    SequentialMultilevelGaussianProcess)
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     GaussianProcess)
+from pyapprox.surrogates.gaussianprocess.multilevel import (
+    GreedyMultilevelIntegratedVarianceSampler)
 
 
 class TestMultilevelGaussianProcess(unittest.TestCase):
@@ -339,8 +346,6 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         gp.set_data(train_samples, train_values)
         gp.fit()
 
-        from scipy import stats
-        from pyapprox.variables.joint import IndependentMarginalsVariable
         marginals = [stats.uniform(lb, ub-lb)]
         variable = IndependentMarginalsVariable(marginals)
         means = [None, None]
@@ -348,8 +353,6 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         means[0] = gp.integrate(variable, 100)[0]
         gp.kernel_.model_eval_id = 1
         means[1] = gp.integrate(variable, 100)[0]
-        from pyapprox.surrogates.orthopoly.quadrature import (
-            gauss_jacobi_pts_wts_1D)
         xx, ww = gauss_jacobi_pts_wts_1D(100, 0, 0)
         xx = (xx[None, :]+1)/2
         true_means = [ww.dot(f1(xx)), ww.dot(f2(xx))]
@@ -417,13 +420,9 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         # plt.show()
 
     def test_greedy_multilevel_sampler(self):
-        from pyapprox.surrogates.gaussianprocess.multilevel import (
-            GreedyMultilevelIntegratedVarianceSampler)
-        from scipy import stats
-        from pyapprox.variables.joint import IndependentMarginalsVariable
         nmodels, nvars = 2, 1
         nquad_samples = 40
-        ncandidate_samples_per_model = 21
+        ncandidate_samples_per_model = 11
         model_costs = [1, 2.0]
         variable = IndependentMarginalsVariable(
             [stats.uniform(0, 1) for ii in range(nvars)])
@@ -437,7 +436,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         rho = np.full((nmodels-1), 0.8)
 
         length_scale = [.1]*(nmodels*nvars)
-        length_scale_bounds = "fixed"#[(1e-1, 10)]
+        length_scale_bounds = "fixed"
 
         # length_scale_bounds='fixed'
         # kernels = [RBF(0.1) for nn in range(nmodels)]
@@ -449,16 +448,62 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             rho_bounds="fixed")
 
         np.set_printoptions(linewidth=1000)
-        num_samples = 15 #20
+        num_samples = 5 #20
 
         sampler.set_kernel(kernel)
         samples = sampler(num_samples)[0]
         samples_per_model = np.split(
             samples, np.cumsum(sampler.nsamples_per_model).astype(int)[:-1],
             axis=1)
-        print(sampler.pivots)
-        print(samples_per_model)
-        print(sampler.A)
+        # print(sampler.pivots)
+        # print(samples_per_model)
+        # print(sampler.A)
+
+        samples_per_model_2 = sampler.samples_per_model(sampler.pivots)
+        for ii in range(sampler.nmodels):
+            assert np.allclose(samples_per_model[ii], samples_per_model_2[ii])
+
+        xx_quad, ww_quad = integrate(
+            "tensorproduct", variable, rule="gauss", levels=nquad_samples-1)
+
+        prior_ivar = (kernel.diag(xx_quad.T).dot(ww_quad[:, 0]))
+
+        prev_best_ivar = prior_ivar
+        gp = MultilevelGaussianProcess(kernel)
+        for ii in range(len(sampler.pivots)):
+            # print("$$$", ii)
+            samples_per_model = sampler.samples_per_model(
+                sampler.pivots[:ii])
+            obj_vals, ivars = [], []
+            for jj in range(sampler.candidate_samples.shape[1]):
+                if jj in sampler.pivots[:ii]:
+                    ivars.append(np.inf)
+                    obj_vals.append(np.inf)
+                    continue
+                ivar_delta = sampler._ivar_delta(jj, sampler.pivots[:ii])
+                model_id = sampler._model_id(jj)
+                samples_per_model_jj = copy.deepcopy(samples_per_model)
+                samples_per_model_jj[model_id] = np.hstack((
+                    samples_per_model[model_id],
+                    sampler.candidate_samples[:, jj:jj+1]))
+                gp.set_data(
+                    samples_per_model_jj,
+                    [s.T*0 for s in samples_per_model_jj])
+                gp.fit()
+                gp_mean, gp_std = gp(
+                    xx_quad, return_std=True, model_eval_id=sampler.nmodels-1)
+                ivars.append((gp_std**2).dot(ww_quad[:, 0]))
+                # print(jj)
+                # print((prior_ivar-ivar_delta, ivars[-1]))
+                assert np.allclose(prior_ivar-ivar_delta, ivars[-1])
+                obj_vals.append(
+                    (ivars[-1]-prev_best_ivar)/sampler.model_costs[model_id])
+                # print(obj_vals[-1])
+
+            next_index = np.argmin(obj_vals)
+            prev_best_ivar = ivars[next_index]
+            # print(next_index, sampler.pivots)
+            assert np.allclose(next_index, sampler.pivots[ii])
 
         gp = MultilevelGaussianProcess(kernel)
         gp.set_data(samples_per_model, [s.T*0 for s in samples_per_model])
@@ -470,25 +515,6 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
                  ms=20)
         plt.plot(samples_per_model[0][0], samples_per_model[0][0]*0, 'ks')
         # plt.show()
-
-        # print(sampler.nsamples_per_model)
-        # print(sampler.pivots)
-        # print(sampler.candidate_samples)
-
-        # not needed now because samples are stored in the right place
-        # internally to sampler
-        # samples_per_model = [[] for ii in range(sampler.nmodels)]
-        # for ii in range(samples.shape[1]):
-        #     model_id = sampler._model_id(sampler.pivots[ii])
-        #     samples_per_model[model_id].append(samples[:, ii:ii+1])
-        #     # print(ii, model_id, samples[:, ii])
-        # for ii in range(sampler.nmodels):
-        #     if len(samples_per_model[ii]) > 0:
-        #         samples_per_model[ii] = np.hstack(samples_per_model[ii])
-
-        # todo check if candidates and quadrature rules are computed
-        # correctly when variable is and is not specified to __init__
-        # TODO ivar sampler does not account for variance of model kernels
 
 
 if __name__ == "__main__":

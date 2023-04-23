@@ -30,6 +30,11 @@ class MultilevelGaussianProcess(GaussianProcessRegressor):
         assert self._values[0].ndim == 2
         assert self._values[0].shape[1] == 1
         self.nvars = samples[0].shape[0]
+
+        if hasattr(self, "kernel"):
+            self.kernel.nsamples_per_model = np.asarray([
+                s.shape[1] for s in samples])
+
         for ii in range(1, self.nmodels):
             assert samples[ii].ndim == 2
             assert samples[ii].shape[0] == self.nvars
@@ -257,10 +262,6 @@ class GreedyMultilevelIntegratedVarianceSampler(
         # all models
         single_model_candidate_samples = super()._generate_candidate_samples(
             ncandidate_samples_per_model)
-        # hackbelow
-        single_model_candidate_samples = np.linspace(
-            0, 1, ncandidate_samples_per_model)[None, :]
-        # print(ncandidate_samples_per_model)
         candidate_samples = np.hstack(
             [single_model_candidate_samples for kk in range(self.nmodels)])
         return candidate_samples
@@ -289,23 +290,22 @@ class GreedyMultilevelIntegratedVarianceSampler(
     def _model_id(self, new_sample_index):
         return new_sample_index//self.ncandidate_samples_per_model
 
-    def objective(self, new_sample_index, return_ivar_delta=False):
+    def _ivar_delta(self, new_sample_index, pivots):
         indices = np.concatenate(
-            [self.pivots, [new_sample_index]]).astype(int)
+            [pivots, [new_sample_index]]).astype(int)
         model_id = self._model_id(new_sample_index)
         self.kernel.nsamples_per_model[model_id] += 1
-        # sort because multilevel kernel assumes samples are stacked per model
-        # indices = np.sort(indices)
         A = self.A[np.ix_(indices, indices)]
         A_inv = np.linalg.inv(A)
         P = self.P[np.ix_(indices, indices)]
-        # cost = self.model_costs[model_id]+np.sum(self.training_sample_costs)
         self.kernel.nsamples_per_model[model_id] -= 1
         ivar_delta = np.trace(A_inv.dot(P))
+        return ivar_delta
+
+    def objective(self, new_sample_index, return_ivar_delta=False):
+        model_id = self._model_id(new_sample_index)
+        ivar_delta = self._ivar_delta(new_sample_index, self.pivots)
         obj_val = (self.ivar_delta-ivar_delta)/self.model_costs[model_id]
-        # print(new_sample_index)
-        # print(self.ivar_delta, ivar_delta)
-        # print(obj_val)
         if not return_ivar_delta:
             return obj_val
         else:
@@ -315,13 +315,8 @@ class GreedyMultilevelIntegratedVarianceSampler(
         # todo avoid recomputing
         self.ivar_delta = self.objective(pivot, True)[1]
         self.pivots.append(pivot)
-        # self.training_samples = np.hstack(
-        #     [self.training_samples,
-        #      self.candidate_samples[:, pivot:pivot+1]])
         # multilevel kernel assumes that points for each model
-        # are concatenated after one another. TODO check this is ok
-        # and do not need to pass in model index for each sample
-        # not actually srue I need this since I precompute A and P
+        # are concatenated after one another.
         model_id = self._model_id(pivot)
         index = int(self.nsamples_per_model[:model_id+1].sum())
         self.training_samples = np.insert(
@@ -330,3 +325,16 @@ class GreedyMultilevelIntegratedVarianceSampler(
         self.nsamples_per_model[model_id] += 1
         self.training_sample_costs.append(self.model_costs[model_id])
 
+    def samples_per_model(self, pivots):
+        samples_per_model = [[] for ii in range(self.nmodels)]
+        for ii in range(len(pivots)):
+            model_id = self._model_id(self.pivots[ii])
+            sample = self.candidate_samples[:, pivots[ii]][:, None]
+            samples_per_model[model_id].append(sample)
+        for ii in range(self.nmodels):
+            if len(samples_per_model[ii]) > 0:
+                samples_per_model[ii] = np.hstack(samples_per_model[ii])
+            else:
+                samples_per_model[ii] = np.empty(
+                    (self.candidate_samples.shape[0], 0))
+        return samples_per_model
