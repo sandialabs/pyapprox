@@ -83,6 +83,7 @@ class MultilevelKernel(RBF):
             length_scale = np.ones(nvars*self.nmodels)
         assert len(length_scale) == self.nmodels*nvars
         assert len(np.atleast_1d(rho)) == self.nmodels-1
+        assert len(length_scale_bounds) == self.nmodels*nvars
         super().__init__(length_scale, length_scale_bounds)
         self.nvars = nvars
         self.nsamples_per_model = nsamples_per_model
@@ -122,6 +123,7 @@ class MultilevelKernel(RBF):
         kk = len(kernels)
         K_block, K_grad = self._eval_kernel(
             kernels[kk-1], XX1, XX2, eval_gradient)
+        print(kernels[kk-1].theta)
         # print(kk-1, K_block)
         if eval_gradient:
             K_block_grad = np.zeros(

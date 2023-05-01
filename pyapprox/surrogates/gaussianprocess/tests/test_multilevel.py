@@ -4,6 +4,7 @@ from sklearn.gaussian_process.kernels import _approx_fprime
 import copy
 from scipy import stats
 
+from pyapprox.util.utilities import cartesian_product
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.orthopoly.quadrature import (
     gauss_jacobi_pts_wts_1D)
@@ -56,19 +57,20 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         K_grad = kernel(XX, YY, eval_gradient=True)[1]
         assert np.allclose(K_grad, K_grad_fd, atol=1e-6)
 
-    def _check_multilevel_kernel(self, nmodels):
+    def _check_multilevel_kernel(self, nvars, nmodels):
         nsamples = int(1e6)
-        nvars = 1  # if increase must change from linspace to rando
-        # nsamples_per_model = [5, 4, 3][:nmodels]
-        nsamples_per_model = [4, 3, 2][:nmodels]
-        length_scales = [1, 2, 3][:nmodels]
+        nsamples_per_model = [4**nvars, 3**nvars, 2**nvars][:nmodels]
+        length_scales = np.hstack(
+            [np.linspace(0.5, 1.1, nvars) for nn in range(nmodels)])
+        print(length_scales)
         scalings = np.arange(2, 2+nmodels-1)/3
         # shared indices of samples from lower level
         shared_idx_list = [
             np.random.permutation(
                 np.arange(nsamples_per_model[nn-1]))[:nsamples_per_model[nn]]
             for nn in range(1, nmodels)]
-        XX_list = [np.linspace(-1, 1, nsamples_per_model[0])[:, None]]
+        XX_list = [cartesian_product(
+            [np.linspace(-1, 1, int(nsamples_per_model[0]**(1/nvars)))]*nvars).T]
         for nn in range(1, nmodels):
             XX_list += [XX_list[nn-1][shared_idx_list[nn-1]]]
 
@@ -76,7 +78,8 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         # kernels = [
         #     Matern(length_scales[nn], nu=np.inf)
         #     for nn in range(nmodels)]
-        kernels = [RBF(length_scales[nn]) for nn in range(nmodels)]
+        kernels = [RBF(length_scales[nn*nvars:(nn+1)*nvars])
+                   for nn in range(nmodels)]
 
         samples_list = [
             np.random.normal(0, 1, (nsamples_per_model[nn], nsamples))
@@ -146,14 +149,15 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
                     XX_list[1], XX_list[2])+scalings[1]*kernels[1](
                     XX_list[1], XX_list[2]), atol=1e-2)
 
-        length_scale_bounds = [(1e-1, 10)]
+        length_scale_bounds = [(1e-1, 10)]*(nvars*nmodels)
         mlgp_kernel = MultilevelKernel(
             nvars, nsamples_per_model, kernels, length_scale=length_scales,
             length_scale_bounds=length_scale_bounds,
             rho=scalings)
 
+        # print(mlgp_kernel)
         XX_train = np.vstack(XX_list)
-        np.set_printoptions(linewidth=500)
+        # np.set_printoptions(linewidth=500)
         K = mlgp_kernel(XX_train)
         for nn in range(nmodels):
             assert np.allclose(
@@ -177,7 +181,9 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
 
         nsamples_test = 6
         XX_train = np.vstack(XX_list)
-        XX_test = np.linspace(-1, 1, nsamples_test)[:, None]
+        XX_test = cartesian_product(
+            [np.linspace(-1, 1, nsamples_test)]*nvars).T
+        print(XX_test.shape, XX_train.shape)
         K = mlgp_kernel(XX_test, XX_train)
         assert np.allclose(K[:, :XX_list[0].shape[0]],
                            scalings.prod()*kernels[0](XX_test, XX_list[0]))
@@ -248,8 +254,10 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         assert np.allclose(K_grad, K_grad_fd, atol=1e-6)
 
     def test_multilevel_kernel(self):
-        self._check_multilevel_kernel(2)
-        self._check_multilevel_kernel(3)
+        self._check_multilevel_kernel(1, 2)
+        self._check_multilevel_kernel(1, 3)
+        self._check_multilevel_kernel(2, 2)
+        self._check_multilevel_kernel(2, 3)
 
     def test_multifidelity_peer_kernel(self):
         np.set_printoptions(linewidth=2000)
@@ -269,7 +277,8 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             XX_list += [XX_list[nn-1][shared_idx_list[nn-1]]]
         XX_train = np.vstack(XX_list)
 
-        kernels = [RBF(length_scales[nn]) for nn in range(nmodels)]
+        kernels = [RBF(length_scales[nn*nvars:(nn+1)*nvars])
+                   for nn in range(nmodels)]
         length_scale_bounds = [(1e-1, 10)]
         kernel = MultifidelityPeerKernel(
             nvars, nsamples_per_model, kernels, length_scale=length_scales,
@@ -414,13 +423,15 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         true_rho = [2]
 
         def f1(x):
-            return ((x.T*6-2)**2)*np.sin((x.T*6-2)*2)/5
+            vals = ((x.sum(axis=0)*6-2)**2)*np.sin((x.sum(axis=0)*6-2)*2)/5
+            return vals[:, None]
 
         def f2(x):
-            return true_rho[0]*f1(x)+((x.T-0.5)*1. - 5)/5
+            vals = true_rho[0]*f1(x)+(((x.sum(axis=0)-0.5)*1. - 5)/5)[:, None]
+            return vals
 
-        x1 = np.linspace(lb, ub, 2**5+1)[None, :]
-        x2 = np.linspace(lb, ub, 2**2+1)[None, :]
+        x1 = cartesian_product([np.linspace(lb, ub, 2**5+1)]*nvars)
+        x2 = cartesian_product([np.linspace(lb, ub, 2**2+1)]*nvars)
 
         train_samples = [x1, x2]
         train_values = [f(x) for f, x in zip([f1, f2], train_samples)]
