@@ -252,6 +252,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         self._check_multilevel_kernel(3)
 
     def test_multifidelity_peer_kernel(self):
+        np.set_printoptions(linewidth=2000)
         nmodels = 3
         nvars = 1  # if increase must change from linspace to rando
         # nsamples_per_model = [5, 4, 3][:nmodels]
@@ -279,17 +280,18 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             kernel.theta = theta
             K = kernel(XX_train)
             return K
+        # print(kernel(XX_train))
         from sklearn.gaussian_process.kernels import _approx_fprime
         K_grad_fd = _approx_fprime(kernel.theta, f, 1e-8)
         K_grad = kernel(XX_train, eval_gradient=True)[1]
-        idx = 3
-        print(K_grad[:, :, idx])
-        print(K_grad_fd[:, :, idx])
+        idx = 4
+        # print(K_grad[:, :, idx])
+        # print(K_grad_fd[:, :, idx])
+        # print(np.linalg.norm(K_grad[:, :, idx]-K_grad_fd[:, :, idx]))
         # np.set_printoptions(precision=3, suppress=True)
         # print(np.absolute(K_grad[:, :, idx]-K_grad_fd[:, :, idx]))#.max())
         # print(K_grad_fd.shape, K_grad.shape)
         assert np.allclose(K_grad, K_grad_fd, atol=1e-6)
-        
 
     def _check_2_models(self, nested):
         # TODO Add Test which builds gp on two models data separately when

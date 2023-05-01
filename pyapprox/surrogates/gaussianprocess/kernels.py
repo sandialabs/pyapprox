@@ -143,7 +143,7 @@ class MultilevelKernel(RBF):
                 # scalings grad
                 idx1 = nmodels*nvars+nn
                 idx2 = nmodels*nvars+kk-1
-                # when NO using log of hyperparams
+                # when NOT using log of hyperparams
                 # tmp = 2*const/scalings[nn:kk]
                 # when YES using log of hyperparams
                 tmp = 2*const
@@ -173,7 +173,7 @@ class MultilevelKernel(RBF):
                     # products that have squared terms
                     tmp = 2*const
                     K_block_grad[..., idx1:idx2] += K[..., None]*tmp
-                    # products with just linear terms
+                # else: # products with just linear terms
                 idx1 = nmodels*nvars+kk
                 idx2 = nmodels*nvars+ll
                 tmp = const
@@ -195,6 +195,12 @@ class MultilevelKernel(RBF):
         return self._diagonal_kernel_block(
             samples[kk], None, kernels[:kk+1], scalings[:kk],
             nmodels, eval_gradient)
+
+    def off_diagonal_kernel_block(self, samples,  kernels, scalings, kk, ll,
+                                  nmodels, eval_gradient):
+        return self._off_diagonal_kernel_block(
+            samples[kk], samples[ll], kernels[:ll],
+            scalings[:ll], kk, ll, nmodels, eval_gradient)
 
     def _eval_K(self, XX1, nsamples_per_model, kernels, scalings,
                 eval_gradient):
@@ -219,9 +225,12 @@ class MultilevelKernel(RBF):
                 lb2 = ub2
                 ub2 += nsamples_per_model[ll]
                 K[lb1:ub1, lb2:ub2], K_block_grad = (
-                    self._off_diagonal_kernel_block(
-                        samples[kk], samples[ll], kernels[:ll],
-                        scalings[:ll], kk, ll, nmodels, eval_gradient))
+                    # self._off_diagonal_kernel_block(
+                    #     samples[kk], samples[ll], kernels[:ll],
+                    #     scalings[:ll], kk, ll, nmodels, eval_gradient))
+                    self.off_diagonal_kernel_block(
+                        samples, kernels, scalings, kk, ll, nmodels,
+                        eval_gradient))
                 K[lb2:ub2, lb1:ub1] = K[lb1:ub1, lb2:ub2].T
                 K_grad[kk][ll] = K_block_grad
                 if eval_gradient:
@@ -394,37 +403,55 @@ class MultifidelityPeerKernel(MultilevelKernel):
 
     def _diagonal_kernel_block(self, XX1, XX2, kernels, scalings,
                                model_id, nmodels, eval_gradient):
-        if model_id < nmodels-1:
-            return self._eval_kernel(
-                kernels[model_id], XX1, XX2, eval_gradient)
-
         nvars = XX1.shape[1]
         nhyperparams = nvars*nmodels+nmodels-1
-        K_block, K_block_grad = 0, 0
+        K_block, K_block_grad = 0, np.nan
         if eval_gradient:
-            K_block_grad = np.zeros((XX1.shape[0], XX2.shape[0], nhyperparams))
+            if XX2 is None:
+                XX2_shape = XX1.shape[0]
+            else:
+                XX2_shape = XX2.shape[0]
+            K_block_grad = np.zeros((XX1.shape[0], XX2_shape, nhyperparams))
 
-        for nn in range(nmodels-2):
-            print(scalings.shape, model_id)
-            const = scalings[nn]**2
-            K_block_nn, K_block_grad_nn = kernels[model_id](
-                XX1, XX2, eval_gradient)
-            K_block += const*K_block_nn
-            # length_scale grad
-            K_block_grad[..., model_id*nvars:(model_id+1)*nvars] += (
+        K_block, K_block_grad_nn = self._eval_kernel(
+            kernels[model_id], XX1, XX2, eval_gradient)
+        if eval_gradient:
+            K_block_grad[..., model_id*nvars:(model_id+1)*nvars] = (
                 K_block_grad_nn)
+
+        if model_id < nmodels-1:
+            return K_block, K_block_grad
+
+        for nn in range(nmodels-1):
+            const = scalings[nn]**2
+            K_block_nn, K_block_grad_nn = self._eval_kernel(
+                kernels[nn], XX1, XX2, eval_gradient)
+            K_block += const*K_block_nn
+            if not eval_gradient:
+                continue
+            # length_scale grad
+            K_block_grad[..., nn*nvars:(nn+1)*nvars] += (
+                const*K_block_grad_nn)
             # scalings grad
             idx1 = nmodels*nvars+nn
+            # 2*const instead of 2*scalings[nn] because
+            # optimizing log(scalings)
             K_block_grad[..., idx1:idx1+1] += (
-                2*scalings[nn]*K_block_nn[..., None])
+                2*const*K_block_nn[..., None])
         return K_block, K_block_grad
+
+    def off_diagonal_kernel_block(self, samples,  kernels, scalings, kk, ll,
+                                  nmodels, eval_gradient):
+        return self._off_diagonal_kernel_block(
+            samples[kk], samples[ll], kernels,
+            scalings, kk, ll, nmodels, eval_gradient)
 
     def _off_diagonal_kernel_block(self, Xkk, Xll, kernels, scalings, kk, ll,
                                    nmodels, eval_gradient):
         assert kk < ll
         nvars = Xkk.shape[1]
         nhyperparams = nvars*nmodels+nmodels-1
-        if kk != 0:
+        if ll != nmodels-1:
             return (np.zeros((Xkk.shape[0], Xll.shape[0])),
                     np.zeros((Xkk.shape[0], Xll.shape[0], nhyperparams)))
 
@@ -432,15 +459,14 @@ class MultifidelityPeerKernel(MultilevelKernel):
         if eval_gradient:
             K_block_grad = np.zeros((Xkk.shape[0], Xll.shape[0], nhyperparams))
 
-        print(kk, ll)
-        const = scalings[ll]
+        const = scalings[ll-1]
         K, K_grad = self._eval_kernel(kernels[ll], Xkk, Xll, eval_gradient)
         K_block += const*K
         if eval_gradient:
             # length_scale grad
             K_block_grad[..., ll*nvars:(ll+1)*nvars] += const*K_grad
             # scalings grad
-            idx1 = nmodels*nvars+ll
+            idx1 = nmodels*nvars+ll-1
             K_block_grad[..., idx1:idx1+1] += K[..., None]
         return K_block, K_block_grad
 
