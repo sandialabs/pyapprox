@@ -190,6 +190,12 @@ class MultilevelKernel(RBF):
             samples.append(XX[lb:ub, :])
         return samples
 
+    def diagonal_kernel_block(self, samples,  kernels, scalings, kk,
+                              nmodels, eval_gradient):
+        return self._diagonal_kernel_block(
+            samples[kk], None, kernels[:kk+1], scalings[:kk],
+            nmodels, eval_gradient)
+
     def _eval_K(self, XX1, nsamples_per_model, kernels, scalings,
                 eval_gradient):
         nrows = XX1.shape[0]
@@ -202,9 +208,11 @@ class MultilevelKernel(RBF):
             lb1 = ub1
             ub1 += nsamples_per_model[kk]
             lb2, ub2 = lb1, ub1
-            K_block, K_block_grad = self._diagonal_kernel_block(
-                samples[kk], None, kernels[:kk+1], scalings[:kk],
-                nmodels, eval_gradient)
+            # K_block, K_block_grad = self.diagonal_kernel_block(
+            #     samples[kk], None, kernels[:kk+1], scalings[:kk],
+            #     nmodels, eval_gradient)
+            K_block, K_block_grad = self.diagonal_kernel_block(
+                samples, kernels, scalings, kk, nmodels, eval_gradient)
             K[lb1:ub1, lb2:ub2] = K_block
             K_grad[kk][kk] = K_block_grad
             for ll in range(kk+1, nmodels):
@@ -375,6 +383,66 @@ class MultilevelKernel(RBF):
         tau = np.prod(np.array(tau_list), axis=0)
         P = np.prod(np.array(P_list), axis=0)
         return tau, P
+
+
+class MultifidelityPeerKernel(MultilevelKernel):
+    def diagonal_kernel_block(self, samples,  kernels, scalings, kk,
+                              nmodels, eval_gradient):
+        return self._diagonal_kernel_block(
+            samples[kk], None, kernels, scalings, kk,
+            nmodels, eval_gradient)
+
+    def _diagonal_kernel_block(self, XX1, XX2, kernels, scalings,
+                               model_id, nmodels, eval_gradient):
+        if model_id < nmodels-1:
+            return self._eval_kernel(
+                kernels[model_id], XX1, XX2, eval_gradient)
+
+        nvars = XX1.shape[1]
+        nhyperparams = nvars*nmodels+nmodels-1
+        K_block, K_block_grad = 0, 0
+        if eval_gradient:
+            K_block_grad = np.zeros((XX1.shape[0], XX2.shape[0], nhyperparams))
+
+        for nn in range(nmodels-2):
+            print(scalings.shape, model_id)
+            const = scalings[nn]**2
+            K_block_nn, K_block_grad_nn = kernels[model_id](
+                XX1, XX2, eval_gradient)
+            K_block += const*K_block_nn
+            # length_scale grad
+            K_block_grad[..., model_id*nvars:(model_id+1)*nvars] += (
+                K_block_grad_nn)
+            # scalings grad
+            idx1 = nmodels*nvars+nn
+            K_block_grad[..., idx1:idx1+1] += (
+                2*scalings[nn]*K_block_nn[..., None])
+        return K_block, K_block_grad
+
+    def _off_diagonal_kernel_block(self, Xkk, Xll, kernels, scalings, kk, ll,
+                                   nmodels, eval_gradient):
+        assert kk < ll
+        nvars = Xkk.shape[1]
+        nhyperparams = nvars*nmodels+nmodels-1
+        if kk != 0:
+            return (np.zeros((Xkk.shape[0], Xll.shape[0])),
+                    np.zeros((Xkk.shape[0], Xll.shape[0], nhyperparams)))
+
+        K_block, K_block_grad = 0, np.nan
+        if eval_gradient:
+            K_block_grad = np.zeros((Xkk.shape[0], Xll.shape[0], nhyperparams))
+
+        print(kk, ll)
+        const = scalings[ll]
+        K, K_grad = self._eval_kernel(kernels[ll], Xkk, Xll, eval_gradient)
+        K_block += const*K
+        if eval_gradient:
+            # length_scale grad
+            K_block_grad[..., ll*nvars:(ll+1)*nvars] += const*K_grad
+            # scalings grad
+            idx1 = nmodels*nvars+ll
+            K_block_grad[..., idx1:idx1+1] += K[..., None]
+        return K_block, K_block_grad
 
 
 def kernel_dd(XX1, XX2, length_scale, var_num1, var_num2):

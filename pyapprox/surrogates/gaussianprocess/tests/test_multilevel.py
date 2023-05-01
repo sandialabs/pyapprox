@@ -8,10 +8,10 @@ from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.orthopoly.quadrature import (
     gauss_jacobi_pts_wts_1D)
 from pyapprox.surrogates.integrate import integrate
-from pyapprox.surrogates.gaussianprocess.kernels import RBF
+from pyapprox.surrogates.gaussianprocess.kernels import (
+    RBF, MultifidelityPeerKernel, MultilevelKernel)
 from pyapprox.surrogates.gaussianprocess.multilevel import (
-    MultilevelKernel, MultilevelGaussianProcess,
-    SequentialMultilevelGaussianProcess)
+    MultilevelGaussianProcess, SequentialMultilevelGaussianProcess)
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     GaussianProcess)
 from pyapprox.surrogates.gaussianprocess.multilevel import (
@@ -250,6 +250,46 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
     def test_multilevel_kernel(self):
         self._check_multilevel_kernel(2)
         self._check_multilevel_kernel(3)
+
+    def test_multifidelity_peer_kernel(self):
+        nmodels = 3
+        nvars = 1  # if increase must change from linspace to rando
+        # nsamples_per_model = [5, 4, 3][:nmodels]
+        nsamples_per_model = [4, 3, 2][:nmodels]
+        length_scales = [1, 2, 3][:nmodels]
+        scalings = np.arange(2, 2+nmodels-1)/3
+        shared_idx_list = [
+            np.random.permutation(
+                np.arange(nsamples_per_model[nn-1]))[:nsamples_per_model[nn]]
+            for nn in range(1, nmodels)]
+
+        XX_list = [np.linspace(-1, 1, nsamples_per_model[0])[:, None]]
+        for nn in range(1, nmodels):
+            XX_list += [XX_list[nn-1][shared_idx_list[nn-1]]]
+        XX_train = np.vstack(XX_list)
+
+        kernels = [RBF(length_scales[nn]) for nn in range(nmodels)]
+        length_scale_bounds = [(1e-1, 10)]
+        kernel = MultifidelityPeerKernel(
+            nvars, nsamples_per_model, kernels, length_scale=length_scales,
+            length_scale_bounds=length_scale_bounds,
+            rho=scalings)
+
+        def f(theta):
+            kernel.theta = theta
+            K = kernel(XX_train)
+            return K
+        from sklearn.gaussian_process.kernels import _approx_fprime
+        K_grad_fd = _approx_fprime(kernel.theta, f, 1e-8)
+        K_grad = kernel(XX_train, eval_gradient=True)[1]
+        idx = 3
+        print(K_grad[:, :, idx])
+        print(K_grad_fd[:, :, idx])
+        # np.set_printoptions(precision=3, suppress=True)
+        # print(np.absolute(K_grad[:, :, idx]-K_grad_fd[:, :, idx]))#.max())
+        # print(K_grad_fd.shape, K_grad.shape)
+        assert np.allclose(K_grad, K_grad_fd, atol=1e-6)
+        
 
     def _check_2_models(self, nested):
         # TODO Add Test which builds gp on two models data separately when
