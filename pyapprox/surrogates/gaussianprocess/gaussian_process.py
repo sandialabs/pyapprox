@@ -11,7 +11,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 
 from pyapprox.surrogates.gaussianprocess.kernels import (
     Matern, ConstantKernel, WhiteKernel, RBF, MultilevelKernel,
-    extract_covariance_kernel
+    extract_covariance_kernel, MultifidelityPeerKernel
 )
 from pyapprox.util.utilities import (
     cartesian_product, outer_product
@@ -570,7 +570,7 @@ def extract_kernel_attributes_for_integration(kernel):
 
     kernel_types = [
         RBF, Matern, UnivariateMarginalizedSquaredExponentialKernel,
-        MultilevelKernel]
+        MultilevelKernel, MultifidelityPeerKernel]
     base_kernel = extract_covariance_kernel(kernel, kernel_types)
 
     constant_kernel = extract_covariance_kernel(kernel, [ConstantKernel])
@@ -579,7 +579,7 @@ def extract_kernel_attributes_for_integration(kernel):
     else:
         kernel_var = 1
 
-    if isinstance(base_kernel, MultilevelKernel):
+    if isinstance(base_kernel, (MultilevelKernel, MultifidelityPeerKernel)):
         _kernels = [extract_covariance_kernel(k, kernel_types)
                     for k in base_kernel.kernels]
     else:

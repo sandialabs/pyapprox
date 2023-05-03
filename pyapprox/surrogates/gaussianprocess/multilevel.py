@@ -2,7 +2,8 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 
 from pyapprox.surrogates.gaussianprocess.kernels import (
-    MultilevelKernel, SequentialMultilevelKernel)
+    MultilevelKernel, SequentialMultilevelKernel,
+    MultifidelityPeerKernel)
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     GaussianProcess, extract_gaussian_process_attributes_for_integration)
 
@@ -11,7 +12,7 @@ class MultilevelGaussianProcess(GaussianProcessRegressor):
     def __init__(self, kernel, alpha=1e-10,
                  optimizer="fmin_l_bfgs_b", n_restarts_optimizer=0,
                  copy_X_train=True, random_state=None, normalize_y=False):
-        if type(kernel) != MultilevelKernel:
+        if not isinstance(kernel, (MultilevelKernel, MultifidelityPeerKernel)):
             raise ValueError("Multilevel Kernel must be provided")
         super().__init__(
             kernel=kernel, alpha=alpha,
