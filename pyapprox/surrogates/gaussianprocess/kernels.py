@@ -463,15 +463,16 @@ class MultifidelityPeerKernel(MultilevelKernel):
         if eval_gradient:
             K_block_grad = np.zeros((Xkk.shape[0], Xll.shape[0], nhyperparams))
 
-        const = scalings[ll-1]
-        K, K_grad = self._eval_kernel(kernels[ll], Xkk, Xll, eval_gradient)
-        K_block += const*K
+        const = scalings[kk]
+        K, K_grad = self._eval_kernel(kernels[kk], Xkk, Xll, eval_gradient)
+        K_block = const*K
         if eval_gradient:
             # length_scale grad
-            K_block_grad[..., ll*nvars:(ll+1)*nvars] += const*K_grad
+            K_block_grad[..., kk*nvars:(kk+1)*nvars] += const*K_grad
             # scalings grad
-            idx1 = nmodels*nvars+ll-1
-            K_block_grad[..., idx1:idx1+1] += K[..., None]
+            idx1 = nmodels*nvars+kk
+            # d/dx exp(g(x))=g'(x)exp(g(x))
+            K_block_grad[..., idx1:idx1+1] += const*K[..., None]
         return K_block, K_block_grad
 
 
