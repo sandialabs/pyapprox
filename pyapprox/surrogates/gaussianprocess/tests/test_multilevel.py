@@ -10,7 +10,7 @@ from pyapprox.surrogates.orthopoly.quadrature import (
     gauss_jacobi_pts_wts_1D)
 from pyapprox.surrogates.integrate import integrate
 from pyapprox.surrogates.gaussianprocess.kernels import (
-    RBF, MultifidelityPeerKernel, MultilevelKernel)
+    RBF, MultifidelityPeerKernel, MultilevelKernel, MultiTaskKernel)
 from pyapprox.surrogates.gaussianprocess.multilevel import (
     MultilevelGaussianProcess, SequentialMultilevelGaussianProcess)
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
@@ -356,6 +356,107 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
     def test_multifidelity_peer_kernel(self):
         self._check_multifidelity_peer_kernel(1)
         self._check_multifidelity_peer_kernel(2)
+
+    def _check_multitask_kernel(self, nvars):
+        np.set_printoptions(linewidth=2000, precision=3)
+        nsamples = int(1e6)
+        nmodels = 3
+        nsamples_per_model = [3**nvars, 3**nvars, 2**nvars]
+        length_scales = np.hstack(
+            [np.linspace(0.5, 1.1, nvars)/(nn+1) for nn in range(nmodels)])
+        scalings = np.arange(2, 2+nmodels-1)/3-0.1
+        shared_idx_list = [
+            np.random.permutation(
+                np.arange(nsamples_per_model[nn-1]))[:nsamples_per_model[nn]]
+            for nn in range(1, nmodels)]
+
+        XX_list = [cartesian_product(
+            [np.linspace(-1, 1, int(nsamples_per_model[0]**(1/nvars)))]*nvars).T]
+        for nn in range(1, nmodels):
+            XX_list += [XX_list[nn-1][shared_idx_list[nn-1]]]
+        XX_train = np.vstack(XX_list)
+
+        kernels = [RBF(length_scales[nn*nvars:(nn+1)*nvars])
+                   for nn in range(nmodels)]
+        length_scale_bounds = (1e-1, 10)
+        kernel = MultiTaskKernel(
+            nvars, nsamples_per_model, kernels, length_scale=length_scales,
+            length_scale_bounds=length_scale_bounds,
+            rho=scalings)
+
+        samples_list = [
+            np.random.normal(0, 1, (nsamples_per_model[nn], nsamples))
+            for nn in range(nmodels)]
+        # Sample from discrepancies
+        DD_list = [
+            np.linalg.cholesky(kernels[nn](XX_list[nn])).dot(
+                samples_list[nn]) for nn in range(nmodels)]
+        # cannout use kernel1(XX2, XX2) here because this will generate
+        # different samples to those used in YY1
+        YY_list = [None for nn in range(nmodels)]
+
+        YY_list[0] = DD_list[0]
+        shared_idx = np.arange(nsamples_per_model[0])
+        for nn in range(1, nmodels):
+            shared_idx = shared_idx[shared_idx_list[nn-1]]
+            print(shared_idx)
+            YY_list[nn] = (
+                DD_list[nn]+scalings[nn-1]*YY_list[0][shared_idx, :])
+
+        YY_centered_list = [YY_list[nn]-YY_list[nn].mean(axis=1)[:, None]
+                            for nn in range(nmodels)]
+        cov = [[None for nn in range(nmodels)] for kk in range(nmodels)]
+        for nn in range(nmodels):
+            cov[nn][nn] = np.cov(YY_list[nn])
+
+        cov[0][1] = YY_centered_list[0].dot(
+            YY_centered_list[1].T)/(nsamples-1)
+        cov[0][2] = YY_centered_list[0].dot(
+            YY_centered_list[2].T)/(nsamples-1)
+        cov[1][2] = YY_centered_list[1].dot(
+            YY_centered_list[2].T)/(nsamples-1)
+        cov[1][0] = cov[0][1].T
+        cov[2][0] = cov[0][2].T
+        cov[2][1] = cov[1][2].T
+
+        assert np.allclose(cov[0][0], kernels[0](XX_list[0]), atol=1e-2)
+        assert np.allclose(
+            cov[1][1], scalings[0]**2*kernels[0](XX_list[1]) +
+            kernels[1](XX_list[1]), atol=1e-2)
+        assert np.allclose(
+            cov[2][2], scalings[1]**2*kernels[0](XX_list[2]) +
+            kernels[2](XX_list[2]), atol=1e-2)
+        assert np.allclose(
+            cov[0][2], scalings[1]*kernels[0](XX_list[0], XX_list[2]),
+            atol=1e-2)
+        assert np.allclose(
+            cov[1][2],
+            scalings[0]*scalings[1]*kernels[0](XX_list[1], XX_list[2]),
+            atol=1e-2)
+
+        def f(theta):
+            kernel.theta = theta
+            K = kernel(XX_train)
+            return K
+        assert np.allclose(
+            kernel(XX_train), np.vstack([np.hstack(row) for row in cov]),
+            atol=1e-2)
+
+        from sklearn.gaussian_process.kernels import _approx_fprime
+        K_grad_fd = _approx_fprime(kernel.theta, f, 1e-8)
+        K_grad = kernel(XX_train, eval_gradient=True)[1]
+        idx = 3
+        # print(K_grad[:, :, idx])
+        # print(K_grad_fd[:, :, idx])
+        # print(np.linalg.norm(K_grad[:, :, idx]-K_grad_fd[:, :, idx]))
+        # np.set_printoptions(precision=3, suppress=True)
+        # print(np.absolute(K_grad[:, :, idx]-K_grad_fd[:, :, idx]))#.max())
+        # print(K_grad_fd.shape, K_grad.shape)
+        assert np.allclose(K_grad, K_grad_fd, atol=1e-6)
+
+    def test_multitask_kernel(self):
+        self._check_multitask_kernel(1)
+        self._check_multitask_kernel(2)
 
     def _check_2_models(self, nested):
         # TODO Add Test which builds gp on two models data separately when

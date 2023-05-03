@@ -476,6 +476,79 @@ class MultifidelityPeerKernel(MultilevelKernel):
         return K_block, K_block_grad
 
 
+class MultiTaskKernel(MultifidelityPeerKernel):
+    def _diagonal_kernel_block(self, XX1, XX2, kernels, scalings,
+                               model_id, nmodels, eval_gradient):
+        nvars = XX1.shape[1]
+        nhyperparams = nvars*nmodels+nmodels-1
+        K_block, K_block_grad = 0, np.nan
+        if eval_gradient:
+            if XX2 is None:
+                XX2_shape = XX1.shape[0]
+            else:
+                XX2_shape = XX2.shape[0]
+            K_block_grad = np.zeros((XX1.shape[0], XX2_shape, nhyperparams))
+
+        K_block, K_block_grad_nn = self._eval_kernel(
+            kernels[model_id], XX1, XX2, eval_gradient)
+        if eval_gradient:
+            K_block_grad[..., (model_id)*nvars:(model_id+1)*nvars] = (
+                K_block_grad_nn)
+
+        if model_id == 0:
+            return K_block, K_block_grad
+
+        const = scalings[model_id-1]**2
+        K_block_nn, K_block_grad_nn = self._eval_kernel(
+            kernels[0], XX1, XX2, eval_gradient)
+        K_block += const*K_block_nn
+        if eval_gradient:
+            # length_scale grad
+            K_block_grad[..., 0*nvars:(0+1)*nvars] += (
+                const*K_block_grad_nn)
+            # scalings grad
+            idx1 = nmodels*nvars+(model_id-1)
+            # 2*const instead of 2*scalings[model_id] because
+            # optimizing log(scalings)
+            K_block_grad[..., idx1:idx1+1] += (
+                2*const*K_block_nn[..., None])
+        return K_block, K_block_grad
+
+    def _off_diagonal_kernel_block(self, Xkk, Xll, kernels, scalings, kk, ll,
+                                   nmodels, eval_gradient):
+        assert kk < ll
+        nvars = Xkk.shape[1]
+        nhyperparams = nvars*nmodels+nmodels-1
+
+        K_block, K_block_grad = 0, np.nan
+        if eval_gradient:
+            K_block_grad = np.zeros((Xkk.shape[0], Xll.shape[0], nhyperparams))
+
+        if kk == 0:
+            const = scalings[ll-1]
+        else:
+            const = scalings[kk-1]*scalings[ll-1]
+        K, K_grad = self._eval_kernel(kernels[0], Xkk, Xll, eval_gradient)
+        K_block = const*K
+        if eval_gradient:
+            # length_scale grad
+            K_block_grad[..., 0*nvars:(0+1)*nvars] += const*K_grad
+            # scalings grad
+            # d/dx exp(g(x))=g'(x)exp(g(x))
+            if kk == 0:
+                idx = nmodels*nvars+(ll-1)
+                print(kk, ll, idx)
+                # d/dx exp(g(x))=g'(x)exp(g(x))
+                K_block_grad[..., idx:idx+1] += const*K[..., None]
+            else:
+                idx = nmodels*nvars+(kk-1)
+                K_block_grad[..., idx:idx+1] += const*K[..., None]
+                idx = nmodels*nvars+(ll-1)
+                # d/dx exp(g(x))=g'(x)exp(g(x))
+                K_block_grad[..., idx:idx+1] += const*K[..., None]
+        return K_block, K_block_grad
+
+
 def kernel_dd(XX1, XX2, length_scale, var_num1, var_num2):
     r"""
     For Gaussian kernel
