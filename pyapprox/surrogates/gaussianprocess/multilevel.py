@@ -33,8 +33,8 @@ class MultilevelGaussianProcess(GaussianProcessRegressor):
         self.nvars = samples[0].shape[0]
 
         if hasattr(self, "kernel"):
-            self.kernel.nsamples_per_model = np.asarray([
-                s.shape[1] for s in samples])
+            self.kernel.set_nsamples_per_model(np.asarray([
+                s.shape[1] for s in samples]))
 
         for ii in range(1, self.nmodels):
             assert samples[ii].ndim == 2
