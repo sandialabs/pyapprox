@@ -92,6 +92,7 @@ class MultilevelGaussianProcess(GaussianProcessRegressor):
         (X_train, y_train, K_inv, kernel_length_scale, kernel_var,
          transform_quad_rules) = (
              extract_gaussian_process_attributes_for_integration(self))
+        print(transform_quad_rules)
         tau, P = self.kernel_._integrate_tau_P(
             variable, nquad_samples, X_train, transform_quad_rules)
         A_inv = K_inv*kernel_var
