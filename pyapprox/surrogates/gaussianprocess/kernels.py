@@ -4,8 +4,12 @@ from scipy.spatial.distance import cdist
 
 from sklearn.gaussian_process.kernels import (
     Product, Sum, _check_length_scale, Hyperparameter, _approx_fprime,
-    Matern, ConstantKernel, WhiteKernel) # so can be imported directly from this file
+    Matern, WhiteKernel) # so can be imported directly from this file
 from sklearn.gaussian_process.kernels import RBF as SKL_RBF
+from sklearn.gaussian_process.kernels import (
+    ConstantKernel as SKL_ConstantKernel)
+from sklearn.gaussian_process.kernels import (
+    _num_samples as _SKL_num_samples)
 
 from pyapprox.variables.transforms import AffineTransform
 from pyapprox.surrogates.polychaos.gpc import (
@@ -74,8 +78,60 @@ class RBF(SKL_RBF):
         return "{0}(length_scale={1})".format(
             self.__class__.__name__, self._length_scale_repr())
 
-    def separable(self):
-        return True
+
+class ConstantKernel(SKL_ConstantKernel):
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """Return the kernel k(X, Y) and optionally its gradient.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples_X, n_features) or list of object
+            Left argument of the returned kernel k(X, Y)
+
+        Y : array-like of shape (n_samples_X, n_features) or list of object, \
+            default=None
+            Right argument of the returned kernel k(X, Y). If None, k(X, X)
+            is evaluated instead.
+
+        eval_gradient : bool, default=False
+            Determines whether the gradient with respect to the log of
+            the kernel hyperparameter is computed.
+            Unlike sklearn, Y is None is supported.
+
+        Returns
+        -------
+        K : ndarray of shape (n_samples_X, n_samples_Y)
+            Kernel k(X, Y)
+
+        K_gradient : ndarray of shape (n_samples_X, n_samples_X, n_dims), \
+            optional
+            The gradient of the kernel k(X, X) with respect to the log of the
+            hyperparameter of the kernel. Only returned when eval_gradient
+            is True.
+        """
+        if Y is None:
+            Y = X
+
+        K = np.full(
+            (_SKL_num_samples(X), _SKL_num_samples(Y)),
+            self.constant_value,
+            dtype=np.array(self.constant_value).dtype,
+        )
+        if eval_gradient:
+            if not self.hyperparameter_constant_value.fixed:
+                return (
+                    K,
+                    np.full(
+                        (_SKL_num_samples(X), _SKL_num_samples(Y), 1),
+                        self.constant_value,
+                        dtype=np.array(self.constant_value).dtype,
+                    ),
+                )
+            else:
+                return K, np.empty(
+                    (_SKL_num_samples(X), _SKL_num_samples(Y), 0))
+        else:
+            return K
 
 
 class MonomialScaling():
@@ -111,25 +167,34 @@ class MonomialScaling():
 
 
 class MultilevelKernel(RBF):
-    def __init__(self, nvars, kernels, scalings,
+    def __init__(self, nvars, kernel_types, scalings,
                  length_scale=None, length_scale_bounds=(1e-5, 1e5),
-                 rho=[1.0], rho_bounds=(1e-5, 10), nsamples_per_model=None):
+                 rho=None, rho_bounds=(1e-5, 10),
+                 sigma=None, sigma_bounds=(1e-5, 10),
+                 nsamples_per_model=None):
 
-        self.nmodels = len(kernels)
+        self.nmodels = len(kernel_types)
         self.nvars = nvars
         assert len(scalings) == self.nmodels-1
         self.scalings = scalings
 
-        self.kernels = self._validate_kernels(kernels)
         (length_scale, length_scale_bounds, self.nhyperparams_per_kernel,
          self.nkernel_hyperparams) = self._validate_length_scale(
              length_scale, length_scale_bounds)
         super().__init__(length_scale, length_scale_bounds)
 
+        self.sigma, self.sigma_bounds, self.nsigma_hyperparams = (
+            self._validate_sigma(sigma, sigma_bounds))
+        self.kernel_types, self.kernels = self._validate_kernels(
+            kernel_types, self.sigma, self.sigma_bounds, self.length_scale,
+            self.length_scale_bounds)
+
         (self.rho, self.rho_bounds, self.nhyperparams_per_scaling,
          self.nscaling_hyperparams) = self._validate_rho(rho, rho_bounds)
 
-        self.nhyperparams = self.nkernel_hyperparams+self.nscaling_hyperparams
+        self.nhyperparams = (
+            self.nkernel_hyperparams+self.nsigma_hyperparams +
+            self.nscaling_hyperparams)
 
         # model_eval_id determines which fidelity to evaluate on test data
         self.model_eval_id = self.nmodels-1
@@ -139,9 +204,12 @@ class MultilevelKernel(RBF):
 
     def _validate_length_scale(self, length_scale, length_scale_bounds):
         # theta only contains parameters that are not fixed
-        nhyperparams_per_kernel = np.asarray(
-            [len(k.theta) for k in self.kernels])
-        nkernel_hyperparams = nhyperparams_per_kernel.sum()
+        nhyperparams_per_kernel = np.full(self.nmodels, self.nvars, dtype=int)
+        if length_scale_bounds == "fixed":
+            # how many parameters are optimized
+            nkernel_hyperparams = 0
+        else:
+            nkernel_hyperparams = nhyperparams_per_kernel.sum()
         if length_scale is None:
             length_scale = np.ones(nkernel_hyperparams)
         if len(length_scale) != nkernel_hyperparams:
@@ -149,32 +217,66 @@ class MultilevelKernel(RBF):
             msg += f"{nkernel_hyperparams} but is {len(length_scale)}"
             raise ValueError(msg)
         if isinstance(length_scale_bounds, tuple):
-            length_scale_bounds = [length_scale_bounds]*(self.nmodels*self.nvars)
+            length_scale_bounds = (
+                [length_scale_bounds]*(self.nmodels*self.nvars))
         if (length_scale_bounds != "fixed" and
                 len(length_scale_bounds) != nkernel_hyperparams):
             raise ValueError("length_scale_bounds does not have correct shape")
+        print(length_scale, "S", nhyperparams_per_kernel)
         return (length_scale, length_scale_bounds, nhyperparams_per_kernel,
                 nkernel_hyperparams)
 
-    def _validate_kernels(self, kernels):
-        for kernel in kernels:
-            kernel_types = [RBF]
-            base_kernel = extract_covariance_kernel(kernel, kernel_types)
-            if not isinstance(base_kernel, RBF):
-                raise ValueError("Only RBF Kernels are curently supported")
-        return kernels
+    def _validate_sigma(self, sigma, sigma_bounds):
+        if sigma is None:
+            sigma = np.ones(self.nmodels, dtype=float)
+        sigma = np.atleast_1d(sigma)
+        if sigma_bounds == "fixed":
+            nsigma_hyperparams = 0
+        else:
+            nsigma_hyperparams = self.nmodels
+        if isinstance(sigma_bounds, tuple):
+            sigma_bounds = [sigma_bounds]*self.nmodels
+        if sigma_bounds != "fixed" and len(sigma_bounds) != self.nmodels:
+            raise ValueError("sigma_bounds does not have correct shape")
+        if len(sigma) != self.nmodels:
+            msg = f"sigma {sigma.shape} does not have correct shape"
+            msg += f" {self.nmodels}"
+            raise ValueError(msg)
+        return sigma, sigma_bounds, nsigma_hyperparams
+
+    def _validate_kernels(self, kernel_types, sigma, sigma_bounds, length_scale,
+                          length_scale_bounds):
+        kernels = []
+        if length_scale_bounds == "fixed":
+            ls_bounds = ["fixed"]*self.nmodels
+        else:
+            ls_bounds = length_scale_bounds
+        if sigma_bounds == "fixed":
+            sigma_bounds = ["fixed"]*self.nmodels
+        else:
+            sigma_bounds = sigma_bounds
+        for kk in range(self.nmodels):
+            kernels.append(
+                ConstantKernel(sigma[kk], sigma_bounds[kk]) *
+                kernel_types[kk](
+                    length_scale[kk*self.nvars:(kk+1)*self.nvars],
+                    ls_bounds[kk]))
+        return kernel_types, kernels
 
     def _validate_rho(self, rho, rho_bounds):
-        rho = np.atleast_1d(rho)
         nhyperparams_per_scaling = np.asarray(
             [s.nhyperparams for s in self.scalings])
-        nscaling_hyperparams = nhyperparams_per_scaling.sum()
+        if rho is None:
+            rho = np.full(nhyperparams_per_scaling.sum(), 0.5, dtype=float)
+        rho = np.atleast_1d(rho)
+        if rho_bounds == "fixed":
+            # how many parameters are optimized
+            nscaling_hyperparams = 0
+        else:
+            nscaling_hyperparams = nhyperparams_per_scaling.sum()
         if isinstance(rho_bounds, tuple):
             rho_bounds = [rho_bounds]*nscaling_hyperparams
-        if (rho_bounds != "fixed" and
-                len(rho_bounds) != nscaling_hyperparams):
-            raise ValueError("rho_bounds does not have correct shape")
-        if len(rho) != nscaling_hyperparams:
+        if rho_bounds != "fixed" and len(rho) != nscaling_hyperparams:
             msg = f"rho {rho.shape} does not have correct shape"
             msg += f" {nscaling_hyperparams}"
             raise ValueError(msg)
@@ -186,14 +288,24 @@ class MultilevelKernel(RBF):
         self.nsamples_per_model = np.asarray(nsamples_per_model, dtype=int)
 
     def _kernel_hyperparam_indices(self, kk):
+        assert self.length_scale_bounds != "fixed"
         idx1 = self.nhyperparams_per_kernel[:kk].sum()
         idx2 = idx1 + self.nhyperparams_per_kernel[kk]
         return idx1, idx2
 
     def _scaling_indices(self, kk):
+        assert self.rho_bounds != "fixed"
         idx1 = (
             self.nkernel_hyperparams+self.nhyperparams_per_scaling[:kk].sum())
         idx2 = idx1 + self.nhyperparams_per_scaling[kk]
+        return idx1, idx2
+
+    def _sigma_hyperparam_indices(self, kk):
+        # the order stored in self.theta and thus indices for grad matrices
+        # are dependent on order of _bounds in kwarg list to self.__init__
+        assert self.sigma_bounds != "fixed"
+        idx1 = self.nkernel_hyperparams+self.nscaling_hyperparams+kk
+        idx2 = idx1+self.kernels[kk].k1.n_dims
         return idx1, idx2
 
     @staticmethod
@@ -387,21 +499,73 @@ class MultilevelKernel(RBF):
                     scalings2=scalings_XX2)[0])
         return np.hstack(t_blocks)
 
+    @property
+    def theta(self):
+        """Returns the (flattened, log-transformed) non-fixed hyperparameters.
+
+        Note that theta are typically the log-transformed values of the
+        kernel's hyperparameters as this representation of the search space
+        is more amenable for hyperparameter search, as hyperparameters like
+        length-scales naturally live on a log-scale.
+
+        Returns
+        -------
+        theta : ndarray of shape (n_dims,)
+            The non-fixed, log-transformed hyperparameters of the kernel
+        """
+        theta = []
+        params = self.get_params()
+        for hyperparameter in self.hyperparameters:
+            if not hyperparameter.fixed:
+                theta.append(params[hyperparameter.name])
+        if len(theta) > 0:
+            return np.log(np.hstack(theta))
+        else:
+            return np.array([])
+
+    @theta.setter
+    def theta(self, theta):
+        """Sets the (flattened, log-transformed) non-fixed hyperparameters.
+
+        Parameters
+        ----------
+        theta : ndarray of shape (n_dims,)
+            The non-fixed, log-transformed hyperparameters of the kernel
+        """
+        params = self.get_params()
+        ii = 0
+        for hyperparameter in self.hyperparameters:
+            if hyperparameter.fixed:
+                continue
+
+            #TODO do not apply exp for scaling update theta property as well
+            if hyperparameter.n_elements > 1:
+                # vector-valued parameter
+                params[hyperparameter.name] = np.exp(
+                    theta[ii:ii + hyperparameter.n_elements]
+                )
+                ii += hyperparameter.n_elements
+            else:
+                params[hyperparameter.name] = np.exp(theta[ii])
+                ii += 1
+
+        if ii != len(theta):
+            raise ValueError(
+                "theta has not the correct number of entries."
+                " Should be %d; given are %d" % (ii, len(theta))
+            )
+        self.set_params(**params)
+
     def _set_kernel_hyperparameters(self):
         length_scales = np.atleast_1d(self.length_scale).astype(float)
-        assert length_scales.shape[0] == self.nkernel_hyperparams
-        print(np.exp(self.theta), 'theta')
+        sigma = np.atleast_1d(self.sigma).astype(float)
         for kk in range(self.nmodels):
-            # base_kernel = extract_covariance_kernel(self.kernels[kk], [RBF], view=True)
-            # base_kernel.length_scale = (
-            #     length_scales[kk*self.nvars:(kk+1)*self.nvars].copy())
-            self.kernels[kk].theta = self.theta[kk*self.nvars:(kk+1)*self.nvars]
-            print(self.kernels[kk], kk, length_scales[kk*self.nvars:(kk+1)*self.nvars])
-            print(self.kernels[kk].__dict__)
+            self.kernels[kk].k2.length_scale = (
+                length_scales[kk*self.nvars:(kk+1)*self.nvars])
+            self.kernels[kk].k1.constant_value = sigma[kk]
 
     def _set_scaling_hyperparameters(self):
         rho = np.atleast_1d(self.rho)
-        assert rho.shape[0] == self.nscaling_hyperparams
         for kk in range(len(self.scalings)):
             idx1 = self.nhyperparams_per_scaling[:kk].sum()
             idx2 = idx1 + self.nhyperparams_per_scaling[kk]
@@ -416,6 +580,7 @@ class MultilevelKernel(RBF):
 
     def __call__(self, XX1, XX2=None, eval_gradient=False):
         XX1 = np.atleast_2d(XX1)
+        # take self.theta and update internal structures appropriately
         self._set_kernel_hyperparameters()
         scalings_XX1 = self._get_scalings(XX1, eval_gradient)
         if self.nsamples_per_model is None:
@@ -468,9 +633,25 @@ class MultilevelKernel(RBF):
         else:
             return "{0:.3g}".format(np.ravel(self.rho)[0])
 
+    @property
+    def hyperparameter_sigma(self):
+        if np.iterable(self.sigma):
+            return Hyperparameter(
+                "sigma", "numeric", self.sigma_bounds, len(self.sigma))
+        return Hyperparameter(
+            "sigma", "numeric", self.sigma_bounds)
+
+    def _sigma_repr(self):
+        if np.iterable(self.sigma):
+            return "[{0}]".format(
+                ", ".join(map("{0:.3g}".format, self.sigma)),
+            )
+        else:
+            return "{0:.3g}".format(np.ravel(self.sigma)[0])
+
     def __repr__(self):
-        return "{0}(rho={1}, length_scale={2})".format(
-            self.__class__.__name__, self._rho_repr(),
+        return "{0}(rho={1}, sigma={2}, length_scale={3})".format(
+            self.__class__.__name__, self._rho_repr(), self._sigma_repr(),
             self._length_scale_repr()
         )
 
@@ -549,14 +730,21 @@ class MultifidelityPeerKernel(MultilevelKernel):
                 XX2_shape = XX1.shape[0]
             else:
                 XX2_shape = XX2.shape[0]
-            K_block_grad = np.zeros(
-                (XX1.shape[0], XX2_shape, self.n_dims))
+            K_block_grad = np.zeros((XX1.shape[0], XX2_shape, self.n_dims))
 
         K_block, K_block_grad_nn = self._eval_kernel(
             kernels[model_id], XX1, XX2, eval_gradient)
         if eval_gradient:
-            idx1, idx2 = self._kernel_hyperparam_indices(model_id)
-            K_block_grad[..., idx1:idx2] = K_block_grad_nn
+            if self.length_scale_bounds != "fixed":
+                #TODO make work when lenth_scale is fixed. then idx2 and idx1 must be zero
+                idx1, idx2 = self._kernel_hyperparam_indices(model_id)
+                # K_block_grad[..., idx1:idx2] = K_block_grad_nn
+                K_block_grad[..., idx1:idx2] = K_block_grad_nn[..., :idx2-idx1]
+            else:
+                idx1, idx2 = 0, 0
+            if self.sigma_bounds != "fixed":
+                idx3, idx4 = self._sigma_hyperparam_indices(model_id)
+                K_block_grad[..., idx3:idx4] = K_block_grad_nn[..., idx2-idx1:]
 
         if model_id < nmodels-1:
             return K_block, K_block_grad
@@ -579,10 +767,20 @@ class MultifidelityPeerKernel(MultilevelKernel):
             K_block += const*K_block_nn
             if not eval_gradient:
                 continue
-            # length_scale grad
-            idx1, idx2 = self._kernel_hyperparam_indices(nn)
-            K_block_grad[..., idx1:idx2] += (
-                const[..., None]*K_block_grad_nn)
+            if self.length_scale_bounds != "fixed":
+                # length_scale grad
+                idx1, idx2 = self._kernel_hyperparam_indices(nn)
+                # K_block_grad[..., idx1:idx2] += (
+                #     const[..., None]*K_block_grad_nn)
+                print(idx1, idx2, K_block_grad.shape, K_block_grad_nn.shape)
+                K_block_grad[..., idx1:idx2] = (
+                    const[..., None]*K_block_grad_nn[..., :idx2-idx1])
+            else:
+                idx1, idx2 = 0, 0
+            if self.sigma_bounds != "fixed":
+                idx3, idx4 = self._sigma_hyperparam_indices(nn)
+                K_block_grad[..., idx3:idx4] = (
+                    const[..., None]*K_block_grad_nn[..., idx2-idx1:])
             if self.rho_bounds == "fixed":
                 continue
             # scalings grad
@@ -643,21 +841,29 @@ class MultifidelityPeerKernel(MultilevelKernel):
                 const = scalings2[kk][0]
                 K_block = K*const[:, 0]
         if eval_gradient:
-            # length_scale grad
-            idx1, idx2 = self._kernel_hyperparam_indices(kk)
-            # K_block_grad[..., idx1:idx2] += const*K_grad
-            K_block_grad[..., idx1:idx2] += np.einsum(
-               "j,ijk->ijk", const[:, 0], K_grad)
-        if eval_gradient and self.rho_bounds != "fixed":
-            # scalings grad
-            idx1, idx2 = self._scaling_indices(kk)
-            # d/dx exp(s_kk) = exp(s_kk) = const
-            # K_block_grad[..., idx1:idx1+1] += const*K[..., None]
-            scaling_grad = self._unpack_kernel_scalings(
-                scalings1[kk][1], self.nsamples_per_model, nmodels-1)
-            K_block_grad[..., idx1:idx2] += np.einsum(
-                "ij,jk->ijk", K, scaling_grad)
-            #K_block_grad[..., idx1:idx2] += const*K[..., None]
+            if self.length_scale_bounds != "fixed":
+                # length_scale grad
+                idx1, idx2 = self._kernel_hyperparam_indices(kk)
+                # K_block_grad[..., idx1:idx2] += np.einsum(
+                #    "j,ijk->ijk", const[:, 0], K_grad)
+                K_block_grad[..., idx1:idx2] = np.einsum(
+                    "j,ijk->ijk", const[:, 0], K_grad[..., :idx2-idx1])
+            else:
+                idx1, idx2 = 0, 0
+            if self.sigma_bounds != "fixed":
+                idx3, idx4 = self._sigma_hyperparam_indices(kk)
+                K_block_grad[..., idx3:idx4] = np.einsum(
+                    "j,ijk->ijk", const[:, 0], K_grad[..., idx2-idx1:])
+            if self.rho_bounds != "fixed":
+                # scalings grad
+                idx1, idx2 = self._scaling_indices(kk)
+                # d/dx exp(s_kk) = exp(s_kk) = const
+                # K_block_grad[..., idx1:idx1+1] += const*K[..., None]
+                scaling_grad = self._unpack_kernel_scalings(
+                    scalings1[kk][1], self.nsamples_per_model, nmodels-1)
+                K_block_grad[..., idx1:idx2] += np.einsum(
+                    "ij,jk->ijk", K, scaling_grad)
+                #K_block_grad[..., idx1:idx2] += const*K[..., None]
         return K_block, K_block_grad
 
     def diag(self, X):

@@ -318,7 +318,9 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         self._check_multilevel_kernel(2, 2)
         self._check_multilevel_kernel(2, 3)
 
-    def _check_multifidelity_peer_kernel(self, nvars, degree):
+    def _check_multifidelity_peer_kernel(
+            self, nvars, degree, length_scale_bounds, rho_bounds,
+            sigma_bounds):
         np.set_printoptions(linewidth=2000, precision=3)
         nsamples = int(5e6)
         nmodels = 3
@@ -336,17 +338,15 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             XX_list += [XX_list[nn-1][shared_idx_list[nn-1]]]
         XX_train = np.vstack(XX_list)
 
-        kernels = [RBF(length_scales[nn*nvars:(nn+1)*nvars])
-                   for nn in range(nmodels)]
+        kernels = [RBF for nn in range(nmodels)]
         kernel_scalings = [
             MonomialScaling(nvars, degree) for nn in range(nmodels-1)]
         rho = np.random.uniform(
             0.5, 0.9, sum([s.nhyperparams for s in kernel_scalings]))
-        length_scale_bounds = (1e-1, 10)
         kernel = MultifidelityPeerKernel(
             nvars, kernels, kernel_scalings, length_scale=length_scales,
             length_scale_bounds=length_scale_bounds,
-            rho=rho)
+            rho=rho, rho_bounds=rho_bounds, sigma_bounds=sigma_bounds)
         kernel.set_nsamples_per_model(nsamples_per_model)
 
         kernel._set_scaling_hyperparameters()
@@ -359,8 +359,9 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         # each DD is independent so draw new gaussian samples
         # take advantage of nestedness and that all models  with nn > 0
         # use sampls that are a subset of model 0
+        print(kernel.kernels[0], XX_list[0].shape)
         DD_list = [
-            np.linalg.cholesky(kernels[nn](XX_list[0])).dot(
+            np.linalg.cholesky(kernel.kernels[nn](XX_list[0])).dot(
                 np.random.normal(0, 1, (nsamples_per_model[0], nsamples)))
             for nn in range(nmodels)]
         # cannout use kernel1(XX2, XX2) here because this will generate
@@ -391,27 +392,27 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         cov[2][0] = cov[0][2].T
         cov[2][1] = cov[1][2].T
 
-        assert np.allclose(cov[0][0], kernels[0](XX_list[0]), atol=1e-2)
-        assert np.allclose(cov[1][1], kernels[1](XX_list[1]), atol=1e-2)
+        assert np.allclose(cov[0][0], kernel.kernels[0](XX_list[0]), atol=1e-2)
+        assert np.allclose(cov[1][1], kernel.kernels[1](XX_list[1]), atol=1e-2)
 
         assert np.allclose(
             cov[0][2],
-            kernels[0](XX_list[0], XX_list[2])*scalings[0][idx2][:, 0],
+            kernel.kernels[0](XX_list[0], XX_list[2])*scalings[0][idx2][:, 0],
             atol=1e-2)
         assert np.allclose(
             cov[1][2],
-            kernels[1](XX_list[1], XX_list[2])*scalings[1][idx2][:, 0],
+            kernel.kernels[1](XX_list[1], XX_list[2])*scalings[1][idx2][:, 0],
             atol=1e-2)
         print(cov[2][2])
         print(scalings[0][idx2].dot(scalings[0][idx2].T) *
-              kernels[0](XX_list[2]) +
+              kernel.kernels[0](XX_list[2]) +
               scalings[1][idx2].dot(scalings[1][idx2].T) *
-              kernels[1](XX_list[2])+kernels[2](XX_list[2]))
+              kernel.kernels[1](XX_list[2])+kernel.kernels[2](XX_list[2]))
         assert np.allclose(
             cov[2][2],
-            scalings[0][idx2].dot(scalings[0][idx2].T)*kernels[0](XX_list[2]) +
-            scalings[1][idx2].dot(scalings[1][idx2].T)*kernels[1](XX_list[2]) +
-            kernels[2](XX_list[2]),
+            scalings[0][idx2].dot(scalings[0][idx2].T)*kernel.kernels[0](XX_list[2]) +
+            scalings[1][idx2].dot(scalings[1][idx2].T)*kernel.kernels[1](XX_list[2]) +
+            kernel.kernels[2](XX_list[2]),
             atol=1e-2)
 
         def f(theta):
@@ -443,10 +444,22 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         assert np.allclose(np.diag(kernel(XX_train)), np.hstack(diags))
 
     def test_multifidelity_peer_kernel(self):
-        self._check_multifidelity_peer_kernel(1, 0)
-        self._check_multifidelity_peer_kernel(2, 0)
-        self._check_multifidelity_peer_kernel(1, 1)
-        self._check_multifidelity_peer_kernel(2, 1)
+        test_cases = [
+            # [1, 0, (1e-1, 10), "fixed", "fixed"],
+            # [2, 0, (1e-1, 10), "fixed", "fixed"],
+            # [1, 1, (1e-1, 10), "fixed", "fixed"],
+            # [2, 1, (1e-1, 10), "fixed", "fixed"],
+            # [1, 0, (1e-1, 10), (1e-3, 1), "fixed"],
+            # [2, 0, (1e-1, 10), (1e-3, 1), "fixed"],
+            # [1, 1, (1e-1, 10), (1e-3, 1), "fixed"],
+            # [2, 1, (1e-1, 10), (1e-3, 1), "fixed"],
+            [1, 0, (1e-1, 10), (1e-3, 1), (1e-3, 1)],
+            [2, 0, (1e-1, 10), (1e-3, 1), (1e-3, 1)],
+            [1, 1, (1e-1, 10), (1e-3, 1), (1e-3, 1)],
+            [2, 1, (1e-1, 10), (1e-3, 1), (1e-3, 1)],
+        ]
+        for test_case in test_cases:
+            self._check_multifidelity_peer_kernel(*test_case)
 
     def _check_multitask_kernel(self, nvars):
         np.set_printoptions(linewidth=2000, precision=3)
@@ -472,11 +485,13 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         length_scale_bounds = (1e-1, 10)
         kernel_scalings = [
             MonomialScaling(nvars, 0) for nn in range(nmodels-1)]
+        rho_bounds, sigma_bounds = "fixed", "fixed"
         kernel = MultiTaskKernel(
             nvars, kernels, kernel_scalings,
             length_scale=length_scales,
             length_scale_bounds=length_scale_bounds,
-            rho=scalings)
+            rho=scalings, rho_bounds=rho_bounds,
+            sigma_bounds=sigma_bounds)
         kernel.set_nsamples_per_model(nsamples_per_model)
 
         samples_list = [
@@ -833,12 +848,18 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         # plt.show()
 
     def _check_multifidelity_gp(self, kernel_type, nmodels, nvars, degree):
-        kernels = [RBF([1]*nvars), RBF([1]*nvars),
-                   ConstantKernel(1, "fixed")*RBF([1]*nvars)][-nmodels:]
+        # kernels = [RBF([1]*nvars), RBF([1]*nvars),
+        #            ConstantKernel(1, "fixed")*RBF([1]*nvars)][-nmodels:]
+        kernels = [RBF for kk in range(nmodels)]
         length_scale = [1]*(nmodels*nvars)
         length_scale_bounds = [(1e-3, 1e5)]*(nmodels*nvars)
         # length_scale_bounds = [(1e-3, 1e5), (1.129, 1.131)]
         rho = np.full((nmodels-1)*(degree+1), .9)
+        sigma = np.full(nmodels, .5)
+        # sigma_bounds = "fixed"
+        sigma_bounds = (1e-3, 1)
+        # rho_bounds = "fixed"
+        rho_bounds = (1e-3, 1)
         lb, ub = 0, 1
         variable = IndependentMarginalsVariable(
             [stats.uniform(lb, ub-lb) for ii in range(nvars)])
@@ -855,7 +876,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             nvars, kernels, kernel_scalings,
             length_scale=length_scale,
             length_scale_bounds=length_scale_bounds, rho=rho,
-            rho_bounds="fixed")
+            rho_bounds=rho_bounds, sigma=sigma, sigma_bounds=sigma_bounds)
 
         # x1 = np.linspace(lb, ub, 40)[None, :]
         # x2 = np.linspace(lb, ub, 40)[None, :]
