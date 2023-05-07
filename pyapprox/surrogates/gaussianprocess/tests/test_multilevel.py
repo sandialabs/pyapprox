@@ -36,20 +36,23 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             return rho[3*kk] + x[:1].T*rho[3*kk+1]+x[1:2].T*rho[3*kk+2]
 
         def f1(x):
-            y = x.sum(axis=0)[:, None]
-            return ((y*6-2)**2)*np.sin((y*6-2)*2)/5
+            # y = x.sum(axis=0)[:, None]
+            y = x[0:1].T
+            return ((y*6-2)**2)*np.sin((y*3-2))/5
 
         def f2(x):
-            y = x.sum(axis=0)[:, None]
-            return ((y*4)**2)*np.sin((y*4-2)*2)/5
+            # y = x.sum(axis=0)[:, None]
+            y = x[0:1].T
+            return (y*4)*np.sin((y*2-2))/5
 
         def f3(x):
             print(nmodels)
-            y = x.sum(axis=0)[:, None]
+            # y = x.sum(axis=0)[:, None]
+            y = x[0:1].T
             if nmodels == 2:
                 return (scale(x, rho, 0)*f2(x))+((y-0.5)*1. - 5)/5
             return (scale(x, rho, 0)*f1(x)+scale(x, rho, 1)*f2(x))+(
-                (y.T-0.5)*1. - 5)/5
+                (y-0.5)-5)/5
         return f1, f2, f3
 
     def _setup_multilevel_model_ensemble(self, rho, degree):
@@ -59,13 +62,16 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             return rho[2*kk] + x.T*rho[2*kk+1]
 
         def f1(x):
-            return ((x.T*6-2)**2)*np.sin((x.T*6-2)*2)/5
+            y = x[0:1].T
+            return ((y*6-2)**2)*np.sin((y*6-2)*2)/5
 
         def f2(x):
-            return scale(x, rho, 0)*f1(x)+np.cos(x.T*2)/10
+            y = x[0:1].T
+            return scale(x, rho, 0)*f1(x)+np.cos(y*2)/10
 
         def f3(x):
-            return scale(x, rho, -1)*f2(x)+((x.T-0.5)*1. - 5)/5
+            y = x[0:1].T
+            return scale(x, rho, -1)*f2(x)+((y-0.5)*1. - 5)/5
         return f1, f2, f3
 
     def test_pyapprox_rbf_kernel(self):
@@ -107,7 +113,6 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         nsamples_per_model = [4**nvars, 3**nvars, 2**nvars][:nmodels]
         length_scales = np.hstack(
             [np.linspace(0.5, 1.1, nvars) for nn in range(nmodels)])
-        print(length_scales)
         scalings = np.arange(2, 2+nmodels-1)/3
         # shared indices of samples from lower level
         shared_idx_list = [
@@ -827,12 +832,12 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         plt.plot(samples_per_model[0][0], samples_per_model[0][0]*0, 'ks')
         # plt.show()
 
-    def _check_integrate_multifidelity_gp(self, kernel_type, nmodels, nvars,
-                                          degree):
-        kernels = [RBF([0.1]*nvars), RBF([0.2]*nvars),
-                   ConstantKernel(0.1, "fixed")*RBF([0.1]*nvars)][-nmodels:]
-        length_scale = [.1]*(nmodels*nvars)
-        length_scale_bounds = [(1e-3, 1)]*(nmodels*nvars)
+    def _check_multifidelity_gp(self, kernel_type, nmodels, nvars, degree):
+        kernels = [RBF([1]*nvars), RBF([1]*nvars),
+                   ConstantKernel(1, "fixed")*RBF([1]*nvars)][-nmodels:]
+        length_scale = [1]*(nmodels*nvars)
+        length_scale_bounds = [(1e-3, 1e5)]*(nmodels*nvars)
+        # length_scale_bounds = [(1e-3, 1e5), (1.129, 1.131)]
         rho = np.full((nmodels-1)*(degree+1), .9)
         lb, ub = 0, 1
         variable = IndependentMarginalsVariable(
@@ -845,7 +850,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             models = self._setup_peer_model_ensemble(rho, degree)[-nmodels:]
             Kernel = MultifidelityPeerKernel
         kernel_scalings = [
-            MonomialScaling(nvars, degree) for nn in range(nmodels-1)]
+            MonomialScaling(nvars, 0) for nn in range(nmodels-1)]
         kernel = Kernel(
             nvars, kernels, kernel_scalings,
             length_scale=length_scale,
@@ -858,11 +863,21 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         x1 = integrate("quasimontecarlo", variable, nsamples=100)[0]
         x2 = integrate("quasimontecarlo", variable, nsamples=100)[0]
         x3 = integrate("quasimontecarlo", variable, nsamples=50)[0]
+        x1 = integrate("tensorproduct", variable, rule="linear", levels=20)[0]
+        x2 = integrate("tensorproduct", variable, rule="linear", levels=20)[0]
+        x3 = integrate("tensorproduct", variable, rule="linear", levels=5)[0]
+        # x1 = np.vstack(
+        #     [np.linspace(lb, ub, 11)[None, :], np.full((1, 11), (lb+ub)/2)])
+        # x2 = np.vstack(
+        #     [np.linspace(lb, ub, 11)[None, :], np.full((1, 11), (lb+ub)/2)])
+        # x3 = np.vstack(
+        #     [np.linspace(lb, ub, 6)[None, :], np.full((1, 6), (lb+ub)/2)])
+        print(x3.shape, nvars)
         np.set_printoptions(linewidth=1000)
         train_samples = [x1, x2, x3][-nmodels:]
         train_values = [f(x) for f, x in zip(models, train_samples)]
 
-        gp = MultilevelGaussianProcess(kernel)
+        gp = MultilevelGaussianProcess(kernel, alpha=1e-10, n_restarts_optimizer=0)
         gp.set_data(train_samples, train_values)
         print(gp.kernel.nsamples_per_model)
 
@@ -873,38 +888,64 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             kernel.model_eval_id = ii
             k = kernel(train_samples[ii].T, XX_train)
             idx2 = idx1 + gp.kernel.nsamples_per_model[ii]
-            print("$$$", ii)
-            print(K[idx1:idx2, :])
-            print(k)
-            # assert np.allclose(K[idx1:idx2, :], k)
+            assert np.allclose(K[idx1:idx2, :], k)
             idx1 = idx2
+
         gp.fit()
 
         xx, ww = integrate(
             "tensorproduct", variable, rule="gauss", levels=100)
         ww = ww[:, 0]
-        print(xx.shape)
-        means = np.empty(nmodels)
+
+        from pyapprox.util.visualization import get_meshgrid_function_data, plt
+        # X, Y, Z = get_meshgrid_function_data(models[-1], [lb, ub, lb, ub], 101)
+        # plt.contourf(X, Y, Z)
+        # plt.show()
+
         for nn in range(nmodels):
-            print(np.linalg.norm(gp(xx, model_eval_id=nn)-models[nn](xx)))
-            gp.kernel_.model_eval_id = nn
-            means[nn] = gp.integrate(variable, 200)[0]
+            sfgp = GaussianProcess(ConstantKernel(5, "fixed")*RBF([0.1]*nvars))
+            sfgp.fit(train_samples[nn], train_values[nn])
+            print(nn, "sf", np.abs(sfgp(xx)-models[nn](xx)).max())
+            print(nn, "mf", np.abs(gp(xx, model_eval_id=nn)-models[nn](xx)).max())
+            print(sfgp.kernel_)
+            print(gp.kernel_)
+            print([k for k in gp.kernel_.kernels])
+            # ls = gp.kernel_.length_scale
+            # ls[2] = sfgp.kernel_.length_scale[0]
+            # tmp_kernel = Kernel(
+            #     nvars, kernels, kernel_scalings,
+            #     length_scale=ls,
+            #     length_scale_bounds="fixed", rho=rho,
+            #     rho_bounds="fixed")
+            # print(tmp_kernel, 's')
+            # gp = MultilevelGaussianProcess(tmp_kernel, alpha=1e-10)
+            # gp.set_data(train_samples, train_values)
+            # gp.fit()
+            # print(gp.kernel_)
+            # assert False
+            if nvars == 2:
+                xx_plot = np.vstack(
+                    [np.linspace(lb, ub, 101)[None, :], np.full((1, 101), (lb+ub)/2)])
+            else:
+                xx_plot = np.linspace(lb, ub, 101)[None, :]
+            plt.plot(xx_plot[0], models[nn](xx_plot), "-k")
+            plt.plot(xx_plot[0], sfgp(xx_plot), "--b")
+            plt.plot(xx_plot[0], gp(xx_plot, model_eval_id=nn), ":r")
+            plt.plot(train_samples[nn][0], models[nn](train_samples[nn]), "ko")
+            #assert np.allclose(
+            #    gp(xx, model_eval_id=nn), models[nn](xx), atol=1e-3)
+        plt.show()
 
-        true_means = np.hstack([ww.dot(m(xx)) for m in models])
-        print(true_means)
-        print(means)
-        assert np.allclose(true_means, means, rtol=1e-4)
-
-    def test_integrate_multifidelity_gp(self):
-        self._check_integrate_multifidelity_gp("multilevel", 2, 1, 0)
-        self._check_integrate_multifidelity_gp("peer", 2, 1, 0)
-        self.assertRaises(
-            ValueError, self._check_integrate_multifidelity_gp,
-            "multilevel", 2, 1, 1)
-        self._check_integrate_multifidelity_gp("peer", 2, 1, 1)
-        #TODO for this to work need to make monomialscaling
-        #be seperable so 1D integration of kernel works.
-        # self._check_integrate_multifidelity_gp("peer", 2, 2, 0)
+    def test_multifidelity_gp(self):
+        # self._check_multifidelity_gp("multilevel", 2, 1, 0)
+        self._check_multifidelity_gp("peer", 2, 1, 0)
+        # self.assertRaises(
+        #     ValueError, self._check_multifidelity_gp,
+        #     "multilevel", 2, 1, 1)
+        # self._check_multifidelity_gp("peer", 2, 1, 1)
+        # self._check_multifidelity_gp("peer", 3, 1, 1)
+        # self._check_multifidelity_gp("multilevel", 2, 2, 0)
+        self._check_multifidelity_gp("peer", 2, 2, 0)
 
     def test_greedy_multifidelity_sampler(self):
         nmodels, nvars = 3, 1

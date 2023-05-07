@@ -88,20 +88,20 @@ class MultilevelGaussianProcess(GaussianProcessRegressor):
         ax.plot(XX_test[0, :], gp_mean, **plt_kwargs)
         return ax
 
-    def integrate(self, variable, nquad_samples):
-        (X_train, y_train, K_inv, kernel_length_scale, kernel_var,
-         transform_quad_rules) = (
-             extract_gaussian_process_attributes_for_integration(self))
-        print(transform_quad_rules)
-        tau, P = self.kernel_._integrate_tau_P(
-            variable, nquad_samples, X_train, transform_quad_rules)
-        A_inv = K_inv*kernel_var
-        # No kernel_var because it cancels out because it appears in K (1/s^2)
-        # and t (s^2)
-        A_inv_y = A_inv.dot(y_train)
-        expected_random_mean = tau.dot(A_inv_y)
-        expected_random_mean += self._y_train_mean
-        return expected_random_mean, P
+    # def integrate(self, variable, nquad_samples):
+    #     (X_train, y_train, K_inv, kernel_length_scale, kernel_var,
+    #      transform_quad_rules) = (
+    #          extract_gaussian_process_attributes_for_integration(self))
+    #     print(transform_quad_rules)
+    #     tau, P = self.kernel_._integrate_tau_P(
+    #         variable, nquad_samples, X_train, transform_quad_rules)
+    #     A_inv = K_inv*kernel_var
+    #     # No kernel_var because it cancels out because it appears in K (1/s^2)
+    #     # and t (s^2)
+    #     A_inv_y = A_inv.dot(y_train)
+    #     expected_random_mean = tau.dot(A_inv_y)
+    #     expected_random_mean += self._y_train_mean
+    #     return expected_random_mean, P
 
 
 class SequentialMultilevelGaussianProcess(MultilevelGaussianProcess):
