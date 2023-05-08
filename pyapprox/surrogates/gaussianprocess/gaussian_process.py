@@ -2055,12 +2055,14 @@ class GreedyVarianceOfMeanSampler(object):
 
     def set_kernel(self, kernel, kernels_1d=None):
         self.kernel = kernel
+        self.base_kernel = extract_covariance_kernel(
+            self.kernel, [RBF, Matern], view=True)
+        assert isinstance(self.base_kernel, RBF) or self.base_kernel.nu == np.inf
 
         self.kernels_1d = kernels_1d
         if self.kernels_1d is None and self.use_gauss_quadrature:
             # TODO: remove kernels 1D and just create tensor product
             # kernel with this as a property.
-            assert self.kernel.nu == np.inf
             self.kernels_1d = [partial(matern_kernel_1d, np.inf)]*self.nvars
 
         if ((self.use_gauss_quadrature is True) and (self.nvars != 1) and
@@ -2224,7 +2226,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
 
     def precompute_gauss_quadrature(self):
         self.degrees = [self.nquad_samples]*self.nvars
-        length_scale = self.kernel.length_scale
+        length_scale = self.base_kernel.length_scale
         if np.isscalar(length_scale):
             length_scale = np.array([length_scale]*self.nvars)
         self.univariate_quad_rules = \

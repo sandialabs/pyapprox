@@ -15,49 +15,46 @@ from pyapprox.surrogates.gaussianprocess.kernels import (
     RBF, MultifidelityPeerKernel, MultilevelKernel, MultiTaskKernel,
     MonomialScaling, ConstantKernel)
 from pyapprox.surrogates.gaussianprocess.multilevel import (
-    MultilevelGaussianProcess, SequentialMultilevelGaussianProcess)
+    MultifidelityGaussianProcess, SequentialMultifidelityGaussianProcess)
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     GaussianProcess)
 from pyapprox.surrogates.gaussianprocess.multilevel import (
     GreedyMultifidelityIntegratedVarianceSampler)
 
 
-class TestMultilevelGaussianProcess(unittest.TestCase):
-    def setUp(self):
-        np.random.seed(1)
+def _setup_peer_model_ensemble(rho, degree):
+    assert len(rho) % (degree+1) == 0
+    nmodels = len(rho)//(degree+1)+1
 
-    def _setup_peer_model_ensemble(self, rho, degree):
-        assert len(rho) % (degree+1) == 0
-        nmodels = len(rho)//(degree+1)+1
+    def scale(x, rho, kk):
+        if degree == 0:
+            return rho[kk]
+        if x.shape[0] == 1:
+            return rho[2*kk] + x.T*rho[2*kk+1]
+        return rho[3*kk] + x[:1].T*rho[3*kk+1]+x[1:2].T*rho[3*kk+2]
 
-        def scale(x, rho, kk):
-            if degree == 0:
-                return rho[kk]
-            if x.shape[0] == 1:
-                return rho[2*kk] + x.T*rho[2*kk+1]
-            return rho[3*kk] + x[:1].T*rho[3*kk+1]+x[1:2].T*rho[3*kk+2]
+    def f1(x):
+        # y = x.sum(axis=0)[:, None]
+        y = x[0:1].T
+        return ((y*6-2)**2)*np.sin((y*3-2))/5
 
-        def f1(x):
-            # y = x.sum(axis=0)[:, None]
-            y = x[0:1].T
-            return ((y*6-2)**2)*np.sin((y*3-2))/5
+    def f2(x):
+        # y = x.sum(axis=0)[:, None]
+        y = x[0:1].T
+        return (y*4)*np.sin((y*2-2))/5
 
-        def f2(x):
-            # y = x.sum(axis=0)[:, None]
-            y = x[0:1].T
-            return (y*4)*np.sin((y*2-2))/5
+    def f3(x):
+        print(nmodels)
+        # y = x.sum(axis=0)[:, None]
+        y = x[0:1].T
+        if nmodels == 2:
+            return (scale(x, rho, 0)*f2(x))+((y-0.5)*1. - 5)/5
+        return (scale(x, rho, 0)*f1(x)+scale(x, rho, 1)*f2(x))+(
+            (y-0.5)-5)/5
+    return f1, f2, f3
 
-        def f3(x):
-            print(nmodels)
-            # y = x.sum(axis=0)[:, None]
-            y = x[0:1].T
-            if nmodels == 2:
-                return (scale(x, rho, 0)*f2(x))+((y-0.5)*1. - 5)/5
-            return (scale(x, rho, 0)*f1(x)+scale(x, rho, 1)*f2(x))+(
-                (y-0.5)-5)/5
-        return f1, f2, f3
 
-    def _setup_multilevel_model_ensemble(self, rho, degree):
+def _setup_multilevel_model_ensemble(self, rho, degree):
         def scale(x, rho, kk):
             if degree == 0:
                 return rho[kk]
@@ -75,6 +72,11 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             y = x[0:1].T
             return scale(x, rho, -1)*f2(x)+((y-0.5)*1. - 5)/5
         return f1, f2, f3
+
+
+class TestMultifidelityGaussianProcess(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
 
     def test_pyapprox_rbf_kernel(self):
         kernel = RBF(0.1)
@@ -321,6 +323,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         for test_case in test_cases:
             for prod in product(*[[(1e-10, 1), "fixed"], [(1e-3, 1), "fixed"],
                                   [(1e-3, 1), "fixed"]]):
+                np.random.seed(1)
                 self._check_multilevel_kernel(*(test_case+list(prod)))
 
     def _check_multifidelity_peer_kernel(
@@ -637,7 +640,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             length_scale_bounds=length_scale_bounds, rho=rho, sigma=sigma,
             sigma_bounds="fixed")
 
-        gp = MultilevelGaussianProcess(kernel)
+        gp = MultifidelityGaussianProcess(kernel)
         gp.set_data(train_samples, train_values)
         gp.fit()
         print(gp.kernel_.rho-true_rho)
@@ -699,7 +702,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         sml_kernels = [
             RBF(length_scale=0.1, length_scale_bounds=length_scale_bounds)
             for ii in range(nmodels)]
-        sml_gp = SequentialMultilevelGaussianProcess(
+        sml_gp = SequentialMultifidelityGaussianProcess(
             sml_kernels, n_restarts_optimizer=n_restarts_optimizer,
             default_rho=[1.0])
         sml_gp.set_data(train_samples, train_values)
@@ -785,7 +788,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         prior_ivar = (kernel.diag(xx_quad.T).dot(ww_quad[:, 0]))
 
         prev_best_ivar = prior_ivar
-        gp = MultilevelGaussianProcess(kernel)
+        gp = MultifidelityGaussianProcess(kernel)
         for ii in range(len(sampler.pivots)):
             # print("$$$", ii)
             samples_per_model = sampler.samples_per_model(
@@ -821,7 +824,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             # print(next_index, sampler.pivots)
             assert np.allclose(next_index, sampler.pivots[ii])
 
-        gp = MultilevelGaussianProcess(kernel)
+        gp = MultifidelityGaussianProcess(kernel)
         gp.set_data(samples_per_model, [s.T*0 for s in samples_per_model])
         gp.fit()
         prior_kwargs = {"color": "gray", "alpha": 0.3}
@@ -849,11 +852,11 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         variable = IndependentMarginalsVariable(
             [stats.uniform(lb, ub-lb) for ii in range(nvars)])
         if kernel_type == "multilevel":
-            models = self._setup_multilevel_model_ensemble(
+            models = _setup_multilevel_model_ensemble(
                 rho, degree)[-nmodels:]
             Kernel = MultilevelKernel
         elif kernel_type == "peer":
-            models = self._setup_peer_model_ensemble(rho, degree)[-nmodels:]
+            models = _setup_peer_model_ensemble(rho, degree)[-nmodels:]
             Kernel = MultifidelityPeerKernel
         kernel_scalings = [
             MonomialScaling(nvars, degree) for nn in range(nmodels-1)]
@@ -883,7 +886,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         train_samples = [x1, x2, x3][-nmodels:]
         train_values = [f(x) for f, x in zip(models, train_samples)]
 
-        gp = MultilevelGaussianProcess(kernel, alpha=1e-10, n_restarts_optimizer=0)
+        gp = MultifidelityGaussianProcess(kernel, alpha=1e-10, n_restarts_optimizer=0)
         gp.set_data(train_samples, train_values)
         print(gp.kernel.nsamples_per_model)
 
@@ -924,7 +927,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             #     length_scale_bounds="fixed", rho=rho,
             #     rho_bounds="fixed")
             # print(tmp_kernel, 's')
-            # gp = MultilevelGaussianProcess(tmp_kernel, alpha=1e-10)
+            # gp = MultifidelityGaussianProcess(tmp_kernel, alpha=1e-10)
             # gp.set_data(train_samples, train_values)
             # gp.fit()
             # print(gp.kernel_)
@@ -1012,7 +1015,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
 
         print(sampler.pivots, ncandidate_samples_per_model)
         prev_best_ivar = prior_ivar
-        gp = MultilevelGaussianProcess(kernel)
+        gp = MultifidelityGaussianProcess(kernel)
         for ii in range(len(sampler.pivots)):
             # print("$$$", ii)
             samples_per_model = sampler.samples_per_model(
@@ -1055,7 +1058,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
                 assert np.allclose(
                     obj_vals[next_index], obj_vals[sampler.pivots[ii]])
 
-        # gp = MultilevelGaussianProcess(kernel)
+        # gp = MultifidelityGaussianProcess(kernel)
         # gp.set_data(samples_per_model, [s.T*0 for s in samples_per_model])
         # gp.fit()
         # prior_kwargs = {"color": "gray", "alpha": 0.3}
@@ -1076,7 +1079,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
 
 if __name__ == "__main__":
     multilevel_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestMultilevelGaussianProcess)
+        TestMultifidelityGaussianProcess)
     unittest.TextTestRunner(verbosity=2).run(multilevel_test_suite)
 
     # warning normalize_y does not make a lot of sense for multi-fidelity

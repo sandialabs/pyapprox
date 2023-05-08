@@ -8,7 +8,7 @@ from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     GaussianProcess, extract_gaussian_process_attributes_for_integration)
 
 
-class MultilevelGaussianProcess(GaussianProcessRegressor):
+class MultifidelityGaussianProcess(GaussianProcessRegressor):
     def __init__(self, kernel, alpha=1e-10,
                  optimizer="fmin_l_bfgs_b", n_restarts_optimizer=0,
                  copy_X_train=True, random_state=None, normalize_y=False):
@@ -40,6 +40,7 @@ class MultilevelGaussianProcess(GaussianProcessRegressor):
             assert samples[ii].ndim == 2
             assert samples[ii].shape[0] == self.nvars
             assert self._values[ii].ndim == 2
+            print(ii, self._values[ii].shape,  samples[ii].shape)
             assert self._values[ii].shape[1] == 1
             assert self._values[ii].shape[0] == samples[ii].shape[1]
 
@@ -104,7 +105,7 @@ class MultilevelGaussianProcess(GaussianProcessRegressor):
     #     return expected_random_mean, P
 
 
-class SequentialMultilevelGaussianProcess(MultilevelGaussianProcess):
+class SequentialMultifidelityGaussianProcess(MultifidelityGaussianProcess):
     def __init__(self, kernels, alpha=1e-10,
                  optimizer="fmin_l_bfgs_b", n_restarts_optimizer=0,
                  copy_X_train=True, random_state=None,
