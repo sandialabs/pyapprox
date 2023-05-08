@@ -244,8 +244,8 @@ class MultilevelKernel(RBF):
             raise ValueError(msg)
         return sigma, sigma_bounds, nsigma_hyperparams
 
-    def _validate_kernels(self, kernel_types, sigma, sigma_bounds, length_scale,
-                          length_scale_bounds):
+    def _validate_kernels(self, kernel_types, sigma, sigma_bounds,
+                          length_scale, length_scale_bounds):
         kernels = []
         if length_scale_bounds == "fixed":
             ls_bounds = ["fixed"]*self.nmodels
@@ -325,7 +325,8 @@ class MultilevelKernel(RBF):
 
     def _diagonal_kernel_block(self, XX1, XX2, kernels, scalings,
                                nmodels, eval_gradient):
-        scalings = [s[0][0] for s in scalings]  # hack
+        # hack because only scalar scalings allowed
+        scalings = [s[0][0] for s in scalings]
         kk = len(kernels)
         K_block, K_grad = self._eval_kernel(
             kernels[kk-1], XX1, XX2, eval_gradient)
@@ -335,8 +336,15 @@ class MultilevelKernel(RBF):
             # self.nhyperparams includes both optimized and fixed parameters
             K_block_grad = np.zeros(
                 (K_grad.shape[0], K_grad.shape[1], self.n_dims))
-            idx1, idx2 = self._kernel_hyperparam_indices(kk-1)
-            K_block_grad[..., idx1:idx2] = K_grad
+
+            if self.sigma_bounds != "fixed":
+                idx1, idx2 = self._sigma_hyperparam_indices(kk-1)
+                K_block_grad[..., idx1:idx2] = K_grad[..., :idx2-idx1]
+            else:
+                idx1, idx2 = 0, 0
+            if self.length_scale_bounds != "fixed":
+                idx3, idx4 = self._kernel_hyperparam_indices(kk-1)
+                K_block_grad[..., idx3:idx4] = K_grad[..., idx2-idx1:]
             # derivative with respect to scalings for kk model is zero so
             # do nothing
         else:
@@ -348,20 +356,26 @@ class MultilevelKernel(RBF):
             const = self._sprod(scalings, nn, kk-1)**2
             K_block += const*K
             if eval_gradient:
-                assert self.length_scale_bounds != "fixed"
-                # length_scale grad
-                idx1, idx2 = self._kernel_hyperparam_indices(nn)
-                # K_block_grad[..., nn*nvars:(nn+1)*nvars] += const*K_grad
-                K_block_grad[..., idx1:idx2] += const*K_grad
-            if eval_gradient and self.rho_bounds != "fixed":
-                # scalings grad
-                idx1 = self.nkernel_hyperparams+nn
-                idx2 = self.nkernel_hyperparams+kk-1
-                # when NOT using log of hyperparams
-                # tmp = 2*const/scalings[nn:kk]
-                # when YES using log of hyperparams
-                tmp = 2*const
-                K_block_grad[..., idx1:idx2] += K[..., None]*tmp
+                if self.sigma_bounds != "fixed":
+                    idx1, idx2 = self._sigma_hyperparam_indices(nn)
+                    K_block_grad[..., idx1:idx2] = (
+                        const*K_grad[..., :idx2-idx1])
+                else:
+                    idx1, idx2 = 0, 0
+                if self.length_scale_bounds != "fixed":
+                    # length_scale grad
+                    idx3, idx4 = self._kernel_hyperparam_indices(nn)
+                    K_block_grad[..., idx3:idx4] = (
+                        const*K_grad[..., idx2-idx1:])
+                if self.rho_bounds != "fixed":
+                    # scalings grad
+                    idx1 = self.nkernel_hyperparams+nn
+                    idx2 = self.nkernel_hyperparams+kk-1
+                    # when NOT using log of hyperparams
+                    # tmp = 2*const/scalings[nn:kk]
+                    # when YES using log of hyperparams
+                    tmp = 2*const
+                    K_block_grad[..., idx1:idx2] += K[..., None]*tmp
         return K_block, K_block_grad
 
     def _off_diagonal_kernel_block(self, Xkk, Xll, kernels, scalings, kk, ll,
@@ -371,30 +385,41 @@ class MultilevelKernel(RBF):
         if eval_gradient:
             K_block_grad = np.zeros(
                 (Xkk.shape[0], Xll.shape[0], self.n_dims))
-        scalings = [s[0][0] for s in scalings] # hack
+        # hack because only scalar scalings allowed
+        scalings = [s[0][0] for s in scalings]
         for nn in range(kk+1):
             const = (self._sprod(scalings, nn, kk-1) *
                      self._sprod(scalings, nn, ll-1))
             K, K_grad = self._eval_kernel(kernels[nn], Xkk, Xll, eval_gradient)
             K_block += const*K
             if eval_gradient:
-                assert self.length_scale_bounds != "fixed"
-                # length_scale grad
-                idx1, idx2 = self._kernel_hyperparam_indices(nn)
-                K_block_grad[..., idx1:idx2] += const*K_grad
-            if eval_gradient and self.rho_bounds != "fixed":
-                # scalings grad
-                idx1 = self.nkernel_hyperparams+nn
-                idx2 = self.nkernel_hyperparams+kk
-                if idx1 < idx2:
-                    # products that have squared terms
-                    tmp = 2*const
+                if self.sigma_bounds != "fixed":
+                    idx1, idx2 = self._sigma_hyperparam_indices(nn)
+                    K_block_grad[..., idx1:idx2] += (
+                        const*K_grad[..., :idx2-idx1])
+                else:
+                    idx1, idx2 = 0, 0
+                if self.length_scale_bounds != "fixed":
+                    # length_scale grad
+                    idx3, idx4 = self._kernel_hyperparam_indices(nn)
+                    K_block_grad[..., idx3:idx4] += (
+                        const*K_grad[..., idx2-idx1:])
+                if self.rho_bounds != "fixed":
+                    # scalings grad
+
+                    idx1 = self.nkernel_hyperparams+nn
+                    idx2 = self.nkernel_hyperparams+kk
+                    if idx1 < idx2:
+                        # products that have squared terms
+                        tmp = 2*const
+                        K_block_grad[..., idx1:idx2] += K[..., None]*tmp
+                    # else: # products with just linear terms
+                    idx1, _ = self._scaling_indices(kk)
+                    _, idx2 = self._scaling_indices(ll-1)
+                    #  idx1 = self.nkernel_hyperparams+kk
+                    # idx2 = self.nkernel_hyperparams+ll
+                    tmp = const
                     K_block_grad[..., idx1:idx2] += K[..., None]*tmp
-                # else: # products with just linear terms
-                idx1 = self.nkernel_hyperparams+kk
-                idx2 = self.nkernel_hyperparams+ll
-                tmp = const
-                K_block_grad[..., idx1:idx2] += K[..., None]*tmp
         return K_block, K_block_grad
 
     @staticmethod
@@ -880,7 +905,7 @@ class MultiTaskKernel(MultifidelityPeerKernel):
                               samples2=None, scalings2=None):
         if samples2 is None:
             return self._diagonal_kernel_block(
-                samples1[kk], None, kernels, scalings1,kk,
+                samples1[kk], None, kernels, scalings1, kk,
                 nmodels, eval_gradient)
         return self._diagonal_kernel_block(
             samples1, samples2[kk], kernels, scalings1, kk,
@@ -894,7 +919,8 @@ class MultiTaskKernel(MultifidelityPeerKernel):
 
     def _diagonal_kernel_block(self, XX1, XX2, kernels, scalings,
                                model_id, nmodels, eval_gradient):
-        scalings = [s[0][0] for s in scalings] # hack
+        # hack because only scalar scalings allowed
+        scalings = [s[0][0] for s in scalings]
         nvars = XX1.shape[1]
         nhyperparams = nvars*nmodels+nmodels-1
         K_block, K_block_grad = 0, np.nan
@@ -903,13 +929,19 @@ class MultiTaskKernel(MultifidelityPeerKernel):
                 XX2_shape = XX1.shape[0]
             else:
                 XX2_shape = XX2.shape[0]
-            K_block_grad = np.zeros((XX1.shape[0], XX2_shape, nhyperparams))
+            K_block_grad = np.zeros((XX1.shape[0], XX2_shape, self.n_dims))
 
         K_block, K_block_grad_nn = self._eval_kernel(
             kernels[model_id], XX1, XX2, eval_gradient)
         if eval_gradient:
-            idx1, idx2 = self._kernel_hyperparam_indices(model_id)
-            K_block_grad[..., idx1:idx2] = K_block_grad_nn
+            if self.sigma_bounds != "fixed":
+                idx1, idx2 = self._sigma_hyperparam_indices(model_id)
+                K_block_grad[..., idx1:idx2] = K_block_grad_nn[..., :idx2-idx1]
+            else:
+                idx1, idx2 = 0, 0
+            if self.length_scale_bounds != "fixed":
+                idx3, idx4 = self._kernel_hyperparam_indices(model_id)
+                K_block_grad[..., idx3:idx4] = K_block_grad_nn[..., idx2-idx1:]
 
         if model_id == 0:
             return K_block, K_block_grad
@@ -919,20 +951,31 @@ class MultiTaskKernel(MultifidelityPeerKernel):
             kernels[0], XX1, XX2, eval_gradient)
         K_block += const*K_block_nn
         if eval_gradient:
-            # length_scale grad
-            idx1, idx2 = self._kernel_hyperparam_indices(0)
-            K_block_grad[..., idx1:idx2] += const*K_block_grad_nn
-            # scalings grad
-            idx1 = self.nkernel_hyperparams+(model_id-1)
-            # d/dx exp(s_kk)*exp(s_kk) = d/dx exp(2*s_kk)
-            # = 2*exp(2*s_kk)=2*const
-            K_block_grad[..., idx1:idx1+1] += (
-                2*const*K_block_nn[..., None])
+            if self.sigma_bounds != "fixed":
+                idx1, idx2 = self._sigma_hyperparam_indices(0)
+                K_block_grad[..., idx1:idx2] += (
+                    const*K_block_grad_nn[..., :idx2-idx1])
+            else:
+                idx1, idx2 = 0, 0
+            if self.length_scale_bounds != "fixed":
+                # length_scale grad
+                idx3, idx4 = self._kernel_hyperparam_indices(0)
+                K_block_grad[..., idx3:idx4] += (
+                    const*K_block_grad_nn[..., idx2-idx1:])
+            if self.rho_bounds != "fixed":
+                # scalings grad
+                idx5, idx6 = self._scaling_indices(model_id-1)
+                # idx1 = self.nkernel_hyperparams+(model_id-1)
+                # d/dx exp(s_kk)*exp(s_kk) = d/dx exp(2*s_kk)
+                # = 2*exp(2*s_kk)=2*const
+                K_block_grad[..., idx5:idx6] += (
+                    2*const*K_block_nn[..., None])
         return K_block, K_block_grad
 
     def _off_diagonal_kernel_block(self, Xkk, Xll, kernels, scalings, kk, ll,
                                    nmodels, eval_gradient):
-        scalings = [s[0][0] for s in scalings]  # hack
+        # hack because only scalar scalings allowed
+        scalings = [s[0][0] for s in scalings]
         assert kk < ll
 
         K_block, K_block_grad = 0, np.nan
@@ -946,10 +989,18 @@ class MultiTaskKernel(MultifidelityPeerKernel):
             const = scalings[kk-1]*scalings[ll-1]
         K, K_grad = self._eval_kernel(kernels[0], Xkk, Xll, eval_gradient)
         K_block = const*K
-        if eval_gradient:
-            # length_scale grad
-            idx1, idx2 = self._kernel_hyperparam_indices(0)
-            K_block_grad[..., idx1:idx2] += const*K_grad
+        if not eval_gradient:
+            return K_block, K_block_grad
+
+        if self.sigma_bounds != "fixed":
+            idx1, idx2 = self._sigma_hyperparam_indices(0)
+            K_block_grad[..., idx1:idx2] += const*K_grad[..., :idx2-idx1]
+        else:
+            idx1, idx2 = 0, 0
+        if self.length_scale_bounds != "fixed":
+            idx3, idx4 = self._kernel_hyperparam_indices(0)
+            K_block_grad[..., idx3:idx4] += const*K_grad[..., idx2-idx1:]
+        if self.rho_bounds != "fixed":
             # scalings grad
             if kk == 0:
                 # d/dx exp(s_ll) = exp(s_ll) = const
