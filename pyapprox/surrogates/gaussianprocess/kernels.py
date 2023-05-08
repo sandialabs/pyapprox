@@ -276,9 +276,9 @@ class MultilevelKernel(RBF):
             nscaling_hyperparams = nhyperparams_per_scaling.sum()
         if isinstance(rho_bounds, tuple):
             rho_bounds = [rho_bounds]*nscaling_hyperparams
-        if rho_bounds != "fixed" and len(rho) != nscaling_hyperparams:
+        if rho_bounds != "fixed" and len(rho) != nhyperparams_per_scaling.sum():
             msg = f"rho {rho.shape} does not have correct shape"
-            msg += f" {nscaling_hyperparams}"
+            msg += f" {nhyperparams_per_scaling.sum()}"
             raise ValueError(msg)
         return rho, rho_bounds, nhyperparams_per_scaling, nscaling_hyperparams
 

@@ -1126,7 +1126,7 @@ class AdaptiveCholeskyGaussianProcessFixedKernel(object):
     """
     Efficient implementation when Gaussian process kernel has no tunable
     hyper-parameters. Cholesky factor computed to generate training samples
-    is reused for fiting
+    is reused for fitting
     """
 
     def __init__(self, sampler, func):
@@ -1917,7 +1917,7 @@ class GreedyVarianceOfMeanSampler(object):
         A = self.A[np.ix_(indices, indices)]
         try:
             L = np.linalg.cholesky(A)
-        except:
+        except RuntimeError as e:
             return np.inf
         tau = self.tau[indices]
         return -tau.T.dot(cholesky_solve_linear_system(L, tau))
@@ -1963,7 +1963,8 @@ class GreedyVarianceOfMeanSampler(object):
         assert np.isfinite(obj_val)
 
         if self.L.shape[0] == 0:
-            self.L = np.atleast_2d(self.A[pivot, pivot])
+            # self.L = np.atleast_2d(self.A[pivot, pivot])
+            self.L = np.atleast_2d(np.sqrt(self.A[pivot, pivot]))
         else:
             A_12 = self.A[self.pivots, pivot:pivot+1]
             L_12 = solve_triangular(self.L, A_12, lower=True)
@@ -2320,7 +2321,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         else:
             # training_samples = self.ntraining_samples
             obj_vals = self.vectorized_objective_vals_econ()
-            # obj_vals = self.objective_vals_econ()
+            # obj_vals = self.objective_vals_econ() # hack
             pivot = np.argmin(obj_vals)
             obj_val = obj_vals[pivot]
 
@@ -2330,8 +2331,9 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
             return -1, np.inf
 
         if self.L_inv.shape[0] == 0:
-            self.L = np.atleast_2d(self.A[pivot, pivot])
-            self.L_inv = np.atleast_2d(1/self.A[pivot, pivot])
+            # self.L = np.atleast_2d(self.A[pivot, pivot])
+            self.L = np.atleast_2d(np.sqrt(self.A[pivot, pivot]))
+            self.L_inv = 1/self.L
             return pivot, obj_val
 
         A_12 = self.A[self.pivots, pivot:pivot+1]

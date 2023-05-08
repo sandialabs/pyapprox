@@ -238,21 +238,23 @@ class SequentialGaussianProcess(GaussianProcess):
 
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     GreedyIntegratedVarianceSampler)
-class GreedyMultilevelIntegratedVarianceSampler(
+class GreedyMultifidelityIntegratedVarianceSampler(
         GreedyIntegratedVarianceSampler):
 
     def __init__(self, nmodels, num_vars, nquad_samples,
                  ncandidate_samples_per_model, generate_random_samples,
-                 variable=None, use_gauss_quadrature=False, econ=True,
+                 variable=None, econ=True,
                  compute_cond_nums=False, nugget=0, model_costs=None):
-        if econ:
-            raise NotImplementedError()
+        # if econ:
+        #     raise NotImplementedError()
         self.nmodels = nmodels
         self.model_costs = model_costs
         self.ncandidate_samples_per_model = ncandidate_samples_per_model
         self.nsamples_per_model = np.zeros(self.nmodels, dtype=int)
         self.training_sample_costs = []
         self.ivar_delta = 0.0
+        # todo currently 1D quadrature with seperable kernels is not suported
+        use_gauss_quadrature = False
         super().__init__(num_vars, nquad_samples,
                          ncandidate_samples_per_model, generate_random_samples,
                          variable, use_gauss_quadrature, econ,
@@ -268,23 +270,26 @@ class GreedyMultilevelIntegratedVarianceSampler(
             [single_model_candidate_samples for kk in range(self.nmodels)])
         return candidate_samples
 
-    def set_kernel(self, kernel):
+    def set_kernel(self,
+                   kernel, integration_method=None, variable=None, **kwargs):
         if kernel.nmodels != self.nmodels:
             raise ValueError("kernel is not consistent with self.nmodels")
         self.kernel = kernel
         self.kernel.nsamples_per_model = np.full(
             (self.kernel.nmodels,), self.ncandidate_samples_per_model)
 
-        if self.use_gauss_quadrature:
-            self.P = self.kernel._integrate_tau_P(
-                self.variable, self.nquad_samples, self.candidate_samples,
-                True)[1]
+        from pyapprox.surrogates.integrate import integrate
+        if integration_method is not None:
+            assert variable is not None
+            self.pred_samples, ww = integrate(
+                integration_method, variable, **kwargs)
+            ww = ww[:, 0]
         else:
             self.pred_samples = self.generate_random_samples(
                 self.nquad_samples)
-            K = self.kernel(self.pred_samples.T, self.candidate_samples.T)
             ww = np.ones(self.pred_samples.shape[1])/self.pred_samples.shape[1]
-            self.P = K.T.dot(ww[:, np.newaxis]*K)
+        K = self.kernel(self.pred_samples.T, self.candidate_samples.T)
+        self.P = K.T.dot(ww[:, np.newaxis]*K)
         self.compute_A()
         self.add_nugget()
         self.kernel.nsamples_per_model = self.nsamples_per_model
@@ -298,6 +303,8 @@ class GreedyMultilevelIntegratedVarianceSampler(
         model_id = self._model_id(new_sample_index)
         self.kernel.nsamples_per_model[model_id] += 1
         A = self.A[np.ix_(indices, indices)]
+        # print(np.linalg.cholesky(self.A[np.ix_(pivots, pivots)]), "L")
+        # print(np.linalg.inv(np.linalg.cholesky(self.A[np.ix_(pivots, pivots)])), "L_inv")
         A_inv = np.linalg.inv(A)
         P = self.P[np.ix_(indices, indices)]
         self.kernel.nsamples_per_model[model_id] -= 1
@@ -313,6 +320,34 @@ class GreedyMultilevelIntegratedVarianceSampler(
         else:
             return obj_val, ivar_delta
 
+    def objective_econ(self, new_sample_index, return_ivar_delta=False):
+        model_id = self._model_id(new_sample_index)
+        self.kernel.nsamples_per_model[model_id] += 1
+        if len(self.best_obj_vals) > 0:
+            best_obj_val = self.best_obj_vals[-1]
+            # base class assumes objective is -ivar_delta
+            # but here it is something different so update
+            # so ivar is updated correctly using super().objective_econ
+            self.best_obj_vals[-1] = -self.ivar_delta
+        ivar_delta = -super().objective_econ(new_sample_index)
+        if len(self.best_obj_vals) > 0:
+            self.best_obj_vals[-1] = best_obj_val
+        self.kernel.nsamples_per_model[model_id] -= 1
+        obj_val = (self.ivar_delta-ivar_delta)/self.model_costs[model_id]
+        if not return_ivar_delta:
+            return obj_val
+        else:
+            return obj_val, ivar_delta
+
+    def vectorized_objective_vals_econ(self):
+        # TODO vectorizing requires isolating all candidates for
+        # a specific model
+        obj_vals = np.inf*np.ones(self.candidate_samples.shape[1])
+        for mm in range(self.candidate_samples.shape[1]):
+            if mm not in self.pivots:
+                obj_vals[mm] = self.objective_econ(mm)
+        return obj_vals
+
     def update_training_samples(self, pivot):
         # todo avoid recomputing
         self.ivar_delta = self.objective(pivot, True)[1]
@@ -323,7 +358,7 @@ class GreedyMultilevelIntegratedVarianceSampler(
         index = int(self.nsamples_per_model[:model_id+1].sum())
         self.training_samples = np.insert(
             self.training_samples, index,
-            self.candidate_samples[:, pivot:pivot+1], axis=1)
+            self.candidate_samples[:, pivot], axis=1)
         self.nsamples_per_model[model_id] += 1
         self.training_sample_costs.append(self.model_costs[model_id])
 

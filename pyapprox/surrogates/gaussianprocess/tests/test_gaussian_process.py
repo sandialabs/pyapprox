@@ -1920,6 +1920,10 @@ class TestSamplers(unittest.TestCase):
             # print('nsamples',nsamples)
             sampler1(nsamples)
             sampler2(nsamples)
+            assert np.allclose(
+                sampler1.L,
+                np.linalg.cholesky(sampler1.A[np.ix_(sampler1.pivots,
+                                                     sampler1.pivots)]))
 
             obj_vals1 = sampler1.objective_vals_econ()
             obj_vals2 = sampler2.objective_vals()

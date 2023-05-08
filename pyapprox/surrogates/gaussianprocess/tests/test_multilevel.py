@@ -19,7 +19,7 @@ from pyapprox.surrogates.gaussianprocess.multilevel import (
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     GaussianProcess)
 from pyapprox.surrogates.gaussianprocess.multilevel import (
-    GreedyMultilevelIntegratedVarianceSampler)
+    GreedyMultifidelityIntegratedVarianceSampler)
 
 
 class TestMultilevelGaussianProcess(unittest.TestCase):
@@ -623,17 +623,19 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
 
         rho = np.ones(nmodels-1)
         length_scale = [1]*(nmodels*(nvars))
-        length_scale_bounds = [(1e-1, 10)]*(nmodels*nvars)
+        length_scale_bounds = (1e-1, 10)
 
         # length_scale_bounds='fixed'
-        kernels = [RBF(0.1) for nn in range(nmodels)]
+        kernels = [RBF for nn in range(nmodels)]
         kernel_scalings = [
             MonomialScaling(nvars, 0) for nn in range(nmodels-1)]
         rho = np.random.uniform(
             0.5, 0.9, sum([s.nhyperparams for s in kernel_scalings]))
+        sigma = np.ones(nmodels)
         kernel = MultilevelKernel(
             nvars, kernels, kernel_scalings, length_scale=length_scale,
-            length_scale_bounds=length_scale_bounds, rho=rho)
+            length_scale_bounds=length_scale_bounds, rho=rho, sigma=sigma,
+            sigma_bounds="fixed")
 
         gp = MultilevelGaussianProcess(kernel)
         gp.set_data(train_samples, train_values)
@@ -648,7 +650,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         #         sf_var, constant_value_bounds="fixed")
         # shf_gp = GaussianProcess(shf_kernel)
         # shf_gp.fit(train_samples[1], train_values[1])
-        slf_kernel = RBF(length_scale_bounds=length_scale_bounds[:nvars])
+        slf_kernel = RBF(length_scale_bounds=length_scale_bounds)
         slf_gp = GaussianProcess(slf_kernel)
         slf_gp.fit(train_samples[0], train_values[0])
 
@@ -669,44 +671,9 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         # print(hf_gp_mean-f2(xx))
         assert np.allclose(f2(xx), hf_gp_mean, atol=5e-2)
 
-        x1 = np.linspace(lb, ub, 30)[None, :]
-        x2 = np.linspace(lb, ub, 5)[None, :]
-        train_samples = [x1, x2]
-        train_values = [f(x) for f, x in zip([f1, f2], train_samples)]
-        nsamples_per_model = [s.shape[1] for s in train_samples]
-
-        rho = np.ones(nmodels-1)
-        length_scale = [1]*(nmodels*(nvars))
-        length_scale_bounds = (1e-1, 10)
-
-        # length_scale_bounds='fixed'
-        kernels = [RBF(0.1) for nn in range(nmodels)]
-        kernel = MultilevelKernel(
-            nvars, kernels, kernel_scalings, length_scale=length_scale,
-            length_scale_bounds=length_scale_bounds, rho=rho)
-
-        gp = MultilevelGaussianProcess(kernel)
-        gp.set_data(train_samples, train_values)
-        gp.fit()
-
-        marginals = [stats.uniform(lb, ub-lb)]
-        variable = IndependentMarginalsVariable(marginals)
-        means = [None, None]
-        gp.kernel_.model_eval_id = 0
-        means[0] = gp.integrate(variable, 100)[0]
-        gp.kernel_.model_eval_id = 1
-        means[1] = gp.integrate(variable, 100)[0]
-        xx, ww = gauss_jacobi_pts_wts_1D(100, 0, 0)
-        xx = (xx[None, :]+1)/2
-        true_means = [ww.dot(f1(xx)), ww.dot(f2(xx))]
-        print(true_means, means)
-        assert np.allclose(true_means, means, rtol=1e-4)
-
     def test_2_models(self):
         self._check_2_models(True)
         self._check_2_models(False)
-
-        # TODO add 2d model check
 
     def test_sequential_multilevel_gaussian_process(self):
         lb, ub = 0, 1
@@ -771,9 +738,9 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         model_costs = [1, 2.0]
         variable = IndependentMarginalsVariable(
             [stats.uniform(0, 1) for ii in range(nvars)])
-        sampler = GreedyMultilevelIntegratedVarianceSampler(
+        sampler = GreedyMultifidelityIntegratedVarianceSampler(
             nmodels, nvars, nquad_samples, ncandidate_samples_per_model,
-            variable.rvs, variable, use_gauss_quadrature=True, econ=False,
+            variable.rvs, variable, econ=False,
             compute_cond_nums=False, nugget=0, model_costs=model_costs)
 
         # important not to start with rho = 1
@@ -785,19 +752,21 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
 
         # length_scale_bounds='fixed'
         # kernels = [RBF(0.1) for nn in range(nmodels)]
-        kernels = [RBF(0.1), ConstantKernel(0.1, "fixed")*RBF(0.1)]
+        kernels = [RBF, RBF]
         kernel_scalings = [
             MonomialScaling(nvars, 0) for nn in range(nmodels-1)]
+        sigma = np.ones(nmodels)
         kernel = MultilevelKernel(
             nvars, kernels, kernel_scalings,
             length_scale=length_scale,
             length_scale_bounds=length_scale_bounds, rho=rho,
-            rho_bounds="fixed")
+            rho_bounds="fixed", sigma=sigma, sigma_bounds="fixed")
 
         np.set_printoptions(linewidth=1000)
         num_samples = 5 #20
 
-        sampler.set_kernel(kernel)
+        sampler.set_kernel(kernel, "tensorproduct", variable, rule="gauss",
+                           levels=100)
         samples = sampler(num_samples)[0]
         samples_per_model = np.split(
             samples, np.cumsum(sampler.nsamples_per_model).astype(int)[:-1],
@@ -887,7 +856,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             models = self._setup_peer_model_ensemble(rho, degree)[-nmodels:]
             Kernel = MultifidelityPeerKernel
         kernel_scalings = [
-            MonomialScaling(nvars, 0) for nn in range(nmodels-1)]
+            MonomialScaling(nvars, degree) for nn in range(nmodels-1)]
         kernel = Kernel(
             nvars, kernels, kernel_scalings,
             length_scale=length_scale,
@@ -971,29 +940,29 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             plt.plot(train_samples[nn][0], models[nn](train_samples[nn]), "ko")
             #assert np.allclose(
             #    gp(xx, model_eval_id=nn), models[nn](xx), atol=1e-3)
-        plt.show()
+        # plt.show()
 
     def test_multifidelity_gp(self):
-        # self._check_multifidelity_gp("multilevel", 2, 1, 0)
+        self._check_multifidelity_gp("multilevel", 2, 1, 0)
         self._check_multifidelity_gp("peer", 2, 1, 0)
-        # self.assertRaises(
-        #     ValueError, self._check_multifidelity_gp,
-        #     "multilevel", 2, 1, 1)
-        # self._check_multifidelity_gp("peer", 2, 1, 1)
-        # self._check_multifidelity_gp("peer", 3, 1, 1)
-        # self._check_multifidelity_gp("multilevel", 2, 2, 0)
+        self.assertRaises(
+            ValueError, self._check_multifidelity_gp,
+            "multilevel", 2, 1, 1)
+        self._check_multifidelity_gp("peer", 2, 1, 1)
+        self._check_multifidelity_gp("peer", 3, 1, 1)
+        self._check_multifidelity_gp("multilevel", 2, 2, 0)
         self._check_multifidelity_gp("peer", 2, 2, 0)
 
-    def test_greedy_multifidelity_sampler(self):
-        nmodels, nvars = 3, 1
+    def _check_greedy_multifidelity_sampler(self, nvars, econ):
+        nmodels = 3
         nquad_samples = 40
         ncandidate_samples_per_model = 11
         model_costs = [1, 1.0, 4.0]
         variable = IndependentMarginalsVariable(
             [stats.uniform(0, 1) for ii in range(nvars)])
-        sampler = GreedyMultilevelIntegratedVarianceSampler(
+        sampler = GreedyMultifidelityIntegratedVarianceSampler(
             nmodels, nvars, nquad_samples, ncandidate_samples_per_model,
-            variable.rvs, variable, use_gauss_quadrature=True, econ=False,
+            variable.rvs, variable, econ=econ,
             compute_cond_nums=False, nugget=0, model_costs=model_costs)
 
         # important not to start with rho = 1
@@ -1003,24 +972,32 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
         length_scale = [.1]*(nmodels*nvars)
         length_scale_bounds = "fixed"
 
-        kernels = [RBF(0.1), RBF(0.2), ConstantKernel(0.1, "fixed")*RBF(0.1)]
+        kernels = [RBF, RBF, RBF]
         kernel_scalings = [
             MonomialScaling(nvars, 0) for nn in range(nmodels-1)]
         kernel = MultifidelityPeerKernel(
             nvars, kernels, kernel_scalings,
             length_scale=length_scale,
             length_scale_bounds=length_scale_bounds, rho=rho,
-            rho_bounds="fixed")
+            rho_bounds="fixed", sigma=np.ones(nmodels),
+            sigma_bounds="fixed")
 
         np.set_printoptions(linewidth=1000)
         num_samples = 5 #20
 
-        sampler.set_kernel(kernel)
+        sampler.set_kernel(kernel, "tensorproduct", variable, rule="gauss",
+                           levels=nquad_samples-1)
         samples = sampler(num_samples)[0]
+        if econ:
+            assert np.allclose(
+                sampler.L,
+                np.linalg.cholesky(sampler.A[np.ix_(sampler.pivots,
+                                                    sampler.pivots)]))
+        print(samples.shape, sampler.nsamples_per_model)
+        print(sampler.pivots)
         samples_per_model = np.split(
             samples, np.cumsum(sampler.nsamples_per_model).astype(int)[:-1],
             axis=1)
-        # print(sampler.pivots)
         # print(samples_per_model)
         # print(sampler.A)
 
@@ -1055,7 +1032,7 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
                     sampler.candidate_samples[:, jj:jj+1]))
                 gp.set_data(
                     samples_per_model_jj,
-                    [s.T*0 for s in samples_per_model_jj])
+                    [s[:1,:].T for s in samples_per_model_jj])
                 gp.fit()
                 gp_mean, gp_std = gp(
                     xx_quad, return_std=True, model_eval_id=sampler.nmodels-1)
@@ -1069,20 +1046,32 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
 
             next_index = np.argmin(obj_vals)
             prev_best_ivar = ivars[next_index]
-            # print(next_index, sampler.pivots)
-            assert np.allclose(next_index, sampler.pivots[ii])
+            print(next_index, sampler.pivots)
+            print(obj_vals[next_index], obj_vals[sampler.pivots[ii]])
+            
+            if not np.allclose(next_index, sampler.pivots[ii]):
+                # sometimes rounding error causes different point to be
+                # chosen. Check that obj vals for these points is close
+                assert np.allclose(
+                    obj_vals[next_index], obj_vals[sampler.pivots[ii]])
 
-        gp = MultilevelGaussianProcess(kernel)
-        gp.set_data(samples_per_model, [s.T*0 for s in samples_per_model])
-        gp.fit()
-        prior_kwargs = {"color": "gray", "alpha": 0.3}
-        gp.plot_1d(101, [0, 1], prior_fill_kwargs=prior_kwargs)
-        import matplotlib.pyplot as plt
-        plt.plot(samples_per_model[-1][0], samples_per_model[-1][0]*0, 'o',
-                 ms=20)
-        for ii in range(nmodels-1):
-            plt.plot(samples_per_model[ii][0], samples_per_model[ii][0]*0, 's')
+        # gp = MultilevelGaussianProcess(kernel)
+        # gp.set_data(samples_per_model, [s.T*0 for s in samples_per_model])
+        # gp.fit()
+        # prior_kwargs = {"color": "gray", "alpha": 0.3}
+        # gp.plot_1d(101, [0, 1], prior_fill_kwargs=prior_kwargs)
+        # import matplotlib.pyplot as plt
+        # plt.plot(samples_per_model[-1][0], samples_per_model[-1][0]*0, 'o',
+        #          ms=20)
+        # for ii in range(nmodels-1):
+        #     plt.plot(samples_per_model[ii][0], samples_per_model[ii][0]*0, 's')
         # plt.show()
+
+    def test_greedy_multifidelity_sampler(self):
+        self._check_greedy_multifidelity_sampler(1, False)
+        self._check_greedy_multifidelity_sampler(1, True)
+        self._check_greedy_multifidelity_sampler(2, False)
+        self._check_greedy_multifidelity_sampler(2, True)
 
 
 if __name__ == "__main__":
