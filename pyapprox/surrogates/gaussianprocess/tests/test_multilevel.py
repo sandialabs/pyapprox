@@ -403,11 +403,11 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
             cov[1][2],
             kernel.kernels[1](XX_list[1], XX_list[2])*scalings[1][idx2][:, 0],
             atol=1e-2)
-        print(cov[2][2])
-        print(scalings[0][idx2].dot(scalings[0][idx2].T) *
-              kernel.kernels[0](XX_list[2]) +
-              scalings[1][idx2].dot(scalings[1][idx2].T) *
-              kernel.kernels[1](XX_list[2])+kernel.kernels[2](XX_list[2]))
+        # print(cov[2][2])
+        # print(scalings[0][idx2].dot(scalings[0][idx2].T) *
+        #       kernel.kernels[0](XX_list[2]) +
+        #       scalings[1][idx2].dot(scalings[1][idx2].T) *
+        #       kernel.kernels[1](XX_list[2])+kernel.kernels[2](XX_list[2]))
         assert np.allclose(
             cov[2][2],
             scalings[0][idx2].dot(scalings[0][idx2].T)*kernel.kernels[0](XX_list[2]) +
@@ -445,18 +445,26 @@ class TestMultilevelGaussianProcess(unittest.TestCase):
 
     def test_multifidelity_peer_kernel(self):
         test_cases = [
-            # [1, 0, (1e-1, 10), "fixed", "fixed"],
-            # [2, 0, (1e-1, 10), "fixed", "fixed"],
-            # [1, 1, (1e-1, 10), "fixed", "fixed"],
-            # [2, 1, (1e-1, 10), "fixed", "fixed"],
-            # [1, 0, (1e-1, 10), (1e-3, 1), "fixed"],
-            # [2, 0, (1e-1, 10), (1e-3, 1), "fixed"],
-            # [1, 1, (1e-1, 10), (1e-3, 1), "fixed"],
-            # [2, 1, (1e-1, 10), (1e-3, 1), "fixed"],
+            [1, 0, (1e-1, 10), "fixed", "fixed"],
+            [2, 0, (1e-1, 10), "fixed", "fixed"],
+            [1, 1, (1e-1, 10), "fixed", "fixed"],
+            [2, 1, (1e-1, 10), "fixed", "fixed"],
+            [1, 0, (1e-1, 10), (1e-3, 1), "fixed"],
+            [2, 0, (1e-1, 10), (1e-3, 1), "fixed"],
+            [1, 1, (1e-1, 10), (1e-3, 1), "fixed"],
+            [2, 1, (1e-1, 10), (1e-3, 1), "fixed"],
             [1, 0, (1e-1, 10), (1e-3, 1), (1e-3, 1)],
             [2, 0, (1e-1, 10), (1e-3, 1), (1e-3, 1)],
             [1, 1, (1e-1, 10), (1e-3, 1), (1e-3, 1)],
             [2, 1, (1e-1, 10), (1e-3, 1), (1e-3, 1)],
+            [1, 0, (1e-1, 10), "fixed", (1e-3, 1)],
+            [2, 0, (1e-1, 10), "fixed", (1e-3, 1)],
+            [1, 1, (1e-1, 10), "fixed", (1e-3, 1)],
+            [2, 1, (1e-1, 10), "fixed", (1e-3, 1)],
+            [1, 0, "fixed", (1e-3, 1), (1e-3, 1)],
+            [2, 0, "fixed", (1e-3, 1), (1e-3, 1)],
+            [1, 1, "fixed", (1e-3, 1), (1e-3, 1)],
+            [2, 1, "fixed", (1e-3, 1), (1e-3, 1)],
         ]
         for test_case in test_cases:
             self._check_multifidelity_peer_kernel(*test_case)

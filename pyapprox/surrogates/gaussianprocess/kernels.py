@@ -212,9 +212,10 @@ class MultilevelKernel(RBF):
             nkernel_hyperparams = nhyperparams_per_kernel.sum()
         if length_scale is None:
             length_scale = np.ones(nkernel_hyperparams)
-        if len(length_scale) != nkernel_hyperparams:
+        if len(length_scale) != nhyperparams_per_kernel.sum():
             msg = "length_scale has incorrect shape. Should be "
-            msg += f"{nkernel_hyperparams} but is {len(length_scale)}"
+            msg += f"{nhyperparams_per_kernel.sum()} but is "
+            msg += f"{len(length_scale)}"
             raise ValueError(msg)
         if isinstance(length_scale_bounds, tuple):
             length_scale_bounds = (
@@ -222,7 +223,6 @@ class MultilevelKernel(RBF):
         if (length_scale_bounds != "fixed" and
                 len(length_scale_bounds) != nkernel_hyperparams):
             raise ValueError("length_scale_bounds does not have correct shape")
-        print(length_scale, "S", nhyperparams_per_kernel)
         return (length_scale, length_scale_bounds, nhyperparams_per_kernel,
                 nkernel_hyperparams)
 
@@ -305,7 +305,7 @@ class MultilevelKernel(RBF):
         # are dependent on order of _bounds in kwarg list to self.__init__
         assert self.sigma_bounds != "fixed"
         idx1 = self.nkernel_hyperparams+self.nscaling_hyperparams+kk
-        idx2 = idx1+self.kernels[kk].k1.n_dims
+        idx2 = idx1+1  # self.kernels[kk].k1.n_dims
         return idx1, idx2
 
     @staticmethod
@@ -345,7 +345,6 @@ class MultilevelKernel(RBF):
         for nn in range(kk-1):
             K, K_grad = self._eval_kernel(
                 kernels[nn], XX1, XX2, eval_gradient)
-            # print(nn, K)
             const = self._sprod(scalings, nn, kk-1)**2
             K_block += const*K
             if eval_gradient:
@@ -414,7 +413,6 @@ class MultilevelKernel(RBF):
         # kk : XX1 index, ll kernel index
         idx1 = np.sum(nsamples_per_model[:kk])
         idx2 = idx1 + nsamples_per_model[kk]
-        # print(kk, idx1, idx2, kernel_scalings.shape)
         return kernel_scalings[idx1:idx2]
 
     def diagonal_kernel_block(self, samples,  kernels, scalings1,
@@ -734,16 +732,15 @@ class MultifidelityPeerKernel(MultilevelKernel):
 
         K_block, K_block_grad_nn = self._eval_kernel(
             kernels[model_id], XX1, XX2, eval_gradient)
+
         if eval_gradient:
-            if self.length_scale_bounds != "fixed":
-                #TODO make work when lenth_scale is fixed. then idx2 and idx1 must be zero
-                idx1, idx2 = self._kernel_hyperparam_indices(model_id)
-                # K_block_grad[..., idx1:idx2] = K_block_grad_nn
+            if self.sigma_bounds != "fixed":
+                idx1, idx2 = self._sigma_hyperparam_indices(model_id)
                 K_block_grad[..., idx1:idx2] = K_block_grad_nn[..., :idx2-idx1]
             else:
                 idx1, idx2 = 0, 0
-            if self.sigma_bounds != "fixed":
-                idx3, idx4 = self._sigma_hyperparam_indices(model_id)
+            if self.length_scale_bounds != "fixed":
+                idx3, idx4 = self._kernel_hyperparam_indices(model_id)
                 K_block_grad[..., idx3:idx4] = K_block_grad_nn[..., idx2-idx1:]
 
         if model_id < nmodels-1:
@@ -767,20 +764,18 @@ class MultifidelityPeerKernel(MultilevelKernel):
             K_block += const*K_block_nn
             if not eval_gradient:
                 continue
-            if self.length_scale_bounds != "fixed":
-                # length_scale grad
-                idx1, idx2 = self._kernel_hyperparam_indices(nn)
-                # K_block_grad[..., idx1:idx2] += (
-                #     const[..., None]*K_block_grad_nn)
-                print(idx1, idx2, K_block_grad.shape, K_block_grad_nn.shape)
+            if self.sigma_bounds != "fixed":
+                idx1, idx2 = self._sigma_hyperparam_indices(nn)
                 K_block_grad[..., idx1:idx2] = (
                     const[..., None]*K_block_grad_nn[..., :idx2-idx1])
             else:
                 idx1, idx2 = 0, 0
-            if self.sigma_bounds != "fixed":
-                idx3, idx4 = self._sigma_hyperparam_indices(nn)
+            if self.length_scale_bounds != "fixed":
+                # length_scale grad
+                idx3, idx4 = self._kernel_hyperparam_indices(nn)
                 K_block_grad[..., idx3:idx4] = (
                     const[..., None]*K_block_grad_nn[..., idx2-idx1:])
+
             if self.rho_bounds == "fixed":
                 continue
             # scalings grad
@@ -830,8 +825,6 @@ class MultifidelityPeerKernel(MultilevelKernel):
             const = self._unpack_kernel_scalings(
                 scalings1[kk][0], self.nsamples_per_model, ll)
             K_block = K*const[:, 0]
-            # print(kk, ll, const.shape, K, "A")
-            #print(K_block)
         else:
             if self.model_eval_id < ll:
                 const = self._unpack_kernel_scalings(
@@ -840,30 +833,29 @@ class MultifidelityPeerKernel(MultilevelKernel):
             else:
                 const = scalings2[kk][0]
                 K_block = K*const[:, 0]
-        if eval_gradient:
-            if self.length_scale_bounds != "fixed":
-                # length_scale grad
-                idx1, idx2 = self._kernel_hyperparam_indices(kk)
-                # K_block_grad[..., idx1:idx2] += np.einsum(
-                #    "j,ijk->ijk", const[:, 0], K_grad)
-                K_block_grad[..., idx1:idx2] = np.einsum(
-                    "j,ijk->ijk", const[:, 0], K_grad[..., :idx2-idx1])
-            else:
-                idx1, idx2 = 0, 0
-            if self.sigma_bounds != "fixed":
-                idx3, idx4 = self._sigma_hyperparam_indices(kk)
-                K_block_grad[..., idx3:idx4] = np.einsum(
-                    "j,ijk->ijk", const[:, 0], K_grad[..., idx2-idx1:])
-            if self.rho_bounds != "fixed":
-                # scalings grad
-                idx1, idx2 = self._scaling_indices(kk)
-                # d/dx exp(s_kk) = exp(s_kk) = const
-                # K_block_grad[..., idx1:idx1+1] += const*K[..., None]
-                scaling_grad = self._unpack_kernel_scalings(
-                    scalings1[kk][1], self.nsamples_per_model, nmodels-1)
-                K_block_grad[..., idx1:idx2] += np.einsum(
-                    "ij,jk->ijk", K, scaling_grad)
-                #K_block_grad[..., idx1:idx2] += const*K[..., None]
+        if not eval_gradient:
+            return K_block, K_block_grad
+
+        if self.sigma_bounds != "fixed":
+            idx1, idx2 = self._sigma_hyperparam_indices(kk)
+            K_block_grad[..., idx1:idx2] = np.einsum(
+                "j,ijk->ijk", const[:, 0], K_grad[..., :idx2-idx1])
+        else:
+            idx1, idx2 = 0, 0
+        if self.length_scale_bounds != "fixed":
+            # length_scale grad
+            idx3, idx4 = self._kernel_hyperparam_indices(kk)
+            K_block_grad[..., idx3:idx4] = np.einsum(
+                "j,ijk->ijk", const[:, 0], K_grad[..., idx2-idx1:])
+
+        if self.rho_bounds != "fixed":
+            # scalings grad
+            idx1, idx2 = self._scaling_indices(kk)
+            # d/dx exp(s_kk) = exp(s_kk) = const
+            scaling_grad = self._unpack_kernel_scalings(
+                scalings1[kk][1], self.nsamples_per_model, nmodels-1)
+            K_block_grad[..., idx1:idx2] += np.einsum(
+                "ij,jk->ijk", K, scaling_grad)
         return K_block, K_block_grad
 
     def diag(self, X):
