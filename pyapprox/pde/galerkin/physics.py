@@ -75,9 +75,14 @@ def _diffusion(u, v, w):
     return dot(w["diff"] * grad(u), grad(v))
 
 
+def _reaction(u, v, w):
+    return w["react"] * v
+
+
 def _linearized_nonlinear_diffusion(u, v, w):
     return (dot(w["diff"] * grad(u), grad(v)) +
             dot(w['diff_prime']*u*grad(w['u_prev']), grad(v)))
+    # +w["react"] * v)
 
 
 def _diffusion_residual(v, w):
@@ -97,11 +102,23 @@ def _assemble_advection_diffusion_reaction(
     diff_proj = basis.project(lambda x: diff_fun(x)[:, 0])
     diff = basis.interpolate(diff_proj)
 
+    react_fun, react_prime = None, None
+
     nl_diff_fun, nl_diff_prime = nl_diff_funs
-    if u_prev is not None and nl_diff_fun is not None:
-        if nl_diff_prime is None:
-            raise ValueError("nl_diff_prime must be provided with nl_diff_fun")
-        diff = basis.interpolate(nl_diff_fun(diff_proj, u_prev))
+    if u_prev is not None:
+        if nl_diff_fun is not None:
+            if nl_diff_prime is None:
+                raise ValueError(
+                    "nl_diff_prime must be provided with nl_diff_fun")
+            diff = basis.interpolate(nl_diff_fun(diff_proj, u_prev))
+        if react_fun is not None:
+            if react_prime is None:
+                raise ValueError("react_prime must be provided with react_fun")
+            react = basis.interpolate(react_fun(u_prev))
+            react_prime = basis.interpolate(react_prime(u_prev))
+        else:
+            react = 0
+            react_prime = 0
 
     # TODO add reaction term to bilinear form and to linear form
     # associated with the residual
@@ -110,6 +127,7 @@ def _assemble_advection_diffusion_reaction(
         assert nl_diff_fun is None
         # use below if solving directly with linear solve
         bilinear_mat = asm(BilinearForm(_diffusion), basis, diff=diff)
+        assert react_fun is None
         linear_vec = asm(
             LinearForm(_forcing), basis, forc=forc)
     else:
@@ -121,8 +139,8 @@ def _assemble_advection_diffusion_reaction(
         else:
             diff_prime = basis.interpolate(nl_diff_prime(diff_proj, u_prev))
             bilinear_mat = asm(
-                BilinearForm(_linearized_nonlinear_diffusion), basis, diff=diff,
-                diff_prime=diff_prime, u_prev=u_prev_interp)
+                BilinearForm(_linearized_nonlinear_diffusion), basis,
+                diff=diff, diff_prime=diff_prime, u_prev=u_prev_interp)
         linear_vec = asm(
             LinearForm(_diffusion_residual),
             basis, forc=forc,  diff=diff, u_prev=u_prev_interp)
@@ -180,7 +198,7 @@ def _enforce_stokes_boundary_conditions(
     # currently only dirichlet supported and zero neumann condition
     # which is enforced by doing nothing
     assert len(R_bndry_conds) == 0 and len(N_bndry_conds) == 0
-        
+
     D_bases = [
         FacetBasis(mesh, element['u'], facets=mesh.boundaries[key])
         for key, fun in D_bndry_conds.items()]
@@ -270,21 +288,21 @@ def _assemble_stokes(
 
 class Physics(ABC):
     def __init__(self,
-                 mesh : Mesh,
-                 element : Element,
-                 basis : Basis,
-                 bndry_conds : List):
+                 mesh: Mesh,
+                 element: Element,
+                 basis: Basis,
+                 bndry_conds: List):
         self.mesh = mesh
         self.element = element
         self.basis = basis
         self.bndry_conds = bndry_conds
-    
+
     @abstractmethod
     def init_guess(self) -> np.ndarray:
         raise NotImplementedError()
 
     @abstractmethod
-    def assemble(self, sol : np.ndarray = None)-> Tuple[
+    def assemble(self, sol: np.ndarray = None) -> Tuple[
             spmatrix,
             Union[np.ndarray, spmatrix],
             np.ndarray,
@@ -295,21 +313,21 @@ class Physics(ABC):
 class AdvectionDiffusionReaction(Physics):
     def __init__(
             self,
-            mesh : Mesh,
-            element : Element,
-            basis : Basis,
-            bndry_conds : List,
-            diff_fun : Callable [[np.ndarray],  np.ndarray],
-            forc_fun : Callable [[np.ndarray],  np.ndarray],
-            vel_fun : Optional[Callable [[np.ndarray],  np.ndarray]],
-            nl_diff_funs : Optional[
-                Tuple[Callable  [[np.ndarray, np.ndarray],  np.ndarray],
-                      Callable  [[np.ndarray, np.ndarray],  np.ndarray]]] = (
+            mesh: Mesh,
+            element: Element,
+            basis: Basis,
+            bndry_conds: List,
+            diff_fun: Callable[[np.ndarray],  np.ndarray],
+            forc_fun: Callable[[np.ndarray],  np.ndarray],
+            vel_fun: Optional[Callable[[np.ndarray],  np.ndarray]],
+            nl_diff_funs: Optional[
+                Tuple[Callable[[np.ndarray, np.ndarray],  np.ndarray],
+                      Callable[[np.ndarray, np.ndarray],  np.ndarray]]] = (
                           [None, None]),
-            react_funs : Optional[
-                Tuple[Callable  [[np.ndarray],  np.ndarray],
-                      Callable  [[np.ndarray],  np.ndarray]]] = [None, None]):
-        
+            react_funs: Optional[
+                Tuple[Callable[[np.ndarray],  np.ndarray],
+                      Callable[[np.ndarray],  np.ndarray]]] = [None, None]):
+
         super().__init__(mesh, element, basis, bndry_conds)
         self.diff_fun = diff_fun
         self.vel_fun = vel_fun
@@ -320,15 +338,15 @@ class AdvectionDiffusionReaction(Physics):
         if self.vel_fun is not None or self.react_funs[0] is not None:
             # TODO add these terms
             raise NotImplementedError("Options currently not supported")
-    
+
     def init_guess(self) -> np.ndarray:
         bilinear_mat, linear_vec, D_vals, D_dofs = (
             _assemble_advection_diffusion_reaction(
                 self.diff_fun, self.forc_fun, [None, None],
                 self.bndry_conds, self.mesh, self.element, self.basis))
         return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
-    
-    def assemble(self, sol : np.ndarray = None)-> Tuple[
+
+    def assemble(self, sol: np.ndarray = None) -> Tuple[
             spmatrix,
             Union[np.ndarray, spmatrix],
             np.ndarray,
@@ -336,26 +354,26 @@ class AdvectionDiffusionReaction(Physics):
         return _assemble_advection_diffusion_reaction(
             self.diff_fun, self.forc_fun, self.nl_diff_funs,
             self.bndry_conds, self.mesh, self.element, self.basis, sol)
-    
+
 
 class Stokes(Physics):
     def __init__(
             self,
-            mesh : Mesh,
-            element : Element,
-            basis : Basis,
-            bndry_conds : List,
-            navier_stokes : bool,
-            vel_forc_fun : Callable [[np.ndarray],  np.ndarray],
-            pres_forc_fun : Callable  [[np.ndarray],  np.ndarray],
-            viscosity : Optional[float] = 1.0):
+            mesh: Mesh,
+            element: Element,
+            basis: Basis,
+            bndry_conds: List,
+            navier_stokes: bool,
+            vel_forc_fun: Callable[[np.ndarray],  np.ndarray],
+            pres_forc_fun: Callable[[np.ndarray],  np.ndarray],
+            viscosity: Optional[float] = 1.0):
         super().__init__(mesh, element, basis, bndry_conds)
 
         self.vel_forc_fun = vel_forc_fun
         self.pres_forc_fun = pres_forc_fun
         self.navier_stokes = navier_stokes
         self.viscosity = viscosity
-    
+
     def init_guess(self) -> np.ndarray:
         bilinear_mat, linear_vec, D_vals, D_dofs = _assemble_stokes(
             self.vel_forc_fun, self.pres_forc_fun, False,
@@ -363,7 +381,7 @@ class Stokes(Physics):
             return_K=False, viscosity=self.viscosity)
         return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
 
-    def assemble(self, sol : Optional[np.ndarray] = None) -> Tuple[
+    def assemble(self, sol: Optional[np.ndarray] = None) -> Tuple[
             spmatrix,
             Union[np.ndarray, spmatrix],
             np.ndarray,
