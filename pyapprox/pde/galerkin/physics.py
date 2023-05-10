@@ -12,7 +12,7 @@ from skfem import (
     asm, bmat, LinearForm, BilinearForm, FacetBasis, Basis, solve, condense)
 from skfem.mesh import Mesh
 from skfem.element import Element
-from skfem.helpers import dot, grad
+from skfem.helpers import dot, grad, mul
 from skfem.models.poisson import vector_laplace, mass
 from skfem.models.general import divergence
 from pyapprox.pde.galerkin.util import (
@@ -41,7 +41,10 @@ def _enforce_scalar_boundary_conditions(
     if u_prev is not None:
         D_vals = u_prev-D_vals
     # get dofs on Dirichlet boundary
-    D_dofs = basis.get_dofs(list(D_bndry_conds.keys()))
+    if len(D_bndry_conds) > 0:
+        D_dofs = basis.get_dofs(list(D_bndry_conds.keys()))
+    else:
+        D_dofs = np.empty(0, dtype=int)
 
     N_bases = [
         FacetBasis(mesh, element, facets=mesh.boundaries[key])
@@ -86,7 +89,6 @@ def _linearized_nonlinear_diffusion(u, v, w):
 
 
 def _diffusion_residual(v, w):
-    # print(w["diff"].shape, grad(w['u_prev']).shape)
     return (w["forc"] * v - dot(w["diff"]*grad(w['u_prev']), grad(v)) -
             w["react"] * v)
 
@@ -400,3 +402,101 @@ class Stokes(Physics):
             self.vel_forc_fun, self.pres_forc_fun, self.navier_stokes,
             self.bndry_conds, self.mesh, self.element, self.basis, sol,
             viscosity=self.viscosity)
+
+
+def _diffusion_reaction(u, v, w):
+    return dot(mul(w["diff"], grad(u)), grad(v)) + w["react"] * u * v
+
+
+class BiLaplacianPrior():
+    def __init__(
+            self,
+            mesh: Mesh,
+            element: Element,
+            basis: Basis,
+            gamma: int,
+            delta: int,
+            anisotropic_tensor: Optional[np.ndarray] = None):
+        r"""
+        :math:`\delta\gamma` controls the variance of the prior
+        :math:`\frac{\gamma}{\delta}` controls the correlation length
+        The smaller the raio the smaller the correlation length
+        Anisotropic tensor K controls correlation length in each direction
+        E.g. in 2D K = [[K11, K12], [K21, K22]]
+        K22<<K11 will cause correlation length to be small in vertical
+        direction and long in horizontal direction
+        """
+        self.mesh = mesh
+        self.element = element
+        self.basis = basis
+        self.gamma = gamma
+        self.delta = delta
+        self.beta = np.sqrt(self.gamma*self.delta)*1.42
+        print(mesh.p.shape[0])
+        if anisotropic_tensor is None:
+            anisotropic_tensor = np.eye(mesh.p.shape[0])*gamma
+        else:
+            anisotropic_tensor *= gamma
+        if anisotropic_tensor.shape != (mesh.p.shape[0], mesh.p.shape[0]):
+            raise ValueError("anisotropic_tensor has incorrect shape")
+        self.anisotropic_tensor = anisotropic_tensor
+        self._bndry_conds = [
+            {}, {},
+            dict(zip(self.mesh.boundaries.keys(),
+                     [[self._bndry_fun, self.beta]
+                      for nn in range(len(self.mesh.boundaries))]))
+        ]
+        self._linear_system_data = None
+
+    def _setup_linear_system(self):
+        if self._linear_system_data is None:
+            self._linear_system_data = list(
+                self._assemble_stiffness(
+                    self._diff_fun, self._react_fun,
+                    self._bndry_conds, self.mesh, self.element, self.basis))
+            mass_mat = asm(mass, self.basis)
+            lumped_mass_mat = np.asarray(mass_mat.sum(axis=1))[:, 0]
+            self._linear_system_data += [lumped_mass_mat]
+
+        return self._linear_system_data
+
+    def _bndry_fun(self, x):
+        # x : np.ndarray (nvars, nelems, nbndry_dofs_per_elem)
+        # dofs are Lagrange basis nodes not quad points
+        return 0*x[0]
+
+    def _zero_forcing(self, v, w):
+        return 0 * v
+
+    def _react_fun(self, x):
+        # x : np.ndarray (nvars, nelems, nquad_pts_per_elem)
+        return self.delta+0*x[0]
+
+    def _diff_fun(self, x):
+        # x (nvars, nelems, nquad_pts_per_elem)
+        return np.full((x.shape[1:]), self.gamma)
+
+    def _assemble_stiffness(
+            self, diff_fun, react_fun, bndry_conds, mesh, element, basis):
+        react_proj = basis.project(react_fun)
+        react = basis.interpolate(react_proj)
+        bilinear_mat = asm(
+            BilinearForm(_diffusion_reaction), basis,
+            diff=self.anisotropic_tensor, react=react)
+        linear_vec = asm(
+            LinearForm(self._zero_forcing), basis)
+        return _enforce_scalar_boundary_conditions(
+            mesh, element, basis, bilinear_mat, linear_vec, *bndry_conds,
+            None)
+
+    def rvs(self, nsamples):
+        bilinear_mat, linear_vec, D_vals, D_dofs, lumped_mass_mat = (
+            self._setup_linear_system())
+        white_noise = np.random.normal(
+            0, 1, (lumped_mass_mat.shape[0], nsamples))
+        samples = np.empty((lumped_mass_mat.shape[0], nsamples))
+        for ii in range(nsamples):
+            rhs = np.sqrt(lumped_mass_mat)*white_noise[:, ii]
+            samples[:, ii] = solve(
+                *condense(bilinear_mat, rhs, x=D_vals, D=D_dofs))
+        return samples

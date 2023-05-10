@@ -115,7 +115,6 @@ def _get_advection_diffusion_reaction_bndry_conds(
     (D_bndry_keys, D_indices, N_bndry_keys, N_indices,
      R_bndry_keys, R_indices) = _get_bndry_keys_indices_from_types(
          mesh, bndry_types)
-
     nphys_vars = len(domain_bounds)//2
     bndry_conds = _get_mms_boundary_funs(
         nphys_vars, bndry_types, sol_fun, flux_funs)
@@ -345,12 +344,11 @@ class TestFiniteElements(unittest.TestCase):
             # print(init_sol-exact_sol)
             assert np.allclose(init_sol, exact_sol)
 
-
         bilinear_mat, res, D_vals, D_dofs = assemble(u_prev=exact_sol)
         # minus sign because res = -a(u_prev, v) + L(v)
         jac = -bilinear_mat
         II = np.setdiff1d(np.arange(jac.shape[0]), D_dofs)
-        print(res[II], 'res')
+        # print(res[II], 'res')
         assert np.all(np.abs(res[II]) < 5e-7)
 
         # fem_sol = newton_solve(
@@ -361,7 +359,6 @@ class TestFiniteElements(unittest.TestCase):
 
         # print(np.abs(fem_sol - exact_sol).max())
         assert np.allclose(fem_sol, exact_sol)
-
 
     def test_stokes(self):
         test_cases = [
