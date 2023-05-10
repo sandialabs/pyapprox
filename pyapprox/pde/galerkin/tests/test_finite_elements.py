@@ -78,6 +78,7 @@ def _list_to_vector_bndry_cond_fun(bndry_conds, idx, key, xx):
     vals = np.stack([bndry_conds[ii][0][key][0](xx) for ii in range(nvec)])
     return vals
 
+
 def _bndrys_keys_from_bndry_types(mesh, bndry_types, bndry_type):
     nphys_vars = len(bndry_types)//2
     # orders of keys must correspond to order specified in bndry_types
@@ -185,14 +186,13 @@ class TestFiniteElements(unittest.TestCase):
         print(integral)
         assert np.allclose(integral, 1/3)
 
-
     def check_advection_diffusion_reaction(
             self, domain_bounds, order, nrefine, sol_string, diff_string,
-            vel_strings, react_fun, bndry_types, nl_diff_funs=[None, None]):
+            vel_strings, react_funs, bndry_types, nl_diff_funs=[None, None]):
 
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_advection_diffusion_reaction_manufactured_solution(
-                sol_string, diff_string, vel_strings, react_fun, False,
+                sol_string, diff_string, vel_strings, react_funs[0], False,
                 nl_diff_funs[0]))
 
         mesh = _get_mesh(domain_bounds, nrefine)
@@ -207,14 +207,13 @@ class TestFiniteElements(unittest.TestCase):
         # nl_diff = linear_diff*fun(sol)
         bilinear_mat, linear_vec, D_vals, D_dofs = (
             _assemble_advection_diffusion_reaction(
-                diff_fun, forc_fun, [None, None], bndry_conds, mesh, element,
-                basis))
-        #TODO enable reaction and advection terms
+                diff_fun, forc_fun, [None, None], [None, None],
+                bndry_conds, mesh, element, basis))
         physics = AdvectionDiffusionReaction(
-            mesh, element, basis, bndry_conds, diff_fun, forc_fun, 
-            None, nl_diff_funs, [None, None])
+            mesh, element, basis, bndry_conds, diff_fun, forc_fun,
+            None, nl_diff_funs, react_funs)
         init_sol = physics.init_guess()
-        
+
         # init_sol = solve(
         #     *condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
 
@@ -222,15 +221,18 @@ class TestFiniteElements(unittest.TestCase):
 
         assemble = partial(
             _assemble_advection_diffusion_reaction, diff_fun,
-            forc_fun, nl_diff_funs, bndry_conds, mesh, element, basis)
+            forc_fun, nl_diff_funs, react_funs, bndry_conds, mesh,
+            element, basis)
         bilinear_mat, res, D_vals, D_dofs = assemble(u_prev=exact_sol)
         # minus sign because res = -a(u_prev, v) + L(v)
         jac = -bilinear_mat
         # print(jac.toarray()[:K.blocks[0], :K.blocks[0]], 'jac', jac.shape)
         II = np.setdiff1d(np.arange(jac.shape[0]), D_dofs)
-        print(res[II], 'res')
+        # print(res[II], 'res')
         # assert False
         assert np.all(np.abs(res[II]) < 5e-7)
+
+        res = assemble(u_prev=init_sol)[1]
 
         # fem_sol = newton_solve(
         #     assemble, init_sol, atol=1e-8, rtol=1e-8, maxiters=20)
@@ -263,29 +265,32 @@ class TestFiniteElements(unittest.TestCase):
     def test_advection_diffusion_reaction(self):
         power = 1  # power of nonlinear diffusion
         test_cases = [
-            [[0, 1], 2, 1, "x*(1-x)", "4+x", ["0"], None, ["D", "D"]],
-            [[0, 1], 2, 1, "x*x", "4+x", ["0"], None, ["D", "D"]],
-            [[0, 1], 2, 1, "x*x", "4+x", ["0"], None, ["D", "R"]],
+            [[0, 1], 2, 1, "x*(1-x)", "4+x", ["0"], [None, None], ["D", "D"]],
+            [[0, 1], 2, 1, "x*x", "4+x", ["0"], [None, None], ["D", "D"]],
+            [[0, 1], 2, 1, "x*x", "4+x", ["0"], [None, None], ["D", "R"]],
             # for nonlinear diffusion be careful to ensure that nl_diff > 0
-            [[0, 1], 2, 5, "1+x", "4+1e-16*x", ["0"], None, ["D", "D"],
+            [[0, 1], 2, 5, "1+x", "4+1e-16*x", ["0"], [None, None], ["D", "D"],
              [lambda linear_diff, sol: (sol**power+1)*linear_diff,
               lambda linear_diff, sol: (power*sol**(power-1))*linear_diff
               if power > 0 else 0*sol]],
             [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0", "0"],
-             None, ["D", "D", "D", "D"]],
+             [None, None], ["D", "D", "D", "D"]],
             [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0", "0"],
-             None, ["D", "R", "N", "D"]],
-            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0", "0"],
-             None, ["D", "D", "N", "D"],
-             [lambda linear_diff, sol: (sol**power+1)*linear_diff,
-              lambda linear_diff, sol: (power*sol**(power-1))*linear_diff
-              if power > 0 else 0*sol]],
+             [None, None], ["D", "R", "N", "D"]],
+            # [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0", "0"],
+            #  [None, None], ["D", "D", "N", "D"],
+            #  [lambda linear_diff, sol: (sol**power+1)*linear_diff,
+            #   lambda linear_diff, sol: (power*sol**(power-1))*linear_diff
+            #   if power > 0 else 0*sol]],
+            [[0, 1], 2, 1, "x*(1-x)", "4+x", ["0"],
+             [lambda sol: 2*sol, lambda sol: 0*sol+2], ["D", "D"]],
+            [[0, 1], 2, 1, "(1-x)", "4+x", ["0"],
+             [lambda sol: sol**2, lambda sol: 2*sol], ["D", "D"]],
         ]
         # currently robin and neumann conditions do not work when
         # nonlinear diffusion present, so skip test
-        for test_case in test_cases[:-1]:
+        for test_case in test_cases:
             self.check_advection_diffusion_reaction(*test_case)
-
 
     def check_stokes(self, domain_bounds, nrefine, vel_strings, pres_string,
                      bndry_types, navier_stokes):
