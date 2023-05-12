@@ -936,10 +936,13 @@ class SingleFidelityWrapper(object):
     to user-defined nominal values.
     """
 
-    def __init__(self, model, config_values):
+    def __init__(self, model, config_values, base_model=None):
         self.model = model
         assert config_values.ndim == 1
         self.config_values = config_values[:, np.newaxis]
+        if base_model is None:
+            base_model = model
+        self.base_model = base_model
 
     def __call__(self, samples):
         multif_samples = np.vstack(

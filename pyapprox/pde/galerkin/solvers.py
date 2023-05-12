@@ -2,7 +2,7 @@ import numpy as np
 from skfem import condense, solve
 
 def newton_solve(assemble, u_init,
-                 maxiters=10, atol=1e-5, rtol=1e-5, verbosity=2,
+                 maxiters=10, atol=1e-5, rtol=1e-5, verbosity=0,
                  hard_exit=True):
     u = u_init.copy()
     it = 0

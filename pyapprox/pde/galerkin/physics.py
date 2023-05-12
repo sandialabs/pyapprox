@@ -109,9 +109,9 @@ def _assemble_advection_diffusion_reaction(
     # project takes functions that can compute when x is a 3D array
     # thus manufactured solutions must be created with x in most strings
     # there are some exceptions
-    forc = basis.interpolate(basis.project(lambda x: forc_fun(x)[:, 0]))
+    forc = basis.interpolate(basis.project(forc_fun))
     # diff is only linear component
-    diff_proj = basis.project(lambda x: diff_fun(x)[:, 0])
+    diff_proj = basis.project(diff_fun)
     diff = basis.interpolate(diff_proj)
 
     nl_diff_fun, nl_diff_prime = nl_diff_funs

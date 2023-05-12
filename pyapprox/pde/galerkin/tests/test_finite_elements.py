@@ -167,6 +167,10 @@ def _get_stokes_boundary_conditions(mesh, bndry_types, domain_bounds, vel_fun,
     return D_bndry_conds, N_bndry_conds, R_bndry_conds
 
 
+def _convert_manufactured_solution_to_skfem(fun, x):
+    return fun(x)[:, 0]
+
+
 class TestFiniteElements(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
@@ -193,6 +197,11 @@ class TestFiniteElements(unittest.TestCase):
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_funs[0], False,
                 nl_diff_funs[0]))
+
+        diff_fun = partial(
+            _convert_manufactured_solution_to_skfem, diff_fun)
+        forc_fun = partial(
+            _convert_manufactured_solution_to_skfem, forc_fun)
 
         mesh = _get_mesh(domain_bounds, nrefine)
         element = _get_element(mesh, order)
