@@ -1824,7 +1824,7 @@ class GreedyVarianceOfMeanSampler(object):
     def __init__(self, num_vars, nquad_samples,
                  ncandidate_samples, generate_random_samples, variable=None,
                  use_gauss_quadrature=False, econ=True,
-                 compute_cond_nums=False, nugget=0):
+                 compute_cond_nums=False, nugget=0, candidate_samples=None):
         self.nvars = num_vars
         self.nquad_samples = nquad_samples
         self.variable = variable
@@ -1834,8 +1834,12 @@ class GreedyVarianceOfMeanSampler(object):
         self.use_gauss_quadrature = use_gauss_quadrature
         self.econ = econ
 
-        self.candidate_samples = self._generate_candidate_samples(
-            ncandidate_samples)
+        if candidate_samples is None:
+            self.candidate_samples = self._generate_candidate_samples(
+                ncandidate_samples)
+        else:
+            assert ncandidate_samples == candidate_samples.shape[1]
+            self.candidate_samples = candidate_samples
         self.nsamples_requested = []
         self.pivots = []
         self.cond_nums = []
@@ -2065,8 +2069,10 @@ class GreedyVarianceOfMeanSampler(object):
             # kernel with this as a property.
             self.kernels_1d = [partial(matern_kernel_1d, np.inf)]*self.nvars
 
+        base_kernel = extract_covariance_kernel(kernel, [Matern, RBF])
         if ((self.use_gauss_quadrature is True) and (self.nvars != 1) and
-                ((type(kernel) != Matern) or (np.isfinite(kernel.nu)))):
+                (not (isinstance(base_kernel, (Matern, RBF)) or
+                      (np.isfinite(base_kernel.nu))))):
             # TODO: To deal with sum kernel with noise, need to ammend
             # gradient computation which currently assumes no noise
             msg = f'GP Kernel type: {type(kernel)} '
