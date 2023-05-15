@@ -820,7 +820,6 @@ class ACVGMFBEstimator(ACVGMFEstimator):
         best_result = None
         for index in get_acv_recursion_indices(self.nmodels, self._depth):
             self.set_recursion_index(index)
-            # print(index, target_cost)
             try:
                 super().allocate_samples(target_cost)
             except RuntimeError:

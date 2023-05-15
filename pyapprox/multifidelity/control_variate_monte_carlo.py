@@ -704,7 +704,10 @@ def get_approximate_control_variate_weights(CF, cf):
     if type(CF) == np.ndarray:
         weights = -np.linalg.solve(CF, cf)
     else:
-        weights = -pkg.linalg.solve(CF, cf)
+        if CF.shape == (1, 1):
+            weights = -cf/CF[0, 0]
+        else:
+            weights = -pkg.linalg.solve(CF, cf)
     return weights
 
 
@@ -1190,7 +1193,6 @@ def get_generalized_approximate_control_variate_weights(
     CF, cf = get_acv_discrepancy_covariances(cov, Fmat, fvec)
     try:
         weights = get_approximate_control_variate_weights(CF, cf)
-
     except np.linalg.LinAlgError as err:
         print("linalgerror: acv weights failed")
         weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
