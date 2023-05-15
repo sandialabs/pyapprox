@@ -737,8 +737,9 @@ class CanonicalCollocationMesh():
             jac[idx, ] = 0.
             jac[idx, idx] = 1.
             bndry_vals = bndry_cond[0](
-                self._bndry_slice(self.mesh_pts, idx, 1))[:, 0]
-            residual[idx] = self._bndry_slice(sol, idx, 0)-bndry_vals
+                self._bndry_slice(self.mesh_pts, idx, 1))
+            assert bndry_vals.ndim == 2
+            residual[idx] = self._bndry_slice(sol, idx, 0)-bndry_vals[:, 0]
         return residual, jac
 
     def _apply_dirichlet_boundary_conditions(
@@ -828,8 +829,8 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
         if self.nphys_vars == 1:
             return self._bndrys
         for ii, name in enumerate(["left", "right", "bottom", "top"]):
-            active_var = int(ii > 2)
-            idx = self._bndry_indices[ii]
+            # active_var = int(ii > 2)
+            # idx = self._bndry_indices[ii]
             self._bndrys[ii] = Transformed2DMeshBoundary(
                 name, self._orders[int(ii < 2)],
                 partial(self._transform.normal, ii),
@@ -849,7 +850,6 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
 
     def partial_deriv(self, quantity, dd, idx=None):
         assert quantity.ndim == 1
-        vals = 0
         if idx is None:
             return torch.linalg.multi_dot((self._dmat(dd), quantity))
         return torch.linalg.multi_dot((self._dmat(dd)[idx], quantity))
@@ -857,9 +857,9 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
     def high_order_partial_deriv(self, order, quantity, dd, idx=None):
         if idx is None:
             return torch.linalg.multi_dot([self._dmat(dd)]*order+[quantity])
-        return  torch.linalg.multi_dot(
+        return torch.linalg.multi_dot(
             (torch.linalg.multi_dot([self._dmat(dd)]*order)[idx],
-            quantity))
+             quantity))
 
     def _create_plot_mesh_1d(self, nplot_pts_1d):
         if nplot_pts_1d is None:
@@ -878,7 +878,6 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
         wquad = self._transform.modify_quadrature_weights(
             canonical_xquad, canonical_wquad)
         return xquad, wquad
-
 
 
 class CartesianProductCollocationMesh(TransformedCollocationMesh):
@@ -1063,6 +1062,7 @@ class CanonicalInteriorCollocationMesh(CanonicalCollocationMesh):
     def _determine_boundary_indices(self):
         self._boundary_indices = None
 
+
 class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
     def __init__(self, orders, transform):
 
@@ -1089,10 +1089,10 @@ class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
 
     def partial_deriv(self, quantity, dd, idx=None):
         assert quantity.ndim == 1
-        vals = 0
         if idx is None:
             return torch.linalg.multi_dot((self._dmat(quantity, dd), quantity))
-        return torch.linalg.multi_dot((self._dmat(quantity, dd)[idx], quantity))
+        return torch.linalg.multi_dot(
+            (self._dmat(quantity, dd)[idx], quantity))
 
     def _create_dmats(self, canonical_mesh_pts, canonical_deriv_mats):
         basis = torch.as_tensor(

@@ -413,7 +413,8 @@ class TestPDECoupling(unittest.TestCase):
         else:
             maxiters = 10
         single_dom_sols, times = solver.solve(
-            init_sol, 0, final_time, newton_kwargs={"tol": 1e-8, "maxiters": maxiters})
+            init_sol, 0, final_time,
+            newton_kwargs={"tol": 1e-8, "maxiters": maxiters})
 
         init_subdomain_model = partial(
             init_transient_subdomain_model,

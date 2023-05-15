@@ -693,6 +693,32 @@ class AbstractTwoDDomainDecomposition(AbstractDomainDecomposition):
             line = mesh._map_samples_from_canonical_domain(can_line)
             ax.plot(line[0], line[1], **kwargs)
 
+    def plot_subdomain_boundary(self, subdomain_id, bndry_id, ax, **kwargs):
+        npts = 100
+        mesh = self._subdomain_models[subdomain_id].physics.mesh
+        can_pts_1d = mesh._canonical_mesh_pts_1d
+        if bndry_id < 2:
+            yy = np.linspace(
+                can_pts_1d[1][0], can_pts_1d[1][-1], npts)[None, :]
+            if bndry_id == 0:
+                idx = 0
+            else:
+                idx = -1
+            can_line = np.vstack(
+                (np.full(yy.shape, can_pts_1d[0][idx]), yy))
+        else:
+            xx = np.linspace(
+                can_pts_1d[0][0], can_pts_1d[0][-1], npts)[None, :]
+            if bndry_id == 2:
+                idx = 0
+            else:
+                idx = -1
+            can_line = np.vstack(
+                (xx, np.full(xx.shape, can_pts_1d[1][idx])))
+
+        line = mesh._map_samples_from_canonical_domain(can_line)
+        ax.plot(line[0], line[1], **kwargs)
+
     def plot_mesh_grid(self, ax, **kwargs):
         npts = 101
         for model in self._subdomain_models:
@@ -980,7 +1006,8 @@ class SteadyStateDomainDecompositionSolver():
         self._decomp = domain_decomp
         self._decomp._solve_subdomain = self._solve_subdomain
 
-    def solve(self, init_guess=None, macro_newton_kwargs={}, subdomain_newton_kwargs={}):
+    def solve(self, init_guess=None, macro_newton_kwargs={},
+              subdomain_newton_kwargs={}):
         if init_guess is None:
             init_guess = np.ones((self._decomp.get_ninterfaces_dof(), 1))
             # Next line will set dirichlet values internally
@@ -1040,15 +1067,17 @@ class TransientDomainDecompositionSolver():
             physics.flux_jac)[1]
         return sol, drdu
 
-    def _update_subdomain_sols(self, prev_sols, time, deltat, subdomain_newton_kwargs,
-                               macro_newton_kwargs, store_data, clear_data):
+    def _update_subdomain_sols(
+            self, prev_sols, time, deltat, subdomain_newton_kwargs,
+            macro_newton_kwargs, store_data, clear_data):
         if self._dirichlet_vals is None:
             self._dirichlet_vals = np.ones(
                 (self._decomp.get_ninterfaces_dof(), 1))
         self._data = prev_sols, time, deltat, store_data, clear_data
         self._decomp._solve_subdomain = self._solve_subdomain_expanded
         self._dirichlet_vals = self._decomp._compute_interface_values(
-            self._dirichlet_vals, subdomain_newton_kwargs, **macro_newton_kwargs)
+            self._dirichlet_vals, subdomain_newton_kwargs,
+            **macro_newton_kwargs)
         # Sols  has already been computed avoid recomputing and store
         # and reuse here
         # sols = []
@@ -1074,7 +1103,8 @@ class TransientDomainDecompositionSolver():
                 "must provide an initial condition for each subdomain")
         sols, times = [], []
         time = init_time
-        sols.append([sol[:, None] if sol.ndim == 1 else sol for sol in init_sols])
+        sols.append([sol[:, None] if sol.ndim == 1 else sol
+                     for sol in init_sols])
         times.append(time)
         while time < final_time-1e-12:
             if verbosity >= 1:
@@ -1083,7 +1113,8 @@ class TransientDomainDecompositionSolver():
             store_data = True
             clear_data = abs(time-final_time) <= 1e-12 or time == init_time
             subdomain_sols = self._update_subdomain_sols(
-                sols[-1], time, deltat, subdomain_newton_kwargs, macro_newton_kwargs,
+                sols[-1], time, deltat, subdomain_newton_kwargs,
+                macro_newton_kwargs,
                 store_data, clear_data)
             sols.append(subdomain_sols)
             time += deltat

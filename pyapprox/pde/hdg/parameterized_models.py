@@ -11,7 +11,7 @@ from pyapprox.pde.autopde.physics import AdvectionDiffusionReaction
 from pyapprox.pde.hdg.pde_coupling import (
     TransientDomainDecompositionSolver,
     SteadyStateDomainDecompositionSolver, GappyRectangularDomainDecomposition,
-    get_active_subdomain_indices)
+    get_active_subdomain_indices, TurbineDomainDecomposition)
 from skfem.element import ElementVector
 from pyapprox.pde.galerkin.util import _get_element
 from pyapprox.pde.galerkin.physics import Stokes, Basis
@@ -218,7 +218,7 @@ def _fem_gappy_stokes_bndry_conds(keys):
 
     return [D_bndry_conds, {}, {}]
 
-        
+
 def _vector_forcing_full(fill_value, xx):
     # return shape (xx.shape[1], xx.shape[0], xx.shape[2])
     return np.hstack([xx[0][:, None]*0+fill_value for x in xx])
@@ -227,7 +227,6 @@ def _vector_forcing_full(fill_value, xx):
 def _forcing_full(fill_value, xx):
     shape = (xx.shape[1], xx.shape[0], xx.shape[2])
     return np.full((shape), fill_value)
-
 
 
 class SteadyObstructedFlowModel():
@@ -369,7 +368,7 @@ class SteadyObstructedFlowModel():
         return Z1, Z2
 
     def _fem_plot_solution(self, sol, basis, intervals):
-         # draw(mesh)
+        # draw(mesh)
         vel, pres = np.split(
             sol, [sol.shape[0]-basis['p'].zeros().shape[0]])
         axs = plt.subplots(1, 5, figsize=(5*8, 6))[1]
@@ -505,3 +504,131 @@ class TransientObstructedFlowModel(SteadyObstructedFlowModel):
                     self.deltat, orders, self.nominal_concentration,
                     amp, loc, scale))
         return tracer_solver
+
+
+def init_steady_turbine_subdomain_model(
+        domain_decomp, orders, mesh_transform, subdomain_id):
+    mesh = TransformedCollocationMesh(orders, mesh_transform)
+
+    bndry_conds = [
+        [partial(full_fun_axis_1, 0., oned=False), "D"],
+        [partial(full_fun_axis_1, 0., oned=False), "D"],
+        [partial(full_fun_axis_1, 0., oned=False), "D"],
+        [partial(full_fun_axis_1, 0., oned=False), "D"]]
+
+    solver = SteadyStatePDE(
+        AdvectionDiffusionReaction(
+            mesh, bndry_conds, partial(full_fun_axis_1, 1.0, oned=False),
+            zero_vel_fun, None, partial(full_fun_axis_1, 0.0, oned=False),
+            None))
+    return solver
+
+
+class TurbineBladeModel():
+    def __init__(self, orders, functional=None):
+        self.orders = orders
+        self._functional = functional
+
+        ninterface_dof = np.min(self.orders)-1
+        self._decomp_solver = SteadyStateDomainDecompositionSolver(
+            TurbineDomainDecomposition(ninterface_dof))
+        self._decomp_solver._decomp.init_subdomains(
+            partial(init_steady_turbine_subdomain_model,
+                    self._decomp_solver._decomp, self.orders))
+        self._subdomain_bndry_dict = self._get_subdomain_bndry_dict()
+        self._bndry_funs = {
+            "exterior": self._exterior_bndry_fun,
+            "passage1": self._passage1_bndry_fun,
+            "passage2": self._passage2_bndry_fun,
+            "passage3": self._passage3_bndry_fun,
+            "endbottom": self._endbottom_bndry_cond,
+            "endtop": self._endtop_bndry_cond
+        }
+
+    def _get_subdomain_bndry_dict(self):
+        # return bndrys that are not interfaces
+        return [
+            {"exterior": 1, "passage1": 0},  # 0
+            {"exterior": 1},  # 1
+            {"passage1": 0, "passage2": 1},  # 2
+            {"exterior": 1},  # 3
+            {"exterior": 1, "passage2": 0},  # 4
+            {"exterior": 1, "passage2": 0},  # 5
+            {"exterior": 3, "passage2": 2},  # 6
+            {"exterior": 2, "passage2": 3},  # 7
+            {"exterior": 3},  # 8
+            {"passage2": 0, "passage3": 1},  # 9
+            {"exterior": 2},  # 10
+            {"exterior": 3, "passage3": 2, "endtop": 1},  # 11
+            {"exterior": 2, "passage3": 3, "endbottom": 1},  # 12
+        ]
+
+    def _exterior_bndry_fun(self, xx):
+        return (self._h_te+(self._h_le-self._h_te)*np.exp(-5*xx[0]))[:, None]
+
+    def _passage1_bndry_fun(self, xx):
+        return np.full((xx.shape[1], 1), self._t_c1)
+
+    def _passage2_bndry_fun(self, xx):
+        return np.full((xx.shape[1], 1), self._t_c2)
+
+    def _passage3_bndry_fun(self, xx):
+        return np.full((xx.shape[1], 1), self._t_c3)
+
+    def _endtop_bndry_cond(self, xx):
+        mesh = self._decomp_solver._decomp._subdomain_models[-2].physics.mesh
+        zz1 = np.array([mesh._canonical_mesh_pts_1d[0][-1],
+                        mesh._canonical_mesh_pts_1d[1][0]])[:, None]
+        x_end, y_interior = mesh._map_samples_from_canonical_domain(zz1)[:, 0]
+        zz2 = np.array([mesh._canonical_mesh_pts_1d[0][-1],
+                       mesh._canonical_mesh_pts_1d[1][-1]])[:, None]
+        y_exterior = mesh._map_samples_from_canonical_domain(zz2)[1, 0]
+        pt = np.array([x_end, y_interior])[:, None]
+        slope = (self._exterior_bndry_fun(pt)[0, 0] -
+                 self._passage3_bndry_fun(pt)[0, 0])/(y_exterior-y_interior)
+        vals = slope*(xx[1]-y_interior)+self._passage3_bndry_fun(pt)
+        return vals
+
+    def _endbottom_bndry_cond(self, xx):
+        zz = xx.copy()
+        zz[1] *= -1
+        return self._endtop_bndry_cond(zz)
+
+    def _set_random_sample(self, sample):
+        assert sample.ndim == 1
+        assert sample.shape[0] >= 6
+        self._t_c1, self._t_c2, self._t_c3, self._h_le, self._h_te = sample[:5]
+        thermal_conductivity = sample[5:]
+
+        diff_fun = partial(
+            full_fun_axis_1, thermal_conductivity[0], oned=False)
+        for subdomain_id, model in enumerate(
+                self._decomp_solver._decomp._subdomain_models):
+            model.physics._diff_fun = diff_fun
+            model.physics._funs[0] = diff_fun
+
+            for key, item in self._subdomain_bndry_dict[subdomain_id].items():
+                model.physics._bndry_conds[item] = [self._bndry_funs[key], "D"]
+
+    def _solve(self, sample):
+        macro_newton_kwargs={"maxiters": 1, "verbosity": 2}
+        subdomain_newton_kwargs={}#{"maxiters": 1, "verbosity": 2}
+        self._set_random_sample(sample)
+        sol = self._decomp_solver.solve(
+            macro_newton_kwargs=macro_newton_kwargs,
+            subdomain_newton_kwargs=subdomain_newton_kwargs)
+        return sol
+
+    def _eval(self, sample):
+        sol = self._solve(sample)
+        qoi = self._functional(sol, sample.copy)
+        if isinstance(qoi, np.ndarray):
+            if qoi.ndim == 1:
+                return qoi
+            assert qoi.shape[1] == 1
+            return qoi[:, 0]
+        return np.asarray([qoi])
+
+    def __call__(self, samples, return_grad=False):
+        return evaluate_1darray_function_on_2d_array(
+            self._eval, samples, return_grad=return_grad)
