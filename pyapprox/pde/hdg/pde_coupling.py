@@ -85,7 +85,7 @@ class SubdomainInterface1D(SubdomainInterface):
             for xx in self._canonical_mesh_pts_1d]
 
         self._subdomain_pts = []
-        
+
         self._to_iface_bases = [None for ii in range(4)]
 
     def _set_ndof(self, ndof):
@@ -140,6 +140,13 @@ class SubdomainInterface1D(SubdomainInterface):
             subdomain_pts)[self._left_active_dim:self._left_active_dim+1]
         interp_vals = self._canonical_interpolate(
             canonical_subdomain_pts, self._canonical_mesh_pts_1d[0])
+        if self.__name__ == "if-6":
+            print("$", self._left_active_dim, self._ndof)
+            print(self._values)
+            print(self._canonical_mesh_pts_1d[0])
+            print(subdomain_pts)
+            print(canonical_subdomain_pts)
+            print(interp_vals)
         return interp_vals
 
     def _interpolate_from_subdomain(self, subdomain, bndry_seg, flux):
@@ -251,7 +258,7 @@ class AbstractDomainDecomposition(ABC):
         # updated with sols of each subdomain at each newton iteration
         # After newton sol the final solutions can be obtained from this
         # variable
-        self._sols =None
+        self._sols = None
 
     def get_subdomain_adjacency_matrix(self):
         # TODO make this a sparse matrix
@@ -486,7 +493,7 @@ class AbstractDomainDecomposition(ABC):
             orth_active_dim = int(jj < 2)
             orth_inactive_dim = int(jj >= 2)
             orth_line = orth_lines[jj]
-            line = transform.map_from_orthogonal(orth_line)
+            # line = transform.map_from_orthogonal(orth_line)
             # plt.plot(line[0], line[1], color=colors[jj], ls=ls[jj], lw=0.5,
             #          label=(subdomain_id, jj))
             found = False
@@ -513,11 +520,13 @@ class AbstractDomainDecomposition(ABC):
                                     orth_active_dim, [0, -1]]))):
                         # An interface exists
                         interface_cnt = len(self._interfaces)
+                        print(subdomain_id, neigh_id, orth_active_dim, interface_cnt)
                         self._interface_to_bndry_map.append(
                             [subdomain_id, jj, neigh_id, kk])
                         self._interfaces.append(SubdomainInterface1D(
                             self._ninterface_dof, orth_active_dim,
                             self._subdomain_transforms[subdomain_id], jj))
+                        self._interfaces[-1].__name__ = f"if-{interface_cnt}" # hack
                         self._subdomain_to_interface_map[subdomain_id].append(
                             interface_cnt)
                         self._subdomain_to_interface_map[neigh_id].append(
@@ -729,10 +738,15 @@ class AbstractTwoDDomainDecomposition(AbstractDomainDecomposition):
             self, subdomain_values, npts_1d, ax, **kwargs):
         levels = kwargs.get("levels", 21)
         if isinstance(levels, int):
+            eps = kwargs.get("eps", 0)
+            # sometimes interpolated values are greater than nodal values
+            # use eps to increase range of values plotted
             # the ssame contour levels must be used for all subdomains
-            z_min = np.min([sv.min() for sv in subdomain_values])
-            z_max = np.max([sv.max() for sv in subdomain_values])
+            z_min = np.min([sv.min()-eps for sv in subdomain_values])
+            z_max = np.max([sv.max()+eps for sv in subdomain_values])
             levels = np.linspace(z_min, z_max, levels)
+            if "eps" in kwargs:
+                del kwargs ["eps"]
         subdomain_values = [
             s[:, None] if s.ndim == 1 else s for s in subdomain_values]
         kwargs["levels"] = levels
@@ -1019,6 +1033,7 @@ class SteadyStateDomainDecompositionSolver():
         return subdomain_sols
 
     def _solve_subdomain(self, jj, **subdomain_newton_kwargs):
+        print("###", jj)
         sol = self._decomp._subdomain_models[jj].solve(
             None, **subdomain_newton_kwargs)
         drdu = self._decomp._subdomain_models[jj].physics._residual(sol)[1]
@@ -1233,6 +1248,13 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
             transform_0, transform_1, transform_2, transform_3,
             transform_4, transform_5, transform_6, transform_7,
             transform_8, transform_9, transform_10, transform_11, transform_12]
+
+        final_transform = ScaleAndTranslationTransform(
+            [-1, 1, -height_max, height_max],
+            [0, 1, -height_max/4, height_max/4])
+        transforms = [CompositionTransform([transform, final_transform])
+                      for transform in transforms]
+
         return transforms
 
 
@@ -1288,7 +1310,7 @@ def get_active_subdomain_indices(nsubdomains_1d, missing_indices):
     return indices
 
 
-    
+
 # Notes
 # When using interface points that are on the boundary of the interface,
 # e.g. the end of the interval, then need to make sure not to pass in duplicate

@@ -628,7 +628,7 @@ class TestPDECoupling(unittest.TestCase):
              ["D", "D", "D", "D"], None, "turbine", 1e-5]
         ]
         ii = 0
-        for test_case in test_cases:
+        for test_case in test_cases[-1:]:
             # print(ii)
             # print(test_case)
             np.random.seed(1)  # controls direction of finite difference

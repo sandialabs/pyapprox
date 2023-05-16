@@ -564,7 +564,9 @@ class TurbineBladeModel():
         ]
 
     def _exterior_bndry_fun(self, xx):
-        return (self._h_te+(self._h_le-self._h_te)*np.exp(-5*xx[0]))[:, None]
+        vals = (self._h_te+(self._h_le-self._h_te)*np.exp(-5*xx[0]))[:, None]
+        assert vals.max() <= self._h_le and vals.min() >= self._h_te
+        return vals
 
     def _passage1_bndry_fun(self, xx):
         return np.full((xx.shape[1], 1), self._t_c1)
@@ -586,8 +588,8 @@ class TurbineBladeModel():
         pt = np.array([x_end, y_interior])[:, None]
         slope = (self._exterior_bndry_fun(pt)[0, 0] -
                  self._passage3_bndry_fun(pt)[0, 0])/(y_exterior-y_interior)
-        vals = slope*(xx[1]-y_interior)+self._passage3_bndry_fun(pt)
-        return vals
+        vals = slope*(xx[1]-y_interior)+self._passage3_bndry_fun(pt)[0, 0]
+        return vals[:, None]
 
     def _endbottom_bndry_cond(self, xx):
         zz = xx.copy()
@@ -598,6 +600,7 @@ class TurbineBladeModel():
         assert sample.ndim == 1
         assert sample.shape[0] >= 6
         self._t_c1, self._t_c2, self._t_c3, self._h_le, self._h_te = sample[:5]
+        assert self._h_le >= self._h_te
         thermal_conductivity = sample[5:]
 
         diff_fun = partial(
@@ -611,8 +614,8 @@ class TurbineBladeModel():
                 model.physics._bndry_conds[item] = [self._bndry_funs[key], "D"]
 
     def _solve(self, sample):
-        macro_newton_kwargs={"maxiters": 1, "verbosity": 2}
-        subdomain_newton_kwargs={}#{"maxiters": 1, "verbosity": 2}
+        macro_newton_kwargs = {"maxiters": 1, "verbosity": 2}
+        subdomain_newton_kwargs = {}  # {"maxiters": 1, "verbosity": 2}
         self._set_random_sample(sample)
         sol = self._decomp_solver.solve(
             macro_newton_kwargs=macro_newton_kwargs,
