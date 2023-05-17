@@ -145,7 +145,7 @@ class TestPDECoupling(unittest.TestCase):
             assert np.absolute(res_norm) < 2e-14
             for jj in range(ninterfaces):
                 sp_jac[ii, jj] = res.diff(interface_syms[jj])
-                
+
         # boundary conditions cannot be passed into partial
         # as only shallow copy will be made and so when domain decomp
         # sets interpolation on some boundaries it inadvertently effects
@@ -188,7 +188,7 @@ class TestPDECoupling(unittest.TestCase):
             exact_dirichlet_vals)[1]
         # print(jac, sp_jac)
         assert np.allclose(jac, sp_jac)
-        
+
         init_dirichlet_vals = np.ones((domain_decomp._ninterfaces, 1))
         # using sp_jac newton conveges in one iteration which it should
         # but because of finite difference errors using finite difference
@@ -285,7 +285,7 @@ class TestPDECoupling(unittest.TestCase):
         # plt.show()
 
         np.set_printoptions(linewidth=1000, precision=4, suppress=True)
-        
+
         exact_dirichlet_vals = exact_sol(interface_mesh)
         residual = domain_decomp._assemble_dirichlet_neumann_map_jacobian(
             exact_dirichlet_vals)[0]
@@ -453,7 +453,7 @@ class TestPDECoupling(unittest.TestCase):
             domain_decomp.init_subdomains(init_subdomain_model)
 
         interface_mesh = domain_decomp.interface_mesh()
-            
+
         # domain_decomp.plot_mesh_grid(plt.subplots(1, 1)[1], color='k')
         # plt.plot(interface_mesh[0], interface_mesh[1], 'o')
         # plt.show()
@@ -479,29 +479,38 @@ class TestPDECoupling(unittest.TestCase):
                         continue
                     idx = model.physics.mesh._bndry_indices[bndry_id]
                     bndry_pts = model.physics.mesh.mesh_pts[:, idx]
-                    bndry_vals = model.physics._bndry_conds[bndry_id][0](bndry_pts)
+                    bndry_vals = model.physics._bndry_conds[bndry_id][0](
+                        bndry_pts)
                     assert np.allclose(bndry_vals, sol_fun(bndry_pts))
-                    
+
             subdomain_sols = [
                 model.solve(prev_sol, times[ii-1], time)[0][:, -1:]
                 for prev_sol, model in zip(subdomain_sols,
                                            domain_decomp._subdomain_models)]
-            
+
             # ax = plt.subplots(1, 1)[1]
             # domain_decomp.plot(subdomain_sols, 51, ax)
             # exact_subdomain_sols = [
             #     sol_fun(model.physics.mesh.mesh_pts)
             #     for model in domain_decomp._subdomain_models]
-            # domain_decomp.plot(exact_subdomain_sols, 51, ax, ls='--')
+            # domain_decomp.plot(exact_subdomain_sols, 51, ax)
             # if nphys_vars == 2:
             #     plt.plot(interface_mesh[0], interface_mesh[1], 'ko')
+            # for model_jj in domain_decomp._subdomain_models:
+            #     mesh = model_jj.physics.mesh
+            #     for ii in range(4):
+            #         idx = mesh._bndry_indices[ii]
+            #         eps = 0.05
+            #         normals = mesh._bndrys[ii].normals(mesh.mesh_pts[:, idx])*eps
+            #         for kk in range(normals.shape[0]):
+            #             plt.arrow(*mesh.mesh_pts[:, idx][:, kk], *normals[kk])
             # plt.show()
 
             for (sol, model) in zip(
                     subdomain_sols, domain_decomp._subdomain_models):
                 # print(sol, sol_fun(model.physics.mesh.mesh_pts))
-                print(np.abs(
-                    sol-sol_fun(model.physics.mesh.mesh_pts)).max())
+                # print(np.abs(
+                #     sol-sol_fun(model.physics.mesh.mesh_pts)).max())
                 assert np.allclose(
                     sol, sol_fun(model.physics.mesh.mesh_pts), atol=atol)
 
@@ -509,7 +518,7 @@ class TestPDECoupling(unittest.TestCase):
                 exact_prev_sols, time-deltat, deltat, False, False]
             decomp_solver._decomp._solve_subdomain = (
                 decomp_solver._solve_subdomain_expanded)
-                
+
             residual, jac = (
                 domain_decomp._assemble_dirichlet_neumann_map_jacobian(
                     exact_dirichlet_vals))
@@ -517,9 +526,8 @@ class TestPDECoupling(unittest.TestCase):
             # im = decomp_solver._decomp.plot(subdomain_sols, 51, plt, eps=1e-1)
             # plt.colorbar(im[0])
             # plt.show()
-            print('res', residual, atol)
+            # print('res', residual, atol)
             assert np.allclose(residual, 0, atol=atol)
-            assert False
 
         npts_1d = 21
         if nphys_vars == 1:
@@ -570,7 +578,7 @@ class TestPDECoupling(unittest.TestCase):
             #     # plt.plot(can_bndry_pts, sol_fun(bndry_pts), '--')
             #     # plt.plot(can_bndry_pts, subdomain_sols[ii][0][idx]-sol_fun(bndry_pts))
 
-                
+
             #     axs = plt.subplots(1, 3, sharey=True, figsize=(3*8, 6))[1]
             #     full_exact_sol = sol_fun(solver.physics.mesh.mesh_pts)
             #     levels = np.linspace(
@@ -644,7 +652,7 @@ class TestPDECoupling(unittest.TestCase):
              ["D", "D", "D", "D"], None, "turbine", 1e-5]
         ]
         ii = 0
-        for test_case in test_cases[-1:]:
+        for test_case in test_cases:
             # print(ii)
             # print(test_case)
             np.random.seed(1)  # controls direction of finite difference

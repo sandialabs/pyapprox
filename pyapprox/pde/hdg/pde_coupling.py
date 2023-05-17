@@ -328,7 +328,6 @@ class AbstractDomainDecomposition(ABC):
                 normal_vals_ii = mesh._bndrys[bndry_id].normals(
                     mesh._bndry_slice(mesh.mesh_pts, idx, 1))
                 self._normals[jj][ii] = normal_vals_ii
-                # print(normal_vals_ii, jj, ii, "Normal vals")
             else:
                 normal_vals_ii = self._normals[jj][ii]
             physics._store_data = True
@@ -372,8 +371,6 @@ class AbstractDomainDecomposition(ABC):
         if len(self._iface_bases) == 0:
             store = True
             # self._to_interface_bases = []
-        print(fluxes[0], "F")
-        print(fluxes[1])
         for ii in range(self._nsubdomains):
             for mm, iface1 in enumerate(self._subdomain_to_interface_map[ii]):
                 # The values of fluxes, i.e. different rows of Jacobian
@@ -386,11 +383,6 @@ class AbstractDomainDecomposition(ABC):
                     interface1._interpolate_from_subdomain(
                         self._subdomain_models[ii], bndry_id1,
                         fluxes[ii][mm])[:, 0])
-                print(ii, mm)
-                print(interface1._interpolate_from_subdomain(
-                    self._subdomain_models[ii], bndry_id1,
-                    fluxes[ii][mm])[:, 0])
-                print(residual, "R")
                 if store:
                     basis_to_iface1 = torch.as_tensor(
                         interface1._to_interface_basis(
@@ -521,7 +513,6 @@ class AbstractDomainDecomposition(ABC):
                                     orth_active_dim, [0, -1]]))):
                         # An interface exists
                         interface_cnt = len(self._interfaces)
-                        print(subdomain_id, neigh_id, orth_active_dim, interface_cnt)
                         self._interface_to_bndry_map.append(
                             [subdomain_id, jj, neigh_id, kk])
                         self._interfaces.append(SubdomainInterface1D(
@@ -1036,7 +1027,6 @@ class SteadyStateDomainDecompositionSolver():
         return subdomain_sols
 
     def _solve_subdomain(self, jj, **subdomain_newton_kwargs):
-        print("###", jj)
         sol = self._decomp._subdomain_models[jj].solve(
             None, **subdomain_newton_kwargs)
         drdu = self._decomp._subdomain_models[jj].physics._residual(sol)[1]
@@ -1203,11 +1193,17 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
         scale = width_max/rmax
         alpha, beta = 1.3, 0.1
         theta0 = alpha*np.pi/2
+        # transform_0 = self._get_polar_subdomain(
+        #     rmin, rmax, scale, 2*np.pi-theta0, theta0)
+        # transform_0._normal_sign = PolarTransform._normal_sign
         transform_0 = self._get_polar_subdomain(
-            rmin, rmax, scale, 2*np.pi-theta0, theta0)
+            rmin, rmax, scale, theta0, 2*np.pi-theta0)
         theta1 = (alpha-beta)*np.pi/2
+        # transform_1 = self._get_polar_subdomain(
+        #     rmin, rmax, scale, theta0, theta1)
+        # transform_1._normal_sign = PolarTransform._normal_sign
         transform_1 = self._get_polar_subdomain(
-            rmin, rmax, scale, theta0, theta1)
+            rmin, rmax, scale, theta1, theta0)
         surf_string = f"sqrt({rmin**2}-_r_**2)"
         bed_string = f"-sqrt({rmin**2}-_r_**2)"
         x0 = rmin*np.cos(theta0)
@@ -1219,12 +1215,21 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
                 [x0, x1, 0, 1],
                 [scale*x0, scale*x1, 0, 1])
             ])
+        # transform_3 = self._get_polar_subdomain(
+        #     rmin, rmax, scale, 2*np.pi-theta1, 2*np.pi-theta0)
+        # transform_3._normal_sign = PolarTransform._normal_sign
         transform_3 = self._get_polar_subdomain(
-            rmin, rmax, scale, 2*np.pi-theta1, 2*np.pi-theta0)
+            rmin, rmax, scale, 2*np.pi-theta0, 2*np.pi-theta1)
+        # transform_4 = self._get_polar_subdomain(
+        #     rmin, rmax, scale, theta1, np.pi/2)
+        # transform_4._normal_sign = PolarTransform._normal_sign
         transform_4 = self._get_polar_subdomain(
-            rmin, rmax, scale, theta1, np.pi/2)
+            rmin, rmax, scale, np.pi/2, theta1)
+        # transform_5 = self._get_polar_subdomain(
+        #     rmin, rmax, scale, 2*np.pi-np.pi/2, 2*np.pi-theta1)
+        # transform_5._normal_sign = PolarTransform._normal_sign
         transform_5 = self._get_polar_subdomain(
-            rmin, rmax, scale, 2*np.pi-np.pi/2, 2*np.pi-theta1)
+             rmin, rmax, scale, 2*np.pi-theta1, 2*np.pi-np.pi/2)
         x2 = width_max*0.2
         x_end = 1.0*width_max
         delta = height_max/2
@@ -1261,11 +1266,11 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
         #               for transform in transforms]
 
         # transforms = [transforms[4], transforms[6]]
-        transforms = [transforms[5], transforms[7]]
+        # transforms = [transforms[5], transforms[7]]
         # transforms = [transforms[8], transforms[11]]
         # transforms = [transforms[2], transforms[3]]
-        self._nsubdomains = 2
-        self._ninterfaces = 1
+        # self._nsubdomains = 2
+        # self._ninterfaces = 1
         # transforms = [transforms[1], transforms[2], transforms[3],
         #               transforms[4], transforms[6]]
         # self._nsubdomains = 5

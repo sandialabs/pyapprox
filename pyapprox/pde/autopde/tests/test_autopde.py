@@ -202,6 +202,16 @@ class TestAutoPDE(unittest.TestCase):
                 [partial(transform.normal, ii) for ii in range(2*nphys_vars)])
             mesh = TransformedCollocationMesh(orders, transform)
 
+        # import matplotlib.pyplot as plt
+        # print(transform)
+        # for ii in range(4):
+        #     idx = mesh._bndry_indices[ii]
+        #     eps = 0.05
+        #     normals = mesh._bndrys[ii].normals(mesh.mesh_pts[:, idx])*eps
+        #     for kk in range(normals.shape[0]):
+        #         plt.arrow(*mesh.mesh_pts[:, idx][:, kk], *normals[kk])
+        # plt.show()
+
         # bndry_cond returned by _get_boundary_funs is du/dx=fun
         # apply boundary condition kdu/dx.n=fun
         # for bndry_cond in bndry_conds:
@@ -209,7 +219,7 @@ class TestAutoPDE(unittest.TestCase):
         #         _adf_bndry_fun, bndry_cond[0], diff_fun)
 
         if ("_u_" in diff_string):
-            assert diff_jac is not None
+            assert nl_diff_funs[1] is not None
         solver = SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
             react_funs[1], nl_diff_fun=nl_diff_funs[0],
@@ -250,7 +260,8 @@ class TestAutoPDE(unittest.TestCase):
         solver.physics._clear_data()
         sol = solver.solve(
             init_guess=exact_sol[:, 0]+np.random.normal(
-                0, 1e-2, exact_sol.shape[0]), tol=1e-8, rtol=1e-12, verbosity=2)[:, None]
+                0, 1e-2, exact_sol.shape[0]), tol=1e-8, rtol=1e-12,
+            verbosity=2)[:, None]
         assert np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol) < 1e-9
 
@@ -421,11 +432,11 @@ class TestAutoPDE(unittest.TestCase):
             # the solution is not quadratic in the canonical domain
             # due to nonlinearity of polar coordinate transform
             # 14
-            [None, [20, 20], "y**2*x**2", "1", ["0", "0"],
+            [None, [20, 20], "(x+y)**2", "1", ["0", "0"],
              [lambda sol: 0*sol,
               lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D", "D", "N"], ["C", "C"], polar_transform],
-            [None, [20, 20], "y**2*x**2", "1", ["0", "0"],
+            [None, [20, 20], "(x+y)**2", "1", ["0", "0"],
              [lambda sol: 1*sol**2,
               lambda sol: 2*sol[:, 0]],
              ["D", "D", "D", "N"], ["C", "C"], ellipse_transform],
