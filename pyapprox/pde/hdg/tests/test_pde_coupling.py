@@ -489,7 +489,8 @@ class TestPDECoupling(unittest.TestCase):
                                            domain_decomp._subdomain_models)]
 
             # ax = plt.subplots(1, 1)[1]
-            # domain_decomp.plot(subdomain_sols, 51, ax)
+            # domain_decomp.plot(subdomain_sols, 51, ax, color='k')
+            # plt.show()
             # exact_subdomain_sols = [
             #     sol_fun(model.physics.mesh.mesh_pts)
             #     for model in domain_decomp._subdomain_models]
@@ -658,6 +659,7 @@ class TestPDECoupling(unittest.TestCase):
             np.random.seed(1)  # controls direction of finite difference
             self._check_transient_advection_diffusion_reaction(*test_case)
             ii += 1
+
 
 if __name__ == "__main__":
     pde_coupling_test_suite = \

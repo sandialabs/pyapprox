@@ -731,22 +731,22 @@ class AbstractTwoDDomainDecomposition(AbstractDomainDecomposition):
     def _plot_2d_from_subdomain_interpolate(
             self, subdomain_values, npts_1d, ax, **kwargs):
         levels = kwargs.get("levels", 21)
-        if isinstance(levels, int):
-            eps = kwargs.get("eps", 0)
-            # sometimes interpolated values are greater than nodal values
-            # use eps to increase range of values plotted
-            # the ssame contour levels must be used for all subdomains
-            z_min = np.min([sv.min()-eps for sv in subdomain_values])
-            z_max = np.max([sv.max()+eps for sv in subdomain_values])
-            levels = np.linspace(z_min, z_max, levels)
-            if "eps" in kwargs:
-                del kwargs ["eps"]
         subdomain_values = [
             s[:, None] if s.ndim == 1 else s for s in subdomain_values]
-        kwargs["levels"] = levels
-        ims = [model.physics.mesh.plot(
-            subdomain_values[jj], npts_1d, ax, **kwargs)
+        subdomain_plot_data = [model.physics.mesh._plot_data(
+            subdomain_values[jj], npts_1d)
                for jj, model in enumerate(self._subdomain_models)]
+        if isinstance(levels, int):
+            z_min = np.min([d[0].min() for d in subdomain_plot_data])
+            z_max = np.max([d[0].max() for d in subdomain_plot_data])
+            levels = np.linspace(z_min, z_max, levels)
+        kwargs["levels"] = levels
+        ims = [model.physics.mesh._plot_from_data(
+            subdomain_plot_data[jj], ax, **kwargs)
+               for jj, model in enumerate(self._subdomain_models)]
+        # ims = [model.physics.mesh.plot(
+        #     subdomain_values[jj], npts_1d, ax, **kwargs)
+        #        for jj, model in enumerate(self._subdomain_models)]
         return ims
 
     def _2d_triangluation(self, npts_1d):

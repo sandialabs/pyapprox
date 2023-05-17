@@ -533,20 +533,31 @@ class CanonicalCollocationMesh():
             self._canonical_domain_bounds[0],
             self._canonical_domain_bounds[1], nplot_pts_1d)
 
-    def _plot_1d(self, mesh_values, nplot_pts_1d=None, ax=None,
-                 **kwargs):
+    def _plot_data_1d(self, mesh_values, nplot_pts_1d=None):
         plot_mesh = self._create_plot_mesh_1d(nplot_pts_1d)
         interp_vals = self.interpolate(mesh_values, plot_mesh[None, :])
+        return interp_vals, plot_mesh
+
+    # def _plot_1d(self, mesh_values, nplot_pts_1d=None, ax=None,
+    #              **kwargs):
+    #     interp_vals, plot_mesh = self._plot_data_1d(mesh_values, nplot_pts_1d)
+    #     return self.plot_from_data_1d(interp_vals, plot_mesh)
+
+    def _plot_from_data_1d(self, interp_vals, plot_mesh, ax, **kwargs):
         return ax.plot(plot_mesh, interp_vals, **kwargs)
 
     def _create_plot_mesh_2d(self, nplot_pts_1d):
         return get_meshgrid_samples(
             self._canonical_domain_bounds, nplot_pts_1d)
 
-    def _plot_2d(self, mesh_values, nplot_pts_1d=100, levels=20,
-                 ax=None, cmap="coolwarm"):
+    def _plot_data_2d(self, mesh_values, nplot_pts_1d=100):
         X, Y, pts = self._create_plot_mesh_2d(nplot_pts_1d)
         Z = self._interpolate(mesh_values, pts)
+        print(Z.shape, pts.shape, nplot_pts_1d, mesh_values.shape)
+        return Z, X, Y, pts
+
+    def _plot_from_data_2d(self, Z, X, Y, pts, ax, levels=20,
+                           cmap="coolwarm"):
         triang = tri.Triangulation(pts[0], pts[1])
         x = pts[0, triang.triangles].mean(axis=1)
         y = pts[1, triang.triangles].mean(axis=1)
@@ -561,16 +572,28 @@ class CanonicalCollocationMesh():
             levels = levels
         return ax.tricontourf(triang, Z[:, 0], levels=levels, cmap=cmap)
 
-    def plot(self, mesh_values, nplot_pts_1d=100, ax=None, **kwargs):
-        if ax is None:
-            ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+    # def _plot_2d(self, mesh_values, nplot_pts_1d=100, levels=20,
+    #              ax=None, cmap="coolwarm"):
+    #     Z, X, Y, pts = self._plot_data_2d(mesh_values, nplot_pts_1d)
+    #     return self._plot_2d_from_data(Z, X, Y, pts, levels, ax, cmap)
+
+    def _plot_data(self, mesh_values, nplot_pts_1d=100):
         if self.nphys_vars == 1:
-            return self._plot_1d(
-                mesh_values, nplot_pts_1d, ax, **kwargs)
+            return self._plot_data_1d(mesh_values, nplot_pts_1d)
         if nplot_pts_1d is None:
             raise ValueError("nplot_pts_1d must be not None for 2D plot")
-        return self._plot_2d(
-            mesh_values, nplot_pts_1d, ax=ax, **kwargs)
+        return self._plot_data_2d(mesh_values, nplot_pts_1d)
+
+    def _plot_from_data(self, plot_data, ax, **kwargs):
+        if self.nphys_vars == 1:
+            return self._plot_from_data_1d(*plot_data, ax, **kwargs)
+        return self._plot_from_data_2d(*plot_data, ax, **kwargs)
+
+    def plot(self, mesh_values, nplot_pts_1d=100, ax=None, **kwargs):
+        plot_data = self._plot_data(mesh_values, nplot_pts_1d)
+        if ax is None:
+            ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+        return self._plot_from_data(plot_data, ax, **kwargs)
 
     def _get_quadrature_rule(self):
         quad_rules = [
