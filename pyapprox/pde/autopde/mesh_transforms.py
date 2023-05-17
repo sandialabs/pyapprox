@@ -19,6 +19,7 @@ class OrthogonalCoordinateTransform2D(ABC):
 
     @abstractmethod
     def curvelinear_basis(self, orth_samples):
+        # this is A^{-1} in my notes
         raise NotImplementedError()
 
     @abstractmethod
@@ -36,13 +37,28 @@ class OrthogonalCoordinateTransform2D(ABC):
     def _normal(map_to_orthogonal, normalized_curvelinear_basis,
                 bndry_id, samples):
         orth_samples = map_to_orthogonal(samples)
-        if bndry_id % 2 == 0:
-            sign = -1.0
-        else:
+        # print(samples, orth_samples, bndry_id, "Z")
+        # if (np.allclose(orth_samples[0], -1) or 
+        #     np.allclose(orth_samples[1], -1)):
+        # if bndry_id % 2 == 0:
+        #     print("TRUE", bndry_id)
+        #     sign = -1.0
+        # else:
+        #     print("False", bndry_id)
+        #     sign = 1.0
+        # hack
+        if (np.allclose(samples[0], 0) and np.allclose(orth_samples[0], -1)):
             sign = 1.0
+        else:
+            sign = -1.0
         basis_id = int(bndry_id > 1)
         normals = sign*normalized_curvelinear_basis(
             orth_samples)[..., basis_id]
+        print(basis_id, "basis_id")
+        print(samples)
+        print(orth_samples)
+        print(normalized_curvelinear_basis(orth_samples)[..., 0], "A")
+        print(normalized_curvelinear_basis(orth_samples)[..., 1], "B")
         return normals
 
     def normal(self, bndry_id, samples):
@@ -86,6 +102,7 @@ class CompositionTransform():
         return basis
 
     def curvelinear_basis(self, orth_samples):
+        # this is A^{-1} in my notes
         basis = self._transforms[0].curvelinear_basis(orth_samples)
         for ii, transform in enumerate(self._transforms[1:]):
             orth_samples = self._transforms[ii].map_from_orthogonal(
@@ -171,6 +188,7 @@ class ScaleAndTranslationTransform(OrthogonalCoordinateTransform2D):
         return basis
 
     def curvelinear_basis(self, orth_samples):
+        # this is A^{-1} in my notes
         if orth_samples.shape[0] == 2:
             return self._curvelinear_basis_2d(orth_samples)
         return self._curvelinear_basis_1d(orth_samples)
@@ -205,6 +223,7 @@ class PolarTransform(OrthogonalCoordinateTransform2D):
         return r[:, None]
 
     def curvelinear_basis(self, orth_samples):
+        # this is A^{-1} in my notes
         r, theta = orth_samples
         r, theta = r[:, None], theta[:, None]
         cos_t = np.cos(theta)
@@ -238,6 +257,7 @@ class EllipticalTransform(OrthogonalCoordinateTransform2D):
         return orth_samples
 
     def curvelinear_basis(self, orth_samples):
+        # this is A^{-1} in my notes
         r, theta = orth_samples
         denom = (self._a*np.sinh(r)**2+np.sin(theta)**2)[:, None]
         cosh_r = np.cosh(r)[:, None]
@@ -310,6 +330,7 @@ class SympyTransform(OrthogonalCoordinateTransform2D):
         return self._scale_factors[basis_id](orth_samples)
 
     def curvelinear_basis(self, orth_samples):
+        # this is A^{-1} in my notes
         basis = np.dstack(
             [basis(orth_samples)[..., None] for basis in self._bases])
         return basis

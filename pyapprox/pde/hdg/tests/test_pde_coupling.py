@@ -500,18 +500,26 @@ class TestPDECoupling(unittest.TestCase):
             for (sol, model) in zip(
                     subdomain_sols, domain_decomp._subdomain_models):
                 # print(sol, sol_fun(model.physics.mesh.mesh_pts))
-                # print(np.abs(
-                #     sol-sol_fun(model.physics.mesh.mesh_pts)).max())
+                print(np.abs(
+                    sol-sol_fun(model.physics.mesh.mesh_pts)).max())
                 assert np.allclose(
                     sol, sol_fun(model.physics.mesh.mesh_pts), atol=atol)
 
-            decomp_solver._data = [exact_prev_sols, time-deltat, deltat, False, False]
-            decomp_solver._decomp._solve_subdomain = decomp_solver._solve_subdomain_expanded
+            decomp_solver._data = [
+                exact_prev_sols, time-deltat, deltat, False, False]
+            decomp_solver._decomp._solve_subdomain = (
+                decomp_solver._solve_subdomain_expanded)
                 
-            residual, jac = domain_decomp._assemble_dirichlet_neumann_map_jacobian(
-                exact_dirichlet_vals)
-            # print('res', residual)
+            residual, jac = (
+                domain_decomp._assemble_dirichlet_neumann_map_jacobian(
+                    exact_dirichlet_vals))
+            # decomp_solver._decomp.plot_mesh_grid(plt)
+            # im = decomp_solver._decomp.plot(subdomain_sols, 51, plt, eps=1e-1)
+            # plt.colorbar(im[0])
+            # plt.show()
+            print('res', residual, atol)
             assert np.allclose(residual, 0, atol=atol)
+            assert False
 
         npts_1d = 21
         if nphys_vars == 1:
@@ -588,7 +596,8 @@ class TestPDECoupling(unittest.TestCase):
                 # print(np.linalg.norm(sol), np.linalg.norm(
                 #     sol_fun(model.physics.mesh.mesh_pts)))
                 # print(ii, "time", time, ":", np.abs(
-                #    sol-sol_fun(model.physics.mesh.mesh_pts)).max())
+                #     sol-sol_fun(model.physics.mesh.mesh_pts)).max())
+                # print(sol.min(), sol.max())
                 assert np.allclose(
                     sol, sol_fun(model.physics.mesh.mesh_pts), atol=atol)
 
@@ -599,6 +608,12 @@ class TestPDECoupling(unittest.TestCase):
             #     plt.plot(xx[0, II], xx[1, II], 'o')
             #     plt.show()
             assert np.allclose(interp_values, sol_fun(xx), atol=atol)
+
+            # print(subdomain_sols[-1])
+            # ax = plt.figure().gca()
+            # im = decomp_solver._decomp.plot(subdomain_sols[ii], 51, ax, eps=1e-2)
+            # plt.colorbar(im[0], ax=ax)
+            # plt.show()
 
     def test_transient_advection_diffusion_reaction(self):
         test_cases = [
@@ -621,8 +636,9 @@ class TestPDECoupling(unittest.TestCase):
              [lambda sol: sol**2, lambda sol: 2*sol[:, 0]],
              ["D", "D", "D", "D"], np.array([0, 0.3, 1, 0., 0.3, 1.]),
              "elbow"],
-            [[0, 1, 0, 1], [8, 12],
-             "x**2*y**2*(t+1)", "1", ["1", "1"],
+            [[0, 1, 0, 1], [12, 12],
+             # "x**2*y**2*(t+1)", "1", ["1", "1"],
+             "(x+y)**2*(t+1)", "1", ["0", "0"],
              [None, None],
              # [lambda sol: 0*sol**2, lambda sol: 0*2*sol[:, 0]],
              ["D", "D", "D", "D"], None, "turbine", 1e-5]

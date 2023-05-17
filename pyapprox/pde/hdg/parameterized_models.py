@@ -564,7 +564,9 @@ class TurbineBladeModel():
         ]
 
     def _exterior_bndry_fun(self, xx):
-        vals = (self._h_te+(self._h_le-self._h_te)*np.exp(-5*xx[0]))[:, None]
+        zz = (xx[0]+1)/2
+        # zz = xx[0]
+        vals = (self._h_te+(self._h_le-self._h_te)*np.exp(-5*zz))[:, None]
         assert vals.max() <= self._h_le and vals.min() >= self._h_te
         return vals
 

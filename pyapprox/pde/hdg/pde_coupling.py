@@ -140,13 +140,6 @@ class SubdomainInterface1D(SubdomainInterface):
             subdomain_pts)[self._left_active_dim:self._left_active_dim+1]
         interp_vals = self._canonical_interpolate(
             canonical_subdomain_pts, self._canonical_mesh_pts_1d[0])
-        if self.__name__ == "if-6":
-            print("$", self._left_active_dim, self._ndof)
-            print(self._values)
-            print(self._canonical_mesh_pts_1d[0])
-            print(subdomain_pts)
-            print(canonical_subdomain_pts)
-            print(interp_vals)
         return interp_vals
 
     def _interpolate_from_subdomain(self, subdomain, bndry_seg, flux):
@@ -335,6 +328,7 @@ class AbstractDomainDecomposition(ABC):
                 normal_vals_ii = mesh._bndrys[bndry_id].normals(
                     mesh._bndry_slice(mesh.mesh_pts, idx, 1))
                 self._normals[jj][ii] = normal_vals_ii
+                # print(normal_vals_ii, jj, ii, "Normal vals")
             else:
                 normal_vals_ii = self._normals[jj][ii]
             physics._store_data = True
@@ -378,6 +372,8 @@ class AbstractDomainDecomposition(ABC):
         if len(self._iface_bases) == 0:
             store = True
             # self._to_interface_bases = []
+        print(fluxes[0], "F")
+        print(fluxes[1])
         for ii in range(self._nsubdomains):
             for mm, iface1 in enumerate(self._subdomain_to_interface_map[ii]):
                 # The values of fluxes, i.e. different rows of Jacobian
@@ -390,6 +386,11 @@ class AbstractDomainDecomposition(ABC):
                     interface1._interpolate_from_subdomain(
                         self._subdomain_models[ii], bndry_id1,
                         fluxes[ii][mm])[:, 0])
+                print(ii, mm)
+                print(interface1._interpolate_from_subdomain(
+                    self._subdomain_models[ii], bndry_id1,
+                    fluxes[ii][mm])[:, 0])
+                print(residual, "R")
                 if store:
                     basis_to_iface1 = torch.as_tensor(
                         interface1._to_interface_basis(
@@ -526,7 +527,6 @@ class AbstractDomainDecomposition(ABC):
                         self._interfaces.append(SubdomainInterface1D(
                             self._ninterface_dof, orth_active_dim,
                             self._subdomain_transforms[subdomain_id], jj))
-                        self._interfaces[-1].__name__ = f"if-{interface_cnt}" # hack
                         self._subdomain_to_interface_map[subdomain_id].append(
                             interface_cnt)
                         self._subdomain_to_interface_map[neigh_id].append(
@@ -546,7 +546,10 @@ class AbstractDomainDecomposition(ABC):
             # the above procedure relies on subdomains being defined correctly
             # if not all subdomains line up exactly, then the assert below will
             # fail
-        assert len(self._interfaces) == self._ninterfaces, len(self._interfaces)
+        if len(self._interfaces) != self._ninterfaces:
+            msg = f"number of interfaces found {len(self._interfaces)}"
+            msg += f" does not match number specified {self._ninterfaces}"
+            raise ValueError(msg)
         self._interface_to_bndry_map = np.array(self._interface_to_bndry_map)
         self._interface_dof_starts = np.hstack((0, np.cumsum(
             [iface._ndof for iface in self._interfaces])[:-1]))
@@ -1249,12 +1252,24 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
             transform_4, transform_5, transform_6, transform_7,
             transform_8, transform_9, transform_10, transform_11, transform_12]
 
-        final_transform = ScaleAndTranslationTransform(
-            [-1, 1, -height_max, height_max],
-            [0, 1, -height_max/4, height_max/4])
-        transforms = [CompositionTransform([transform, final_transform])
-                      for transform in transforms]
+        # final_transform = ScaleAndTranslationTransform(
+        #     [-1, 1, -height_max, height_max],
+        #     # [0, 1, -height_max/4, height_max/4])
+        #     # [0, 1, -height_max, height_max])
+        #     # [-1, 1, -height_max/4, height_max/4])
+        # transforms = [CompositionTransform([transform, final_transform])
+        #               for transform in transforms]
 
+        # transforms = [transforms[4], transforms[6]]
+        transforms = [transforms[5], transforms[7]]
+        # transforms = [transforms[8], transforms[11]]
+        # transforms = [transforms[2], transforms[3]]
+        self._nsubdomains = 2
+        self._ninterfaces = 1
+        # transforms = [transforms[1], transforms[2], transforms[3],
+        #               transforms[4], transforms[6]]
+        # self._nsubdomains = 5
+        # self._ninterfaces = 4
         return transforms
 
 

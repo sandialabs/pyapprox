@@ -310,6 +310,7 @@ class Transformed2DMeshBoundary(Canonical2DMeshBoundary):
     def normals(self, samples):
         if self._normal_fun is None:
             return super().normals(samples)
+        print(self._normal_fun, samples)
         normal_vals = torch.as_tensor(
             self._normal_fun(samples), dtype=torch.double)
         return normal_vals
