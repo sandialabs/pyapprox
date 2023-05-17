@@ -660,6 +660,36 @@ class TestPDECoupling(unittest.TestCase):
             self._check_transient_advection_diffusion_reaction(*test_case)
             ii += 1
 
+    def _check_integrate(self, decomp, orders):
+        def fun(xx):
+            return ((xx**2).sum(axis=0))[:, None]
+        
+        init_subdomain_model = partial(
+            init_steady_state_subdomain_model,
+            lambda x: torch.as_tensor(x[:1].T*0+1),
+            lambda x: torch.as_tensor(x[:1].T*0+1),
+            lambda x: torch.hstack(
+                (torch.ones((x.shape[1], 1)), torch.zeros((x.shape[1], 1)))),
+            orders, len(orders), lambda x: x[:1].T*0)
+        decomp.init_subdomains(init_subdomain_model)
+
+        
+        subdomain_vals = [fun(m.physics.mesh.mesh_pts) for m in
+                          decomp._subdomain_models]
+        integral = decomp.integrate(subdomain_vals)
+        print(integral)
+
+    def test_integrate(self):
+        orders = [5, 5]
+        test_cases = [
+            [OneDDomainDecomposition([0, 2], 3, 1, None), orders],
+            [RectangularDomainDecomposition(
+                [0, 2, 0, 2], [2, 2], np.min(orders)-1, None), orders]
+        ]
+        
+        for test_case in test_cases:
+            self._check_integrate(*test_case)
+
 
 if __name__ == "__main__":
     pde_coupling_test_suite = \

@@ -1824,7 +1824,8 @@ class GreedyVarianceOfMeanSampler(object):
     def __init__(self, num_vars, nquad_samples,
                  ncandidate_samples, generate_random_samples, variable=None,
                  use_gauss_quadrature=False, econ=True,
-                 compute_cond_nums=False, nugget=0, candidate_samples=None):
+                 compute_cond_nums=False, nugget=0, candidate_samples=None,
+                 quadrature_rule=None):
         self.nvars = num_vars
         self.nquad_samples = nquad_samples
         self.variable = variable
@@ -1833,6 +1834,8 @@ class GreedyVarianceOfMeanSampler(object):
         self.generate_random_samples = generate_random_samples
         self.use_gauss_quadrature = use_gauss_quadrature
         self.econ = econ
+        if quadrature_rule is None:
+            self._quadrature_rule = self._monte_carlo_quadrature
 
         if candidate_samples is None:
             self.candidate_samples = self._generate_candidate_samples(
@@ -1849,6 +1852,11 @@ class GreedyVarianceOfMeanSampler(object):
         self.initialize()
         self.best_obj_vals = []
         self.pred_samples = None
+
+    def _monte_carlo_quadrature(self):
+        xx = self.generate_random_samples(self.nquad_samples)
+        ww = np.ones(xx.shape[1])/xx.shape[1]
+        return xx, ww
 
     def _generate_candidate_samples(self, ncandidate_samples):
         return generate_gp_candidate_samples(
@@ -1871,10 +1879,9 @@ class GreedyVarianceOfMeanSampler(object):
     #         train_samples).mean()
 
     def precompute_monte_carlo(self):
-        self.pred_samples = self.generate_random_samples(
-            self.nquad_samples)
-        k = self.kernel(self.pred_samples.T, self.candidate_samples.T)
-        self.tau = k.mean(axis=0)
+        xx, ww = self._quadrature_rule()
+        k = self.kernel(xx.T, self.candidate_samples.T)
+        self.tau = (ww[:, None]*k).sum(axis=0)
         assert self.tau.shape[0] == self.candidate_samples.shape[1]
 
         # Note because tau is simplified down to one integral instead of their
@@ -2061,7 +2068,10 @@ class GreedyVarianceOfMeanSampler(object):
         self.kernel = kernel
         self.base_kernel = extract_covariance_kernel(
             self.kernel, [RBF, Matern], view=True)
-        assert isinstance(self.base_kernel, RBF) or self.base_kernel.nu == np.inf
+        if not (isinstance(self.base_kernel, RBF) or
+                self.base_kernel.nu == np.inf) and self.use_gauss_quadrature:
+            msg = "kernel {0} not supported".format(kernel)
+            raise ValueError(msg)
 
         self.kernels_1d = kernels_1d
         if self.kernels_1d is None and self.use_gauss_quadrature:
@@ -2222,10 +2232,10 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         return P
 
     def precompute_monte_carlo(self):
-        self.pred_samples = self.generate_random_samples(
-            self.nquad_samples)
-        ww = np.ones(self.pred_samples.shape[1])/self.pred_samples.shape[1]
-        self.P = self._precompute_quadrature(self.pred_samples, ww)
+        xx, ww = self._quadrature_rule()
+        assert ww.ndim == 1
+        self.pred_samples = xx
+        self.P = self._precompute_quadrature(xx, ww)
 
     def precompute_gauss_quadrature(self):
         self.degrees = [self.nquad_samples]*self.nvars

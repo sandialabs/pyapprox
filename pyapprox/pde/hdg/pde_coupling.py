@@ -8,6 +8,8 @@ from pyapprox.surrogates.interp.barycentric_interpolation import (
     compute_barycentric_weights_1d, univariate_lagrange_polynomial)
 from pyapprox.pde.autopde.mesh import CanonicalCollocationMesh
 from pyapprox.pde.autopde.util import newton_solve
+from pyapprox.util.utilities import cartesian_product, outer_product
+from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 
 
 class SubdomainInterface(ABC):
@@ -556,6 +558,32 @@ class AbstractDomainDecomposition(ABC):
     @abstractmethod
     def interface_mesh(self):
         raise NotImplementedError()
+
+    def subdomain_quadrature_data(self):
+        subdomain_rules = []
+        for ii, model in enumerate(self._subdomain_models):
+            # xx, ww = [], []
+            # for order in self.orders:
+            #     x, w = gauss_jacobi_pts_wts_1D(order+2)[0]
+            #     xx.append(x)
+            #     ww.append(w)
+            # orth_xx, orth_ww = cartesian_product(xx), outer_product(ww)
+            # xx = model.physics.mesh.transform.map_from_orthogonal(orth_xx)
+            # ww = model.physics.mesh.transform.modify_quadrature_weights(
+            #     orth_xx, orth_ww)
+            subdomain_rules.append(model.physics.mesh._get_quadrature_rule())
+        return subdomain_rules
+
+    def integrate(self, subdomain_vals):
+        val = 0
+        # subdomain_quad_data = self.subdomain_quadrature_data()
+        for ii, quad_data in enumerate(subdomain_quad_data):
+            # interp_vals = self._subdomain_models[ii].physics.mesh.interpolate(
+            #     subdomain_vals[ii],  quad_data[0])
+            # val += interp_vals.dot(quad_data[0])
+            val += self._subdomain_models[ii].physics.mesh.integrate(
+                subdomain_vals[ii])
+        return val
 
 
 class OneDDomainDecomposition(AbstractDomainDecomposition):
