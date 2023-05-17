@@ -1135,11 +1135,14 @@ from pyapprox.pde.autopde.mesh_transforms import (
     CompositionTransform, ScaleAndTranslationTransform, EllipticalTransform,
     SympyTransform, PolarTransform)
 class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
-    def __init__(self, ninterface_dof):
+    def __init__(self, ninterface_dof, height_max=0.25, length=1):
         super(). __init__()
         self._nsubdomains = 13
         self._ninterfaces = 14
         self._ninterface_dof = ninterface_dof
+        # max height from y=0 axis
+        self._height_max = height_max
+        self._length = length
 
     # @staticmethod
     # def _get_elliptical_nose_subdomain(width_max, height_max, thickness_ratio):
@@ -1185,29 +1188,30 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
         a check in the code (I can test for it though - the probelm manifests
         itself by making residual non zero when using exact dirichlet vals)
         """
-        width_max = 1.0  # half length of turbine
-        height_max = 0.25  # total height of turbine
+        width_max = 1.0
+        height_max = self._height_max
         rmax = height_max
         thickness_ratio = 0.7
         rmin = rmax*thickness_ratio
+        # control length of front section left (of x=0) relative to
+        # length of right section
         scale = width_max/rmax
-        alpha, beta = 1.3, 0.1
+        # increasing alpha moves left side of first column towards front nose
+        # increasing beta moves moves right side of first column towards rear
+        alpha, beta = 1.6, 0.5
+        alpha, beta = 1.6, 0.3
+        # alpha, beta = 1, 0.4
         theta0 = alpha*np.pi/2
-        # transform_0 = self._get_polar_subdomain(
-        #     rmin, rmax, scale, 2*np.pi-theta0, theta0)
-        # transform_0._normal_sign = PolarTransform._normal_sign
         transform_0 = self._get_polar_subdomain(
             rmin, rmax, scale, theta0, 2*np.pi-theta0)
         theta1 = (alpha-beta)*np.pi/2
-        # transform_1 = self._get_polar_subdomain(
-        #     rmin, rmax, scale, theta0, theta1)
-        # transform_1._normal_sign = PolarTransform._normal_sign
         transform_1 = self._get_polar_subdomain(
             rmin, rmax, scale, theta1, theta0)
         surf_string = f"sqrt({rmin**2}-_r_**2)"
         bed_string = f"-sqrt({rmin**2}-_r_**2)"
         x0 = rmin*np.cos(theta0)
         x1 = rmin*np.cos(theta1)
+        print(x0, x1)
         transform_2 = CompositionTransform([
             self._get_subdomain(
                 surf_string, bed_string, x0, x1),
@@ -1215,22 +1219,14 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
                 [x0, x1, 0, 1],
                 [scale*x0, scale*x1, 0, 1])
             ])
-        # transform_3 = self._get_polar_subdomain(
-        #     rmin, rmax, scale, 2*np.pi-theta1, 2*np.pi-theta0)
-        # transform_3._normal_sign = PolarTransform._normal_sign
         transform_3 = self._get_polar_subdomain(
             rmin, rmax, scale, 2*np.pi-theta0, 2*np.pi-theta1)
-        # transform_4 = self._get_polar_subdomain(
-        #     rmin, rmax, scale, theta1, np.pi/2)
-        # transform_4._normal_sign = PolarTransform._normal_sign
         transform_4 = self._get_polar_subdomain(
             rmin, rmax, scale, np.pi/2, theta1)
-        # transform_5 = self._get_polar_subdomain(
-        #     rmin, rmax, scale, 2*np.pi-np.pi/2, 2*np.pi-theta1)
-        # transform_5._normal_sign = PolarTransform._normal_sign
         transform_5 = self._get_polar_subdomain(
              rmin, rmax, scale, 2*np.pi-theta1, 2*np.pi-np.pi/2)
-        x2 = width_max*0.2
+        # increasing x2 moves left side of second column towards rear
+        x2 = width_max*0.05
         x_end = 1.0*width_max
         delta = height_max/2
         surf_string = f"-{delta}/{x_end**2}*_r_**2+{rmax}"
@@ -1241,6 +1237,7 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
         bed_string_low = f"{delta}/{x_end**2}*_r_**2-{rmax}"
         transform_7 = self._get_subdomain(
                 surf_string_low, bed_string_low, 0, x2)
+        # increasing x3 moves right side of second column towards rear
         x3 = width_max*0.3
         transform_8 = self._get_subdomain(
                 surf_string, bed_string, x2, x3)
@@ -1257,13 +1254,11 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
             transform_4, transform_5, transform_6, transform_7,
             transform_8, transform_9, transform_10, transform_11, transform_12]
 
-        # final_transform = ScaleAndTranslationTransform(
-        #     [-1, 1, -height_max, height_max],
-        #     # [0, 1, -height_max/4, height_max/4])
-        #     # [0, 1, -height_max, height_max])
-        #     # [-1, 1, -height_max/4, height_max/4])
-        # transforms = [CompositionTransform([transform, final_transform])
-        #               for transform in transforms]
+        final_transform = ScaleAndTranslationTransform(
+            [-1, 1, -height_max, height_max],
+            [0, self._length, -height_max, height_max])
+        transforms = [CompositionTransform([transform, final_transform])
+                      for transform in transforms]
 
         # transforms = [transforms[4], transforms[6]]
         # transforms = [transforms[5], transforms[7]]

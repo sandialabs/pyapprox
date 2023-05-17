@@ -531,7 +531,7 @@ class TurbineBladeModel():
 
         ninterface_dof = np.min(self.orders)-1
         self._decomp_solver = SteadyStateDomainDecompositionSolver(
-            TurbineDomainDecomposition(ninterface_dof))
+            TurbineDomainDecomposition(ninterface_dof, 0.05, 1.0))
         self._decomp_solver._decomp.init_subdomains(
             partial(init_steady_turbine_subdomain_model,
                     self._decomp_solver._decomp, self.orders))
@@ -564,11 +564,12 @@ class TurbineBladeModel():
         ]
 
     def _exterior_bndry_fun(self, xx):
-        zz = (xx[0]+1)/2
-        # zz = xx[0]
-        vals = (self._h_te+(self._h_le-self._h_te)*np.exp(-5*zz))[:, None]
-        assert vals.max() <= self._h_le and vals.min() >= self._h_te
-        return vals
+        zz = xx[0]
+        length = self._decomp_solver._decomp._length
+        slope = (self._h_te-self._h_le)/length
+        vals = slope*zz+self._h_le
+        # assert vals.max() <= self._h_le and vals.min() >= self._h_te
+        return vals[:, None]
 
     def _passage1_bndry_fun(self, xx):
         return np.full((xx.shape[1], 1), self._t_c1)
