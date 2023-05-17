@@ -267,15 +267,27 @@ def outer_product(input_sets, axis=0):
     # return result
 
 
-def unique_matrix_rows(matrix):
-    unique_rows = []
+def unique_matrix_row_indices(matrix):
+    unique_row_indices = []
     unique_rows_set = set()
     for ii in range(matrix.shape[0]):
         key = hash_array(matrix[ii, :])
         if key not in unique_rows_set:
             unique_rows_set.add(key)
-            unique_rows.append(matrix[ii, :])
-    return np.asarray(unique_rows)
+            unique_row_indices.append(ii)
+    return np.array(unique_row_indices)
+
+
+def unique_matrix_rows(matrix):
+    return matrix[unique_matrix_row_indices(matrix)]
+    # unique_rows = []
+    # unique_rows_set = set()
+    # for ii in range(matrix.shape[0]):
+    #     key = hash_array(matrix[ii, :])
+    #     if key not in unique_rows_set:
+    #         unique_rows_set.add(key)
+    #         unique_rows.append(matrix[ii, :])
+    # return np.asarray(unique_rows)
 
 
 def remove_common_rows(matrices):

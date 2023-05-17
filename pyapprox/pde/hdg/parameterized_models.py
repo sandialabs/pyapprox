@@ -638,3 +638,10 @@ class TurbineBladeModel():
     def __call__(self, samples, return_grad=False):
         return evaluate_1darray_function_on_2d_array(
             self._eval, samples, return_grad=return_grad)
+
+    def _get_mesh(self):
+        mesh_grid = []
+        for model in self._decomp_solver._decomp._subdomain_models:
+            mesh_grid.append(model.physics.mesh.mesh_pts)
+        mesh_grid = np.hstack(mesh_grid)
+        return mesh_grid

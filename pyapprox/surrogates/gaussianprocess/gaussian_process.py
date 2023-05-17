@@ -2216,19 +2216,16 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         self.L_inv = np.zeros((0, 0))
         self.A_inv = np.zeros((0, 0))
 
+    def _precompute_quadrature(self, xx, ww):
+        K = self.kernel(xx.T, self.candidate_samples.T)
+        P = K.T.dot(ww[:, np.newaxis]*K)
+        return P
+
     def precompute_monte_carlo(self):
         self.pred_samples = self.generate_random_samples(
             self.nquad_samples)
-        # lscale = self.kernel.length_scale
-        # if np.isscalar(lscale):
-        #    lscale = np.array([lscale]*self.nvars)
-        # dist_func = partial(cdist, metric='sqeuclidean')
-        # dists_x1_xtr = dist_func(
-        #    self.pred_samples.T/lscale, self.candidate_samples.T/lscale)
-        # K = np.exp(-.5*dists_x1_xtr)
-        K = self.kernel(self.pred_samples.T, self.candidate_samples.T)
         ww = np.ones(self.pred_samples.shape[1])/self.pred_samples.shape[1]
-        self.P = K.T.dot(ww[:, np.newaxis]*K)
+        self.P = self._precompute_quadrature(self.pred_samples, ww)
 
     def precompute_gauss_quadrature(self):
         self.degrees = [self.nquad_samples]*self.nvars
