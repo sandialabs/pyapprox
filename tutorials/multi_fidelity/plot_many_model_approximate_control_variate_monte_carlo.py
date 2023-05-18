@@ -254,7 +254,7 @@ for ii in range(len(cv_gammas)):
 plt.axhline(y=1, linestyle='--', c='k')
 plt.text(xloc, 1, r'$\mathrm{MC}$', fontsize=16)
 
-acv_labels = mathrm_labels(["MLMC", "MFMC", "ACVMF"])
+est_labels = mathrm_labels(["MLMC", "MFMC", "ACVMF"])
 estimators = [
     multifidelity.get_estimator("mlmc", cov, model_costs, poly_model.variable),
     multifidelity.get_estimator("mfmc", cov, model_costs, poly_model.variable),
@@ -267,9 +267,9 @@ acv_gammas = np.empty((nplot_points, len(acv_rsquared_funcs)))
 for ii in range(nplot_points):
     nsample_ratios = np.array([r*(2**ii) for r in nsample_ratios_base])
     acv_gammas[ii, :] = [1-f(cov, nsample_ratios) for f in acv_rsquared_funcs]
-for ii in range(len(acv_labels)):
+for ii in range(len(est_labels)):
     plt.semilogy(np.arange(nplot_points), acv_gammas[:, ii],
-                 label=acv_labels[ii])
+                 label=est_labels[ii])
 plt.legend()
 plt.xlabel(r'$\log_2(r_i)-i$')
 _ = plt.ylabel(mathrm_label("Variance reduction ratio ")+r"$\gamma$")
@@ -288,7 +288,7 @@ _ = plt.ylabel(mathrm_label("Variance reduction ratio ")+r"$\gamma$")
 
 
 plt.figure()
-cv_labels = [r'$\mathrm{OCV-1}$', r'$\mathrm{OCV-2}$', r'$\mathrm{OCV-4}$']
+cv_labels = mathrm_labels(["OCV-1", "OCV-2", "OCV-4"])
 cv_rsquared_funcs = [
     lambda cov: get_control_variate_rsquared(cov[:2, :2]),
     lambda cov: get_control_variate_rsquared(cov[:3, :3]),
@@ -299,37 +299,31 @@ for ii in range(len(cv_gammas)):
     plt.axhline(y=cv_gammas[ii], linestyle='--', c='k')
     plt.text(xloc, cv_gammas[ii]*1.1, cv_labels[ii], fontsize=16)
 plt.axhline(y=1, linestyle='--', c='k')
-plt.text(xloc, 1, r'$\mathrm{MC}$', fontsize=16)
+plt.text(xloc, 1, mathrm_label("MC"), fontsize=16)
 
 from pyapprox.multifidelity.monte_carlo_estimators import (
     get_acv_recursion_indices
 )
-acv_labels = mathrm_labels(["MLMC", "MFMC", "ACVMF", "ACVGMFB"])
+est_labels = mathrm_labels(["MLMC", "MFMC", "ACVMF", "ACVGMFB"])
 estimator_types = ["mlmc", "mfmc", "acvmf", "acvgmfb"]
 estimators = [
     multifidelity.get_estimator(t, cov, model_costs, poly_model.variable)
     for t in estimator_types]
-# acvgmf requires total cost so create wrappers of methods that do not
+# acvgmfb requires nhf_samples so create wrappers of that does not
+estimators[-1]._get_rsquared = partial(
+    estimators[-1]._get_rsquared_from_nhf_samples, nhf_samples)
 nplot_points = 20
 acv_gammas = np.empty((nplot_points, len(estimators)))
 for ii in range(nplot_points):
     nsample_ratios = np.array([r*(2**ii) for r in nsample_ratios_base])
-    target_cost = nhf_samples*model_costs[0]+nsample_ratios.dot(
-        model_costs[1:])*nhf_samples
-    acv_gammas[ii, :-1] = [1-est._get_rsquared(cov, nsample_ratios)
-                           for est in estimators[:-1]]
-    best_rsq = -np.inf
-    for index in get_acv_recursion_indices(cov.shape[0]):
-        estimators[-1].set_recursion_index(index)
-        rsq = estimators[-1]._get_rsquared(cov, nsample_ratios, target_cost)
-        best_rsq = max(best_rsq, rsq)
-    acv_gammas[ii, -1] = 1-best_rsq
-for ii in range(len(acv_labels)):
+    acv_gammas[ii, :] = [1-est._get_rsquared(cov, nsample_ratios)
+                         for est in estimators]
+for ii in range(len(est_labels)):
     plt.semilogy(np.arange(nplot_points), acv_gammas[:, ii],
-                 label=acv_labels[ii])
+                 label=est_labels[ii])
 plt.legend()
 plt.xlabel(r'$\log_2(r_i)-i$')
-_ = plt.ylabel(r'$\mathrm{Variance}$ $\mathrm{reduction}$ $\mathrm{ratio}$ $\gamma$')
+_ = plt.ylabel(mathrm_label('Variance reduction ratio ')+ r'$\gamma$')
 
 #%%
 #The variance of the best ACV-GMFB still converges to the lowest possible variance. But its variance at small sample sizes is better than ACV-MF  and comparable to MLMC.

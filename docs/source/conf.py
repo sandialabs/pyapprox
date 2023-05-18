@@ -74,6 +74,7 @@ example_filenames_in_order = [
     'plot_multi_level_monte_carlo.py',
     'plot_multi_fidelity_monte_carlo.py',
     'plot_many_model_approximate_control_variate_monte_carlo.py',
+    'plot_multilevel_blue.py',
     'plot_gaussian_mfnets.py',
     'plot_multifidelity_gp.py'
 ]

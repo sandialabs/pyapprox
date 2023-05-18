@@ -1194,10 +1194,10 @@ def get_generalized_approximate_control_variate_weights(
     try:
         weights = get_approximate_control_variate_weights(CF, cf)
     except np.linalg.LinAlgError as err:
-        print("linalgerror: acv weights failed")
+        # print("linalgerror: acv weights failed")
         weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
     except RuntimeError as err:
-        print("runtime: acv weights failed")
+        # print("runtime: acv weights failed")
         weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
     return weights, cf
 
@@ -1443,8 +1443,8 @@ def allocate_samples_acv(cov, costs, target_cost, estimator,
         estimator, costs, target_cost, initial_guess, optim_options, cons)
     nsample_ratios = opt.x
     if not opt.success:# or opt.nit == 1: nit will be 1 if using only two models
-        for con in cons:
-            print(con['fun'], con['fun'](opt.x, *con['args']))
+        # for con in cons:
+        #     print(con['fun'], con['fun'](opt.x, *con['args']))
         raise RuntimeError('SLSQP optimizer failed'+f'{opt}')
         # var = 1e99
         # log10_var = 99

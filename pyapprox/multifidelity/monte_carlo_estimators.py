@@ -834,6 +834,16 @@ class ACVGMFBEstimator(ACVGMFEstimator):
         self.set_optimized_params(*best_result[:3])
         return best_result[:3]
 
+    def _get_rsquared_from_nhf_samples(self, nhf_samples, cov, nsample_ratios):
+        target_cost = nhf_samples*self.costs[0]+nsample_ratios.dot(
+            self.costs[1:])*nhf_samples
+        best_rsq = -np.inf
+        for index in get_acv_recursion_indices(cov.shape[0]):
+            self.set_recursion_index(index)
+            rsq = super()._get_rsquared(cov, nsample_ratios, target_cost)
+            best_rsq = max(best_rsq, rsq)
+        return best_rsq
+
 
 class ACVMFEstimator(AbstractNumericalACVEstimator):
     def _get_rsquared(self, cov, nsample_ratios):
@@ -1128,7 +1138,7 @@ def plot_estimator_variances(optimized_estimators,
 
     relative_id the model id used to normalize variance
     """
-    linestyles = ['-', '--', ':', '-.', (0, (5, 10))]
+    linestyles = ['-', '--', ':', '-.', (0, (5, 10)), '-']
     nestimators = len(est_labels)
     est_variances = []
     for ii in range(nestimators):
@@ -1137,12 +1147,13 @@ def plot_estimator_variances(optimized_estimators,
         est_variances.append(np.array(
             [est.optimized_variance for est in optimized_estimators[ii]]))
     for ii in range(nestimators):
+        print(est_labels[ii], nestimators)
         ax.loglog(est_total_costs,
                   est_variances[ii]/est_variances[relative_id][0],
                   label=est_labels[ii], ls=linestyles[ii], marker='o')
     if ylabel is None:
-        ylabel = r'$\mathrm{Estimator\;variance}$'
-    ax.set_xlabel(r'$\mathrm{Target\;cost}$')
+        ylabel = mathrm_label("Estimator variance")
+    ax.set_xlabel(mathrm_label("Target cost"))
     ax.set_ylabel(ylabel)
     ax.legend()
 
@@ -1217,13 +1228,16 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         self.nsamples_per_subset, self.optimized_variance = None, None
         self.rounded_target_cost = None
 
-    def allocate_samples(self, target_cost, asketch,
+    def allocate_samples(self, target_cost, asketch=None,
                          constraint_reg=0, round_nsamples=True):
         """
         Parameters
         ----------
         """
         nmodels = len(self.costs)
+        if asketch is None:
+            asketch = np.zeros((nmodels, 1))
+            asketch[0] = 1.0
         assert asketch.shape[0] == self.costs.shape[0]
         init_guess = np.full(2**nmodels-1, (1/(2**nmodels-1)))
         obj = partial(BLUE_variance, asketch, self.cov,
@@ -1260,7 +1274,6 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         self.optimized_variance = BLUE_variance(
             asketch, self.cov, None, self._reg_blue,
             self.nsamples_per_subset)
-        print(self.optimized_variance, variance/target_cost)
         self.rounded_target_cost = rounded_target_cost
         self.subsets = subsets
         return nsamples_per_subset, variance, rounded_target_cost
@@ -1304,6 +1317,43 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
                 perturbed_vals.append(values[jj][indices])
             means[ii] = self._estimate(perturbed_vals, asketch)
         return means
+
+    def _get_rsquared_from_nhf_samples(self, nhf_samples, cov, nsample_ratios):
+        # WARNING
+        # this only works for fully coupled BLUEs defined in Section 5.5
+        # of the paper 'On multilevel best linear unbiased estimators'
+        nmodels = cov.shape[0]
+
+        # compute active subsets of fully coupled BLUEs
+        active_subsets = [
+            np.arange(nmodels)[ii:] for ii in range(nmodels)]
+        subsets = get_model_subsets(nmodels)
+        active_subset_indices = []
+        for subset in active_subsets:
+            for ii, s in enumerate(subsets):
+                if s.shape[0] == len(subset) and np.allclose(s, subset):
+                    active_subset_indices.append(ii)
+                    break
+        active_subset_indices = np.asarray(active_subset_indices)
+
+        # convert nsample_ratios into nsamples_per_subset
+        nsamples_per_subset = np.zeros(len(subsets))
+        nlf_model_samples = nsample_ratios*nhf_samples
+        nsamples_per_subset[active_subset_indices] = np.hstack(
+            (nhf_samples, nlf_model_samples[0]-nhf_samples,
+             np.diff(nlf_model_samples)))
+
+        # define asketch that targets estimation of only the high-fidelity
+        # model
+        asketch = np.zeros((nmodels, 1))
+        asketch[0] = 1.0
+
+        # estimate the variance reduction relative to single-fidelity MC
+        mlblue_variance = BLUE_variance(
+            asketch, cov, None, self._reg_blue, nsamples_per_subset)
+        mc_variance = cov[0, 0]/nhf_samples
+        gamma = mlblue_variance/mc_variance
+        return 1-gamma
 
 
 class AETCBLUE():
