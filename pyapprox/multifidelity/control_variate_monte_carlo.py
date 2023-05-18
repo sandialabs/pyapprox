@@ -1340,26 +1340,26 @@ def get_acv_initial_guess(initial_guess, cov, costs, target_cost):
     nmodels = len(costs)
     return np.arange(2, nmodels+1)
 
-    # nmodels = cov.shape[0]
-    # nratios = np.empty(nmodels-1)
-    # for ii in range(1, nmodels):
-    #     idx = np.array([0, ii])
-    #     nratio = allocate_samples_mfmc(
-    #         cov[np.ix_(idx, idx)], costs[idx], target_cost)[0]
-    #     nratios[ii-1] = nratio
+    # # nmodels = cov.shape[0]
+    # # nratios = np.empty(nmodels-1)
+    # # for ii in range(1, nmodels):
+    # #     idx = np.array([0, ii])
+    # #     nratio = allocate_samples_mfmc(
+    # #         cov[np.ix_(idx, idx)], costs[idx], target_cost)[0]
+    # #     nratios[ii-1] = nratio
 
-    # scale ratios so that nhf_samples is one
-    nhf_samples = 1
-    # use (1-1e-8) to avoid numerical precision problems so that
-    # acv_sample_allocation_nhf_samples_constraint is always positive
-    delta = (target_cost*(1-1e-8) - costs[0]*nhf_samples)/nratios.dot(
-        costs[1:])
-    initial_guess = np.array(nratios)*delta
+    # # scale ratios so that nhf_samples is one
+    # nhf_samples = 1
+    # # use (1-1e-8) to avoid numerical precision problems so that
+    # # acv_sample_allocation_nhf_samples_constraint is always positive
+    # delta = (target_cost*(1-1e-8) - costs[0]*nhf_samples)/nratios.dot(
+    #     costs[1:])
+    # initial_guess = np.array(nratios)*delta
 
-    constraint_val = acv_sample_allocation_nhf_samples_constraint(
-        initial_guess, target_cost, costs)
-    if constraint_val < 0:
-        raise ValueError("Not a feasiable initial guess")
+    # constraint_val = acv_sample_allocation_nhf_samples_constraint(
+    #     initial_guess, target_cost, costs)
+    # if constraint_val < 0:
+    #     raise ValueError("Not a feasiable initial guess")
 
     return initial_guess
 
@@ -1562,7 +1562,7 @@ def compute_covariance_from_control_variate_samples(values):
 
 
 def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
-                            format_string='{:1.3f}'):
+                            format_string='{:1.3f}', cmap="jet"):
     """
     Plot a correlation matrix
 
@@ -1574,7 +1574,7 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
     from pyapprox.util.configure_plots import plt
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-    im = ax.matshow(corr_matrix, cmap="jet", aspect="auto")
+    im = ax.matshow(corr_matrix, cmap=cmap, aspect="auto")
     for (i, j), z in np.ndenumerate(corr_matrix):
         ax.text(j, i, format_string.format(z), ha='center', va='center',
                 fontsize=12, color='w')
@@ -1682,6 +1682,7 @@ def round_nsample_ratios(target_cost, costs, nsample_ratios):
     nsamples_floor = nsamples_float.astype(int)
     # ensure all low-fidelity samples > nhf_samples after rounding
     if nsamples_floor[0] < 1 and nsamples_float[0] < 1-1e-8:
+        # print(nsample_ratios)
         # print(nsamples_floor[0], nsamples_float[0], nsamples_float[0]-1, costs)
         raise RuntimeError("Rounding likely caused nhf samples to be zero")
     elif nsamples_floor[0] < 1:

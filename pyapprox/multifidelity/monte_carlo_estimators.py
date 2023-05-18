@@ -154,6 +154,13 @@ class AbstractMonteCarloEstimator(ABC):
         """
         return self._estimate(values, *args)
 
+    def __repr__(self):
+        if self.optimized_variance is None:
+            return "{0}".format(self.__class__.__name__)
+        return "{0}(variance={1:.3g}, target_cost={2:.3g})".format(
+            self.__class__.__name__, self.optimized_variance,
+            self.rounded_target_cost)
+
 
 class AbstractACVEstimator(AbstractMonteCarloEstimator):
 
@@ -710,9 +717,24 @@ class AbstractNumericalACVEstimator(AbstractACVEstimator):
 
     def _allocate_samples(self, target_cost, **kwargs):
         cons = self.get_constraints(target_cost)
-        return allocate_samples_acv(
+
+        opt = allocate_samples_acv(
             self.cov_opt, self.costs, target_cost, self,  cons,
             initial_guess=self.initial_guess)
+
+        if check_mfmc_model_costs_and_correlations(
+                self.costs, get_correlation_from_covariance(self.cov)):
+            mfmc_initial_guess = allocate_samples_mfmc(
+                self.cov_opt, self.costs, target_cost)[0]
+            opt_mfmc = allocate_samples_acv(
+                self.cov_opt, self.costs, target_cost, self, cons,
+                initial_guess=mfmc_initial_guess)
+            #print(opt[1], opt_mfmc[1])
+            if opt_mfmc[1] < opt[1]:
+                # print("using mfmc initial guess")
+                opt = opt_mfmc
+
+        return opt
 
     def get_constraints(self, target_cost):
         cons = [{'type': 'ineq',
@@ -808,6 +830,14 @@ class ACVGMFEstimator(AbstractNumericalACVEstimator):
         return reorder_allocation_matrix_acvgmf(
             self.allocation_mat, self.nsamples_per_model, self.recursion_index)
 
+    def __repr__(self):
+        if self.optimized_variance is None:
+            return "{0}".format(self.__class__.__name__)
+        return (
+            "{0}(variance={1:.3g}, target_cost={2:.3g}, recursion={3})".format(
+                self.__class__.__name__, self.optimized_variance,
+                self.rounded_target_cost, self.recursion_index))
+
 
 class ACVGMFBEstimator(ACVGMFEstimator):
     def __init__(self, cov, costs, variable, tree_depth=None,
@@ -830,6 +860,8 @@ class ACVGMFBEstimator(ACVGMFEstimator):
                 best_result = [self.nsample_ratios, self.rounded_target_cost,
                                self.optimized_variance, index]
                 best_variance = self.optimized_variance
+        if best_result is None:
+            raise RuntimeError("No solutions were found")
         self.set_recursion_index(best_result[3])
         self.set_optimized_params(*best_result[:3])
         return best_result[:3]
@@ -931,15 +963,65 @@ def get_best_models_for_acv_estimator(
             if "tree_depth" in kwargs:
                 kwargs["tree_depth"] = min(
                     kwargs["tree_depth"], nsubset_lfmodels)
-            est = get_estimator(
-                estimator_type, subset_cov, subset_costs, variable, **kwargs)
-            est.allocate_samples(target_cost)
+            try:
+                est = get_estimator(
+                    estimator_type, subset_cov, subset_costs, variable,
+                    **kwargs)
+            except ValueError:
+                # Some estiamtors e.g. MFMC fail when certain criteria are
+                # not satisfied
+                continue
+            try:
+                est.allocate_samples(target_cost)
+                if est.optimized_variance < best_variance:
+                    best_est = est
+                    best_model_indices = idx
+                    best_variance = est.optimized_variance
+            except (RuntimeError, ValueError):
+                # print(e)
+                continue
             # print(idx, est.optimized_variance)
-            if est.optimized_variance < best_variance:
-                best_est = est
-                best_model_indices = idx
-                best_variance = est.optimized_variance
     return best_est, best_model_indices
+
+
+class BestModelSubsetEstimator():
+    def __init__(self, estimator_type, cov, costs, variable,
+                 max_nmodels, **kwargs):
+        self.estimator_type = estimator_type
+        self.cov, self.costs, self.variable = cov, costs, variable
+        self.max_nmodels = max_nmodels
+        self.kwargs = kwargs
+
+        self.optimized_variance = None
+        self.rounded_target_cost = None
+        self.best_est = None
+        self.best_model_indices = None
+
+    def allocate_samples(self, target_cost):
+        if self.estimator_type == "mc":
+            best_model_indices = np.array([0])
+            best_est = get_estimator(
+                self.estimator_type, self.cov[:1, :1],
+                self.costs[:1], self.variable, **self.kwargs)
+            best_est.allocate_samples(target_cost)
+
+        else:
+            best_est, best_model_indices = get_best_models_for_acv_estimator(
+                self.estimator_type, self.cov, self.costs, self.variable,
+                target_cost, self.max_nmodels, **self.kwargs)
+        self.optimized_variance = best_est.optimized_variance
+        self.rounded_target_cost = best_est.rounded_target_cost
+        self.best_est = best_est
+        self.best_model_indices = best_model_indices
+
+    def __repr__(self):
+        if self.optimized_variance is None:
+            return "{0}".format(self.__class__.__name__)
+        return "{0}(type={1}, variance={2:.3g}, target_cost={3:.3g}, subset={4})".format(
+            self.__class__.__name__, self.best_est.__class__.__name__,
+            self.optimized_variance, self.rounded_target_cost,
+            self.best_model_indices)
+
 
 
 def compute_single_fidelity_and_approximate_control_variate_mean_estimates(
@@ -1147,7 +1229,7 @@ def plot_estimator_variances(optimized_estimators,
         est_variances.append(np.array(
             [est.optimized_variance for est in optimized_estimators[ii]]))
     for ii in range(nestimators):
-        print(est_labels[ii], nestimators)
+        # print(est_labels[ii], nestimators)
         ax.loglog(est_total_costs,
                   est_variances[ii]/est_variances[relative_id][0],
                   label=est_labels[ii], ls=linestyles[ii], marker='o')
@@ -1251,7 +1333,8 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
              'jac': BLUE_cost_constraint_jac}]
         res = minimize(obj, init_guess, jac=True, method="SLSQP",
                        constraints=constraints)
-        assert res.success, res
+        if not res.success:
+            raise RuntimeError(f"optimization not successful {res}")
         variance = res["fun"]
         nsamples_per_subset_frac = np.maximum(
             np.zeros_like(res["x"]), res["x"])
@@ -1599,7 +1682,8 @@ monte_carlo_estimators = {"acvmf": ACVMFEstimator,
                           "mlblue": MLBLUEstimator}
 
 
-def get_estimator(estimator_type, cov, costs, variable, **kwargs):
+def get_estimator(estimator_type, cov, costs, variable, max_nmodels=None,
+                  **kwargs):
     """
     Initialize an monte-carlo estimator.
     """
@@ -1607,5 +1691,8 @@ def get_estimator(estimator_type, cov, costs, variable, **kwargs):
         msg = f"Estimator {estimator_type} not supported"
         msg += f"Must be one of {monte_carlo_estimators.keys()}"
         raise ValueError(msg)
-    return monte_carlo_estimators[estimator_type](
-        cov, costs, variable, **kwargs)
+    if max_nmodels is None:
+        return monte_carlo_estimators[estimator_type](
+            cov, costs, variable, **kwargs)
+    return BestModelSubsetEstimator(
+        estimator_type, cov, costs, variable, max_nmodels, **kwargs)
