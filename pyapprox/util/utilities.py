@@ -290,6 +290,17 @@ def unique_matrix_rows(matrix):
     # return np.asarray(unique_rows)
 
 
+def common_matrix_rows(matrix):
+    unique_rows_dict = dict()
+    for ii in range(matrix.shape[0]):
+        key = hash_array(matrix[ii, :])
+        if key not in unique_rows_dict:
+            unique_rows_dict[key] = [ii]
+        else:
+            unique_rows_dict[key].append(ii)
+    return unique_rows_dict
+
+
 def remove_common_rows(matrices):
     num_cols = matrices[0].shape[1]
     unique_rows_dict = dict()

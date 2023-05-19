@@ -333,6 +333,11 @@ class MeshKLE(object):
         assert nterms <= self.mesh_coords.shape[1]
         self.nterms = nterms
 
+        length_scale = np.atleast_1d(length_scale)
+        if length_scale.shape[0] == 1:
+            length_scale = np.full(self.mesh_coords.shape[0], length_scale[0])
+        assert length_scale.shape[0] == self.mesh_coords.shape[0]
+
         K = self.compute_kernel_matrix(length_scale)
         if self.quad_weights is None:
             eig_vals, eig_vecs = eigh(
@@ -348,6 +353,7 @@ class MeshKLE(object):
             eig_vals = sym_eig_vals
         eig_vecs = adjust_sign_eig(eig_vecs)
         II = np.argsort(eig_vals)[::-1][:self.nterms]
+        print(eig_vals[II])
         assert np.all(eig_vals[II] > 0)
         self.sqrt_eig_vals = np.sqrt(eig_vals[II])
         self.eig_vecs = eig_vecs[:, II]

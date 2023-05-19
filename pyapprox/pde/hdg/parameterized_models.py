@@ -4,6 +4,7 @@ import numpy as np
 from functools import partial
 import torch
 
+from pyapprox.util.utilities import common_matrix_rows
 from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
 from pyapprox.pde.autopde.mesh import TransformedCollocationMesh
 from pyapprox.pde.autopde.solvers import SteadyStatePDE, TransientPDE
@@ -19,6 +20,7 @@ from pyapprox.pde.galerkin.solvers import SteadyStatePDE as FEMSteadyStatePDE
 from skfem.visuals.matplotlib import plot, plt
 from skfem import MeshQuad
 from pyapprox.pde.galerkin.meshes import init_gappy
+from pyapprox.pde.karhunen_loeve_expansion import MeshKLE
 
 
 def full_fun_axis_0(fill_val, xx, oned=True):
@@ -525,7 +527,8 @@ def init_steady_turbine_subdomain_model(
 
 
 class TurbineBladeModel():
-    def __init__(self, orders, functional=None, height_max=0.05, length=1.0):
+    def __init__(self, orders, functional=None, height_max=0.05, length=1.0,
+                 kle_args=None):
         self.orders = orders
         self._functional = functional
 
@@ -544,6 +547,7 @@ class TurbineBladeModel():
             "endbottom": self._endbottom_bndry_cond,
             "endtop": self._endtop_bndry_cond
         }
+        self._kle, self._mesh_pts = self._init_kle(*kle_args)
 
     def _get_subdomain_bndry_dict(self):
         # return bndrys that are not interfaces
@@ -599,17 +603,40 @@ class TurbineBladeModel():
         zz[1] *= -1
         return self._endtop_bndry_cond(zz)
 
+    def _eval_kle_on_subdoman(self, kle_vals, xx):
+        assert xx.shape[1] == kle_vals.shape[0]
+        return torch.as_tensor(kle_vals)
+
+    def _get_mesh_pts_splits(self):
+        splits = [0]
+        for m in self._decomp_solver._decomp._subdomain_models:
+            ndof = m.physics.mesh.mesh_pts.shape[1]
+            splits.append(ndof+splits[-1])
+        splits = np.asarray(splits)[1:]
+        return splits
+
     def _set_random_sample(self, sample):
         assert sample.ndim == 1
-        assert sample.shape[0] >= 6
         self._t_c1, self._t_c2, self._t_c3, self._h_le, self._h_te = sample[:5]
         assert self._h_le >= self._h_te
-        thermal_conductivity = sample[5:]
+        self._thermal_conductivity = sample[5:]
+        if self._kle is None:
+            assert sample.shape[0] == 5 + 13
+        else:
+            assert sample.shape[0] == 5 + self._kle.nterms
+            splits = self._get_mesh_pts_splits()
+            kle_vals = np.split(
+                self._eval_kle(self._thermal_conductivity[:, None]), splits)
 
-        diff_fun = partial(
-            full_fun_axis_1, thermal_conductivity[0], oned=False)
         for subdomain_id, model in enumerate(
                 self._decomp_solver._decomp._subdomain_models):
+            if self._kle is None:
+                diff_fun = partial(
+                    full_fun_axis_1, self._thermal_conductivity[subdomain_id],
+                    oned=False)
+            else:
+                diff_fun = partial(
+                    self._eval_kle_on_subdoman, kle_vals[subdomain_id])
             model.physics._diff_fun = diff_fun
             model.physics._funs[0] = diff_fun
 
@@ -645,3 +672,31 @@ class TurbineBladeModel():
             mesh_grid.append(model.physics.mesh.mesh_pts)
         mesh_grid = np.hstack(mesh_grid)
         return mesh_grid
+
+    def _expand_unique_mesh_values(self, restricted_vals):
+        common_samples_dict = common_matrix_rows(self._mesh_pts.T)
+        expanded_vals = np.empty(
+            (self._mesh_pts.shape[1], restricted_vals.shape[1]))
+        kk = 0
+        for key, item in common_samples_dict.items():
+            expanded_vals[item] = restricted_vals[kk]
+            kk += 1
+        return expanded_vals
+
+    def _init_kle(self, *args):
+        print(args)
+        mesh_pts = self._get_mesh()
+        if len(args) == 0:
+            return None, mesh_pts
+
+        length_scale, sigma, nterms = args
+        self._common_mesh_pts_dict = common_matrix_rows(mesh_pts.T)
+        unique_indices = np.array(
+            [item[0] for key, item in self._common_mesh_pts_dict.items()])
+        kle = MeshKLE(mesh_pts[:, unique_indices], use_log=True)
+        kle.compute_basis(length_scale, sigma, nterms)
+        return kle, mesh_pts
+
+    def _eval_kle(self, sample):
+        return self._expand_unique_mesh_values(
+            self._kle(sample))
