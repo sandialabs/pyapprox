@@ -525,13 +525,13 @@ def init_steady_turbine_subdomain_model(
 
 
 class TurbineBladeModel():
-    def __init__(self, orders, functional=None):
+    def __init__(self, orders, functional=None, height_max=0.05, length=1.0):
         self.orders = orders
         self._functional = functional
 
         ninterface_dof = np.min(self.orders)-1
         self._decomp_solver = SteadyStateDomainDecompositionSolver(
-            TurbineDomainDecomposition(ninterface_dof, 0.05, 1.0))
+            TurbineDomainDecomposition(ninterface_dof, height_max, length))
         self._decomp_solver._decomp.init_subdomains(
             partial(init_steady_turbine_subdomain_model,
                     self._decomp_solver._decomp, self.orders))

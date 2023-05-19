@@ -12,8 +12,7 @@ from pyapprox.pde.hdg.pde_coupling import (
 from pyapprox.pde.autopde.physics import AdvectionDiffusionReaction
 from pyapprox.pde.autopde.solvers import SteadyStatePDE, TransientPDE
 from pyapprox.pde.autopde.mesh import (
-    CartesianProductCollocationMesh, TransformedCollocationMesh,
-    full_fun_axis_1)
+    CartesianProductCollocationMesh, TransformedCollocationMesh)
 from pyapprox.pde.autopde.tests.test_autopde import _get_boundary_funs
 from pyapprox.pde.autopde.solvers import (
     Function, TransientFunction)
@@ -21,8 +20,6 @@ from pyapprox.pde.autopde.solvers import (
 from pyapprox.util.utilities import cartesian_product, approx_jacobian
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution)
-
-import matplotlib.pyplot as plt
 
 
 def init_steady_state_subdomain_model(
@@ -661,6 +658,8 @@ class TestPDECoupling(unittest.TestCase):
             ii += 1
 
     def _check_integrate(self, decomp, orders):
+        nvars = len(orders)
+        print(orders)
         def fun(xx):
             return ((xx**2).sum(axis=0))[:, None]
         
@@ -669,24 +668,30 @@ class TestPDECoupling(unittest.TestCase):
             lambda x: torch.as_tensor(x[:1].T*0+1),
             lambda x: torch.as_tensor(x[:1].T*0+1),
             lambda x: torch.hstack(
-                (torch.ones((x.shape[1], 1)), torch.zeros((x.shape[1], 1)))),
+                [torch.zeros((x.shape[1], 1))]*nvars),
             orders, len(orders), lambda x: x[:1].T*0)
         decomp.init_subdomains(init_subdomain_model)
 
-        
         subdomain_vals = [fun(m.physics.mesh.mesh_pts) for m in
                           decomp._subdomain_models]
         integral = decomp.integrate(subdomain_vals)
-        print(integral)
+        bb = np.reshape(decomp._bounds, (nvars, 2))
+        if nvars == 1:
+            true_integral = (bb[0][1]**3/3-bb[0][0]**3/3)
+        else:
+            true_integral = (
+                (bb[0][1]**3/3-bb[0][0]**3/3)*(bb[1][1]-bb[1][0]) +
+                (bb[1][1]**3/3-bb[1][0]**3/3)*(bb[0][1]-bb[0][0]))
+        assert np.allclose(true_integral, integral)
 
     def test_integrate(self):
         orders = [5, 5]
         test_cases = [
-            [OneDDomainDecomposition([0, 2], 3, 1, None), orders],
+            [OneDDomainDecomposition([0, 2], 3, 1, None), [5]],
             [RectangularDomainDecomposition(
-                [0, 2, 0, 2], [2, 2], np.min(orders)-1, None), orders]
+                [0, 2, 1, 2], [2, 2], np.min(orders)-1, None), orders]
         ]
-        
+
         for test_case in test_cases:
             self._check_integrate(*test_case)
 

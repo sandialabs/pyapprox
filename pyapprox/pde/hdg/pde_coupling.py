@@ -562,27 +562,16 @@ class AbstractDomainDecomposition(ABC):
     def subdomain_quadrature_data(self):
         subdomain_rules = []
         for ii, model in enumerate(self._subdomain_models):
-            # xx, ww = [], []
-            # for order in self.orders:
-            #     x, w = gauss_jacobi_pts_wts_1D(order+2)[0]
-            #     xx.append(x)
-            #     ww.append(w)
-            # orth_xx, orth_ww = cartesian_product(xx), outer_product(ww)
-            # xx = model.physics.mesh.transform.map_from_orthogonal(orth_xx)
-            # ww = model.physics.mesh.transform.modify_quadrature_weights(
-            #     orth_xx, orth_ww)
             subdomain_rules.append(model.physics.mesh._get_quadrature_rule())
         return subdomain_rules
 
     def integrate(self, subdomain_vals):
         val = 0
-        # subdomain_quad_data = self.subdomain_quadrature_data()
+        subdomain_quad_data = self.subdomain_quadrature_data()
         for ii, quad_data in enumerate(subdomain_quad_data):
-            # interp_vals = self._subdomain_models[ii].physics.mesh.interpolate(
-            #     subdomain_vals[ii],  quad_data[0])
-            # val += interp_vals.dot(quad_data[0])
-            val += self._subdomain_models[ii].physics.mesh.integrate(
-                subdomain_vals[ii])
+            interp_vals = self._subdomain_models[ii].physics.mesh.interpolate(
+                subdomain_vals[ii],  quad_data[0])
+            val += np.asarray(interp_vals[:, 0]).dot(quad_data[1])
         return val
 
 
@@ -1239,7 +1228,6 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
         bed_string = f"-sqrt({rmin**2}-_r_**2)"
         x0 = rmin*np.cos(theta0)
         x1 = rmin*np.cos(theta1)
-        print(x0, x1)
         transform_2 = CompositionTransform([
             self._get_subdomain(
                 surf_string, bed_string, x0, x1),
@@ -1299,6 +1287,32 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
         # self._nsubdomains = 5
         # self._ninterfaces = 4
         return transforms
+
+    def rvs(self, nsamples, batchsize=100, return_acceptance_rate=False):
+        # randomly generate samples inside domain
+        from pyapprox.variables.joint import (IndependentMarginalsVariable,
+                                              stats)
+        variable = IndependentMarginalsVariable(
+            [stats.uniform(0., self._length),
+             stats.uniform(-self._height_max, 2*self._height_max)])
+        samples = np.empty((2, nsamples))
+        idx1 = 0
+        niters = 0
+        accepted = 0
+        while True:
+            candidates = variable.rvs(batchsize)
+            mask = np.hstack(self._in_subdomains(candidates))
+            idx2 = min(idx1+mask.shape[0], nsamples)
+            samples[:, idx1:idx2] = candidates[:, mask[:idx2-idx1]]
+            idx1 = idx2
+            accepted += mask.shape[0]
+            niters += 1
+            if idx2 == nsamples:
+                break
+        if not return_acceptance_rate:
+            return samples
+        acceptance_rate = accepted/(batchsize*niters)
+        return samples, acceptance_rate
 
 
 class GappyRectangularDomainDecomposition(RectangularDomainDecomposition):

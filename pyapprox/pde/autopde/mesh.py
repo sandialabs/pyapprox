@@ -553,7 +553,6 @@ class CanonicalCollocationMesh():
     def _plot_data_2d(self, mesh_values, nplot_pts_1d=100):
         X, Y, pts = self._create_plot_mesh_2d(nplot_pts_1d)
         Z = self._interpolate(mesh_values, pts)
-        print(Z.shape, pts.shape, nplot_pts_1d, mesh_values.shape)
         return Z, X, Y, pts
 
     def _plot_from_data_2d(self, Z, X, Y, pts, ax, levels=20,

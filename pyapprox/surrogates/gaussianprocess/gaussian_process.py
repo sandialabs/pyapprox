@@ -1762,7 +1762,7 @@ class IVARSampler(object):
         res = minimize(self.objective, init_guess, jac=jac,
                        method='L-BFGS-B', options=self.optim_opts,
                        bounds=self.bounds)
-        print(res)
+        # print(res)
 
         new_samples = res.x.reshape(
             (self.nvars, res.x.shape[0]//self.nvars), order='F')
@@ -1836,6 +1836,8 @@ class GreedyVarianceOfMeanSampler(object):
         self.econ = econ
         if quadrature_rule is None:
             self._quadrature_rule = self._monte_carlo_quadrature
+        else:
+            self._quadrature_rule = quadrature_rule
 
         if candidate_samples is None:
             self.candidate_samples = self._generate_candidate_samples(
