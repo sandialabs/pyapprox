@@ -848,7 +848,7 @@ class PoolModel(object):
 
 
 def get_active_set_model_from_variable(function, variable, active_var_indices,
-                                       nominal_values):
+                                       nominal_values, base_model=None):
     from pyapprox.variables.joint import IndependentMarginalsVariable
     active_variable = IndependentMarginalsVariable(
         [variable.marginals()[ii] for ii in active_var_indices])
@@ -856,7 +856,8 @@ def get_active_set_model_from_variable(function, variable, active_var_indices,
     mask[active_var_indices] = False
     inactive_var_values = nominal_values[mask]
     model = ActiveSetVariableModel(
-        function, variable.num_vars(), inactive_var_values, active_var_indices)
+        function, variable.num_vars(), inactive_var_values, active_var_indices,
+        base_model=base_model)
     return model, active_variable
 
 
@@ -882,6 +883,7 @@ class ActiveSetVariableModel(object):
         self.base_model = base_model
 
     def _expand_samples(self, reduced_samples):
+        assert reduced_samples.ndim == 2
         raw_samples = get_all_sample_combinations(
             self.inactive_var_values, reduced_samples)
         samples = np.empty_like(raw_samples)

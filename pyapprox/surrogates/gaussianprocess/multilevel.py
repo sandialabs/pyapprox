@@ -40,7 +40,6 @@ class MultifidelityGaussianProcess(GaussianProcessRegressor):
             assert samples[ii].ndim == 2
             assert samples[ii].shape[0] == self.nvars
             assert self._values[ii].ndim == 2
-            print(ii, self._values[ii].shape,  samples[ii].shape)
             assert self._values[ii].shape[1] == 1
             assert self._values[ii].shape[0] == samples[ii].shape[1]
 
@@ -245,7 +244,8 @@ class GreedyMultifidelityIntegratedVarianceSampler(
     def __init__(self, nmodels, num_vars, nquad_samples,
                  ncandidate_samples_per_model, generate_random_samples,
                  variable=None, econ=True,
-                 compute_cond_nums=False, nugget=0, model_costs=None):
+                 compute_cond_nums=False, nugget=0, model_costs=None,
+                 candidate_samples=None, quadrature_rule=None):
         # if econ:
         #     raise NotImplementedError()
         self.nmodels = nmodels
@@ -254,12 +254,19 @@ class GreedyMultifidelityIntegratedVarianceSampler(
         self.nsamples_per_model = np.zeros(self.nmodels, dtype=int)
         self.training_sample_costs = []
         self.ivar_delta = 0.0
+
         # todo currently 1D quadrature with seperable kernels is not suported
         use_gauss_quadrature = False
         super().__init__(num_vars, nquad_samples,
                          ncandidate_samples_per_model, generate_random_samples,
                          variable, use_gauss_quadrature, econ,
-                         compute_cond_nums, nugget)
+                         compute_cond_nums, nugget, candidate_samples,
+                         quadrature_rule)
+        # super assumes one model when checking size of candidate samples
+        # so pass in for one model then override
+        if candidate_samples is not None:
+            self.candidate_samples = np.hstack(
+                [self.candidate_samples]*self.nmodels)
 
     def _generate_candidate_samples(
             self, ncandidate_samples_per_model):
@@ -286,9 +293,9 @@ class GreedyMultifidelityIntegratedVarianceSampler(
                 integration_method, variable, **kwargs)
             ww = ww[:, 0]
         else:
-            self.pred_samples = self.generate_random_samples(
-                self.nquad_samples)
-            ww = np.ones(self.pred_samples.shape[1])/self.pred_samples.shape[1]
+            xx, ww = self._quadrature_rule()
+            self.pred_samples = xx
+
         K = self.kernel(self.pred_samples.T, self.candidate_samples.T)
         self.P = K.T.dot(ww[:, np.newaxis]*K)
         self.compute_A()
@@ -304,8 +311,6 @@ class GreedyMultifidelityIntegratedVarianceSampler(
         model_id = self._model_id(new_sample_index)
         self.kernel.nsamples_per_model[model_id] += 1
         A = self.A[np.ix_(indices, indices)]
-        # print(np.linalg.cholesky(self.A[np.ix_(pivots, pivots)]), "L")
-        # print(np.linalg.inv(np.linalg.cholesky(self.A[np.ix_(pivots, pivots)])), "L_inv")
         A_inv = np.linalg.inv(A)
         P = self.P[np.ix_(indices, indices)]
         self.kernel.nsamples_per_model[model_id] -= 1

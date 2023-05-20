@@ -1255,6 +1255,7 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
                 surf_string_low, bed_string_low, 0, x2)
         # increasing x3 moves right side of second column towards rear
         x3 = width_max*0.3
+        x3 = width_max*0.6
         transform_8 = self._get_subdomain(
                 surf_string, bed_string, x2, x3)
         transform_9 = self._get_subdomain(
@@ -1276,6 +1277,13 @@ class TurbineDomainDecomposition(AbstractTwoDDomainDecomposition):
         transforms = [CompositionTransform([transform, final_transform])
                       for transform in transforms]
 
+        # The subdomain 2 causes issues when solving PDEs
+        # I think because of different coordinate transformations.
+        # So while cannot resolve just exclude
+        selected_transform_idx = np.delete(np.arange(13), 2)
+        self._ninterfaces = 12
+        transforms = [transforms[idx] for idx in selected_transform_idx]
+        self._nsubdomains = len(transforms)
         # transforms = [transforms[4], transforms[6]]
         # transforms = [transforms[5], transforms[7]]
         # transforms = [transforms[8], transforms[11]]

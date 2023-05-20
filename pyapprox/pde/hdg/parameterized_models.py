@@ -551,21 +551,41 @@ class TurbineBladeModel():
 
     def _get_subdomain_bndry_dict(self):
         # return bndrys that are not interfaces
+        
+        # return (
+        #     [{"exterior": [0, 1, 2, 3]}] *
+        #     self._decomp_solver._decomp._nsubdomains)
+        # when excluding first column
         return [
             {"exterior": 1, "passage1": 0},  # 0
-            {"exterior": 1},  # 1
-            {"passage1": 0, "passage2": 1},  # 2
-            {"exterior": 1},  # 3
-            {"exterior": 1, "passage2": 0},  # 4
-            {"exterior": 1, "passage2": 0},  # 5
-            {"exterior": 3, "passage2": 2},  # 6
-            {"exterior": 2, "passage2": 3},  # 7
+            {"exterior": 1, "passage1": 0},  # 1
+            {"exterior": 1, "passage1": 0},  # 3
+            {"exterior": 1, "passage1": 0},  # 4
+            {"exterior": 1, "passage1": 0},  # 5
+            {"exterior": 3, "passage1": 2},  # 6
+            {"exterior": 2, "passage1": 3},  # 7
             {"exterior": 3},  # 8
-            {"passage2": 0, "passage3": 1},  # 9
+            {"passage1": 0, "passage3": 1},  # 9
             {"exterior": 2},  # 10
             {"exterior": 3, "passage3": 2, "endtop": 1},  # 11
             {"exterior": 2, "passage3": 3, "endbottom": 1},  # 12
         ]
+        # when including first column
+        # return [
+        #     {"exterior": 1, "passage1": 0},  # 0
+        #     {"exterior": 1},  # 1
+        #     {"passage1": 0, "passage2": 1},  # 2
+        #     {"exterior": 1},  # 3
+        #     {"exterior": 1, "passage2": 0},  # 4
+        #     {"exterior": 1, "passage2": 0},  # 5
+        #     {"exterior": 3, "passage2": 2},  # 6
+        #     {"exterior": 2, "passage2": 3},  # 7
+        #     {"exterior": 3},  # 8
+        #     {"passage2": 0, "passage3": 1},  # 9
+        #     {"exterior": 2},  # 10
+        #     {"exterior": 3, "passage3": 2, "endtop": 1},  # 11
+        #     {"exterior": 2, "passage3": 3, "endbottom": 1},  # 12
+        # ]
 
     def _exterior_bndry_fun(self, xx):
         zz = xx[0]
@@ -616,12 +636,15 @@ class TurbineBladeModel():
         return splits
 
     def _set_random_sample(self, sample):
+        sample = sample.squeeze()
+        print(sample)
         assert sample.ndim == 1
         self._t_c1, self._t_c2, self._t_c3, self._h_le, self._h_te = sample[:5]
-        assert self._h_le >= self._h_te
+        assert self._h_le >= self._h_te, (self._h_le, self._h_te)
         self._thermal_conductivity = sample[5:]
         if self._kle is None:
-            assert sample.shape[0] == 5 + 13
+            assert (sample.shape[0] == 5 +
+                    self._decomp_solver._decomp._nsubdomains)
         else:
             assert sample.shape[0] == 5 + self._kle.nterms
             splits = self._get_mesh_pts_splits()
@@ -641,10 +664,15 @@ class TurbineBladeModel():
             model.physics._funs[0] = diff_fun
 
             for key, item in self._subdomain_bndry_dict[subdomain_id].items():
-                model.physics._bndry_conds[item] = [self._bndry_funs[key], "D"]
+                for idx in np.atleast_1d(item):
+                    model.physics._bndry_conds[idx] = (
+                        [self._bndry_funs[key], "D"])
+        # reset interface bndrys in case they were overwritten by the above
+        # loop
+        self._decomp_solver._decomp._set_subdomain_interface_boundary_conditions()
 
     def _solve(self, sample):
-        macro_newton_kwargs = {"maxiters": 1, "verbosity": 2}
+        macro_newton_kwargs = {"maxiters": 2, "verbosity": 2, "rtol": 1e-7}
         subdomain_newton_kwargs = {}  # {"maxiters": 1, "verbosity": 2}
         self._set_random_sample(sample)
         sol = self._decomp_solver.solve(
@@ -684,7 +712,6 @@ class TurbineBladeModel():
         return expanded_vals
 
     def _init_kle(self, *args):
-        print(args)
         mesh_pts = self._get_mesh()
         if len(args) == 0:
             return None, mesh_pts

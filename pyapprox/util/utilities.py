@@ -494,6 +494,7 @@ def get_all_sample_combinations(samples1, samples2):
     """
     import itertools
     samples = []
+    print(samples1.shape, samples2.shape)
     for r in itertools.product(*[samples1.T, samples2.T]):
         samples.append(np.concatenate(r))
     return np.asarray(samples).T

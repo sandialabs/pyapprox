@@ -1839,6 +1839,7 @@ class GreedyVarianceOfMeanSampler(object):
         else:
             self._quadrature_rule = quadrature_rule
 
+        print(candidate_samples)
         if candidate_samples is None:
             self.candidate_samples = self._generate_candidate_samples(
                 ncandidate_samples)
@@ -1989,7 +1990,7 @@ class GreedyVarianceOfMeanSampler(object):
                 try:
                     self.L = np.linalg.cholesky(
                         self.A[np.ix_(indices, indices)])
-                except:
+                except RuntimeError:
                     return -1, np.inf
 
             L_22 = np.sqrt(L_22_sq)
@@ -2285,8 +2286,11 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
 
         A_12 = self.A[self.pivots, new_sample_index:new_sample_index+1]
         L_12 = solve_triangular(self.L, A_12, lower=True)
-        L_22 = np.sqrt(
-            self.A[new_sample_index, new_sample_index] - L_12.T.dot(L_12))
+        L_22_sq = self.A[new_sample_index, new_sample_index] - L_12.T.dot(L_12)
+        if L_22_sq <= 0:
+            # Ill conditioning causes this issue
+            return np.inf
+        L_22 = np.sqrt(L_22_sq)
         C = -np.dot(L_12.T/L_22, self.L_inv)
 
         # TODO set self.P_11 when pivot is chosen so do not constantly
@@ -2362,7 +2366,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
             indices = np.concatenate([self.pivots, [pivot]]).astype(int)
             try:
                 self.L = np.linalg.cholesky(self.A[np.ix_(indices, indices)])
-            except:
+            except RuntimeError:
                 return -1, np.inf
             self.L_inv = np.linalg.inv(self.L)
             return pivot, obj_val
