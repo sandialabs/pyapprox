@@ -1839,7 +1839,6 @@ class GreedyVarianceOfMeanSampler(object):
         else:
             self._quadrature_rule = quadrature_rule
 
-        print(candidate_samples)
         if candidate_samples is None:
             self.candidate_samples = self._generate_candidate_samples(
                 ncandidate_samples)

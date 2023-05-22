@@ -66,7 +66,6 @@ class TestNeuralNetwork(unittest.TestCase):
         # make sure gradient changes by six orders of magnitude
         assert np.log10(errors.max())-np.log10(errors.min()) > 6
 
-
     def check_nn_input_gradients(self, activation_fun):
         nvars = 3
         nqoi = 2

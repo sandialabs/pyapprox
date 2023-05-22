@@ -171,6 +171,8 @@ class NeuralNetwork(object):
         dC_db = np.sum(dC_dz, axis=1)          # (width[L])
         a_Lm1 = self.derivative_info[-2][1]    # (nsamples, width[L-1])
         dC_dW = dC_dz.dot(a_Lm1)               # (width[L], width[L-1])
+        print(dC_da.shape)
+        print(dC_dz.shape, dC_db.shape, dC_dW.shape, a_Lm1.shape)
         ub = self.nparams
         lb = ub - dC_db.shape[0]
         jacobian[lb:ub] = dC_db
@@ -185,6 +187,8 @@ class NeuralNetwork(object):
             dC_dz = Wmats[ll+1].T.dot(dC_dz_prev)*self.agrad(z_ll).T
             dC_dW = dC_dz.dot(a_llm1)
             dC_db = np.sum(dC_dz, axis=1)
+            print(dC_dz.shape,  dC_db.shape, dC_dW.shape, a_llm1.shape,
+                  self.agrad(z_ll).T.shape)
             lb = ub - dC_db.shape[0]
             jacobian[lb:ub] = dC_db
             ub = lb
@@ -265,13 +269,22 @@ class NeuralNetwork(object):
             parameters.squeeze())/train_samples.shape[0]
         return loss
 
-    def fit(self, samples, values, x0=None, opts={}, verbose=0):
+    def _parse_data(self, samples, values):
         assert samples.shape[0] == self.layers[0]
+        assert values.ndim == 2
+        assert values.shape[0] == samples.shape[1]
+        assert values.shape[1] == self.layers[-1]
         if self.var_trans is not None:
-            self.train_samples = self.var_trans.map_to_canonical(samples)
+            train_samples = self.var_trans.map_to_canonical(samples)
         else:
-            self.train_samples = samples
-        self.train_values = values
+            train_samples = samples
+        train_values = values
+        ntrain_samples = train_values.shape[0]
+        return train_samples, train_values, ntrain_samples
+
+    def fit(self, samples, values, x0=None, opts={}, verbose=0):
+        self.train_samples, self.train_values, self.ntrain_samples = (
+            self._parse_data(samples, values))
         obj = partial(self.objective_function, self.train_samples,
                       self.train_values)
         jac = partial(self.objective_jacobian, self.train_samples,
@@ -288,7 +301,7 @@ class NeuralNetwork(object):
 
         if verbose > 0:
             print("No. Parameters", self.nparams)
-            print("No. Samples", self.train_samples.shape[1])
+            print("No. Samples", self.ntrain_samples)
 
         results = []
         for x in x0.T:
@@ -329,3 +342,54 @@ class NeuralNetwork(object):
         rep = "MLP({0})".format(
             ",".join([str(layer) for layer in self.layers]))
         return rep
+
+
+class MultiTaskNeuralNetwork(NeuralNetwork):
+    def objective_jacobian(self,
+                           train_samples_per_model, train_values_per_model,
+                           parameters):
+        grad = 0
+        for train_samples, train_values in zip(
+                train_samples_per_model, train_values_per_model):
+            self.forward_propagate(train_samples, parameters)
+            grad += self.backwards_propagate(train_values, parameters)
+        grad += self.lag_mult*parameters.squeeze()/train_samples[0].shape[0]
+        # TODO should train_samples[0].shape[0] be ntrain_samples
+        return grad
+
+    def objective_function(self, train_samples_per_model,
+                           train_values_per_model,
+                           parameters):
+        self.last_parameters = parameters
+        loss = 0
+        task = 0
+        # assert self.layers[-1] == 1  # TODO assumes 1 qoi for each task
+        for train_samples, train_values in zip(
+                train_samples_per_model, train_values_per_model):
+            approx_values = self.forward_propagate(
+                train_samples, parameters)[:, task:task+1]
+            loss += np.sum(self.Cfunc(approx_values, train_values))
+            task += 1
+        loss += self.lag_mult*0.5*parameters.squeeze().dot(
+            parameters.squeeze())/train_samples[0].shape[0]
+        # TODO should train_samples[0].shape[0] be ntrain_samples
+        return loss
+
+    def _parse_data(self, samples_per_model, values_per_model):
+        assert isinstance(samples_per_model, list)
+        assert isinstance(values_per_model, list)
+        assert len(values_per_model) == self.layers[-1]
+        assert len(values_per_model) == len(samples_per_model)
+        for samples, values in zip(samples_per_model, values_per_model):
+            assert samples.shape[0] == self.layers[0]
+            assert values.shape[0] == samples.shape[1]
+            assert values.ndim == 2
+        if self.var_trans is not None:
+            train_samples = [
+                self.var_trans.map_to_canonical(samples)
+                for samples in samples_per_model]
+        else:
+            train_samples = samples_per_model
+        train_values = values_per_model
+        ntrain_samples = sum([samples.shape[1] for samples in train_samples])
+        return train_samples, train_values, ntrain_samples
