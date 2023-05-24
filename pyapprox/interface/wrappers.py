@@ -1119,6 +1119,10 @@ class ModelEnsemble(object):
             values[II] = self.functions[active_model_id](samples[:-1, II])
         return values
 
+    def __repr__(self):
+        return "{0})(nmodels={1})".format(
+            self.__class__.__name__, self.nmodels)
+
 
 class MultiIndexModel():
     def __init__(self, setup_model, config_values):
@@ -1177,6 +1181,9 @@ class ArchivedDataModel():
             samples_dict[key] = ii
         return samples_dict
 
+    def num_vars(self):
+        return self.samples.shape[0]
+
     def _hash_sample(self, sample):
         key = hash_array(sample)
         return key
@@ -1191,7 +1198,7 @@ class ArchivedDataModel():
             values.append(self.values[sample_id])
         return np.array(values)
 
-    def rvs(self, nsamples, weights=None, randomness="replacement",
+    def rvs(self, nsamples, weights=None, randomness="wo_replacement",
             return_indices=False):
         """
         Randomly sample with replacement from all available samples

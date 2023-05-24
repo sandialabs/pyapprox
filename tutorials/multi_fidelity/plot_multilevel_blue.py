@@ -176,7 +176,6 @@ for ii, target_cost in enumerate(target_costs):
     # ocv uses one sample for each model (but does not need additional
     # values for estimating low fidelity means
     nocv_samples_per_model = int(target_cost//model_costs.sum())
-    print(nocv_samples_per_model, int(target_cost//model_costs[0]))
     ocv_variances[ii] = cov[0, 0]/nocv_samples_per_model*(
         1-get_control_variate_rsquared(cov))
 rel_ocv_variances = (
@@ -184,7 +183,14 @@ rel_ocv_variances = (
 ax.loglog(target_costs, rel_ocv_variances, ':o',
           label=mathrm_label("OCV"))
 ax.legend()
+
+#%%
+#Now plot the number of samples allocated for each target cost
+model_labels = [r"$M_{0}$".format(ii) for ii in range(cov.shape[0])]
+multifidelity.plot_acv_sample_allocation_comparison(
+    optimized_estimators[-1], model_labels, plt.figure().gca())
 plt.show()
+
 
 #%%
 #References

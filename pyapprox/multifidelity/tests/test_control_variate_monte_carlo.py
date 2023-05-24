@@ -926,6 +926,10 @@ class TestCVMC(unittest.TestCase):
             BLUE_variance(asketch, cov, None, 1e-10,
                           estimator.nsamples_per_subset))
 
+        assert np.allclose(
+            (estimator.nsamples_per_model*estimator.costs).sum(),
+            estimator.rounded_target_cost)
+
         values = estimator.generate_data(model.functions, variable)
         for ii in range(model.nmodels):
             asketch = np.zeros((costs.shape[0], 1))
