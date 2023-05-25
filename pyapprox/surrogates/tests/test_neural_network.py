@@ -42,6 +42,12 @@ class TestNeuralNetwork(unittest.TestCase):
         #        'loss_func':'squared_loss'}
         network = NeuralNetwork(opts)
 
+        # from pyapprox.surrogates.neural_networks import (squared_loss_gradient_denominator_convention, squared_loss_gradient_numerator_convention)
+
+        # network.Cgrad = squared_loss_gradient_numerator_convention
+        # network.forward_propagate = network.forward_propagate_new
+        # network.backwards_propagate = network.backwards_propagate_new 
+
         # train_samples = np.linspace(0, 1, 11)[None, :]
         train_samples = np.random.uniform(0, 1, (nvars, nvars*11))
         train_values = np.hstack(
@@ -53,6 +59,23 @@ class TestNeuralNetwork(unittest.TestCase):
             network.objective_jacobian, train_samples, train_values)
         parameters = np.random.normal(0, 1, (network.nparams))
 
+        # Wmats, bmats = network.expand_parameters(jac(parameters))
+        # for w, b in zip(Wmats[::-1], bmats[::-1]):
+        #     print()
+        #     print(w)
+        #     print(b)
+        # print(network.expand_parameters(approx_jacobian(obj, zz)[0]))
+
+        # network.Cgrad = squared_loss_gradient_denominator_convention
+        # network.forward_propagate = network.forward_propagate_deprecated
+        # network.backwards_propagate = network.backwards_propagate_deprecated
+        # Wmats, bmats = network.expand_parameters(network.objective_jacobian(train_samples, train_values, parameters))
+        # for w, b in zip(Wmats[::-1], bmats[::-1]):
+        #     print()
+        #     print(w)
+        #     print(b)
+        # assert False
+
         disp = True
         # disp = False
 
@@ -63,7 +86,7 @@ class TestNeuralNetwork(unittest.TestCase):
 
         errors = check_gradients(fun, jac, zz, plot=False, disp=disp, rel=True,
                                  direction=None)
-        # make sure gradient changes by six orders of magnitude
+        # make sure gradient changes by six orders of magnitude       
         assert np.log10(errors.max())-np.log10(errors.min()) > 6
 
     def check_nn_input_gradients(self, activation_fun):
