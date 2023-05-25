@@ -48,12 +48,15 @@ class RBF(SKL_RBF):
             hyperparameter of the kernel. Only returned when `eval_gradient`
             is True.
         """
+        print("A")
         if not eval_gradient or Y is None:
             return super().__call__(X, Y, eval_gradient)
         K = super().__call__(X, Y)
         length_scale = _check_length_scale(X, self.length_scale)
+        print("B")
         if self.hyperparameter_length_scale.fixed:
             return K, np.empty((X.shape[0], Y.shape[0], 0))
+        print("A")
         if not self.anisotropic or length_scale.shape[0] == 1:
             dists = cdist(X, Y, metric="sqeuclidean")
             K_gradient = (K * dists[:, :]/length_scale**2)[:, :, np.newaxis]
@@ -75,7 +78,7 @@ class RBF(SKL_RBF):
                 np.ravel(self.length_scale)[0])
 
     def __repr__(self):
-        return "{0}(length_scale={1})".format(
+        return "PyA{0}(length_scale={1})".format(
             self.__class__.__name__, self._length_scale_repr())
 
 

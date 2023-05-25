@@ -37,18 +37,8 @@ class TestNeuralNetwork(unittest.TestCase):
 
         opts = {'activation_func': activation_fun, 'layers': [nvars, 3, nqoi],
                 'loss_func': 'squared_loss', 'lag_mult': 0.5}
-        # No hidden layers works
-        # opts = {'activation_func':'sigmoid', 'layers':[nvars, nqoi],
-        #        'loss_func':'squared_loss'}
         network = NeuralNetwork(opts)
 
-        # from pyapprox.surrogates.neural_networks import (squared_loss_gradient_denominator_convention, squared_loss_gradient_numerator_convention)
-
-        # network.Cgrad = squared_loss_gradient_numerator_convention
-        # network.forward_propagate = network.forward_propagate_new
-        # network.backwards_propagate = network.backwards_propagate_new 
-
-        # train_samples = np.linspace(0, 1, 11)[None, :]
         train_samples = np.random.uniform(0, 1, (nvars, nvars*11))
         train_values = np.hstack(
             [np.sum(train_samples**(ii+2), axis=0)[:, None]
@@ -59,25 +49,8 @@ class TestNeuralNetwork(unittest.TestCase):
             network.objective_jacobian, train_samples, train_values)
         parameters = np.random.normal(0, 1, (network.nparams))
 
-        # Wmats, bmats = network.expand_parameters(jac(parameters))
-        # for w, b in zip(Wmats[::-1], bmats[::-1]):
-        #     print()
-        #     print(w)
-        #     print(b)
-        # print(network.expand_parameters(approx_jacobian(obj, zz)[0]))
-
-        # network.Cgrad = squared_loss_gradient_denominator_convention
-        # network.forward_propagate = network.forward_propagate_deprecated
-        # network.backwards_propagate = network.backwards_propagate_deprecated
-        # Wmats, bmats = network.expand_parameters(network.objective_jacobian(train_samples, train_values, parameters))
-        # for w, b in zip(Wmats[::-1], bmats[::-1]):
-        #     print()
-        #     print(w)
-        #     print(b)
-        # assert False
-
-        disp = True
-        # disp = False
+        # disp = True
+        disp = False
 
         def fun(x):
             return np.sum(obj(x))
