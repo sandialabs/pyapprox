@@ -138,7 +138,7 @@ class NeuralNetwork(object):
             lb = ub
         return Wmats, bvecs
 
-    def forward_propagate(self, train_samples, parameters):
+    def forward_propagate_deprecated(self, train_samples, parameters):
         assert train_samples.ndim == 2
         Wmats, bvecs = self.expand_parameters(parameters)
         aout = train_samples.T
@@ -156,7 +156,59 @@ class NeuralNetwork(object):
         self.derivative_info.append([zout, aout])
         return zout
 
+    def forward_propagate(self, train_samples, parameters):
+        Wmats, bvecs = self.expand_parameters(parameters)
+
+        # Input Layer
+        yout = train_samples
+        self.derivative_info = [yout, yout]
+
+        # Hidden Layers
+        for ii in range(1, self.nlayers-1):
+            # python broadcasting is used to add bvecs[ii] to all columns
+            uout = Wmats[ii].dot(yout) + bvecs[ii]
+            yout = self.afunc(uout)
+            self.derivative_info.append([uout, yout])
+
+        # Output layer
+        ii = self.nlayers-1
+        # python broadcasting is used to add bvecs[ii] to all columns
+        uout = Wmats[ii].dot(yout.T).T + bvecs[ii]
+        if self.output_activation:
+            yout = self.afunc(uout)
+        else:
+            yout = uout.copy()
+        self.derivative_info.append([uout, yout])
+
+    def layer_backwards_propgate(self, delta_l, y_l, u_l, activation=True):
+        dC_dW = u_l.dot(delta_l)
+        dC_db = np.sum(delta_l, axis=0)
+        if self.activation:
+            delta_lm1 = delta_l*self.agrad(y_l.T)
+        else:
+            delta_lm1 = delta_l
+        return dC_dW, dC_db, delta_lm1
+
     def backwards_propagate(self, train_values, parameters):
+        Wmats, bvecs = self.expand_parameters(parameters)
+        # The true jacobian has shape (1, nparams)
+        # but scipy optimize requires a 1D ndarray
+        jacobian = np.empty((self.nparams))
+
+        # Gradient of loss with resepect to y_L
+        u_L, y_L = self.derivative_info[-1][0]
+        dC_yL = self.Cgrad(y_L, train_values)
+        if self.output_activation:
+            delta_l = dC_yL*self.agrad(y_L.T)
+        else:
+            delta_L = dC_yL
+        dC_dW, dC_db, delta_lm1 = self.layer_backwards_propgate(
+            delta_l, y_l, u_l, self.output_activation)
+        
+        
+        
+
+    def backwards_propagate_deprecated(self, train_values, parameters):
         """
         Compute gradient of cost function with respect to hyper-parameters
         """
