@@ -374,14 +374,40 @@ class NeuralNetwork(object):
 
 
 class MultiTaskNeuralNetwork(NeuralNetwork):
+    def backwards_propagate(self, train_values, parameters, task):
+        Wmats, bvecs = self.expand_parameters(parameters)
+        # The true jacobian has shape (1, nparams)
+        # but scipy optimize requires a 1D ndarray
+        jacobian = np.empty((self.nparams))
+
+        # Gradient of loss with resepect to y_L
+        u_l, y_l = self.derivative_info[-1]
+        # train_values.T converts from pyapprox convention to NN convention
+        dC_yl = self.Cgrad(y_l, train_values.T)
+        if self.output_activation:
+            delta_l = dC_yl*self.agrad(u_l.T)
+        else:
+            delta_l = dC_yl
+        delta_l[:, :task] = 0
+        delta_l[:, task+1:] = 0
+        delta_l, jacobian, ub = self.layer_backwards_propgate(
+            delta_l, Wmats, self.nlayers-1, jacobian, self.nparams,
+            self.output_activation)
+        for layer in range(self.nlayers-2, 0, -1):
+            delta_l, jacobian, ub = self.layer_backwards_propgate(
+                delta_l, Wmats, layer, jacobian, ub)
+        return jacobian
+
     def objective_jacobian(self,
                            train_samples_per_model, train_values_per_model,
                            parameters):
         grad = 0
+        task = 0
         for train_samples, train_values in zip(
                 train_samples_per_model, train_values_per_model):
             self.forward_propagate(train_samples, parameters)
-            grad += self.backwards_propagate(train_values, parameters)
+            grad += self.backwards_propagate(train_values, parameters, task)
+            task += 1
         grad += self.lag_mult*parameters.squeeze()/train_samples[0].shape[0]
         # TODO should train_samples[0].shape[0] be ntrain_samples
         return grad
@@ -397,7 +423,7 @@ class MultiTaskNeuralNetwork(NeuralNetwork):
                 train_samples_per_model, train_values_per_model):
             approx_values = self.forward_propagate(
                 train_samples, parameters)[:, task:task+1]
-            loss += np.sum(self.Cfunc(approx_values, train_values))
+            loss += np.sum(self.Cfunc(approx_values.T, train_values.T))
             task += 1
         loss += self.lag_mult*0.5*parameters.squeeze().dot(
             parameters.squeeze())/train_samples[0].shape[0]
@@ -422,3 +448,8 @@ class MultiTaskNeuralNetwork(NeuralNetwork):
         train_values = values_per_model
         ntrain_samples = sum([samples.shape[1] for samples in train_samples])
         return train_samples, train_values, ntrain_samples
+
+    def __repr__(self):
+        rep = "MultiTaskNN({0})".format(
+            ",".join([str(layer) for layer in self.layers]))
+        return rep
