@@ -90,3 +90,10 @@ setuptools.setup(
 
 # The loading times of modules that depend on torch can
 # increase if torch install from pip
+
+# to install packages needed to compile docs run
+# pip install -e .[docs]
+
+# To test pyapprox on test.pypi use the following.
+# Note the use of extra-index-url
+# python3 -m pip install --extra-index-url=https://test.pypi.org/simple/ pyapprox==1.0.1

@@ -3,12 +3,12 @@ import copy
 from scipy.optimize import approx_fprime, minimize
 
 from pyapprox.surrogates.gaussianprocess.multilevel import (
-    MultilevelGaussianProcess)
+    MultifidelityGaussianProcess)
 from pyapprox.util.utilities import get_all_sample_combinations
 from pyapprox.bayes.metropolis import MetropolisMCMCVariable
 
 
-class CalibrationGaussianProcess(MultilevelGaussianProcess):
+class CalibrationGaussianProcess(MultifidelityGaussianProcess):
     def set_data(self, samples, values, random_sample):
         # when length_scale bounds is fixed then the V2(D2) block in Kennedys
         # paper should always be the same regardless of value of random_sample
