@@ -33,7 +33,7 @@ extensions = cythonize(
 
 setuptools.setup(
     name="pyapprox",
-    version="1.0.1",
+    version="1.0.2",
     author="John D. Jakeman",
     author_email="29109026+jdjakem@users.noreply.github.com",
     description="High-dimensional function approximation and estimation",
@@ -96,10 +96,10 @@ setuptools.setup(
 
 # To test pyapprox on test.pypi use the following.
 # Note the use of extra-index-url
-# python -m pip install --extra-index-url=https://test.pypi.org/simple/ pyapprox==1.0.1
+# python -m pip install --extra-index-url=https://test.pypi.org/simple/ pyapprox==1.0.2
 
 # To build wheel locally use
-# python -m build --wheel
+# python -m build
 
 # To test wheel locally create virtual environment and install using
 # pip install mypackage-0.31.0-py2.py3-none-any.whl

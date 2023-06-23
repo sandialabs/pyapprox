@@ -14,7 +14,7 @@ requires = [
 
 [project]
 name = "pyapprox"
-version = "1.0.1"
+version = "1.0.2"
 description = "High-dimensional function approximation and estimation"
 requires-python = '>=3.6'
 license = {file = 'LICENSE'}
