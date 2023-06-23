@@ -3,13 +3,13 @@ MFNets: Multi-fidelity networks
 ===============================
 This tutorial describes how to implement and deploy multi-fidelity networks to construct a surrogate of the output of a high-fidelity model using a set of lower-fidelity models of lower accuracy and cost [GJGEIJUQ2020]_.
 
-In the :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py` tutorial we showed how multi-index collocation takes adavantage of a specific type of relationship between models to build a surrogate. In some applications this structure may not exist and so methods that can exlpoit other types of structures are needed. MFNets provide a means to encode problem specific relationships between information sources.
+In the :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py` tutorial we showed how multi-index collocation takes adavantage of a specific type of relationship between models to build a surrogate. In some applications this structure may not exist and so methods that can exploit other types of structures are needed. MFNets provide a means to encode problem specific relationships between information sources.
 
-In the following we will approximate each information source with a linear subspace model. Specifically given a basis (features) :math:`\phi_\alpha=\{\phi_{\alpha p}\}_{p=1}^P` for each information source :math:`\alpha=1\ldots,M` we seek approximations of the form 
+In the following we will approximate each information source with a linear subspace model. Specifically given a basis (features) :math:`\phi_\alpha=\{\phi_{\alpha p}\}_{p=1}^P` for each information source :math:`\alpha=1\ldots,M` we seek approximations of the form
 
 .. math:: Y_\alpha = h(Z_\alpha)\theta_\alpha = \sum_{p=1}^{P_\alpha} \phi_p(Z_\alpha)\theta_{\alpha p}
 
-Given data for each model :math:`y_\alpha=[(y_\alpha^{(1)})^T,(y_\alpha^{(N_\alpha)})^T]^T` where :math:`y_\alpha^{(i)}=h(\rv_\alpha^{(i)})\theta_\alpha+\epsilon_\alpha^{(i)}\in\reals^{1\times Q}`
+Given data for each model :math:`y_\alpha=[(y_\alpha^{(1)})^\top,\ldots,(y_\alpha^{(N_\alpha)})^\top]^\top` where :math:`y_\alpha^{(i)}=h(\rv_\alpha^{(i)})\theta_\alpha+\epsilon_\alpha^{(i)}\in\reals^{1\times Q}`
 
 MFNets provides a framework to encode correlation between information sources to with the goal of producing high-fidelity approximations which are more accurate than single-fidelity approximations using ony high-fidelity data. The first part of this tutorial will show how to apply MFNets to a simple problem using standard results for the posterior of Gaussian linear models. The second part of this tutorial will show how to generalize the MFNets procedure using Bayesian Networks.
 
@@ -87,7 +87,7 @@ values_train = [f(s)+n for s, f, n in zip(samples_train, functions, noise)]
 #
 #  y=\Phi\theta+\epsilon
 #
-#Specifically let :math:`\Phi_\alpha\in\reals^{N_i\times P_i}` be Vandermonde-like matrices with entries :math:`\phi_{\alpha p}(\rv_\alpha^{(n)})` in the nth row and pth column. Now define :math:`\Phi=\mathrm{blockdiag}\left(\Phi_1,\ldots,\Phi_M\right)` and :math:`\Sigma_\epsilon=\mathrm{blockdiag}\left(\Sigma_{\epsilon 1},\ldots,\Sigma_{\epsilon M}\right)`, :math:`y=\left[y_1^T,\ldots,y_M^T\right]^T`,  :math:`\theta=\left[\theta_1^T,\ldots,\theta_M^T\right]^T`, and :math:`\epsilon=\left[\epsilon_1^T,\ldots,\epsilon_M^T\right]^T`.
+#Specifically let :math:`\Phi_\alpha\in\reals^{N_i\times P_i}` be Vandermonde-like matrices with entries :math:`\phi_{\alpha p}(\rv_\alpha^{(n)})` in the nth row and pth column. Now define :math:`\Phi=\mathrm{blockdiag}\left(\Phi_1,\ldots,\Phi_M\right)` and :math:`\Sigma_\epsilon=\mathrm{blockdiag}\left(\Sigma_{\epsilon 1},\ldots,\Sigma_{\epsilon M}\right)`, :math:`y=\left[y_1^\top,\ldots,y_M^\top\right]^\top`,  :math:`\theta=\left[\theta_1^\top,\ldots,\theta_M^\top\right]^\top`, and :math:`\epsilon=\left[\epsilon_1^\top,\ldots,\epsilon_M^\top\right]^\top`.
 #
 #For our three model example we have
 #
@@ -107,7 +107,7 @@ values = np.vstack(values_train)
 #%%
 #Now let the prior on the coefficients of :math:`Y_\alpha` be Gaussian with mean :math:`\mu_\alpha` and covariance :math:`\Sigma_{\alpha\alpha}`, and the covariance between the coefficients of different information sources :math:`Y_\alpha` and :math:`Y_\beta` be :math:`\Sigma_{\alpha\beta}`, such that the joint density of the coefficients of all information sources is Gaussian with mean and covariance given by
 #
-#.. math::  \mu=\left[\mu_1^T,\ldots,\mu_M^T\right]^T` \qquad \Sigma=\begin{bmatrix}\Sigma_{11} &\Sigma_{12} &\ldots &\Sigma_{1M} \\ \Sigma_{21} &\Sigma_{22} &\ldots &\Sigma_{2M}\\\vdots &\vdots & \ddots &\vdots \\ \Sigma_{M1} &\Sigma_{M2} &\ldots &\Sigma_{MM}\end{bmatrix}
+#.. math::  \mu=\left[\mu_1^\top,\ldots,\mu_M^\top\right]^\top` \qquad \Sigma=\begin{bmatrix}\Sigma_{11} &\Sigma_{12} &\ldots &\Sigma_{1M} \\ \Sigma_{21} &\Sigma_{22} &\ldots &\Sigma_{2M}\\\vdots &\vdots & \ddots &\vdots \\ \Sigma_{M1} &\Sigma_{M2} &\ldots &\Sigma_{MM}\end{bmatrix}
 #
 #In the following we will set the prior mean to zero for all coefficients and first try setting all the coefficients to be independent
 prior_mean = np.zeros((nparams.sum(), 1))
@@ -116,7 +116,7 @@ prior_cov = np.eye(nparams.sum())
 #%%
 #With these definition the posterior distribution of the coefficients is (see :ref:`sphx_glr_auto_tutorials_foundations_plot_bayesian_inference.py`)
 #
-#.. math:: \Sigma^\mathrm{post}=\left(\Sigma^{-1}+\Phi^T\Sigma_\epsilon^{-1}\Phi\right)^{-1}, \qquad  \mu^\mathrm{post}=\Sigma^\mathrm{post}\left(\Phi^T\Sigma_\epsilon^{-1}y+\Sigma^{-1}\mu\right),
+#.. math:: \Sigma^\mathrm{post}=\left(\Sigma^{-1}+\Phi^\top\Sigma_\epsilon^{-1}\Phi\right)^{-1}, \qquad  \mu^\mathrm{post}=\Sigma^\mathrm{post}\left(\Phi^\top\Sigma_\epsilon^{-1}y+\Sigma^{-1}\mu\right),
 #
 post_mean, post_cov = laplace_posterior_approximation_for_linear_models(
     basis_mat, prior_mean, np.linalg.inv(prior_cov), np.linalg.inv(noise_cov),
@@ -167,11 +167,11 @@ assert np.allclose(single_hf_posterior[1], hf_posterior[1])
 #
 #Given the defined relationship between the coefficients of each information source we can compute the prior over the joint distribiution of the coefficients of all information sources. Without loss of generality we assume the variables have zero mean and :math:`b_3=0` so that
 #
-#.. math:: \covar{\theta_1}{\theta_3}=\mean{\theta_1\theta_3^T}=\mean{\theta_1\left(A_{31}\theta_1+A_{32}\theta_2+v_\alpha\right)^T}=\covar{\theta_1}{\theta_1}A_{31}^T
+#.. math:: \covar{\theta_1}{\theta_3}=\mean{\theta_1\theta_3^\top}=\mean{\theta_1\left(A_{31}\theta_1+A_{32}\theta_2+v_\alpha\right)^\top}=\covar{\theta_1}{\theta_1}A_{31}^\top
 #
-#similarly :math:`\covar{\theta_2}{\theta_3}=\covar{\theta_2}{\theta_2}A_{32}^T`. We also have
+#similarly :math:`\covar{\theta_2}{\theta_3}=\covar{\theta_2}{\theta_2}A_{32}^\top`. We also have
 #
-#.. math:: \covar{\theta_3}{\theta_3}&=\mean{\theta_1\theta_1^T}=\mean{\left(A_{13}\theta_1+A_{12}\theta_2+v_\alpha\right)\left(A_{31}\theta_1+A_{32}\theta_2+v_3\right)^T}\\&=A_{31}\covar{\theta_1}{\theta_1}A_{31}^T+A_{32}\covar{\theta_2}{\theta_2}A_{32}^T+\covar{v_3}{v_3}
+#.. math:: \covar{\theta_3}{\theta_3}&=\mean{\theta_1\theta_1^\top}=\mean{\left(A_{13}\theta_1+A_{12}\theta_2+v_\alpha\right)\left(A_{31}\theta_1+A_{32}\theta_2+v_3\right)^\top}\\&=A_{31}\covar{\theta_1}{\theta_1}A_{31}^\top+A_{32}\covar{\theta_2}{\theta_2}A_{32}^\top+\covar{v_3}{v_3}
 #
 #In this tutorial we will set :math:`A_{31}=a_{31} I`, :math:`A_{32}=a_{32} I`, :math:`\Sigma_{11}=s_{11} I`, :math:`\Sigma_{22}=s_{22} I` and  :math:`\Sigma_{v_3}=v_{3} I` to be diagonal matrices with the same value for all entries on the diagonal which gives
 #
@@ -371,26 +371,26 @@ plt.show()
 #^^^^^^^^
 #There is a strong connection between the mean of the Bayes posterior distribution of linear-Gaussian models with least squares regression. Specifically the mean of the posterior is equivalent to linear least-squares regression with a regulrization that penalizes deviations from the prior estimate of the parameters. Let the least squares objective function be
 #
-#.. math:: f(\theta)=\frac{1}{2}(y-A\theta)^T\Sigma_\epsilon^{-1}(y-A\theta)+\frac{1}{2}(\mu_\theta-\theta)^T\Sigma_\theta^{-1}(\mu_\theta-\theta),
+#.. math:: f(\theta)=\frac{1}{2}(y-A\theta)^\top\Sigma_\epsilon^{-1}(y-A\theta)+\frac{1}{2}(\mu_\theta-\theta)^\top\Sigma_\theta^{-1}(\mu_\theta-\theta),
 #
 #where the first term on the right hand side is the usual least squares objective and the second is the regularization term. This regularized objective is minimized by setting its gradient to zero, i.e.
 #
 #.. math::
 #
-#  \nabla_\theta f(\theta)=A^T\Sigma_\epsilon^{-1}(y-A\theta)+\Sigma_\theta^{-1}(\mu_\theta-\theta)=0,
+#  \nabla_\theta f(\theta)=A^\top\Sigma_\epsilon^{-1}(y-A\theta)+\Sigma_\theta^{-1}(\mu_\theta-\theta)=0,
 #
 #thus
 #
 #.. math::
 #
-#  A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\theta=A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta
+#  A^\top\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\theta=A^\top\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta
 #
 #and so
 #
 #.. math::
 #
-#  \theta=\left(A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}\left(A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right).
+#  \theta=\left(A^\top\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}\left(A^\top\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right).
 #
-#Noting that :math:`\left(A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}` is the posterior covariance we obtain the usual expression for the posterior mean
+#Noting that :math:`\left(A^\top\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}` is the posterior covariance we obtain the usual expression for the posterior mean
 #
-#.. math:: \mu^\mathrm{post}=\Sigma^\mathrm{post}\left(A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right)
+#.. math:: \mu^\mathrm{post}=\Sigma^\mathrm{post}\left(A^\top\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right)

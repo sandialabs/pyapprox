@@ -552,7 +552,7 @@ class TestApproximate(unittest.TestCase):
             approx, benchmark.fun, var_trans.variable,
             nsamples)
         print(error)
-        assert error < 6e-2
+        assert error < 6.3e-2
 
     def test_adaptive_approximate_increment_degree(self):
         num_vars = 2

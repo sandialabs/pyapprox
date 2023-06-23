@@ -1,6 +1,42 @@
 r"""
 Multifidelity Gaussian processes
 ================================
+This tutorial describes how to implement and deploy multi-level Gaussian processes built using the output of a high-fidelity model and evaluations of a set of lower-fidelity models of lower accuracy and cost [KOB2000]_.
+
+Multilevel GPs assume that all the available models :math:`\{f_k\}_{k=0}^K` can be ordered into a hierarchy of increasing cost and accuracy, where :math:`k=0` denotes the lowest fidelity model and :math:`k=K` denotes the hightest-fidelity model.
+We model the output :math:`y_m` from the $m$-th level code as :math:`y_m = f_m(x)`
+and assume the models satisfy the  hierarchical relationship
+
+.. math:: f_m(x)=\rho_{m-1}f_{m-1}(x)+\delta_m(x), \quad m=2,\ldots,M.
+
+We assume that the prior distributions on :math:`\delta_m` are independent.
+
+The diagonal covariance blocks of the prior covariance :math:`C` for :math:`m>1` satisfy
+
+.. math:: C_{m,m}=C_m(X_m,X_m)+\rho_{m-1}^2C_{m-1}(X_m,X_m)+\cdots+\prod_{i=1}^{m-1}\rho_i^2C_1(X_m,X_m).
+
+The off-diagonal covariance blocks for :math:`m<n` satisfy
+
+.. math::
+    \begin{align*}C_{m,n}=&\prod_{i=m}^{n-1}\rho_iC_m(X_m,X_n)+\rho_{m-1}\prod_{i=m-1}^{n-1}\rho_i\,C_{m-1}(X_m,X_n)+\\ &\prod_{j=m-2}^{m-1}\rho_{j}\,\prod_{i=m-2}^{n-1}\rho_i\,C_{m-2}(X_m,X_n)+\cdots+ \prod_{j=2}^{m-1}\rho_{j}\,\prod_{i=2}^{n-1}\rho_i\,C_{2}(X_m,X_n)+\\ &\prod_{j=1}^{m-1}\rho_{j}\,\prod_{i=1}^{n-1}\rho_i\,C_{1}(X_m,X_n)\end{align*}
+
+.. math:: t_m(x;X_m)=\rho_{m-1}t'_{m-1}(x;X_m\cup X_{m-1})+\prod_{i=m}^{M}\rho_i\, C_m(x,X_m),
+
+where :math:`t_1(x)=\prod_{i=1}^{M}\rho_i\, C_1(x,X_1)` and   :math:`t'_{m-1}(x)` is used to denote the subset of elements from :math:`t_{m-1}(x)` corresponding to the elements of :math:`X_{m-1}` that are also in :math:`X_m`. If no points are shared then
+
+.. math:: t_m(x)=\prod_{i=m}^{M}\rho_i\, C_m(x,X_m)
+
+Given data  from each model :math:`y=[y_1, \ldots, y_K ]`, where :math:`y_k=[y_k^{(1)},\ldots,y_k^{(N_k)}]^\top`, the mean of the posterior is
+
+.. math:: m_\mathrm{post}=t(x)^TC^{-1}y
+
+
+The covariance of the posterior is
+
+.. math:: 
+    \begin{align}C_\mathrm{post}(x,x')&=C_M(x,x')+\rho_{M-1}^2C_{M-1}(x,x')+\rho_{M-1}^2\rho_{M-2}^2C_{M-2}(x,x')+\cdots+\\&\prod_{i=1}^{M-1}\rho_{i}^2\,C_{1}(x,x')-t(x)^TC^{-1}t(x)\end{align}
+
+Some approaches train the GPs of each sequentially, that is train a GP of the lowest-fidelity model. The lowest-fidelity GP is then fixed and data from the next lowest fidelity model is then used to train the GP associated with that data, and so on. However this approach typically produces less accurate approximations (GP means) and does not provide a way to estimate the correct posterior uncertainty of the multilevel GP.
 """
 
 from scipy import stats
@@ -211,6 +247,3 @@ gp.plot_1d(101, [0, 1], plt_kwargs={"ls": ":", "label": "MF0", "c": "g"},
            ax=ax, model_eval_id=0)
 ax.legend()
 plt.show()
-
-
-

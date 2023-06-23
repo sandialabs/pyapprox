@@ -2,8 +2,7 @@ name: Build and Test Using Pip
 
 on:
   push:
-    branches:
-      - master
+    branches: [master, devel]
 
   workflow_dispatch:
 

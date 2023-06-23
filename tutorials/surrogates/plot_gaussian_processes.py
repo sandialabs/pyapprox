@@ -8,8 +8,8 @@ Constructing a GP requires specifying a prior mean :math:`m(\rv)` and covariance
 .. math::
    C(\rv, \rv^\star; \ell)=\sigma^2 \frac{2^{1-\nu}}{\mathsf{\Gamma}(\nu)}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right)^{\nu}K_{\nu}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right).
 
-Here :math:`d(\rv,\rv^\star; \ell)` is the weighted Euclidean distance between two points parameterized by the  vector hyper-parameters :math:`\ell=[\ell_1,\ldots,\ell_d]^\top` is. The variance of the kernel is determined by :math:`\sigma^2` and we define :math:`K_{\nu}` as the modified Bessel function of the second
-kind of order :math:`\nu` and :math:`\mathsf{\Gamma}` as the gamma function.
+Here :math:`d(\rv,\rv^\star; \ell)` is the weighted Euclidean distance between two points parameterized by the  vector hyper-parameters :math:`\ell=[\ell_1,\ldots,\ell_d]^\top`. The variance of the kernel is determined by :math:`\sigma^2` and :math:`K_{\nu}` is the modified Bessel function of the second
+kind of order :math:`\nu` and :math:`\mathsf{\Gamma}` is the gamma function.
 Note that the parameter :math:`\nu` dictates for the smoothness of the
 kernel function. The analytic squared-exponential kernel can be obtained as
 :math:`\nu\to\infty`.
@@ -35,8 +35,6 @@ with
 
 and :math:`A` is a matrix with with elements :math:`A_{ij}=C(\rv^{(i)},\rv^{(j)})` for :math:`i,j=1,\ldots,M`. Here we dropped the dependence on the hyper-parameters :math:`\theta` for convenience.
 
-Supervised Learning
--------------------
 Consider the univariate Runge function
 
 .. math:: f(\rv) = \frac{1}{1+25\rv^2}, \quad \rv\in[-1,1]
@@ -61,11 +59,12 @@ validation_values = func(validation_samples)
 plt.plot(validation_samples[0, :], validation_values[:, 0], 'r-', label='Exact')
 gp_vals, gp_std = gp(validation_samples, return_std=True)
 plt.plot(validation_samples[0, :], gp_vals[:, 0], 'b-', label='GP prior mean')
-plt.fill_between(validation_samples[0, :], gp_vals[:, 0]-2*gp_std,
+_ = plt.fill_between(validation_samples[0, :], gp_vals[:, 0]-2*gp_std,
                  gp_vals[:, 0]+2*gp_std,
                  alpha=0.2, color='blue', label='GP prior uncertainty')
 
-#%% Now lets train the GP using a small number of evaluations and plot
+#%%
+#Now lets train the GP using a small number of evaluations and plot
 #the posterior mean and variance.
 ntrain_samples = 5
 train_samples = np.linspace(lb, ub, ntrain_samples)[None, :]
@@ -88,15 +87,15 @@ _ = plt.legend()
 #%%
 #Experimental design
 #-------------------
-#The nature of the training samples significantly impacts the accuracy of a Gaussian process. Noting that the variance of a GP reflects the accuracy of a Gaussian process [SWMW1989]_ developed an experimental design procedure which minimizes the average variance with respect to a specified measure. This measure is typically the probability measure :math:`\pdf(\rv)` of the random variables :math:`\rv`. Integrated variance designs, as they are often called, find a set of samples :math:`\mathcal{Z}\subset\Omega\subset\rvdom` from a set of candidate samples :math:`\Omega` by solving the minimization problem
+#The nature of the training samples significantly impacts the accuracy of a Gaussian process. Noting that the variance of a GP reflects the accuracy of a Gaussian process, [SWMW1989]_ developed an experimental design procedure which minimizes the average variance with respect to a specified measure. This measure is typically the probability measure :math:`\pdf(\rv)` of the random variables :math:`\rv`. Integrated variance designs, as they are often called, find a set of samples :math:`\mathcal{Z}\subset\Omega\subset\rvdom` from a set of candidate samples :math:`\Omega` by solving the minimization problem
 #
 #.. math:: \mathcal{Z}^\dagger=\argmin_{\mathcal{Z}\subset\Omega\subset\rvdom, \lvert\mathcal{Z}\rvert=M} \int_{\rvdom} C^\star(\rv, \rv\mid \mathcal{Z})\pdf(\rv)d\rv
 #
 #where we have made explicit the posterior variance dependence on :math:`\mathcal{Z}`.
 #
-#The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples. The IVAR criterion - also called active learning Cohn (ALC) - can be minimized over discrete [HJZ2021]_ or continuous [GM2016]_ design spaces :math:`\Omega`. When employing a discrete design space, greedy methods [C2006]_ are used to sample one at a time from a finite set of candidate samples to minimize the learning objective.  This approach requires a representative candidate set which, we have found, can be generated with low-discrepancy sequences, e.g. Sobol sequences. The continuous optimization optimization is non-convex and thus requires a good initial guess to start the gradient based optimization. Greedy methods can be used to produce the initial guess, however we found that optimizing from this design resulted in minimal improvement.
+#The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples. The IVAR criterion - also called active learning Cohn (ALC) - can be minimized over discrete [HJZ2021]_ or continuous [GM2016]_ design spaces :math:`\Omega`. When employing a discrete design space, greedy methods [C2006]_ are used to sample one at a time from a finite set of candidate samples to minimize the learning objective.  This approach requires a representative candidate set which, we have found, can be generated with low-discrepancy sequences, e.g. Sobol sequences. The continuous optimization optimization is non-convex and thus requires a good initial guess to start the gradient based optimization. Greedy methods can be used to produce the initial guess, however in certain situation optimizing from the greedy design resulted in minimal improvement.
 #
-# The following code plots the samples chosen by greedily minimizing IVAR
+#The following code plots the samples chosen by greedily minimizing IVAR
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     IVARSampler, GreedyIntegratedVarianceSampler, CholeskySampler)
 from pyapprox.variables.joint import IndependentMarginalsVariable, stats
@@ -130,7 +129,7 @@ ntrain_samples = 5
 plot_gp_samples(ntrain_samples, kernel, variable)
 
 #%%
-#Contrast the variance to the samples obtained by a global optimiaztion of IVAR,
+#The following plots the variance obtained by a global optimiaztion of IVAR,
 #starting from the greedy IVAR sampls as the intial guess. The samples are plotted sequentially, however this is just for visualization as the global optimization does not produce a nested sequence of samples.
 sampler = IVARSampler(
     1, 100, ncandidate_samples, variable.rvs, variable,
@@ -152,7 +151,7 @@ plot_gp_samples(ntrain_samples, kernel, variable)
 #
 #Finally we remark that while ALM and ALC are the most popular experimental design strategies for GPs, alternative methods have been proposed. Of note are those methods which approximately minimize the mutual information between the Gaussian process evaluated at the training data and the Gaussian process evaluated at the remaining candidate samples [KSG2008]_, [BG2016]_. We do not consider these methods in our numerical comparisons.
 #
-# The following code shows how to use pivoted Cholesky factorization to greedily choose trainig samples for a GP.
+#The following code shows how to use pivoted Cholesky factorization to greedily choose trainig samples for a GP.
 sampler = CholeskySampler(1, 100, variable)
 sampler.set_kernel(kernel)
 ntrain_samples = 5
