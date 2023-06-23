@@ -23,7 +23,7 @@ jobs:
         # os: [ubuntu-latest]
 	# pin to python-3.7.16 because github actions has a bug with _bz2 on
 	# ubunutu for 3.7.17
-	python-version: [3.7.16, 3.8, 3.9, '3.10', '3.11']
+	python-version: [3.7.16, 3.8, 3.9, 3.10, 3.11]
         os: [ubuntu-latest, macos-latest]
         # python-version: [3.7, 3.8] #3.8 currently fails due to numpy error
         # solely experienced when using github actions ValueError:
