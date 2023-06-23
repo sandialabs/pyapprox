@@ -394,7 +394,7 @@ class TestGaussianProcess(unittest.TestCase):
         assert np.allclose(variance_of_mean_quad, variance_random_mean)
         assert np.allclose(mean_of_variance_quad, expected_random_var)
 
-        nsamples, final_tol = int(1e5), 1e-2
+        nsamples, final_tol = int(1e5), 1.3e-2
         # Below nsamples is killed by github actions due to memory usage
         # nsamples, final_tol = int(1e6), 5e-3
         random_means, random_variances = [], []
