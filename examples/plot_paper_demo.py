@@ -36,8 +36,8 @@ torch.manual_seed(2023)
 #%%
 #The tutorial can save the figures to file if desired. If you do want the plots
 #set savefig=True
-savefig=True
-#savefig = False
+# savefig = True
+savefig = False
 
 #%%
 #The following code shows how to create and sample from two independent uniform random variables defined on :math:`[-2, 2]`. We use uniform variables here, but any marginal from the scipy.stats module can be used.
@@ -329,7 +329,7 @@ axs[1].set_title(mathrm_label("Relative model costs"))
 best_est, best_model_indices = (
     multifidelity.get_best_models_for_acv_estimator(
         "acvgmfb", cov, model_costs, inv_benchmark.variable, 1e2, max_nmodels=3,
-        tree_depth=4))
+        init_kwargs={"tree_depth": 4}))
 target_cost = 1000
 best_est.allocate_samples(target_cost)
 print("Predicted variance", best_est.optimized_variance)
