@@ -129,7 +129,8 @@ def get_distribution_info(rv):
     elif len(scale_values) == 1 and "loc" not in rv.kwds:
         scale_values = [0]+scale_values
     scale_names = ["loc", "scale"]
-    scales = dict(zip(scale_names, np.atleast_1d(scale_values)))
+    scales = dict(zip(scale_names, [np.atleast_1d(s) for s in scale_values]))
+    print(scales, shapes)
 
     if type(rv.dist) == float_rv_discrete:
         xk = rv.dist.xk.copy()

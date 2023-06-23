@@ -27,7 +27,7 @@ def no_cythonize(extensions, **_ignore):
 USE_CYTHON = True
 print('CYTHONIZING')
 extensions = cythonize(
-    "pyapprox/cython/*.pyx",
+    ["pyapprox/cython/*.pyx"],
     compiler_directives={'language_level': 3},
     annotate=True)
 
@@ -96,4 +96,37 @@ setuptools.setup(
 
 # To test pyapprox on test.pypi use the following.
 # Note the use of extra-index-url
-# python3 -m pip install --extra-index-url=https://test.pypi.org/simple/ pyapprox==1.0.1
+# python -m pip install --extra-index-url=https://test.pypi.org/simple/ pyapprox==1.0.1
+
+# To build wheel locally use
+# python -m build --wheel
+
+# To test wheel locally create virtual environment and install using
+# pip install mypackage-0.31.0-py2.py3-none-any.whl
+# with docs use (quotes are important)
+# pip install 'mypackage-0.31.0-py2.py3-none-any.whl[docs]'
+
+
+# When uploading to test.pypi.org if the last wheel is broken, e.g.
+# mypackage-0.31.0-py2.py3-none-any.whl
+# then add a build number, e.g. -1
+# mypackage-0.31.0-1-py2.py3-none-any.whl
+# or -2
+# mypackage-0.31.0-2-py2.py3-none-any.whl
+# and upload
+# python -m twine upload --repository testpypi dist/*
+
+# to catch warnings as errors from command, e.g. to run a unittest use
+# python -W error -m unittest pyapprox.surrogates.tests.test_approximate.TestApproximate.test_approximate_fixed_pce
+
+# to run a single test with pytest use
+# pytest pyapprox/surrogates/tests/test_approximate.py -k test_cross_validate_pce_degree
+
+# To ignore certain warnings use 
+# pytest pyapprox/surrogates/tests/test_approximate.py -k test_cross_validate_pce_degree -W ignore:FutureWarning
+
+# However to isolate 3rd party warnings edit pypest.ini, e.g.
+# [pytest]
+# filterwarnings = ignore::FutureWarning:sklearn.*:
+# "Individual warnings filters are specified as a sequence of fields separated by colons:"
+# action:message:category:module:line

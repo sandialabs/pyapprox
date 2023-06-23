@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from sklearn.gaussian_process.kernels import _approx_fprime
 from sklearn.gaussian_process import GaussianProcessRegressor
 from pyapprox.surrogates.gaussianprocess.kernels import (
-    WhiteKernel, RBF, DerivGPKernel, kernel_ff, kernel_dd, kernel_fd,)
+    WhiteKernel, RBF, DerivGPKernel, kernel_ff, kernel_dd, kernel_fd)
 
 from pyapprox.util.utilities import cartesian_product
 from pyapprox.surrogates.gaussianprocess.gradient_enhanced_gp import (
@@ -52,7 +52,7 @@ def gradient_enhanced_gp_example(num_vars, plot=False):
     noise_level = 0.02
     n_restarts_optimizer = 3
 
-    gegp_kernel = 1*DerivGPKernel(
+    gegp_kernel = DerivGPKernel(
         num_XX_train_values,
         length_scale=length_scale, length_scale_bounds=(1.e-2, 1e2))
     gegp_kernel += WhiteKernel(  # optimize gp noise
@@ -66,7 +66,7 @@ def gradient_enhanced_gp_example(num_vars, plot=False):
     # having 1.*kernel will cause constant to be optimized
     # but answer is sensitive to order of 1*kernel and kernel*1
     # for small sample sizes
-    gp_kernel = 1*RBF(
+    gp_kernel = RBF(
         length_scale=length_scale, length_scale_bounds=(1e-1, 1e2))
     gp_kernel += WhiteKernel(  # optimize gp noise
         noise_level=noise_level, noise_level_bounds=(1e-5, 1))

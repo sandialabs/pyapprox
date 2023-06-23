@@ -14,7 +14,19 @@ requires = [
 
 [project]
 name = "pyapprox"
-version="1.0.1"
+version = "1.0.1"
+description = "High-dimensional function approximation and estimation"
+requires-python = '>=3.6'
+license = {file = 'LICENSE'}
+readme = "README.md"
+authors = [
+    {name = "John D. Jakeman", email = "29109026+jdjakem@users.noreply.github.com"},
+]
+classifiers=[
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]    
 dependencies = [
     'numpy >= 1.16.4',
     'matplotlib',

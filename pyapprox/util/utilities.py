@@ -494,7 +494,6 @@ def get_all_sample_combinations(samples1, samples2):
     """
     import itertools
     samples = []
-    print(samples1.shape, samples2.shape)
     for r in itertools.product(*[samples1.T, samples2.T]):
         samples.append(np.concatenate(r))
     return np.asarray(samples).T
@@ -645,7 +644,7 @@ def leave_many_out_lsq_cross_validation(basis_mat, values, fold_sample_indices,
         H_mat_inv = np.linalg.inv(H_mat)
         cv_errors.append(H_mat_inv.dot(residuals_kk))
         cv_score += np.sum(cv_errors[-1]**2, axis=0)
-    return np.asarray(cv_errors), np.sqrt(cv_score/basis_mat.shape[0]), coef
+    return cv_errors, np.sqrt(cv_score/basis_mat.shape[0]), coef
 
 
 def get_random_k_fold_sample_indices(nsamples, nfolds, random=True):

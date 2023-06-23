@@ -3,11 +3,24 @@ import numpy as np
 from scipy import stats
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.gaussianprocess.kernels import MultilevelKernel, RBF
+from pyapprox.surrogates.gaussianprocess.kernels import (
+    MultilevelKernel, RBF, MonomialScaling)
 from pyapprox.util.utilities import (
     get_all_sample_combinations, cartesian_product)
 from pyapprox.surrogates.gaussianprocess.calibration import (
     GPCalibrationVariable, CalibrationGaussianProcess)
+
+# # the following can be used to append location of print statement so
+# # that errant print statements can be found and removed
+# import builtins
+# from inspect import getframeinfo, stack
+# original_print = print
+
+# def print_wrap(*args, **kwargs):
+#     caller = getframeinfo(stack()[1][0])
+#     original_print("FN:",caller.filename,"Line:", caller.lineno,"Func:", caller.function,":::", *args, **kwargs)
+
+# builtins.print = print_wrap
 
 
 class TestGPCalibration(unittest.TestCase):
@@ -64,12 +77,15 @@ class TestGPCalibration(unittest.TestCase):
         # when length_scale bounds is fixed then the V2(D2) block in Kennedys
         # paper should always be the same regardless of value of theta
         # length_scale_bounds = "fixed"
-        kernels = [RBF() for nn in range(nmodels)]
+        kernels = [RBF for nn in range(nmodels)]
         nsamples_per_model = [v.shape[0] for v in train_values]
+        kernel_scalings = [
+            MonomialScaling(nvars, 0) for nn in range(nmodels-1)]
+        # Todo current tests do not pass if sigma_bounds != "fixed"
         ml_kernel = MultilevelKernel(
-            nvars, nsamples_per_model, kernels, length_scale=length_scales,
+            nvars, kernels, kernel_scalings, length_scale=length_scales,
             length_scale_bounds=length_scale_bounds, rho=rho,
-            rho_bounds=(1e-1, 2))
+            rho_bounds=(1e-1, 2), sigma=None, sigma_bounds="fixed")
 
         gp = CalibrationGaussianProcess(
             ml_kernel, normalize_y=False, n_restarts_optimizer=0)
@@ -150,7 +166,7 @@ class TestGPCalibration(unittest.TestCase):
             [2, 2, [51, 31], False],
         ]
         for scenario in scenarios:
-            print(scenario)
+            print('scenario', scenario)
             np.random.seed(1)
             self._check_linear_discrepancy(*scenario)
 

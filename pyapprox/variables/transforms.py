@@ -154,7 +154,8 @@ class AffineTransform(object):
             #     lb, ub = -1, 1
             #     scale /= (ub-lb)
             #     loc = loc-scale*lb
-            self.scale_parameters[ii, :] = transform_scale_parameters(var)
+            self.scale_parameters[ii, :] = np.hstack(
+                transform_scale_parameters(var))
 
     def set_identity_maps(self, identity_map_indices):
         """
