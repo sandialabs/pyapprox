@@ -38,11 +38,27 @@ def relu_gradient(samples):
 
 
 def squared_loss_function(approx_values, values):
-    return 0.5*np.sum((approx_values - values)**2, axis=1)/values.shape[0]
+    """
+    Parameters
+    ----------
+    approx_values : np.ndarray(nqoi, nsamples)
+        The output of the approximation
+    values : np.ndarray(nqoi, nsamples)
+        The training data
+    """
+    return 0.5*np.sum((approx_values - values)**2, axis=0)/values.shape[1]
 
 
-def squared_loss_gradient(approx_values, values):
-    return (approx_values - values)/values.shape[0]
+def squared_loss_gradient_numerator_convention(approx_values, values):
+    """
+    Parameters
+    ----------
+    approx_values : np.ndarray(nqoi, nsamples)
+        The output of the approximation
+    values : np.ndarray(nqoi, nsamples)
+        The training data
+    """
+    return ((approx_values - values)/values.shape[1]).T
 
 
 def flatten_nn_parameters(Wmats, bvecs, flatten_ord="C"):
@@ -96,7 +112,8 @@ class NeuralNetwork(object):
 
         loss_functions = {
             'squared_loss':
-            [squared_loss_function, squared_loss_gradient]}
+            [squared_loss_function,
+             squared_loss_gradient_numerator_convention]}
         loss_type = self.opts['loss_func']
         if loss_type not in loss_functions:
             msg = f"Loss func {loss_type} not "
@@ -139,58 +156,74 @@ class NeuralNetwork(object):
         return Wmats, bvecs
 
     def forward_propagate(self, train_samples, parameters):
-        assert train_samples.ndim == 2
         Wmats, bvecs = self.expand_parameters(parameters)
-        aout = train_samples.T
-        self.derivative_info = [[aout, aout]]
-        for ii in range(1, self.nlayers-1):
-            zout = Wmats[ii].dot(aout.T).T + bvecs[ii]
-            aout = self.afunc(zout)
-            self.derivative_info.append([zout, aout])
-        ii = self.nlayers-1
-        zout = Wmats[ii].dot(aout.T).T + bvecs[ii]
-        if self.output_activation:
-            aout = self.afunc(zout)
-        else:
-            aout = zout.copy()
-        self.derivative_info.append([zout, aout])
-        return zout
+        self.derivative_info = []
 
-    def backwards_propagate(self, train_values, parameters):
-        """
-        Compute gradient of cost function with respect to hyper-parameters
-        """
-        jacobian = np.empty((self.nparams))
-        Wmats, bvecs = self.expand_parameters(parameters)
-        dC_da = self.Cgrad(self.derivative_info[-1][1], train_values)
-        z_L = self.derivative_info[-1][0]      # (nsamples, width[L])
+        # Input Layer
+        yout = train_samples
+        self.derivative_info.append([yout, yout])
+
+        # Hidden Layers
+        for ii in range(1, self.nlayers-1):
+            # python broadcasting is used to add bvecs[ii] to all columns
+            uout = Wmats[ii].dot(yout) + bvecs[ii][:, None]
+            yout = self.afunc(uout)
+            self.derivative_info.append([uout, yout])
+
+        # Output layer
+        ii = self.nlayers-1
+        # python broadcasting is used to add bvecs[ii] to all columns
+        uout = Wmats[ii].dot(yout) + bvecs[ii][:, None]
         if self.output_activation:
-            dC_dz = (dC_da*self.agrad(z_L)).T  # (width[L], nsamples)
+            yout = self.afunc(uout)
         else:
-            dC_dz = (dC_da*np.ones_like(z_L)).T
-        dC_db = np.sum(dC_dz, axis=1)          # (width[L])
-        a_Lm1 = self.derivative_info[-2][1]    # (nsamples, width[L-1])
-        dC_dW = dC_dz.dot(a_Lm1)               # (width[L], width[L-1])
-        ub = self.nparams
+            yout = uout.copy()
+        self.derivative_info.append([uout, yout])
+        return yout.T  # keep pyapprox convention for outputs
+
+    def update_parameter_gradient(self, dC_dW, dC_db, jacobian, ub):
         lb = ub - dC_db.shape[0]
         jacobian[lb:ub] = dC_db
         ub = lb
         lb = ub - np.prod(dC_dW.shape)
-        jacobian[lb:ub] = dC_dW.flatten()
+        # must flatten with order="F" to account for fact that we
+        # are using numerator convention which transposes denominator
+        # of derivative, i.e. W. Or equivalently use
+        # jacobian[lb:ub] = dC_dW.T.flatten()
+        jacobian[lb:ub] = dC_dW.flatten(order="F")
         ub = lb
-        for ll in range(self.nlayers-2, 0, -1):
-            dC_dz_prev = dC_dz.copy()
-            z_ll = self.derivative_info[ll][0]
-            a_llm1 = self.derivative_info[ll-1][1]
-            dC_dz = Wmats[ll+1].T.dot(dC_dz_prev)*self.agrad(z_ll).T
-            dC_dW = dC_dz.dot(a_llm1)
-            dC_db = np.sum(dC_dz, axis=1)
-            lb = ub - dC_db.shape[0]
-            jacobian[lb:ub] = dC_db
-            ub = lb
-            lb = ub - np.prod(dC_dW.shape)
-            jacobian[lb:ub] = dC_dW.flatten()
-            ub = lb
+        return jacobian, ub
+
+    def layer_backwards_propgate(self, delta_l, Wmats, layer, jacobian, ub,
+                                 activation=True):
+        u_l, y_l = self.derivative_info[layer-1]
+        dC_dW = y_l.dot(delta_l)
+        dC_db = np.sum(delta_l, axis=0)
+        delta_lm1 = (delta_l.dot(Wmats[layer]))*self.agrad(u_l.T)
+        jacobian, ub = self.update_parameter_gradient(
+            dC_dW, dC_db, jacobian, ub)
+        return delta_lm1, jacobian, ub
+
+    def backwards_propagate(self, train_values, parameters):
+        Wmats, bvecs = self.expand_parameters(parameters)
+        # The true jacobian has shape (1, nparams)
+        # but scipy optimize requires a 1D ndarray
+        jacobian = np.empty((self.nparams))
+
+        # Gradient of loss with resepect to y_L
+        u_l, y_l = self.derivative_info[-1]
+        # train_values.T converts from pyapprox convention to NN convention
+        dC_yl = self.Cgrad(y_l, train_values.T)
+        if self.output_activation:
+            delta_l = dC_yl*self.agrad(u_l.T)
+        else:
+            delta_l = dC_yl
+        delta_l, jacobian, ub = self.layer_backwards_propgate(
+            delta_l, Wmats, self.nlayers-1, jacobian, self.nparams,
+            self.output_activation)
+        for layer in range(self.nlayers-2, 0, -1):
+            delta_l, jacobian, ub = self.layer_backwards_propgate(
+                delta_l, Wmats, layer, jacobian, ub)
         return jacobian
 
     def gradient_wrt_inputs(self, parameters, sample, store=False):
@@ -203,16 +236,16 @@ class NeuralNetwork(object):
         Wmats, bvecs = self.expand_parameters(parameters)
         z_L = self.derivative_info[-1][0]   # (nsamples, width[L])
         if self.output_activation:
-            da_dz_diag = self.agrad(z_L).T
+            da_dz_diag = self.agrad(z_L)
         else:
-            da_dz_diag = np.ones_like(z_L).T
+            da_dz_diag = np.ones_like(z_L)
         dz_da = Wmats[-1]
         jacobian = da_dz_diag*dz_da
         self.jac_info = []
         for ll in range(self.nlayers-2, 0, -1):
             z_ll = self.derivative_info[ll][0]
             dz_da = Wmats[ll]
-            da_dz_diag = self.agrad(z_ll).T
+            da_dz_diag = self.agrad(z_ll)
             tmp = da_dz_diag*dz_da
             if store:
                 self.jac_info.append(tmp)
@@ -231,7 +264,7 @@ class NeuralNetwork(object):
         self.forward_propagate(sample, parameters)
         Wmats, bvecs = self.expand_parameters(parameters)
         z_L = self.derivative_info[-1][0]   # (nsamples, width[L])
-        da_dz_diag = sigmoid_second_derivative(z_L).T
+        da_dz_diag = sigmoid_second_derivative(z_L)
         dz_da = Wmats[-1]
         cnt = 0
         derivs = (da_dz_diag*dz_da**2).dot(self.jac_info[cnt])
@@ -239,7 +272,7 @@ class NeuralNetwork(object):
             cnt += 1
             z_ll = self.derivative_info[ll][0]
             dz_da = Wmats[ll]
-            da_dz_diag = sigmoid_second_derivative(z_ll).T
+            da_dz_diag = sigmoid_second_derivative(z_ll)
             if cnt < self.nlayers-2:
                 derivs += (da_dz_diag*dz_da**2).dot(self.jac_info[cnt])
         return derivs
@@ -260,18 +293,27 @@ class NeuralNetwork(object):
         self.last_parameters = parameters
         approx_values = self.forward_propagate(
             train_samples, parameters)
-        loss = np.sum(self.Cfunc(approx_values, train_values))
+        loss = np.sum(self.Cfunc(approx_values.T, train_values.T))
         loss += self.lag_mult*0.5*parameters.squeeze().dot(
             parameters.squeeze())/train_samples.shape[0]
         return loss
 
-    def fit(self, samples, values, x0=None, opts={}, verbose=0):
+    def _parse_data(self, samples, values):
         assert samples.shape[0] == self.layers[0]
+        assert values.ndim == 2
+        assert values.shape[0] == samples.shape[1]
+        assert values.shape[1] == self.layers[-1]
         if self.var_trans is not None:
-            self.train_samples = self.var_trans.map_to_canonical(samples)
+            train_samples = self.var_trans.map_to_canonical(samples)
         else:
-            self.train_samples = samples
-        self.train_values = values
+            train_samples = samples
+        train_values = values
+        ntrain_samples = train_values.shape[0]
+        return train_samples, train_values, ntrain_samples
+
+    def fit(self, samples, values, x0=None, opts={}, verbose=0):
+        self.train_samples, self.train_values, self.ntrain_samples = (
+            self._parse_data(samples, values))
         obj = partial(self.objective_function, self.train_samples,
                       self.train_values)
         jac = partial(self.objective_jacobian, self.train_samples,
@@ -288,7 +330,7 @@ class NeuralNetwork(object):
 
         if verbose > 0:
             print("No. Parameters", self.nparams)
-            print("No. Samples", self.train_samples.shape[1])
+            print("No. Samples", self.ntrain_samples)
 
         results = []
         for x in x0.T:
@@ -327,5 +369,87 @@ class NeuralNetwork(object):
 
     def __repr__(self):
         rep = "MLP({0})".format(
+            ",".join([str(layer) for layer in self.layers]))
+        return rep
+
+
+class MultiTaskNeuralNetwork(NeuralNetwork):
+    def backwards_propagate(self, train_values, parameters, task):
+        Wmats, bvecs = self.expand_parameters(parameters)
+        # The true jacobian has shape (1, nparams)
+        # but scipy optimize requires a 1D ndarray
+        jacobian = np.empty((self.nparams))
+
+        # Gradient of loss with resepect to y_L
+        u_l, y_l = self.derivative_info[-1]
+        # train_values.T converts from pyapprox convention to NN convention
+        dC_yl = self.Cgrad(y_l, train_values.T)
+        if self.output_activation:
+            delta_l = dC_yl*self.agrad(u_l.T)
+        else:
+            delta_l = dC_yl
+        delta_l[:, :task] = 0
+        delta_l[:, task+1:] = 0
+        delta_l, jacobian, ub = self.layer_backwards_propgate(
+            delta_l, Wmats, self.nlayers-1, jacobian, self.nparams,
+            self.output_activation)
+        for layer in range(self.nlayers-2, 0, -1):
+            delta_l, jacobian, ub = self.layer_backwards_propgate(
+                delta_l, Wmats, layer, jacobian, ub)
+        return jacobian
+
+    def objective_jacobian(self,
+                           train_samples_per_model, train_values_per_model,
+                           parameters):
+        grad = 0
+        task = 0
+        for train_samples, train_values in zip(
+                train_samples_per_model, train_values_per_model):
+            self.forward_propagate(train_samples, parameters)
+            grad += self.backwards_propagate(train_values, parameters, task)
+            task += 1
+        grad += self.lag_mult*parameters.squeeze()/train_samples[0].shape[0]
+        # TODO should train_samples[0].shape[0] be ntrain_samples
+        return grad
+
+    def objective_function(self, train_samples_per_model,
+                           train_values_per_model,
+                           parameters):
+        self.last_parameters = parameters
+        loss = 0
+        task = 0
+        # assert self.layers[-1] == 1  # TODO assumes 1 qoi for each task
+        for train_samples, train_values in zip(
+                train_samples_per_model, train_values_per_model):
+            approx_values = self.forward_propagate(
+                train_samples, parameters)[:, task:task+1]
+            loss += np.sum(self.Cfunc(approx_values.T, train_values.T))
+            task += 1
+        loss += self.lag_mult*0.5*parameters.squeeze().dot(
+            parameters.squeeze())/train_samples[0].shape[0]
+        # TODO should train_samples[0].shape[0] be ntrain_samples
+        return loss
+
+    def _parse_data(self, samples_per_model, values_per_model):
+        assert isinstance(samples_per_model, list)
+        assert isinstance(values_per_model, list)
+        assert len(values_per_model) == self.layers[-1]
+        assert len(values_per_model) == len(samples_per_model)
+        for samples, values in zip(samples_per_model, values_per_model):
+            assert samples.shape[0] == self.layers[0]
+            assert values.shape[0] == samples.shape[1]
+            assert values.ndim == 2
+        if self.var_trans is not None:
+            train_samples = [
+                self.var_trans.map_to_canonical(samples)
+                for samples in samples_per_model]
+        else:
+            train_samples = samples_per_model
+        train_values = values_per_model
+        ntrain_samples = sum([samples.shape[1] for samples in train_samples])
+        return train_samples, train_values, ntrain_samples
+
+    def __repr__(self):
+        rep = "MultiTaskNN({0})".format(
             ",".join([str(layer) for layer in self.layers]))
         return rep

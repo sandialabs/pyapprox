@@ -2,17 +2,17 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 
 from pyapprox.surrogates.gaussianprocess.kernels import (
-    MultilevelKernel, SequentialMultilevelKernel)
+    MultilevelKernel, SequentialMultilevelKernel,
+    MultifidelityPeerKernel)
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
-    GaussianProcess
-)
+    GaussianProcess, extract_gaussian_process_attributes_for_integration)
 
 
-class MultilevelGaussianProcess(GaussianProcessRegressor):
+class MultifidelityGaussianProcess(GaussianProcessRegressor):
     def __init__(self, kernel, alpha=1e-10,
                  optimizer="fmin_l_bfgs_b", n_restarts_optimizer=0,
                  copy_X_train=True, random_state=None, normalize_y=False):
-        if type(kernel) != MultilevelKernel:
+        if not isinstance(kernel, (MultilevelKernel, MultifidelityPeerKernel)):
             raise ValueError("Multilevel Kernel must be provided")
         super().__init__(
             kernel=kernel, alpha=alpha,
@@ -31,6 +31,11 @@ class MultilevelGaussianProcess(GaussianProcessRegressor):
         assert self._values[0].ndim == 2
         assert self._values[0].shape[1] == 1
         self.nvars = samples[0].shape[0]
+
+        if hasattr(self, "kernel"):
+            self.kernel.set_nsamples_per_model(np.asarray([
+                s.shape[1] for s in samples]))
+
         for ii in range(1, self.nmodels):
             assert samples[ii].ndim == 2
             assert samples[ii].shape[0] == self.nvars
@@ -83,8 +88,23 @@ class MultilevelGaussianProcess(GaussianProcessRegressor):
         ax.plot(XX_test[0, :], gp_mean, **plt_kwargs)
         return ax
 
+    # def integrate(self, variable, nquad_samples):
+    #     (X_train, y_train, K_inv, kernel_length_scale, kernel_var,
+    #      transform_quad_rules) = (
+    #          extract_gaussian_process_attributes_for_integration(self))
+    #     print(transform_quad_rules)
+    #     tau, P = self.kernel_._integrate_tau_P(
+    #         variable, nquad_samples, X_train, transform_quad_rules)
+    #     A_inv = K_inv*kernel_var
+    #     # No kernel_var because it cancels out because it appears in K (1/s^2)
+    #     # and t (s^2)
+    #     A_inv_y = A_inv.dot(y_train)
+    #     expected_random_mean = tau.dot(A_inv_y)
+    #     expected_random_mean += self._y_train_mean
+    #     return expected_random_mean, P
 
-class SequentialMultilevelGaussianProcess(MultilevelGaussianProcess):
+
+class SequentialMultifidelityGaussianProcess(MultifidelityGaussianProcess):
     def __init__(self, kernels, alpha=1e-10,
                  optimizer="fmin_l_bfgs_b", n_restarts_optimizer=0,
                  copy_X_train=True, random_state=None,
@@ -214,3 +234,150 @@ class SequentialGaussianProcess(GaussianProcess):
             self._shift_data(self.y_train_.copy(), self.kernel_.theta),
             check_finite=False)
         return self
+
+
+from pyapprox.surrogates.gaussianprocess.gaussian_process import (
+    GreedyIntegratedVarianceSampler)
+class GreedyMultifidelityIntegratedVarianceSampler(
+        GreedyIntegratedVarianceSampler):
+
+    def __init__(self, nmodels, num_vars, nquad_samples,
+                 ncandidate_samples_per_model, generate_random_samples,
+                 variable=None, econ=True,
+                 compute_cond_nums=False, nugget=0, model_costs=None,
+                 candidate_samples=None, quadrature_rule=None):
+        # if econ:
+        #     raise NotImplementedError()
+        self.nmodels = nmodels
+        self.model_costs = model_costs
+        self.ncandidate_samples_per_model = ncandidate_samples_per_model
+        self.nsamples_per_model = np.zeros(self.nmodels, dtype=int)
+        self.training_sample_costs = []
+        self.ivar_delta = 0.0
+
+        # todo currently 1D quadrature with seperable kernels is not suported
+        use_gauss_quadrature = False
+        super().__init__(num_vars, nquad_samples,
+                         ncandidate_samples_per_model, generate_random_samples,
+                         variable, use_gauss_quadrature, econ,
+                         compute_cond_nums, nugget, candidate_samples,
+                         quadrature_rule)
+        # super assumes one model when checking size of candidate samples
+        # so pass in for one model then override
+        if candidate_samples is not None:
+            self.candidate_samples = np.hstack(
+                [self.candidate_samples]*self.nmodels)
+
+    def _generate_candidate_samples(
+            self, ncandidate_samples_per_model):
+        # for now assume ncandidate_samples_per_model is integer used for
+        # all models
+        single_model_candidate_samples = super()._generate_candidate_samples(
+            ncandidate_samples_per_model)
+        candidate_samples = np.hstack(
+            [single_model_candidate_samples for kk in range(self.nmodels)])
+        return candidate_samples
+
+    def set_kernel(self,
+                   kernel, integration_method=None, variable=None, **kwargs):
+        if kernel.nmodels != self.nmodels:
+            raise ValueError("kernel is not consistent with self.nmodels")
+        self.kernel = kernel
+        self.kernel.nsamples_per_model = np.full(
+            (self.kernel.nmodels,), self.ncandidate_samples_per_model)
+
+        from pyapprox.surrogates.integrate import integrate
+        if integration_method is not None:
+            assert variable is not None
+            self.pred_samples, ww = integrate(
+                integration_method, variable, **kwargs)
+            ww = ww[:, 0]
+        else:
+            xx, ww = self._quadrature_rule()
+            self.pred_samples = xx
+
+        K = self.kernel(self.pred_samples.T, self.candidate_samples.T)
+        self.P = K.T.dot(ww[:, np.newaxis]*K)
+        self.compute_A()
+        self.add_nugget()
+        self.kernel.nsamples_per_model = self.nsamples_per_model
+
+    def _model_id(self, new_sample_index):
+        return new_sample_index//self.ncandidate_samples_per_model
+
+    def _ivar_delta(self, new_sample_index, pivots):
+        indices = np.concatenate(
+            [pivots, [new_sample_index]]).astype(int)
+        model_id = self._model_id(new_sample_index)
+        self.kernel.nsamples_per_model[model_id] += 1
+        A = self.A[np.ix_(indices, indices)]
+        A_inv = np.linalg.inv(A)
+        P = self.P[np.ix_(indices, indices)]
+        self.kernel.nsamples_per_model[model_id] -= 1
+        ivar_delta = np.trace(A_inv.dot(P))
+        return ivar_delta
+
+    def objective(self, new_sample_index, return_ivar_delta=False):
+        model_id = self._model_id(new_sample_index)
+        ivar_delta = self._ivar_delta(new_sample_index, self.pivots)
+        obj_val = (self.ivar_delta-ivar_delta)/self.model_costs[model_id]
+        if not return_ivar_delta:
+            return obj_val
+        else:
+            return obj_val, ivar_delta
+
+    def objective_econ(self, new_sample_index, return_ivar_delta=False):
+        model_id = self._model_id(new_sample_index)
+        self.kernel.nsamples_per_model[model_id] += 1
+        if len(self.best_obj_vals) > 0:
+            best_obj_val = self.best_obj_vals[-1]
+            # base class assumes objective is -ivar_delta
+            # but here it is something different so update
+            # so ivar is updated correctly using super().objective_econ
+            self.best_obj_vals[-1] = -self.ivar_delta
+        ivar_delta = -super().objective_econ(new_sample_index)
+        if len(self.best_obj_vals) > 0:
+            self.best_obj_vals[-1] = best_obj_val
+        self.kernel.nsamples_per_model[model_id] -= 1
+        obj_val = (self.ivar_delta-ivar_delta)/self.model_costs[model_id]
+        if not return_ivar_delta:
+            return obj_val
+        else:
+            return obj_val, ivar_delta
+
+    def vectorized_objective_vals_econ(self):
+        # TODO vectorizing requires isolating all candidates for
+        # a specific model
+        obj_vals = np.inf*np.ones(self.candidate_samples.shape[1])
+        for mm in range(self.candidate_samples.shape[1]):
+            if mm not in self.pivots:
+                obj_vals[mm] = self.objective_econ(mm)
+        return obj_vals
+
+    def update_training_samples(self, pivot):
+        # todo avoid recomputing
+        self.ivar_delta = self.objective(pivot, True)[1]
+        self.pivots.append(pivot)
+        # multilevel kernel assumes that points for each model
+        # are concatenated after one another.
+        model_id = self._model_id(pivot)
+        index = int(self.nsamples_per_model[:model_id+1].sum())
+        self.training_samples = np.insert(
+            self.training_samples, index,
+            self.candidate_samples[:, pivot], axis=1)
+        self.nsamples_per_model[model_id] += 1
+        self.training_sample_costs.append(self.model_costs[model_id])
+
+    def samples_per_model(self, pivots):
+        samples_per_model = [[] for ii in range(self.nmodels)]
+        for ii in range(len(pivots)):
+            model_id = self._model_id(self.pivots[ii])
+            sample = self.candidate_samples[:, pivots[ii]][:, None]
+            samples_per_model[model_id].append(sample)
+        for ii in range(self.nmodels):
+            if len(samples_per_model[ii]) > 0:
+                samples_per_model[ii] = np.hstack(samples_per_model[ii])
+            else:
+                samples_per_model[ii] = np.empty(
+                    (self.candidate_samples.shape[0], 0))
+        return samples_per_model

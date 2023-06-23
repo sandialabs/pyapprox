@@ -26,11 +26,12 @@ def constant_vel_fun(vels, xx):
 
 
 def gauss_forc_fun(amp, scale, loc, xx):
-    loc = torch.as_tensor(loc)
+    loc = torch.as_tensor(loc, dtype=torch.double)
     if loc.ndim == 1:
         loc = loc[:, None]
     return amp*torch.exp(
-        -torch.sum((torch.as_tensor(xx)-loc)**2/scale**2, axis=0))[:, None]
+        -torch.sum((torch.as_tensor(xx, dtype=torch.double)-loc)**2/scale**2,
+                   axis=0))[:, None]
 
 
 def mesh_locations_obs_functional(obs_indices, sol, params):
@@ -41,9 +42,10 @@ def transient_multi_index_forcing(source1_args, xx, time=0,
                                   source2_args=None):
     vals = gauss_forc_fun(*source1_args, xx)
     if time == 0:
-        return gauss_forc_fun(*source1_args, xx)
-    if source2_args is not None:
-        vals -= gauss_forc_fun(*source2_args, xx)
+        return vals
+    if source2_args is None:
+        return vals*0
+    vals -= gauss_forc_fun(*source2_args, xx)
     return vals
 
 
@@ -87,6 +89,8 @@ def raw_advection_diffusion_reaction_kle_dRdp(kle, residual, sol, param_vals):
         kle_vals = kle(param_vals[:, None])
         assert kle_vals.ndim == 2
         dkdp = kle_vals*kle.eig_vecs
+    else:
+        dkdp = kle.eig_vecs
     Du = [torch.linalg.multi_dot((dmats[dd], sol))
           for dd in range(mesh.nphys_vars)]
     kDu = [Du[dd][:, None]*dkdp for dd in range(mesh.nphys_vars)]
@@ -96,10 +100,32 @@ def raw_advection_diffusion_reaction_kle_dRdp(kle, residual, sol, param_vals):
 
 
 def advection_diffusion_reaction_kle_dRdp(
-        bndry_indices, kle, residual, sol, param_vals):
+        mesh, kle, bndry_conds, residual, sol, param_vals):
     dRdp = raw_advection_diffusion_reaction_kle_dRdp(
         kle, residual, sol, param_vals)
-    dRdp[np.hstack(bndry_indices)] = 0.0
+    for ii, bndry_cond in enumerate(bndry_conds):
+        idx = mesh._bndry_indices[ii]
+        if bndry_cond[1] == "D":
+            dRdp[idx] = 0.0
+        elif bndry_cond[1] == "R":
+            mesh_pts_idx = mesh._bndry_slice(mesh.mesh_pts, idx, 1)
+            normal_vals = mesh._bndrys[ii].normals(mesh_pts_idx)
+            if kle.use_log:
+                kle_vals = kle(param_vals[:, None])
+                dkdp = kle_vals*kle.eig_vecs
+            else:
+                dkdp = torch.as_tensor(kle.eig_vecs)
+            flux_vals = [
+                (torch.linalg.multi_dot(
+                    (mesh._bndry_slice(mesh._dmat(dd), idx, 0), sol))[:, None]
+                 * mesh._bndry_slice(dkdp, idx, 0))
+                for dd in range(mesh.nphys_vars)]
+            flux_normal_vals = [
+                normal_vals[:, dd:dd+1]*flux_vals[dd]
+                for dd in range(mesh.nphys_vars)]
+            dRdp[idx] = sum(flux_normal_vals)
+        else:
+            raise NotImplementedError()
     return dRdp
 
 
@@ -119,8 +145,7 @@ class AdvectionDiffusionReactionKLEModel():
         import inspect
         if "mesh" == inspect.getfullargspec(functional).args[0]:
             if "physics" == inspect.getfullargspec(functional).args[1]:
-                functional = partial(
-                    functional, mesh, self._fwd_solver.physics)
+                functional = partial(functional, mesh, self._fwd_solver.physics)
             else:
                 functional = partial(functional, mesh)
         for ii in range(len(functional_deriv_funs)):
@@ -139,7 +164,7 @@ class AdvectionDiffusionReactionKLEModel():
         if issubclass(type(self._fwd_solver), SteadyStatePDE):
             dqdu, dqdp = functional_deriv_funs
             dRdp = partial(advection_diffusion_reaction_kle_dRdp,
-                           mesh._bndry_indices, self._kle)
+                           mesh, self._kle, self._fwd_solver.physics._bndry_conds)
             # dRdp must be after boundary conditions are applied.
             # For now assume that parameters do not effect boundary conditions
             # so dRdp at boundary indices is zero
@@ -149,16 +174,10 @@ class AdvectionDiffusionReactionKLEModel():
     def _set_forward_solver(self, mesh, bndry_conds, vel_fun, react_funs,
                             forc_fun):
         if react_funs is None:
-            react_funs = [self._default_react_fun, self._default_react_fun_jac]
+            react_funs = [None, None]
         return SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, partial(full_fun_axis_1, 1), vel_fun,
             react_funs[0], forc_fun, react_funs[1]))
-
-    def _default_react_fun(self, sol):
-        return 0*sol
-
-    def _default_react_fun_jac(self, sol):
-        return torch.zeros((sol.shape[0], sol.shape[0]))
 
     def _fast_interpolate(self, values, xx):
         # interpolate assuming need to evaluate all mesh points
@@ -175,7 +194,7 @@ class AdvectionDiffusionReactionKLEModel():
             self._kle(sample[:, None]))
 
     def _eval(self, sample, return_grad=False):
-        sample_copy = torch.as_tensor(sample.copy())
+        sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)
         self._set_random_sample(sample_copy)
         sol = self._fwd_solver.solve(**self._newton_kwargs)
         qoi = self._functional(sol, sample_copy).numpy()
@@ -204,7 +223,8 @@ class TransientAdvectionDiffusionReactionKLEModel(
                  functional, init_sol_fun, init_time, final_time,
                  deltat, butcher_tableau, newton_kwargs={}):
         if callable(init_sol_fun):
-            self._init_sol = torch.as_tensor(init_sol_fun(mesh.mesh_pts))
+            self._init_sol = torch.as_tensor(
+                init_sol_fun(mesh.mesh_pts), dtype=torch.double)
             if self._init_sol.ndim == 2:
                 self._init_sol = self._init_sol[:, 0]
         else:
@@ -222,7 +242,7 @@ class TransientAdvectionDiffusionReactionKLEModel(
     def _eval(self, sample, return_grad=False):
         if return_grad:
             raise ValueError("return_grad=True is not supported")
-        sample_copy = torch.as_tensor(sample.copy())
+        sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)
         self._set_random_sample(sample_copy)
         if self._init_sol is None:
             self._steady_state_fwd_solver.physics._diff_fun = partial(
@@ -243,7 +263,7 @@ class TransientAdvectionDiffusionReactionKLEModel(
     def _set_forward_solver(self, mesh, bndry_conds, vel_fun, react_funs,
                             forc_fun):
         if react_funs is None:
-            react_funs = [self._default_react_fun, self._default_react_fun_jac]
+            react_funs = [None, None]
         return TransientPDE(
             AdvectionDiffusionReaction(
                 mesh, bndry_conds, partial(full_fun_axis_1, 1), vel_fun,
@@ -272,13 +292,23 @@ def _setup_advection_diffusion_benchmark(
 
     domain_bounds = [0, 1, 0, 1]
     mesh = CartesianProductCollocationMesh(domain_bounds, orders)
+    # bndry_conds = [
+    #     [partial(full_fun_axis_1, 0, oned=False), "D"],
+    #     [partial(full_fun_axis_1, 0, oned=False), "D"],
+    #     [partial(full_fun_axis_1, 0, oned=False), "D"],
+    #     [partial(full_fun_axis_1, 0, oned=False), "D"]]
+    alpha, nominal_value = 0.1, 0
     bndry_conds = [
-        [partial(full_fun_axis_1, 0, oned=False), "D"],
-        [partial(full_fun_axis_1, 0, oned=False), "D"],
-        [partial(full_fun_axis_1, 0, oned=False), "D"],
-        [partial(full_fun_axis_1, 0, oned=False), "D"]]
+        [lambda x: torch.full(
+            (x.shape[1], 1), alpha*nominal_value), "R", alpha],
+        [lambda x: torch.full(
+            (x.shape[1], 1), alpha*nominal_value), "R", alpha],
+        [lambda x: torch.full(
+            (x.shape[1], 1), alpha*nominal_value), "R", alpha],
+        [lambda x: torch.full(
+            (x.shape[1], 1), alpha*nominal_value), "R", alpha]]
     react_funs = None
-    vel_fun = partial(constant_vel_fun, [5, 0])
+    vel_fun = partial(constant_vel_fun, [1, 0])
 
     if kle_args is None:
         kle = MeshKLE(mesh.mesh_pts, use_log=True, use_torch=True)
@@ -343,7 +373,7 @@ def _setup_inverse_advection_diffusion_benchmark(
         amp, scale, loc, nobs, noise_std, length_scale, sigma, nvars, orders,
         obs_indices=None):
 
-    loc = torch.as_tensor(loc)
+    loc = torch.as_tensor(loc, dtype=torch.double)
     ndof = np.prod(np.asarray(orders)+1)
     if obs_indices is None:
         bndry_indices = np.hstack(
@@ -363,15 +393,18 @@ def _setup_inverse_advection_diffusion_benchmark(
     obs = noiseless_obs[0, :] + noise
 
     inv_functional = partial(
-        negloglike_functional,  torch.as_tensor(obs), obs_indices,
+        negloglike_functional,
+        torch.as_tensor(obs, dtype=torch.double), obs_indices,
         noise_std)
-    dqdu = partial(negloglike_functional_dqdu, torch.as_tensor(obs),
+    dqdu = partial(negloglike_functional_dqdu,
+                   torch.as_tensor(obs, dtype=torch.double),
                    obs_indices, noise_std)
-    dqdp = partial(loglike_functional_dqdp,  torch.as_tensor(obs),
+    dqdp = partial(loglike_functional_dqdp,
+                   torch.as_tensor(obs, dtype=torch.double),
                    obs_indices, noise_std)
     inv_functional_deriv_funs = [dqdu, dqdp]
 
-    newton_kwargs = {"maxiters": 1, "rel_error": True, "verbosity": 0}
+    newton_kwargs = {"maxiters": 1, "rtol": 1e-7, "verbosity": 0}
     inv_model, variable = _setup_advection_diffusion_benchmark(
         amp, scale, loc, length_scale, sigma, nvars, orders,
         inv_functional, inv_functional_deriv_funs, newton_kwargs=newton_kwargs)
@@ -391,13 +424,15 @@ def _setup_multi_index_advection_diffusion_benchmark(
             "butcher_tableau": "im_crank2",
             "deltat": 0.1,  # default will be overwritten
             "init_sol_fun": None,
-            "sink": [50, 0.1, [0.75, 0.75]]
+            # "sink": [50, 0.1, [0.75, 0.75]]
+            "sink": None
         }
 
     amp, scale = 100.0, 0.1
     loc = torch.tensor([0.25, 0.75])[:, None]
+    # loc = torch.tensor([0.25, 0.5])[:, None]
 
-    newton_kwargs = {"maxiters": 1, "rel_error": False}
+    newton_kwargs = {"maxiters": 1, "rtol": 0}
     if config_values is None:
         nlevels = 2
         config_values = [

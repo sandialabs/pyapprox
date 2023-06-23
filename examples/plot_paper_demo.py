@@ -8,6 +8,7 @@ First lets load all the necessary modules and set the random seeds for reproduci
 """
 from scipy import stats
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from functools import partial
 import torch
@@ -29,16 +30,17 @@ from pyapprox.expdesign.bayesian_oed import get_bayesian_oed_optimizer
 from pyapprox import multifidelity
 import warnings
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
-np.random.seed(2)
-torch.manual_seed(2)
+np.random.seed(2023)
+torch.manual_seed(2023)
 
 #%%
 #The tutorial can save the figures to file if desired. If you do want the plots
 #set savefig=True
+# savefig = True
 savefig = False
 
 #%%
-#The following code shows how to create and sample from two independent uniform random variables defined on [−2, 2]. We use uniform variables here, but any marginal from the scipy.stats module can be used.
+#The following code shows how to create and sample from two independent uniform random variables defined on :math:`[-2, 2]`. We use uniform variables here, but any marginal from the scipy.stats module can be used.
 nsamples = 30
 univariate_variables = [stats.uniform(-2, 4), stats.uniform(-2, 4)]
 variable = IndependentMarginalsVariable(univariate_variables)
@@ -54,12 +56,12 @@ canonical_samples = var_trans.map_to_canonical(samples)
 print_statistics(canonical_samples)
 
 #%%
-#Pyapprox provides many utilities for interfacing with complex numerical codes
-#and show how to use the ModelEnsemble and
-#WorkTrackingModel to evaluate two models at once and time the wall time
-#of each evaluation of each model. The last print statement
-#prints the median execution time of each model. First lest defined
-#two functions with different execution times that can be evaluated for multiple samples
+#Pyapprox provides many utilities for interfacing with complex numerical codes.
+#The following shows how to wrap a model and store the wall time required
+#to evaluate each sample in a set. First define a function
+#with a random execution time that takes in one sample at a time, i.e. a
+#1D array. Then wrap that model so that multiple samples can be evaluated at
+#once.
 def fun_pause_1(sample):
     assert sample.ndim == 1
     time.sleep(np.random.uniform(0, .05))
@@ -70,27 +72,20 @@ def pyapprox_fun_1(samples):
     return evaluate_1darray_function_on_2d_array(fun_pause_1, samples)
 
 
-def fun_pause_2(sample):
-    time.sleep(np.random.uniform(.05, .1))
-    return np.sum(sample**2)
-
-
-def pyapprox_fun_2(samples):
-    return evaluate_1darray_function_on_2d_array(fun_pause_2, samples)
+#%%
+#Now wrap the latter function and run it while tracking
+#their execution times. The last print statement
+#prints the median execution time of the model.
+timer_model = TimerModel(pyapprox_fun_1)
+model = WorkTrackingModel(timer_model)
+values = model(samples)
+print(model.work_tracker())
 
 #%%
-#Now wrap these functions and run them as an ensemble while tracking
-#their execution times
-model_ensemble = ModelEnsemble([pyapprox_fun_1, pyapprox_fun_2])
-timer_fun_ensemble = TimerModel(model_ensemble)
-worktracking_fun_ensemble = WorkTrackingModel(
-    timer_fun_ensemble, num_config_vars=1)
-fun_ids = np.ones(nsamples)
-fun_ids[:nsamples//2] = 0
-ensemble_samples = np.vstack([samples, fun_ids])
-values = worktracking_fun_ensemble(ensemble_samples)
-query_fun_ids = np.atleast_2d([0, 1])
-print(worktracking_fun_ensemble.work_tracker(query_fun_ids))
+#Other wrappers available in PyApprox include those for running multiple models
+#at once, useful for multi-fidelity methods, wrappers that fix a subset of inputs
+#to user specified values, wrappers that only return a subset of all
+#possible model ouputs, and wrappers for evaluating samples in parallel.
 
 #%%
 #Pyapprox provide numerous benchmarks for verifying, validating and comparing
@@ -101,10 +96,10 @@ print(worktracking_fun_ensemble.work_tracker(query_fun_ids))
 #used to characterize the uncertain diffusivity field of an advection
 #diffusion equation. See documentation of the benchmark for more details).
 print(list_benchmarks())
-noise_stdev = 1e-1
+noise_stdev = 1 #1e-1
 inv_benchmark = setup_benchmark(
     "advection_diffusion_kle_inversion", kle_nvars=3,
-    noise_stdev=noise_stdev, nobs=10, kle_length_scale=0.5)
+    noise_stdev=noise_stdev, nobs=5, kle_length_scale=0.5)
 print(inv_benchmark.keys())
 
 #%%
@@ -136,7 +131,7 @@ def callback(approx):
 
 approx_result = adaptive_approximate(
     inv_benchmark.negloglike, inv_benchmark.variable, "gaussian_process",
-    {"max_nsamples": 30, "ncandidate_samples": 2e3, "verbose": 0,
+    {"max_nsamples": 50, "ncandidate_samples": 2e3, "verbose": 0,
      "callback": callback, "kernel_variance": 400})
 
 # approx_result = adaptive_approximate(
@@ -152,6 +147,12 @@ ax = plt.subplots(figsize=(8, 6))[1]
 ax.loglog(nsamples, errors, "o-")
 ax.set_xlabel(mathrm_label("No. Samples"))
 ax.set_ylabel(mathrm_label("Error"))
+ax.set_xticks([10, 25, 50])
+ax.set_yticks([0.3, 0.75, 1.5])
+ax.get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+ax.minorticks_off()
+ax.get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+#ax.tick_params(axis='y', which='minor', bottom=False)
 if savefig:
     plt.savefig("gp-error-plot.pdf")
 
@@ -199,7 +200,7 @@ print("Surrogate", error)
 #Uncomment the commented code to use the numerical model instead of the surrogate
 #with the MCMC algorithm. Again note the significant increase in computational
 #time
-npost_samples = 1000
+npost_samples = 200
 loglike = partial(loglike_from_negloglike, approx)
 # loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)
 mcmc_variable = MetropolisMCMCVariable(
@@ -216,10 +217,11 @@ print("Acceptance rate", mcmc_variable._acceptance_rate)
 #to the cost of evaluating the numerical model, which is much higher relative
 #to the cost of running the surrogate.
 plot_unnormalized_2d_marginals(
-    mcmc_variable._variable, mcmc_variable._loglike, nsamples_1d=30,
+    mcmc_variable._variable, mcmc_variable._loglike, nsamples_1d=50,
     plot_samples=[
         [post_samples, {"alpha": 0.3, "c": "orange"}],
-        [map_sample, {"c": "k", "marker": "X", "s": 100}]])
+        [map_sample, {"c": "k", "marker": "X", "s": 100}]],
+    unbounded_alpha=0.999)
 if savefig:
     plt.savefig("posterior-samples.pdf", bbox_inches="tight")
 
@@ -246,6 +248,7 @@ for step in range(ndesign):
     results_step = oed.update_design()[1]
     oed_results.append(results_step)
 selected_candidates = design_candidates[:, np.hstack(oed_results)]
+print(selected_candidates)
 ax.plot(design_candidates[0, :], design_candidates[1, :], "rs")
 ax.plot(selected_candidates[0, :], selected_candidates[1, :], "ko")
 if savefig:
@@ -289,12 +292,13 @@ model = WorkTrackingModel(
 #So first we must compute the covariance between the QoI returned by
 #each of our models. We use samples from the posterior. But uncommenting
 #the code below will use samples from the prior.
-npilot_samples = 10
-# generate_samples = inv_benchmark.variable.rvs # for sampling from prior
-generate_samples = post_samples 
+npilot_samples = 20
+generate_samples = inv_benchmark.variable.rvs # for sampling from prior
+# generate_samples = post_samples 
 cov = multifidelity.estimate_model_ensemble_covariance(
     npilot_samples, generate_samples, model,
     fwd_benchmark.model_ensemble.nmodels)[0]
+print(cov)
 
 #%%
 #By using a WorkTrackingModel we can extract the median costs
@@ -302,8 +306,8 @@ cov = multifidelity.estimate_model_ensemble_covariance(
 #error of the multi-fidelity estimate of the mean which we can
 #compare to a prediction of the single fidelity estimate that only uses
 #the highest fidelity model.
-model_costs = model.work_tracker(
-    np.asarray([np.arange(fwd_benchmark.model_ensemble.nmodels)]))
+model_ids = np.asarray([np.arange(fwd_benchmark.model_ensemble.nmodels)])
+model_costs = model.work_tracker(model_ids)
 # make costs in terms of fraction of cost of high-fidelity evaluation
 model_costs /= model_costs[0]
 
@@ -318,14 +322,14 @@ axs[0].set_title(mathrm_label("Model covariances"))
 axs[1].set_title(mathrm_label("Relative model costs"))
 
 #%%
-#Now find the best multi-fidelity estimator among all avialable option
-#Note, he exact predicted variance will change from run to run even with the
+#Now find the best multi-fidelity estimator among all available option
+#Note, the exact predicted variance will change from run to run even with the
 #same seed because the computational time measured will change slightly
 #for each run
 best_est, best_model_indices = (
     multifidelity.get_best_models_for_acv_estimator(
         "acvgmfb", cov, model_costs, inv_benchmark.variable, 1e2, max_nmodels=3,
-        tree_depth=4))
+        init_kwargs={"tree_depth": 4}))
 target_cost = 1000
 best_est.allocate_samples(target_cost)
 print("Predicted variance", best_est.optimized_variance)

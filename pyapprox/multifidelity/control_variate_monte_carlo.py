@@ -704,7 +704,10 @@ def get_approximate_control_variate_weights(CF, cf):
     if type(CF) == np.ndarray:
         weights = -np.linalg.solve(CF, cf)
     else:
-        weights = -pkg.linalg.solve(CF, cf)
+        if CF.shape == (1, 1):
+            weights = -cf/CF[0, 0]
+        else:
+            weights = -pkg.linalg.solve(CF, cf)
     return weights
 
 
@@ -1190,12 +1193,11 @@ def get_generalized_approximate_control_variate_weights(
     CF, cf = get_acv_discrepancy_covariances(cov, Fmat, fvec)
     try:
         weights = get_approximate_control_variate_weights(CF, cf)
-
     except np.linalg.LinAlgError as err:
-        print("linalgerror: acv weights failed")
+        # print("linalgerror: acv weights failed")
         weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
     except RuntimeError as err:
-        print("runtime: acv weights failed")
+        # print("runtime: acv weights failed")
         weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
     return weights, cf
 
@@ -1338,26 +1340,26 @@ def get_acv_initial_guess(initial_guess, cov, costs, target_cost):
     nmodels = len(costs)
     return np.arange(2, nmodels+1)
 
-    # nmodels = cov.shape[0]
-    # nratios = np.empty(nmodels-1)
-    # for ii in range(1, nmodels):
-    #     idx = np.array([0, ii])
-    #     nratio = allocate_samples_mfmc(
-    #         cov[np.ix_(idx, idx)], costs[idx], target_cost)[0]
-    #     nratios[ii-1] = nratio
+    # # nmodels = cov.shape[0]
+    # # nratios = np.empty(nmodels-1)
+    # # for ii in range(1, nmodels):
+    # #     idx = np.array([0, ii])
+    # #     nratio = allocate_samples_mfmc(
+    # #         cov[np.ix_(idx, idx)], costs[idx], target_cost)[0]
+    # #     nratios[ii-1] = nratio
 
-    # scale ratios so that nhf_samples is one
-    nhf_samples = 1
-    # use (1-1e-8) to avoid numerical precision problems so that
-    # acv_sample_allocation_nhf_samples_constraint is always positive
-    delta = (target_cost*(1-1e-8) - costs[0]*nhf_samples)/nratios.dot(
-        costs[1:])
-    initial_guess = np.array(nratios)*delta
+    # # scale ratios so that nhf_samples is one
+    # nhf_samples = 1
+    # # use (1-1e-8) to avoid numerical precision problems so that
+    # # acv_sample_allocation_nhf_samples_constraint is always positive
+    # delta = (target_cost*(1-1e-8) - costs[0]*nhf_samples)/nratios.dot(
+    #     costs[1:])
+    # initial_guess = np.array(nratios)*delta
 
-    constraint_val = acv_sample_allocation_nhf_samples_constraint(
-        initial_guess, target_cost, costs)
-    if constraint_val < 0:
-        raise ValueError("Not a feasiable initial guess")
+    # constraint_val = acv_sample_allocation_nhf_samples_constraint(
+    #     initial_guess, target_cost, costs)
+    # if constraint_val < 0:
+    #     raise ValueError("Not a feasiable initial guess")
 
     return initial_guess
 
@@ -1441,8 +1443,8 @@ def allocate_samples_acv(cov, costs, target_cost, estimator,
         estimator, costs, target_cost, initial_guess, optim_options, cons)
     nsample_ratios = opt.x
     if not opt.success:# or opt.nit == 1: nit will be 1 if using only two models
-        for con in cons:
-            print(con['fun'], con['fun'](opt.x, *con['args']))
+        # for con in cons:
+        #     print(con['fun'], con['fun'](opt.x, *con['args']))
         raise RuntimeError('SLSQP optimizer failed'+f'{opt}')
         # var = 1e99
         # log10_var = 99
@@ -1559,7 +1561,8 @@ def compute_covariance_from_control_variate_samples(values):
     return cov
 
 
-def plot_correlation_matrix(corr_matrix, ax=None, model_names=None):
+def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
+                            format_string='{:1.3f}', cmap="jet"):
     """
     Plot a correlation matrix
 
@@ -1571,9 +1574,9 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None):
     from pyapprox.util.configure_plots import plt
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-    im = ax.matshow(corr_matrix, cmap="jet", aspect="auto")
+    im = ax.matshow(corr_matrix, cmap=cmap, aspect="auto")
     for (i, j), z in np.ndenumerate(corr_matrix):
-        ax.text(j, i, '{:1.3f}'.format(z), ha='center', va='center',
+        ax.text(j, i, format_string.format(z), ha='center', va='center',
                 fontsize=12, color='w')
     plt.colorbar(im, ax=ax)
     if model_names is None:
@@ -1679,6 +1682,7 @@ def round_nsample_ratios(target_cost, costs, nsample_ratios):
     nsamples_floor = nsamples_float.astype(int)
     # ensure all low-fidelity samples > nhf_samples after rounding
     if nsamples_floor[0] < 1 and nsamples_float[0] < 1-1e-8:
+        # print(nsample_ratios)
         # print(nsamples_floor[0], nsamples_float[0], nsamples_float[0]-1, costs)
         raise RuntimeError("Rounding likely caused nhf samples to be zero")
     elif nsamples_floor[0] < 1:
@@ -2076,7 +2080,8 @@ def plot_model_recursion(recursion_index, ax):
             font_size=24)
 
 
-def plot_sample_allocation(reorder_allocation_mat, npartition_samples, ax):
+def plot_sample_allocation(reorder_allocation_mat, npartition_samples, ax,
+                           colors=None):
     from pyapprox.util.configure_plots import plt
     nmodels = reorder_allocation_mat.shape[0]
     active_partitions = []
@@ -2084,21 +2089,27 @@ def plot_sample_allocation(reorder_allocation_mat, npartition_samples, ax):
         active_partitions.append(np.where(
             (reorder_allocation_mat[:, 2*ii] == 1) |
             (reorder_allocation_mat[:, 2*ii+1] == 1))[0])
+    # remove z_0^* which is never nonzero
+    reorder_allocation_mat = reorder_allocation_mat[:, 1:]
     index = np.arange(reorder_allocation_mat.shape[1])+0.3
     y_offset = 0
-    colors = plt.cm.rainbow(np.linspace(0, 0.5, 2*nmodels))
+    if colors is None:
+        colors = plt.cm.rainbow(np.linspace(0, 0.5, 2*nmodels))
+    assert len(colors) == 2*nmodels
     for jj in range(len(npartition_samples)):
         used_by = np.ones(reorder_allocation_mat.shape[1], dtype=bool)
         used_by[reorder_allocation_mat[jj, :] != 1] = False
         selected_colors = [
             colors[jj] if uu else 'white' for uu in used_by]
-        ax.bar(index, npartition_samples[jj], 0.4, bottom=y_offset,
+        ax.bar(index, npartition_samples[jj], 0.8, bottom=y_offset,
                color=selected_colors)
         y_offset += npartition_samples[jj]
 
-    xticklabels = []
-    for ii in range(nmodels):
-        xticklabels += [r"$z_%d^\star$" % ii, r"$z_%d$" % ii]
+    # xticklabels = []
+    xticklabels = [r"$\mathcal{Z}_%d$" % 0]
+    for ii in range(1, nmodels):
+        xticklabels += [
+            r"$\mathcal{Z}_%d^\star$" % ii, r"$\mathcal{Z}_%d$" % ii]
     ax.set_xticks(index)
     ax.set_xticklabels(xticklabels)
 
@@ -2119,4 +2130,3 @@ def plot_model_costs(costs, model_names=None, ax=None):
 # Notes
 # using pkg.double when ever creating a torch tensor is esssential.
 # Otherwise autograd will not work.
-

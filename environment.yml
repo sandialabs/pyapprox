@@ -3,12 +3,13 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - python >3.6,<3.9 # numba does requires <=3.8
-  - numpy>=1.20 # numba requires numpy >1.17, <=1.20 but pandas requires >= 1.20
+  - python>3.6
+  - numpy>=1.20
   - matplotlib
   - scipy
   - jupyter
   - pytest
+  - coverage>=6.4
   - pytest-cov
   - pip
   - setuptools
@@ -17,13 +18,12 @@ dependencies:
   - sympy
   - networkx
   - pytorch
-  # - tqdm
   - numba
   # make html in docs folder
   - sphinx
-#  - sphinx-gallery # requires conda-forge
+  - sphinx-gallery
   - pip:
-    - sphinx-gallery
+    - scikit-fem
     - sphinx_copybutton
     - sphinx_rtd_theme
     - numpydoc

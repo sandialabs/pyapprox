@@ -80,7 +80,7 @@ Test
 ----
 To run all tests run the following in the root directory of PyApprox::
   
-  python -m unittest discover
+  pytest . --disable-warnings
 
 To test docstring examples use::
   

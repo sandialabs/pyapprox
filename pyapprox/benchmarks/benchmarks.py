@@ -439,27 +439,28 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
     Oscillatory ('oscillatory')
 
-    .. math:: f(z) = \cos\left(2\pi w_1 + \sum_{i=1}^d c_iz_i\right)
+    .. math:: f(z) = \cos\left(2\pi w_1 + \sum_{d=1}^D c_dz_d\right)
 
     Product Peak ('product_peak')
 
-    .. math:: f(z) = \prod_{i=1}^d \left(c_i^{-2}+(z_i-w_i)^2\right)^{-1}
+    .. math:: f(z) = \prod_{d=1}^D \left(c_d^{-2}+(z_d-w_d)^2\right)^{-1}
 
     Corner Peak ('corner_peak')
 
-    .. math:: f(z)=\left( 1+\sum_{i=1}^d c_iz_i\right)^{-(d+1)}
+    .. math:: f(z)=\left( 1+\sum_{d=1}^D c_dz_d\right)^{-(D+1)}
 
     Gaussian Peak ('gaussian')
 
-    .. math:: f(z) = \exp\left( -\sum_{i=1}^d c_i^2(z_i-w_i)^2\right)
+    .. math:: f(z) = \exp\left( -\sum_{d=1}^D c_d^2(z_d-w_d)^2\right)
 
     C0 Continuous ('c0continuous')
 
-    .. math:: f(z) = \exp\left( -\sum_{i=1}^d c_i\lvert z_i-w_i\rvert\right)
+    .. math:: f(z) = \exp\left( -\sum_{d=1}^D c_d\lvert z_d-w_d\rvert\right)
 
     Discontinuous ('discontinuous')
 
-    .. math:: f(z) = \begin{cases}0 & x_1>w_1 \;\mathrm{or}\; x_2>w_2\\\exp\left(\sum_{i=1}^d c_iz_i\right) & \mathrm{otherwise}\end{cases}
+    .. math:: f(z) = \begin{cases}0 & z_1>w_1 \;\mathrm{or}\; z_2>w_2\\\exp\left(\sum_{d=1
+}^D c_dz_d\right) & \mathrm{otherwise}\end{cases}
 
     Increasing :math:`\lVert c \rVert` will in general make
     the integrands more difficult.
@@ -468,7 +469,7 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
     of the integration problem. We set :math:`w_1=w_2=\ldots=W_D`.
 
     The coefficient types implement different decay rates for :math:`c_d`.
-    This allows tessting of methods that can identify and exploit anisptropy.
+    This allows testing of methods that can identify and exploit anisotropy.
     They are as follows:
 
     No decay (none)
@@ -477,21 +478,21 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
     Quadratic decay (qudratic)
 
-    .. math:: \hat{c}_d = \frac{1}{(d + 1)^2}
+    .. math:: \hat{c}_d = \frac{1}{(D + 1)^2}
 
     Quartic decay (quartic)
 
-    .. math:: \hat{c}_d = \frac{1}{(d + 1)^4}
+    .. math:: \hat{c}_d = \frac{1}{(D + 1)^4}
 
     Exponential decay (exp)
 
-    .. math:: \hat{c}_d=\exp\left(\log(c_\min)\frac{d+1}{D}\right)
+    .. math:: \hat{c}_d=\exp\left(\log(c_\mathrm{min})\frac{d+1}{D}\right)
 
     Squared-exponential decay (sqexp)
 
-    .. math:: \hat{c}_d=10^\left(\log_{10}(c_\min)\frac{(d+1)^2}{D}\right)
+    .. math:: \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D}\right)}
 
-    Here :math:`c_\min` is argument that sets the minimum value of :math:`c_D`.
+    Here :math:`c_\mathrm{min}` is argument that sets the minimum value of :math:`c_D`.
 
     Once the formula are used the coefficients are normalized such that
 
@@ -739,9 +740,9 @@ def setup_multi_index_advection_diffusion_benchmark(
 
     .. math::
 
-       \frac{\partial u}{\partial t}(x,t,\rv) &= \nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] -\nabla u(x,t,\rv)+g(x,t) &(x,t,\rv)\in D\times [0,1]\times\rvdom\\
-       \mathcal{B}(x,t,\rv)&=0  &(x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
-       u(x,t,\rv)&=u_0(x,\rv) & (x,t,\rv)\in D\times\{t=0\}\times\rvdom
+       \frac{\partial u}{\partial t}(x,t,\rv) = \nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] -\nabla u(x,t,\rv)+g(x,t) &(x,t,\rv)\in D\times [0,1]\times\rvdom\\
+       \mathcal{B}(x,t,\rv)=0  &(x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
+       u(x,t,\rv)=u_0(x,\rv) & (x,t,\rv)\in D\times\{t=0\}\times\rvdom
 
     where
 
@@ -749,9 +750,9 @@ def setup_multi_index_advection_diffusion_benchmark(
 
         g(x,t)=\frac{100}{2\pi 0.1^2}\exp\left(-\frac{\lvert x-[0.25,0.75]^\top\rvert^2}{2\cdot 0.1^2}\right)-\frac{s_\mathrm{sink}}{2\pi h_\mathrm{sink}^2}\exp\left(-\frac{\lvert x-x_\mathrm{sink}\rvert^2}{2h_\mathrm{sink}^2}\right)
 
-    and :math:`B(x,t,z)` is set to enforce Dirichlet boundary conditions, i.e.
+    and :math:`B(x,t,z)` enforces Robin boundary conditions, i.e.
 
-    .. math:: u(x) = 0 \quad\mathrm{on} \quad\partial D
+    .. math:: K(x,\rv)\nabla u(x,t,\rv)\cdot n -0.1 u(x,t,\rv)= 0 \quad\mathrm{on} \quad\partial D
 
 
     As with the :py:func:`pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark`
@@ -797,10 +798,10 @@ def setup_multi_index_advection_diffusion_benchmark(
                "butcher_tableau": "im_crank2",
                "deltat": 0.1,  # default will be overwritten
                "init_sol_fun": None,
-               "sink": [50, 0.1, [0.75, 0.75]]
+               "sink": None
                }
 
-        Respectively, the entries of sink are :math:`s_\mathrm{sink}, h_\mathrm{sink}, x_\mathrm{sink}`
+        Respectively, the entries of sink are :math:`s_\mathrm{sink}, h_\mathrm{sink}, x_\mathrm{sink}`, e.g. [50, 0.1, [0.75, 0.75]]. If None then the sink will be turned off.
         init_sol is a callable function with signature ``init_sol_fun(x) -> np.ndarray (nx, 1)``
         where ``x`` is np.ndarray (nphys_vars, nx) are physical coordinates in the mesh. ``butcher_tableau`` specifies the time-stepping scheme which can be either
         ``im_beuler1`` or ``im_crank2``. ``final_time`` specifies :math:`T`.
@@ -875,7 +876,7 @@ def setup_multi_index_advection_diffusion_benchmark(
     dict_keys(['fun', 'variable'])
     """
     base_model, variable, config_var_trans, model_ensemble = (
-         _setup_multi_index_advection_diffusion_benchmark(
+        _setup_multi_index_advection_diffusion_benchmark(
             kle_length_scale, kle_stdev, kle_nvars, time_scenario=time_scenario,
             functional=functional, config_values=config_values))
     timer_model = TimerModel(base_model, base_model)

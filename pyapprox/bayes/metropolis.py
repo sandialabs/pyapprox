@@ -291,9 +291,9 @@ class MetropolisMCMCVariable(JointVariable):
         return_grad = None
 
         if init_guess is None:
-            bounds = self._variable.get_statistics("interval", alpha=1)
+            bounds = self._variable.get_statistics("interval", 1)
             trunc_bounds = self._variable.get_statistics(
-                "interval", alpha=1-1e-6)
+                "interval", 1-1e-6)
             for ii in range(bounds.shape[0]):
                 if bounds[ii, 0] == -np.inf:
                     bounds[ii, 0] = trunc_bounds[ii, 0]
@@ -317,7 +317,7 @@ class MetropolisMCMCVariable(JointVariable):
         assert init_guess.ndim == 2 and init_guess.shape[1] == 1
         assert init_guess.shape[0] == self._variable.num_vars()
         init_guess = init_guess[:, 0]
-        bounds = self._variable.get_statistics("interval", alpha=1)
+        bounds = self._variable.get_statistics("interval", 1)
         res = minimize(obj, init_guess, jac=return_grad, method="l-bfgs-b",
                        options={"disp": False}, bounds=bounds)
         MAP = res.x[:, None]
@@ -430,7 +430,7 @@ def _unnormalized_pdf_for_marginalization(
 def plot_unnormalized_2d_marginals(
         variable, loglike, nsamples_1d=100, variable_pairs=None,
         subplot_tuple=None, qoi=0, num_contour_levels=20,
-        plot_samples=None):
+        plot_samples=None, unbounded_alpha=0.995):
     from pyapprox.variables.joint import get_truncated_range
     from pyapprox.surrogates.interp.indexing import (
         compute_anova_level_indices)
@@ -467,8 +467,9 @@ def plot_unnormalized_2d_marginals(
     #         [plot_samples, {"c": "k", "marker": "o", "alpha": 0.4}]]
 
     for ii, var in enumerate(all_variables):
-        lb, ub = get_truncated_range(var, unbounded_alpha=0.995)
+        lb, ub = get_truncated_range(var, unbounded_alpha=unbounded_alpha)
         quad_degrees = np.array([20]*(variable.num_vars()-1))
+        # quad_degrees = np.array([10]*(variable.num_vars()-1))
         samples_ii = np.linspace(lb, ub, nsamples_1d)
         from pyapprox.surrogates.polychaos.gpc import (
             _marginalize_function_1d, _marginalize_function_nd)
@@ -480,22 +481,29 @@ def plot_unnormalized_2d_marginals(
         if plot_samples is not None:
             for s in plot_samples:
                 axs[ii][ii].scatter(s[0][ii, :], s[0][ii, :]*0, **s[1])
+        axs[ii][ii].set_yticks([])
 
     for ii, pair in enumerate(variable_pairs):
         # use pair[1] for x and pair[0] for y because we reverse
         # pairs above
         var1, var2 = all_variables[pair[1]], all_variables[pair[0]]
         axs[pair[1], pair[0]].axis("off")
-        lb1, ub1 = get_truncated_range(var1, unbounded_alpha=0.995)
-        lb2, ub2 = get_truncated_range(var2, unbounded_alpha=0.995)
+        lb1, ub1 = get_truncated_range(
+            var1, unbounded_alpha=unbounded_alpha)
+        lb2, ub2 = get_truncated_range(
+            var2, unbounded_alpha=unbounded_alpha)
         X, Y, samples_2d = get_meshgrid_samples(
             [lb1, ub1, lb2, ub2], nsamples_1d)
         quad_degrees = np.array([10]*(variable.num_vars()-2))
-        values = _marginalize_function_nd(
-            partial(_unnormalized_pdf_for_marginalization,
-                    variable, loglike, np.array([pair[1], pair[0]])),
-            variable, quad_degrees, np.array([pair[1], pair[0]]),
-            samples_2d, qoi=qoi)
+        if variable.num_vars() > 2:
+            values = _marginalize_function_nd(
+                partial(_unnormalized_pdf_for_marginalization,
+                        variable, loglike, np.array([pair[1], pair[0]])),
+                variable, quad_degrees, np.array([pair[1], pair[0]]),
+                samples_2d, qoi=qoi)
+        else:
+            values = _unnormalized_pdf_for_marginalization(
+                variable, loglike, np.array([pair[1], pair[0]]), samples_2d)
         Z = np.reshape(values, (X.shape[0], X.shape[1]))
         ax = axs[pair[0]][pair[1]]
         # place a text box in upper left in axes coords
@@ -586,14 +594,13 @@ class GaussianLogLike(object):
                 tmp = self.noise_covar_inv*residual
             elif self.noise_covar_inv.ndim == 1:
                 tmp = self.noise_covar_inv[:, None]*residual
-                #vals[ii] = (residual.T*self.noise_covar_inv).dot(residual)
+                # vals[ii] = (residual.T*self.noise_covar_inv).dot(residual)
             else:
-                tmp = self.noise_covar_inv[:, None].dot(residual)
-                #vals[ii] = residual.T.dot(self.noise_covar_inv).dot(residual)
-        vals = residual.dot(tmp)
+                tmp = self.noise_covar_inv.dot(residual)
+                # vals[ii] = residual.T.dot(self.noise_covar_inv).dot(residual)
+            vals[ii] = residual.dot(tmp)
         vals += self.ndata*np.log(2*np.pi) + self.log_noise_covar_det
         vals *= -0.5
-
         vals = np.atleast_2d(vals)
         if not return_grad:
             return vals
@@ -605,9 +612,9 @@ class GaussianLogLike(object):
         grad = tmp.dot(self.model_jac(samples))
         return vals, grad
 
- 
+
 def loglike_from_negloglike(negloglike, samples, jac=False):
     if not jac:
         return -negloglike(samples)
     vals, grads = negloglike(samples, jac=jac)
-    return -vals, -grads   
+    return -vals, -grads

@@ -206,15 +206,20 @@ def get_meshgrid_samples(plot_limits, num_pts_1d, logspace=False):
     """
     Generate meshgrid samples.
     """
+    if isinstance(num_pts_1d, int):
+        num_pts_1d = [num_pts_1d]*2
     if not logspace:
-        x = np.linspace(plot_limits[0], plot_limits[1], num_pts_1d)
-        y = np.linspace(plot_limits[2], plot_limits[3], num_pts_1d)
+        x = np.linspace(plot_limits[0], plot_limits[1], num_pts_1d[0])
+        y = np.linspace(plot_limits[2], plot_limits[3], num_pts_1d[1])
     else:
         x = np.logspace(
-            np.log10(plot_limits[0]), np.log10(plot_limits[1]), num_pts_1d)
+            np.log10(plot_limits[0]), np.log10(plot_limits[1]), num_pts_1d[0])
         y = np.logspace(
-            np.log10(plot_limits[2]), np.log10(plot_limits[3]), num_pts_1d)
+            np.log10(plot_limits[2]), np.log10(plot_limits[3]), num_pts_1d[1])
 
+    # X, Y =  meshgrid (x,y) same as
+    # X = cartesian_product([x, y])[0].reshape((ny, nx)
+    # Y = cartesian_product([x, y])[1].reshape((ny, nx)
     X, Y = np.meshgrid(x, y)
     pts = np.vstack((X.reshape((1, X.shape[0]*X.shape[1])),
                      Y.reshape((1, Y.shape[0]*Y.shape[1]))))
@@ -238,7 +243,7 @@ def get_meshgrid_function_data(function, plot_limits, num_pts_1d, qoi=0,
         The lower and upper bounds used to sample the function
         [lb1,ub1,lb1,lb2]
 
-    num_pts_1d : integer
+    num_pts_1d : integer or iterable
         The number of samples in each dimension. The function is evaluated
         on the tensor product of the 1d samples
 
@@ -310,6 +315,21 @@ def create_3d_axis():
     return ax
 
 
+def _turn_off_3d_axes(ax):
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    # Get rid of the panes
+    ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+
+    # Get rid of the spines
+    ax.w_xaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+    ax.w_yaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+    ax.w_zaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+
+
 def plot_surface(X, Y, Z, ax, samples=None, limit_state=None,
                  num_contour_levels=0, plot_axes=True, cmap=mpl.cm.coolwarm,
                  axis_labels=None, angle=None, alpha=1., zorder=None,
@@ -371,18 +391,7 @@ def plot_surface(X, Y, Z, ax, samples=None, limit_state=None,
                     zorder=zorder)
 
     if not plot_axes:
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.set_zticks([])
-        # Get rid of the panes
-        ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-        ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-        ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-
-        # Get rid of the spines
-        ax.w_xaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
-        ax.w_yaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
-        ax.w_zaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+        _turn_off_3d_axes(ax)
 
     if (axis_labels is not None):
         ax.set_xlabel(axis_labels[0])

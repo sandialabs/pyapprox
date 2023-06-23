@@ -16,6 +16,7 @@ def piecewise_quadratic_interpolation(samples, mesh, mesh_vals, ranges):
     assert mesh.shape[0] == mesh_vals.shape[0]
     vals = 0
     samples = (samples-ranges[0])/(ranges[1]-ranges[0])
+    mesh = (mesh-ranges[0])/(ranges[1]-ranges[0])
     assert mesh.shape[0] % 2 == 1
     for ii in range(0, mesh.shape[0]-2, 2):
         xl = mesh[ii]
@@ -295,7 +296,9 @@ def tensor_product_piecewise_polynomial_basis(
     nvars = samples.shape[0]
     levels = np.asarray(levels)
     if len(levels) != nvars:
-        raise ValueError("levels and samples are inconsistent")
+        msg = "levels {0} and samples {1} are inconsistent".format(
+            levels, nvars)
+        raise ValueError(msg)
 
     basis_fun = {"linear": piecewise_linear_basis,
                  "quadratic": piecewise_quadratic_basis}[basis_type]

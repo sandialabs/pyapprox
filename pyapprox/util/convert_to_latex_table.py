@@ -2,15 +2,12 @@ import numpy as np
 import os
 
 
-def convert_table_element_to_string(item, bold=False, underline=False, precision=1,
-                                    float_format='scientific'):
+def convert_table_element_to_string(
+        item, bold=False, underline=False, float_format="{0:.1e}"):
     if type(item) == int or type(item) == np.int64:
         latex_string = '%d' % item
     elif type(item) == float or type(item) == np.float64:
-        if float_format == 'scientific':
-            latex_string = '{0:.{1}e}'.format(item, precision)
-        else:
-            latex_string = '{0:.{1}f}'.format(item, precision)
+        latex_string = float_format.format(item)
     else:
         raise Exception
     if bold:
@@ -23,8 +20,13 @@ def convert_table_element_to_string(item, bold=False, underline=False, precision
 def convert_to_latex_table(table_data, latex_filename, column_labels,
                            row_labels, caption, output_dir=None,
                            bold_entries=None, underline_entries=None,
-                           width=None, corner_labels=None, precision=1,
-                           float_format='scientific'):
+                           width=None, corner_labels=None,
+                           float_format="{0:.1e}"):
+    """
+    TODO: Currently assumes if have multiple rows that there are column
+    labels for each row. Remove this assumption and check for either
+    one row of column labels or column labels for each row
+    """
     assert table_data.ndim == 2
 
     if width is None:
@@ -46,37 +48,46 @@ def convert_to_latex_table(table_data, latex_filename, column_labels,
     for i in range(table_data.shape[1]+1):
         table_spec += 'c|'
 
-    assert len(column_labels) == table_data.shape[1]
+        assert len(column_labels) == table_data.shape[1]*table_data.shape[0]
     assert len(row_labels) == table_data.shape[0]
 
     table_string = r'\hline '
     if corner_labels is not None:
         if len(corner_labels) == 2:
-            table_string += r' \backslashbox{%s}{%s} &' % (
+            table_string += r' \diagbox{%s}{%s} &' % (
                 corner_labels[0], corner_labels[1])
         else:
             table_string += r' %s &' % (corner_labels[0])
     else:
         table_string += '&'
-    for i in range(1, table_data.shape[1]):
-        table_string += '%s &' % column_labels[i-1]
-    table_string += r'%s \\\ \n' % column_labels[-1]
+
+    def _print_column_labels(column_labels, table_string):
+        for i in range(1, table_data.shape[1]):
+            table_string += '%s &' % column_labels[i-1]
+        table_string += r'%s \\' % column_labels[-1] + ' \n'
+        return table_string
     for i in range(table_data.shape[0]):
+        if i > 0:
+            table_string += r'\hline &'
+        table_string = _print_column_labels(
+            column_labels[i*table_data.shape[1]:(i+1)*table_data.shape[1]],
+            table_string)
         table_string += r'\hline '
         table_string += '%s ' % row_labels[i]
+        print(row_labels[i])
         for j in range(table_data.shape[1]):
             table_string += convert_table_element_to_string(
-                table_data[i, j], bold_entries[i, j], underline_entries[i, j], precision)
-        table_string += r"\\\ \n"
-    table_string += r'\hline\n'
-
+                table_data[i, j], bold_entries[i, j],
+                underline_entries[i, j], float_format)
+        table_string += r"\\ "+"\n"
+    table_string += r'\hline'
+    print(table_string)
     file_string = r"""
 \documentclass{standalone}
 \usepackage{amsfonts,amsmath,amssymb,caption}
-\usepackage{slashbox}
+\usepackage{diagbox}
 \usepackage[margin=1in]{geometry}
-\captionsetup{justification=centering,margin=0.05\\textwidth}
-\addtolength{\\tabcolsep}{-0.5pt}
+\captionsetup{justification=centering}
 \begin{document}
 \tiny
 \minipage{%s}

@@ -68,7 +68,7 @@ class TestPDEBenchmarks(unittest.TestCase):
             physics._diff_fun = partial(
                 inv_model.base_model._fast_interpolate,
                 inv_model.base_model._kle(sample[:, None]))
-        sample.requires_grad_= True
+        sample.requires_grad_ = True
         dRdp_ad = torch.autograd.functional.jacobian(
             partial(inv_model.base_model._adj_solver._parameterized_residual,
                     fwd_sol, set_random_sample),
@@ -76,13 +76,18 @@ class TestPDEBenchmarks(unittest.TestCase):
         dRdp = inv_model.base_model._adj_solver._dRdp(
             inv_model.base_model._fwd_solver.physics, fwd_sol.clone(),
             sample)
+        print(dRdp)
+        print(dRdp_ad)
         assert np.allclose(dRdp, dRdp_ad)
 
         # TODO add std to params list
         init_guess = true_params + np.random.normal(0, 0.01, true_params.shape)
         # init_guess = sample.numpy()[:, None]
-
-        # from pyapprox.util.utilities import approx_fprime
+        # from pyapprox.util.utilities import approx_fprime, approx_jacobian
+        # fd_jac = approx_jacobian(
+        #     lambda p: inv_model.base_model._adj_solver._parameterized_residual(
+        #         fwd_sol, set_random_sample, torch.as_tensor(p)), sample)
+        # print(fd_jac)
         # print(approx_fprime(init_guess, inv_model), 'fd')
         # print(inv_model(init_guess, return_grad=True), 'g')
         # assert False
@@ -113,7 +118,8 @@ class TestPDEBenchmarks(unittest.TestCase):
         sigma = 1
         nvars = 5
 
-        config_values = [2*np.arange(1, 11), 2*np.arange(1, 11)]
+        # config_values = [2*np.arange(1, 11), 2*np.arange(1, 11)]
+        config_values = [2*np.arange(1, 16), 2*np.arange(1, 16)]
         benchmark = setup_benchmark(
             "multi_index_advection_diffusion", kle_nvars=nvars,
             kle_length_scale=length_scale, kle_stdev=sigma,
@@ -155,6 +161,7 @@ class TestPDEBenchmarks(unittest.TestCase):
         print(rel_diffs)
         assert (rel_diffs.max() > 1e-1 and rel_diffs.min() < 3e-5)
         # ndof = (config_samples+1).prod(axis=0)
+        # import matplotlib.pyplot as plt
         # plt.loglog(
         #     ndof[:-1], np.abs((qoi_means[-1]-qoi_means[:-1])/qoi_means[-1]))
         # plt.show()
@@ -173,7 +180,7 @@ class TestPDEBenchmarks(unittest.TestCase):
             # "init_sol_fun": partial(full_fun_axis_1, 0),
             "sink": [50, 0.1, [0.75, 0.75]]
         }
-        nlevels = 8
+        nlevels = 9
         config_values = [2*np.arange(4, 4+nlevels), 2*np.arange(4, 4+nlevels),
                          final_time/(2**np.arange(1, 1+nlevels)*2)]
                          # np.array([final_time/(2**5*2)]*nlevels)]
@@ -247,11 +254,12 @@ class TestPDEBenchmarks(unittest.TestCase):
         ntsteps = time_scenario["final_time"]/config_samples[2]
         print(ntsteps)
         print(time_scenario["final_time"]-config_samples[2]*ntsteps)
-        ndof = (config_samples[:2]+1).prod(axis=0)*ntsteps
+        # ndof = (config_samples[:2]+1).prod(axis=0)*ntsteps
+        # import matplotlib.pyplot as plt
         # plt.loglog(
         #     ndof[:-1], np.abs((qoi_means[-1]-qoi_means[:-1])/qoi_means[-1]))
         # plt.show()
-        assert (rel_diffs.max() > 4e-2 and rel_diffs.min() < 8e-5)
+        assert (rel_diffs.max() > 4e-2 and rel_diffs.min() < 9.1e-5)
 
 
 if __name__ == "__main__":

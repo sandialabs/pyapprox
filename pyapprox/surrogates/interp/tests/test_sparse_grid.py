@@ -1733,7 +1733,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
 
         variable = IndependentMarginalsVariable([stats.uniform(0, 1)]*nvars)
         var_trans = AffineTransform(variable)
-        ranges = variable.get_statistics("interval", alpha=1).flatten()
+        ranges = variable.get_statistics("interval", 1).flatten()
 
         w = np.prod([1./(ranges[2*ii+1]-ranges[2*ii])
                      for ii in range(nvars)])

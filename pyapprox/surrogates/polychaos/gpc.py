@@ -912,7 +912,8 @@ def plot_pce_coefficients(ax, pces, ylim=[1e-6, 1], qoi_idx=0):
         coeffs, indices_list, ax, degree_breaks=breaks[0], ylim=ylim)
 
 
-def _marginalize_function_1d(fun, variable, quad_degrees, ii, samples_ii, qoi=0):
+def _marginalize_function_1d(fun, variable, quad_degrees, ii, samples_ii,
+                             qoi=0):
     assert samples_ii.ndim == 1
     all_variables = variable.marginals()
     sub_variable = IndependentMarginalsVariable(
@@ -927,6 +928,7 @@ def _marginalize_function_1d(fun, variable, quad_degrees, ii, samples_ii, qoi=0)
     values = np.empty_like(samples_ii)
     for jj in range(samples_ii.shape[0]):
         samples[ii, :] = samples_ii[jj]
+        # print(jj, samples.shape, samples_ii.shape)
         values_jj = fun(samples)[:, qoi]
         values[jj] = values_jj.dot(wquad)
     return values

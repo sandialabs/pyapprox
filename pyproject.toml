@@ -5,6 +5,45 @@ requires = [
     "wheel",
     "Cython",
     "numpy>=1.16.4",
-    "scipy>=1.0.0"]
+    "scipy>=1.0.0",
+]
+
 #cython is needed for build to execute because some of Pyapprox cython extensions use
 #scipy cython functions
+
+
+[project]
+name = "pyapprox"
+version = "1.0.2"
+description = "High-dimensional function approximation and estimation"
+requires-python = '>=3.6'
+license = {file = 'LICENSE'}
+readme = "README.md"
+authors = [
+    {name = "John D. Jakeman", email = "29109026+jdjakem@users.noreply.github.com"},
+]
+classifiers=[
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]    
+dependencies = [
+    'numpy >= 1.16.4',
+    'matplotlib',
+    'scipy >= 1.0.0',
+    'Cython',
+    'sympy',
+    'torch',
+    'scikit-learn',
+    'coverage>=6.4',
+    'pytest-cov',
+    'pytest>=4.6',
+    'networkx',
+    'numba',
+    'scikit-fem',
+]
+
+
+[project.optional-dependencies]
+docs = ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
+        'sphinx-gallery', 'jupyter']

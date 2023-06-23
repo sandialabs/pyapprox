@@ -504,10 +504,14 @@ def _precompute_expected_kl_utility_data(out_quad_data, in_quad_data, obs_fun):
     print(f"Running {out_prior_samples.shape[1]} outer model evaluations")
     t0 = time.time()
     out_pred_obs = obs_fun(out_prior_samples)
+    print("Predicted observation bounds",
+          out_pred_obs.max(), out_pred_obs.min())
     print("Evaluations took", time.time()-t0)
 
     if out_pred_obs.shape[0] != out_prior_samples.shape[1]:
-        msg = "obs_fun is not returning an array with the correct shape"
+        msg = "obs_fun is not returning an array with the correct shape."
+        msg += f" nrows is {out_pred_obs.shape[0]}. Should be "
+        msg += f"{out_prior_samples.shape[1]}"
         raise ValueError(msg)
 
     print(f"Running {in_quad_data[0].shape[1]} inner model evaluations")
@@ -523,7 +527,10 @@ def _precompute_expected_deviation_data(
     out_pred_obs, in_pred_obs = _precompute_expected_kl_utility_data(
         out_quad_data, in_quad_data, obs_fun)
     in_samples = in_quad_data[0]
+    print(f"Running {in_samples.shape[1]} qoi model evaluations")
+    t0 = time.time()
     in_pred_qois = qoi_fun(in_samples)
+    print("Evaluations took", time.time()-t0)
     if in_pred_qois.shape[0] != in_samples.shape[1]:
         msg = "qoi_fun is not returning an array with the correct shape"
         raise ValueError(msg)
@@ -577,6 +584,7 @@ def _compute_negative_expected_deviation_monte_carlo(
     # deviations = deviation_fun(in_pred_qois, weights)
 
     out_obs = out_pred_obs[:, active_indices].copy()
+    # print(out_obs.shape, active_indices.shape, noise_samples.shape)
     out_obs += noise_samples[:, :active_indices.shape[0]]
     deviations, evidences = deviation_fun(
         out_obs, in_pred_obs, in_weights, active_indices, noise_std,
@@ -1078,13 +1086,13 @@ def _get_deviation_compute_utilities_initargs(obj):
     # print("data time", time.time()-t0)
     return (initargs, )
 
-    
+
 def init_deviation_worker(initargs):
     data, in_pred_qois, funs = initargs
     global_oed_shared_data.set_data(data)
     global_oed_shared_data.set_in_pred_qois(*in_pred_qois)
     global_oed_shared_data.set_funs(*funs)
-    
+
 
 
 def from_buffer(name):
@@ -1274,11 +1282,11 @@ def _posterior_push_fwd_entropic_deviation(
 def _posterior_push_fwd_cvar_deviation(
         qoi_vals, nin_samples, weights, beta):
     qoi_means = np.zeros(qoi_vals.shape[1])
-    qoi_vars = np.zeros(qoi_vals.shape[1])
+    # qoi_vars = np.zeros(qoi_vals.shape[1])
     for jj in range(nin_samples):
         qoi_means += qoi_vals[jj, :]*weights[jj]
-        qoi_vars += qoi_vals[jj, :]**2*weights[jj]
-    qoi_vars -= qoi_means**2
+        # qoi_vars += qoi_vals[jj, :]**2*weights[jj]
+    # qoi_vars -= qoi_means**2
     nqoi = qoi_vals.shape[1]
     weights_expanded = np.empty_like(qoi_vals.T)
     for kk in range(nqoi):
@@ -1605,6 +1613,8 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
                 self.ndesign_candidates*self.ndata_per_candidate):
             msg = "out_pred_obs.shape[1] != "
             msg += "self.ndesign_candidates*self.ndata_per_candidate. "
+            msg += f"{self.out_pred_obs.shape[1]}"
+            msg += f"!={self.ndesign_candidates}*{self.ndata_per_candidate} "
             msg += "check ndata_per_candidate.\nEach design candidate"
             msg += " must have the same number of data returned by obs_fun"
             raise ValueError(msg)
@@ -2088,7 +2098,7 @@ def get_oed_inner_quadrature_rule(nin_samples, prior_variable,
     else:
         alpha = 1-1e-6
     new_ranges = prior_variable.get_statistics(
-        "interval", alpha=alpha).flatten()
+        "interval", confidence=alpha).flatten()
     x_quad, w_quad = \
         get_tensor_product_piecewise_polynomial_quadrature_rule(
             nin_samples_1d, new_ranges, degree)
@@ -2126,7 +2136,7 @@ def get_posterior_2d_interpolant_from_oed_data(
     vals = weights/oed.in_weights
     # multiply vals by prior.
     vals *= prior_variable.pdf(oed.in_samples)
-    
+
     nin_samples = vals.shape[0]
 
     if quad_method == "gauss":
@@ -2166,7 +2176,7 @@ def plot_2d_posterior_from_oed_data(
     else:
         alpha = 0.99
     plot_limits = prior_variable.get_statistics(
-        "interval", alpha=alpha).flatten()
+        "interval", confidence=alpha).flatten()
 
     fun = get_posterior_2d_interpolant_from_oed_data(
         oed, prior_variable, nn, out_idx, method)

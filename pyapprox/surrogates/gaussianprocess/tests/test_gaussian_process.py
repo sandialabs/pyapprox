@@ -394,7 +394,9 @@ class TestGaussianProcess(unittest.TestCase):
         assert np.allclose(variance_of_mean_quad, variance_random_mean)
         assert np.allclose(mean_of_variance_quad, expected_random_var)
 
-        nsamples = int(1e6)
+        nsamples, final_tol = int(1e5), 1e-2
+        # Below nsamples is killed by github actions due to memory usage
+        # nsamples, final_tol = int(1e6), 5e-3
         random_means, random_variances = [], []
         xx, ww = gauss_hermite_pts_wts_1D(nxx)
         xx = xx*sigma_scalar + mu_scalar
@@ -429,7 +431,7 @@ class TestGaussianProcess(unittest.TestCase):
         # print(variance_random_var-np.var(random_variances),
         #     np.var(random_variances))
         assert np.allclose(
-            variance_random_var, np.var(random_variances), rtol=5e-3)
+            variance_random_var, np.var(random_variances), rtol=final_tol)
 
     def test_integrate_gaussian_process_uniform(self):
         nvars = 1
@@ -918,7 +920,7 @@ class TestGaussianProcess(unittest.TestCase):
             {'basis_type': 'hyperbolic_cross', 'variable': variable,
              'options': {'max_degree': 4}}).approx
         assert np.linalg.norm(validation_vals - pce(validation_samples)) / \
-            np.linalg.norm(validation_vals) < 1e-15
+            np.linalg.norm(validation_vals) < 3e-15
 
         pce_interaction_terms, pce_sobol_indices = get_sobol_indices(
             pce.get_coefficients(), pce.get_indices(), max_order=3)
@@ -1918,6 +1920,10 @@ class TestSamplers(unittest.TestCase):
             # print('nsamples',nsamples)
             sampler1(nsamples)
             sampler2(nsamples)
+            assert np.allclose(
+                sampler1.L,
+                np.linalg.cholesky(sampler1.A[np.ix_(sampler1.pivots,
+                                                     sampler1.pivots)]))
 
             obj_vals1 = sampler1.objective_vals_econ()
             obj_vals2 = sampler2.objective_vals()

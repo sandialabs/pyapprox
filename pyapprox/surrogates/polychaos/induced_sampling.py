@@ -504,7 +504,10 @@ def markov_stiltjies_initial_guess(u, n, a, b, supp):
     If u is a length-M vector, the output intervals is an (M x 2) matrix, with
     row m the bounding interval for u = u(m).
     """
-    n = np.asscalar(n)
+    if isinstance(n, np.ndarray) and n.ndim == 0:
+        n = n.item()
+    #n = np.asscalar(n)
+    n = int(n)
     assert(a.shape[0] == b.shape[0])
     assert(a.shape[0] > 2*n)
 

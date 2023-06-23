@@ -21,9 +21,7 @@ class Density:
         assert "Virtual class. must define generate_samples() function"
 
     def plot_density(self, num_samples_1d=100, plot_limits=None, show=False,
-                     figname=None, ls='-', label=None, color=None, ax=None,
-                     colorbar_lims=None, cmap="coolwarm",
-                     num_contour_levels=30):
+                     figname=None, ax=None, **kwargs):
         if plot_limits is None:
             plot_limits = self.plot_limits
 
@@ -32,15 +30,12 @@ class Density:
         if len(plot_limits) == 4:
             X, Y, Z = get_meshgrid_function_data(
                 self.pdf, plot_limits, num_samples_1d)
-            ax = plot_contours(
-                X, Y, Z, ax, num_contour_levels=num_contour_levels,
-                offset=0, cmap=cmap, zorder=None)
+            im = ax.contourf(X, Y, Z, **kwargs)
         else:
             plot_grid = np.linspace(
                 plot_limits[0], plot_limits[1], num_samples_1d)
             data = self.pdf(plot_grid.reshape(1, num_samples_1d))
-            ax.plot(plot_grid.squeeze(), data.squeeze(), ls, lw=3,
-                    label=label, color=color)
+            im = ax.plot(plot_grid.squeeze(), data.squeeze(), **kwargs)
 
         if figname is not None:
             plt.savefig(figname)
@@ -48,7 +43,7 @@ class Density:
         if show:
             plt.show()
 
-        return ax
+        return ax, im
 
     def __call__(self, samples):
         return self.pdf(samples)
@@ -61,7 +56,7 @@ class UniformDensity(Density):
     def __init__(self, ranges):
         self.ranges = np.asarray(ranges)
         num_dims = self.ranges.shape[0] // 2
-        variance = (self.ranges[1]-self.ranges[0])**2/12.
+        # variance = (self.ranges[1]-self.ranges[0])**2/12.
         self.covariance = np.eye(num_dims)  # hack*variance
         self.chol_factor = cholesky(self.covariance, lower=True)
         self.mean = 0.5*(self.ranges[::2]+self.ranges[1::2])

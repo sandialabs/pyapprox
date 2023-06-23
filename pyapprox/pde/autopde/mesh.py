@@ -397,6 +397,13 @@ class CanonicalCollocationMesh():
                                 for dd in range(self.nphys_vars)]
         self._dmats = [None for dd in range(self.nphys_vars)]
 
+        self._flux_islinear = False
+        self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
+        self._normal_vals = [None for dd in range(2*self.nphys_vars)]
+
+    def _clear_flux_normal_vals(self):
+        self._flux_normal_vals = [None for dd in range(2*self.nphys_vars)]
+
     @staticmethod
     def _get_basis_types(nphys_vars, basis_types):
         if basis_types is None:
@@ -471,8 +478,8 @@ class CanonicalCollocationMesh():
             canonical_eval_samples = canonical_eval_samples[None, :]
         if values.ndim == 1:
             values = values[:, None]
-        assert values.ndim == 2
-        assert values.shape[0] == self.nunknowns
+            assert values.ndim == 2
+            assert values.shape[0] == self.nunknowns
         return self._interpolate(values, canonical_eval_samples)
 
     def _interpolate(self, values, canonical_eval_samples):
@@ -526,20 +533,30 @@ class CanonicalCollocationMesh():
             self._canonical_domain_bounds[0],
             self._canonical_domain_bounds[1], nplot_pts_1d)
 
-    def _plot_1d(self, mesh_values, nplot_pts_1d=None, ax=None,
-                 **kwargs):
+    def _plot_data_1d(self, mesh_values, nplot_pts_1d=None):
         plot_mesh = self._create_plot_mesh_1d(nplot_pts_1d)
         interp_vals = self.interpolate(mesh_values, plot_mesh[None, :])
+        return interp_vals, plot_mesh
+
+    # def _plot_1d(self, mesh_values, nplot_pts_1d=None, ax=None,
+    #              **kwargs):
+    #     interp_vals, plot_mesh = self._plot_data_1d(mesh_values, nplot_pts_1d)
+    #     return self.plot_from_data_1d(interp_vals, plot_mesh)
+
+    def _plot_from_data_1d(self, interp_vals, plot_mesh, ax, **kwargs):
         return ax.plot(plot_mesh, interp_vals, **kwargs)
 
     def _create_plot_mesh_2d(self, nplot_pts_1d):
         return get_meshgrid_samples(
             self._canonical_domain_bounds, nplot_pts_1d)
 
-    def _plot_2d(self, mesh_values, nplot_pts_1d=100, levels=20,
-                 ax=None):
+    def _plot_data_2d(self, mesh_values, nplot_pts_1d=100):
         X, Y, pts = self._create_plot_mesh_2d(nplot_pts_1d)
         Z = self._interpolate(mesh_values, pts)
+        return Z, X, Y, pts
+
+    def _plot_from_data_2d(self, Z, X, Y, pts, ax, levels=20,
+                           cmap="coolwarm"):
         triang = tri.Triangulation(pts[0], pts[1])
         x = pts[0, triang.triangles].mean(axis=1)
         y = pts[1, triang.triangles].mean(axis=1)
@@ -552,18 +569,30 @@ class CanonicalCollocationMesh():
             levels = np.linspace(Z.min(), Z.max(), levels)
         else:
             levels = levels
-        return ax.tricontourf(triang, Z[:, 0], levels=levels)
+        return ax.tricontourf(triang, Z[:, 0], levels=levels, cmap=cmap)
 
-    def plot(self, mesh_values, nplot_pts_1d=None, ax=None, **kwargs):
-        if ax is None:
-            ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+    # def _plot_2d(self, mesh_values, nplot_pts_1d=100, levels=20,
+    #              ax=None, cmap="coolwarm"):
+    #     Z, X, Y, pts = self._plot_data_2d(mesh_values, nplot_pts_1d)
+    #     return self._plot_2d_from_data(Z, X, Y, pts, levels, ax, cmap)
+
+    def _plot_data(self, mesh_values, nplot_pts_1d=100):
         if self.nphys_vars == 1:
-            return self._plot_1d(
-                mesh_values, nplot_pts_1d, ax, **kwargs)
+            return self._plot_data_1d(mesh_values, nplot_pts_1d)
         if nplot_pts_1d is None:
             raise ValueError("nplot_pts_1d must be not None for 2D plot")
-        return self._plot_2d(
-            mesh_values, nplot_pts_1d, ax=ax, **kwargs)
+        return self._plot_data_2d(mesh_values, nplot_pts_1d)
+
+    def _plot_from_data(self, plot_data, ax, **kwargs):
+        if self.nphys_vars == 1:
+            return self._plot_from_data_1d(*plot_data, ax, **kwargs)
+        return self._plot_from_data_2d(*plot_data, ax, **kwargs)
+
+    def plot(self, mesh_values, nplot_pts_1d=100, ax=None, **kwargs):
+        plot_data = self._plot_data(mesh_values, nplot_pts_1d)
+        if ax is None:
+            ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+        return self._plot_from_data(plot_data, ax, **kwargs)
 
     def _get_quadrature_rule(self):
         quad_rules = [
@@ -683,12 +712,14 @@ class CanonicalCollocationMesh():
             self._dmats[dd] = dmat
         return dmat
 
-    def _apply_dirichlet_boundary_conditions(
+    def _apply_dirichlet_boundary_conditions_special_indexing(
             self, bndry_conds, residual, jac, sol):
+        # special indexing copies data which slows down function
+
         # needs to have indices as argument so this fucntion can be used
         # when setting boundary conditions for forward and adjoint solves
 
-        # it is slightly faster to ste jac entries outside loop
+        # it is slightly faster to set jac entries outside loop
         idx = [self._bndry_indices[ii]
                for ii in range(len(bndry_conds)) if bndry_conds[ii][1] == "D"]
         if len(idx) == 0:
@@ -707,28 +738,69 @@ class CanonicalCollocationMesh():
             residual[idx] = sol[idx]-bndry_vals
         return residual, jac
 
+    @staticmethod
+    def _bndry_slice(vec, idx, axis):
+        # avoid copying data
+        if len(idx) == 1:
+            if axis == 0:
+                return vec[idx]
+            return vec[:, idx]
+        stride = idx[1]-idx[0]
+        if axis == 0:
+            return vec[idx[0]:idx[-1]+1:stride]
+        return vec[:, idx[0]:idx[-1]+1:stride]
+
+    def _apply_dirichlet_boundary_conditions_slicing(
+            self, bndry_conds, residual, jac, sol):
+        for ii, bndry_cond in enumerate(bndry_conds):
+            if bndry_cond[1] != "D":
+                continue
+            idx = self._bndry_indices[ii]
+            jac[idx, ] = 0.
+            jac[idx, idx] = 1.
+            bndry_vals = bndry_cond[0](
+                self._bndry_slice(self.mesh_pts, idx, 1))
+            assert bndry_vals.ndim == 2
+            residual[idx] = self._bndry_slice(sol, idx, 0)-bndry_vals[:, 0]
+        return residual, jac
+
+    def _apply_dirichlet_boundary_conditions(
+            self, bndry_conds, residual, jac, sol):
+        # return self._apply_dirichlet_boundary_conditions_special_indexing(
+        #     bndry_conds, residual, jac, sol)
+        return self._apply_dirichlet_boundary_conditions_slicing(
+            bndry_conds, residual, jac, sol)
+
     def _apply_neumann_and_robin_boundary_conditions(
             self, bndry_conds, residual, jac, sol, flux_jac):
         for ii, bndry_cond in enumerate(bndry_conds):
             if bndry_cond[1] != "N" and bndry_cond[1] != "R":
                 continue
             idx = self._bndry_indices[ii]
-            normal_vals = self._bndrys[ii].normals(
-                self.mesh_pts[:, idx])
-            flux_jac_vals = flux_jac(idx)
-            flux_normal_vals = [
-                normal_vals[:, dd:dd+1]*flux_jac_vals[dd]
-                for dd in range(self.nphys_vars)]
-            # flux_normal_vals = [normal_vals[:, dd:dd+1]*self._dmat(dd)[idx]
-            #                    for dd in range(self.nphys_vars)]
+            mesh_pts_idx = self._bndry_slice(self.mesh_pts, idx, 1)
+            if self._normal_vals[ii] is None:
+                self._normal_vals[ii] = self._bndrys[ii].normals(mesh_pts_idx)
+            if not self._flux_islinear or self._flux_normal_vals[ii] is None:
+                flux_jac_vals = flux_jac(idx)
+                flux_normal_vals = [
+                    self._normal_vals[ii][:, dd:dd+1]*flux_jac_vals[dd]
+                    for dd in range(self.nphys_vars)]
+                if self._flux_islinear:
+                    self._flux_normal_vals[ii] = flux_normal_vals
+            else:
+                flux_normal_vals = self._flux_normal_vals[ii]
             # (D2*u)*n2+D2*u*n2
             jac[idx] = sum(flux_normal_vals)
-            bndry_vals = bndry_cond[0](self.mesh_pts[:, idx])[:, 0]
-            residual[idx] = torch.linalg.multi_dot((jac[idx], sol))-bndry_vals
+            bndry_vals = bndry_cond[0](mesh_pts_idx)[:, 0]
+
+            # residual[idx] = torch.linalg.multi_dot((jac[idx], sol))-bndry_vals
+            residual[idx] = torch.linalg.multi_dot(
+                (self._bndry_slice(jac, idx, 0), sol))-bndry_vals
             if bndry_cond[1] == "R":
                 jac[idx, idx] += bndry_cond[2]
-                residual[idx] += bndry_cond[2]*sol[idx]
-                # assert False
+                # residual[idx] += bndry_cond[2]*sol[idx]
+                residual[idx] += bndry_cond[2]*self._bndry_slice(sol, idx, 0)
+
         return residual, jac
 
     def _apply_periodic_boundary_conditions(
@@ -764,7 +836,7 @@ class CanonicalCollocationMesh():
 class TransformedCollocationMesh(CanonicalCollocationMesh):
     # TODO need to changes weights of _get_quadrature_rule to account
     # for any scaling transformations
-    
+
     def __init__(self, orders, transform, basis_types=None):
 
         super().__init__(orders, basis_types)
@@ -779,8 +851,8 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
         if self.nphys_vars == 1:
             return self._bndrys
         for ii, name in enumerate(["left", "right", "bottom", "top"]):
-            active_var = int(ii > 2)
-            idx = self._bndry_indices[ii]
+            # active_var = int(ii > 2)
+            # idx = self._bndry_indices[ii]
             self._bndrys[ii] = Transformed2DMeshBoundary(
                 name, self._orders[int(ii < 2)],
                 partial(self._transform.normal, ii),
@@ -800,7 +872,6 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
 
     def partial_deriv(self, quantity, dd, idx=None):
         assert quantity.ndim == 1
-        vals = 0
         if idx is None:
             return torch.linalg.multi_dot((self._dmat(dd), quantity))
         return torch.linalg.multi_dot((self._dmat(dd)[idx], quantity))
@@ -808,9 +879,9 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
     def high_order_partial_deriv(self, order, quantity, dd, idx=None):
         if idx is None:
             return torch.linalg.multi_dot([self._dmat(dd)]*order+[quantity])
-        return  torch.linalg.multi_dot(
+        return torch.linalg.multi_dot(
             (torch.linalg.multi_dot([self._dmat(dd)]*order)[idx],
-            quantity))
+             quantity))
 
     def _create_plot_mesh_1d(self, nplot_pts_1d):
         if nplot_pts_1d is None:
@@ -829,7 +900,6 @@ class TransformedCollocationMesh(CanonicalCollocationMesh):
         wquad = self._transform.modify_quadrature_weights(
             canonical_xquad, canonical_wquad)
         return xquad, wquad
-
 
 
 class CartesianProductCollocationMesh(TransformedCollocationMesh):
@@ -1014,6 +1084,7 @@ class CanonicalInteriorCollocationMesh(CanonicalCollocationMesh):
     def _determine_boundary_indices(self):
         self._boundary_indices = None
 
+
 class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
     def __init__(self, orders, transform):
 
@@ -1040,10 +1111,10 @@ class TransformedInteriorCollocationMesh(CanonicalInteriorCollocationMesh):
 
     def partial_deriv(self, quantity, dd, idx=None):
         assert quantity.ndim == 1
-        vals = 0
         if idx is None:
             return torch.linalg.multi_dot((self._dmat(quantity, dd), quantity))
-        return torch.linalg.multi_dot((self._dmat(quantity, dd)[idx], quantity))
+        return torch.linalg.multi_dot(
+            (self._dmat(quantity, dd)[idx], quantity))
 
     def _create_dmats(self, canonical_mesh_pts, canonical_deriv_mats):
         basis = torch.as_tensor(
@@ -1109,6 +1180,14 @@ def subdomain_integral_functional(subdomain_bounds, mesh, sol, params):
 
 
 def final_time_functional(functional, mesh, sol, params):
+    # times = np.arange(sol.shape[1])
+    # generate_animation(mesh, sol, times, filename=None, maxn_frames=100,
+    #                    duration=2)
+    # plt.show()
+    # for s in sol.T:
+    #     print(s.min(), s.max())
+    #     print(functional(mesh, s, params))
+    # assert False
     return functional(mesh, sol[:, -1], params)
 
 
@@ -1120,7 +1199,7 @@ def cartesian_mesh_solution_functional(
     if tt is None:
         assert sols.ndim == 1
         return mesh.interpolate(sols, xx).flatten()
-    ## tt is normalized time assuming [T0, TN] -> [0, 1]
+    # tt is normalized time assuming [T0, TN] -> [0, 1]
     assert tt.min() >= 0 and tt.max() <= 1
     vals0 = mesh.interpolate(sols, xx)
     from pyapprox.surrogates.interp.tensorprod import (
@@ -1131,19 +1210,28 @@ def cartesian_mesh_solution_functional(
 
 
 def generate_animation(mesh, sols, times, filename=None, maxn_frames=100,
-                       duration=2):
+                       duration=2, **kwargs):
     # duration: in seconds
     # filename:
     # osx use .mp4 extension
     # linux use.avi
     ims = []
-    fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
+    if isinstance(mesh, VectorMesh):
+        nsols = len(mesh._meshes)
+    else:
+        nsols = 1
+    fig, axs = plt.subplots(1, nsols, figsize=(nsols*8, 6))
     nframes = min(maxn_frames, len(times))
     stride = len(times)//nframes
     for tt in range(0, len(times), stride):
-        im = mesh.plot(
-            mesh.split_quantities(sols[:, tt]), axs=axs, color="k")
-        ims.append(im)
+        if isinstance(mesh, VectorMesh):
+            sol = mesh.split_quantities(sols[:, tt])
+            im = mesh.plot(sol, axs=axs, **kwargs)
+            ims.append(im)
+        else:
+            sol = sols[:, tt]
+            im = mesh.plot(sol[:, None], ax=axs, **kwargs)
+            ims.append(im.collections)
 
     import matplotlib.animation as animation
     nframes = len(ims)
@@ -1152,6 +1240,7 @@ def generate_animation(mesh, sols, times, filename=None, maxn_frames=100,
     interval = duration/nframes*1000  # for displaying animation
     ani = animation.ArtistAnimation(
         fig, ims, interval=interval, blit=True, repeat_delay=1000)
+    plt.show()
 
     if filename is None:
         return ani

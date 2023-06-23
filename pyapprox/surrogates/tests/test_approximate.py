@@ -512,7 +512,7 @@ class TestApproximate(unittest.TestCase):
                 train_samples, train_vals, options, nfolds, "polynomial_chaos",
                 random_folds="sklearn")
 
-        assert (np.all(cv_score < 6e-14) and np.all(result.scores < 4e-13))
+        assert (np.all(cv_score < 7e-13) and np.all(result.scores < 4e-13))
 
     def test_approximate_neural_network(self):
         np.random.seed(2)

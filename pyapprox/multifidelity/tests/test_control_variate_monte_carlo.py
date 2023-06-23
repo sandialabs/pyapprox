@@ -30,7 +30,8 @@ from pyapprox.multifidelity.control_variate_monte_carlo import (
     get_rsquared_mfmc, get_lagrange_multiplier_mlmc
 )
 from pyapprox.multifidelity.monte_carlo_estimators import (
-    get_estimator, estimate_variance, bootstrap_monte_carlo_estimator
+    get_estimator, estimate_variance, bootstrap_monte_carlo_estimator,
+    AETCBLUE
 )
 from pyapprox.util.utilities import (
     check_gradients, get_all_sample_combinations,
@@ -43,6 +44,7 @@ from pyapprox.interface.wrappers import ModelEnsemble
 from pyapprox.benchmarks.multifidelity_benchmarks import (
     ShortColumnModelEnsemble, TunableModelEnsemble, PolynomialModelEnsemble
 )
+from pyapprox.multifidelity.multilevelblue import BLUE_betas, BLUE_variance
 
 
 skiptest = unittest.skipIf(
@@ -84,8 +86,8 @@ def setup_model_ensemble_short_column(
     return model_ensemble, cov, generate_samples
 
 
-def setup_model_ensemble_tunable():
-    example = TunableModelEnsemble(np.pi/4)
+def setup_model_ensemble_tunable(shifts=None):
+    example = TunableModelEnsemble(np.pi/4, shifts)
     model_ensemble = ModelEnsemble(example.models)
     cov = example.get_covariance_matrix()
     costs = 10.**(-np.arange(cov.shape[0]))
@@ -106,6 +108,13 @@ def setup_model_ensemble_polynomial():
 class TestCVMC(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
+
+    def test_estimate_model_ensemble_covariance(self):
+        model, cov, costs, variable = setup_model_ensemble_tunable()
+        print(get_correlation_from_covariance(cov))
+        mc_cov = estimate_model_ensemble_covariance(
+            int(1e6), variable.rvs, model, cov.shape[0])[0]
+        assert np.allclose(cov, mc_cov, atol=1e-2)
 
     def test_model_ensemble(self):
         model = ModelEnsemble([lambda x: x.T, lambda x: x.T**2])
@@ -872,6 +881,160 @@ class TestCVMC(unittest.TestCase):
         # plt.tight_layout()
         # plt.savefig("graph.png")
         # plt.show()
+
+    def test_MLBLUE(self):
+        # from pyapprox.multifidelity.multilevelblue import (
+        #     BLUE_cost_constraint, BLUE_cost_constraint_jac)
+        # nsubsets = 3
+        # nsamples_per_subset = np.ones(nsubsets)[:, None]
+        # errors = check_gradients(
+        #     BLUE_cost_constraint,
+        #     lambda x: BLUE_cost_constraint_jac(x).T,
+        #     nsamples_per_subset)
+
+        target_cost = 1e3
+        shifts = np.array([1, 2])
+        model, cov, costs, variable = setup_model_ensemble_tunable(shifts)
+        estimator = get_estimator(
+            "mlblue", cov, costs, variable)
+        asketch = np.zeros((costs.shape[0], 1))
+        asketch[0] = 1.0
+        result = estimator.allocate_samples(
+            target_cost, asketch, round_nsamples=False)
+        assert np.allclose(result[2], target_cost)
+
+        subset_costs, subsets = estimator._get_model_subset_costs(
+            costs)
+
+        # round nsamples because it was not done before to allow testing of
+        # cost constraint
+        estimator.nsamples_per_subset = np.asarray(
+            estimator.nsamples_per_subset).astype(int)
+        # rounded_target_cost = np.sum(
+        #     estimator.nsamples_per_subset*subset_costs)
+
+        # test equivalent formulations for variance
+        betas = BLUE_betas(cov, asketch, 1e-10, estimator.nsamples_per_subset)
+        tmp = np.array(
+            [np.linalg.multi_dot((betas[kk].T, cov, betas[kk]))
+             for kk in range(betas.shape[0])])
+        tmp[estimator.nsamples_per_subset > 0] /= (
+            estimator.nsamples_per_subset[estimator.nsamples_per_subset > 0])
+        variance = tmp.sum()
+        assert np.allclose(
+            variance,
+            BLUE_variance(asketch, cov, None, 1e-10,
+                          estimator.nsamples_per_subset))
+
+        assert np.allclose(
+            (estimator.nsamples_per_model*estimator.costs).sum(),
+            estimator.rounded_target_cost)
+
+        values = estimator.generate_data(model.functions, variable)
+        for ii in range(model.nmodels):
+            asketch = np.zeros((costs.shape[0], 1))
+            asketch[ii] = 1.0
+            # true_means = np.hstack((0, shifts))
+            # mean = estimator(values, asketch)
+            # print("Mean", mean, true_means[ii])
+            # assert np.allclose(mean, true_means[ii], atol=2e-2)
+            true_var = estimator.get_variance(
+                estimator.nsamples_per_subset, asketch)
+            print("true Var", true_var)
+
+            ntrials = int(1e4)
+            means = np.empty(ntrials)
+            for ii in range(ntrials):
+                values = estimator.generate_data(model.functions, variable)
+                means[ii] = estimator(values, asketch)
+            numerical_var = means.var()
+            rtol = 4e-2
+            # print("Empirical Var", numerical_var)
+            # print(np.absolute(true_var-numerical_var),
+            #       rtol*np.absolute(true_var))
+            assert np.allclose(numerical_var, true_var, rtol=rtol)
+            # bootstrapped_means = estimator.bootstrap_estimator(
+            #     values, asketch, ntrials)
+            # print("Bootstrapped Var", bootstrapped_means.var())
+
+    def test_AETC_optimal_loss(self):
+        alpha = 1000
+        nsamples = int(1e6)
+        shifts = np.array([1, 2])
+        model, cov, costs, variable = setup_model_ensemble_tunable(shifts)
+        target_cost = np.sum(costs)*(nsamples+10)
+
+        true_means = np.hstack((0, shifts))[:, None]
+        oracle_stats = [cov, true_means]
+
+        samples = variable.rvs(nsamples)
+        values = np.hstack([m(samples) for m in model.functions])
+
+        covariate_subset = np.asarray([0, 1])
+        hf_values = values[:, :1]
+        covariate_values = values[:, covariate_subset+1]
+        from pyapprox.multifidelity.multilevelblue import AETC_optimal_loss
+        result_oracle = AETC_optimal_loss(
+            target_cost, hf_values, covariate_values, costs, covariate_subset,
+            alpha, 0, 0, oracle_stats)
+        result_mc = AETC_optimal_loss(
+            target_cost, hf_values, covariate_values, costs, covariate_subset,
+            alpha, 0, 0, None)
+        # for r in result_oracle:
+        #     print(r)
+        #     print("##")
+        # for r in result_mc:
+        #     print(r)
+        # assert np.allclos
+        assert np.allclose(result_mc[-2], result_oracle[-2], rtol=1e-2)
+
+    def test_aetc_blue(self):
+        target_cost = 1e4
+        shifts = np.array([1, 2])
+        model, cov, costs, variable = setup_model_ensemble_tunable(shifts)
+
+        true_means = np.hstack((0, shifts))[:, None]
+        oracle_stats = [cov, true_means]
+        # oracle_stats = None
+
+        # provide oracle covariance so numerical and theoretical estimates
+        # will coincide
+        estimator = AETCBLUE(
+            model.functions, variable.rvs, costs,  oracle_stats, 1e-12, 0)
+        mean, values, result = estimator.estimate(
+            target_cost, return_dict=False)
+        result_dict = estimator._explore_result_to_dict(result)
+        print(result_dict)
+
+        from pyapprox.multifidelity.multilevelblue import BLUE_variance
+        true_var = BLUE_variance(
+            result_dict["beta_Sp"][1:],
+            cov[np.ix_(result_dict["subset"]+1, result_dict["subset"]+1)],
+            None, estimator._reg_blue, result_dict["nsamples_per_subset"])
+
+        ntrials = int(1e3)
+        means = np.empty(ntrials)
+        for ii in range(ntrials):
+            means[ii] = estimator.exploit(result)[0]
+        numerical_var = means.var()
+        print(numerical_var, "NV")
+        print(true_var, "TV")
+        assert np.allclose(numerical_var, true_var, rtol=3e-2)
+        assert np.allclose(
+            result_dict["BLUE_variance"]/result_dict["exploit_budget"],
+            true_var, rtol=3e-2)
+
+        ntrials = int(1e3)
+        means = np.empty(ntrials)
+        for ii in range(ntrials):
+            means[ii] = estimator.estimate(target_cost)[0]
+        true_mean = 0
+        mse = np.mean((means-true_mean)**2)
+        print(mse, result_dict["loss"])
+        # this is just a regression test to make sure this does not get worse
+        # when code is changed
+        assert np.allclose(mse, result_dict["loss"], rtol=2e-1)
+
 
 
 if __name__ == "__main__":

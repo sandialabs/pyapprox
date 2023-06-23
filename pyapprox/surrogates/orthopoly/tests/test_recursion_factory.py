@@ -142,7 +142,9 @@ class TestRecursionFactory(unittest.TestCase):
         #    levy_stable as there is a bug when interval is called
         #       from a frozen variable
         #    vonmises a circular distribution
-        unsupported_continuous_var_names = ["levy_stable", "vonmises"]
+        unsupported_continuous_var_names = [
+            name for name in ["levy_stable", "vonmises"]
+            if name in scipy_continuous_var_names]
         # The following are too difficult without better integration algorithm
         unsupported_continuous_var_names += [
             "f", "levy", "levy_l", "loglaplace", "ncf", "crystalball"]

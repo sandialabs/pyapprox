@@ -3,12 +3,12 @@ import copy
 from scipy.optimize import approx_fprime, minimize
 
 from pyapprox.surrogates.gaussianprocess.multilevel import (
-    MultilevelGaussianProcess)
+    MultifidelityGaussianProcess)
 from pyapprox.util.utilities import get_all_sample_combinations
 from pyapprox.bayes.metropolis import MetropolisMCMCVariable
 
 
-class CalibrationGaussianProcess(MultilevelGaussianProcess):
+class CalibrationGaussianProcess(MultifidelityGaussianProcess):
     def set_data(self, samples, values, random_sample):
         # when length_scale bounds is fixed then the V2(D2) block in Kennedys
         # paper should always be the same regardless of value of random_sample
@@ -58,6 +58,7 @@ class GPCalibrationVariable(MetropolisMCMCVariable):
 
         self._length_scale_bounds = kernel.length_scale_bounds
         self._rho_bounds = kernel.rho_bounds
+        self._sigma_bounds = kernel.sigma_bounds
 
         loglike = self.loglike_calibration_params
         super().__init__(variable, loglike)
@@ -69,15 +70,19 @@ class GPCalibrationVariable(MetropolisMCMCVariable):
         if hasattr(self.gp, "kernel_"):
             self.gp.kernel_.length_scale_bounds = "fixed"
             self.gp.kernel_.rho_bounds = "fixed"
+            self.gp.kernel_.sigma_bounds = "fixed"
         self.gp.kernel.length_scale_bounds = "fixed"
         self.gp.kernel.rho_bounds = "fixed"
+        self.gp.kernel.sigma_bounds = "fixed"
 
     def _unfix_hyperparameters(self):
         if hasattr(self.gp, "kernel_"):
             self.gp.kernel_.length_scale_bounds = self._length_scale_bounds
             self.gp.kernel_.rho_bounds = self._rho_bounds
+            self.gp.kernel_.sigma_bounds = self._sigma_bounds
         self.gp.kernel.length_scale_bounds = self._length_scale_bounds
         self.gp.kernel.rho_bounds = self._rho_bounds
+        self.gp.kernel.sigma_bounds = self._sigma_bounds
 
     def _set_hyperparams(self, kernel, **gp_kwargs):
         # estimate hypeprameters using variable.mean()
@@ -107,7 +112,7 @@ class GPCalibrationVariable(MetropolisMCMCVariable):
         self._fix_hyperparameters()
         init_hyperparams = np.exp(hyperparams_bounds.sum(axis=1)/2)
         init_guess = np.hstack((init_hyperparams, init_sample[:, 0]))
-        sample_bounds = self._variable.get_statistics("interval", alpha=1)
+        sample_bounds = self._variable.get_statistics("interval", 1)
         bounds = np.vstack((np.exp(hyperparams_bounds), sample_bounds))
         # fd_eps = 2*np.sqrt(np.finfo(float).eps)
         # fd_eps = 1e-7
@@ -163,13 +168,24 @@ class GPCalibrationVariable(MetropolisMCMCVariable):
         assert zz.ndim == 2 and zz.shape[1] == 1
         nlengthscales = self.gp.nmodels*self.gp.nvars
         nrho = self.gp.nmodels-1
-        nhyperparams = nlengthscales+nrho
+        if self._sigma_bounds != "fixed":
+            nsigma = self.gp.nmodels
+        else:
+            nsigma = 0
+        nhyperparams = nlengthscales+nrho+nsigma
         assert zz.shape[0] == nhyperparams+self._variable.num_vars()
         self.gp.kernel_.length_scale = zz[:nlengthscales, 0]
         self.gp.kernel_.rho = zz[nlengthscales:nlengthscales+nrho, 0]
         self.gp.kernel.length_scale = zz[:nlengthscales, 0]
         self.gp.kernel.rho = zz[nlengthscales:nlengthscales+nrho, 0]
-        sample = zz[nlengthscales+nrho:, 0]
+
+        if self._sigma_bounds != "fixed":
+            self.gp.kernel_.sigma = (
+                zz[nlengthscales+nrho:nlengthscales+nrho+nsigma, 0])
+            self.gp.kernel.sigma = (
+                zz[nlengthscales+nrho:nlengthscales+nrho+nsigma, 0])
+        
+        sample = zz[nhyperparams:, 0]
         val = self._loglike_sample_with_grad(sample, False)
         val += self._variable.pdf(sample[:, None], log=True)[0, 0]
         return -val
@@ -178,7 +194,7 @@ class GPCalibrationVariable(MetropolisMCMCVariable):
         string = "GPCalibrationVariable with prior:\n"
         string += self._variable.__str__()
         return string
-
+    
     def _plot_negloglikelihood_cross_section(self, ax, bounds):
         # nominal values are the current values in self.kernel_
         # TODO generalize. Currently only works for varying 1 rho and 1 sample

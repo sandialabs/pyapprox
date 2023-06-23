@@ -267,15 +267,38 @@ def outer_product(input_sets, axis=0):
     # return result
 
 
-def unique_matrix_rows(matrix):
-    unique_rows = []
+def unique_matrix_row_indices(matrix):
+    unique_row_indices = []
     unique_rows_set = set()
     for ii in range(matrix.shape[0]):
         key = hash_array(matrix[ii, :])
         if key not in unique_rows_set:
             unique_rows_set.add(key)
-            unique_rows.append(matrix[ii, :])
-    return np.asarray(unique_rows)
+            unique_row_indices.append(ii)
+    return np.array(unique_row_indices)
+
+
+def unique_matrix_rows(matrix):
+    return matrix[unique_matrix_row_indices(matrix)]
+    # unique_rows = []
+    # unique_rows_set = set()
+    # for ii in range(matrix.shape[0]):
+    #     key = hash_array(matrix[ii, :])
+    #     if key not in unique_rows_set:
+    #         unique_rows_set.add(key)
+    #         unique_rows.append(matrix[ii, :])
+    # return np.asarray(unique_rows)
+
+
+def common_matrix_rows(matrix):
+    unique_rows_dict = dict()
+    for ii in range(matrix.shape[0]):
+        key = hash_array(matrix[ii, :])
+        if key not in unique_rows_dict:
+            unique_rows_dict[key] = [ii]
+        else:
+            unique_rows_dict[key].append(ii)
+    return unique_rows_dict
 
 
 def remove_common_rows(matrices):
@@ -372,8 +395,9 @@ def nchoosek(nn, kk):
     except ImportError:
         from scipy.misc import comb
     result = np.asarray(np.round(comb(nn, kk)), dtype=int)
-    if np.isscalar(result):
-        result = np.asscalar(result)
+    if result.ndim == 0:
+        result = result.item()
+        # result = np.asscalar(result)
     return result
 
 
@@ -620,7 +644,7 @@ def leave_many_out_lsq_cross_validation(basis_mat, values, fold_sample_indices,
         H_mat_inv = np.linalg.inv(H_mat)
         cv_errors.append(H_mat_inv.dot(residuals_kk))
         cv_score += np.sum(cv_errors[-1]**2, axis=0)
-    return np.asarray(cv_errors), np.sqrt(cv_score/basis_mat.shape[0]), coef
+    return cv_errors, np.sqrt(cv_score/basis_mat.shape[0]), coef
 
 
 def get_random_k_fold_sample_indices(nsamples, nfolds, random=True):

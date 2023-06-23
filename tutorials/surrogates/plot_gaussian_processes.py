@@ -45,15 +45,16 @@ Lets construct a GP with a fixed set of training samples and associated values w
 """
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.surrogates import gaussianprocess as gp
+from pyapprox.surrogates import gaussianprocess as gps
+np.random.seed(1)
 
 lb, ub = -1, 1
 
 def func(x):
     return 1/(1+25*x[0, :]**2)[:, np.newaxis]
 
-kernel = gp.Matern(1, length_scale_bounds=(1e-1, 1e1), nu=np.inf)
-gp = gp.GaussianProcess(kernel)
+kernel = gps.Matern(0.5, length_scale_bounds=(1e-1, 1e1), nu=np.inf)
+gp = gps.GaussianProcess(kernel)
 
 validation_samples = np.linspace(lb, ub, 101)[None, :]
 validation_values = func(validation_samples)
@@ -70,6 +71,7 @@ ntrain_samples = 5
 train_samples = np.linspace(lb, ub, ntrain_samples)[None, :]
 train_values = func(train_samples)
 gp.fit(train_samples, train_values)
+print(gp.kernel_)
 gp_vals, gp_std = gp(validation_samples, return_std=True)
 plt.plot(validation_samples[0, :], validation_values[:, 0], 'r-', label='Exact')
 plt.plot(train_samples[0, :], train_values[:, 0], 'or')
@@ -79,8 +81,7 @@ plt.fill_between(validation_samples[0, :], gp_vals[:, 0]-2*gp_std,
                  gp_vals[:, 0]+2*gp_std,
                  alpha=0.5, color='gray', label='GP posterior uncertainty')
 
-plt.legend()
-plt.show()
+_ = plt.legend()
 
 #%% As we add more training data the posterior uncertainty will decrease and the mean will become a more accurate estimate of the true function.
 
@@ -95,8 +96,50 @@ plt.show()
 #
 #The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples. The IVAR criterion - also called active learning Cohn (ALC) - can be minimized over discrete [HJZ2021]_ or continuous [GM2016]_ design spaces :math:`\Omega`. When employing a discrete design space, greedy methods [C2006]_ are used to sample one at a time from a finite set of candidate samples to minimize the learning objective.  This approach requires a representative candidate set which, we have found, can be generated with low-discrepancy sequences, e.g. Sobol sequences. The continuous optimization optimization is non-convex and thus requires a good initial guess to start the gradient based optimization. Greedy methods can be used to produce the initial guess, however we found that optimizing from this design resulted in minimal improvement.
 #
-#Talk a bit more how adaptive designs work e,g. start with initial set then select points one at a time.???
-#
+# The following code plots the samples chosen by greedily minimizing IVAR
+from pyapprox.surrogates.gaussianprocess.gaussian_process import (
+    IVARSampler, GreedyIntegratedVarianceSampler, CholeskySampler)
+from pyapprox.variables.joint import IndependentMarginalsVariable, stats
+variable = IndependentMarginalsVariable([stats.uniform(-1, 2)])
+ncandidate_samples = 101
+sampler = GreedyIntegratedVarianceSampler(
+    1, 100, ncandidate_samples, variable.rvs, variable,
+    use_gauss_quadrature=True, econ=False,
+    candidate_samples=np.linspace(
+       *variable.get_statistics("interval", 1)[0, :], 101)[None, :])
+
+kernel = gps.Matern(0.5, length_scale_bounds="fixed", nu=np.inf)
+sampler.set_kernel(kernel)
+
+
+def plot_gp_samples(ntrain_samples, kernel, variable):
+    axs = plt.subplots(1, ntrain_samples, figsize=(ntrain_samples*8, 6))[1]
+    gp = gps.GaussianProcess(kernel)
+    for ii in range(1, ntrain_samples+1):
+        gp.plot_1d(101, variable.get_statistics("interval", 1)[0, :], ax=axs[ii-1])
+
+    train_samples = sampler(ntrain_samples)[0]
+    train_values = func(train_samples)*0
+    for ii in range(1, ntrain_samples+1):
+        gp.fit(train_samples[:, :ii], train_values[:ii])
+        gp.plot_1d(101, variable.get_statistics("interval", 1)[0, :], ax=axs[ii-1])
+        axs[ii-1].plot(train_samples[0, :ii], train_values[:ii, 0], 'ko', ms=15)
+
+
+ntrain_samples = 5
+plot_gp_samples(ntrain_samples, kernel, variable)
+
+#%%
+#Contrast the variance to the samples obtained by a global optimiaztion of IVAR,
+#starting from the greedy IVAR sampls as the intial guess. The samples are plotted sequentially, however this is just for visualization as the global optimization does not produce a nested sequence of samples.
+sampler = IVARSampler(
+    1, 100, ncandidate_samples, variable.rvs, variable,
+    'ivar', use_gauss_quadrature=True, nugget=1e-14)
+sampler.set_kernel(kernel)
+ntrain_samples = 5
+plot_gp_samples(ntrain_samples, kernel, variable)
+
+#%%
 #Computing IVAR designs can be computationally expensive. An alternative cheaper algorithm called active learning Mckay (ALM) greedily chooses samples that minimizes the maximum variance of the Gaussian process. That is, given M training samples the next sample is chosen via
 #
 #.. math:: \rv^{(n+1)}=\argmax_{\mathcal{Z}\subset\Omega\subset\rvdom} C^\star(\rv, \rv\mid \mathcal{Z}_M)
@@ -109,10 +152,17 @@ plt.show()
 #
 #Finally we remark that while ALM and ALC are the most popular experimental design strategies for GPs, alternative methods have been proposed. Of note are those methods which approximately minimize the mutual information between the Gaussian process evaluated at the training data and the Gaussian process evaluated at the remaining candidate samples [KSG2008]_, [BG2016]_. We do not consider these methods in our numerical comparisons.
 #
-#ACTIVE LEARNING
-# guillas jakeman, gramacy adaptive
-#
-#Compare designs with fixed hyper-parameters with those that are learnt as data is added. Show can drastically improve efficiency in anisotrioic functions
+# The following code shows how to use pivoted Cholesky factorization to greedily choose trainig samples for a GP.
+sampler = CholeskySampler(1, 100, variable)
+sampler.set_kernel(kernel)
+ntrain_samples = 5
+plot_gp_samples(ntrain_samples, kernel, variable)
+plt.show()
+
+#%%
+#Active Learning
+#---------------
+# The samples selected by the aforementioned methods depends on the kernel specified. Change the length_scale of the kernel above to see how the selected samples changes. Active learning chooses a small initial sample set then trains the GP to learn the best kernel hyper-parameters. These parameters are then used to increment the training set and then used to train the GP hyper-parameters again and so until a sufficient accuracy or computational budget is reached. PyApprox's AdaptiveGaussianProcess implements this procedure [HJZ2021]_.
 
 #%%
 #References

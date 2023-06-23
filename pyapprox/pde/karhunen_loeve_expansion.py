@@ -1,3 +1,4 @@
+import scipy
 from scipy.linalg import eigh
 from scipy.spatial.distance import pdist, squareform
 import numpy as np
@@ -7,10 +8,10 @@ from pyapprox.util.linalg import adjust_sign_eig
 
 
 def exponential_kle_eigenvalues(sigma2, corr_len, omega):
-    return sigma2*2.*corr_len/(1.+(omega*corr_len)**2)
+    return 2*corr_len*sigma2/(1.+(omega*corr_len)**2)
 
 
-def exponential_kle_basis(x, corr_len, sigma2, omega):
+def exponential_kle_basis(x, corr_len, sigma2, dom_len, omega):
     r"""
     Basis for the kernel K(x,y)=\sigma^2\exp(-|x-y|/l)
 
@@ -32,32 +33,28 @@ def exponential_kle_basis(x, corr_len, sigma2, omega):
     -------
     basis_vals : np.ndarray (num_spatial_locations, num_vars)
         The values of every basis at each of the spatial locations
-        basis_vals are multiplied by eigvals
 
-    eig_vals : np.ndarray (num_vars)
-        The eigemvalues of the kernel. The influence of these is already
-        included in basis_vals, but these values are useful for plotting.
+    References
+    ----------
+    https://doi.org/10.1016/j.jcp.2003.09.015
     """
     num_vars = omega.shape[0]
     assert x.ndim == 1
     num_spatial_locations = x.shape[0]
+    # bn = 1/((corr_len**2*omega[jj]**2+1)*dom_len/2+corr_len)
+    # an = corr_len*omega*bn
+    # basis_vals = an*np.cos(omega[jj]*x)+bn*np.cos(omega[jj]*x)
     basis_vals = np.empty((num_spatial_locations, num_vars), float)
-    eigvals = exponential_kle_eigenvalues(sigma2, corr_len, omega)
-    for j in range(num_vars//2):
-        frac = np.sin(omega[j])/(2*omega[j])
-        basis_vals[:, 2*j] = np.cos(omega[j]*(x-0.5)) / \
-            np.sqrt(0.5+frac)*eigvals[2*j]
-        basis_vals[:, 2*j+1] = np.sin(omega[j]*(x-0.5)) / \
-            np.sqrt(0.5-frac)*eigvals[2*j+1]
-    if num_vars % 2 == 1:
-        frac = np.sin(omega[-1])/(2*omega[-1])
-        basis_vals[:, -1] = np.cos(omega[-1]*(x-0.5)) / \
-            np.sqrt(0.5+frac)*eigvals[-1]
+    for jj in range(num_vars):
+        bn = 1/((corr_len**2*omega[jj]**2+1)*dom_len/2.0+corr_len)
+        bn = np.sqrt(bn)
+        an = corr_len*omega[jj]*bn
+        basis_vals[:, jj] = an*np.cos(omega[jj]*x)+bn*np.sin(omega[jj]*x)
     return basis_vals
 
 
 def compute_roots_of_exponential_kernel_characteristic_equation(
-        corr_len, num_vars, maxw=None, plot=False):
+        corr_len, num_vars, dom_len, maxw=None, plot=False):
     r"""
     Compute roots of characteristic equation of the exponential kernel.
 
@@ -77,14 +74,16 @@ def compute_roots_of_exponential_kernel_characteristic_equation(
     omega : np.ndarray (num_vars)
         The roots of the characteristic equation
     """
-    def func(w): return (1-corr_len*w*np.tan(w/2.))*(corr_len*w+np.tan(w/2.))
+    # def func(w): return (1-corr_len*w*np.tan(w/2.))*(corr_len*w+np.tan(w/2.))
+    def func(w): return (
+            (corr_len**2*w**2-1.0)*np.sin(w*dom_len) -
+            2*corr_len*w*np.cos(w*dom_len))
     omega = np.empty((num_vars), float)
-    import scipy
     dw = 1e-2
     tol = 1e-5
     if maxw is None:
         maxw = num_vars*5
-    w = np.linspace(dw, maxw, maxw//dw)
+    w = np.linspace(dw, maxw, int(maxw//dw))
     fw = func(w)
     fw_sign = np.sign(fw)
     signchange = ((np.roll(fw_sign, -1) - fw_sign) != 0).astype(int)
@@ -118,7 +117,7 @@ def compute_roots_of_exponential_kernel_characteristic_equation(
 
 
 def evaluate_exponential_kle(
-        mean_field, corr_len, sigma2, x, z, basis_vals=None):
+        mean_field, corr_len, sigma2, dom_len, x, z, basis_vals=None, eig_vals=None):
     r"""
     Return realizations of a random field with a exponential covariance kernel.
 
@@ -134,7 +133,7 @@ def evaluate_exponential_kle(
         The variance \sigma^2  of the random field
 
     x : np.ndarray (num_spatial_locations)
-        The spatial coordinates of the nodes defining the random field in [0,1] 
+        The spatial coordinates of the nodes defining the random field in [0,1]
 
     z : np.ndarray (num_vars, num_samples)
         A set of random samples
@@ -160,8 +159,10 @@ def evaluate_exponential_kle(
 
     if basis_vals is None:
         omega = compute_roots_of_exponential_kernel_characteristic_equation(
-            corr_len, num_vars)
-        basis_vals = exponential_kle_basis(x, corr_len, sigma2, omega)
+            corr_len, num_vars, dom_len)
+        eig_vals = exponential_kle_eigenvalues(sigma2, corr_len, omega)
+        basis_vals = exponential_kle_basis(
+            x, corr_len, sigma2, dom_len, omega)
 
     assert num_vars == basis_vals.shape[1]
     assert basis_vals.shape[0] == x.shape[0]
@@ -174,35 +175,40 @@ def evaluate_exponential_kle(
     assert mean_field.ndim == 1
     assert mean_field.shape[0] == num_spatial_locations
 
-    vals = mean_field[:, np.newaxis]+np.dot(basis_vals, z)
+    vals = mean_field[:, np.newaxis]+np.dot(
+        np.sqrt(eig_vals)[:, None]*basis_vals, z)
     assert vals.shape[1] == z.shape[1]
-    return vals
+    return vals, eig_vals
 
 
 class KLE1D(object):
     def __init__(self, kle_opts):
+        "Defined on [0, L]"
         self.mean_field = kle_opts['mean_field']
-        self.sigma2 = kle_opts['sigma2']
-        self.corr_len = kle_opts['corr_len']
+        self.sigma2 = kle_opts['sigma2']      # \sigma_Y^2 in paper
+        self.corr_len = kle_opts['corr_len']  # \nu in paper
         self.num_vars = kle_opts['num_vars']
         self.use_log = kle_opts.get('use_log', True)
+        self.dom_len = kle_opts["dom_len"]
 
         self.basis_vals = None
-
         self.omega =\
             compute_roots_of_exponential_kernel_characteristic_equation(
-                self.corr_len, self.num_vars, maxw=kle_opts.get('maxw', None))
+                self.corr_len, self.num_vars, self.dom_len,
+                maxw=kle_opts.get('maxw', None))
+        self.eig_vals = exponential_kle_eigenvalues(
+            self.sigma2, self.corr_len, self.omega)
 
     def update_basis_vals(self, mesh):
         if self.basis_vals is None:
             self.basis_vals = exponential_kle_basis(
-                mesh, self.corr_len, self.sigma2, self.omega)
+                mesh, self.corr_len, self.sigma2, self.dom_len, self.omega)
 
     def __call__(self, sample, mesh):
         self.update_basis_vals(mesh)
         vals = evaluate_exponential_kle(
-            self.mean_field, self.corr_len, self.sigma2, mesh, sample,
-            self.basis_vals)
+            self.mean_field, self.corr_len, self.sigma2, self.dom_len, mesh,
+            sample, self.basis_vals, self.eig_vals)
         if self.use_log:
             return np.exp(vals)
         else:
@@ -211,7 +217,6 @@ class KLE1D(object):
 
 def correlation_function(X, s, corr_type):
     assert X.ndim == 2
-    from scipy.spatial.distance import pdist, squareform
     # this is an NxD matrix, where N is number of items and D its
     # dimensionalities
     pairwise_dists = squareform(pdist(X.T, 'euclidean'))
@@ -274,11 +279,14 @@ class MeshKLE(object):
     """
 
     def __init__(self, mesh_coords, mean_field=0, use_log=False,
-                 matern_nu=np.inf, use_torch=False):
+                 matern_nu=np.inf, use_torch=False, quad_weights=None):
         assert mesh_coords.shape[0] <= 2
         self.mesh_coords = mesh_coords
         self.use_log = use_log
         self.use_torch = use_torch
+        self.quad_weights = quad_weights
+        if quad_weights is not None:
+            assert quad_weights.ndim == 1
 
         if np.isscalar(mean_field):
             mean_field = np.ones(self.mesh_coords.shape[1])*mean_field
@@ -295,12 +303,12 @@ class MeshKLE(object):
             return K
 
         dists = pdist(self.mesh_coords.T / length_scale, metric='euclidean')
-        if self.matern == 0.5:
+        if self.matern_nu == 0.5:
             K = squareform(np.exp(-dists))
-        elif self.matern == 1.5:
+        elif self.matern_nu == 1.5:
             dists = np.sqrt(3)*dists
             K = squareform((1+dists)*np.exp(-dists))
-        elif self.matern == 2.5:
+        elif self.matern_nu == 2.5:
             K = squareform((1+dists+dists**2/3)*np.exp(-dists))
         np.fill_diagonal(K, 1)
         return K
@@ -325,14 +333,30 @@ class MeshKLE(object):
         assert nterms <= self.mesh_coords.shape[1]
         self.nterms = nterms
 
+        length_scale = np.atleast_1d(length_scale)
+        if length_scale.shape[0] == 1:
+            length_scale = np.full(self.mesh_coords.shape[0], length_scale[0])
+        assert length_scale.shape[0] == self.mesh_coords.shape[0]
+
         K = self.compute_kernel_matrix(length_scale)
-        eig_vals, eig_vecs = eigh(
-            K, turbo=False, eigvals=(K.shape[0]-nterms, K.shape[0]-1))
+        if self.quad_weights is None:
+            eig_vals, eig_vecs = eigh(
+                K, turbo=False, eigvals=(K.shape[0]-nterms, K.shape[0]-1))
+        else:
+            # see https://etheses.lse.ac.uk/2950/1/U615901.pdf
+            # page 42
+            sqrt_weights = np.sqrt(self.quad_weights)
+            sym_eig_vals, sym_eig_vecs = eigh(
+                sqrt_weights[:, None]*K*sqrt_weights, turbo=False,
+                eigvals=(K.shape[0]-nterms, K.shape[0]-1))
+            eig_vecs = 1/sqrt_weights[:, None]*sym_eig_vecs
+            eig_vals = sym_eig_vals
         eig_vecs = adjust_sign_eig(eig_vecs)
-        I = np.argsort(eig_vals)[::-1][:self.nterms]
-        assert np.all(eig_vals[I] > 0)
-        self.sqrt_eig_vals = np.sqrt(eig_vals[I])
-        self.eig_vecs = eig_vecs[:, I]
+        II = np.argsort(eig_vals)[::-1][:self.nterms]
+        print(eig_vals[II])
+        assert np.all(eig_vals[II] > 0)
+        self.sqrt_eig_vals = np.sqrt(eig_vals[II])
+        self.eig_vecs = eig_vecs[:, II]
 
         # normalize the basis
         self.eig_vecs *= sigma*self.sqrt_eig_vals
@@ -353,7 +377,7 @@ class MeshKLE(object):
                 return np.exp(self.mean_field[:, None]+self.eig_vecs.dot(coef))
             import torch
             return torch.exp(
-                torch.as_tensor(self.mean_field[:, None])+
+                torch.as_tensor(self.mean_field[:, None]) +
                 torch.linalg.multi_dot((torch.as_tensor(self.eig_vecs), coef)))
         if not self.use_torch:
             return self.mean_field[:, None] + self.eig_vecs.dot(coef)
@@ -383,14 +407,14 @@ def multivariate_chain_rule(jac_yu, jac_ux):
 
     jac_ux : np.ndarray (nx, nu)
         The Jacobian of u with respect to x, i.e.
-    
+
         .. math:: [\frac{\partial u}{\partial x_j}
 
     Returns
     -------
     jac : np.ndarray (ny, nx)
         The Jacobian of u with respect to x, i.e.
-    
+
         ..math:: \frac{\partial y}{\partial x_i}
     """
     gradient = jac_yu.dot(jac_ux)
@@ -400,28 +424,28 @@ def multivariate_chain_rule(jac_yu, jac_ux):
 def compute_kle_gradient_from_mesh_gradient(
         mesh_gradient, kle_basis_matrix, kle_mean, use_log, sample):
     r"""
-    Compute the gradient of a function with respect to the coefficients of 
+    Compute the gradient of a function with respect to the coefficients of
     a Karhunen Loeve expansion from a gradient of the KLE projected onto the
     discrete set of points (mesh) on which the KLE is defined.
 
     Specifically given the KLE
-    
+
     ..math:: k(z, x) = \mu(x) + \sigma\sum_{n=1}^N \lambda_n\phi_n(x)z
 
     defined at a set of points :math:`x_m, m=1,\ldots,M`
 
-    this function computes 
+    this function computes
 
-    ..math:: frac{\partial f(k(z))}{\partial z} 
+    ..math:: frac{\partial f(k(z))}{\partial z}
 
-    from 
+    from
 
-    ..math:: frac{\partial f(k)}{\partial k} 
+    ..math:: frac{\partial f(k)}{\partial k}
 
     Parameters
     ----------
     mesh_gradient : np.ndarray (nmesh_points)
-        The gradient of a function with respect to the the values :math:`k_i` 
+        The gradient of a function with respect to the the values :math:`k_i`
         which are the evaluations of the kle at :math`x_i`
 
     kle_basis_matrix : np.ndarray (nmesh_points, nterms)
@@ -429,7 +453,7 @@ def compute_kle_gradient_from_mesh_gradient(
 
     kle_mean : np.ndarray (nmesh_points)
         The mean field of the KLE
-    
+
     use_log : boolean
         True - the values :math`k_i = \exp(k_i)`
         False - the values :math`k_i = \exp(k_i)`
@@ -446,6 +470,5 @@ def compute_kle_gradient_from_mesh_gradient(
         k_jac = kvals[:, None]*kle_basis_matrix
     else:
         k_jac = kle_basis_matrix
-        
+
     return multivariate_chain_rule(mesh_gradient, k_jac)
-        

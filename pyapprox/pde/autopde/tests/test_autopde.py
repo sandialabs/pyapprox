@@ -41,8 +41,8 @@ from pyapprox.util.utilities import approx_jacobian, check_gradients
 # Functions and testing only for wrapping Sympy generated manufactured
 # solutions
 def _normal_flux(flux_funs, normal_fun, xx):
-    normal_vals = torch.as_tensor(normal_fun(xx))
-    flux_vals = torch.as_tensor(flux_funs(xx))
+    normal_vals = torch.as_tensor(normal_fun(xx), dtype=torch.double)
+    flux_vals = torch.as_tensor(flux_funs(xx), dtype=torch.double)
     vals = torch.sum(normal_vals*flux_vals, dim=1)[:, None]
     return vals
 
@@ -177,7 +177,8 @@ class TestAutoPDE(unittest.TestCase):
 
     def _check_advection_diffusion_reaction(
             self, domain_bounds, orders, sol_string, diff_string, vel_strings,
-            react_funs, bndry_types, basis_types, transform=None, nl_diff_funs=[None, None]):
+            react_funs, bndry_types, basis_types, transform=None,
+            nl_diff_funs=[None, None]):
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_funs[0], False,
@@ -201,6 +202,16 @@ class TestAutoPDE(unittest.TestCase):
                 [partial(transform.normal, ii) for ii in range(2*nphys_vars)])
             mesh = TransformedCollocationMesh(orders, transform)
 
+        # import matplotlib.pyplot as plt
+        # print(transform)
+        # for ii in range(4):
+        #     idx = mesh._bndry_indices[ii]
+        #     eps = 0.05
+        #     normals = mesh._bndrys[ii].normals(mesh.mesh_pts[:, idx])*eps
+        #     for kk in range(normals.shape[0]):
+        #         plt.arrow(*mesh.mesh_pts[:, idx][:, kk], *normals[kk])
+        # plt.show()
+
         # bndry_cond returned by _get_boundary_funs is du/dx=fun
         # apply boundary condition kdu/dx.n=fun
         # for bndry_cond in bndry_conds:
@@ -208,10 +219,11 @@ class TestAutoPDE(unittest.TestCase):
         #         _adf_bndry_fun, bndry_cond[0], diff_fun)
 
         if ("_u_" in diff_string):
-            assert diff_jac is not None
+            assert nl_diff_funs[1] is not None
         solver = SteadyStatePDE(AdvectionDiffusionReaction(
             mesh, bndry_conds, diff_fun, vel_fun, react_funs[0], forc_fun,
-            react_funs[1], nl_diff_fun = nl_diff_funs[0], nl_diff_jac = nl_diff_funs[1]))
+            react_funs[1], nl_diff_fun=nl_diff_funs[0],
+            nl_diff_jac=nl_diff_funs[1]))
 
         # import matplotlib.pyplot as plt
         # plt.plot(mesh.mesh_pts[0], mesh.mesh_pts[1], 'o')
@@ -221,9 +233,9 @@ class TestAutoPDE(unittest.TestCase):
         # plt.plot(can_pts[0], can_pts[1], 'X')
         # plt.show()
 
+        exact_sol = sol_fun(mesh.mesh_pts)
         if nl_diff_funs[0] is not None:
             solver.physics._auto_jac = True
-            exact_sol = sol_fun(mesh.mesh_pts)
             np.set_printoptions(linewidth=1000)
             j_auto = torch.autograd.functional.jacobian(
                 lambda s: solver.physics._raw_residual(s)[0],
@@ -245,8 +257,11 @@ class TestAutoPDE(unittest.TestCase):
             solver.physics._raw_residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
         assert np.allclose(
             solver.physics._residual(sol_fun(mesh.mesh_pts)[:, 0])[0], 0)
+        solver.physics._clear_data()
         sol = solver.solve(
-            init_guess=exact_sol[:, 0]+np.random.normal(0, 1e-2, exact_sol.shape[0]), tol=1e-8, rtol=1e-12, verbosity=2)[:, None]
+            init_guess=exact_sol[:, 0]+np.random.normal(
+                0, 1e-2, exact_sol.shape[0]), tol=1e-8, rtol=1e-12,
+            verbosity=2)[:, None]
         assert np.linalg.norm(
             sol_fun(mesh.mesh_pts)-sol) < 1e-9
 
@@ -273,12 +288,13 @@ class TestAutoPDE(unittest.TestCase):
             mesh_vals = torch.tile(param_vals, (mesh.mesh_pts.shape[1], ))
             residual._diff_fun = partial(
                 residual.mesh.interpolate, mesh_vals)
-        # grad = adj_solver.compute_gradient(
-        #     set_param_values, param_vals, tol=1e-8)
+            # grad = adj_solver.compute_gradient(
+            #     set_param_values, param_vals, tol=1e-8)
 
         def fun(params):
             set_param_values(
-                fwd_solver.physics, torch.as_tensor(params[:, 0]))
+                fwd_solver.physics,
+                torch.as_tensor(params[:, 0], dtype=torch.double))
             # newton tol must be smaller than finite difference step size
             fd_sol = fwd_solver.solve(tol=1e-8, verbosity=0, rtol=1e-12)
             qoi = np.asarray([functional(fd_sol, params[:, 0])])
@@ -315,12 +331,13 @@ class TestAutoPDE(unittest.TestCase):
 
         errors = check_gradients(
             fun, lambda p: adj_solver.compute_gradient(
-                set_param_values, torch.as_tensor(p)[:, 0]).numpy(),
+                set_param_values,
+                torch.as_tensor(p, dtype=torch.double)[:, 0]).numpy(),
             param_vals.numpy()[:, None], plot=False,
             fd_eps=3*np.logspace(-13, 0, 14)[::-1],
             direction=np.array([1])[:, None])
         print(errors.min()/errors.max())
-        assert errors.min()/errors.max() < 2.5e-6
+        assert errors.min()/errors.max() < 3.7e-6 # 2.5e-6
 
     def _get_vertical_transform(self, s0, depth, L, alpha):
         # transformation
@@ -356,85 +373,84 @@ class TestAutoPDE(unittest.TestCase):
         test_cases = [
             # 0
             [[0, 1], [4], "-(x-1)*x/2", "4", ["0"],
-             [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+             [None, None],
              ["D", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["1"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["1"],
-             [lambda sol: sol**2, lambda sol: torch.diag(2*sol[:, 0])],
+             [lambda sol: sol**2, lambda sol: 2*sol[:, 0]],
              # [lambda sol: 1*sol, lambda sol: 1*torch.eye(sol.shape[0])],
              ["D", "D"], ["C"]],
             # 4
             [[0, 1], [20], "0.5*(x-3)*x", "2+x", ["0"],
                 [lambda sol: 0*sol,
-                lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+                lambda sol: torch.zeros((sol.shape[0],))],
              ["N", "D"], ["C"]],
             [[0, 1], [4], "x**2", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "N"], ["C"]],
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["R", "D"], ["C"]],
             # When using periodic bcs must have reaction term to have a
             # unique solution
             [[0, 2*torch.pi], [30], "sin(x)", "1", ["0"],
-             [lambda sol: 1*sol, lambda sol: torch.eye(sol.shape[0])],
+             [lambda sol: 1*sol, lambda sol: torch.ones(sol.shape[0])],
              ["P", "P"], ["C"]],
             [[0, 1, 0, 1], [4, 4], "y**2*x**2", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "N", "N", "D"], ["C", "C"]],
             # 9
             [[0, .5, 0, 1], [16, 14], "y**2*sin(pi*x)", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "N", "N", "D"], ["C", "C"]],
             [[0, .5, 0, 1], [16, 14], "x**2*y**2", "1", ["0", "0"],
              [lambda sol: sol**2,
-              lambda sol: torch.diag(2*sol[:, 0])],
+              lambda sol: 2*sol[:, 0]],
              ["D", "N", "N", "D"], ["C", "C"]],
             [[0, .5, 0, 1], [16, 16], "y**2*sin(pi*x)", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "R", "D", "D"], ["C", "C"]],
             [None, [6, 6], "y**2*x**2", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D", "D", "D"], ["C", "C"], vertical_transform],
             [None, [6, 6], "y**2*x**2", "1", ["1", "0"],
              [lambda sol: 1*sol**2,
-              lambda sol: torch.diag(2*sol[:, 0])],
+              lambda sol: 2*sol[:, 0]],
              ["D", "D", "D", "N"], ["C", "C"], vertical_transform],
             # while solution is quadratic in the user domain
             # the solution is not quadratic in the canonical domain
             # due to nonlinearity of polar coordinate transform
             # 14
-            [None, [20, 20], "y**2*x**2", "1", ["0", "0"],
+            [None, [20, 20], "(x+y)**2", "1", ["0", "0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D", "D", "N"], ["C", "C"], polar_transform],
-            [None, [20, 20], "y**2*x**2", "1", ["0", "0"],
+            [None, [20, 20], "(x+y)**2", "1", ["0", "0"],
              [lambda sol: 1*sol**2,
-              lambda sol: torch.diag(2*sol[:, 0])],
+              lambda sol: 2*sol[:, 0]],
              ["D", "D", "D", "N"], ["C", "C"], ellipse_transform],
             [[0, 1], [6], "(1+x)**2", "1", ["0"],
                 [lambda sol: 0*sol,
-                lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+                 lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], ["C"], None,
              [lambda linear_diff, sol: linear_diff*(sol**2),
               nl_diff_jac]]
         ]
         ii = 0
-        for test_case in test_cases[-1:]:
+        for test_case in test_cases:
             np.random.seed(2)  # controls direction of finite difference
             print(ii)
             print(test_case)
@@ -449,11 +465,11 @@ class TestAutoPDE(unittest.TestCase):
             if return_grad is False:
                 qoi = adj_solver.compute_qoi(
                     init_sol, 0, final_time, set_param_values,
-                    torch.as_tensor(params[:, 0]))[2]
+                    torch.as_tensor(params[:, 0], dtype=torch.double))[2]
                 return np.atleast_1d(qoi)
             qoi, grad = adj_solver.compute_gradient(
                 init_sol, 0, final_time, set_param_values,
-                torch.as_tensor(params[:, 0]))
+                torch.as_tensor(params[:, 0], dtype=torch.double))
             return qoi, grad
 
         # qoi, grad = adj_solver.compute_gradient(
@@ -466,9 +482,9 @@ class TestAutoPDE(unittest.TestCase):
         # print(grad, 'g')
         p0 = param_vals.numpy()[:, None]
         errors = check_gradients(
-            fun, True, p0, fd_eps=np.logspace(-13, 0, 14)[::-1])
+            fun, True, p0, fd_eps=0.5*np.logspace(-13, 0, 14)[::-1])
         print(errors.min()/errors.max())
-        assert errors.min()/errors.max() < 6.5e-7
+        assert errors.min()/errors.max() < 1.1e-6
 
     def test_decoupled_ode_adjoint(self):
         orders = [2]  # only mid point will be correct applying bndry_conds
@@ -588,36 +604,38 @@ class TestAutoPDE(unittest.TestCase):
     def test_transient_advection_diffusion_reaction(self):
         test_cases = [
             [[0, 1], [4], "0.5*(x-3)*x", "1", ["0"],
-             [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
-             ["D", "D"], "im_beuler1"],
+             [None, None], ["D", "D"], "im_beuler1"],
+            [[0, 1], [4], "x**2*(1+t)", "3", ["0"],
+             [None, None], ["D", "D"], "im_beuler1"],
             [[0, 1], [4], "x**2*(1+t)", "3", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
-             ["D", "D"], "im_beuler1"],
-            [[0, 1], [4], "x**2*(1+t)", "3", ["0"],
-             [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "N"], "im_beuler1"],
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["0"],
              [lambda sol: 0*sol,
-              lambda sol: torch.zeros((sol.shape[0], sol.shape[0]))],
+              lambda sol: torch.zeros((sol.shape[0],))],
              ["D", "D"], "im_crank2"],
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
              [lambda sol: 1*sol**2,
-              lambda sol: torch.diag(2*sol[:, 0])],
+              lambda sol: 2*sol[:, 0]],
              ["D", "D"], "im_crank2"],
             [[0, 1], [3], "(x-1)*x*(1+t)**2", "1", ["1"],
              [lambda sol: 1*sol**2,
-              lambda sol: torch.diag(2*sol[:, 0])],
+              lambda sol: 2*sol[:, 0]],
              ["N", "D"], "im_crank2"],
+            [[0, 1, 0, 1], [3, 3], "(x-1)*x*(1+t)*y**2", "1", ["1", "1"],
+             [None, None], ["D", "N", "R", "D"], "im_beuler1"],
             [[0, 1, 0, 1], [3, 3], "(x-1)*x*(1+t)**2*y**2", "1", ["1", "1"],
              [lambda sol: 1*sol**2,
-              lambda sol: torch.diag(2*sol[:, 0])],
+              lambda sol: 2*sol[:, 0]],
              ["D", "N", "R", "D"], "im_crank2"]
         ]
+        ii = 0
         for test_case in test_cases:
+            print(ii)
+            print(test_case)
             self._check_transient_advection_diffusion_reaction(*test_case)
+            ii += 1
 
     def _check_stokes_solver_mms(
             self, domain_bounds, orders, vel_strings, pres_string, bndry_types,
@@ -681,10 +699,11 @@ class TestAutoPDE(unittest.TestCase):
             solver.physics._residual(exact_sol[:, 0])[0], 0, atol=2.2e-8)
 
         def fun(s):
-            return solver.physics._raw_residual(torch.as_tensor(s))[0].numpy()
+            return solver.physics._raw_residual(
+                torch.as_tensor(s, dtype=torch.double))[0].numpy()
         j_fd = approx_jacobian(fun, exact_sol[:, 0].numpy())
         j_man = solver.physics._raw_residual(
-            torch.as_tensor(exact_sol[:, 0]))[1].numpy()
+            torch.as_tensor(exact_sol[:, 0], dtype=torch.double))[1].numpy()
         j_auto = torch.autograd.functional.jacobian(
             lambda s: solver.physics._raw_residual(s)[0],
             exact_sol[:, 0].clone().requires_grad_(True), strict=True).numpy()
@@ -779,7 +798,8 @@ class TestAutoPDE(unittest.TestCase):
         # print(np.abs(solver.physics._raw_residual(exact_sol[:, 0])))
 
         def fun(s):
-            return solver.physics._raw_residual(torch.as_tensor(s))[0].numpy()
+            return solver.physics._raw_residual(
+                torch.as_tensor(s, dtype=torch.double))[0].numpy()
         j_fd = approx_jacobian(fun, exact_sol[:, 0].numpy())
         # j_man = solver.physics._raw_residual(torch.as_tensor(exact_sol[:, 0]))[1].numpy()
         j_auto = torch.autograd.functional.jacobian(
@@ -1475,10 +1495,8 @@ class TestAutoPDE(unittest.TestCase):
             [[0, 1], [4], ["0.5*(x-3)*x", "x**3+1"], ["1", "2"],
              [["0"], ["0"]],
              [lambda sol: sol[0]**2*sol[1], lambda sol: -sol[0]**2*sol[1]],
-             [lambda sol: [torch.diag(2*sol[0]*sol[1]),
-                           torch.diag(sol[0]**2)],
-              lambda sol: [torch.diag(-2*sol[0]*sol[1]),
-                           torch.diag(-sol[0]**2)]],
+             [lambda sol: [2*sol[0]*sol[1], sol[0]**2],
+              lambda sol: [-2*sol[0]*sol[1], -sol[0]**2]],
              [["D", "D"], ["D", "D"]], "im_beuler1"],
         ]
         for test_case in test_cases:

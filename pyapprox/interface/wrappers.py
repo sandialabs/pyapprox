@@ -5,7 +5,6 @@ import os
 import glob
 from functools import partial
 from multiprocessing import Pool
-import sys
 import pickle
 import copy
 # from tqdm import tqdm
@@ -149,7 +148,8 @@ class DataFunctionModel(object):
     """
 
     def __init__(self, function, data=None, data_basename=None,
-                 save_frequency=None, use_hash=True, digits=16):
+                 save_frequency=None, use_hash=True, digits=16,
+                 base_model=None):
         """
         Parameters
         ----------
@@ -185,10 +185,11 @@ class DataFunctionModel(object):
             all samples in the database. This is slower.
 
         digits : integer
-            The number of significant digits used to ahs or compare samples
+            The number of significant digits used to has or compare samples
             in the database
         """
         self.function = function
+        self.base_model = base_model
 
         self.data = dict()
         self.samples = np.zeros((0, 0))
@@ -278,15 +279,25 @@ class DataFunctionModel(object):
             num_evaluations_ran = self.num_evaluations_ran
             batch_vals, batch_grads, new_sample_indices = self._call(
                 samples[:, lb:ub], return_grad)
-            data_filename = self.data_basename+'-%d-%d.pkl' % (
-                num_evaluations_ran,
-                num_evaluations_ran+len(new_sample_indices)-1)
             if return_grad:
                 grads_4_save = [batch_grads[ii] for ii in new_sample_indices]
             else:
                 grads_4_save = [None for ii in new_sample_indices]
             # I think this code will work only if function always does or does
             # not return grads
+            if vals is None:
+                vals = batch_vals
+                grads = copy.deepcopy(batch_grads)
+            else:
+                vals = np.vstack((vals, batch_vals))
+                grads += copy.deepcopy(batch_grads)
+
+            if len(new_sample_indices) == 0:
+                lb = ub
+                continue
+            data_filename = self.data_basename+'-%d-%d.pkl' % (
+                num_evaluations_ran,
+                num_evaluations_ran+len(new_sample_indices)-1)
             # np.savez(data_filename, vals=batch_vals[new_sample_indices],
             #          samples=samples[:, lb:ub][:, new_sample_indices],
             #          grads=grads_4_save)
@@ -294,13 +305,8 @@ class DataFunctionModel(object):
                 pickle.dump((
                     batch_vals[new_sample_indices],
                     samples[:, lb:ub][:, new_sample_indices], grads_4_save), f)
-            if vals is None:
-                vals = batch_vals
-                grads = copy.deepcopy(batch_grads)
-            else:
-                vals = np.vstack((vals, batch_vals))
-                grads += copy.deepcopy(batch_grads)
             lb = ub
+
         if not return_grad:
             return vals
         return vals, grads
@@ -578,7 +584,7 @@ class WorkTracker(object):
     def __init__(self):
         self.costs = dict()
 
-    def __call__(self, config_samples):
+    def __call__(self, config_samples=None):
         """
         Read the cost of evaluating the functions with the ids given in
         a set of config_samples.
@@ -586,8 +592,10 @@ class WorkTracker(object):
         Parameters
         ----------
         config_samples : np.ndarray (nconfig_vars,nsamples)
-            The configuration indices
+            The configuration indices. If None the default Id [0] is used
         """
+        if config_samples is None:
+            config_samples = np.asarray([[0]])
         num_config_vars, nqueries = config_samples.shape
         costs = np.empty((nqueries))
         for ii in range(nqueries):
@@ -840,7 +848,7 @@ class PoolModel(object):
 
 
 def get_active_set_model_from_variable(function, variable, active_var_indices,
-                                       nominal_values):
+                                       nominal_values, base_model=None):
     from pyapprox.variables.joint import IndependentMarginalsVariable
     active_variable = IndependentMarginalsVariable(
         [variable.marginals()[ii] for ii in active_var_indices])
@@ -848,7 +856,8 @@ def get_active_set_model_from_variable(function, variable, active_var_indices,
     mask[active_var_indices] = False
     inactive_var_values = nominal_values[mask]
     model = ActiveSetVariableModel(
-        function, variable.num_vars(), inactive_var_values, active_var_indices)
+        function, variable.num_vars(), inactive_var_values, active_var_indices,
+        base_model=base_model)
     return model, active_variable
 
 
@@ -858,7 +867,7 @@ class ActiveSetVariableModel(object):
     """
 
     def __init__(self, function, num_vars, inactive_var_values,
-                 active_var_indices):
+                 active_var_indices, base_model=None):
         # num_vars can de determined from inputs but making it
         # necessary allows for better error checking
         self.function = function
@@ -871,13 +880,10 @@ class ActiveSetVariableModel(object):
         assert np.all(self.active_var_indices < self.num_vars)
         self.inactive_var_indices = np.delete(
             np.arange(self.num_vars), active_var_indices)
+        self.base_model = base_model
 
-    def __call__(self, reduced_samples, return_grad=False):
-        has_return_grad = has_kwarg(self.function, "return_grad")
-        if return_grad and not has_return_grad:
-            msg = "return_grad set to true but function does not return grad"
-            raise ValueError(msg)
-
+    def _expand_samples(self, reduced_samples):
+        assert reduced_samples.ndim == 2
         raw_samples = get_all_sample_combinations(
             self.inactive_var_values, reduced_samples)
         samples = np.empty_like(raw_samples)
@@ -885,6 +891,14 @@ class ActiveSetVariableModel(object):
                 :] = raw_samples[:self.inactive_var_indices.shape[0]]
         samples[self.active_var_indices,
                 :] = raw_samples[self.inactive_var_indices.shape[0]:]
+        return samples
+
+    def __call__(self, reduced_samples, return_grad=False):
+        has_return_grad = has_kwarg(self.function, "return_grad")
+        if return_grad and not has_return_grad:
+            msg = "return_grad set to true but function does not return grad"
+            raise ValueError(msg)
+        samples = self._expand_samples(reduced_samples)
         if not has_return_grad:
             return self.function(samples)
         return self.function(samples, return_grad)
@@ -924,10 +938,13 @@ class SingleFidelityWrapper(object):
     to user-defined nominal values.
     """
 
-    def __init__(self, model, config_values):
+    def __init__(self, model, config_values, base_model=None):
         self.model = model
         assert config_values.ndim == 1
         self.config_values = config_values[:, np.newaxis]
+        if base_model is None:
+            base_model = model
+        self.base_model = base_model
 
     def __call__(self, samples):
         multif_samples = np.vstack(
@@ -1102,6 +1119,10 @@ class ModelEnsemble(object):
             values[II] = self.functions[active_model_id](samples[:-1, II])
         return values
 
+    def __repr__(self):
+        return "{0})(nmodels={1})".format(
+            self.__class__.__name__, self.nmodels)
+
 
 class MultiIndexModel():
     def __init__(self, setup_model, config_values):
@@ -1131,3 +1152,74 @@ class MultiIndexModel():
             model_ids[0, ii] = self._multi_index_to_model_id_map[key]
         return self._model_ensemble(
             np.vstack((samples[:-self._nconfig_vars, :], model_ids)))
+
+
+class ArchivedDataModel():
+    def __init__(self, samples, values):
+        # todo add gradients and hess vec prods as optional args
+
+        if values.ndim != 2 or values.shape[0] != samples.shape[1]:
+            msg = "values must have shape (nsamples, nqoi) but has shape"
+            msg += f" {values.shape}"
+            raise ValueError(msg)
+
+        self.samples = samples
+        self.values = values
+        self._samples_dict = self._set_samples_dict(samples)
+        # when randomness is None then rvs just iterates sequentially
+        # through samples until none are left. Useful for methods
+        # that require unique samples
+        self._sample_cnt = 0
+        self._samples_dict = self._set_samples_dict(samples)
+
+    def _set_samples_dict(self, samples):
+        samples_dict = dict()
+        for ii in range(samples.shape[1]):
+            key = self._hash_sample(samples[:, ii])
+            if key in samples_dict:
+                raise ValueError("Duplicate samples detected")
+            samples_dict[key] = ii
+        return samples_dict
+
+    def num_vars(self):
+        return self.samples.shape[0]
+
+    def _hash_sample(self, sample):
+        key = hash_array(sample)
+        return key
+
+    def __call__(self, samples):
+        values = []
+        for ii in range(samples.shape[1]):
+            key = self._hash_sample(samples[:, ii])
+            if key not in self._samples_dict:
+                raise ValueError("Sample not found")
+            sample_id = self._samples_dict[key]
+            values.append(self.values[sample_id])
+        return np.array(values)
+
+    def rvs(self, nsamples, weights=None, randomness="wo_replacement",
+            return_indices=False):
+        """
+        Randomly sample with replacement from all available samples
+        if weights is None uniform weights are applied to each sample
+        otherwise sample according to weights
+        """
+        if randomness is None:
+            if self._sample_cnt+nsamples > self.samples.shape[1]:
+                msg = "Too many samples requested when randomness is None. "
+                msg += f"self._sample+cnt_nsamples={self._sample_cnt+nsamples}"
+                msg += f" but only {self.samples.shape[1]} samples available"
+                msg += " This can be overidden by reseting self._sample_cnt=0"
+                raise ValueError(msg)
+            indices = np.arange(self._sample_cnt, self._sample_cnt+nsamples,
+                                dtype=int)
+            self._sample_cnt += nsamples
+        else:
+            indices = np.random.choice(
+                np.arange(self.samples.shape[1], dtype=int), nsamples,
+                p=weights, replace=(randomness == "replacement"))
+        if not return_indices:
+            return self.samples[:, indices]
+        else:
+            return self.samples[:, indices], indices

@@ -37,6 +37,12 @@ from pyapprox.multifidelity.control_variate_monte_carlo import (
     bootstrap_acv_estimator, get_acv_recursion_indices
 )
 from pyapprox.interface.wrappers import ModelEnsemble
+from pyapprox.multifidelity.multilevelblue import (
+    BLUE_bound_constraint, BLUE_bound_constraint_jac,
+    BLUE_variance, BLUE_Psi, BLUE_RHS, BLUE_evaluate_models,
+    get_model_subsets, BLUE_cost_constraint,
+    BLUE_cost_constraint_jac, AETC_optimal_loss)
+from scipy.optimize import minimize
 
 
 class AbstractMonteCarloEstimator(ABC):
@@ -60,7 +66,7 @@ class AbstractMonteCarloEstimator(ABC):
             Supported types are ["random", "sobol", "halton"]
         """
         if cov.shape[0] != len(costs):
-            # print(cov.shape, costs.shape)
+            print(cov.shape, costs.shape)
             raise ValueError("cov and costs are inconsistent")
 
         self.cov = cov.copy()
@@ -120,6 +126,50 @@ class AbstractMonteCarloEstimator(ABC):
         self.random_state = random_state
         self.set_sampling_method()
 
+    @abstractmethod
+    def _estimate(self, values, *args):
+        raise NotImplementedError()
+
+    def __call__(self, values, *args):
+        r"""
+        Return the value of the Monte Carlo like estimator
+
+        Parameters
+        ----------
+        values : list (nmodels)
+        Each entry of the list contains
+
+        values0 : np.ndarray (num_samples_i0,num_qoi)
+           Evaluations  of each model
+           used to compute the estimator :math:`Q_{i,N}` of
+
+        values1: np.ndarray (num_samples_i1,num_qoi)
+            Evaluations used compute the approximate
+            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
+
+        Returns
+        -------
+        est : float
+            The estimate of the mean
+        """
+        return self._estimate(values, *args)
+
+    def __repr__(self):
+        if self.optimized_variance is None:
+            return "{0}".format(self.__class__.__name__)
+        return "{0}(variance={1:.3g}, target_cost={2:.3g})".format(
+            self.__class__.__name__, self.optimized_variance,
+            self.rounded_target_cost)
+
+
+class AbstractACVEstimator(AbstractMonteCarloEstimator):
+
+    def __init__(self, cov, costs, variable, sampling_method="random"):
+        super().__init__(cov, costs, variable, sampling_method)
+        self.nsamples_per_model, self.optimized_variance = None, None
+        self.rounded_target_cost = None
+        self.model_labels = None
+
     def _estimate(self, values):
         r"""
         Return the value of the Monte Carlo like estimator
@@ -144,33 +194,6 @@ class AbstractMonteCarloEstimator(ABC):
         """
         eta = self._get_approximate_control_variate_weights()
         return compute_approximate_control_variate_mean_estimate(eta, values)
-
-    def __call__(self, values):
-        r"""
-        Return the value of the Monte Carlo like estimator
-
-        Parameters
-        ----------
-        values : list (nmodels)
-        Each entry of the list contains
-
-        values0 : np.ndarray (num_samples_i0,num_qoi)
-           Evaluations  of each model
-           used to compute the estimator :math:`Q_{i,N}` of
-
-        values1: np.ndarray (num_samples_i1,num_qoi)
-            Evaluations used compute the approximate
-            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
-
-        Returns
-        -------
-        est : float
-            The estimate of the mean
-        """
-        return self._estimate(values)
-
-
-class AbstractACVEstimator(AbstractMonteCarloEstimator):
 
     def _variance_reduction(self, cov, nsample_ratios):
         """
@@ -595,7 +618,7 @@ class AbstractACVEstimator(AbstractMonteCarloEstimator):
 
 class MCEstimator(AbstractMonteCarloEstimator):
 
-    def estimate(self, values):
+    def _estimate(self, values):
         return values[0].mean()
 
     def allocate_samples(self, target_cost):
@@ -695,9 +718,24 @@ class AbstractNumericalACVEstimator(AbstractACVEstimator):
 
     def _allocate_samples(self, target_cost, **kwargs):
         cons = self.get_constraints(target_cost)
-        return allocate_samples_acv(
+
+        opt = allocate_samples_acv(
             self.cov_opt, self.costs, target_cost, self,  cons,
             initial_guess=self.initial_guess)
+
+        if check_mfmc_model_costs_and_correlations(
+                self.costs, get_correlation_from_covariance(self.cov)):
+            mfmc_initial_guess = allocate_samples_mfmc(
+                self.cov_opt, self.costs, target_cost)[0]
+            opt_mfmc = allocate_samples_acv(
+                self.cov_opt, self.costs, target_cost, self, cons,
+                initial_guess=mfmc_initial_guess)
+            #print(opt[1], opt_mfmc[1])
+            if opt_mfmc[1] < opt[1]:
+                # print("using mfmc initial guess")
+                opt = opt_mfmc
+
+        return opt
 
     def get_constraints(self, target_cost):
         cons = [{'type': 'ineq',
@@ -793,6 +831,14 @@ class ACVGMFEstimator(AbstractNumericalACVEstimator):
         return reorder_allocation_matrix_acvgmf(
             self.allocation_mat, self.nsamples_per_model, self.recursion_index)
 
+    def __repr__(self):
+        if self.optimized_variance is None:
+            return "{0}".format(self.__class__.__name__)
+        return (
+            "{0}(variance={1:.3g}, target_cost={2:.3g}, recursion={3})".format(
+                self.__class__.__name__, self.optimized_variance,
+                self.rounded_target_cost, self.recursion_index))
+
 
 class ACVGMFBEstimator(ACVGMFEstimator):
     def __init__(self, cov, costs, variable, tree_depth=None,
@@ -805,7 +851,6 @@ class ACVGMFBEstimator(ACVGMFEstimator):
         best_result = None
         for index in get_acv_recursion_indices(self.nmodels, self._depth):
             self.set_recursion_index(index)
-            # print(index, target_cost)
             try:
                 super().allocate_samples(target_cost)
             except RuntimeError:
@@ -816,9 +861,21 @@ class ACVGMFBEstimator(ACVGMFEstimator):
                 best_result = [self.nsample_ratios, self.rounded_target_cost,
                                self.optimized_variance, index]
                 best_variance = self.optimized_variance
+        if best_result is None:
+            raise RuntimeError("No solutions were found")
         self.set_recursion_index(best_result[3])
         self.set_optimized_params(*best_result[:3])
         return best_result[:3]
+
+    def _get_rsquared_from_nhf_samples(self, nhf_samples, cov, nsample_ratios):
+        target_cost = nhf_samples*self.costs[0]+nsample_ratios.dot(
+            self.costs[1:])*nhf_samples
+        best_rsq = -np.inf
+        for index in get_acv_recursion_indices(cov.shape[0]):
+            self.set_recursion_index(index)
+            rsq = super()._get_rsquared(cov, nsample_ratios, target_cost)
+            best_rsq = max(best_rsq, rsq)
+        return best_rsq
 
 
 class ACVMFEstimator(AbstractNumericalACVEstimator):
@@ -888,30 +945,9 @@ class ACVISEstimator(AbstractNumericalACVEstimator):
         return cons
 
 
-monte_carlo_estimators = {"acvmf": ACVMFEstimator,
-                          "acvis": ACVISEstimator,
-                          "mfmc": MFMCEstimator,
-                          "mlmc": MLMCEstimator,
-                          "acvgmf": ACVGMFEstimator,
-                          "acvgmfb": ACVGMFBEstimator,
-                          "mc": MCEstimator}
-
-
-def get_estimator(estimator_type, cov, costs, variable, **kwargs):
-    """
-    Initialize an monte-carlo estimator.
-    """
-    if estimator_type not in monte_carlo_estimators:
-        msg = f"Estimator {estimator_type} not supported"
-        msg += f"Must be one of {monte_carlo_estimators.keys()}"
-        raise ValueError(msg)
-    return monte_carlo_estimators[estimator_type](
-        cov, costs, variable, **kwargs)
-
-
 def get_best_models_for_acv_estimator(
         estimator_type, cov, costs, variable, target_cost,
-        max_nmodels=None, **kwargs):
+        max_nmodels=None, init_kwargs={}, allocate_kwargs={}):
     nmodels = cov.shape[0]
     if max_nmodels is None:
         max_nmodels = nmodels
@@ -925,18 +961,97 @@ def get_best_models_for_acv_estimator(
             subset_cov, subset_costs = cov[np.ix_(idx, idx)], costs[idx]
             # print('####', idx)
             # print(kwargs)
-            if "tree_depth" in kwargs:
-                kwargs["tree_depth"] = min(
-                    kwargs["tree_depth"], nsubset_lfmodels)
-            est = get_estimator(
-                estimator_type, subset_cov, subset_costs, variable, **kwargs)
-            est.allocate_samples(target_cost)
+            if "tree_depth" in init_kwargs:
+                init_kwargs["tree_depth"] = min(
+                    init_kwargs["tree_depth"], nsubset_lfmodels)
+            try:
+                est = get_estimator(
+                    estimator_type, subset_cov, subset_costs, variable,
+                    **init_kwargs)
+            except ValueError:
+                # Some estiamtors e.g. MFMC fail when certain criteria are
+                # not satisfied
+                continue
+            try:
+                est.allocate_samples(target_cost, **allocate_kwargs)
+                if est.optimized_variance < best_variance:
+                    best_est = est
+                    best_model_indices = idx
+                    best_variance = est.optimized_variance
+            except (RuntimeError, ValueError):
+                # print(e)
+                continue
             # print(idx, est.optimized_variance)
-            if est.optimized_variance < best_variance:
-                best_est = est
-                best_model_indices = idx
-                best_variance = est.optimized_variance
     return best_est, best_model_indices
+
+
+class BestModelSubsetEstimator():
+    def __init__(self, estimator_type, cov, costs, variable,
+                 max_nmodels, **kwargs):
+        self.estimator_type = estimator_type
+        self._cov, self._costs, self.variable = cov, costs, variable
+        self.max_nmodels = max_nmodels
+        self.kwargs = kwargs
+
+        self.optimized_variance = None
+        self.rounded_target_cost = None
+        self.best_est = None
+        self.best_model_indices = None
+        self._all_model_labels = None
+
+    @property
+    def nmodels(self):
+        return self.best_est.nmodels
+
+    @property
+    def nsamples_per_model(self):
+        return self.best_est.nsamples_per_model
+
+    @property
+    def cov(self):
+        return self.best_est.cov
+
+    @property
+    def costs(self):
+        return self.best_est.costs
+
+    @property
+    def model_labels(self):
+        return [self._all_model_labels[idx] for idx in self.best_model_indices]
+
+    def get_variance(self, *args):
+        return self.best_est.get_variance(*args)
+
+    @model_labels.setter
+    def model_labels(self, labels):
+        self._all_model_labels = labels
+
+    def allocate_samples(self, target_cost, **allocate_kwargs):
+        if self.estimator_type == "mc":
+            best_model_indices = np.array([0])
+            best_est = get_estimator(
+                self.estimator_type, self._cov[:1, :1],
+                self._costs[:1], self.variable, **self.kwargs)
+            best_est.allocate_samples(target_cost)
+
+        else:
+            best_est, best_model_indices = get_best_models_for_acv_estimator(
+                self.estimator_type, self._cov, self._costs, self.variable,
+                target_cost, self.max_nmodels, self.kwargs,
+                allocate_kwargs)
+        self.optimized_variance = best_est.optimized_variance
+        self.rounded_target_cost = best_est.rounded_target_cost
+        self.best_est = best_est
+        self.best_model_indices = best_model_indices
+
+    def __repr__(self):
+        if self.optimized_variance is None:
+            return "{0}".format(self.__class__.__name__)
+        return "{0}(type={1}, variance={2:.3g}, target_cost={3:.3g}, subset={4})".format(
+            self.__class__.__name__, self.best_est.__class__.__name__,
+            self.optimized_variance, self.rounded_target_cost,
+            self.best_model_indices)
+
 
 
 def compute_single_fidelity_and_approximate_control_variate_mean_estimates(
@@ -1121,7 +1236,7 @@ def compare_estimator_variances(target_costs, estimators):
 
 def plot_estimator_variances(optimized_estimators,
                              est_labels, ax, ylabel=None,
-                             relative=True):
+                             relative_id=0, cost_normalization=1):
     """
     Plot variance as a function of the total cost for a set of estimators.
 
@@ -1133,9 +1248,9 @@ def plot_estimator_variances(optimized_estimators,
     est_labels : list (nestimators)
         String used to label each estimator
 
-    relative = True
+    relative_id the model id used to normalize variance
     """
-    linestyles = ['-', '--', ':', '-.', (0, (5, 10))]
+    linestyles = ['-', '--', ':', '-.', (0, (5, 10)), '-']
     nestimators = len(est_labels)
     est_variances = []
     for ii in range(nestimators):
@@ -1143,18 +1258,22 @@ def plot_estimator_variances(optimized_estimators,
             [est.rounded_target_cost for est in optimized_estimators[ii]])
         est_variances.append(np.array(
             [est.optimized_variance for est in optimized_estimators[ii]]))
+    est_total_costs *= cost_normalization
+    print(est_total_costs, cost_normalization)
     for ii in range(nestimators):
-        ax.loglog(est_total_costs, est_variances[ii]/est_variances[0][0],
+        # print(est_labels[ii], nestimators)
+        ax.loglog(est_total_costs,
+                  est_variances[ii]/est_variances[relative_id][0],
                   label=est_labels[ii], ls=linestyles[ii], marker='o')
     if ylabel is None:
-        ylabel = r'$\mathrm{Estimator\;variance}$'
-    ax.set_xlabel(r'$\mathrm{Target\;cost}$')
+        ylabel = mathrm_label("Estimator variance")
+    ax.set_xlabel(mathrm_label("Target cost"))
     ax.set_ylabel(ylabel)
     ax.legend()
 
 
 def plot_acv_sample_allocation_comparison(
-        estimators, model_labels, ax):
+        estimators, model_labels, ax, legendloc=[0.925, 0.25]):
     """
     Plot the number of samples allocated to each model for a set of estimators
 
@@ -1187,9 +1306,10 @@ def plot_acv_sample_allocation_comparison(
         # models
         colors = cm.rainbow(np.linspace(0, 1, est.nmodels))
         rects = []
+        est.model_labels = model_labels
         for ii in range(est.nmodels):
             if jj == 0:
-                label = model_labels[ii]
+                label = est.model_labels[ii]
             else:
                 label = None
             cost_ratio = (est.costs[ii]*est.nsamples_per_model[ii] /
@@ -1211,4 +1331,416 @@ def plot_acv_sample_allocation_comparison(
     # / $N_\alpha$')
     ax.set_ylabel(
         mathrm_label("Precentage of target cost"))
-    ax.legend(loc=[0.925, 0.25])
+    if legendloc is not None:
+        ax.legend(loc=legendloc)
+
+
+class MLBLUEstimator(AbstractMonteCarloEstimator):
+    def __init__(self, cov, costs, variable, sampling_method="random",
+                 reg_blue=1e-12):
+        super().__init__(cov, costs, variable, sampling_method)
+        self._reg_blue = reg_blue
+        self.nsamples_per_subset, self.optimized_variance = None, None
+        self.rounded_target_cost = None
+        self.nsamples_per_model = None
+
+    def _get_nsamples_per_model(self):
+        nsamples_per_model = np.zeros(self.nmodels)
+        for jj, subset in enumerate(self.subsets):
+            nsamples_per_model[subset] += self.nsamples_per_subset[jj]
+        return nsamples_per_model
+
+    def allocate_samples(self, target_cost, asketch=None,
+                         constraint_reg=1e-12, round_nsamples=True):
+        """
+        Parameters
+        ----------
+        """
+        nmodels = len(self.costs)
+        if asketch is None:
+            asketch = np.zeros((nmodels, 1))
+            asketch[0] = 1.0
+        assert asketch.shape[0] == self.costs.shape[0]
+        init_guess = np.full(2**nmodels-1, (1/(2**nmodels-1)))
+        obj = partial(BLUE_variance, asketch, self.cov,
+                      self.costs, self._reg_blue, return_grad=True)
+        constraints = [
+            {'type': 'ineq',
+             'fun': partial(BLUE_bound_constraint, constraint_reg),
+             'jac': BLUE_bound_constraint_jac},
+            {'type': 'eq',
+             'fun': BLUE_cost_constraint,
+             'jac': BLUE_cost_constraint_jac}]
+        res = minimize(obj, init_guess, jac=True, method="SLSQP",
+                       constraints=constraints)
+        if not res.success:
+            print(partial(BLUE_bound_constraint, constraint_reg)(init_guess))
+            print(BLUE_cost_constraint(init_guess))
+            msg = f"optimization not successful {res}"
+            print(msg)
+            # raise RuntimeError(msg)
+        variance = res["fun"]
+        nsamples_per_subset_frac = np.maximum(
+            np.zeros_like(res["x"]), res["x"])
+        nsamples_per_subset_frac /= nsamples_per_subset_frac.sum()
+        # transform nsamples as fraction of unit budget to fraction of
+        # target_cost
+        nsamples_per_subset = target_cost*nsamples_per_subset_frac
+        # correct for normalization of nsamples by cost
+        subset_costs, subsets = self._get_model_subset_costs(self.costs)
+        nsamples_per_subset /= subset_costs
+        if round_nsamples:
+            nsamples_per_subset = np.asarray(nsamples_per_subset).astype(int)
+        rounded_target_cost = np.sum(nsamples_per_subset*subset_costs)
+
+        # set attributes needed for self._estimate
+        self.nsamples_per_subset = nsamples_per_subset
+        # variance for unrounded nsamples_per_subset
+        # self.optimized_variance = variance/target_cost
+        # variance for rounded nsamples_per_subset
+        self.optimized_variance = BLUE_variance(
+            asketch, self.cov, None, self._reg_blue,
+            self.nsamples_per_subset)
+        self.rounded_target_cost = rounded_target_cost
+        self.subsets = subsets
+        self.nsamples_per_model = self._get_nsamples_per_model()
+        return nsamples_per_subset, variance, rounded_target_cost
+
+    @staticmethod
+    def _get_model_subset_costs(costs):
+        nmodels = len(costs)
+        subsets = get_model_subsets(nmodels)
+        subset_costs = np.array(
+            [costs[subset].sum() for subset in subsets])
+        return subset_costs, subsets
+
+    def generate_data(self, models, variable, pilot_values=None):
+        # todo consider removing self.variable from baseclass
+        return BLUE_evaluate_models(
+            variable.rvs, models, self.nsamples_per_subset, pilot_values)
+
+    def _estimate(self, values, asketch):
+        if asketch is None:
+            asketch = np.zeros((self.nmodels, 1))
+            asketch[0] = 1.0
+        Psi, _ = BLUE_Psi(
+            self.cov, None, self._reg_blue, self.nsamples_per_subset)
+        rhs = BLUE_RHS(self.cov, values)
+        return np.linalg.multi_dot(
+            (asketch.T, np.linalg.lstsq(Psi, rhs, rcond=None)[0]))
+
+    def get_variance(self, nsamples_per_subset, asketch):
+        return BLUE_variance(
+            asketch, self.cov, None, self._reg_blue, nsamples_per_subset)
+
+    def bootstrap_estimator(self, values, asketch, nbootstraps=1000):
+        means = np.empty(nbootstraps)
+        for ii in range(nbootstraps):
+            perturbed_vals = []
+            for jj in range(len(values)):
+                if len(values[jj]) == 0:
+                    perturbed_vals.append([])
+                    continue
+                nsubset_samples = values[jj].shape[0]
+                indices = np.random.choice(
+                    np.arange(nsubset_samples, dtype=int), nsubset_samples,
+                    p=None, replace=True)
+                perturbed_vals.append(values[jj][indices])
+            means[ii] = self._estimate(perturbed_vals, asketch)
+        return means
+
+    def _get_rsquared_from_nhf_samples(self, nhf_samples, cov, nsample_ratios):
+        # WARNING
+        # this only works for fully coupled BLUEs defined in Section 5.5
+        # of the paper 'On multilevel best linear unbiased estimators'
+        nmodels = cov.shape[0]
+
+        # compute active subsets of fully coupled BLUEs
+        active_subsets = [
+            np.arange(nmodels)[ii:] for ii in range(nmodels)]
+        subsets = get_model_subsets(nmodels)
+        active_subset_indices = []
+        for subset in active_subsets:
+            for ii, s in enumerate(subsets):
+                if s.shape[0] == len(subset) and np.allclose(s, subset):
+                    active_subset_indices.append(ii)
+                    break
+        active_subset_indices = np.asarray(active_subset_indices)
+
+        # convert nsample_ratios into nsamples_per_subset
+        nsamples_per_subset = np.zeros(len(subsets))
+        nlf_model_samples = nsample_ratios*nhf_samples
+        nsamples_per_subset[active_subset_indices] = np.hstack(
+            (nhf_samples, nlf_model_samples[0]-nhf_samples,
+             np.diff(nlf_model_samples)))
+
+        # define asketch that targets estimation of only the high-fidelity
+        # model
+        asketch = np.zeros((nmodels, 1))
+        asketch[0] = 1.0
+
+        # estimate the variance reduction relative to single-fidelity MC
+        mlblue_variance = BLUE_variance(
+            asketch, cov, None, self._reg_blue, nsamples_per_subset)
+        mc_variance = cov[0, 0]/nhf_samples
+        gamma = mlblue_variance/mc_variance
+        return 1-gamma
+
+
+class AETCBLUE():
+    def __init__(self, models, rvs, costs=None, oracle_stats=None,
+                 reg_blue=1e-15, constraint_reg=0):
+        r"""
+        Parameters
+        ----------
+        models : list
+            List of callable functions fun with signature
+
+            ``fun(samples)-> np.ndarary (nsamples, nqoi)``
+
+        where samples is np.ndarray (nvars, nsamples)
+
+        rvs : callable
+            Function used to generate random samples with signature
+
+            ``fun(nsamples)-> np.ndarary (nvars, nsamples)``
+
+        costs : iterable
+            Iterable containing the time taken to evaluate a single sample
+            with each model. If None then each model will be assumed to
+            track the evaluation time.
+
+        oracle_stats : list[np.ndarray (nmodels, nmodels), np.ndarray (nmodels, nmodels)]
+            This is only used for testing.
+            First element is the Oracle covariance between models.
+            Second element is the Oracle Lambda_Sp
+        """
+        self.models = models
+        self._nmodels = len(models)
+        if not callable(rvs):
+            raise ValueError("rvs must be callabe")
+        self.rvs = rvs
+        self._costs = self._validate_costs(costs)
+        self._reg_blue = reg_blue
+        self._constraint_reg = constraint_reg
+        self._oracle_stats = oracle_stats
+
+    def _validate_costs(self, costs):
+        if costs is None:
+            return
+        if len(costs) != self._nmodels:
+            raise ValueError("costs must be provided for each model")
+        return np.asarray(costs)
+
+    def _validate_subsets(self, subsets):
+        # subsets are indexes of low fidelity models
+        if subsets is None:
+            subsets = get_model_subsets(self._nmodels-1)
+        validated_subsets, max_ncovariates = [], -np.inf
+        for subset in subsets:
+            if ((np.unique(subset).shape[0] != len(subset)) or
+                    (np.max(subset) >= self._nmodels-1)):
+                msg = "subsets provided are not valid. First invalid subset"
+                msg += f" {subset}"
+                raise ValueError(msg)
+            validated_subsets.append(np.asarray(subset))
+            max_ncovariates = max(max_ncovariates, len(subset))
+        return validated_subsets, max_ncovariates
+
+    def _explore_step(self, total_budget, subsets, values, alpha,
+                      reg_blue, constraint_reg):
+        """
+        Parameters
+        ----------
+        subsets : list[np.ndarray]
+           Indices of the low fidelity models in a subset from 0,...,K-2
+           e.g. (0) contains only the first low fidelity model and (0, 2)
+           contains the first and third. 0 DOES NOT correspond to the
+           high-fidelity model
+        """
+        explore_cost = np.sum(self._costs)
+        results = []
+        # print()
+        for subset in subsets:
+            result = AETC_optimal_loss(
+                total_budget, values[:, :1], values[:, 1:], self._costs,
+                subset, alpha, reg_blue, constraint_reg, self._oracle_stats)
+            (loss, nsamples_per_subset_frac, explore_rate, beta_Sp,
+             Sigma_S, k2, exploit_budget) = result
+            results.append(result)
+            # print(subset)
+            # print(result)
+
+        # compute optimal model
+        best_subset_idx = np.argmin([result[0] for result in results])
+        best_result = results[best_subset_idx]
+        (best_loss, best_allocation_frac, best_rate, best_beta_Sp,
+         best_Sigma_S, best_blue_variance, best_exploit_budget) = best_result
+        best_cost = self._costs[subsets[best_subset_idx]+1].sum()
+
+        nsamples = values.shape[0]
+
+        # Incrementing one round at a time is the most optimal
+        # but does not allow for parallelism
+        # if best_rate <= nsamples:
+        #     nexplore_samples = nsamples
+        # else:
+        #     nexplore_samples = nsamples + 1
+
+        if best_rate > 2*nsamples:
+            nexplore_samples = 2*nsamples
+        elif best_rate > nsamples:
+            nexplore_samples = int(np.ceil((nsamples+best_rate)/2))
+        else:
+            nexplore_samples = nsamples
+
+        if (total_budget-nexplore_samples*explore_cost) < 0:
+            nexplore_samples = int(total_budget/explore_cost)
+
+        best_subset = subsets[best_subset_idx]
+        # use +1 to accound for subset indexing only lf models
+        best_subset_costs = self._costs[best_subset+1]
+        best_subset_groups = get_model_subsets(best_subset.shape[0])
+        best_subset_group_costs = [
+            best_subset_costs[group].sum() for group in best_subset_groups]
+        # transform nsamples as fraction of unit budget to fraction of
+        # target_cost
+        target_cost_fractions = (total_budget-nexplore_samples*explore_cost)*(
+            best_allocation_frac)
+        if (total_budget-nexplore_samples*explore_cost) < 0:
+            raise RuntimeError("Exploitation budget is negative")
+        # recorrect for normalization of nsamples by cost
+        best_allocation = np.floor(
+            target_cost_fractions/best_subset_group_costs).astype(int)
+
+        # todo change subset to groups when reffereing to model groups
+        # passed to multilevel blue. This requires changing notion of group
+        # above which refers to subsets of a model group (using new definition)
+        return (nexplore_samples, best_subset, best_cost, best_beta_Sp,
+                best_Sigma_S, best_allocation, best_loss, best_blue_variance,
+                best_exploit_budget, best_subset_group_costs)
+
+    def explore_deprecated(self, total_budget, subsets, alpha=4,
+                           constraint_reg=0):
+        if self._costs is None:
+            # todo extract costs from models
+            # costs = ...
+            raise NotImplementedError()
+        subsets, max_ncovariates = self._validate_subsets(subsets)
+
+        nexplore_samples = max_ncovariates+2
+        samples = self.rvs(nexplore_samples)
+        values = np.hstack([model(samples) for model in self.models])
+        # will fail if model does not return ndarray (nsamples, nqoi=1)
+        assert values.ndim == 2
+
+        while True:
+            nexplore_samples_prev = nexplore_samples
+            result = self._explore_step(
+                total_budget, subsets, values, alpha, self._reg_blue,
+                self._constraint_reg)
+            # (nexplore_samples, best_subset, best_cost, best_beta_Sp,
+            # best_Sigma_S, best_allocation, best_loss,
+            # best_blue_variance) = result
+            nexplore_samples = result[0]
+            if nexplore_samples - nexplore_samples_prev <= 0:
+                break
+            # TODO is using archive model then rvs must not select any
+            # previously selected samples
+            nnew_samples = nexplore_samples-nexplore_samples_prev
+            new_samples = self.rvs(nnew_samples)
+            new_values = [
+                model(new_samples) for model in self.models]
+            samples = np.hstack((samples, new_samples))
+            values = np.vstack((values, np.hstack(new_values)))
+            last_result = result
+        return samples, values, last_result  # akil returns result
+
+    def explore(self, total_budget, subsets, alpha=4):
+        if self._costs is None:
+            # todo extract costs from models
+            # costs = ...
+            raise NotImplementedError()
+        subsets, max_ncovariates = self._validate_subsets(subsets)
+
+        nexplore_samples = max_ncovariates+2
+        nexplore_samples_prev = 0
+        while ((nexplore_samples - nexplore_samples_prev > 0)):
+            nnew_samples = nexplore_samples-nexplore_samples_prev
+            new_samples = self.rvs(nnew_samples)
+            new_values = [
+                model(new_samples) for model in self.models]
+            if nexplore_samples_prev == 0:
+                samples = new_samples
+                values = np.hstack(new_values)
+                # will fail if model does not return ndarray (nsamples, nqoi=1)
+                assert values.ndim == 2
+            else:
+                samples = np.hstack((samples, new_samples))
+                values = np.vstack((values, np.hstack(new_values)))
+            nexplore_samples_prev = nexplore_samples
+            result = self._explore_step(
+                total_budget, subsets, values, alpha, self._reg_blue,
+                self._constraint_reg)
+            nexplore_samples = result[0]
+            last_result = result
+        return samples, values, last_result  # akil returns result
+
+    def exploit(self, result):
+        best_subset = result[1]
+        beta_Sp, Sigma_best_S, nsamples_per_subset = result[3:6]
+        Psi, _ = BLUE_Psi(
+            Sigma_best_S, None, self._reg_blue, nsamples_per_subset)
+        # use +1 to accound for subset indexing only lf models
+        values = BLUE_evaluate_models(
+            self.rvs, [self.models[s+1] for s in best_subset],
+            nsamples_per_subset)
+        rhs = BLUE_RHS(Sigma_best_S, values)
+        beta_S = beta_Sp[1:]
+        return np.linalg.multi_dot(
+            (beta_S.T, np.linalg.lstsq(Psi, rhs, rcond=None)[0])) + beta_Sp[0]
+
+    @staticmethod
+    def _explore_result_to_dict(result):
+        result = {
+            "nexplore_samples": result[0], "subset": result[1],
+            "subset_cost": result[2], "beta_Sp": result[3],
+            "sigma_S": result[4], "nsamples_per_subset": result[5],
+            "loss": result[6], "BLUE_variance": result[7],
+            "exploit_budget": result[8], "subset_costs": result[9]}
+        return result
+
+    def estimate(self, total_budget, subsets=None, return_dict=True):
+        samples, values, result = self.explore(total_budget, subsets)
+        mean = self.exploit(result)
+        if not return_dict:
+            return mean, values, result
+        # package up result
+        result = self._explore_result_to_dict(result)
+        return mean, values, result
+
+
+monte_carlo_estimators = {"acvmf": ACVMFEstimator,
+                          "acvis": ACVISEstimator,
+                          "mfmc": MFMCEstimator,
+                          "mlmc": MLMCEstimator,
+                          "acvgmf": ACVGMFEstimator,
+                          "acvgmfb": ACVGMFBEstimator,
+                          "mc": MCEstimator,
+                          "mlblue": MLBLUEstimator}
+
+
+def get_estimator(estimator_type, cov, costs, variable, max_nmodels=None,
+                  **kwargs):
+    """
+    Initialize an monte-carlo estimator.
+    """
+    if estimator_type not in monte_carlo_estimators:
+        msg = f"Estimator {estimator_type} not supported"
+        msg += f"Must be one of {monte_carlo_estimators.keys()}"
+        raise ValueError(msg)
+    if max_nmodels is None:
+        return monte_carlo_estimators[estimator_type](
+            cov, costs, variable, **kwargs)
+    return BestModelSubsetEstimator(
+        estimator_type, cov, costs, variable, max_nmodels, **kwargs)

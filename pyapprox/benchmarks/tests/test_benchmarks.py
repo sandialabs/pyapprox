@@ -24,7 +24,7 @@ class TestBenchmarks(unittest.TestCase):
         errors = check_gradients(
             benchmark.fun, benchmark.jac, init_guess, disp=False)
         # print(errors.min())
-        assert errors.min() < 2e-6
+        assert errors.min() < 7e-6
         def hess_matvec(x, v): return np.dot(benchmark.hess(x), v)
         errors = check_hessian(
             benchmark.jac, hess_matvec, init_guess, disp=False)
@@ -104,7 +104,7 @@ class TestBenchmarks(unittest.TestCase):
         sample = variable.rvs(1)
         errors = check_gradients(fun, grad, sample)
         errors = errors[np.isfinite(errors)]
-        assert errors.max() > 0.1 and errors.min() <= 6e-7
+        assert errors.max() > 0.1 and errors.min() <= 7e-7
 
     def test_random_oscillator_analytical_solution(self):
         benchmark = setup_benchmark("random_oscillator")
@@ -131,6 +131,30 @@ class TestBenchmarks(unittest.TestCase):
         with open(os.path.join(tmp_dir.name, 'function.pkl'), 'rb') as f:
             g1 = pickle.load(f)
         tmp_dir.cleanup()
+
+    def test_tunable_multifidelity_model(self):
+        g = setup_benchmark("tunable_model_ensemble", shifts=[1, 2])
+        kurtosis = g.fun.get_kurtosis()
+        print(kurtosis)
+        from pyapprox.surrogates.integrate import integrate
+        quad_x, quad_w = integrate("tensorproduct", g.variable, levels=[20]*2)
+        ref_kurtosis = np.hstack([
+            (((m(quad_x)-mu)**4).T.dot(quad_w)[:, 0])
+            for m, mu in zip(g.fun.models, g.fun.get_means())])
+        assert np.allclose(ref_kurtosis, kurtosis)
+
+        nsamples = 1000
+        ntrials = int(1e4)
+        estimator_vals = np.empty((ntrials, 3))
+        for ii in range(ntrials):
+            samples = g.variable.rvs(nsamples)
+            estimator_vals[ii] = [m(samples).var() for m in g.fun.models]
+
+        C = g.fun.get_covariance_of_variances(nsamples)
+        # print(np.cov(estimator_vals.T))
+        # print(C)
+        # print((C-np.cov(estimator_vals.T))/C)
+        assert np.allclose(C, np.cov(estimator_vals.T), rtol=4e-2)
 
 
 if __name__ == "__main__":

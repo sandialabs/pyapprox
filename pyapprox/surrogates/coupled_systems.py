@@ -255,8 +255,8 @@ def plot_adjacency_matrix(adjacency_matrix, component_info=None, ax=None,
 
     ax.imshow(adjacency_matrix, interpolation="none", aspect=1, cmap="Greys")
     # major ticks
-    ax.set_xticks(np.arange(0, adjacency_matrix.shape[1], dtype=np.int))
-    ax.set_yticks(np.arange(0, adjacency_matrix.shape[0], dtype=np.int))
+    ax.set_xticks(np.arange(0, adjacency_matrix.shape[1], dtype=np.int64))
+    ax.set_yticks(np.arange(0, adjacency_matrix.shape[0], dtype=np.int64))
     # minor ticks
     ax.set_xticks(
         np.arange(-0.5, adjacency_matrix.shape[1], 1), minor=True)

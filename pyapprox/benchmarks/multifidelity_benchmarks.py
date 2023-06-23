@@ -128,6 +128,86 @@ class TunableModelEnsemble(object):
         return np.array(
             [0, self.shifts[0], self.shifts[1]])
 
+    def get_kurtosis(self):
+        return np.array([
+            (self.A0**4*(213+29*np.cos(4*self.theta0)))/5082,
+            (self.A1**4*(93+5*np.cos(4*self.theta1)))/1274,
+            -(1/30)*self.A2**4*(-7+np.cos(4*self.theta2))])
+
+    def _covariance_of_variances(
+            self, nsamples, E_f0_sq_f1_sq, E_f0_sq, E_f1_sq, E_f1, E_f0_sq_f1,
+            E_f0, E_f0_f1_sq, E_f0_f1):
+        E_u20_u21 = (E_f0_sq_f1_sq-E_f0_sq*E_f1_sq -
+                     2*E_f1*E_f0_sq_f1 + 2*E_f1**2*E_f0_sq -
+                     2*E_f0*E_f0_f1_sq + 2*E_f0**2*E_f1_sq +
+                     4*E_f0*E_f1*E_f0_f1-4*E_f0**2*E_f1**2)
+        return E_u20_u21/nsamples + 1/(nsamples*(nsamples-1))*(
+            E_f0_f1**2 - 2*E_f0_f1*E_f0*E_f1 + (E_f0*E_f1)**2)
+
+    def get_covariance_of_variances(self, nsamples):
+        t0, t1, t2 = self.theta0, self.theta1, self.theta2
+        s1, s2 = self.shifts
+        E_f0_sq_f1 = self.A0**2*s1/11
+        E_f0_f1_sq = 2*self.A0*self.A1*s1*np.cos(t1-t0)/9
+        E_f0_sq_f1_sq = (
+            self.A0**2*(7614*self.A1**2+19278*s1**2 +
+                        3739*self.A1**2*np.cos(2*(t1 - t0)) +
+                        1121*self.A1**2*np.cos(2*(t1 + t0))))/212058
+
+        E_f0_sq_f2 = self.A0**2*s2/11
+        E_f0_f2_sq = 2*self.A0*self.A2*s2*np.cos(t2-t0)/7
+        E_f0_sq_f2_sq = (
+            self.A0**2*(98*(23*self.A2**2+39*s2**2) +
+                        919*self.A2**2*np.cos(2*(t2-t0)) +
+                        61*self.A2**2*np.cos(2*(t2+t0))))/42042
+
+        E_f1_sq_f2 = (
+            (self.A1**2*s2)/7 + s1**2*s2 +
+            2/5*self.A1*self.A2*s1*np.cos(t1-t2))
+        E_f1_f2_sq = (
+            (self.A2**2*s1)/3 + s1*s2**2 +
+            2/5*self.A1*self.A2*s2*np.cos(t1-t2))
+        E_f1_sq_f2_sq = (
+            (5*self.A1**2*self.A2**2)/63 + (self.A2**2*s1**2)/3 +
+            (self.A1**2*s2**2)/7 + s1**2*s2**2 +
+            4/5*self.A1*self.A2*s1*s2*np.cos(t1-t2) +
+            (113*(self.A1**2*self.A2**2*np.cos(2*(t1-t2)))/3150 -
+             (13*self.A1**2*self.A2**2*np.cos(2*(t1 + t2)))/3150))
+
+        E_f0, E_f1, E_f2 = self.get_means()
+        cov = self.get_covariance_matrix()
+        E_f0_sq = cov[0, 0]+E_f0**2
+        E_f1_sq = cov[0, 0]+E_f1**2
+        E_f2_sq = cov[0, 0]+E_f2**2
+
+        E_f0_f1 = cov[0, 1]+E_f0*E_f1
+        E_f0_f2 = cov[0, 2]+E_f0*E_f2
+        E_f1_f2 = cov[1, 2]+E_f1*E_f2
+
+        Cmat = np.zeros((3, 3))
+        Cmat[0, 1] = self._covariance_of_variances(
+            nsamples, E_f0_sq_f1_sq, E_f0_sq, E_f1_sq, E_f1, E_f0_sq_f1,
+            E_f0, E_f0_f1_sq, E_f0_f1)
+        Cmat[1, 0] = Cmat[0, 1]
+
+        Cmat[0, 2] = self._covariance_of_variances(
+            nsamples, E_f0_sq_f2_sq, E_f0_sq, E_f2_sq, E_f2, E_f0_sq_f2,
+            E_f0, E_f0_f2_sq, E_f0_f2)
+        Cmat[2, 0] = Cmat[0, 2]
+
+        Cmat[1, 2] = self._covariance_of_variances(
+            nsamples, E_f1_sq_f2_sq, E_f1_sq, E_f2_sq, E_f2, E_f1_sq_f2,
+            E_f1, E_f1_f2_sq, E_f1_f2)
+        Cmat[2, 1] = Cmat[1, 2]
+
+        variances = np.diag(cov)
+        kurtosis = self.get_kurtosis()
+        C_mat_diag = (kurtosis-(nsamples-3)/(nsamples-1)*variances**2)/nsamples
+        for ii in range(3):
+            Cmat[ii, ii] = C_mat_diag[ii]
+
+        return Cmat
+
 
 class ShortColumnModelEnsemble(object):
     def __init__(self):

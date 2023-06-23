@@ -488,14 +488,22 @@ def univariate_quantile_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
     return quantile
 
 
+def _univariate_cvar_continuous_variable_integrand(pdf, x):
+    return x*pdf(x)
+
+
 def univariate_cvar_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
-                                        quad_opts={}):
+                                        quad_opts={}, return_quantile=False):
     quantile = univariate_quantile_continuous_variable(
         pdf, bounds, beta, opt_tol, quad_opts)
 
-    def integrand(x): return x*pdf(x)
-    return 1/(1-beta)*scipy.integrate.quad(
-        integrand, quantile, bounds[1], **quad_opts)[0]
+    integrand = partial(_univariate_cvar_continuous_variable_integrand, pdf)
+    integral, err = scipy.integrate.quad(
+        integrand, quantile, bounds[1], **quad_opts)
+    cvar = integral*1/(1-beta)
+    if not return_quantile:
+        return cvar
+    return cvar, quantile
 
 
 def lognormal_mean(mu, sigma_sq):
@@ -513,6 +521,10 @@ def lognormal_cvar(p, mu, sigma_sq):
     mean = lognormal_mean(mu, sigma_sq)
     if p == 0:
         return mean
+    import warnings
+    warnings.filterwarnings("error")
+    if sigma_sq < 0 and sigma_sq > -1e-16:
+        sigma_sq = 0
     sigma = np.sqrt(sigma_sq)
     quantile = np.exp(mu+sigma*np.sqrt(2)*erfinv(2*p-1))
     if sigma == 0:
@@ -548,6 +560,12 @@ def lognormal_variance(mu, sigma_sq):
     return (np.exp(sigma_sq)-1)*np.exp(2*mu+sigma_sq)
 
 
+def beta_entropic_risk(alpha, beta):
+    # x in [0, 1]
+    from mpmath import hyp1f1
+    return np.log(float(hyp1f1(alpha, alpha+beta, 1)))
+
+
 def chi_squared_cvar(k, quantile):
     """
     Compute the conditional value at risk of a univariate Chi-squared variable
@@ -562,6 +580,10 @@ def chi_squared_cvar(k, quantile):
 def gaussian_cvar(mu, sigma, quantile):
     """
     Compute the conditional value at risk of a univariate Gaussian variable
+    See https://doi.org/10.1007/s10479-019-03373-1
+    Calculating CVaR and bPOE for common probability
+    distributions with application to portfolio optimization
+    and density estimation.
     """
     val = mu+sigma*stats.norm.pdf(stats.norm.ppf(quantile))/(1-quantile)
     return val

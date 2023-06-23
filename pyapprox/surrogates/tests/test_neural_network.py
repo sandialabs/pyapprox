@@ -5,7 +5,8 @@ from functools import partial
 
 from pyapprox.surrogates.neural_networks import (
     NeuralNetwork, sigmoid_function, sigmoid_gradient,
-    sigmoid_second_derivative, flatten_nn_parameters
+    sigmoid_second_derivative, flatten_nn_parameters,
+    MultiTaskNeuralNetwork
 )
 from pyapprox.util.utilities import check_gradients, approx_jacobian
 
@@ -37,12 +38,8 @@ class TestNeuralNetwork(unittest.TestCase):
 
         opts = {'activation_func': activation_fun, 'layers': [nvars, 3, nqoi],
                 'loss_func': 'squared_loss', 'lag_mult': 0.5}
-        # No hidden layers works
-        # opts = {'activation_func':'sigmoid', 'layers':[nvars, nqoi],
-        #        'loss_func':'squared_loss'}
         network = NeuralNetwork(opts)
 
-        # train_samples = np.linspace(0, 1, 11)[None, :]
         train_samples = np.random.uniform(0, 1, (nvars, nvars*11))
         train_values = np.hstack(
             [np.sum(train_samples**(ii+2), axis=0)[:, None]
@@ -53,8 +50,8 @@ class TestNeuralNetwork(unittest.TestCase):
             network.objective_jacobian, train_samples, train_values)
         parameters = np.random.normal(0, 1, (network.nparams))
 
-        disp = True
-        # disp = False
+        # disp = True
+        disp = False
 
         def fun(x):
             return np.sum(obj(x))
@@ -63,9 +60,8 @@ class TestNeuralNetwork(unittest.TestCase):
 
         errors = check_gradients(fun, jac, zz, plot=False, disp=disp, rel=True,
                                  direction=None)
-        # make sure gradient changes by six orders of magnitude
+        # make sure gradient changes by six orders of magnitude       
         assert np.log10(errors.max())-np.log10(errors.min()) > 6
-
 
     def check_nn_input_gradients(self, activation_fun):
         nvars = 3
@@ -205,6 +201,48 @@ class TestNeuralNetwork(unittest.TestCase):
                  network_vals.max()+0.1*abs(network_vals.max()))
         # plt.show()
 
+    def test_multitask_learning_hard_sharing(self):
+        def f(eps, xx):
+            return np.cos(2*np.pi*(xx[0]+eps))[:, None]
+
+        eps_list = [0.1, 0]
+        funs = [partial(f, eps) for eps in eps_list]
+
+        nsamples_per_model = [20, 20]
+        train_samples = [
+            np.linspace(-1, 1, nn)[None, :] for nn in nsamples_per_model]
+        train_vals = [f(x) for f, x in zip(funs, train_samples)]
+
+        nvars, nhl_nodes = 1, 10
+        nrestarts = 10
+        optimizer_opts = {"method": "L-BFGS-B",
+                          "options": {"maxiter": 1000}}
+
+        nqoi = len(train_samples)
+        opts = {'activation_func': 'tanh',
+                'layers': [nvars, nhl_nodes, nqoi],
+                'loss_func': 'squared_loss'}
+        network = MultiTaskNeuralNetwork(opts)
+        init_guess = np.random.uniform(-1, 2, (network.nparams, nrestarts))
+        # init_guess[:, 0] = network1.parameters
+
+        obj = partial(
+                network.objective_function, train_samples, train_vals)
+        jac = partial(
+            network.objective_jacobian, train_samples, train_vals)
+        parameters = np.random.normal(0, 1, (network.nparams))
+
+        disp = True
+        # disp = False
+
+        def fun(x):
+            return np.sum(obj(x))
+
+        zz = parameters[:, None]
+
+        errors = check_gradients(fun, jac, zz, plot=False, disp=disp, rel=True,
+                                 direction=None)
+        assert errors.min()/errors.max() < 1e-6
 
 if __name__ == "__main__":
     neural_network_test_suite = unittest.TestLoader().loadTestsFromTestCase(

@@ -22,7 +22,7 @@ class TestUtilities(unittest.TestCase):
         s2 = np.arange(3, 5)
 
         sets = np.array([[0, 3], [1, 3], [2, 3], [0, 4],
-                         [1, 4], [2, 4]], np.int)
+                         [1, 4], [2, 4]], np.int64)
         output_sets = cartesian_product([s1, s2], 1)
         assert np.array_equal(output_sets.T, sets)
 
@@ -32,7 +32,7 @@ class TestUtilities(unittest.TestCase):
 
         # sets = np.array( [[ 0, 1, 6, 7], [ 2, 3, 6, 7],
         #                   [ 4, 5, 6, 7], [ 0, 1, 8, 9],
-        #                   [ 2, 3, 8, 9], [ 4, 5, 8, 9]], np.int )
+        #                   [ 2, 3, 8, 9], [ 4, 5, 8, 9]], np.int64 )
         # output_sets = cartesian_product( [s1,s2], 2 )
         # assert np.array_equal( output_sets.T, sets )
 

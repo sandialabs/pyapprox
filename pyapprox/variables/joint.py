@@ -103,7 +103,7 @@ class IndependentMarginalsVariable(JointVariable):
                 all_variables[jj] = self.unique_variables[ii]
         return all_variables
 
-    def get_statistics(self, function_name, **kwargs):
+    def get_statistics(self, function_name, *args, **kwargs):
         """
         Get a statistic from each univariate random variable.
 
@@ -127,7 +127,7 @@ class IndependentMarginalsVariable(JointVariable):
         >>> from scipy.stats import uniform
         >>> num_vars = 2
         >>> variable = pya.IndependentMarginalsVariable([uniform(-2, 3)], [np.arange(num_vars)])
-        >>> variable.get_statistics("interval", alpha=1)
+        >>> variable.get_statistics("interval", confidence=1)
         array([[-2.,  1.],
                [-2.,  1.]])
         >>> variable.get_statistics("pdf",x=np.linspace(-2, 1, 3))
@@ -138,7 +138,8 @@ class IndependentMarginalsVariable(JointVariable):
         for ii in range(self.nunique_vars):
             var = self.unique_variables[ii]
             indices = self.unique_variable_indices[ii]
-            stats_ii = np.atleast_1d(getattr(var, function_name)(**kwargs))
+            stats_ii = np.atleast_1d(getattr(var, function_name)(
+                *args, **kwargs))
             assert stats_ii.ndim == 1
             if ii == 0:
                 stats = np.empty((self.num_vars(), stats_ii.shape[0]))

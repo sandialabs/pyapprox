@@ -1,8 +1,8 @@
 import torch
 
 
-def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
-                 verbosity=0, step_size=1, rtol=1e-7):
+def newton_solve(residual_fun, init_guess, linear_solve=None, tol=1e-7,
+                 maxiters=10, verbosity=0, step_size=1, rtol=1e-7):
     if not init_guess.ndim == 1:
         raise ValueError("init_guess must be 1D tensor so AD can be used")
 
@@ -18,7 +18,7 @@ def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
         if it > 0 and residual_norm <= tol+rtol*residual_norms[0]:
             # must take at least one step for cases when residual
             # is under tolerance for init_guess
-            exit_msg = f"Tolerance {tol} reached"
+            exit_msg = f"Tolerance {tol+rtol*residual_norms[0]} reached"
             break
         if it >= maxiters:
             exit_msg = f"Max iterations {maxiters} reached.\n"
@@ -32,7 +32,10 @@ def newton_solve(residual_fun, init_guess, tol=1e-7, maxiters=10,
                 raise ValueError("init_guess must have requires_grad=True")
             jac = torch.autograd.functional.jacobian(
                 lambda s: residual_fun(s)[0], sol, strict=True)
-        sol = sol-step_size*torch.linalg.solve(jac, residual)
+        if linear_solve is None:
+            sol = sol-step_size*torch.linalg.solve(jac, residual)
+        else:
+            sol = sol-step_size*linear_solve(jac, residual)
         # import numpy as np
         # np.set_printoptions(precision=2, suppress=True)
         # print('j', jac.detach().numpy())
