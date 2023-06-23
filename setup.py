@@ -130,3 +130,15 @@ setuptools.setup(
 # filterwarnings = ignore::FutureWarning:sklearn.*:
 # "Individual warnings filters are specified as a sequence of fields separated by colons:"
 # action:message:category:module:line
+
+# # the following can be used to append location of print statement so
+# # that errant print statements can be found and removed
+# import builtins
+# from inspect import getframeinfo, stack
+# original_print = print
+
+# def print_wrap(*args, **kwargs):
+#     caller = getframeinfo(stack()[1][0])
+#     original_print("FN:",caller.filename,"Line:", caller.lineno,"Func:", caller.function,":::", *args, **kwargs)
+
+# builtins.print = print_wrap

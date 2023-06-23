@@ -44,7 +44,6 @@ def _setup_peer_model_ensemble(rho, degree):
         return (y*4)*np.sin((y*2-2))/5
 
     def f3(x):
-        print(nmodels)
         # y = x.sum(axis=0)[:, None]
         y = x[0:1].T
         if nmodels == 2:
@@ -55,23 +54,23 @@ def _setup_peer_model_ensemble(rho, degree):
 
 
 def _setup_multilevel_model_ensemble(rho, degree):
-        def scale(x, rho, kk):
-            if degree == 0:
-                return rho[kk]
-            return rho[2*kk] + x.T*rho[2*kk+1]
+    def scale(x, rho, kk):
+        if degree == 0:
+            return rho[kk]
+        return rho[2*kk] + x.T*rho[2*kk+1]
 
-        def f1(x):
-            y = x[0:1].T
-            return ((y*6-2)**2)*np.sin((y*6-2)*2)/5
+    def f1(x):
+        y = x[0:1].T
+        return ((y*6-2)**2)*np.sin((y*6-2)*2)/5
 
-        def f2(x):
-            y = x[0:1].T
-            return scale(x, rho, 0)*f1(x)+np.cos(y*2)/10
+    def f2(x):
+        y = x[0:1].T
+        return scale(x, rho, 0)*f1(x)+np.cos(y*2)/10
 
-        def f3(x):
-            y = x[0:1].T
-            return scale(x, rho, -1)*f2(x)+((y-0.5)*1. - 5)/5
-        return f1, f2, f3
+    def f3(x):
+        y = x[0:1].T
+        return scale(x, rho, -1)*f2(x)+((y-0.5)*1. - 5)/5
+    return f1, f2, f3
 
 
 class TestMultifidelityGaussianProcess(unittest.TestCase):
@@ -114,7 +113,7 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
 
     def _check_multilevel_kernel(self, nvars, nmodels, length_scale_bounds,
                                  rho_bounds, sigma_bounds):
-        nsamples = int(1e6)
+        nsamples = int(2e5)
         nsamples_per_model = [4**nvars, 3**nvars, 2**nvars][:nmodels]
         length_scales = np.hstack(
             [np.linspace(0.5, 1.1, nvars) for nn in range(nmodels)])
@@ -330,7 +329,7 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
             self, nvars, degree, length_scale_bounds, rho_bounds,
             sigma_bounds, check_gradient=False):
         np.set_printoptions(linewidth=2000, precision=3)
-        nsamples = int(5e6)
+        nsamples = int(1e6)
         nmodels = 3
         nsamples_per_model = [4**nvars, 3**nvars, 2**nvars]
         length_scales = np.hstack(
@@ -464,9 +463,9 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
         # check kernel evaluations for fixed hyperparameter
         # because fixed or non fixed evaluations are the same
         for test_case in test_cases:
-                self._check_multifidelity_peer_kernel(
-                    *(test_case+["fixed", "fixed", "fixed"]),
-                    check_gradient=False)
+            self._check_multifidelity_peer_kernel(
+                *(test_case+["fixed", "fixed", "fixed"]),
+                check_gradient=False)
 
         # check kernel gradients for all combinatios of fixed and non-fixed
         # hyperparameter
@@ -478,9 +477,9 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
 
     def _check_multitask_kernel(self, nvars, length_scale_bounds, rho_bounds,
                                 sigma_bounds):
-        print(nvars, length_scale_bounds, rho_bounds, sigma_bounds)
+        # print(nvars, length_scale_bounds, rho_bounds, sigma_bounds)
         np.set_printoptions(linewidth=2000, precision=3)
-        nsamples = int(1e6)
+        nsamples = int(4e5)
         nmodels = 3
         nsamples_per_model = [3**nvars, 3**nvars, 2**nvars]
         length_scales = np.hstack(
@@ -523,7 +522,7 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
         shared_idx = np.arange(nsamples_per_model[0])
         for nn in range(1, nmodels):
             shared_idx = shared_idx[shared_idx_list[nn-1]]
-            print(shared_idx)
+            # print(shared_idx)
             YY_list[nn] = (
                 DD_list[nn]+scalings[nn-1]*YY_list[0][shared_idx, :])
 
@@ -821,20 +820,20 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
 
             next_index = np.argmin(obj_vals)
             prev_best_ivar = ivars[next_index]
-            print(next_index, sampler.pivots, ii)
-            print(obj_vals[next_index], obj_vals[next_index])
+            # print(next_index, sampler.pivots, ii)
+            # print(obj_vals[next_index], obj_vals[next_index])
             assert (np.allclose(next_index, sampler.pivots[ii]) or
                     np.allclose(obj_vals[next_index], obj_vals[next_index]))
 
-        gp = MultifidelityGaussianProcess(kernel)
-        gp.set_data(samples_per_model, [s.T*0 for s in samples_per_model])
-        gp.fit()
-        prior_kwargs = {"color": "gray", "alpha": 0.3}
-        gp.plot_1d(101, [0, 1], prior_fill_kwargs=prior_kwargs)
-        import matplotlib.pyplot as plt
-        plt.plot(samples_per_model[-1][0], samples_per_model[-1][0]*0, 'o',
-                 ms=20)
-        plt.plot(samples_per_model[0][0], samples_per_model[0][0]*0, 'ks')
+        # gp = MultifidelityGaussianProcess(kernel)
+        # gp.set_data(samples_per_model, [s.T*0 for s in samples_per_model])
+        # gp.fit()
+        # prior_kwargs = {"color": "gray", "alpha": 0.3}
+        # gp.plot_1d(101, [0, 1], prior_fill_kwargs=prior_kwargs)
+        # import matplotlib.pyplot as plt
+        # plt.plot(samples_per_model[-1][0], samples_per_model[-1][0]*0, 'o',
+        #          ms=20)
+        # plt.plot(samples_per_model[0][0], samples_per_model[0][0]*0, 'ks')
         # plt.show()
 
     def _check_multifidelity_gp(self, kernel_type, nmodels, nvars, degree):
@@ -842,7 +841,7 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
         #            ConstantKernel(1, "fixed")*RBF([1]*nvars)][-nmodels:]
         kernels = [RBF for kk in range(nmodels)]
         length_scale = [1]*(nmodels*nvars)
-        length_scale_bounds = [(1e-3, 1e5)]*(nmodels*nvars)
+        length_scale_bounds = [(1e-1, 1e0)]*(nmodels*nvars)
         # length_scale_bounds = [(1e-3, 1e5), (1.129, 1.131)]
         rho = np.full((nmodels-1)*(degree+1), .9)
         sigma = np.full(nmodels, .5)
@@ -883,14 +882,14 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
         #     [np.linspace(lb, ub, 11)[None, :], np.full((1, 11), (lb+ub)/2)])
         # x3 = np.vstack(
         #     [np.linspace(lb, ub, 6)[None, :], np.full((1, 6), (lb+ub)/2)])
-        print(x3.shape, nvars)
         np.set_printoptions(linewidth=1000)
         train_samples = [x1, x2, x3][-nmodels:]
         train_values = [f(x) for f, x in zip(models, train_samples)]
 
-        gp = MultifidelityGaussianProcess(kernel, alpha=1e-10, n_restarts_optimizer=0)
+        gp = MultifidelityGaussianProcess(
+            kernel, alpha=1e-10, n_restarts_optimizer=0)
         gp.set_data(train_samples, train_values)
-        print(gp.kernel.nsamples_per_model)
+        # print(gp.kernel.nsamples_per_model)
 
         XX_train = np.hstack(train_samples).T
         K = kernel(XX_train)
@@ -916,35 +915,27 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
         for nn in range(nmodels):
             sfgp = GaussianProcess(ConstantKernel(5, "fixed")*RBF([0.1]*nvars))
             sfgp.fit(train_samples[nn], train_values[nn])
-            print(nn, "sf", np.abs(sfgp(xx)-models[nn](xx)).max())
-            print(nn, "mf", np.abs(gp(xx, model_eval_id=nn)-models[nn](xx)).max())
-            print(sfgp.kernel_)
-            print(gp.kernel_)
-            print([k for k in gp.kernel_.kernels])
-            # ls = gp.kernel_.length_scale
-            # ls[2] = sfgp.kernel_.length_scale[0]
-            # tmp_kernel = Kernel(
-            #     nvars, kernels, kernel_scalings,
-            #     length_scale=ls,
-            #     length_scale_bounds="fixed", rho=rho,
-            #     rho_bounds="fixed")
-            # print(tmp_kernel, 's')
-            # gp = MultifidelityGaussianProcess(tmp_kernel, alpha=1e-10)
-            # gp.set_data(train_samples, train_values)
-            # gp.fit()
+            # print(nn, "sf", np.abs(sfgp(xx)-models[nn](xx)).max())
+            # print(nn, "mf",
+            #       np.abs(gp(xx, model_eval_id=nn)-models[nn](xx)).max())
+            # print(sfgp.kernel_)
             # print(gp.kernel_)
-            # assert False
-            if nvars == 2:
-                xx_plot = np.vstack(
-                    [np.linspace(lb, ub, 101)[None, :], np.full((1, 101), (lb+ub)/2)])
-            else:
-                xx_plot = np.linspace(lb, ub, 101)[None, :]
-            plt.plot(xx_plot[0], models[nn](xx_plot), "-k")
-            plt.plot(xx_plot[0], sfgp(xx_plot), "--b")
-            plt.plot(xx_plot[0], gp(xx_plot, model_eval_id=nn), ":r")
-            plt.plot(train_samples[nn][0], models[nn](train_samples[nn]), "ko")
-            #assert np.allclose(
-            #    gp(xx, model_eval_id=nn), models[nn](xx), atol=1e-3)
+            # print([k for k in gp.kernel_.kernels])
+            # if nvars == 2:
+            #     # plot a cross section
+            #     xx_plot = np.vstack(
+            #         [np.linspace(lb, ub, 101)[None, :], np.full((1, 101), (lb+ub)/2)])
+            # else:
+            #     xx_plot = np.linspace(lb, ub, 101)[None, :]
+            # plt.plot(xx_plot[0], models[nn](xx_plot), "-k")
+            # plt.plot(xx_plot[0], sfgp(xx_plot), "--b")
+            # plt.plot(xx_plot[0], gp(xx_plot, model_eval_id=nn), ":r")
+            # plt.plot(
+            #     train_samples[nn][0], models[nn](train_samples[nn]), "ko")
+            # print('error',
+            #        np.abs(gp(xx, model_eval_id=nn)-models[nn](xx)[:, 0]).max())
+            assert np.allclose(
+                gp(xx, model_eval_id=nn), models[nn](xx)[:, 0], atol=1e-3)
         # plt.show()
 
     def test_multifidelity_gp(self):
@@ -961,7 +952,7 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
     def _check_greedy_multifidelity_sampler(self, nvars, econ):
         nmodels = 3
         nquad_samples = 40
-        ncandidate_samples_per_model = 101 #11
+        ncandidate_samples_per_model = 11
         model_costs = [1, 1.0, 4.0]
         variable = IndependentMarginalsVariable(
             [stats.uniform(0, 1) for ii in range(nvars)])

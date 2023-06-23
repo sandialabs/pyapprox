@@ -10,18 +10,6 @@ from pyapprox.util.utilities import (
 from pyapprox.surrogates.gaussianprocess.calibration import (
     GPCalibrationVariable, CalibrationGaussianProcess)
 
-# # the following can be used to append location of print statement so
-# # that errant print statements can be found and removed
-# import builtins
-# from inspect import getframeinfo, stack
-# original_print = print
-
-# def print_wrap(*args, **kwargs):
-#     caller = getframeinfo(stack()[1][0])
-#     original_print("FN:",caller.filename,"Line:", caller.lineno,"Func:", caller.function,":::", *args, **kwargs)
-
-# builtins.print = print_wrap
-
 
 class TestGPCalibration(unittest.TestCase):
     def setUp(self):
