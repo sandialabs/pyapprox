@@ -41,8 +41,8 @@ from pyapprox.util.utilities import approx_jacobian, check_gradients
 # Functions and testing only for wrapping Sympy generated manufactured
 # solutions
 def _normal_flux(flux_funs, normal_fun, xx):
-    normal_vals = torch.as_tensor(normal_fun(xx))
-    flux_vals = torch.as_tensor(flux_funs(xx))
+    normal_vals = torch.as_tensor(normal_fun(xx), dtype=torch.double)
+    flux_vals = torch.as_tensor(flux_funs(xx), dtype=torch.double)
     vals = torch.sum(normal_vals*flux_vals, dim=1)[:, None]
     return vals
 
@@ -293,7 +293,8 @@ class TestAutoPDE(unittest.TestCase):
 
         def fun(params):
             set_param_values(
-                fwd_solver.physics, torch.as_tensor(params[:, 0]))
+                fwd_solver.physics,
+                torch.as_tensor(params[:, 0], dtype=torch.double))
             # newton tol must be smaller than finite difference step size
             fd_sol = fwd_solver.solve(tol=1e-8, verbosity=0, rtol=1e-12)
             qoi = np.asarray([functional(fd_sol, params[:, 0])])
@@ -330,7 +331,8 @@ class TestAutoPDE(unittest.TestCase):
 
         errors = check_gradients(
             fun, lambda p: adj_solver.compute_gradient(
-                set_param_values, torch.as_tensor(p)[:, 0]).numpy(),
+                set_param_values,
+                torch.as_tensor(p, dtype=torch.double)[:, 0]).numpy(),
             param_vals.numpy()[:, None], plot=False,
             fd_eps=3*np.logspace(-13, 0, 14)[::-1],
             direction=np.array([1])[:, None])
@@ -463,11 +465,11 @@ class TestAutoPDE(unittest.TestCase):
             if return_grad is False:
                 qoi = adj_solver.compute_qoi(
                     init_sol, 0, final_time, set_param_values,
-                    torch.as_tensor(params[:, 0]))[2]
+                    torch.as_tensor(params[:, 0], dtype=torch.double))[2]
                 return np.atleast_1d(qoi)
             qoi, grad = adj_solver.compute_gradient(
                 init_sol, 0, final_time, set_param_values,
-                torch.as_tensor(params[:, 0]))
+                torch.as_tensor(params[:, 0], dtype=torch.double))
             return qoi, grad
 
         # qoi, grad = adj_solver.compute_gradient(
@@ -697,10 +699,11 @@ class TestAutoPDE(unittest.TestCase):
             solver.physics._residual(exact_sol[:, 0])[0], 0, atol=2.2e-8)
 
         def fun(s):
-            return solver.physics._raw_residual(torch.as_tensor(s))[0].numpy()
+            return solver.physics._raw_residual(
+                torch.as_tensor(s, dtype=torch.double))[0].numpy()
         j_fd = approx_jacobian(fun, exact_sol[:, 0].numpy())
         j_man = solver.physics._raw_residual(
-            torch.as_tensor(exact_sol[:, 0]))[1].numpy()
+            torch.as_tensor(exact_sol[:, 0], dtype=torch.double))[1].numpy()
         j_auto = torch.autograd.functional.jacobian(
             lambda s: solver.physics._raw_residual(s)[0],
             exact_sol[:, 0].clone().requires_grad_(True), strict=True).numpy()
@@ -795,7 +798,8 @@ class TestAutoPDE(unittest.TestCase):
         # print(np.abs(solver.physics._raw_residual(exact_sol[:, 0])))
 
         def fun(s):
-            return solver.physics._raw_residual(torch.as_tensor(s))[0].numpy()
+            return solver.physics._raw_residual(
+                torch.as_tensor(s, dtype=torch.double))[0].numpy()
         j_fd = approx_jacobian(fun, exact_sol[:, 0].numpy())
         # j_man = solver.physics._raw_residual(torch.as_tensor(exact_sol[:, 0]))[1].numpy()
         j_auto = torch.autograd.functional.jacobian(

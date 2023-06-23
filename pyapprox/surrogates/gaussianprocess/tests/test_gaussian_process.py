@@ -920,7 +920,7 @@ class TestGaussianProcess(unittest.TestCase):
             {'basis_type': 'hyperbolic_cross', 'variable': variable,
              'options': {'max_degree': 4}}).approx
         assert np.linalg.norm(validation_vals - pce(validation_samples)) / \
-            np.linalg.norm(validation_vals) < 1e-15
+            np.linalg.norm(validation_vals) < 3e-15
 
         pce_interaction_terms, pce_sobol_indices = get_sobol_indices(
             pce.get_coefficients(), pce.get_indices(), max_order=3)

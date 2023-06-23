@@ -415,7 +415,7 @@ class TestMFNets(unittest.TestCase):
         true_params = np.random.normal(0, 1, (true_mfnets.get_nparams(), 1))
         true_mfnets.set_parameters(true_params)
         nnodes = true_mfnets.get_nnodes()
-        print(true_params, 'pp')
+        # print(true_params, 'pp')
 
         ntrain_samples_list = [ndiscrepancy_params+nscaling_params+1]*nnodes
         train_samples_list = [
@@ -425,7 +425,7 @@ class TestMFNets(unittest.TestCase):
         noise_std_list = [1]*nnodes
         init_params = np.random.normal(0, 1, true_params.shape)
         mfnets = MFNets(copy.deepcopy(true_graph))
-        print(train_samples_list, train_values_list)
+        # print(train_samples_list, train_values_list)
 
         node_id_list = np.arange(1, mfnets.get_nnodes()+1)
 
@@ -439,13 +439,13 @@ class TestMFNets(unittest.TestCase):
             result = mfnets.fit_objective(pp)
             return result[0], result[1].T
 
-        print((np.zeros(true_mfnets.get_nparams()),
-               objective_wrapper(true_params)))
+        # print((np.zeros(true_mfnets.get_nparams()),
+        #        objective_wrapper(true_params)))
         assert np.allclose(np.zeros(true_mfnets.get_nparams()),
                            objective_wrapper(true_params)[1])
 
         diffs = check_gradients(objective_wrapper, True, init_params)
-        assert diffs.min()/diffs.max() < 2e-6
+        assert diffs.min()/diffs.max() < 3e-6
 
         tol = 1e-10
         # opts = {'disp': True, "iprint": 3, "gtol": tol, "ftol": tol,

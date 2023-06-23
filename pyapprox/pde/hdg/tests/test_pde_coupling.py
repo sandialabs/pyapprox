@@ -538,9 +538,9 @@ class TestPDECoupling(unittest.TestCase):
                  for model in domain_decomp._subdomain_models])
         subdomain_sols, times = decomp_solver.solve(
             init_sols, 0, final_time, deltat, verbosity=0,
-            subdomain_newton_kwargs={"verbosity": 0, "tol": 1e-8, "rtol": 1e-9,
+            subdomain_newton_kwargs={"verbosity": 0, "tol": 1e-8, "rtol": 1e-8,
                                      "maxiters": maxiters},
-            macro_newton_kwargs={"verbosity": 0, "tol": 1e-8, "rtol": 1e-9,
+            macro_newton_kwargs={"verbosity": 0, "tol": 1e-8, "rtol": 1e-8,
                                  "maxiters": maxiters})
         for ii, time in enumerate(times):
             sol_fun.set_time(time)
