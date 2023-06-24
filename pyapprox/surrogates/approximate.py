@@ -720,8 +720,8 @@ def adaptive_approximate_gaussian_process(
             msg += 'If more samples are really required increase alpha or '
             msg += 'manually fix kernel_length to a smaller value'
             print('Exiting: ' + msg)
-            print(gp.kernel_)
-            print(np.linalg.norm(gp.sampler.candidate_samples))
+            # print(gp.kernel_)
+            # print(np.linalg.norm(gp.sampler.candidate_samples))
             break
     return ApproximateResult({'approx': gp})
 

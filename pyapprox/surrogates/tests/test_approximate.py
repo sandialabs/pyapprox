@@ -390,7 +390,7 @@ class TestApproximate(unittest.TestCase):
         gp = adaptive_approximate(
             fun, univariate_variables, "gaussian_process",
             {"nu": nu, "noise_level": None, "normalize_y": False,
-             "alpha": 1e-10,  "normalize_inputs": True,
+             "alpha": 1e-10,  "normalize_inputs": True, "length_scale": 0.5,
              "weight_function": weight_function, "n_restarts_optimizer": 10,
              "ncandidate_samples": 1e3, "callback": callback}).approx
 
