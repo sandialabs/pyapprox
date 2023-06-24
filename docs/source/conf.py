@@ -27,7 +27,7 @@ copyright = '2019 National Technology & Engineering Solutions of Sandia, LLC (NT
 author = 'John D. Jakeman'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0.0'
+release = '1.0.2'
 
 
 # -- General configuration ---------------------------------------------------
@@ -63,6 +63,7 @@ example_filenames_in_order = [
     'plot_monte_carlo.py',
     'plot_push_forward_based_inference.py',
     'plot_tensor_product_interpolation.py',
+    'plot_sparse_grids.py',
     'plot_bayesian_inference.py',
     'plot_sensitivity_analysis.py',
     'plot_bayesian_networks.py',
