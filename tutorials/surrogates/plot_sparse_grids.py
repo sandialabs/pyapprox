@@ -11,7 +11,7 @@ where :math:`\beta=[\beta_1,\ldots,\beta_D]` is a multi-index controlling the nu
 
 .. math:: \gamma \le \beta \text{ and } \beta \in \mathcal{I} \implies \gamma \in \mathcal{I},
 
-where the :math:`\le` is applied per entry, then the coefficients of the sparse grid are given by
+where the :math:`\le` is applied per entry, then the (Smolyak) coefficients of the sparse grid are given by
 
 .. math:: \sum_{i\in [0,1]^D, \alpha+i\in \mathcal{I}} (-1)^{\lVert i \rVert_1}.
 
@@ -26,7 +26,9 @@ which leads to a simpler expression for the coefficients
 
 .. math:: c_\beta = (-1)^{l-\lvert\beta\rvert_1} {D-1\choose l-\lvert\beta\rvert_1}.
 
-First print a level
+First import the necessary modules and define the function we will approximate and its variable :math:`\rv`.
+
+.. math:: f(\rv) = \cos(\pi\rv_1)\cos(\pi\rv_2/2)
 """
 import numpy as np
 from scipy import stats
@@ -37,28 +39,65 @@ from pyapprox.surrogates.interp.adaptive_sparse_grid import (
     tensor_product_refinement_indicator, isotropic_refinement_indicator)
 from pyapprox.surrogates.orthopoly.quadrature import (
     clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth)
+from pyapprox.util.utilities import nchoosek
 
 variable = IndependentMarginalsVariable([stats.uniform(-1, 2)]*2)
+
+
 def fun(zz):
     return (np.cos(np.pi*zz[0])*np.cos(np.pi*zz[1]/2))[:, None]
 
-fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
+#%%
+# Now plot the tensor product interpolants and the Smolyak coefficients that make up the sparse grid. The coefficients are in the upper left corner of each subplot.
+max_level = 2
+fig, axs = plt.subplots(
+    max_level+1, max_level+1, figsize=((max_level+1)*8, (max_level+1)*6))
+axs = axs
 ranges = variable.get_statistics("interval", 1.0).flatten()
-X, Y, Z_fun = get_meshgrid_function_data(fun, ranges, 51)
 univariate_quad_rule_info = [
     clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth,
     None, None]
+
+
+def build_tp(max_level_1d):
+    tp = adaptive_approximate(
+        fun, variable, "sparse_grid",
+        {"refinement_indicator": tensor_product_refinement_indicator,
+         "max_level_1d": max_level_1d,
+         "univariate_quad_rule_info": univariate_quad_rule_info}).approx
+    return tp
+
+
+levels = np.linspace(-1.1, 1.1, 31)
+text_props = dict(boxstyle='round', facecolor='white', alpha=0.5)
+for ii in range(max_level+1):
+    for jj in range(max_level+1):
+        tp = build_tp([ii, jj])
+        X, Y, Z_tp = get_meshgrid_function_data(tp, ranges, 71)
+        ax = axs[max_level-jj][ii]
+        ax.contourf(X, Y, Z_tp, levels=levels, cmap="coolwarm")
+        ax.plot(*tp.samples, 'ko')
+        coef = int((-1)**(max_level-(ii+jj))*nchoosek(
+            variable.num_vars()-1, max_level-(ii+jj)))
+        ax.text(0.05, 0.95, r"${:d}$".format(coef),
+                transform=ax.transAxes, fontsize=24,
+                verticalalignment='top', bbox=text_props)
+
+#%%
+# Now compare the sparse grid with a tensor product interpolant of the same level.
+fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
+X, Y, Z_fun = get_meshgrid_function_data(fun, ranges, 51)
 tp = adaptive_approximate(
     fun, variable, "sparse_grid",
     {"refinement_indicator": tensor_product_refinement_indicator,
-     "max_level_1d": np.full(2, 2),
+     "max_level_1d": np.full(2, max_level),
      "univariate_quad_rule_info": univariate_quad_rule_info}).approx
 sg = adaptive_approximate(
     fun, variable, "sparse_grid",
     {"refinement_indicator": isotropic_refinement_indicator,
-     "max_level_1d": np.full(2, 2),
+     "max_level_1d": np.full(2, max_level),
      "univariate_quad_rule_info": univariate_quad_rule_info,
-     "max_level": 2}).approx
+     "max_level": max_level}).approx
 X, Y, Z_tp = get_meshgrid_function_data(tp, ranges, 51)
 X, Y, Z_sg = get_meshgrid_function_data(sg, ranges, 51)
 lb = np.min([Z_fun.min(), Z_tp.min(), Z_sg.min()])
@@ -75,8 +114,7 @@ _ = fig.colorbar(im, cax=cbar_ax)
 # plt.show()
 
 #%%
-#The sparse grid is slightly less accurate than the tensor product interpolant, but uses fewer points.
-#There is no exact formula for the number of points in an isotropic sparse grid. #The following code can be used to determine the number of points in a sparse grid of any dimension or level. The number of points is much smaller than the number of points in a tensor-product grid, for a given level :math:`l`.
+#The sparse grid is slightly less accurate than the tensor product interpolant, but uses fewer points. There is no exact formula for the number of points in an isotropic sparse grid. The following code can be used to determine the number of points in a sparse grid of any dimension or level. The number of points is much smaller than the number of points in a tensor-product grid, for a given level :math:`l`.
 
 
 def get_isotropic_sparse_grid_num_samples(
@@ -201,7 +239,7 @@ _ = ax.legend()
 
 #%%
 # Experiment with changing nvars, e.g. try nvars = 2,3,4. Sparse grids become more effective as nvars increases.
-
+#
 #So far we have used sparse grids based on Clenshaw-Curtis 1D quadrature rules. However other types of rules can be used. PyApprox uses 1D Leja sequences  [NJ2014]_. Change univariate_quad_rule=None to use Leja rules and observe the difference in convergence.
 
 #%%
