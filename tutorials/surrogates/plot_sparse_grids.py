@@ -18,7 +18,7 @@ where the :math:`\le` is applied per entry, then the coefficients of the sparse 
 
 While any tensor-product approximation can be used with sparse grids, e.g. based on piecewise-polynomials or splines, in this tutorial we will build sparse grids with Lagrange polynomials (see :ref:`sphx_glr_auto_tutorials_surrogates_plot_tensor_product_interpolation.py`).
 
-The following code compares tensor-product interpolants of varying resolution and shows which interpolants are included in a so called level-:math:`l` isotropic sparse grid which sets
+The following code compares a tensor-product interpolant with a level-:math:`l` isotropic sparse grid which sets
 
 .. math:: \mathcal{I}(l)=\{\beta \mid (\max(0,l−1)\le \lVert\beta\rVert_1\le l+D−2\}, \quad l\ge 0
 
@@ -26,12 +26,90 @@ which leads to a simpler expression for the coefficients
 
 .. math:: c_\beta = (-1)^{l-\lvert\beta\rvert_1} {D-1\choose l-\lvert\beta\rvert_1}.
 
-
-
+First print a level
 """
+import numpy as np
+from scipy import stats
+from pyapprox.util.visualization import get_meshgrid_function_data, plt
+from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.surrogates.approximate import adaptive_approximate
+from pyapprox.surrogates.interp.adaptive_sparse_grid import (
+    tensor_product_refinement_indicator, isotropic_refinement_indicator)
+from pyapprox.surrogates.orthopoly.quadrature import (
+    clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth)
+
+variable = IndependentMarginalsVariable([stats.uniform(-1, 2)]*2)
+def fun(zz):
+    return (np.cos(np.pi*zz[0])*np.cos(np.pi*zz[1]/2))[:, None]
+
+fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
+ranges = variable.get_statistics("interval", 1.0).flatten()
+X, Y, Z_fun = get_meshgrid_function_data(fun, ranges, 51)
+univariate_quad_rule_info = [
+    clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth,
+    None, None]
+tp = adaptive_approximate(
+    fun, variable, "sparse_grid",
+    {"refinement_indicator": tensor_product_refinement_indicator,
+     "max_level_1d": np.full(2, 2),
+     "univariate_quad_rule_info": univariate_quad_rule_info}).approx
+sg = adaptive_approximate(
+    fun, variable, "sparse_grid",
+    {"refinement_indicator": isotropic_refinement_indicator,
+     "max_level_1d": np.full(2, 2),
+     "univariate_quad_rule_info": univariate_quad_rule_info,
+     "max_level": 2}).approx
+X, Y, Z_tp = get_meshgrid_function_data(tp, ranges, 51)
+X, Y, Z_sg = get_meshgrid_function_data(sg, ranges, 51)
+lb = np.min([Z_fun.min(), Z_tp.min(), Z_sg.min()])
+ub = np.max([Z_fun.max(), Z_tp.max(), Z_sg.max()])
+levels = np.linspace(lb, ub, 21)
+im = axs[0].contourf(X, Y, Z_fun, levels=levels, cmap="coolwarm")
+axs[1].contourf(X, Y, Z_tp, levels=levels, cmap="coolwarm")
+axs[1].plot(*tp.samples, 'ko')
+axs[2].contourf(X, Y, Z_sg, levels=levels, cmap="coolwarm")
+axs[2].plot(*sg.samples, 'ko')
+fig.subplots_adjust(right=0.9)
+cbar_ax = fig.add_axes([0.9125, 0.125, 0.025, 0.75])
+_ = fig.colorbar(im, cax=cbar_ax)
+# plt.show()
 
 #%%
+#The sparse grid is slightly less accurate than the tensor product interpolant, but uses fewer points.
 #There is no exact formula for the number of points in an isotropic sparse grid. #The following code can be used to determine the number of points in a sparse grid of any dimension or level. The number of points is much smaller than the number of points in a tensor-product grid, for a given level :math:`l`.
+
+
+def get_isotropic_sparse_grid_num_samples(
+        nvars, max_level, univariate_quad_rule_info):
+    """
+    Get the number of points in an isotropic sparse grid
+    """
+    variable = IndependentMarginalsVariable([stats.uniform(-1, 2)]*nvars)
+
+    def fun(xx):
+        # a dummy function
+        return np.ones((xx.shape[1], 1))
+    sg = adaptive_approximate(
+        fun, variable, "sparse_grid",
+        {"refinement_indicator": isotropic_refinement_indicator,
+         "max_level_1d": np.full(nvars, max_level),
+         "univariate_quad_rule_info": univariate_quad_rule_info,
+         "max_level": max_level, "verbose": 0, "max_nsamples": np.inf}).approx
+    return sg.samples.shape[1]
+
+
+sg_num_samples = [
+    [get_isotropic_sparse_grid_num_samples(
+        nvars, level, univariate_quad_rule_info) for level in range(5)]
+    for nvars in [2, 3, 5]]
+tp_num_samples = [
+    [univariate_quad_rule_info[1](level)**nvars for level in range(5)]
+    for nvars in [2, 3, 5]]
+print("Growth of number of sparse grid points")
+print(sg_num_samples)
+print("Growth of number of tensor-product points")
+print(tp_num_samples)
+
 
 #%%
 #For a function with :math:`r` continous mixed-derivatives, the isotropic level-:math:`l` sparse grid, based on 1D Clenshaw Curtis abscissa, with :math:`M_{\mathcal{I}(l)}` points satisfies
@@ -42,14 +120,94 @@ which leads to a simpler expression for the coefficients
 #
 #.. math:: \lVert f-f_{\mathcal{I}(l)}\rVert_{L^\infty}\le  K_{D,r} M_l^{−r/D}.
 #
-#The following code compares the convergence of sparse grids and tensor-product lagrange interpolants.
+#The following code compares the convergence of sparse grids and tensor-product lagrange interpolants. A callback is used to compute the error as the level of the approximations increases
+
+class Callback():
+    def __init__(self, validation_samples, validation_values, istp):
+        self.level = -1
+        self.errors = []
+        self.nsamples = []
+        self.validation_samples = validation_samples
+        self.validation_values = validation_values
+        self.istp = istp
+
+    def __call__(self, approx):
+        if self.istp:
+            approx_level = approx.subspace_indices.max()
+        else:
+            approx_level = approx.subspace_indices.sum(axis=0).max()
+        if self.level != approx_level:
+            # only compute error when all subspaces of the current
+            # approximation level are added to the sparse grid.
+            # The number of sparse grid points will be slightly larger
+            # than an isotoropic grid of level=approx_level because
+            # points associated with active indies will be included here.
+            self.level = approx_level
+            self.nsamples.append(approx.samples.shape[1])
+            approx_values = approx.evaluate_using_all_data(
+                self.validation_samples)
+            error = (np.linalg.norm(
+                self.validation_values-approx_values) /
+                     self.validation_samples.shape[1])
+            self.errors.append(error)
+
+
+def fun(xx):
+    return np.exp(-0.05*(((xx+1)/2-0.5)**2).sum(axis=0))[:, None]
+
+
+# do not go passed nvars,level = (4, 4) with clenshaw curtis rules
+# do not go passed nvars,level = (5, 4) with Leja rules
+
+nvars = 4
+variable = IndependentMarginalsVariable([stats.uniform(-1, 2)]*nvars)
+validation_samples = variable.rvs(1000)
+validation_values = fun(validation_samples)
+
+# switch to Leja quadrature rules with linear growth
+# univariate_quad_rule_info = None
+
+tp_max_level = 4
+tp_callback = Callback(validation_samples, validation_values, True)
+tp = adaptive_approximate(
+    fun, variable, "sparse_grid",
+    {"refinement_indicator": tensor_product_refinement_indicator,
+     "max_level_1d": np.full(nvars, tp_max_level),
+     "univariate_quad_rule_info": univariate_quad_rule_info,
+     "max_nsamples": np.inf, "callback": tp_callback,
+     "verbose": 0}).approx
+# compute error at final level
+tp_callback.level = tp_max_level  # set so callback computes error
+tp_callback(tp)
+
+sg_max_level = 6
+sg_callback = Callback(validation_samples, validation_values, False)
+sg = adaptive_approximate(
+    fun, variable, "sparse_grid",
+    {"refinement_indicator": isotropic_refinement_indicator,
+     "max_level_1d": np.full(nvars, sg_max_level),
+     "univariate_quad_rule_info": univariate_quad_rule_info,
+     "max_level": sg_max_level, "max_nsamples": np.inf,
+     "callback": sg_callback}).approx
+# compute error at final level
+sg_callback.level = sg_max_level  # set so callback computes error
+sg_callback(sg)
+
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+ax.loglog(tp_callback.nsamples, tp_callback.errors, '-o', label="TP")
+ax.loglog(sg_callback.nsamples, sg_callback.errors, '--s', label="SG")
+_ = ax.legend()
+# plt.show()
 
 #%%
-#Remarks
+# Experiment with changing nvars, e.g. try nvars = 2,3,4. Sparse grids become more effective as nvars increases.
+
+#So far we have used sparse grids based on Clenshaw-Curtis 1D quadrature rules. However other types of rules can be used. PyApprox uses 1D Leja sequences  [NJ2014]_. Change univariate_quad_rule=None to use Leja rules and observe the difference in convergence.
+
+#%%
+#Dimension adaptivity
 #-------
 #The efficiency of sparse grids can be improved using methods [GG2003]_, [H2003]_ that construct the index set :math:`\mathcal{I}` adaptively. This is the default behavior when using Pyapprox.
-#
-#Note, in this tutorial we used sparse grids based on Clenshaw-Curtis 1D quadrature rules. However other types of rules can be used. PyApprox uses 1D Leja sequences  [NJ2014]_.
 
 #%%
 #References

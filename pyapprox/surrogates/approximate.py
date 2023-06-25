@@ -57,8 +57,8 @@ def adaptive_approximate_sparse_grid(
         refinement_indicator=variance_refinement_indicator,
         univariate_quad_rule_info=None, max_nsamples=100, tol=0, verbose=0,
         config_variables_idx=None, config_var_trans=None, cost_function=None,
-        max_level_1d=None):
-    """
+        max_level_1d=None, max_level=None):
+    r"""
     Compute a sparse grid approximation of a function.
 
     Parameters
@@ -179,6 +179,12 @@ def adaptive_approximate_sparse_grid(
         The maximum level of the sparse grid in each dimension. If None
         There is no limit
 
+    max_level : integer
+        The maximum level l of the sparse grid. Only subspaces with indices
+        i that satisfy : math:`\lvert i \rvert_1\le l` can be added. If None
+        l=np.inf
+
+
     Returns
     -------
     result : :class:`pyapprox.surrogates.approximate.ApproximateResult`
@@ -197,6 +203,9 @@ def adaptive_approximate_sparse_grid(
         max_level_1d = [np.inf]*nvars
     elif np.isscalar(max_level_1d):
         max_level_1d = [max_level_1d]*nvars
+
+    if max_level is None:
+        max_level = np.inf
 
     if univariate_quad_rule_info is None:
         quad_rules, growth_rules, unique_quadrule_indices, \
@@ -225,8 +234,9 @@ def adaptive_approximate_sparse_grid(
                         unique_max_level_1d[ii], max_level_1d[jj])
 
     assert len(max_level_1d) == nvars
+    # todo change np.inf to argument that is passed into approximate
     admissibility_function = partial(
-        max_level_admissibility_function, np.inf, max_level_1d, max_nsamples,
+        max_level_admissibility_function, max_level, max_level_1d, max_nsamples,
         tol, verbose=verbose)
     sparse_grid.setup(
         fun, config_variables_idx, refinement_indicator,
