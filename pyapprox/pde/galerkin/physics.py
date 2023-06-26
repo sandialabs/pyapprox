@@ -279,7 +279,7 @@ def _enforce_stokes_boundary_conditions(
     return bilinear_mat, linear_vec, D_vals, D_dofs
 
 
-def _assemble_stokes(
+def _raw_assemble_stokes(
         vel_forc_fun, pres_forc_fun, navier_stokes,
         bndry_conds, mesh, element, basis, u_prev=None, return_K=False,
         viscosity=1):
@@ -318,13 +318,27 @@ def _assemble_stokes(
         # the following is true only for stokes (not navier stokes)
         # linear_vec -= K.dot(u_prev)
 
+    if not return_K:
+        return bilinear_mat, linear_vec, A.shape
+    return bilinear_mat, linear_vec, A.shape, K
+
+
+def _assemble_stokes(
+        vel_forc_fun, pres_forc_fun, navier_stokes,
+        bndry_conds, mesh, element, basis, u_prev=None, return_K=False,
+        viscosity=1):
+    result = _raw_assemble_stokes(
+        vel_forc_fun, pres_forc_fun, navier_stokes,
+        bndry_conds, mesh, element, basis, u_prev, return_K,
+        viscosity)
+    bilinear_mat, linear_vec, A_shape = result[:3]
     bilinear_mat, linear_vec, D_vals, D_dofs = (
         _enforce_stokes_boundary_conditions(
             mesh, element, basis, bilinear_mat, linear_vec, *bndry_conds,
-            A.shape, u_prev))
+            A_shape, u_prev))
     if not return_K:
         return bilinear_mat, linear_vec, D_vals, D_dofs
-    return bilinear_mat, linear_vec, D_vals, D_dofs, K
+    return bilinear_mat, linear_vec, D_vals, D_dofs, result[3]
 
 
 class Physics(ABC):
@@ -470,6 +484,8 @@ class Stokes(Physics):
         self.navier_stokes = navier_stokes
         self.viscosity = viscosity
 
+        self.A_shape = None
+
     def init_guess(self) -> np.ndarray:
         bilinear_mat, linear_vec, D_vals, D_dofs = _assemble_stokes(
             self.vel_forc_fun, self.pres_forc_fun, False,
@@ -477,15 +493,31 @@ class Stokes(Physics):
             return_K=False, viscosity=self.viscosity)
         return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
 
-    def assemble(self, sol: Optional[np.ndarray] = None) -> Tuple[
+    def raw_assemble(self, sol: Optional[np.ndarray] = None) -> Tuple[
             spmatrix,
             Union[np.ndarray, spmatrix],
             np.ndarray,
             np.ndarray]:
-        return _assemble_stokes(
+        bilinear_mat, linear_vec, self.A_shape = _raw_assemble_stokes(
             self.vel_forc_fun, self.pres_forc_fun, self.navier_stokes,
             self.bndry_conds, self.mesh, self.element, self.basis, sol,
             viscosity=self.viscosity)
+        return bilinear_mat, linear_vec
+
+    def apply_dirichlet_boundary_conditions(
+            self,
+            sol: np.ndarray,
+            bilinear_mat: spmatrix,
+            linear_vec: Union[np.ndarray, spmatrix]) -> Tuple[
+                spmatrix,
+                Union[np.ndarray, spmatrix],
+                np.ndarray,
+                np.ndarray]:
+        bilinear_mat, linear_vec, D_vals, D_dofs = (
+            _enforce_stokes_boundary_conditions(
+                self.mesh, self.element, self.basis, bilinear_mat, linear_vec,
+                *self.bndry_conds, self.A_shape, sol))
+        return bilinear_mat, linear_vec, D_vals, D_dofs
 
 
 def _diffusion_reaction(u, v, w):
