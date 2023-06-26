@@ -1,5 +1,9 @@
 import numpy as np
+from functools import partial
 from skfem import condense, solve
+
+from pyapprox.pde.autopde.time_integration import ImplicitRungeKutta
+
 
 def newton_solve(assemble, u_init,
                  maxiters=10, atol=1e-5, rtol=1e-5, verbosity=0,
@@ -53,3 +57,79 @@ class SteadyStatePDE():
         sol = newton_solve(
             self.physics.assemble, init_guess, **newton_kwargs)
         return sol
+
+
+class TransientFunction():
+    def __init__(self, fun, name="fun"):
+        self._fun = fun
+        self._name = name
+
+    def __call__(self, samples):
+        return self._eval(samples)
+
+    def _eval(self, samples):
+        if self._time is None:
+            raise ValueError("Must call set_time before calling eval")
+        return self._partial_fun(samples)
+
+    def set_time(self, time):
+        self._time = time
+        self._partial_fun = partial(self._fun, time=time)
+
+
+class TransientPDE():
+    def __init__(self, physics, deltat, tableau_name):
+        self.physics = physics
+        self._deltat = deltat
+        if tableau_name != "im_beuler1":
+            raise NotImplementedError(f"{tableau_name} not implemented")
+
+        self._newton_kwargs = None
+        self._mass_mat = None
+        self._D_dofs = None
+        self._D_vals = None
+
+    def _diag_runge_kutta_solution(
+            self, sol, time, deltat, rhs, stage_unknowns):
+        active_stage_time = time+deltat
+        active_stage_sol = stage_unknowns
+        srhs, jac = rhs(active_stage_sol, active_stage_time)
+        new_active_stage_unknowns = (sol+srhs*deltat)
+        return new_active_stage_unknowns, srhs, jac
+
+    def _diag_residual_fun(self, sol, deltat, time, rhs, stage_unknowns):
+        out = self._diag_runge_kutta_solution(
+            sol, time, deltat, rhs, stage_unknowns)
+        stage_jac = deltat*out[2]
+        jac = self._mass_mat-stage_jac
+        new_active_stage_unknowns = out[0]
+        residual = stage_unknowns-new_active_stage_unknowns
+        return residual, jac, self._D_vals, self._D_dofs
+
+    def _update(self, sol, time, deltat, init_guess):
+        stage_sol = newton_solve(
+            self._diag_residual_fun, init_guess, **self._newton_kwargs)
+        return stage_sol
+
+    def solve(self, init_sol, init_time, final_time, verbosity=0,
+              newton_kwargs={}):
+        self._newton_kwargs = newton_kwargs
+        self._mass_mat, self._D_vals, self._D_dofs = self.physics.mass_matrix()
+        sols, times = [], []
+        time = init_time
+        times.append(time)
+        sol = init_sol.copy()
+        while time < final_time-1e-12:
+            if verbosity >= 1:
+                print("Time", time)
+            deltat = min(self._deltat, final_time-time)
+            sol = self.update(
+                sol, time, deltat,
+                [sol.clone()]*self._butcher_tableau[0].shape[0])
+            sols.append(sol.detach())
+            time += deltat
+            times.append(time)
+        if verbosity >= 1:
+            print("Time", time)
+        sols = np.stack(sols, dim=1)
+        return sols, times

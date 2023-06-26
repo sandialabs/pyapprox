@@ -7,7 +7,8 @@ from pyapprox.pde.galerkin.util import (
     _get_mesh, _get_element)
 from pyapprox.pde.galerkin.physics import (
     _assemble_advection_diffusion_reaction, _assemble_stokes)
-from pyapprox.pde.galerkin.solvers import newton_solve, SteadyStatePDE
+from pyapprox.pde.galerkin.solvers import (
+    newton_solve, SteadyStatePDE, TransientPDE, TransientFunction)
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction, Stokes
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
@@ -382,6 +383,66 @@ class TestFiniteElements(unittest.TestCase):
 
         for test_case in test_cases[-1:]:
             self.check_stokes(*test_case)
+
+    def _check_transient_advection_diffusion_reaction(
+            self, domain_bounds, nrefine, order, sol_string,
+            diff_string, react_funs, bndry_types,
+            tableau_name, nl_diff_funs=[None, None]):
+        vel_strings = ["0"]*(len(domain_bounds)//2)
+        sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
+            setup_advection_diffusion_reaction_manufactured_solution(
+                sol_string, diff_string, vel_strings, react_funs[0], True))
+
+        diff_fun = partial(
+            _convert_manufactured_solution_to_skfem, diff_fun)
+        forc_fun = partial(
+            _convert_manufactured_solution_to_skfem, forc_fun)
+
+        forc_fun = TransientFunction(forc_fun, name='forcing')
+        sol_fun = TransientFunction(sol_fun, name='sol')
+        flux_funs = TransientFunction(flux_funs, name='flux')
+
+        mesh = _get_mesh(domain_bounds, nrefine)
+        element = _get_element(mesh, order)
+        basis = Basis(mesh, element)
+
+        bndry_conds = _get_advection_diffusion_reaction_bndry_conds(
+            mesh, bndry_types, domain_bounds, sol_fun, flux_funs)
+
+        physics = AdvectionDiffusionReaction(
+            mesh, element, basis, bndry_conds, diff_fun, forc_fun,
+            None, nl_diff_funs, react_funs)
+
+        deltat = 1  # 0.1
+        final_time = deltat*2  # 5
+        sol_fun.set_time(0)
+        init_sol = sol_fun(mesh.p)
+
+        solver = TransientPDE(physics, deltat, tableau_name)
+        sols, times = solver.solve(
+            init_sol, 0, final_time,
+            newton_kwargs={"atol": 1e-8, "rtol": 1e-8, "maxiters": 20})
+        for ii, time in enumerate(times):
+            sol_fun.set_time(time)
+            exact_sol_t = sol_fun(solver.physics.mesh.mesh_pts).numpy()
+            model_sol_t = sols[:, ii:ii+1].numpy()
+            # print(exact_sol_t)
+            # print(model_sol_t, 'm')
+            L2_error = np.sqrt(
+                solver.physics.mesh.integrate((exact_sol_t-model_sol_t)**2))
+            factor = np.sqrt(
+                solver.physics.mesh.integrate(exact_sol_t**2))
+            # print(time, L2_error, 1e-8*factor)
+            assert L2_error < 1e-8*factor
+
+    def test_transient_advection_diffusion_reaction(self):
+        test_cases = [
+            [[0, 1], 4, 2, "0.5*(x-3)*x", "1", [None, None],
+             ["D", "D"], "im_beuler1"],
+        ]
+
+        for test_case in test_cases:
+            self._check_transient_advection_diffusion_reaction(*test_case)
 
 
 if __name__ == "__main__":

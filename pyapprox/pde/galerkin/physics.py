@@ -321,6 +321,22 @@ class Physics(ABC):
             np.ndarray]:
         raise NotImplementedError()
 
+    def _transient_residual(self,
+                            sol: np.ndarray,
+                            time: float):
+        # correct equations for boundary conditions
+        self._set_time(time)
+        res, jac = self._raw_residual(sol)
+        if jac is None:
+            assert self._auto_jac
+        return res, jac
+
+    def _mass_matrix(self) -> Tuple[
+            np.ndarray,
+            spmatrix,
+            np.ndarray,
+            np.ndarray]:
+
 
 class AdvectionDiffusionReaction(Physics):
     def __init__(
