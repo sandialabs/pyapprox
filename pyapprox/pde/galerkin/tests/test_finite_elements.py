@@ -106,8 +106,16 @@ def _get_bndry_keys_indices_from_types(mesh, bndry_types):
             R_bndry_keys, R_indices)
 
 
-def _extract_bdnry_fun(key, idx, bndry_conds, x):
-    return bndry_conds[idx][0](x)[:, 0]
+class MSBoundaryConditionFunction():
+    # Boundary condtion wrapper for manufactured solutions (MS)
+    def __init__(self, idx, bndry_conds):
+        self._idx = idx
+        self._fun = bndry_conds[self._idx][0]
+        if isinstance(self._fun, TransientFunction):
+            self.set_time = self._fun.set_time
+
+    def __call__(self, xx):
+        return self._fun(xx)[:, 0]
 
 
 def _get_advection_diffusion_reaction_bndry_conds(
@@ -122,21 +130,19 @@ def _get_advection_diffusion_reaction_bndry_conds(
 
     D_bndry_conds = dict()
     for key, idx in zip(D_bndry_keys, D_indices):
-        D_bndry_conds[key] = [
-            partial(_extract_bdnry_fun, key, idx, bndry_conds)]
+        D_bndry_conds[key] = [MSBoundaryConditionFunction(idx, bndry_conds)]
         # lambda does not work due to wierd way python does shallow copying
         # D_bndry_conds[key] = [lambda x: bndry_conds[idx][0](x)[:, 0]]
 
     N_bndry_conds = dict()
     for key, idx in zip(N_bndry_keys, N_indices):
         assert bndry_conds[idx][2] == 0
-        N_bndry_conds[key] = [
-            partial(_extract_bdnry_fun, key, idx, bndry_conds)]
+        N_bndry_conds[key] = [MSBoundaryConditionFunction(idx, bndry_conds)]
 
     R_bndry_conds = dict()
     for key, idx in zip(R_bndry_keys, R_indices):
         R_bndry_conds[key] = [
-            partial(_extract_bdnry_fun, key, idx, bndry_conds),
+            MSBoundaryConditionFunction(idx, bndry_conds),
             bndry_conds[idx][2]]
     return D_bndry_conds, N_bndry_conds, R_bndry_conds
 
@@ -168,8 +174,21 @@ def _get_stokes_boundary_conditions(mesh, bndry_types, domain_bounds, vel_fun,
     return D_bndry_conds, N_bndry_conds, R_bndry_conds
 
 
-def _convert_manufactured_solution_to_skfem(fun, x):
-    return fun(x)[:, 0]
+class Function():
+    def __init__(self, fun, name="fun"):
+        self._fun = fun
+        self._name = name
+
+    def __call__(self, xx):
+        vals = self._fun(xx)
+        # if self._fun is not implemented correctly this will fail
+        # E.g. when manufactured solution, diff etc. string does not have x
+        # in it. If not dependent on x then must use 1e-16*x
+        assert xx.ndim == vals.ndim
+        return vals[:, 0]
+
+    def __repr__(self):
+        return "{0}()".format(self._name)
 
 
 class TestFiniteElements(unittest.TestCase):
@@ -199,10 +218,8 @@ class TestFiniteElements(unittest.TestCase):
                 sol_string, diff_string, vel_strings, react_funs[0], False,
                 nl_diff_funs[0]))
 
-        diff_fun = partial(
-            _convert_manufactured_solution_to_skfem, diff_fun)
-        forc_fun = partial(
-            _convert_manufactured_solution_to_skfem, forc_fun)
+        diff_fun = Function(diff_fun)
+        forc_fun = Function(forc_fun)
 
         mesh = _get_mesh(domain_bounds, nrefine)
         element = _get_element(mesh, order)
@@ -393,11 +410,7 @@ class TestFiniteElements(unittest.TestCase):
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_funs[0], True))
 
-        diff_fun = partial(
-            _convert_manufactured_solution_to_skfem, diff_fun)
-        forc_fun = partial(
-            _convert_manufactured_solution_to_skfem, forc_fun)
-
+        diff_fun = Function(diff_fun)
         forc_fun = TransientFunction(forc_fun, name='forcing')
         sol_fun = TransientFunction(sol_fun, name='sol')
         flux_funs = TransientFunction(flux_funs, name='flux')
@@ -416,7 +429,8 @@ class TestFiniteElements(unittest.TestCase):
         deltat = 1  # 0.1
         final_time = deltat*2  # 5
         sol_fun.set_time(0)
-        init_sol = sol_fun(mesh.p)
+        init_sol = basis.project(lambda x: sol_fun(x))
+        print(init_sol.shape)
 
         solver = TransientPDE(physics, deltat, tableau_name)
         sols, times = solver.solve(
@@ -437,7 +451,7 @@ class TestFiniteElements(unittest.TestCase):
 
     def test_transient_advection_diffusion_reaction(self):
         test_cases = [
-            [[0, 1], 4, 2, "0.5*(x-3)*x", "1", [None, None],
+            [[0, 1], 2, 1, "(1-x)*x", "4+x", [None, None],
              ["D", "D"], "im_beuler1"],
         ]
 

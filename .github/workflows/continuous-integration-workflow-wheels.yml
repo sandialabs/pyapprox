@@ -43,7 +43,7 @@ jobs:
     - name: Consolidate wheels
       run: |
         sudo test -d dist || mkdir -v dist
-        sudo find . -name \*.whl | grep -v /dist/ | xargs -n1 -i mv -v "{}" dist/
+        sudo find . -name pyapprox\*.whl | grep -v /dist/ | xargs -n1 -i mv -v "{}" dist/
     - name: Delete linux wheels
       run: |
         sudo rm -rfv dist/*-linux_x86_64.whl

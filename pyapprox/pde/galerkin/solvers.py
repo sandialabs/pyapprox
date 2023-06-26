@@ -70,11 +70,14 @@ class TransientFunction():
     def _eval(self, samples):
         if self._time is None:
             raise ValueError("Must call set_time before calling eval")
-        return self._partial_fun(samples)
+        return self._partial_fun(samples)[:, 0]
 
     def set_time(self, time):
         self._time = time
         self._partial_fun = partial(self._fun, time=time)
+
+    def __repr__(self):
+        return "{0}(time={1})".format(self._name, self._time)
 
 
 class TransientPDE():
@@ -104,7 +107,9 @@ class TransientPDE():
     def _rhs(self, sol, time):
         self._set_physics_time(time)
         bilinear_mat, linear_vec = self.physics.raw_assemble(sol)
-        return -bilinear_mat.dot(sol) + linear_vec
+        rhs = -bilinear_mat.dot(sol) + linear_vec
+        # print(rhs.shape, bilinear_mat.shape)
+        return rhs, -bilinear_mat
 
     def _diag_runge_kutta_solution(
             self, sol, time, deltat, stage_unknowns):
@@ -122,8 +127,9 @@ class TransientPDE():
         jac = self._mass_mat-stage_jac
         new_active_stage_unknowns = out[0]
         residual = stage_unknowns-new_active_stage_unknowns
-        bilinear_mat, linear_vec, D_vals, D_dofs = self.physics.assemble(
-            new_active_stage_unknowns)
+        jac, residual, D_vals, D_dofs = (
+            self.physics.apply_dirichlet_boundary_conditions(
+                new_active_stage_unknowns, jac, residual))
         return residual, jac, D_vals, D_dofs
 
     def _update(self, sol, time, deltat, init_guess):
