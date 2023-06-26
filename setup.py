@@ -48,7 +48,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     include_dirs=[np.get_include()],
-    setup_requires=['numpy >= 1.16.4', 'Cython', 'scipy >= 1.0.0'],
+    setup_requires=['numpy >= 1.16.4', 'Cython'],
     install_requires=[
         'numpy >= 1.16.4',
         'matplotlib',

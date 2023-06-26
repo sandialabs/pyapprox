@@ -20,9 +20,9 @@ from pyapprox.pde.galerkin.util import (
     _robin, _robin_prev_sol)
 
 
-def _enforce_scalar_boundary_conditions(
+def _enforce_dirichlet_scalar_boundary_conditions(
         mesh, element, basis, bilinear_mat, linear_vec,
-        D_bndry_conds, N_bndry_conds, R_bndry_conds, u_prev=None):
+        D_bndry_conds, N_bndry_conds, R_bndry_conds, u_prev):
     """
     u_prev is none indicates that newtons method is calling enforce boundaries
     In this case linear_vec represents the residual and so contributions
@@ -46,6 +46,12 @@ def _enforce_scalar_boundary_conditions(
     else:
         D_dofs = np.empty(0, dtype=int)
 
+    return D_vals, D_dofs
+
+
+def _enforce_scalar_robin_neumann_boundary_conditions(
+        mesh, element, bilinear_mat, linear_vec, N_bndry_conds, R_bndry_conds,
+        u_prev):
     N_bases = [
         FacetBasis(mesh, element, facets=mesh.boundaries[key])
         for key in N_bndry_conds.keys()]
@@ -70,7 +76,19 @@ def _enforce_scalar_boundary_conditions(
             b.project(fun)))
     # see https://fenicsproject.org/pub/tutorial/sphinx1/._ftut1005.html
     # for useful notes
+    return bilinear_mat, linear_vec
 
+
+def _enforce_scalar_boundary_conditions(
+        mesh, element, basis, bilinear_mat, linear_vec,
+        D_bndry_conds, N_bndry_conds, R_bndry_conds, u_prev=None):
+    bilinear_mat, linear_vec = (
+        _enforce_scalar_robin_neumann_boundary_conditions(
+            mesh, element, bilinear_mat, linear_vec, N_bndry_conds,
+            R_bndry_conds, u_prev))
+    D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
+        mesh, element, basis, bilinear_mat, linear_vec,
+        D_bndry_conds, N_bndry_conds, R_bndry_conds, u_prev)
     return bilinear_mat, linear_vec, D_vals, D_dofs
 
 
@@ -101,7 +119,7 @@ def _diffusion_residual(v, w):
 #     return dot(mul(C, grad(u)), grad(v))
 
 
-def _assemble_advection_diffusion_reaction(
+def _assemble_raw_advection_diffusion_reaction(
         diff_fun, forc_fun, nl_diff_funs, react_funs,
         bndry_conds, mesh, element, basis, u_prev=None):
 
@@ -156,7 +174,15 @@ def _assemble_advection_diffusion_reaction(
             LinearForm(_diffusion_residual),
             basis, forc=forc,  diff=diff, react=react,
             u_prev=u_prev_interp)
+    return bilinear_mat, linear_vec
 
+
+def _assemble_advection_diffusion_reaction(
+        diff_fun, forc_fun, nl_diff_funs, react_funs,
+        bndry_conds, mesh, element, basis, u_prev=None):
+    bilinear_mat, linear_vec = _assemble_raw_advection_diffusion_reaction(
+        diff_fun, forc_fun, nl_diff_funs, react_funs,
+        bndry_conds, mesh, element, basis, u_prev)
     bilinear_mat, linear_vec, D_vals, D_dofs = (
         _enforce_scalar_boundary_conditions(
             mesh, element, basis, bilinear_mat, linear_vec, *bndry_conds,
@@ -331,11 +357,9 @@ class Physics(ABC):
             assert self._auto_jac
         return res, jac
 
-    def _mass_matrix(self) -> Tuple[
-            np.ndarray,
-            spmatrix,
-            np.ndarray,
-            np.ndarray]:
+    def _mass_matrix(self) -> Tuple[spmatrix]:
+        mass_mat = asm(mass, self.basis)
+        return mass_mat
 
 
 class AdvectionDiffusionReaction(Physics):

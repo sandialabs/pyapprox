@@ -86,8 +86,6 @@ class TransientPDE():
 
         self._newton_kwargs = None
         self._mass_mat = None
-        self._D_dofs = None
-        self._D_vals = None
 
     def _diag_runge_kutta_solution(
             self, sol, time, deltat, rhs, stage_unknowns):
@@ -104,7 +102,9 @@ class TransientPDE():
         jac = self._mass_mat-stage_jac
         new_active_stage_unknowns = out[0]
         residual = stage_unknowns-new_active_stage_unknowns
-        return residual, jac, self._D_vals, self._D_dofs
+        bilinear_mat, linear_vec, D_vals, D_dofs = self.physics.assemble(
+            new_active_stage_unknowns)
+        return residual, jac, D_vals, D_dofs
 
     def _update(self, sol, time, deltat, init_guess):
         stage_sol = newton_solve(
@@ -114,7 +114,7 @@ class TransientPDE():
     def solve(self, init_sol, init_time, final_time, verbosity=0,
               newton_kwargs={}):
         self._newton_kwargs = newton_kwargs
-        self._mass_mat, self._D_vals, self._D_dofs = self.physics.mass_matrix()
+        self._mass_mat = self.physics.mass_matrix()
         sols, times = [], []
         time = init_time
         times.append(time)

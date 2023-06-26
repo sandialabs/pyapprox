@@ -40,7 +40,6 @@ jobs:
         build-requirements: 'cython'
         package-path: ''
         pip-wheel-args: ''
-        # When locally testing, --no-deps flag is necessary (PyUtilib dependency will trigger an error otherwise)
     - name: Consolidate wheels
       run: |
         sudo test -d dist || mkdir -v dist
@@ -76,8 +75,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install twine wheel setuptools
     - name: Build generic tarball
+      build-requirements: ['cython', 'numpy']
       run: |
-        python setup.py --without-cython sdist --format=gztar
+        python setup.py sdist --format=gztar
     - name: Upload artifact
       uses: actions/upload-artifact@v3
       with:
@@ -106,8 +106,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install twine wheel setuptools cython
     - name: Build OSX Python wheels
+      build-requirements: ['cython', 'numpy']
       run: |
-        python setup.py  --with-cython --with-distributable-extensions sdist --format=gztar bdist_wheel
+        python setup.py sdist --format=gztar bdist_wheel
     - name: Upload artifact
       uses: actions/upload-artifact@v3
       with:
@@ -139,9 +140,10 @@ jobs:
         Invoke-Expression "pip install setuptools twine wheel cython"
     - name: Build Windows Python wheels
       shell: pwsh
+      build-requirements: ['cython', 'numpy']
       run: |
         $env:PYTHONWARNINGS="ignore::UserWarning"
-        Invoke-Expression "python setup.py  --with-cython --with-distributable-extensions sdist --format=gztar bdist_wheel"
+        Invoke-Expression "python setup.py sdist --format=gztar bdist_wheel"
     - name: Upload artifact
       uses: actions/upload-artifact@v3
       with:
