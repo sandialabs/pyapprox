@@ -73,7 +73,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install twine wheel setuptools numpy cython
+        pip install twine wheel setuptools numpy scipy cython
     - name: Build generic tarball
       run: |
         python setup.py sdist --format=gztar
@@ -103,7 +103,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install twine wheel setuptools numpy cython
+        pip install twine wheel setuptools numpy scipy cython
     - name: Build OSX Python wheels
       run: |
         python setup.py sdist --format=gztar bdist_wheel
@@ -135,7 +135,7 @@ jobs:
       run: |
         $env:PYTHONWARNINGS="ignore::UserWarning"
         Invoke-Expression "python -m pip install --upgrade pip"
-        Invoke-Expression "pip install setuptools twine wheel numpy cython"
+        Invoke-Expression "pip install setuptools twine wheel numpy scipy cython"
     - name: Build Windows Python wheels
       shell: pwsh
       run: |
