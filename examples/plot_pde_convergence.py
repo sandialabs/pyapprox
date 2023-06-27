@@ -100,7 +100,7 @@ _ = plot_convergence_data(convergence_data)
 #%%
 #The left plots depicts the convergence of the estimated integral as :math:`n_1` is increased for varying values of :math:`n_1` and vice-versa for the right plot. These plots confirm that the Integrator converges as the expected linear rate. Until the error introduced by fixing the other configuration variables dominates.
 #
-#We can also generate similar plots for methods used to solve parameterized partial differential equations. I the following we will assess convergence of a spectral collocation method used to solve the transient advection diffusion equation on a rectangle.
+#We can also generate similar plots for methods used to solve parameterized partial differential equations. I the following we will assess convergence of a spectral collocation method used to solve the transient advection diffusion equation on a rectangle (see :func:`~pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark`).
 
 from pyapprox.benchmarks import setup_benchmark
 np.random.seed(1)
@@ -125,8 +125,28 @@ benchmark = setup_benchmark(
     "multi_index_advection_diffusion", kle_nvars=3, kle_length_scale=1,
     kle_stdev=log_kle_stdev,
     time_scenario=time_scenario, config_values=config_values,
-    vel_vec=[0.0, -0.0], source_loc=[0.5, 0.5], source_amp=1,
+    vel_vec=[0.2, -0.2], source_loc=[0.5, 0.5], source_amp=1,
     kle_mean_field=log_kle_mean_field)
+
+#%%
+#First plot the evolution of the PDE for a realization of the model inputs
+import torch
+from pyapprox.pde.autopde.mesh import generate_animation
+model = benchmark.fun.base_model._model_ensemble.functions[0]
+sample = torch.as_tensor(benchmark.variable.rvs(1)[:, 0])
+model._set_random_sample(sample)
+init_sol = model._get_init_sol(sample)
+sols, times = model._fwd_solver.solve(
+    init_sol, 0, model._final_time,
+    newton_kwargs=model._newton_kwargs, verbosity=0)
+ani = generate_animation(
+    model._fwd_solver.physics.mesh, sols, times,
+    filename=None, maxn_frames=100, duration=2)
+import matplotlib.animation as animation
+ani.save('ad-sol.gif', writer=animation.ImageMagickFileWriter())
+
+#%%
+#Now perform a convgernce study
 validation_levels = np.full(3, N)
 coarsest_levels = np.full(3, 0)
 finest_levels = np.full(3, N-4)

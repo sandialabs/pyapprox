@@ -347,7 +347,8 @@ class float_rv_discrete(rv_sample):
         vals = np.zeros(x.shape[0])
         for jj in range(x.shape[0]):
             for ii in range(self.xk.shape[0]):
-                if self.xk[ii] == x[jj]:
+                if np.allclose(
+                        self.xk[ii], x[jj], atol=np.finfo(float).eps*2):
                     vals[jj] = self.pk[ii]
                     break
         return vals

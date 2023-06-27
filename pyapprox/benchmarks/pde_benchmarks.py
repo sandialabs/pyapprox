@@ -252,21 +252,24 @@ class TransientAdvectionDiffusionReactionKLEModel(
         self._steady_state_fwd_solver = super()._set_forward_solver(
             mesh, bndry_conds, vel_fun, react_funs, forc_fun)
 
-    def _eval(self, sample, return_grad=False):
-        if return_grad:
-            raise ValueError("return_grad=True is not supported")
-        sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)
-        self._set_random_sample(sample_copy)
+    def _get_init_sol(self, sample):
         if self._init_sol is None:
             self._steady_state_fwd_solver.physics._diff_fun = partial(
                 self._fast_interpolate,
-                self._kle(sample_copy[:, None]))
+                self._kle(sample[:, None]))
             self._fwd_solver.physics._set_time(self._init_time)
             init_sol = self._steady_state_fwd_solver.solve(
                 **self._newton_kwargs)
         else:
             init_sol = self._init_sol
-            assert False
+        return init_sol
+
+    def _eval(self, sample, return_grad=False):
+        if return_grad:
+            raise ValueError("return_grad=True is not supported")
+        sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)
+        self._set_random_sample(sample_copy)
+        init_sol = self._get_init_sol(sample_copy)
         sols, times = self._fwd_solver.solve(
             init_sol, 0, self._final_time,
             newton_kwargs=self._newton_kwargs, verbosity=0)

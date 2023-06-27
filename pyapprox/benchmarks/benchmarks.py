@@ -774,7 +774,7 @@ def setup_multi_index_advection_diffusion_benchmark(
     If not time_scenario is provided. The QoI from the steady state solution is returned.
 
     This benchmark can be modified by
-    changing the default keyword arguments if necessary but is not recommended.
+    changing the default keyword arguments if necessary.
 
     Parameters
     ----------

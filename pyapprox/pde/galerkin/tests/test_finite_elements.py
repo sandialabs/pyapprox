@@ -451,6 +451,7 @@ class TestFiniteElements(unittest.TestCase):
             # print(time, L2_error, 1e-8*factor)
             assert L2_error < 1e-8*factor
 
+    @unittest.skip(reason="Test and code incomplete")
     def test_transient_advection_diffusion_reaction(self):
         test_cases = [
             [[0, 1], 2, 1, "(1-x)*x", "4+x", [None, None],

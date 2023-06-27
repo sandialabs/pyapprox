@@ -1131,7 +1131,7 @@ class MultiIndexModel():
             self._create_model_ensemble(setup_model, config_values))
 
     def _create_model_ensemble(self, setup_model, config_values):
-        config_var_trans = ConfigureVariableTransformation(config_values)
+        # config_var_trans = ConfigureVariableTransformation(config_values)
         config_samples = cartesian_product(config_values).astype(np.double)
         models = [None for ii in range(config_samples.shape[1])]
         multi_index_to_model_id_map = {}

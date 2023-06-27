@@ -8,8 +8,7 @@ requires = [
     "scipy>=1.0.0",
 ]
 
-#cython is needed for build to execute because some of Pyapprox cython extensions use
-#scipy cython functions
+#cython is needed for build to execute because some of Pyapprox cython extensions use scipy cython functions
 
 
 [project]

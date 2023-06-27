@@ -119,6 +119,7 @@ sphinx_gallery_conf = {
     # 'first_notebook_cell' : "%matplotlib inline",
     'within_subsection_order': ExamplesExplicitOrder,
     'ignore_pattern': r'__', # any files with __ in the filename are ignored
+    'matplotlib_animations': True,
 }
 # If want to specify user latex macrors to jupyter using sphinx-gallery go to
 # /miniconda3/envs/pyapprox-base/lib/python3.8/site-packages/sphinx_gallery/notebook.py
