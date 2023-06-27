@@ -1523,6 +1523,10 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
     def get_samples(self):
         return self.var_trans.map_from_canonical(self.samples)
 
+    def __repr__(self):
+        return "{0}(nvars={1})".format(
+            self.__class__.__name__, self.num_vars)
+
 
 def plot_adaptive_sparse_grid_3d(sparse_grid, plot_grid=True):
     fig = plt.figure(figsize=plt.figaspect(0.5))

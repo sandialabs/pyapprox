@@ -247,3 +247,11 @@ gp.plot_1d(101, [0, 1], plt_kwargs={"ls": ":", "label": "MF0", "c": "g"},
            ax=ax, model_eval_id=0)
 ax.legend()
 plt.show()
+
+
+#%%
+#References
+#^^^^^^^^^^
+#.. [LGIJUQ2014]	`L. Le Gratiet and J. Garnier Recursive co-kriging model for design of computer experiments with multiple levels of fidelity. International Journal for Uncertainty Quantification, 4(5), 365--386, 2014 <http://dx.doi.org/10.1615/Int.J.UncertaintyQuantification.2014006914>`_
+#		
+#.. [KOB2000] `M. C. Kennedy and A. O'Hagan. Predicting the Output from a Complex Computer Code When Fast Approximations Are Available. Biometrika, 87(1), 1-13, 2000. <http://www.jstor.org/stable/2673557>`_

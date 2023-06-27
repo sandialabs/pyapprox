@@ -233,6 +233,15 @@ def adaptive_approximate_sparse_grid(
                     max_level_1d[jj] = np.minimum(
                         unique_max_level_1d[ii], max_level_1d[jj])
 
+    if config_var_trans is not None:
+        for ii, cv in enumerate(config_var_trans.config_values):
+            if len(cv) <= max_level_1d[config_variables_idx+ii]:
+                msg = f"maxlevel_1d {max_level_1d} and "
+                msg += "config_var_trans.config_values with shapes {0}".format(
+                    [len(v) for v in config_var_trans.config_values])
+                msg += " are inconsistent."
+                raise ValueError(msg)
+
     assert len(max_level_1d) == nvars
     # todo change np.inf to argument that is passed into approximate
     admissibility_function = partial(

@@ -52,7 +52,6 @@ def fun(zz):
 max_level = 2
 fig, axs = plt.subplots(
     max_level+1, max_level+1, figsize=((max_level+1)*8, (max_level+1)*6))
-axs = axs
 ranges = variable.get_statistics("interval", 1.0).flatten()
 univariate_quad_rule_info = [
     clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth,
