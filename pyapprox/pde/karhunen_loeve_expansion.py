@@ -290,6 +290,9 @@ class MeshKLE(object):
 
         if np.isscalar(mean_field):
             mean_field = np.ones(self.mesh_coords.shape[1])*mean_field
+        if use_torch:
+            import torch
+            mean_field = torch.as_tensor(mean_field, dtype=torch.double)
         assert mean_field.shape[0] == self.mesh_coords.shape[1]
         self.mean_field = mean_field
         self.matern_nu = matern_nu
@@ -353,7 +356,6 @@ class MeshKLE(object):
             eig_vals = sym_eig_vals
         eig_vecs = adjust_sign_eig(eig_vecs)
         II = np.argsort(eig_vals)[::-1][:self.nterms]
-        print(eig_vals[II])
         assert np.all(eig_vals[II] > 0)
         self.sqrt_eig_vals = np.sqrt(eig_vals[II])
         self.eig_vecs = eig_vecs[:, II]
@@ -377,12 +379,12 @@ class MeshKLE(object):
                 return np.exp(self.mean_field[:, None]+self.eig_vecs.dot(coef))
             import torch
             return torch.exp(
-                torch.as_tensor(self.mean_field[:, None]) +
+                self.mean_field[:, None] +
                 torch.linalg.multi_dot((torch.as_tensor(self.eig_vecs), coef)))
         if not self.use_torch:
             return self.mean_field[:, None] + self.eig_vecs.dot(coef)
         import torch
-        return (torch.as_tensor(self.mean_field[:, None]) +
+        return (self.mean_field[:, None] +
                 torch.linalg.multi_dot((torch.as_tensor(self.eig_vecs), coef)))
 
 

@@ -1223,15 +1223,30 @@ def generate_animation(mesh, sols, times, filename=None, maxn_frames=100,
     fig, axs = plt.subplots(1, nsols, figsize=(nsols*8, 6))
     nframes = min(maxn_frames, len(times))
     stride = len(times)//nframes
+
+    if isinstance(mesh, VectorMesh):
+        raise NotImplementedError
+    plot_data = []
     for tt in range(0, len(times), stride):
-        if isinstance(mesh, VectorMesh):
-            sol = mesh.split_quantities(sols[:, tt])
-            im = mesh.plot(sol, axs=axs, **kwargs)
-            ims.append(im)
-        else:
-            sol = sols[:, tt]
-            im = mesh.plot(sol[:, None], ax=axs, **kwargs)
-            ims.append(im.collections)
+        sol = sols[:, tt]
+        plot_data.append(mesh._plot_data(sol, nplot_pts_1d=100))
+    Z_min = np.min(np.hstack([d[0] for d in plot_data]))
+    Z_max = np.max(np.hstack([d[0] for d in plot_data]))
+    levels = np.linspace(Z_min, Z_max, 101)
+    for tt in range(0, len(times), stride):
+        sol = sols[:, tt]
+        im = mesh.plot(sol[:, None], ax=axs, levels=levels, **kwargs)
+        ims.append(im.collections)
+
+    # for tt in range(0, len(times), stride):
+    #     if isinstance(mesh, VectorMesh):
+    #         sol = mesh.split_quantities(sols[:, tt])
+    #         im = mesh.plot(sol, axs=axs, **kwargs)
+    #         ims.append(im)
+    #     else:
+    #         sol = sols[:, tt]
+    #         im = mesh.plot(sol[:, None], ax=axs, **kwargs)
+    #         ims.append(im.collections)
 
     import matplotlib.animation as animation
     nframes = len(ims)

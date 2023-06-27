@@ -102,36 +102,44 @@ plot_convergence_data(convergence_data)
 #
 #We can also generate similar plots for methods used to solve parameterized partial differential equations. I the following we will assess convergence of a spectral collocation method used to solve the transient advection diffusion equation on a rectangle.
 
-
 from pyapprox.benchmarks import setup_benchmark
 np.random.seed(1)
-final_time = .1
+final_time = 0.5
 time_scenario = {
     "final_time": final_time,
-    "butcher_tableau": "im_beuler1",
-    # "butcher_tableau": "im_crank2",
+    # "butcher_tableau": "im_beuler1",
+    "butcher_tableau": "im_crank2",
     "deltat": final_time/100,  # will be overwritten
     "init_sol_fun": None,
     # "init_sol_fun": partial(full_fun_axis_1, 0),
-    "sink": [50, 0.1, [0.75, 0.75]]
+    "sink": None  # [50, 0.1, [0.75, 0.75]]
 }
 
-N = 4
+N = 8
 config_values = [2*np.arange(1, N+2)+5, 2*np.arange(1, N+2)+5,
-                 final_time/((2**np.arange(1, N+2)))]
+                 final_time/((2**np.arange(1, N+2)+40))]
+# values of kle stdev and mean before exponential is taken
+log_kle_mean_field = np.log(0.1)
+log_kle_stdev = 1
+print(log_kle_mean_field)
 benchmark = setup_benchmark(
     "multi_index_advection_diffusion", kle_nvars=3, kle_length_scale=1,
-    kle_stdev=1, time_scenario=time_scenario, config_values=config_values)
-validation_levels = [N, N, N]
-coarsest_levels = [0, 0, 0]
+    kle_stdev=log_kle_stdev,
+    time_scenario=time_scenario, config_values=config_values,
+    vel_vec=[0.0, -0.0], source_loc=[0.5, 0.5], source_amp=1,
+    kle_mean_field=log_kle_mean_field)
+validation_levels = np.full(3, N)
+coarsest_levels = np.full(3, 0)
+finest_levels = np.full(3, N-4)
 if final_time is None:
     validation_levels = validation_levels[:2]
     coarsest_levels = coarsest_levels[:2]
 convergence_data = run_convergence_study(
     benchmark.fun, benchmark.variable, validation_levels,
     benchmark.get_num_degrees_of_freedom, benchmark.config_var_trans,
-    num_samples=10, coarsest_levels=coarsest_levels)
-plot_convergence_data(convergence_data, cost_type="time")
+    num_samples=1, coarsest_levels=coarsest_levels,
+    finest_levels=finest_levels)
+plot_convergence_data(convergence_data, cost_type="ndof")
 plt.show()
 
 #%%

@@ -732,7 +732,9 @@ def setup_parameterized_nonlinear_model():
 def setup_multi_index_advection_diffusion_benchmark(
         kle_nvars=2, kle_length_scale=0.5, kle_stdev=1,
         max_eval_concurrency=1, time_scenario=None,
-        functional=None, config_values=None):
+        functional=None, config_values=None,
+        source_loc=[0.25, 0.75], source_scale=0.1,
+        source_amp=100.0, vel_vec=[1., 0.], kle_mean_field=0):
     r"""
     This benchmark is used to test methods for forward propagation of
     uncertainty. The forward simulation model is the transient
@@ -878,7 +880,10 @@ def setup_multi_index_advection_diffusion_benchmark(
     base_model, variable, config_var_trans, model_ensemble = (
         _setup_multi_index_advection_diffusion_benchmark(
             kle_length_scale, kle_stdev, kle_nvars, time_scenario=time_scenario,
-            functional=functional, config_values=config_values))
+            functional=functional, config_values=config_values,
+            source_loc=source_loc, source_scale=source_scale,
+            source_amp=source_amp, vel_vec=vel_vec,
+            kle_mean_field=kle_mean_field))
     timer_model = TimerModel(base_model, base_model)
     pool_model = PoolModel(
         timer_model, max_eval_concurrency, base_model=base_model)

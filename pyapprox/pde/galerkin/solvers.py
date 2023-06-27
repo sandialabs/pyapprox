@@ -1,8 +1,8 @@
 import numpy as np
 from functools import partial
-from skfem import condense, solve
+from skfem import condense, solve, asm, LinearForm
 
-from pyapprox.pde.autopde.time_integration import ImplicitRungeKutta
+from pyapprox.pde.galerkin.util import _forcing
 
 
 def newton_solve(assemble, u_init,
@@ -21,6 +21,10 @@ def newton_solve(assemble, u_init,
         # This is done by condense so mimic here
         # order of concatenation will be different to in jac and res
         # but this does not matter when computing norm
+        print(II.shape, res[II].shape, D_vals.shape, D_dofs)
+        if res.ndim != 1:
+            msg = "residual the wrong shape"
+            raise RuntimeError(msg)
         res_norm = np.linalg.norm(np.concatenate((res[II], D_vals[D_dofs])))
         if it == 0:
             init_res_norm = res_norm
@@ -111,26 +115,28 @@ class TransientPDE():
         # print(rhs.shape, bilinear_mat.shape)
         return rhs, -bilinear_mat
 
-    def _diag_runge_kutta_solution(
+    def _diag_runge_kutta_stage_solution(
             self, sol, time, deltat, stage_unknowns):
         active_stage_time = time+deltat
         active_stage_sol = stage_unknowns
         srhs, jac = self._rhs(active_stage_sol, active_stage_time)
-        new_active_stage_unknowns = (sol+srhs*deltat)
+        temp = asm(LinearForm(_forcing), self.physics.basis, forc=sol)
+        new_active_stage_unknowns = (temp+srhs*deltat)
+        print(new_active_stage_unknowns.shape, 's')
         return new_active_stage_unknowns, srhs, jac
 
     def _diag_residual_fun(self, stage_unknowns):
-        out = self._diag_runge_kutta_solution(
+        out = self._diag_runge_kutta_stage_solution(
             self._residual_sol, self._residual_time, self._residual_deltat,
             stage_unknowns)
         stage_jac = self._residual_deltat*out[2]
         jac = self._mass_mat-stage_jac
         new_active_stage_unknowns = out[0]
-        residual = stage_unknowns-new_active_stage_unknowns
+        residual = self._mass_mat.dot(stage_unknowns)-new_active_stage_unknowns
         jac, residual, D_vals, D_dofs = (
             self.physics.apply_dirichlet_boundary_conditions(
                 new_active_stage_unknowns, jac, residual))
-        return residual, jac, D_vals, D_dofs
+        return jac, residual, D_vals, D_dofs
 
     def _update(self, sol, time, deltat, init_guess):
         self._residual_sol = sol

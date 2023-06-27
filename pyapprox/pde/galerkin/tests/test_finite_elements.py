@@ -115,7 +115,10 @@ class MSBoundaryConditionFunction():
             self.set_time = self._fun.set_time
 
     def __call__(self, xx):
-        return self._fun(xx)[:, 0]
+        vals = self._fun(xx)
+        if isinstance(self._fun, TransientFunction):
+            return vals
+        return vals[:, 0]
 
 
 def _get_advection_diffusion_reaction_bndry_conds(
@@ -287,7 +290,6 @@ class TestFiniteElements(unittest.TestCase):
         #     mesh_pts[0], np.abs(sol_fun(mesh_pts)[:, 0]-fem_sol_on_mesh[II]), '--')
         # plt.show()
 
-
     def test_advection_diffusion_reaction(self):
         power = 1  # power of nonlinear diffusion
         test_cases = [
@@ -412,8 +414,8 @@ class TestFiniteElements(unittest.TestCase):
 
         diff_fun = Function(diff_fun)
         forc_fun = TransientFunction(forc_fun, name='forcing')
-        sol_fun = TransientFunction(sol_fun, name='sol')
         flux_funs = TransientFunction(flux_funs, name='flux')
+        sol_fun = TransientFunction(sol_fun, name='sol')
 
         mesh = _get_mesh(domain_bounds, nrefine)
         element = _get_element(mesh, order)
@@ -435,7 +437,7 @@ class TestFiniteElements(unittest.TestCase):
         solver = TransientPDE(physics, deltat, tableau_name)
         sols, times = solver.solve(
             init_sol, 0, final_time,
-            newton_kwargs={"atol": 1e-8, "rtol": 1e-8, "maxiters": 20})
+            newton_kwargs={"atol": 1e-8, "rtol": 1e-8, "maxiters": 2})
         for ii, time in enumerate(times):
             sol_fun.set_time(time)
             exact_sol_t = sol_fun(solver.physics.mesh.mesh_pts).numpy()
