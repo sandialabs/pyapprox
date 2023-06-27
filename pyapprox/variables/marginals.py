@@ -264,10 +264,12 @@ class float_rv_discrete(rv_sample):
 
     def __init__(self, a=0, b=np.inf, name=None, badvalue=None,
                  moment_tol=1e-8, values=None, inc=1, longname=None,
-                 shapes=None, extradoc=None, seed=None):
+                 shapes=None, seed=None, extradoc=None):
+        # extradoc must appear in __init__ above even though it is not
+        # used for backwards capability.
         super(float_rv_discrete, self).__init__(
             a, b, name, badvalue, moment_tol, values, inc, longname, shapes,
-            extradoc, seed)
+            seed=seed)
         self.xk = self.xk.astype(dtype=float)
 
     def __new__(cls, *args, **kwds):
@@ -342,7 +344,7 @@ class float_rv_discrete(rv_sample):
 
         return vals
 
-    def pdf(self, x):
+    def pmf(self, x):
         x = np.atleast_1d(x)
         vals = np.zeros(x.shape[0])
         for jj in range(x.shape[0]):
