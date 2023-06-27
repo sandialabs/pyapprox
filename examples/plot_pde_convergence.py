@@ -95,7 +95,7 @@ convergence_data = run_convergence_study(
     model.get_num_degrees_of_freedom, config_var_trans,
     num_samples=10, coarsest_levels=coarsest_levels,
     reference_model=true_value)
-plot_convergence_data(convergence_data)
+_ = plot_convergence_data(convergence_data)
 
 #%%
 #The left plots depicts the convergence of the estimated integral as :math:`n_1` is increased for varying values of :math:`n_1` and vice-versa for the right plot. These plots confirm that the Integrator converges as the expected linear rate. Until the error introduced by fixing the other configuration variables dominates.
@@ -121,7 +121,6 @@ config_values = [2*np.arange(1, N+2)+5, 2*np.arange(1, N+2)+5,
 # values of kle stdev and mean before exponential is taken
 log_kle_mean_field = np.log(0.1)
 log_kle_stdev = 1
-print(log_kle_mean_field)
 benchmark = setup_benchmark(
     "multi_index_advection_diffusion", kle_nvars=3, kle_length_scale=1,
     kle_stdev=log_kle_stdev,
@@ -139,8 +138,7 @@ convergence_data = run_convergence_study(
     benchmark.get_num_degrees_of_freedom, benchmark.config_var_trans,
     num_samples=1, coarsest_levels=coarsest_levels,
     finest_levels=finest_levels)
-plot_convergence_data(convergence_data, cost_type="ndof")
-plt.show()
+_ = plot_convergence_data(convergence_data, cost_type="ndof")
 
 #%%
 #Note when because the benchmark fun is run using multiprocessing.Pool

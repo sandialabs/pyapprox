@@ -82,6 +82,7 @@ class Benchmark(OptimizeResult):
     attributes for a specific benchmark
     """
 
+
 def setup_sobol_g_function(nvars):
     r"""
     Setup the Sobol-G function benchmark
@@ -742,7 +743,7 @@ def setup_multi_index_advection_diffusion_benchmark(
 
     .. math::
 
-       \frac{\partial u}{\partial t}(x,t,\rv) = \nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] -\nabla u(x,t,\rv)+g(x,t) &(x,t,\rv)\in D\times [0,1]\times\rvdom\\
+       \frac{\partial u}{\partial t}(x,t,\rv) = \nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] -\nabla \cdot (v u(x,t,\rv))+g(x,t) &(x,t,\rv)\in D\times [0,1]\times\rvdom\\
        \mathcal{B}(x,t,\rv)=0  &(x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
        u(x,t,\rv)=u_0(x,\rv) & (x,t,\rv)\in D\times\{t=0\}\times\rvdom
 
@@ -760,7 +761,7 @@ def setup_multi_index_advection_diffusion_benchmark(
     As with the :py:func:`pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark`
     we parameterize the uncertain diffusivity with a Karhunen Loeve Expansion (KLE)
 
-    .. math:: k(x, \rv)=\exp\left(\sum_{d=1}^D \sqrt{\lambda_d}\psi_d(x)\rv_d\right).
+    .. math:: k(x, \rv)=\exp\left(k_0+\sum_{d=1}^D \sqrt{\lambda_d}\psi_d(x)\rv_d\right).
 
     If no initial condition is provided by the user then the governing equations in :py:func:`pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark` is used to create an initial condition, where the forcing is set to be the first term of :math:`g` here. I.e. the steady state solution before the second term of :math:`g` is used to remove the concentration :math:`u` from the domain.
 
@@ -823,6 +824,21 @@ def setup_multi_index_advection_diffusion_benchmark(
         the values of the degrees that can be used to construct the
         collocation mesh in each physical direction. The third is an array of
         the timestep sizes that can be used to integrate the PDE in time.
+
+    source_loc : np.ndarray (2)
+        The center of the source
+
+    source_amp : float
+        The source strength :math:`s`
+
+    source_scale : float
+        The source width :math:`h`
+
+    vel_vec: iterable (2) default [1., 0.]
+        The spatially independent velocity field :math:`v`
+
+    kle_mean_field : float (default 0)
+        The spatially independent mean :math:`k_0` of the KLE field in log space
 
     Returns
     -------

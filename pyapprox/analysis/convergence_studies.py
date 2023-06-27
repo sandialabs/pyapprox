@@ -50,7 +50,6 @@ def run_convergence_study(model, variable, validation_levels,
         reference_values = reference_model(
             reference_samples[:-config_var_trans.num_vars(), :])
     reference_mean = reference_values[:, 0].mean()
-    print(reference_values, "R")
 
     if np.absolute(reference_mean) <= 1e-15:
         raise RuntimeError(
