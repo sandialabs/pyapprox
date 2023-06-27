@@ -389,7 +389,7 @@ class MFNets(object):
             del copy_opts["method"]
 
         res = minimize(
-            self.fit_objective, init_params, method=method, jac=True,
+            self.fit_objective, init_params.squeeze(), method=method, jac=True,
             options=copy_opts)
         self.set_parameters(res.x[:, None])
 
