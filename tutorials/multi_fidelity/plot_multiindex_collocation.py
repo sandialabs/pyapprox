@@ -5,6 +5,16 @@ Thsi tutorial introduces multi-level  [TJWGSIAMUQ2015]_ and multi-index collocat
 
 Models often utilize numerical discretizations to solve the equations governing the system dynamics. For example, finite-elements, spectral collocation, etc are often used to solve partial differential equations. :ref:`sphx_glr_auto_examples_plot_pde_convergence.py` demonstrates how the numerical discretization, specifically the spatial mesh discretization and time-step, of a spectral collocation model of transient advection diffusion effects the accuracy of the model output.
 
+.. list-table::
+
+   * - .. _multilevel_hierarchy:
+
+       .. figure:: ../../figures/multilevel-hierarchy.png
+          :width: 50%
+          :align: center
+
+          A multi-level hierarchy formed by increasing mesh discretizations.
+
 Multi-level Collocation
 ^^^^^^^^^^^^^^^^^^^^^^^
 Multilevel collocation was introduced to reduce the cost of building surrogates of models when a one-dimensional hierarchy of numerical discretizations of a model  :math:`f_\alpha(\rv), \alpha=0,1,\ldots` are available such that
@@ -176,6 +186,16 @@ plt.show()
 #Multi-index collocation
 #^^^^^^^^^^^^^^^^^^^^^^^
 #Multi-index collocation is an extension of mulit-level collocation that can be used with models that have multiple parameters controlling the numerical discretization, for example, the spatial and temporal resoutions of a finite element solver. While this tutorial does not demonstrate multi-index collocation it is supported by PyApprox.
+#
+#.. list-table::
+#
+#   * - .. _multilevel_hierarchy:
+#
+#       .. figure:: ../../figures/multiindex-hierarchy.png
+#          :width: 50%
+#          :align: center
+#
+#          A multi-index hierarchy formed by increasing mesh discretizations in two different spatial directions.
 
 
 #%%
