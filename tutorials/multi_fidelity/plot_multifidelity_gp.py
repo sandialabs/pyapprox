@@ -1,44 +1,113 @@
 r"""
 Multifidelity Gaussian processes
 ================================
-This tutorial describes how to implement and deploy multi-level Gaussian processes built using the output of a high-fidelity model and evaluations of a set of lower-fidelity models of lower accuracy and cost [KOB2000]_.
+This tutorial describes how to implement and deploy multi-level Gaussian processes built using the output of a high-fidelity model and evaluations of a set of lower-fidelity models of lower accuracy and cost [KOB2000]_. This tutorial assumes understanding of the concepts in :ref:`sphx_glr_auto_tutorials_surrogates_plot_gaussian_processes.py`
 
-Multilevel GPs assume that all the available models :math:`\{f_k\}_{k=0}^K` can be ordered into a hierarchy of increasing cost and accuracy, where :math:`k=0` denotes the lowest fidelity model and :math:`k=K` denotes the hightest-fidelity model.
-We model the output :math:`y_m` from the $m$-th level code as :math:`y_m = f_m(x)`
+Multilevel GPs assume that all the available models :math:`\{f_k\}_{k=1}^K` can be ordered into a hierarchy of increasing cost and accuracy, where :math:`k=1` denotes the lowest fidelity model and :math:`k=K` denotes the hightest-fidelity model.
+We model the output :math:`y_m` from the :math:`m`-th level code as :math:`y_m = f_m(\rv)`
 and assume the models satisfy the  hierarchical relationship
 
-.. math:: f_m(x)=\rho_{m-1}f_{m-1}(x)+\delta_m(x), \quad m=2,\ldots,M.
+.. math:: f_m(\rv)=\rho_{m-1}f_{m-1}(\rv)+\delta_m(\rv), \quad m=2,\ldots,M.
 
-We assume that the prior distributions on :math:`\delta_m` are independent.
+with :math:`f_1(\rv)=\delta_1(\rv)`. We assume that the prior distributions on :math:`\delta_m(\cdot)\sim\mathcal{N}(0, C_m(\cdot,\cdot))` are independent.
 
+Just like traditional GPs the posterior mean and variance of the multi-fidelity GP are given by
+
+.. math::  m^\star(\rv)=t(\rv)^\top C(\mathcal{Z}, \mathcal{Z})^{-1}y \quad\quad C^\star(\rv,\rv^\prime)=C(\rv,\rv^\prime)-t(\rv)^\top C(\mathcal{Z}, \mathcal{Z})^{-1}t(\rv^\prime),
+
+where :math:`C(\mathcal{Z}, \mathcal{Z})` is the prior covariance evaluated at the training data :math:`\mathcal{Z}`.
+
+The difference comes from the definitions of the prior covariance :math:`C` and the vector :math:`t(\rv)`.
+
+Two models
+^^^^^^^^^^
+Given data :math:`\mathcal{Z}=[\mathcal{Z}_1, \mathcal{Z}_2]` from two models of differing fidelity, the data covariance of the multi-fidelity GP consisting of two models can be expressed in block form
+
+.. math::
+    C(\mathcal{Z},\mathcal{Z})=\begin{bmatrix}
+    \covar{f_1(\mathcal{Z}_1)}{f_1(\mathcal{Z}_1)} & \covar{f_1(\mathcal{Z}_1)}{f_2(\mathcal{Z}_2)}\\
+   \covar{f_2(\mathcal{Z}_2)}{f_1(\mathcal{Z}_1)} & \covar{f_2(\mathcal{Z}_2)}{f_2(\mathcal{Z}_2)}
+    \end{bmatrix}
+
+The upper-diagonal block is given by
+
+.. math::
+    \begin{align*}
+    \covar{f_1(\mathcal{Z}_1)}{f_1(\mathcal{Z}_1)} = \covar{\delta_1(\mathcal{Z}_1)}{\delta_1(\mathcal{Z}_1)} = C_1(\mathcal{Z}_1, \mathcal{Z}_1)
+    \end{align*}
+
+The lower-diagonal block is given by
+
+.. math::
+    \begin{align*}
+    \covar{f_2(\mathcal{Z}_2)}{f_2(\mathcal{Z}_2)} &= \covar{\rho_1f_1(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)}{\rho_1f_1(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)}
+ \\ &= \covar{\rho_1\delta_2(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)}{\rho_1\delta_1(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)} \\ &= \covar{\rho_1\delta_2(\mathcal{Z}_1)}{\rho_1\delta_1(\mathcal{Z}_2)}+\covar{\delta_2(\mathcal{Z}_2)}{\delta_2(\mathcal{Z}_2)}\\ &= \rho_1^2C_1(\mathcal{Z}_2, \mathcal{Z}_2) + C_2(\mathcal{Z}_2, \mathcal{Z}_2)
+    \end{align*}
+
+Where on the second last line we used that :math:`\delta_1` and :math:`\delta_2` are independent.
+
+The upper-right block is given by
+
+.. math::
+    \begin{align*}
+    \covar{f_1(\mathcal{Z}_1)}{f_2(\mathcal{Z}_2)} &= \covar{\delta_1(\mathcal{Z}_1)}{\rho_1\delta_1(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)} \\ &= \covar{\delta_1(\mathcal{Z}_1)}{\rho_1\delta_1(\mathcal{Z}_2)} = \rho_1 C_1(\mathcal{Z}_1, \mathcal{Z}_2)
+    \end{align*}
+
+and :math:`\covar{f_2(\mathcal{Z}_2)}{f_1(\mathcal{Z}_1)}=\covar{f_1(\mathcal{Z}_2)}{f_2(\mathcal{Z}_2)}^\top.`
+
+
+Combining yields
+
+.. math::
+    C(\mathcal{Z},\mathcal{Z})=\begin{bmatrix}
+    C_1(\mathcal{Z}_1, \mathcal{Z}_1) & \rho_1 C_1(\mathcal{Z}_1, \mathcal{Z}_2)\\
+    \rho_1C_1(\mathcal{Z}_2, \mathcal{Z}_1) & \rho_1^2C_1(\mathcal{Z}_2, \mathcal{Z}_2) + C_2(\mathcal{Z}_2, \mathcal{Z}_2)
+    \end{bmatrix}
+
+In this tutorial we assume :math:`\rho_m` are scalars. However PyApprox supports polynomial versions :math:`\rho_m(\rv)`. The above formulas must be slightly modified in this case.
+
+Similary we have
+
+.. math::
+    t_m(\rv;\mathcal{Z})^\top=\left[\covar{f_m(\rv)}{f_m(\mathcal{Z}_1)}, \covar{f_m(\rv)}{f_m(\mathcal{Z}_2)}\right]
+
+where
+
+.. math::
+   t_1(\rv;\mathcal{Z})^\top=\left[C_1(\rv, \mathcal{Z}_1), \rho_1C_1(\rv, \mathcal{Z}_2)\right]^\top
+
+.. math::
+   t_2(\rv;\mathcal{Z})^\top=\left[\rho_1 C_1(\rv, \mathcal{Z}_1), \rho_1^2C_1(\rv, \mathcal{Z}_2) + C_2(\rv, \mathcal{Z}_2)\right]
+
+
+M models
+^^^^^^^^
 The diagonal covariance blocks of the prior covariance :math:`C` for :math:`m>1` satisfy
 
-.. math:: C_{m,m}=C_m(X_m,X_m)+\rho_{m-1}^2C_{m-1}(X_m,X_m)+\cdots+\prod_{i=1}^{m-1}\rho_i^2C_1(X_m,X_m).
+.. math:: C_m(\mathcal{Z}_m,\mathcal{Z}_m)+\rho_{m-1}^2C_{m-1}(\mathcal{Z}_m,\mathcal{Z}_m)+\cdots+\prod_{i=1}^{m-1}\rho_i^2C_1(\mathcal{Z}_m,\mathcal{Z}_m).
 
 The off-diagonal covariance blocks for :math:`m<n` satisfy
 
 .. math::
-    \begin{align*}C_{m,n}=&\prod_{i=m}^{n-1}\rho_iC_m(X_m,X_n)+\rho_{m-1}\prod_{i=m-1}^{n-1}\rho_i\,C_{m-1}(X_m,X_n)+\\ &\prod_{j=m-2}^{m-1}\rho_{j}\,\prod_{i=m-2}^{n-1}\rho_i\,C_{m-2}(X_m,X_n)+\cdots+ \prod_{j=2}^{m-1}\rho_{j}\,\prod_{i=2}^{n-1}\rho_i\,C_{2}(X_m,X_n)+\\ &\prod_{j=1}^{m-1}\rho_{j}\,\prod_{i=1}^{n-1}\rho_i\,C_{1}(X_m,X_n)\end{align*}
-
-.. math:: t_m(x;X_m)=\rho_{m-1}t'_{m-1}(x;X_m\cup X_{m-1})+\prod_{i=m}^{M}\rho_i\, C_m(x,X_m),
-
-where :math:`t_1(x)=\prod_{i=1}^{M}\rho_i\, C_1(x,X_1)` and   :math:`t'_{m-1}(x)` is used to denote the subset of elements from :math:`t_{m-1}(x)` corresponding to the elements of :math:`X_{m-1}` that are also in :math:`X_m`. If no points are shared then
-
-.. math:: t_m(x)=\prod_{i=m}^{M}\rho_i\, C_m(x,X_m)
-
-Given data  from each model :math:`y=[y_1, \ldots, y_K ]`, where :math:`y_k=[y_k^{(1)},\ldots,y_k^{(N_k)}]^\top`, the mean of the posterior is
-
-.. math:: m_\mathrm{post}=t(x)^TC^{-1}y
+    \begin{align*}C_{m,n}(\mathcal{Z}_m,\mathcal{Z}_n)=&\prod_{i=m}^{n-1}\rho_iC_m(\mathcal{Z}_m,\mathcal{Z}_n)+\rho_{m-1}\prod_{i=m-1}^{n-1}\rho_i\,C_{m-1}(\mathcal{Z}_m,\mathcal{Z}_n)+\\ &\prod_{j=m-2}^{m-1}\rho_{j}\,\prod_{i=m-2}^{n-1}\rho_i\,C_{m-2}(\mathcal{Z}_m,\mathcal{Z}_n)+\cdots+ \prod_{j=2}^{m-1}\rho_{j}\,\prod_{i=2}^{n-1}\rho_i\,C_{2}(\mathcal{Z}_m,\mathcal{Z}_n)+\\ &\prod_{j=1}^{m-1}\rho_{j}\,\prod_{i=1}^{n-1}\rho_i\,C_{1}(\mathcal{Z}_m,\mathcal{Z}_n)
+    \end{align*}
 
 
-The covariance of the posterior is
+For example, the covariance matrix for :math:`M=3` models is
 
-.. math:: 
-    \begin{align}C_\mathrm{post}(x,x')&=C_M(x,x')+\rho_{M-1}^2C_{M-1}(x,x')+\rho_{M-1}^2\rho_{M-2}^2C_{M-2}(x,x')+\cdots+\\&\prod_{i=1}^{M-1}\rho_{i}^2\,C_{1}(x,x')-t(x)^TC^{-1}t(x)\end{align}
+.. math::
+    C=\begin{bmatrix}
+    C_1(\mathcal{Z}_1,\mathcal{Z}_1) & \rho_1C_1(\mathcal{Z}_1,\mathcal{Z}_2) & \rho_1\rho_2C_1(\mathcal{Z}_1,\mathcal{Z}_3)\\
+    \rho_1C_1(\mathcal{Z}_2,\mathcal{Z}_1) & \rho_1^2C_1(\mathcal{Z}_2,\mathcal{Z}_2)+C_2(\mathcal{Z}_2,\mathcal{Z}_2) & \rho_1^2\rho_2C_1(\mathcal{Z}_2,\mathcal{Z}_3) + \rho_2C_2(\mathcal{Z}_2,\mathcal{Z}_3) \\
+    \rho_1\rho_2C_1(\mathcal{Z}_3,\mathcal{Z}_1) & \rho_1^2\rho_2C_1(\mathcal{Z}_3,\mathcal{Z}_2)+\rho_2C_2(\mathcal{Z}_3,\mathcal{Z}_2) & \rho_1^2\rho_2^2C_1(\mathcal{Z}_3,\mathcal{Z}_3)+\rho_2^2C_2(\mathcal{Z}_3,\mathcal{Z}_3)+C_3(\mathcal{Z}_3,\mathcal{Z}_3)
+    \end{bmatrix}
 
-Some approaches train the GPs of each sequentially, that is train a GP of the lowest-fidelity model. The lowest-fidelity GP is then fixed and data from the next lowest fidelity model is then used to train the GP associated with that data, and so on. However this approach typically produces less accurate approximations (GP means) and does not provide a way to estimate the correct posterior uncertainty of the multilevel GP.
+and :math:`t_m` is the mth row of :math:`C` that replaces the first argument of each covariance kernel with :math:`\rv`, for example
+
+.. math:: t_3(\rv)^\top = \left[\rho_1\rho_2C_1(\rv,\mathcal{Z}_1), \rho_1^2\rho_2C_1(\rv,\mathcal{Z}_2)+\rho_2C_2(\rv,\mathcal{Z}_2), \rho_1^2\rho_2^2C_1(\rv,\mathcal{Z}_3)+\rho_2^2C_2(\rv,\mathcal{Z}_3)+C_3(\rv,\mathcal{Z}_3)\right]
+
+Now lets plot the structure of the multi-fidelity covariance matrix when using two models and scalar scaling :math:`\rho`. The blocks correspond to the four blocks of the two model data covariance matrix.
 """
-
 from scipy import stats
 import numpy as np
 import matplotlib.pyplot as plt
@@ -49,27 +118,6 @@ from pyapprox.surrogates.gaussianprocess.multilevel import (
 from pyapprox.surrogates.gaussianprocess.kernels import (
     RBF, MultifidelityPeerKernel, MonomialScaling)
 from pyapprox.surrogates.integrate import integrate
-
-
-def scale(x, rho, kk):
-    if degree == 0:
-        return rho[kk]
-    if x.shape[0] == 1:
-        return rho[2*kk] + x.T*rho[2*kk+1]
-    return rho[3*kk] + x[:1].T*rho[3*kk+1]+x[1:2].T*rho[3*kk+2]
-
-
-def f0(x):
-    # y = x.sum(axis=0)[:, None]
-    y = x[0:1].T
-    return ((y*3-1)**2+1)*np.sin((y*10-2))/5
-
-
-def f1(x):
-    # y = x.sum(axis=0)[:, None]
-    y = x[0:1].T
-    return scale(x, rho, 0)*f0(x)+((y-0.5))/2
-
 
 np.random.seed(1)
 nvars = 1
@@ -105,8 +153,10 @@ Kmat = kernel(np.hstack(train_samples).T)
 im = ax.imshow(Kmat)
 plt.colorbar(im, ax=ax)
 
+#%%
+#Now lets plot the structure of the multi-fidelity covariance matrix when using two models a linear polynomial scaling :math:`\rho(x)=a+bx`. In comparison to a scalar scaling the correlation between the low and high-fidelity models changes as a function of the input :math:`\rv`.
 ax = plt.subplots(1, 1, figsize=(1*8, 6))[1]
-rho_2 = [0., 1.0]
+rho_2 = [0., 1.0]  # [a, b]
 kernel_scalings_2 = [
     MonomialScaling(nvars, 1) for nn in range(nmodels-1)]
 kernel_2 = MultifidelityPeerKernel(
@@ -119,6 +169,30 @@ Kmat2 = kernel_2(np.hstack(train_samples).T)
 im = ax.imshow(Kmat2)
 
 
+#%%
+#Now lets define two functions with multilevel structure
+def scale(x, rho, kk):
+    if degree == 0:
+        return rho[kk]
+    if x.shape[0] == 1:
+        return rho[2*kk] + x.T*rho[2*kk+1]
+    return rho[3*kk] + x[:1].T*rho[3*kk+1]+x[1:2].T*rho[3*kk+2]
+
+
+def f0(x):
+    # y = x.sum(axis=0)[:, None]
+    y = x[0:1].T
+    return ((y*3-1)**2+1)*np.sin((y*10-2))/5
+
+
+def f1(x):
+    # y = x.sum(axis=0)[:, None]
+    y = x[0:1].T
+    return scale(x, rho, 0)*f0(x)+((y-0.5))/2
+
+
+#%%
+#Now build a GP with 8 samples from the low-fidelity model and four samples from the high-fidelity model
 nsamples_per_model = [8, 4]
 train_samples = [
     np.sort(integrate("quasimontecarlo", variable,
@@ -139,14 +213,16 @@ ax.plot(train_samples[1][0], train_values[1], 'rs')
 xx = np.linspace(0, 1, 101)[None, :]
 ax.plot(xx[0], models[0](xx), 'k-', label=r"$f_0$")
 ax.plot(xx[0], models[1](xx), 'r-', label=r"$f_1$")
-gp.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF1", "c": "b"},
+gp.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF2", "c": "b"},
            ax=ax, fill_kwargs={"color": "b", "alpha": 0.3})
-gp.plot_1d(101, [0, 1], plt_kwargs={"ls": ":", "label": "MF0", "c": "g"},
+gp.plot_1d(101, [0, 1], plt_kwargs={"ls": ":", "label": "MF1", "c": "g"},
            ax=ax, model_eval_id=0)
-print(gp.kernel_)
 ax.legend()
-# plt.show()
 
+#%%
+#The low-fidelity model is very well approximated and the high-fidelity is very good even away from the high-fidelity training data. The low-fidelity data is being used to extrapolate.
+#
+#Now lets compare the multi-fidelity GP to a single fidelity GP built using only the high-fidelity data
 sf_kernel = 1.0*RBF(length_scale[0], (1e-3, 1))
 sf_gp = GaussianProcess(sf_kernel)
 sf_gp.fit(train_samples[1], train_values[1])
@@ -156,44 +232,83 @@ ax.plot(xx[0], models[1](xx), 'r-', label=r"$f_1$")
 ax.plot(train_samples[1][0], train_values[1], 'rs')
 sf_gp.plot_1d(101, [0, 1], plt_kwargs={"label": "SF", "c": "gray"}, ax=ax,
               fill_kwargs={"color": "gray", "alpha": 0.3})
-gp.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF1", "c": "b"},
+gp.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF2", "c": "b"},
            ax=ax, fill_kwargs={"color": "b", "alpha": 0.3})
-gp.plot_1d(101, [0, 1], plt_kwargs={"ls": ":", "label": "MF0", "c": "g"},
+gp.plot_1d(101, [0, 1], plt_kwargs={"ls": ":", "label": "MF1", "c": "g"},
            ax=ax, model_eval_id=0)
-ax.legend()
-# plt.show()
+_ = ax.legend()
 
+#%%
+#The single fidelity approximation of the high-fidelity model is much worse than the multi-fidelity approximation.
 
-axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
+#%%
+#Experimental design
+#^^^^^^^^^^^^^^^^^^^
+#As with single fidelity GPs the location of the training data significantly impacts the accuracy of a multi-fidelity GP. The remainder of this tutorial discusses xtensions of the experimental design methods used for single-fidelity GPs in :ref:`sphx_glr_auto_tutorials_surrogates_plot_gaussian_processes.py`.
+#
+#The following code demonstrates the additional complexity faced when desigining  experimental designs for multi-fidelity GPs, specifically one must not only choose what input to sample but also what model to sample.
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 kernel = MultifidelityPeerKernel(
     nvars, kernels, kernel_scalings, length_scale=length_scale,
     length_scale_bounds="fixed", rho=rho,
     rho_bounds="fixed", sigma=sigma,
     sigma_bounds="fixed")
+
+# build GP using only one low-fidelity data point. The values of the function
+# do not matter as we are just going to plot the pointwise variance of the GP.
 gp_2 = MultifidelityGaussianProcess(kernel)
 gp_2.set_data([np.full((nvars, 1), 0.5), np.empty((nvars, 0))],
               [np.zeros((1, 1)), np.empty((0, 1))])
 gp_2.fit()
-gp_2.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF1", "c": "gray"},
-             ax=axs[0], fill_kwargs={"color": "g", "alpha": 0.3})
+
+# plot the variance of the multi-fidelity GP approximation of the
+# high-fidelity model
+gp_2.plot_1d(101, [0, 1],
+             plt_kwargs={"ls": "--", "label": "1 LF data", "c": "gray"},
+             ax=ax, fill_kwargs={"color": "g", "alpha": 0.3})
+ax.plot(0.5, 0, 'rs', ms=15)
+
+# build GP using only one high-fidelity data point
 gp_2.set_data([np.empty((nvars, 0)), np.full((nvars, 1), 0.5)],
               [np.empty((0, 1)), np.zeros((1, 1))])
-axs[0].plot(0.5, 0, 'o')
 gp_2.fit()
-gp_2.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF1", "c": "b"},
-             ax=axs[0], fill_kwargs={"color": "b", "alpha": 0.3})
-axs[1].plot(0.5, 0, 'ko')
+gp_2.plot_1d(101, [0, 1],
+             plt_kwargs={"ls": "--", "label": "1 HF data", "c": "b"},
+             ax=ax, fill_kwargs={"color": "b", "alpha": 0.3})
+ax.plot(0.5, 0, 'ko')
+_ = ax.legend()
 
-gp_2.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF1", "c": "b"},
-             ax=axs[1], fill_kwargs={"color": "b", "alpha": 0.3})
+#%%
+#As expected the high-fidelity data point reduces the high-fidelity GP variance the most.
+#
+#The following shows that two low-fidelity points may produce smaller variance than a single high-fidelity point.
+
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+
+# plot one point high-fidelity GP against two low-fidelity points
+gp_2.plot_1d(101, [0, 1],
+             plt_kwargs={"ls": "--", "label": "1 HF data", "c": "b"},
+             ax=ax, fill_kwargs={"color": "b", "alpha": 0.3})
+ax.plot(0.5, 0, 'ko')
+
+# build GP using twp low-fidelity data points.
 gp_2.set_data([np.array([[0.3, 0.7]]), np.empty((nvars, 0))],
               [np.zeros((2, 1)), np.empty((0, 1))])
 gp_2.fit()
-gp_2.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF1", "c": "gray"},
-             ax=axs[1], fill_kwargs={"color": "g", "alpha": 0.3})
+gp_2.plot_1d(101, [0, 1],
+             plt_kwargs={"ls": "--", "label": "2 LF data", "c": "gray"},
+             ax=ax, fill_kwargs={"color": "g", "alpha": 0.3})
+ax.plot([0.3, 0.7], [0, 0], 'rs', ms=15)
+_ = ax.legend()
 
-plt.show()
-
+#%%
+#Analagous to single-fidelity GPs we will now use integrated variance to produce good experimental designs. Two model, multi-fidelity, integrated variance designs, as they are often called, find a set of samples :math:`\mathcal{Z}\subset\Omega\subset\rvdom` from a set of candidate samples :math:`\Omega=\Omega_1\cup\Omega_2` by greedily selecting a new point :math:`\rv^{(n+1)}` to add to an existing set :math:`\mathcal{Z}_n` according to 
+#
+#.. math:: \rv^{(n+1)} = \argmin_{\mathcal{Z}_n\cup \rv \subset\Omega\subset\rvdom} W(z) \int_{\rvdom} C^\star(\rv, \rv\mid \mathcal{Z})\pdf(\rv)d\rv.
+#
+#Here :math:`\Omega_m` denotes the candidate samples for the mth model, :math:`W(\rv)` is the cost of evaluating the candidate which is typically constant for all inputs for a given model, but different between models.
+#
+#Now generate a sample set
 nquad_samples = 1000
 model_costs = np.array([1, 3])
 ncandidate_samples_per_model = 101
@@ -208,6 +323,9 @@ sampler.set_kernel(kernel, *integrate_args, **integrate_kwargs)
 
 nsamples = 10
 samples = sampler(nsamples)[0]
+
+#%%
+#Now fit a GP with the selected samples
 train_samples = np.split(
     samples, np.cumsum(sampler.nsamples_per_model).astype(int)[:-1],
     axis=1)
@@ -220,7 +338,8 @@ train_values = [f(x) for f, x in zip(models, train_samples)]
 gp.set_data(train_samples, train_values)
 gp.fit()
 
-# Note samples depend on hyperparameter values
+#%%
+#Now build a single-fidelity GP using IVAR.
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     GreedyIntegratedVarianceSampler)
 sf_sampler = GreedyIntegratedVarianceSampler(
@@ -234,20 +353,30 @@ sf_train_samples = sf_sampler(nsf_train_samples)[0]
 sf_kernel = 1.0*RBF(length_scale[0], (1e-3, 1))
 sf_gp = GaussianProcess(sf_kernel)
 sf_train_values = models[1](sf_train_samples)
-sf_gp.fit(sf_train_samples, sf_train_values)
+_ = sf_gp.fit(sf_train_samples, sf_train_values)
 
+#%%
+#Compare the multi- and single-fidelity GPs.
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 ax.plot(xx[0], models[1](xx), 'r-', label=r"$f_1$")
 ax.plot(train_samples[1][0], train_values[1], 'rs')
 sf_gp.plot_1d(101, [0, 1], plt_kwargs={"label": "SF", "c": "gray"}, ax=ax,
               fill_kwargs={"color": "gray", "alpha": 0.3})
-gp.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF1", "c": "b"},
+gp.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF2", "c": "b"},
            ax=ax, fill_kwargs={"color": "b", "alpha": 0.3})
-gp.plot_1d(101, [0, 1], plt_kwargs={"ls": ":", "label": "MF0", "c": "g"},
+gp.plot_1d(101, [0, 1], plt_kwargs={"ls": ":", "label": "MF1", "c": "g"},
            ax=ax, model_eval_id=0)
-ax.legend()
-plt.show()
+_ = ax.legend()
 
+#%%
+#The multi-fidelity GP is again clearly superior.
+#
+#Note the selected samples depend on hyperparameter values, change the hyper-parameters and see how the design changes. The relative cost of evaluating each model also impacts the design. For fixed hyper-parameters a larger ratio will typically result in more low-fidelity samples.
+
+#%%
+#Remarks
+#^^^^^^^
+#Some approaches train the GPs of each sequentially, that is train a GP of the lowest-fidelity model. The lowest-fidelity GP is then fixed and data from the next lowest fidelity model is then used to train the GP associated with that data, and so on. However this approach typically produces less accurate approximations (GP means) and does not provide a way to estimate the correct posterior uncertainty of the multilevel GP.
 
 #%%
 #References
