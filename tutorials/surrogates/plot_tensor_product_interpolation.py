@@ -120,7 +120,7 @@ plt.show()
 #
 #To use the surrogate for computing moments we simply draw realizations of the input random variables :math:`\rv` and evaluate the surrogate at those samples. We can approximate the mean of the expensive simluation model as the average of the surrogate values at the random samples.
 #
-#We know from :ref:`sphx_glr_auto_tutorials_foundations_plot_monte_carlo.py` that the error in the Monte carlo estimate of the mean using the surrogate is
+#We know from :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py` that the error in the Monte carlo estimate of the mean using the surrogate is
 #
 #.. math::
 #  \mean{\left(Q_{\alpha}-\mean{Q}\right)^2}&=N^{-1}\var{Q_\alpha}+\left(\mean{Q_{\alpha}}-\mean{Q}\right)^2\\

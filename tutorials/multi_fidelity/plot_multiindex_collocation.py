@@ -1,6 +1,6 @@
 r"""
 Multi-level and Multi-index Collocation
----------------------------------------
+=======================================
 Thsi tutorial introduces multi-level  [TJWGSIAMUQ2015]_ and multi-index collocation [HNTTCMAME2016]_. It assumes knowledge of the material covered in :ref:`sphx_glr_auto_tutorials_surrogates_plot_tensor_product_interpolation.py` and :ref:`sphx_glr_auto_tutorials_surrogates_plot_sparse_grids.py`.
 
 Models often utilize numerical discretizations to solve the equations governing the system dynamics. For example, finite-elements, spectral collocation, etc are often used to solve partial differential equations. :ref:`sphx_glr_auto_examples_plot_pde_convergence.py` demonstrates how the numerical discretization, specifically the spatial mesh discretization and time-step, of a spectral collocation model of transient advection diffusion effects the accuracy of the model output.
@@ -16,7 +16,7 @@ Models often utilize numerical discretizations to solve the equations governing 
           A multi-level hierarchy formed by increasing mesh discretizations.
 
 Multi-level Collocation
-^^^^^^^^^^^^^^^^^^^^^^^
+-----------------------
 Multilevel collocation was introduced to reduce the cost of building surrogates of models when a one-dimensional hierarchy of numerical discretizations of a model  :math:`f_\alpha(\rv), \alpha=0,1,\ldots` are available such that
 
 .. math:: \lVert f-f_\alpha\rVert \le \lVert f-f_{\alpha^\prime}\rVert
@@ -173,18 +173,18 @@ plt.show()
 
 #%%
 #Adaptivity
-#^^^^^^^^^^
+#----------
 #The the algorithm that adapts the sparse grid index set :math:`\mathcal{I}` to the importance of each variable be modified for use with multi-index collocation [JEGG2019]_. The algorithm is highly effective as it balances the interpolation error due to using a finite number of training points with the cost of evaluating the models of varying accuracy.
 
 
 #%%
 #Three or more models
-#^^^^^^^^^^^^^^^^^^^^
+#--------------------
 #This tutorial only demonstrates the use of multi-level collocation with two models, but it can easily be used with three or more models. Try setting config_values = [np.asarray([0.25, 0.125, 0])]
 
 #%%
 #Multi-index collocation
-#^^^^^^^^^^^^^^^^^^^^^^^
+#-----------------------
 #Multi-index collocation is an extension of mulit-level collocation that can be used with models that have multiple parameters controlling the numerical discretization, for example, the spatial and temporal resoutions of a finite element solver. While this tutorial does not demonstrate multi-index collocation it is supported by PyApprox.
 #
 #.. list-table::

@@ -243,7 +243,7 @@ _ = ax.legend()
 
 #%%
 #Dimension adaptivity
-#-------
+#--------------------
 #The efficiency of sparse grids can be improved using methods [GG2003]_, [H2003]_ that construct the index set :math:`\mathcal{I}` adaptively. This is the default behavior when using Pyapprox.
 
 #%%

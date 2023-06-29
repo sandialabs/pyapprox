@@ -20,7 +20,7 @@ where :math:`C(\mathcal{Z}, \mathcal{Z})` is the prior covariance evaluated at t
 The difference comes from the definitions of the prior covariance :math:`C` and the vector :math:`t(\rv)`.
 
 Two models
-^^^^^^^^^^
+----------
 Given data :math:`\mathcal{Z}=[\mathcal{Z}_1, \mathcal{Z}_2]` from two models of differing fidelity, the data covariance of the multi-fidelity GP consisting of two models can be expressed in block form
 
 .. math::
@@ -81,7 +81,7 @@ where
 
 
 M models
-^^^^^^^^
+--------
 The diagonal covariance blocks of the prior covariance :math:`C` for :math:`m>1` satisfy
 
 .. math:: C_m(\mathcal{Z}_m,\mathcal{Z}_m)+\rho_{m-1}^2C_{m-1}(\mathcal{Z}_m,\mathcal{Z}_m)+\cdots+\prod_{i=1}^{m-1}\rho_i^2C_1(\mathcal{Z}_m,\mathcal{Z}_m).
@@ -243,7 +243,7 @@ _ = ax.legend()
 
 #%%
 #Experimental design
-#^^^^^^^^^^^^^^^^^^^
+#-------------------
 #As with single fidelity GPs the location of the training data significantly impacts the accuracy of a multi-fidelity GP. The remainder of this tutorial discusses xtensions of the experimental design methods used for single-fidelity GPs in :ref:`sphx_glr_auto_tutorials_surrogates_plot_gaussian_processes.py`.
 #
 #The following code demonstrates the additional complexity faced when desigining  experimental designs for multi-fidelity GPs, specifically one must not only choose what input to sample but also what model to sample.
@@ -375,7 +375,7 @@ _ = ax.legend()
 
 #%%
 #Remarks
-#^^^^^^^
+#-------
 #Some approaches train the GPs of each sequentially, that is train a GP of the lowest-fidelity model. The lowest-fidelity GP is then fixed and data from the next lowest fidelity model is then used to train the GP associated with that data, and so on. However this approach typically produces less accurate approximations (GP means) and does not provide a way to estimate the correct posterior uncertainty of the multilevel GP.
 
 #%%

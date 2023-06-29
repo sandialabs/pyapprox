@@ -13,7 +13,8 @@
 import os
 import sys
 import pkg_resources
-from sphinx_gallery.sorting import _SortKey  # , ExampleTitleSortKey
+from sphinx_gallery.sorting import (
+    _SortKey,  ExplicitOrder, ExampleTitleSortKey)
 import warnings
 
 
@@ -60,16 +61,20 @@ extensions += ['sphinx_automodapi.automodapi']
 extensions += ['sphinx_gallery.gen_gallery']
 
 example_filenames_in_order = [
-    'plot_monte_carlo.py',
+    # Analysis
+    'plot_sensitivity_analysis.py',
+    # Inference
+    'plot_bayesian_inference.py',
+    'plot_bayesian_networks.py',
     'plot_push_forward_based_inference.py',
+    # Surrogates
     'plot_tensor_product_interpolation.py',
     'plot_sparse_grids.py',
-    'plot_bayesian_inference.py',
-    'plot_sensitivity_analysis.py',
-    'plot_bayesian_networks.py',
     'plot_adaptive_leja_interpolation.py',
     'plot_gaussian_processes.py',
-    'plot_integrated_surrogates.py',
+    # 'plot_integrated_surrogates.py',
+    # Multi-fidelity
+    'plot_monte_carlo.py',
     'plot_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_monte_carlo.py',
     'plot_multi_level_monte_carlo.py',
@@ -77,8 +82,8 @@ example_filenames_in_order = [
     'plot_many_model_approximate_control_variate_monte_carlo.py',
     'plot_multilevel_blue.py',
     'plot_multiindex_collocation.py',
+    'plot_multifidelity_gp.py',
     'plot_gaussian_mfnets.py',
-    'plot_multifidelity_gp.py'
 ]
 
 example_dirs = ['../../tutorials', '../../examples']
@@ -118,9 +123,16 @@ sphinx_gallery_conf = {
     # path to where to save gallery generated output
     'gallery_dirs': gallery_dirs,
     # 'first_notebook_cell' : "%matplotlib inline",
+    'subsection_order': ExplicitOrder([
+        '../../tutorials/analysis',
+        '../../tutorials/inference',
+        '../../tutorials/surrogates',
+        '../../tutorials/multi_fidelity',
+        '../../examples']),
     'within_subsection_order': ExamplesExplicitOrder,
     'ignore_pattern': r'__', # any files with __ in the filename are ignored
     'matplotlib_animations': True,
+    'nested_sections': True,
 }
 # If want to specify user latex macrors to jupyter using sphinx-gallery go to
 # /miniconda3/envs/pyapprox-base/lib/python3.8/site-packages/sphinx_gallery/notebook.py

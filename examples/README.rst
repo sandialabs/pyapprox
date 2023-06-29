@@ -1,5 +1,6 @@
-Software Tutorials
-==================
+#################
+Software Tutorial
+#################
 
 Below is a gallery of examples showing how to use different methods in PyApprox with the least amount of code.
 

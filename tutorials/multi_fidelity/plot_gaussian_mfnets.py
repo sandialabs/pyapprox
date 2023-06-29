@@ -3,7 +3,7 @@ MFNets: Multi-fidelity networks
 ===============================
 This tutorial describes how to implement and deploy multi-fidelity networks to construct a surrogate of the output of a high-fidelity model using a set of lower-fidelity models of lower accuracy and cost [GJGEIJUQ2020]_.
 
-In the :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py` tutorial we showed how multi-index collocation takes adavantage of a specific type of relationship between models to build a surrogate. In some applications this structure may not exist and so methods that can exploit other types of structures are needed. MFNets provide a means to encode problem specific relationships between information sources.
+In the :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multiindex_collocation.py` tutorial we showed how multi-index collocation takes adavantage of a specific type of relationship between models to build a surrogate. In some applications this structure may not exist and so methods that can exploit other types of structures are needed. MFNets provide a means to encode problem specific relationships between information sources.
 
 In the following we will approximate each information source with a linear subspace model. Specifically given a basis (features) :math:`\phi_\alpha=\{\phi_{\alpha p}\}_{p=1}^P` for each information source :math:`\alpha=1\ldots,M` we seek approximations of the form
 
@@ -114,7 +114,7 @@ prior_mean = np.zeros((nparams.sum(), 1))
 prior_cov = np.eye(nparams.sum())
 
 #%%
-#With these definition the posterior distribution of the coefficients is (see :ref:`sphx_glr_auto_tutorials_foundations_plot_bayesian_inference.py`)
+#With these definition the posterior distribution of the coefficients is (see :ref:`sphx_glr_auto_tutorials_inference_plot_bayesian_inference.py`)
 #
 #.. math:: \Sigma^\mathrm{post}=\left(\Sigma^{-1}+\Phi^\top\Sigma_\epsilon^{-1}\Phi\right)^{-1}, \qquad  \mu^\mathrm{post}=\Sigma^\mathrm{post}\left(\Phi^\top\Sigma_\epsilon^{-1}y+\Sigma^{-1}\mu\right),
 #
@@ -224,7 +224,7 @@ plt.plot(xx, f3(xx), 'k', label=r'$f_3$')
 #
 #Gaussian Networks
 #-----------------
-#In this section of the tutorial we will use show how to use Gaussian (Bayesian networks to encode a large class of relationships between information sources and perform compuationally efficient inference. This tutorial builds on the material presented in the :ref:`sphx_glr_auto_tutorials_foundations_plot_bayesian_networks.py` tutorial.
+#In this section of the tutorial we will use show how to use Gaussian (Bayesian networks to encode a large class of relationships between information sources and perform compuationally efficient inference. This tutorial builds on the material presented in the :ref:`sphx_glr_auto_tutorials_inference_plot_bayesian_networks.py` tutorial.
 #
 #In the following we will use use Gaussian networks to fuse information from a modification of the information enembles used in the previous section. Specifically consider the enemble
 #
