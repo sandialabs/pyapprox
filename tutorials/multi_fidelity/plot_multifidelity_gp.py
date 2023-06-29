@@ -32,26 +32,25 @@ Given data :math:`\mathcal{Z}=[\mathcal{Z}_1, \mathcal{Z}_2]` from two models of
 The upper-diagonal block is given by
 
 .. math::
-    \begin{align*}
+
     \covar{f_1(\mathcal{Z}_1)}{f_1(\mathcal{Z}_1)} = \covar{\delta_1(\mathcal{Z}_1)}{\delta_1(\mathcal{Z}_1)} = C_1(\mathcal{Z}_1, \mathcal{Z}_1)
-    \end{align*}
 
 The lower-diagonal block is given by
 
 .. math::
-    \begin{align*}
+
     \covar{f_2(\mathcal{Z}_2)}{f_2(\mathcal{Z}_2)} &= \covar{\rho_1f_1(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)}{\rho_1f_1(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)}
  \\ &= \covar{\rho_1\delta_2(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)}{\rho_1\delta_1(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)} \\ &= \covar{\rho_1\delta_2(\mathcal{Z}_1)}{\rho_1\delta_1(\mathcal{Z}_2)}+\covar{\delta_2(\mathcal{Z}_2)}{\delta_2(\mathcal{Z}_2)}\\ &= \rho_1^2C_1(\mathcal{Z}_2, \mathcal{Z}_2) + C_2(\mathcal{Z}_2, \mathcal{Z}_2)
-    \end{align*}
+
 
 Where on the second last line we used that :math:`\delta_1` and :math:`\delta_2` are independent.
 
 The upper-right block is given by
 
 .. math::
-    \begin{align*}
+
     \covar{f_1(\mathcal{Z}_1)}{f_2(\mathcal{Z}_2)} &= \covar{\delta_1(\mathcal{Z}_1)}{\rho_1\delta_1(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)} \\ &= \covar{\delta_1(\mathcal{Z}_1)}{\rho_1\delta_1(\mathcal{Z}_2)} = \rho_1 C_1(\mathcal{Z}_1, \mathcal{Z}_2)
-    \end{align*}
+
 
 and :math:`\covar{f_2(\mathcal{Z}_2)}{f_1(\mathcal{Z}_1)}=\covar{f_1(\mathcal{Z}_2)}{f_2(\mathcal{Z}_2)}^\top.`
 
@@ -89,8 +88,9 @@ The diagonal covariance blocks of the prior covariance :math:`C` for :math:`m>1`
 The off-diagonal covariance blocks for :math:`m<n` satisfy
 
 .. math::
-    \begin{align*}C_{m,n}(\mathcal{Z}_m,\mathcal{Z}_n)=&\prod_{i=m}^{n-1}\rho_iC_m(\mathcal{Z}_m,\mathcal{Z}_n)+\rho_{m-1}\prod_{i=m-1}^{n-1}\rho_i\,C_{m-1}(\mathcal{Z}_m,\mathcal{Z}_n)+\\ &\prod_{j=m-2}^{m-1}\rho_{j}\,\prod_{i=m-2}^{n-1}\rho_i\,C_{m-2}(\mathcal{Z}_m,\mathcal{Z}_n)+\cdots+ \prod_{j=2}^{m-1}\rho_{j}\,\prod_{i=2}^{n-1}\rho_i\,C_{2}(\mathcal{Z}_m,\mathcal{Z}_n)+\\ &\prod_{j=1}^{m-1}\rho_{j}\,\prod_{i=1}^{n-1}\rho_i\,C_{1}(\mathcal{Z}_m,\mathcal{Z}_n)
-    \end{align*}
+
+    C_{m,n}(\mathcal{Z}_m,\mathcal{Z}_n)=&\prod_{i=m}^{n-1}\rho_iC_m(\mathcal{Z}_m,\mathcal{Z}_n)+\rho_{m-1}\prod_{i=m-1}^{n-1}\rho_i\,C_{m-1}(\mathcal{Z}_m,\mathcal{Z}_n)+\\ &\prod_{j=m-2}^{m-1}\rho_{j}\,\prod_{i=m-2}^{n-1}\rho_i\,C_{m-2}(\mathcal{Z}_m,\mathcal{Z}_n)+\cdots+ \prod_{j=2}^{m-1}\rho_{j}\,\prod_{i=2}^{n-1}\rho_i\,C_{2}(\mathcal{Z}_m,\mathcal{Z}_n)+\\ &\prod_{j=1}^{m-1}\rho_{j}\,\prod_{i=1}^{n-1}\rho_i\,C_{1}(\mathcal{Z}_m,\mathcal{Z}_n)
+
 
 
 For example, the covariance matrix for :math:`M=3` models is

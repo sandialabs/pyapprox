@@ -20,7 +20,7 @@ While any tensor-product approximation can be used with sparse grids, e.g. based
 
 The following code compares a tensor-product interpolant with a level-:math:`l` isotropic sparse grid which sets
 
-.. math:: \mathcal{I}(l)=\{\beta \mid (\max(0,l−1)\le \lVert\beta\rVert_1\le l+D−2\}, \quad l\ge 0
+.. math:: \mathcal{I}(l)=\{\beta \mid (\max(0,l-1)\le \lVert\beta\rVert_1\le l+D-2\}, \quad l\ge 0
 
 which leads to a simpler expression for the coefficients
 
@@ -154,11 +154,11 @@ print(tp_num_samples)
 #%%
 #For a function with :math:`r` continous mixed-derivatives, the isotropic level-:math:`l` sparse grid, based on 1D Clenshaw Curtis abscissa, with :math:`M_{\mathcal{I}(l)}` points satisfies
 #
-#.. math:: \lVert f-f_{\mathcal{I}(l)}\rVert_{L^\infty}\le C_{D,r} M^{−r}_{\mathcal{I}(l)}(\log M_{\mathcal{I}(l)})^{(r+2)(D−1)+1}.
+#.. math:: \lVert f-f_{\mathcal{I}(l)}\rVert_{L^\infty}\le C_{D,r} M^{-r}_{\mathcal{I}(l)}(\log M_{\mathcal{I}(l)})^{(r+2)(D-1)+1}.
 #
 #In contrast the tensor-product interpolant with :math:`M_l` points satifies
 #
-#.. math:: \lVert f-f_{\mathcal{I}(l)}\rVert_{L^\infty}\le  K_{D,r} M_l^{−r/D}.
+#.. math:: \lVert f-f_{\mathcal{I}(l)}\rVert_{L^\infty}\le K_{D,r} M_l^{-r/D}.
 #
 #The following code compares the convergence of sparse grids and tensor-product lagrange interpolants. A callback is used to compute the error as the level of the approximations increases
 
@@ -256,9 +256,9 @@ _ = ax.legend()
 #
 #Then noting that the error in the sparse grid satisfies, we can formulate finding a quasi-optimal index set as a binary knapsack problem
 #
-#.. math:: \max \sum_{\beta}\Delta E_\beta\delta_\beta \text{ such that }\sum_{\beta}\Delta W_\beta\delta_\beta \le W_\max,
+#.. math:: \max \sum_{\beta}\Delta E_\beta\delta_\beta \text{ such that }\sum_{\beta}\Delta W_\beta\delta_\beta \le W_{\max},
 #
-#for a total work budget :math:`W_\max`. The solution to this problem balances the computational work of adding a specific interpolant with the reduction in error that would be achieved.
+#for a total work budget :math:`W_{\max}`. The solution to this problem balances the computational work of adding a specific interpolant with the reduction in error that would be achieved.
 #
 #The isotropic index set represents a solution to this knapsack problem under certain conditions on the smoothness of the function being approximated. However, for weaker conditions, finding optimal index sets by solving the knapsack problem is typically intractable. Consequently, we use a greedy adaptive procedure.
 #
