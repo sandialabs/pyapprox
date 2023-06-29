@@ -132,8 +132,15 @@ sphinx_gallery_conf = {
     'within_subsection_order': ExamplesExplicitOrder,
     'ignore_pattern': r'__', # any files with __ in the filename are ignored
     'matplotlib_animations': True,
-    'nested_sections': True,
 }
+from sphinx_gallery.gen_gallery import _fill_gallery_conf_defaults
+default_dict = _fill_gallery_conf_defaults({})
+# old versions of sphinx gallery do not use the keyword nested_sections
+# False is the default for these older versions, but True is the default
+# for newer versions
+if ('nested_sections' in default_dict):
+    sphinx_gallery_conf['nested_sections'] = False
+
 # If want to specify user latex macrors to jupyter using sphinx-gallery go to
 # /miniconda3/envs/pyapprox-base/lib/python3.8/site-packages/sphinx_gallery/notebook.py
 # in function jupyter_notebook replace
