@@ -5,7 +5,7 @@ The number of model evaluations required by tensor product interpolation grows e
 
 Sparse grids approximate a model (function) :math:`f_\alpha` with :math:`D` inputs :math:`z=[z_1,\ldots,z_D]^\top` as a linear combination of low-resolution tensor product interpolantsm that is
 
-.. math:: f_{\alpha, \mathcal{I}}(z) = \sum_{\beta\in \mathcal{I}} c_\beta f_{\alpha,\beta(z)},
+.. math:: f_{\alpha, \mathcal{I}}(z) = \sum_{\beta\in \mathcal{I}} c_\beta f_{\alpha,\beta}(z),
 
 where :math:`\beta=[\beta_1,\ldots,\beta_D]` is a multi-index controlling the number of samples in each dimension of the tensor-product interpolants, and the index set :math:`\mathcal{I}` controls the approximation accuracy and data-efficiency of the sparse grid. If the set :math:`\mathcal{I}` is downward closed, that is
 
@@ -30,16 +30,19 @@ First import the necessary modules and define the function we will approximate a
 
 .. math:: f(\rv) = \cos(\pi\rv_1)\cos(\pi\rv_2/2)
 """
+import copy
 import numpy as np
 from scipy import stats
 from pyapprox.util.visualization import get_meshgrid_function_data, plt
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.approximate import adaptive_approximate
 from pyapprox.surrogates.interp.adaptive_sparse_grid import (
-    tensor_product_refinement_indicator, isotropic_refinement_indicator)
+    tensor_product_refinement_indicator, isotropic_refinement_indicator,
+    variance_refinement_indicator)
 from pyapprox.surrogates.orthopoly.quadrature import (
     clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth)
 from pyapprox.util.utilities import nchoosek
+from pyapprox.benchmarks import setup_benchmark
 
 variable = IndependentMarginalsVariable([stats.uniform(-1, 2)]*2)
 
@@ -159,7 +162,7 @@ print(tp_num_samples)
 #
 #The following code compares the convergence of sparse grids and tensor-product lagrange interpolants. A callback is used to compute the error as the level of the approximations increases
 
-class Callback():
+class IsotropicCallback():
     def __init__(self, validation_samples, validation_values, istp):
         self.level = -1
         self.errors = []
@@ -205,7 +208,7 @@ validation_values = fun(validation_samples)
 # univariate_quad_rule_info = None
 
 tp_max_level = 4
-tp_callback = Callback(validation_samples, validation_values, True)
+tp_callback = IsotropicCallback(validation_samples, validation_values, True)
 tp = adaptive_approximate(
     fun, variable, "sparse_grid",
     {"refinement_indicator": tensor_product_refinement_indicator,
@@ -218,7 +221,7 @@ tp_callback.level = tp_max_level  # set so callback computes error
 tp_callback(tp)
 
 sg_max_level = 6
-sg_callback = Callback(validation_samples, validation_values, False)
+sg_callback = IsotropicCallback(validation_samples, validation_values, False)
 sg = adaptive_approximate(
     fun, variable, "sparse_grid",
     {"refinement_indicator": isotropic_refinement_indicator,
@@ -239,12 +242,100 @@ _ = ax.legend()
 #%%
 # Experiment with changing nvars, e.g. try nvars = 2,3,4. Sparse grids become more effective as nvars increases.
 #
-#So far we have used sparse grids based on Clenshaw-Curtis 1D quadrature rules. However other types of rules can be used. PyApprox uses 1D Leja sequences  [NJ2014]_. Change univariate_quad_rule=None to use Leja rules and observe the difference in convergence.
+#So far we have used sparse grids based on Clenshaw-Curtis 1D quadrature rules. However other types of rules can be used. PyApprox also supports 1D Leja sequences  [NJ2014]_ (see :ref:`sphx_glr_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py`). Change univariate_quad_rule=None to use Leja rules and observe the difference in convergence.
 
 #%%
 #Dimension adaptivity
 #--------------------
-#The efficiency of sparse grids can be improved using methods [GG2003]_, [H2003]_ that construct the index set :math:`\mathcal{I}` adaptively. This is the default behavior when using Pyapprox.
+#The efficiency of sparse grids can be improved using methods [GG2003]_, [H2003]_ that construct the index set :math:`\mathcal{I}` adaptively. This is the default behavior when using Pyapprox. The following applies the adaptive algorithm to an anisotropic function, where one variable impacts the function much more than the other.
+#
+#Finding an efficient index set can be cast as an optimization problem. With this goal, let the difference in sparse grid error before and after the interpolant :math:`f_{\alpha,\beta}` and the work from adding the new interpolant respectively be
+#
+#.. math::
+#    \begin{align*}\Delta E_\beta = \lVert f_{\alpha, \mathcal{I}\cup\beta}-f_{\alpha, \mathcal{I}}\rVert && \Delta W_\beta = \lVert W_{\alpha, \mathcal{I}\cup\beta}-W_{\alpha, \mathcal{I}}\rVert\end{align*}
+#
+#Then noting that the error in the sparse grid satisfies, we can formulate finding a quasi-optimal index set as a binary knapsack problem
+#
+#.. math:: \max \sum_{\beta}\Delta E_\beta\delta_\beta \text{ such that }\sum_{\beta}\Delta W_\beta\delta_\beta \le W_\max,
+#
+#for a total work budget :math:`W_\max`. The solution to this problem balances the computational work of adding a specific interpolant with the reduction in error that would be achieved.
+#
+#The isotropic index set represents a solution to this knapsack problem under certain conditions on the smoothness of the function being approximated. However, for weaker conditions, finding optimal index sets by solving the knapsack problem is typically intractable. Consequently, we use a greedy adaptive procedure.
+#
+#The algorithm begins with the index set :math:`\mathcal{I}=\{\beta\mid \beta=[0, \ldots, 0]\}` then identifies, so called active indices, which are candidates for refinement. The active indices satisfy the downward closed admissibility criteria above. The function is evaluated at the points assoicated with the active indices and error indicators, similar to :math:`\Delta W_\beta`, are computed. The active index with the largest error indicator is then added to :math:`\mathcal{I}` and the active set is updated. This procedure is repeated until and error threshold is met or a computational budget reached.
+#
+#First set up the benchmark
+benchmark = setup_benchmark(
+    "genz", nvars=2, test_name='oscillatory', coeff=([2, 0.2], [0, 0]))
+
+#%%
+#Now build a sparse grid using a callback that tracks important properties
+#of the sparse grid and its adaptation.
+class AdaptiveCallback():
+    def __init__(self, validation_samples, validation_values):
+        self.validation_samples = validation_samples
+        self.validation_values = validation_values
+
+        self.nsamples = []
+        self.errors = []
+        self.sparse_grids = []
+
+    def __call__(self, approx):
+        self.nsamples.append(approx.samples.shape[1])
+        approx_values = approx.evaluate_using_all_data(
+            self.validation_samples)
+        error = (np.linalg.norm(
+            self.validation_values-approx_values) /
+                     self.validation_samples.shape[1])
+        self.errors.append(error)
+        self.sparse_grids.append(copy.deepcopy(approx))
+
+
+validation_samples = benchmark.variable.rvs(100)
+validation_values = benchmark.fun(validation_samples)
+adaptive_callback = AdaptiveCallback(validation_samples, validation_values)
+sg = adaptive_approximate(
+    benchmark.fun, benchmark.variable, "sparse_grid",
+    {"refinement_indicator": variance_refinement_indicator,
+     "max_level_1d": np.inf,
+     "univariate_quad_rule_info": None,
+     "max_level": np.inf, "max_nsamples": 100,
+     "callback": adaptive_callback}).approx
+
+#%%
+#The following visualizes the adaptive algorithm.
+#
+#The left plot depicts the multi-index of each tensor product interpolant. They gray boxes represent indices added to the sparse grid and the red boxes represent the active indices. The numbers in the boxes represent the Smolyak coefficients.
+#
+#The middle plot shows the grid points associated with the gray boxes (black dots) and the grid points associated with the active indices (red dots).
+#
+#The left plot depicts the sparse grid approximation at each iteration.
+#
+#The sparse grid spends more points resolving the function variation in the horizontal direction, associated with the most sensitive function input.
+from pyapprox.surrogates.interp.adaptive_sparse_grid import (
+    plot_adaptive_sparse_grid_2d)
+
+fig, axs = plt.subplots(1, 3, sharey=False, figsize=(3*8, 6))
+ranges = benchmark.variable.get_statistics("interval", 1.0).flatten()
+data = [get_meshgrid_function_data(sg, ranges, 51)
+        for sg in  adaptive_callback.sparse_grids]
+Z_min = np.min([d[2] for d in data])
+Z_max = np.max([d[2] for d in data])
+levels = np.linspace(Z_min, Z_max, 21)
+def animate(ii):
+    [ax.clear() for ax in axs]
+    sg = adaptive_callback.sparse_grids[ii]
+    plot_adaptive_sparse_grid_2d(sg, axs=axs[:2])
+    axs[2].contourf(*data[ii], levels=levels)
+    axs[0].set_xlim([0, 10])
+    axs[0].set_ylim([0, 10])
+
+import matplotlib.animation as animation
+ani = animation.FuncAnimation(
+    fig, animate, interval=500,
+    frames=len(adaptive_callback.sparse_grids), repeat_delay=1000)
+ani.save("adaptive_sparse_grid.gif", dpi=50,
+         writer=animation.ImageMagickFileWriter())
 
 #%%
 #References

@@ -506,7 +506,11 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
         coeff_type = 'none'
     genz.set_coefficients(nvars, c_factor, coeff_type, w)
     if coeff is not None:
-        genz._c, genz._w = coeff
+        genz._c, genz._w = np.asarray(coeff[0]), np.asarray(coeff[1])
+        if genz._c.ndim == 1:
+            genz._c = genz._c[:, None]
+        if genz._w.ndim == 1:
+            genz._w = genz._w[:, None]
         assert genz._c.ndim == 2 and genz._w.ndim == 2
     attributes = {'fun': partial(genz, test_name),
                   'mean': genz.integrate(test_name),

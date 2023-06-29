@@ -15,8 +15,8 @@ Models often utilize numerical discretizations to solve the equations governing 
 
           A multi-level hierarchy formed by increasing mesh discretizations.
 
-Multi-level Collocation
------------------------
+An observation
+--------------
 Multilevel collocation was introduced to reduce the cost of building surrogates of models when a one-dimensional hierarchy of numerical discretizations of a model  :math:`f_\alpha(\rv), \alpha=0,1,\ldots` are available such that
 
 .. math:: \lVert f-f_\alpha\rVert \le \lVert f-f_{\alpha^\prime}\rVert
@@ -36,7 +36,8 @@ from pyapprox.variables.joint import IndependentMarginalsVariable
 import matplotlib.pyplot as plt
 from pyapprox.surrogates.approximate import adaptive_approximate
 from pyapprox.surrogates.interp.adaptive_sparse_grid import (
-    tensor_product_refinement_indicator, isotropic_refinement_indicator)
+    tensor_product_refinement_indicator, isotropic_refinement_indicator,
+    variance_refinement_indicator)
 from pyapprox.variables.transforms import ConfigureVariableTransformation
 from pyapprox.interface.wrappers import MultiIndexModel
 
@@ -91,7 +92,7 @@ _ = axs[2].legend()
 #The left plot shows that using 5 samples of the low-fidelity model produces an accurate approximation of the low-fidelity model, but it will be a poor approximation of the high fidelity model in the limit of infinite low-fidelity data. The middle plot shows three samples of the high-fidelity model also produces a poor approximation, but if more samples were added the approximation would coverge to the high-fidelity model. In contrast the right plot shows that 5 samples of the low-fideliy model plus three samples of the high-fidelity model produces a good approximation of the high-fidelity model.
 
 #%%
-#The following code plots different interpolations :math:`f_{\alpha,\beta}` of :math:`f_\alpha` for various :math:`\alpha` and number of interpolation points (controled by :math:`\beta`). Instead of building each interpolant with a custom function, we just build a multi-index sparse grid that uses a tensor-product refinement criterion to define the set :math:`\mathcal{I}=\{[\alpha,\beta]:\alpha \le l_0, \; beta\le l_1\}`
+#The following code plots different interpolations :math:`f_{\alpha,\beta}` of :math:`f_\alpha` for various :math:`\alpha` and number of interpolation points (controled by :math:`\beta`). Instead of building each interpolant with a custom function, we just build a multi-index sparse grid that uses a tensor-product refinement criterion to define the set :math:`\mathcal{I}=\{[\alpha,\beta]:\alpha \le l_0, \; \beta\le l_1\}`
 max_level = 2
 nvars = 1
 config_values = [np.asarray([0.25, 0])]
@@ -146,9 +147,16 @@ for ii, subspace_index in enumerate(tp_approx.subspace_indices.T):
 _ = [[ax.set_ylim([-1, 1]), ax.set_xlabel(r"$z$")] for ax in axs.flatten()]
 
 #%%
+#Multi-level Collocation
+#-----------------------
 #Similar to sparse grids, multi-index collocation is a weighted combination of
-#low-resolution tensor products, like those shown in the last plot. However, unlike sparse grids, we now have introduced configuration variables that change what model discretization is being evaluated. A level-one isotropic collocation algorithm uses top-left, bottom-left and bottom middle interpolants in the previous plot, i.e. :math:`f_{1, 0}, f_{0, 0}, f_{0, 1}`, respectively. The level 2 approximation is plotted below. Note it is not a true isotropic grid because it cannot reach level 2 in the configuration variable which only uses two models. This is not true if more than 2 models are provided.
-
+#low-resolution tensor products, like those shown in the last plot
+#
+#.. math:: f_{\mathcal{I}}(z) = \sum_{[\alpha,\beta]\in \mathcal{I}} c_{[\alpha,\beta]} f_{\alpha,\beta}(z),
+#
+#where the Smolay coefficients can be computed using the same formula used for traditional sparse grids. However, unlike sparse grids, we now have introduced configuration variables that change what model discretization is being evaluated.
+#
+#A level-one isotropic collocation algorithm uses top-left, bottom-left and bottom middle interpolants in the previous plot, i.e. :math:`f_{1, 0}, f_{0, 0}, f_{0, 1}`, respectively. The level 2 approximation is plotted below. Note it is not a true isotropic grid because it cannot reach level 2 in the configuration variable which only uses two models. This is not true if more than 2 models are provided.
 
 mi_approx = adaptive_approximate(
     mi_model, variable, "sparse_grid",
@@ -165,8 +173,7 @@ for ll in range(max_level_1d[1]+1):
     ax.plot(zz, mi_model._model_ensemble.functions[ll](zz[None, :]),
             '-', color=fun_colors[ll], label=r"$f_{%d}$" % (jj))
 ax.legend()
-ax.set_xlabel(r"$z$")
-plt.show()
+_ = ax.set_xlabel(r"$z$")
 
 #%%
 #The approximation is close to the accuracy of :math:`f_{1, 2}` without needing as many evaluations of :math:`f_{1}`
@@ -175,7 +182,77 @@ plt.show()
 #Adaptivity
 #----------
 #The the algorithm that adapts the sparse grid index set :math:`\mathcal{I}` to the importance of each variable be modified for use with multi-index collocation [JEGG2019]_. The algorithm is highly effective as it balances the interpolation error due to using a finite number of training points with the cost of evaluating the models of varying accuracy.
+#
+#Lets build a multi-level sparse grid 
+import copy
+from pyapprox.surrogates.interp.adaptive_sparse_grid import (
+    plot_adaptive_sparse_grid_2d)
+from pyapprox.util.visualization import get_meshgrid_function_data
 
+config_values = [np.asarray([0.25, 0.125, 0])]
+config_var_trans = ConfigureVariableTransformation(config_values)
+mi_model = MultiIndexModel(setup_model, config_values)
+
+#The sparse grid uses the wall time of the model execution as a cost function by default, but here we will use a custom cost function because all models are trivial to evaluate.
+
+def cost_function(config_sample):
+    canonical_config_sample = config_var_trans.map_to_canonical(
+        config_sample)
+    return (1+canonical_config_sample[0])**2
+
+class AdaptiveCallback():
+    def __init__(self, validation_samples, validation_values):
+        self.validation_samples = validation_samples
+        self.validation_values = validation_values
+
+        self.nsamples = []
+        self.errors = []
+        self.sparse_grids = []
+
+    def __call__(self, approx):
+        self.nsamples.append(approx.samples.shape[1])
+        approx_values = approx.evaluate_using_all_data(
+            self.validation_samples)
+        error = (np.linalg.norm(
+            self.validation_values-approx_values) /
+                     self.validation_samples.shape[1])
+        self.errors.append(error)
+        self.sparse_grids.append(copy.deepcopy(approx))
+
+
+validation_samples = variable.rvs(100)
+validation_values = mi_model._model_ensemble.functions[-1](validation_samples)
+adaptive_callback = AdaptiveCallback(validation_samples, validation_values)
+sg = adaptive_approximate(
+    mi_model, variable, "sparse_grid",
+    {"refinement_indicator": variance_refinement_indicator,
+     "max_level_1d": [10,  len(config_values[0])-1],
+     "univariate_quad_rule_info": None,
+     "max_level": np.inf, "max_nsamples": 50,
+     "config_variables_idx": nvars,
+     "config_var_trans": config_var_trans,
+     "cost_function": cost_function,
+     "callback": adaptive_callback}).approx
+
+#%%
+#Now plot the adaptive algorithm
+fig, axs = plt.subplots(1, 2, sharey=False, figsize=(16, 6))
+def animate(ii):
+    [ax.clear() for ax in axs]
+    sg = adaptive_callback.sparse_grids[ii]
+    plot_adaptive_sparse_grid_2d(sg, axs=axs[:2])
+    axs[0].set_xlim([0, 10])
+    axs[0].set_ylim([0, len(config_values[0])-1])
+
+import matplotlib.animation as animation
+ani = animation.FuncAnimation(
+    fig, animate, interval=500,
+    frames=len(adaptive_callback.sparse_grids), repeat_delay=1000)
+ani.save("adaptive_misc.gif", dpi=50,
+         writer=animation.ImageMagickFileWriter())
+
+#%%
+#The lower fidelity models are evaluated more until they can no longer reduce the error in the sparse grid. At this point the interpolation error of the low-fidelity models is dominated by the bias in the exact low-fidelity models. Changing the cost_function will change how many samples are used to evaluate each model.
 
 #%%
 #Three or more models
