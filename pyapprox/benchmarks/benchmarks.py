@@ -460,8 +460,7 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
     Discontinuous ('discontinuous')
 
-    .. math:: f(z) = \begin{cases}0 & z_1>w_1 \;\mathrm{or}\; z_2>w_2\\\exp\left(\sum_{d=1
-}^D c_dz_d\right) & \mathrm{otherwise}\end{cases}
+    .. math:: f(z) = \begin{cases}0 & z_1>w_1 \;\mathrm{or}\; z_2>w_2\\\exp\left(\sum_{d=1}^D c_d z_d\right) & \mathrm{otherwise}\end{cases}
 
     Increasing :math:`\lVert c \rVert` will in general make
     the integrands more difficult.

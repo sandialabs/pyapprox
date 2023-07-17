@@ -244,7 +244,7 @@ z = offset*np.ones(num_pts_1d)
 ax.plot(x, y, z, zorder=100, color='k')
 _ = ax.plot([x_truth], [data_obs[0, 0]], [offset],
             zorder=100, color='k', marker='o')
-
+plt.show()
 
 #%%
 #Now lets assume another piece of observational data becomes available we can use the posterior as a new prior.
