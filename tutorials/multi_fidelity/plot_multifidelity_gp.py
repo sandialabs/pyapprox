@@ -3,7 +3,7 @@ Multifidelity Gaussian processes
 ================================
 This tutorial describes how to implement and deploy multi-level Gaussian processes built using the output of a high-fidelity model and evaluations of a set of lower-fidelity models of lower accuracy and cost [KOB2000]_. This tutorial assumes understanding of the concepts in :ref:`sphx_glr_auto_tutorials_surrogates_plot_gaussian_processes.py`
 
-Multilevel GPs assume that all the available models :math:`\{f_k\}_{k=1}^K` can be ordered into a hierarchy of increasing cost and accuracy, where :math:`k=1` denotes the lowest fidelity model and :math:`k=K` denotes the hightest-fidelity model.
+Multilevel GPs assume that all the available models :math:`\{f_m\}_{m=1}^M` can be ordered into a hierarchy of increasing cost and accuracy, where :math:`m=1` denotes the lowest fidelity model and :math:`m=M` denotes the hightest-fidelity model.
 We model the output :math:`y_m` from the :math:`m`-th level code as :math:`y_m = f_m(\rv)`
 and assume the models satisfy the  hierarchical relationship
 
@@ -217,7 +217,7 @@ gp.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF2", "c": "b"},
            ax=ax, fill_kwargs={"color": "b", "alpha": 0.3})
 gp.plot_1d(101, [0, 1], plt_kwargs={"ls": ":", "label": "MF1", "c": "g"},
            ax=ax, model_eval_id=0)
-ax.legend()
+_ = ax.legend()
 
 #%%
 #The low-fidelity model is very well approximated and the high-fidelity is very good even away from the high-fidelity training data. The low-fidelity data is being used to extrapolate.
@@ -230,6 +230,7 @@ sf_gp.fit(train_samples[1], train_values[1])
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 ax.plot(xx[0], models[1](xx), 'r-', label=r"$f_1$")
 ax.plot(train_samples[1][0], train_values[1], 'rs')
+ax.plot(train_samples[0][0], train_values[0], 'ko')
 sf_gp.plot_1d(101, [0, 1], plt_kwargs={"label": "SF", "c": "gray"}, ax=ax,
               fill_kwargs={"color": "gray", "alpha": 0.3})
 gp.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF2", "c": "b"},
@@ -345,7 +346,7 @@ from pyapprox.surrogates.gaussianprocess.gaussian_process import (
 sf_sampler = GreedyIntegratedVarianceSampler(
     nvars, 2000, 1000, variable.rvs,
     variable, use_gauss_quadrature=True, econ=True,
-    compute_cond_nums=False)
+    compute_cond_nums=False, nugget=0)
 sf_sampler.set_kernel(sf_kernel)
 nsf_train_samples = int(total_cost//model_costs[1])
 print("NSAMPLES SF", nsf_train_samples)
@@ -359,7 +360,9 @@ _ = sf_gp.fit(sf_train_samples, sf_train_values)
 #Compare the multi- and single-fidelity GPs.
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 ax.plot(xx[0], models[1](xx), 'r-', label=r"$f_1$")
+ax.plot(train_samples[0][0], train_values[0], 'gD')
 ax.plot(train_samples[1][0], train_values[1], 'rs')
+ax.plot(sf_train_samples[0], sf_train_values, 'kX')
 sf_gp.plot_1d(101, [0, 1], plt_kwargs={"label": "SF", "c": "gray"}, ax=ax,
               fill_kwargs={"color": "gray", "alpha": 0.3})
 gp.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "MF2", "c": "b"},
