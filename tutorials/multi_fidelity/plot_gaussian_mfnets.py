@@ -363,9 +363,9 @@ plt.show()
 #%%
 #References
 #^^^^^^^^^^
-#.. [GJGEIJUQ2020] `MFNets: Multi-fidelity data-driven networks for bayesian learning and prediction, International Journal for Uncertainty Quantification, 2020. <https://www.alexgorodetsky.com/static/papers/gorodetsky_jakeman_geraci_eldred_mfnets_2020.pdf>`_
+#.. [GJGEIJUQ2020] `A. Gorodetsky et al. MFNets: Multi-fidelity data-driven networks for bayesian learning and prediction, International Journal for Uncertainty Quantification, 2020. <https://www.alexgorodetsky.com/static/papers/gorodetsky_jakeman_geraci_eldred_mfnets_2020.pdf>`_
 #
-#.. [GJGJCP2020] `MFNets: Learning network representations for multifidelity surrogate modeling, 2020. <https://res.arxiv.org/abs/2008.02672>`_
+#.. [GJGJCP2020] `A. Gorodetsky et al. MFNets: Learning network representations for multifidelity surrogate modeling, 2020. <https://res.arxiv.org/abs/2008.02672>`_
 #
 #Appendix
 #^^^^^^^^

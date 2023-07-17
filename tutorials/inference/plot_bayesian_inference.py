@@ -244,7 +244,6 @@ z = offset*np.ones(num_pts_1d)
 ax.plot(x, y, z, zorder=100, color='k')
 _ = ax.plot([x_truth], [data_obs[0, 0]], [offset],
             zorder=100, color='k', marker='o')
-plt.show()
 
 #%%
 #Now lets assume another piece of observational data becomes available we can use the posterior as a new prior.
@@ -347,8 +346,7 @@ X, Y, Z = get_meshgrid_function_data(
 plt.contourf(
     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 30),
     cmap=matplotlib.cm.coolwarm)
-plt.plot(samples[0, :], samples[1, :], 'ko')
-plt.show()
+_ = plt.plot(samples[0, :], samples[1, :], 'ko')
 
 #%%
 #Now lets compute the mean of the posterior using a highly accurate quadrature rule and compars this to the mean estimated using MCMC samples.

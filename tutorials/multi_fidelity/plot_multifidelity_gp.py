@@ -382,8 +382,21 @@ _ = ax.legend()
 #Some approaches train the GPs of each sequentially, that is train a GP of the lowest-fidelity model. The lowest-fidelity GP is then fixed and data from the next lowest fidelity model is then used to train the GP associated with that data, and so on. However this approach typically produces less accurate approximations (GP means) and does not provide a way to estimate the correct posterior uncertainty of the multilevel GP.
 
 #%%
+#Multifidelity Deep Gaussian Processes
+#-------------------------------------
+#The aforementioned algorithms assumed that the hierarchy of models are linearly related. However, for some model ensembles this may be inefficient and a nonlinear relationship may be more appropriate, e.g.
+#
+#.. math:: f_m(\rv)=\rho_{m-1}g(f_{m-1}(\rv))+\delta_m(\rv), 
+#
+#where :math:`g` is a nonlinear function. Setting :math:`g` to be Gaussian process leads to multi-fidelity deep Gaussian processes [KPDL2019]_, [PRDLK2017]_.
+
+#%%
 #References
 #^^^^^^^^^^
-#.. [LGIJUQ2014]	`L. Le Gratiet and J. Garnier Recursive co-kriging model for design of computer experiments with multiple levels of fidelity. International Journal for Uncertainty Quantification, 4(5), 365--386, 2014 <http://dx.doi.org/10.1615/Int.J.UncertaintyQuantification.2014006914>`_
+#.. [LGIJUQ2014]	`L. Le Gratiet and J. Garnier Recursive co-kriging model for design of computer experiments with multiple levels of fidelity. International Journal for Uncertainty Quantification, 4(5), 365--386, 2014. <http://dx.doi.org/10.1615/Int.J.UncertaintyQuantification.2014006914>`_
 #		
 #.. [KOB2000] `M. C. Kennedy and A. O'Hagan. Predicting the Output from a Complex Computer Code When Fast Approximations Are Available. Biometrika, 87(1), 1-13, 2000. <http://www.jstor.org/stable/2673557>`_
+#
+#.. [KPDL2019] `K. Cutajar et al. Deep Gaussian Processes for Multi-fidelity Modeling. 2019. <https://doi.org/10.48550/arXiv.1903.07320>`_
+#
+#.. [PRDLK2017] `P. Perdikaris, et al. Nonlinear information fusion algorithms for data-efficient multi-fidelity modelling. Proceedings of the Royal Society of London A. 2017. <http://rspa.royalsocietypublishing.org/content/473/2198/20160751>`_

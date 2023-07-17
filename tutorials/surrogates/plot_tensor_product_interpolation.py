@@ -82,8 +82,8 @@ def f(z): return (np.cos(2*np.pi*z[0, :]) *
                   np.cos(2*np.pi*z[1, :]))[:, np.newaxis]
 
 
-levels = [2, 3]
-grid_samples_1d = [clenshaw_curtis_pts_wts_1D(ll)[0] for ll in levels]
+grid_levels = [2, 3]
+grid_samples_1d = [clenshaw_curtis_pts_wts_1D(ll)[0] for ll in grid_levels]
 grid_samples = cartesian_product(grid_samples_1d)
 
 
@@ -107,7 +107,6 @@ num_contour_levels = 10
 levels = np.linspace(Z.min(), Z.max(), num_contour_levels)
 cset = axs.contourf(
     X, Y, Z, levels=levels, cmap="coolwarm", alpha=alpha)
-plt.show()
 
 #%%
 #The error in the tensor product interpolant is given by
@@ -151,6 +150,172 @@ samples = np.random.uniform(-1, 1, (2, num_samples))
 values = interp(samples)
 mc_mean = values.mean()
 print('Monte Carlo surrogate mean', mc_mean)
+
+#%%
+#Piecewise-polynomial approximation
+#----------------------------------
+# Polynomial interpolation accurately approximates smooth functions, however its accuracy degrades as the regularity of the target function decreases. For piecewise continuous functions, or functions with only a limited number of continuous derivaties, piecewise-polynomial approximation may be more appropriate.
+#
+#The following code compares polynomial and piecewise polynomial univariate basis functions.
+from pyapprox.surrogates.interp.tensorprod import (
+    tensor_product_piecewise_polynomial_basis,
+    tensor_product_piecewise_polynomial_interpolation)
+from pyapprox.surrogates.interp.barycentric_interpolation import (
+    precompute_tensor_product_lagrange_polynomial_basis
+)
+samples = np.linspace(-1, 1, 201)[None, :]
+print(grid_levels[:1])
+piecewise_basis = tensor_product_piecewise_polynomial_basis(
+    grid_levels[:1], samples, basis_type="quadratic")
+ax = plt.subplots(1, 2, figsize=(2*8, 6), sharey=True)[1]
+ax[0].plot(samples[0], piecewise_basis)
+lagrange_basis = precompute_tensor_product_lagrange_polynomial_basis(
+        samples, grid_samples_1d[:1], [0])[0]
+_ = ax[1].plot(samples[0], lagrange_basis.T)
+
+#%%
+#Notice that the unlike the lagrange basis the picewise polynomial basis is non-zero only on a local region of the input space.
+#
+#The compares the accuracy of lagrange basis the picewise polynomial approximations for a piecewise continuous function
+def fun(samples):
+    yy = samples[0].copy()
+    yy[yy > 1/3] = 1.0
+    yy[yy <= 1/3] = 0.
+    return yy[:, None]
+
+piecewise_basis_type = "quadratic"
+axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
+[ax.plot(samples[0], fun(samples)) for ax in axs]
+for level in range(1, 5):
+    lgrid_samples_1d = [clenshaw_curtis_pts_wts_1D(level)[0]]
+    lgrid_samples = cartesian_product(lgrid_samples_1d)
+    lvalues = tensor_product_barycentric_lagrange_interpolation(
+        lgrid_samples_1d, fun, samples)
+    axs[0].plot(samples[0], lvalues, ':')
+    pvalues = tensor_product_piecewise_polynomial_interpolation(
+        samples, [level], fun, piecewise_basis_type)
+    axs[1].plot(samples[0], pvalues, '--')
+plt.show()
+
+
+#%%
+#The following compares the convergence of lagrange and picewise polynomial tensor product interpolants. Change the benchmark to see the effect of smoothness on the approximation accuracy.
+from pyapprox.benchmarks.benchmarks import setup_benchmark
+from pyapprox.variables.transforms import AffineTransform
+nvars = 2
+benchmark = setup_benchmark("genz", nvars=nvars, test_name="oscillatory")
+# benchmark = setup_benchmark("genz", nvars=nvars, test_name="c0continuous",
+#                             c_factor=0.5, w=0.5)
+validation_samples = benchmark.variable.rvs(1000)
+validation_values = benchmark.fun(validation_samples)
+var_trans = AffineTransform(benchmark.variable)
+
+piecewise_data = []
+lagrange_data = []
+# for level in range(1, 7):   # nvars = 2
+for level in range(1, 4):  # nvars = 3
+    grid_levels = [level]*nvars
+    lgrid_samples_1d = [
+        clenshaw_curtis_pts_wts_1D(ll)[0] for ll in grid_levels]
+    lgrid_samples = cartesian_product(lgrid_samples_1d)
+    lvalues = tensor_product_barycentric_lagrange_interpolation(
+        lgrid_samples_1d, benchmark.fun, validation_samples)
+    lerror = np.linalg.norm(validation_values-lvalues)/np.linalg.norm(
+        validation_values)
+    lagrange_data.append([lgrid_samples.shape[1], lerror])
+    pvalues, pgrid_samples = tensor_product_piecewise_polynomial_interpolation(
+        validation_samples, grid_levels, benchmark.fun, piecewise_basis_type,
+        var_trans, return_all=True)[:2]
+    perror = np.linalg.norm(validation_values-pvalues)/np.linalg.norm(
+        validation_values)
+    piecewise_data.append([pgrid_samples.shape[1], perror])
+lagrange_data = np.array(lagrange_data).T
+piecewise_data = np.array(piecewise_data).T
+
+ax = plt.subplots()[1]
+ax.loglog(*lagrange_data, '-o', label='Lagrange')
+ax.loglog(*piecewise_data, '--o', label='Piecewise')
+work = piecewise_data[0][1:3]
+print(work)
+ax.loglog(work, work**(-1.0), ':', label='linear rate')
+ax.loglog(work, work**(-2.0), ':', label='quadratic rate')
+_ = ax.legend()
+plt.show()
+
+#%%
+#Similar behavior occurs when using quadrature
+from pyapprox.benchmarks.benchmarks import setup_benchmark
+from pyapprox.variables.transforms import AffineTransform
+nvars = 2
+benchmark = setup_benchmark("genz", nvars=nvars, test_name="oscillatory")
+# benchmark = setup_benchmark("genz", nvars=nvars, test_name="c0continuous",
+#                             c_factor=0.5, w=0.5)
+validation_samples = benchmark.variable.rvs(1000)
+validation_values = benchmark.fun(validation_samples)
+var_trans = AffineTransform(benchmark.variable)
+
+from pyapprox.surrogates.approximate import adaptive_approximate
+from pyapprox.surrogates.interp.adaptive_sparse_grid import (
+    tensor_product_refinement_indicator)
+def build_lagrange_tp(max_level_1d):
+    #TODO use clenshaw curtis growth
+    return adaptive_approximate(
+        fun, benchmark.variable, "sparse_grid",
+        {"refinement_indicator": tensor_product_refinement_indicator,
+         "max_level_1d": max_level_1d}).approx
+
+from functools import partial
+from pyapprox.surrogates.interp.adaptive_sparse_grid import (
+    CombinationSparseGrid)
+def build_piecewise_tp(max_level_1d):
+    basis_type = "quadratic"
+    # basis_type = "linear"
+    tp = CombinationSparseGrid(nvars, basis_type)
+    admissibility_function = partial(
+        max_level_admissibility_function, max_level, max_level_1d,
+        max_num_sparse_grid_samples, error_tol)
+    tp.set_refinement_functions(
+        ensor_product_refinement_indicator, admissibility_function,
+        clenshaw_curtis_rule_growth)
+    tp.set_univariate_rules(
+        partial(canonical_univariate_piecewise_polynomial_quad_rule,
+                basis_type))
+    tp.set_function(function, var_trans)
+    tp.build()
+
+piecewise_data = []
+lagrange_data = []
+# for level in range(1, 7):   # nvars = 2
+for level in range(1, 4):  # nvars = 3
+    grid_levels = [level]*nvars
+    lgrid_samples_1d = [
+        clenshaw_curtis_pts_wts_1D(ll)[0] for ll in grid_levels]
+    lgrid_samples = cartesian_product(lgrid_samples_1d)
+    lvalues = tensor_product_barycentric_lagrange_interpolation(
+        lgrid_samples_1d, benchmark.fun, validation_samples)
+    lerror = np.linalg.norm(validation_values-lvalues)/np.linalg.norm(
+        validation_values)
+    lagrange_data.append([lgrid_samples.shape[1], lerror])
+    pvalues, pgrid_samples = tensor_product_piecewise_polynomial_interpolation(
+        validation_samples, grid_levels, benchmark.fun, piecewise_basis_type,
+        var_trans, return_all=True)[:2]
+    perror = np.linalg.norm(validation_values-pvalues)/np.linalg.norm(
+        validation_values)
+    piecewise_data.append([pgrid_samples.shape[1], perror])
+lagrange_data = np.array(lagrange_data).T
+piecewise_data = np.array(piecewise_data).T
+
+ax = plt.subplots()[1]
+ax.loglog(*lagrange_data, '-o', label='Lagrange')
+ax.loglog(*piecewise_data, '--o', label='Piecewise')
+work = piecewise_data[0][1:3]
+print(work)
+ax.loglog(work, work**(-1.0), ':', label='linear rate')
+ax.loglog(work, work**(-2.0), ':', label='quadratic rate')
+_ = ax.legend()
+plt.show()
+
+
 #%%
 #References
 #^^^^^^^^^^
