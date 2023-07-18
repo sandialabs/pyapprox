@@ -114,7 +114,7 @@ import matplotlib.pyplot as plt
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.gaussianprocess.multilevel import (
     GreedyMultifidelityIntegratedVarianceSampler, MultifidelityGaussianProcess,
-    GaussianProcess)
+    GaussianProcess, SequentialMultifidelityGaussianProcess)
 from pyapprox.surrogates.gaussianprocess.kernels import (
     RBF, MultifidelityPeerKernel, MonomialScaling)
 from pyapprox.surrogates.integrate import integrate
@@ -241,6 +241,43 @@ _ = ax.legend()
 
 #%%
 #The single fidelity approximation of the high-fidelity model is much worse than the multi-fidelity approximation.
+
+#%%
+#Sequential Construction
+#-----------------------
+#The computational cost of the multi-level GP presented grows cubically with the number of model evaluations :math:`N_m` for all models, that is the number of operations is
+#
+#.. math:: O\left(\left(\sum_{m=1}^M N_m)\right)^3\right).
+#
+#When the training data is nested, e.g. :math:`\mathcal{Z_m}\subseteq \mathcal{Z}_{m+1}` and noiseless, the algorithm in [LGIJUQ2014]_ can be used to construct a MF GP in
+#
+#.. math:: O\left(\sum_{m=1}^M N_m^3\right)
+#
+#operations.
+#
+#Another popular approach used to build MF GPs with either nested or unnested noisy data is to construct a single fidelity GP of the lowest model, then fix that GP and consruct a GP of the difference. This sequential algorithm is also much cheaper than the algorithm presented here, but the mean of the sequentially constructed GP is often less accurate and the posterior variance over- or under-estimated.
+#
+#The following plot compares a sequential multi-level GP with the exact co-kriging on the toy problem introduced earlier.
+
+sml_kernels = [
+    RBF(length_scale=0.1, length_scale_bounds=(1e-10, 1))
+    for ii in range(nmodels)]
+sml_gp = SequentialMultifidelityGaussianProcess(
+    sml_kernels, n_restarts_optimizer=20, default_rho=[1.0])
+sml_gp.set_data(train_samples, train_values)
+sml_gp.fit()
+print(sml_gp)
+
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+ax.plot(xx[0], models[0](xx), 'k-', label=r"$f_0$")
+ax.plot(xx[0], models[1](xx), 'r-', label=r"$f_1$")
+ax.plot(train_samples[1][0], train_values[1], 'rs')
+gp.plot_1d(101, [0, 1], plt_kwargs={"ls": "--", "label": "Co-kriging", "c": "b"},
+           ax=ax, fill_kwargs={"color": "b", "alpha": 0.3})
+_ = sml_gp.plot_1d(101, [0, 1],
+                   plt_kwargs={"ls": "--", "label": "Sequential", "c": "g"},
+                   ax=ax, fill_kwargs={"color": "g", "alpha": 0.3})
+
 
 #%%
 #Experimental design
@@ -389,6 +426,47 @@ _ = ax.legend()
 #.. math:: f_m(\rv)=\rho_{m-1}g(f_{m-1}(\rv))+\delta_m(\rv), 
 #
 #where :math:`g` is a nonlinear function. Setting :math:`g` to be Gaussian process leads to multi-fidelity deep Gaussian processes [KPDL2019]_, [PRDLK2017]_.
+#
+#The following figures (generated using Emukit [EMUKIT]_) demonstrate that the nonlinear formulation works better for the bi-fidelity model enesmble
+#
+#.. math:: f_1^\text{NL}(\rv)=\sin(8\pi\rv), \qquad f_2^\text{NL}(\rv)=(\rv-\sqrt{2})f_1^\text{NL}(\rv)^2.
+#
+#.. list-table::
+#
+#   * -
+#       .. _linear-mf-gp-nonlinear-model:
+#
+#       .. figure:: ../../figures/linear-mf-gp-nonlinear-model.png
+#          :width: 100%
+#          :align: center
+#
+#          Linear MF GP
+#
+#     -
+#       .. _nonlinear-mf-gp-nonlinear-model:
+#
+#       .. figure:: ../../figures/nonlinear-mf-gp-nonlinear-model.png
+#          :width: 100%
+#          :align: center
+#
+#          Nonlinear MF GP
+#
+#The following plots the correlations between the models used previously in this tutorial with the non-linear ensemble used here
+axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
+nonlinear_models = [lambda xx: np.sin(np.pi*8*xx.T),
+                    lambda xx: (xx.T-np.sqrt(2))*np.sin(np.pi*8*xx.T)**2]
+axs[0].plot(models[0](xx), models[1](xx))
+axs[1].plot(nonlinear_models[0](xx), nonlinear_models[1](xx))
+# axs[0].legend(['HF-LF Correlation'])
+# axs[1].legend(['HF-LF Correlation'])
+axs[0].set_xlabel(r'$f_1(z)$')
+axs[0].set_ylabel(r'$f_2(z)$')
+axs[1].set_xlabel(r'$f_1^{\mathrm{NL}}(z)$')
+_ = axs[1].set_ylabel(r'$f_2^{\mathrm{NL}}(z)$')
+
+
+#%%
+#No exact statements can be made about a problem from such plots, however according to [PRDLK2017]_, the additional complexity of the models with the non-linear relationship often indicates that a linear MF GP will perform poorly.
 
 #%%
 #References
@@ -400,3 +478,5 @@ _ = ax.legend()
 #.. [KPDL2019] `K. Cutajar et al. Deep Gaussian Processes for Multi-fidelity Modeling. 2019. <https://doi.org/10.48550/arXiv.1903.07320>`_
 #
 #.. [PRDLK2017] `P. Perdikaris, et al. Nonlinear information fusion algorithms for data-efficient multi-fidelity modelling. Proceedings of the Royal Society of London A. 2017. <http://rspa.royalsocietypublishing.org/content/473/2198/20160751>`_
+#
+#.. [EMUKIT] `A. Paleyes et al. Emulation of physical processes with Emukit. econd Workshop on Machine Learning and the Physical Sciences, NeurIPS. <https://github.com/EmuKit/emukit>`_

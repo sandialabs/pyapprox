@@ -153,18 +153,17 @@ class SequentialMultifidelityGaussianProcess(MultifidelityGaussianProcess):
                 alpha=self._alpha, random_state=self._random_state,
                 copy_X_train=self._copy_X_train)
             gp.fit(self._samples[ii], self._values[ii])
-            print(gp)
             if ii > 0:
                 self.rho[ii-1] = gp.kernel_.rho
             self._gps.append(gp)
 
-    def __call__(self, samples, model_idx=None):
+    def __call__(self, samples, return_std=False, model_eval_id=None):
         nmodels = len(self._gps)
-        means, variances = [], []
-        if model_idx is None:
-            model_idx = [nmodels-1]
+        means, variances, stds = [], [], []
+        if model_eval_id is None:
+            model_eval_id = [nmodels-1]
         ml_mean, ml_var = 0, 0
-        for ii in range(np.max(model_idx)+1):
+        for ii in range(np.max(model_eval_id)+1):
             discrepancy, std = self._gps[ii](samples, return_std=True)
             if ii > 0:
                 ml_mean = self.rho[ii-1]*ml_mean + discrepancy
@@ -172,13 +171,25 @@ class SequentialMultifidelityGaussianProcess(MultifidelityGaussianProcess):
             else:
                 ml_mean = discrepancy
                 ml_var = std**2
+            stds.append(std)
             means.append(ml_mean)
             variances.append(ml_var)
-        if len(model_idx) == 1:
-            return (means[model_idx[0]],
-                    np.sqrt(variances[model_idx[0]]).squeeze())
-        return ([means[idx] for idx in model_idx],
-                [np.sqrt(variances[idx]).squeeze() for idx in model_idx])
+        if len(model_eval_id) == 1:
+            if return_std:
+                # return (means[model_eval_id[0]],
+                #         np.sqrt(variances[model_eval_id[0]]).squeeze())
+                return (means[model_eval_id[0]], std[model_eval_id[0]])
+            return means[model_eval_id[0]]
+        if return_std:
+            #return ([means[idx] for idx in model_eval_id],
+            #        [np.sqrt(variances[idx]).squeeze() for idx in model_eval_id]
+            return ([means[idx] for idx in model_eval_id],
+                    [stds[idx].squeeze() for idx in model_eval_id])
+        return [means[idx] for idx in model_eval_id]
+
+    def __repr__(self):
+        return "{0}(rho={1})".format(
+            self.__class__.__name__, self.rho)
 
 
 class SequentialGaussianProcess(GaussianProcess):

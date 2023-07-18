@@ -126,8 +126,12 @@ cset = axs.contourf(
 #%%
 #The error in the tensor product interpolant is given by
 #
-#.. math:: \lVert f_\ai-f_{\ai,\bi}\rVert_{L^\infty(\rvdom)} \le C_{d,r} N_{\bi}^{-s/d}
+#.. math:: \lVert f_\ai-f_{\ai,\bi}\rVert_{L^\infty(\rvdom)} \le C_{d,s} N_{\bi}^{-s/d}
 #
+#where :math:`f_\alpha` has continuous mixed derivatives of order :math:`s`.
+
+
+#%%
 #Post-processing
 #---------------
 #Once a surrogate has been constructed it can be used for many different purposes. For example one can use it to estimate moments, perform sensitivity analysis, or simply approximate the evaluation of the expensive model at new locations where expensive simulation model data is not available.
@@ -138,7 +142,7 @@ cset = axs.contourf(
 #
 #.. math::
 #  \mean{\left(Q_{\alpha}-\mean{Q}\right)^2}&=N^{-1}\var{Q_\alpha}+\left(\mean{Q_{\alpha}}-\mean{Q}\right)^2\\
-#  &\le N^{-1}\var{Q_\alpha}+C_{d,r} N_{\bi}^{-s/d}
+#  &\le N^{-1}\var{Q_\alpha}+C_{d,s} N_{\bi}^{-s/d}
 #
 #Because a surrogate is inexpensive to evaluate the first term can be driven to zero so that only the bias remains. Thus the error in the Monte Carlo estimate of the mean using the surrogate is dominated by the error in the surrogate. If this error can be reduced more quickly than \frac{N^{-1}} (as is the case for low-dimensional tensor-product interpolation) then using surrogates for computing moments is very effective.
 #
@@ -173,13 +177,13 @@ print('Monte Carlo surrogate mean', mc_mean)
 #
 #The following code compares polynomial and piecewise polynomial univariate basis functions.
 samples = np.linspace(-1, 1, 201)[None, :]
+ax = plt.subplots(1, 2, figsize=(2*8, 6), sharey=True)[1]
+lagrange_basis = precompute_tensor_product_lagrange_polynomial_basis(
+        samples, grid_samples_1d[:1], [0])[0].T
+ax[0].plot(samples[0], lagrange_basis)
 piecewise_basis = tensor_product_piecewise_polynomial_basis(
     grid_levels[:1], samples, basis_type="quadratic")
-ax = plt.subplots(1, 2, figsize=(2*8, 6), sharey=True)[1]
-ax[0].plot(samples[0], piecewise_basis)
-lagrange_basis = precompute_tensor_product_lagrange_polynomial_basis(
-        samples, grid_samples_1d[:1], [0])[0]
-_ = ax[1].plot(samples[0], lagrange_basis.T)
+_ = ax[1].plot(samples[0], piecewise_basis)
 
 #%%
 #Notice that the unlike the lagrange basis the picewise polynomial basis is non-zero only on a local region of the input space.
@@ -242,7 +246,7 @@ def build_piecewise_tp(max_level_1d):
 nvars = 2
 benchmark = setup_benchmark("genz", nvars=nvars, test_name="oscillatory")
 # benchmark = setup_benchmark("genz", nvars=nvars, test_name="c0continuous",
-#                             c_factor=0.5, w=0.5)
+#                            c_factor=0.5, w=0.5)
 
 #%%
 #Run a convergence study

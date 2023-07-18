@@ -699,7 +699,7 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
 
         length_scale_bounds = (1e-1, 1)
         sml_kernels = [
-            RBF(length_scale=0.1, length_scale_bounds=length_scale_bounds)
+            1.0*RBF(length_scale=0.1, length_scale_bounds=length_scale_bounds)
             for ii in range(nmodels)]
         sml_gp = SequentialMultifidelityGaussianProcess(
             sml_kernels, n_restarts_optimizer=n_restarts_optimizer,
@@ -710,11 +710,11 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
         print([g.kernel_ for g in sml_gp._gps])
 
         xx = np.linspace(0, 1, 101)[None, :]
-        print(np.abs(f1(xx)-sml_gp(xx, model_idx=[0])[0]).max())
-        assert np.allclose(f1(xx), sml_gp(xx, model_idx=[0])[0], atol=1e-3)
+        # print(np.abs(f1(xx)-sml_gp(xx, model_eval_id=[0])[0]).max())
+        assert np.allclose(f1(xx), sml_gp(xx, model_eval_id=[0]), atol=1e-3)
         error = np.linalg.norm(
-            (f2(xx)-sml_gp(xx, model_idx=[1])[0]))/np.linalg.norm(f2(xx))
-        print(error)
+            (f2(xx)-sml_gp(xx, model_eval_id=[1])))/np.linalg.norm(f2(xx))
+        # print(error)
         assert error < 7e-2
 
         # from pyapprox.util.configure_plots import plt
@@ -724,7 +724,7 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
         # axs[0].plot(train_samples[1][0, :], f2(train_samples[1]), 'ko')
         # axs[1].plot(xx[0, :], f1(xx), 'k-')
         # axs[1].plot(train_samples[0][0, :], f1(train_samples[0]), 'ko')
-        # axs[1].plot(xx[0, :], sml_gp(xx, model_idx=[0])[0], ':b')
+        # axs[1].plot(xx[0, :], sml_gp(xx, model_eval_id=[0])[0], ':b')
         # rho = sml_gp.rho[0]
         # axs[2].plot(xx[0, :], f2(xx)-rho*f1(xx), 'k--')
         # axs[2].plot(xx[0, :], sml_gp._gps[1](xx), ':b')
