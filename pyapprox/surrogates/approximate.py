@@ -57,7 +57,7 @@ def adaptive_approximate_sparse_grid(
         refinement_indicator=variance_refinement_indicator,
         univariate_quad_rule_info=None, max_nsamples=100, tol=0, verbose=0,
         config_variables_idx=None, config_var_trans=None, cost_function=None,
-        max_level_1d=None, max_level=None):
+        max_level_1d=None, max_level=None, basis_type="barycentric"):
     r"""
     Compute a sparse grid approximation of a function.
 
@@ -184,6 +184,10 @@ def adaptive_approximate_sparse_grid(
         i that satisfy : math:`\lvert i \rvert_1\le l` can be added. If None
         l=np.inf
 
+    basis_type : string (default="barycentric")
+        Specify the basis type to use. Currently the same basis must be used
+        for all dimensions. Options "barycentric", "linear", "quadratic"
+
 
     Returns
     -------
@@ -197,7 +201,7 @@ def adaptive_approximate_sparse_grid(
     nvars = var_trans.num_vars()
     if config_var_trans is not None:
         nvars += config_var_trans.num_vars()
-    sparse_grid = CombinationSparseGrid(nvars)
+    sparse_grid = CombinationSparseGrid(nvars, basis_type)
 
     if max_level_1d is None:
         max_level_1d = [np.inf]*nvars

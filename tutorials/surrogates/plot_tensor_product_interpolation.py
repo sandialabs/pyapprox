@@ -58,6 +58,21 @@ from pyapprox.surrogates.interp.barycentric_interpolation import (
     tensor_product_barycentric_lagrange_interpolation)
 from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.surrogates.orthopoly.quadrature import clenshaw_curtis_pts_wts_1D
+from pyapprox.surrogates.approximate import adaptive_approximate
+from pyapprox.surrogates.interp.adaptive_sparse_grid import (
+    tensor_product_refinement_indicator)
+from functools import partial
+from pyapprox.surrogates.orthopoly.quadrature import (
+    clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth)
+from pyapprox.surrogates.interp.tensorprod import (
+    canonical_univariate_piecewise_polynomial_quad_rule)
+from pyapprox.benchmarks.benchmarks import setup_benchmark
+from pyapprox.variables.transforms import AffineTransform
+from pyapprox.surrogates.interp.tensorprod import (
+    tensor_product_piecewise_polynomial_basis,
+    tensor_product_piecewise_polynomial_interpolation)
+from pyapprox.surrogates.interp.barycentric_interpolation import (
+    precompute_tensor_product_lagrange_polynomial_basis)
 
 quad_rule = clenshaw_curtis_pts_wts_1D
 fig = plt.figure(figsize=(2*8, 6))
@@ -154,17 +169,10 @@ print('Monte Carlo surrogate mean', mc_mean)
 #%%
 #Piecewise-polynomial approximation
 #----------------------------------
-# Polynomial interpolation accurately approximates smooth functions, however its accuracy degrades as the regularity of the target function decreases. For piecewise continuous functions, or functions with only a limited number of continuous derivaties, piecewise-polynomial approximation may be more appropriate.
+#Polynomial interpolation accurately approximates smooth functions, however its accuracy degrades as the regularity of the target function decreases. For piecewise continuous functions, or functions with only a limited number of continuous derivaties, piecewise-polynomial approximation may be more appropriate.
 #
 #The following code compares polynomial and piecewise polynomial univariate basis functions.
-from pyapprox.surrogates.interp.tensorprod import (
-    tensor_product_piecewise_polynomial_basis,
-    tensor_product_piecewise_polynomial_interpolation)
-from pyapprox.surrogates.interp.barycentric_interpolation import (
-    precompute_tensor_product_lagrange_polynomial_basis
-)
 samples = np.linspace(-1, 1, 201)[None, :]
-print(grid_levels[:1])
 piecewise_basis = tensor_product_piecewise_polynomial_basis(
     grid_levels[:1], samples, basis_type="quadratic")
 ax = plt.subplots(1, 2, figsize=(2*8, 6), sharey=True)[1]
@@ -195,113 +203,66 @@ for level in range(1, 5):
     pvalues = tensor_product_piecewise_polynomial_interpolation(
         samples, [level], fun, piecewise_basis_type)
     axs[1].plot(samples[0], pvalues, '--')
-plt.show()
 
 
 #%%
+#The Lagrange polynomials induce oscillations around the discontinuity, which significantly decreases the convergence rate of the approximation. The picewise quadratic also over and undershoots around the discontinuity, but the phenomena is localized.
+#
 #The following compares the convergence of lagrange and picewise polynomial tensor product interpolants. Change the benchmark to see the effect of smoothness on the approximation accuracy.
-from pyapprox.benchmarks.benchmarks import setup_benchmark
-from pyapprox.variables.transforms import AffineTransform
-nvars = 2
-benchmark = setup_benchmark("genz", nvars=nvars, test_name="oscillatory")
-# benchmark = setup_benchmark("genz", nvars=nvars, test_name="c0continuous",
-#                             c_factor=0.5, w=0.5)
-validation_samples = benchmark.variable.rvs(1000)
-validation_values = benchmark.fun(validation_samples)
-var_trans = AffineTransform(benchmark.variable)
+#
+#First define wrappers to build the tensor product interpolants
 
-piecewise_data = []
-lagrange_data = []
-# for level in range(1, 7):   # nvars = 2
-for level in range(1, 4):  # nvars = 3
-    grid_levels = [level]*nvars
-    lgrid_samples_1d = [
-        clenshaw_curtis_pts_wts_1D(ll)[0] for ll in grid_levels]
-    lgrid_samples = cartesian_product(lgrid_samples_1d)
-    lvalues = tensor_product_barycentric_lagrange_interpolation(
-        lgrid_samples_1d, benchmark.fun, validation_samples)
-    lerror = np.linalg.norm(validation_values-lvalues)/np.linalg.norm(
-        validation_values)
-    lagrange_data.append([lgrid_samples.shape[1], lerror])
-    pvalues, pgrid_samples = tensor_product_piecewise_polynomial_interpolation(
-        validation_samples, grid_levels, benchmark.fun, piecewise_basis_type,
-        var_trans, return_all=True)[:2]
-    perror = np.linalg.norm(validation_values-pvalues)/np.linalg.norm(
-        validation_values)
-    piecewise_data.append([pgrid_samples.shape[1], perror])
-lagrange_data = np.array(lagrange_data).T
-piecewise_data = np.array(piecewise_data).T
-
-ax = plt.subplots()[1]
-ax.loglog(*lagrange_data, '-o', label='Lagrange')
-ax.loglog(*piecewise_data, '--o', label='Piecewise')
-work = piecewise_data[0][1:3]
-print(work)
-ax.loglog(work, work**(-1.0), ':', label='linear rate')
-ax.loglog(work, work**(-2.0), ':', label='quadratic rate')
-_ = ax.legend()
-plt.show()
-
-#%%
-#Similar behavior occurs when using quadrature
-from pyapprox.benchmarks.benchmarks import setup_benchmark
-from pyapprox.variables.transforms import AffineTransform
-nvars = 2
-benchmark = setup_benchmark("genz", nvars=nvars, test_name="oscillatory")
-# benchmark = setup_benchmark("genz", nvars=nvars, test_name="c0continuous",
-#                             c_factor=0.5, w=0.5)
-validation_samples = benchmark.variable.rvs(1000)
-validation_values = benchmark.fun(validation_samples)
-var_trans = AffineTransform(benchmark.variable)
-
-from pyapprox.surrogates.approximate import adaptive_approximate
-from pyapprox.surrogates.interp.adaptive_sparse_grid import (
-    tensor_product_refinement_indicator)
 def build_lagrange_tp(max_level_1d):
-    #TODO use clenshaw curtis growth
+    univariate_quad_rule_info = [
+        clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth,
+        None, None]
     return adaptive_approximate(
-        fun, benchmark.variable, "sparse_grid",
+        benchmark.fun, benchmark.variable, "sparse_grid",
         {"refinement_indicator": tensor_product_refinement_indicator,
-         "max_level_1d": max_level_1d}).approx
+         "max_level_1d": max_level_1d,
+         "univariate_quad_rule_info": univariate_quad_rule_info,
+         "max_nsamples": np.inf}).approx
 
-from functools import partial
-from pyapprox.surrogates.interp.adaptive_sparse_grid import (
-    CombinationSparseGrid)
 def build_piecewise_tp(max_level_1d):
     basis_type = "quadratic"
     # basis_type = "linear"
-    tp = CombinationSparseGrid(nvars, basis_type)
-    admissibility_function = partial(
-        max_level_admissibility_function, max_level, max_level_1d,
-        max_num_sparse_grid_samples, error_tol)
-    tp.set_refinement_functions(
-        ensor_product_refinement_indicator, admissibility_function,
-        clenshaw_curtis_rule_growth)
-    tp.set_univariate_rules(
+    univariate_quad_rule_info = [
         partial(canonical_univariate_piecewise_polynomial_quad_rule,
-                basis_type))
-    tp.set_function(function, var_trans)
-    tp.build()
+                basis_type),
+        clenshaw_curtis_rule_growth, None, None]
+    return adaptive_approximate(
+        benchmark.fun, benchmark.variable, "sparse_grid",
+        {"refinement_indicator": tensor_product_refinement_indicator,
+         "max_level_1d": max_level_1d,
+         "univariate_quad_rule_info": univariate_quad_rule_info,
+         "basis_type": basis_type, "max_nsamples": np.inf}).approx
+
+#%%
+#Load a benchmark
+nvars = 2
+benchmark = setup_benchmark("genz", nvars=nvars, test_name="oscillatory")
+# benchmark = setup_benchmark("genz", nvars=nvars, test_name="c0continuous",
+#                             c_factor=0.5, w=0.5)
+
+#%%
+#Run a convergence study
+validation_samples = benchmark.variable.rvs(1000)
+validation_values = benchmark.fun(validation_samples)
 
 piecewise_data = []
 lagrange_data = []
-# for level in range(1, 7):   # nvars = 2
-for level in range(1, 4):  # nvars = 3
-    grid_levels = [level]*nvars
-    lgrid_samples_1d = [
-        clenshaw_curtis_pts_wts_1D(ll)[0] for ll in grid_levels]
-    lgrid_samples = cartesian_product(lgrid_samples_1d)
-    lvalues = tensor_product_barycentric_lagrange_interpolation(
-        lgrid_samples_1d, benchmark.fun, validation_samples)
+for level in range(1, 7):   # nvars = 2
+# for level in range(1, 4):  # nvars = 3
+    ltp = build_lagrange_tp(level)
+    lvalues = ltp(validation_samples)
     lerror = np.linalg.norm(validation_values-lvalues)/np.linalg.norm(
         validation_values)
-    lagrange_data.append([lgrid_samples.shape[1], lerror])
-    pvalues, pgrid_samples = tensor_product_piecewise_polynomial_interpolation(
-        validation_samples, grid_levels, benchmark.fun, piecewise_basis_type,
-        var_trans, return_all=True)[:2]
+    lagrange_data.append([ltp.samples.shape[1], lerror])
+    ptp = build_piecewise_tp(level)
+    pvalues = ptp(validation_samples)
     perror = np.linalg.norm(validation_values-pvalues)/np.linalg.norm(
         validation_values)
-    piecewise_data.append([pgrid_samples.shape[1], perror])
+    piecewise_data.append([ptp.samples.shape[1], perror])
 lagrange_data = np.array(lagrange_data).T
 piecewise_data = np.array(piecewise_data).T
 
@@ -309,12 +270,42 @@ ax = plt.subplots()[1]
 ax.loglog(*lagrange_data, '-o', label='Lagrange')
 ax.loglog(*piecewise_data, '--o', label='Piecewise')
 work = piecewise_data[0][1:3]
-print(work)
 ax.loglog(work, work**(-1.0), ':', label='linear rate')
 ax.loglog(work, work**(-2.0), ':', label='quadratic rate')
 _ = ax.legend()
-plt.show()
 
+#%%
+#Similar behavior occurs when using quadrature.
+#
+#Load in the benchmark.
+nvars = 2
+benchmark = setup_benchmark("genz", nvars=nvars, test_name="oscillatory")
+
+#%%
+#Run a convergence study
+piecewise_data = []
+lagrange_data = []
+for level in range(1, 7):   # nvars = 2
+    ltp = build_lagrange_tp(level)
+    lvalues = ltp.moments()[0, 0]
+    lerror = np.linalg.norm(benchmark.mean-lvalues)/np.linalg.norm(
+        benchmark.mean)
+    lagrange_data.append([ltp.samples.shape[1], lerror])
+    ptp = build_piecewise_tp(level)
+    pvalues = ptp.moments()[0, 0]
+    perror = np.linalg.norm(benchmark.mean-pvalues)/np.linalg.norm(
+        benchmark.mean)
+    piecewise_data.append([ptp.samples.shape[1], perror])
+lagrange_data = np.array(lagrange_data).T
+piecewise_data = np.array(piecewise_data).T
+
+ax = plt.subplots()[1]
+ax.loglog(*lagrange_data, '-o', label='Lagrange')
+ax.loglog(*piecewise_data, '--o', label='Piecewise')
+work = piecewise_data[0][1:3]
+ax.loglog(work, work**(-1.0), ':', label='linear rate')
+ax.loglog(work, work**(-2.0), ':', label='quadratic rate')
+_ = ax.legend()
 
 #%%
 #References

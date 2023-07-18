@@ -1243,6 +1243,10 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         """
         num_vars : integer
             The number of variables
+
+        basis_type : string (default="barycentric")
+           Specify the basis type to use. Currently the same basis must be used
+           for all dimensions. Options "barycentric", "linear", "quadratic"
         """
         super(CombinationSparseGrid, self).__init__(num_vars)
 
