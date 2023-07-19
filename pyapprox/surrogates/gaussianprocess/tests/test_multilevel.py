@@ -699,7 +699,7 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
 
         length_scale_bounds = (1e-1, 1)
         sml_kernels = [
-            1.0*RBF(length_scale=0.1, length_scale_bounds=length_scale_bounds)
+            RBF(length_scale=0.1, length_scale_bounds=length_scale_bounds)
             for ii in range(nmodels)]
         sml_gp = SequentialMultifidelityGaussianProcess(
             sml_kernels, n_restarts_optimizer=n_restarts_optimizer,
