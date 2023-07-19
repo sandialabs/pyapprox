@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Univariate Gaussian Quadrature &mdash; PyApprox 1.0.0 documentation</title>
+  <title>Univariate Gaussian Quadrature &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -53,7 +58,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorials</a><ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorial</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="plot_variables.html">Random Variables</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_interface.html">Model interfacing</a></li>
@@ -91,9 +96,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="index.html">Software Tutorials</a> &raquo;</li>
-      <li>Univariate Gaussian Quadrature</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Software Tutorial</a></li>
+      <li class="breadcrumb-item active">Univariate Gaussian Quadrature</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/auto_examples/plot_gaussian_quadrature.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -105,11 +110,11 @@
              
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-examples-plot-gaussian-quadrature-py"><span class="std std-ref">here</span></a>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-plot-gaussian-quadrature-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="univariate-gaussian-quadrature">
-<span id="sphx-glr-auto-examples-plot-gaussian-quadrature-py"></span><h1>Univariate Gaussian Quadrature<a class="headerlink" href="#univariate-gaussian-quadrature" title="Permalink to this headline"></a></h1>
+<span id="sphx-glr-auto-examples-plot-gaussian-quadrature-py"></span><h1>Univariate Gaussian Quadrature<a class="headerlink" href="#univariate-gaussian-quadrature" title="Permalink to this heading"></a></h1>
 <p>Univariate Gaussian quadrature can be used to efficiently integrate
 smooth one-dimensional functions. While numpy supports Hermite and Legendre
 Gaussian qurature, Pyapprox can generate Gaussian quadrature rules for
@@ -132,8 +137,7 @@ with repsect to the uniform PDF on [-1, 1], i.e. 1/2</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">integral</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>0.33333333333333337
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>0.3333333333333332
 </pre></div>
 </div>
 <p>The quadrature recovers the integral value of 1/3 to machine precision. Note
@@ -149,8 +153,7 @@ For example</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">integral</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>1.3333333333333315
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>1.3333333333333346
 </pre></div>
 </div>
 <p>Quadrature rules can be created for almost any random variable. Here
@@ -163,8 +166,7 @@ we will generate a quadrature rule for an exponential random variable</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">integral</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>1.9999999999999993
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>2.000000000000001
 </pre></div>
 </div>
 <p>For interest, we plot the quadrature rule against the PDF of the exponential
@@ -180,8 +182,8 @@ variable</p>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_gaussian_quadrature_001.png" srcset="../_images/sphx_glr_plot_gaussian_quadrature_001.png" alt="plot gaussian quadrature" class = "sphx-glr-single-img"/><p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.087 seconds)</p>
-<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-gaussian-quadrature-py">
+<img src="../_images/sphx_glr_plot_gaussian_quadrature_001.png" srcset="../_images/sphx_glr_plot_gaussian_quadrature_001.png" alt="plot gaussian quadrature" class = "sphx-glr-single-img"/><p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.093 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-gaussian-quadrature-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/acfbabcbd5a8536dc00f326ed2a4dca9/plot_gaussian_quadrature.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_gaussian_quadrature.py</span></code></a></p>
 </div>

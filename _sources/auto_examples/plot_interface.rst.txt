@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_examples_plot_interface.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_examples_plot_interface.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -89,11 +89,9 @@ The :class:`pyapprox.interface.wrappers.WorkTrackingModel` has an attribute :cla
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    {(0.0,): [0.021309852600097656, 0.022834300994873047, 0.01922321319580078, 0.03530120849609375, 0.014723777770996094, 0.018468141555786133, 0.017929792404174805, 0.0005068778991699219, 0.023463010787963867, 0.0032320022583007812]}
+    {(0.0,): [0.048856258392333984, 0.03068065643310547, 0.04111909866333008, 0.04324913024902344, 0.03825807571411133, 0.0528867244720459, 0.03540515899658203, 0.03200101852416992, 0.023923873901367188, 0.007597923278808594]}
 
 
 
@@ -116,11 +114,9 @@ We can also call the work tracker to query the median cost for a model with a gi
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [0.01884568]
+    [0.03683162]
 
 
 
@@ -220,12 +216,10 @@ Again we can query the execution times of each model
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    {(0.0,): [0.04897189140319824, 0.04144620895385742, 0.035201072692871094, 0.0427098274230957, 0.04759788513183594], (1.0,): [0.08864402770996094, 0.08164477348327637, 0.061695098876953125, 0.07576799392700195, 0.08119797706604004]}
-    [0.04270983 0.08119798]
+    {(0.0,): [0.04683709144592285, 0.03693509101867676, 0.006732940673828125, 0.040592193603515625, 0.006370067596435547], (1.0,): [0.06839394569396973, 0.07629728317260742, 0.06804299354553223, 0.06473493576049805, 0.0886681079864502]}
+    [0.03693509 0.06839395]
 
 
 
@@ -285,13 +279,11 @@ be used with WorkTrackingModel using the sequence of wrappers below.
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    With 1 threads that took 0.4975900650024414 seconds
+    With 1 threads that took 0.4728577136993408 seconds
     Warning set OMP_NUM_THREADS=1 for best performance
-    With 4 threads that took 1.147495985031128 seconds
+    With 4 threads that took 1.304434061050415 seconds
 
 
 
@@ -314,14 +306,12 @@ costs are still being recorded correctly
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
     WorkTracker Cost Summary
     Funtion ID Median Cost
-    (0.0,)     0.022763609886169434
-    (1.0,)     0.07447099685668945
+    (0.0,)     0.033292174339294434
+    (1.0,)     0.07344233989715576
 
 
 
@@ -355,28 +345,25 @@ PoolModel cannot be used with lambda functions. You will get error similar to pi
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  2.997 seconds)
+   **Total running time of the script:** ( 0 minutes  3.155 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_interface.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_interface.py <plot_interface.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_interface.py <plot_interface.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_interface.ipynb <plot_interface.ipynb>`
+      :download:`Download Jupyter notebook: plot_interface.ipynb <plot_interface.ipynb>`
 
 
 .. only:: html

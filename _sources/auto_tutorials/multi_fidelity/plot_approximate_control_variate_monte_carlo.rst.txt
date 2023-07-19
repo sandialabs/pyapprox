@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -155,8 +155,6 @@ The following code generates samples according to this strategy
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
     [array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1., 1., 1., 1., 1.,
@@ -225,8 +223,6 @@ The high-fidelity model is only evaluated on the red dots. Now lets use these sa
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
     MC difference squared = 0.1663308327274871
@@ -271,8 +267,6 @@ Now lets compute the variance reduction for different sample sizes
 
 
 .. rst-class:: sphx-glr-script-out
-
- Out:
 
  .. code-block:: none
 
@@ -333,28 +327,25 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.703 seconds)
+   **Total running time of the script:** ( 0 minutes  0.666 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_approximate_control_variate_monte_carlo.py <plot_approximate_control_variate_monte_carlo.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_approximate_control_variate_monte_carlo.py <plot_approximate_control_variate_monte_carlo.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_approximate_control_variate_monte_carlo.ipynb <plot_approximate_control_variate_monte_carlo.ipynb>`
+      :download:`Download Jupyter notebook: plot_approximate_control_variate_monte_carlo.ipynb <plot_approximate_control_variate_monte_carlo.ipynb>`
 
 
 .. only:: html

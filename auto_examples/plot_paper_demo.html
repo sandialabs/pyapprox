@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>End-to-End Model Analysis &mdash; PyApprox 1.0.0 documentation</title>
+  <title>End-to-End Model Analysis &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,7 +20,10 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -33,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -51,7 +58,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorials</a><ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorial</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="plot_variables.html">Random Variables</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_interface.html">Model interfacing</a></li>
@@ -92,9 +99,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="index.html">Software Tutorials</a> &raquo;</li>
-      <li>End-to-End Model Analysis</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Software Tutorial</a></li>
+      <li class="breadcrumb-item active">End-to-End Model Analysis</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/auto_examples/plot_paper_demo.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -106,21 +113,21 @@
              
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-examples-plot-paper-demo-py"><span class="std std-ref">here</span></a>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-plot-paper-demo-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="end-to-end-model-analysis">
-<span id="sphx-glr-auto-examples-plot-paper-demo-py"></span><h1>End-to-End Model Analysis<a class="headerlink" href="#end-to-end-model-analysis" title="Permalink to this headline"></a></h1>
+<span id="sphx-glr-auto-examples-plot-paper-demo-py"></span><h1>End-to-End Model Analysis<a class="headerlink" href="#end-to-end-model-analysis" title="Permalink to this heading"></a></h1>
 <p>This tutorial describes how to use each of the major model analyses in Pyapprox
 following the exposition in <a class="reference internal" href="#pyapprox2022" id="id1"><span>[PYAPPROX2022]</span></a>.</p>
 <p>First lets load all the necessary modules and set the random seeds for reproducibility.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span> <span class="k">as</span> <span class="nn">mpl</span>
 <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
 <span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">import</span> <span class="nn">time</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
 <span class="kn">from</span> <span class="nn">pyapprox.util.configure_plots</span> <span class="kn">import</span> <span class="n">mathrm_label</span><span class="p">,</span> <span class="n">mathrm_labels</span>
 <span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">IndependentMarginalsVariable</span><span class="p">,</span> <span class="n">print_statistics</span><span class="p">,</span> <span class="n">AffineTransform</span><span class="p">)</span>
@@ -131,25 +138,29 @@ following the exposition in <a class="reference internal" href="#pyapprox2022" i
 <span class="kn">from</span> <span class="nn">pyapprox.surrogates</span> <span class="kn">import</span> <span class="n">adaptive_approximate</span>
 <span class="kn">from</span> <span class="nn">pyapprox.analysis.sensitivity_analysis</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">run_sensitivity_analysis</span><span class="p">,</span> <span class="n">plot_sensitivity_indices</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">pyapprox.bayes.markov_chain_monte_carlo</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">loglike_from_negloglike</span><span class="p">,</span> <span class="n">MCMCVariable</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.bayes.metropolis</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">loglike_from_negloglike</span><span class="p">,</span> <span class="n">plot_unnormalized_2d_marginals</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.bayes.metropolis</span> <span class="kn">import</span> <span class="n">MetropolisMCMCVariable</span>
 <span class="kn">from</span> <span class="nn">pyapprox.expdesign.bayesian_oed</span> <span class="kn">import</span> <span class="n">get_bayesian_oed_optimizer</span>
 <span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">multifidelity</span>
-<span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">DeprecationWarning</span><span class="p">)</span>
-<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
-<span class="n">torch</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="c1"># warnings.filterwarnings(&quot;ignore&quot;, category=DeprecationWarning)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">2023</span><span class="p">)</span>
+<span class="n">torch</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span><span class="mi">2023</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;torch._C.Generator object at 0x14f968190&gt;
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;torch._C.Generator object at 0x16bde39d0&gt;
 </pre></div>
 </div>
 <p>The tutorial can save the figures to file if desired. If you do want the plots
 set savefig=True</p>
+<blockquote>
+<div><p>savefig = True</p>
+</div></blockquote>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">savefig</span> <span class="o">=</span> <span class="kc">False</span>
 </pre></div>
 </div>
-<p>The following code shows how to create and sample from two independent uniform random variables defined on [−2, 2]. We use uniform variables here, but any marginal from the scipy.stats module can be used.</p>
+<p>The following code shows how to create and sample from two independent uniform random variables defined on <span class="math notranslate nohighlight">\([-2, 2]\)</span>. We use uniform variables here, but any marginal from the scipy.stats module can be used.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nsamples</span> <span class="o">=</span> <span class="mi">30</span>
 <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">)]</span>
 <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
@@ -157,13 +168,12 @@ set savefig=True</p>
 <span class="n">print_statistics</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>           z0         z1
 count   30.000000  30.000000
-mean    -0.486291   0.116079
-std      0.926995   1.107798
-min     -1.896295  -1.891191
-max      1.415901   1.975408
+mean    -0.528053   0.197078
+std      0.905072   1.114676
+min     -1.911641  -1.684959
+max      1.722128   1.922229
 </pre></div>
 </div>
 <p>PyApprox supports various types of variable transformations. The following code
@@ -174,21 +184,20 @@ to samples from the variable’s canonical form.</p>
 <span class="n">print_statistics</span><span class="p">(</span><span class="n">canonical_samples</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>           z0         z1
 count   30.000000  30.000000
-mean    -0.243145   0.058040
-std      0.463497   0.553899
-min     -0.948148  -0.945595
-max      0.707951   0.987704
+mean    -0.264027   0.098539
+std      0.452536   0.557338
+min     -0.955821  -0.842480
+max      0.861064   0.961114
 </pre></div>
 </div>
-<p>Pyapprox provides many utilities for interfacing with complex numerical codes
-and show how to use the ModelEnsemble and
-WorkTrackingModel to evaluate two models at once and time the wall time
-of each evaluation of each model. The last print statement
-prints the median execution time of each model. First lest defined
-two functions with different execution times that can be evaluated for multiple samples</p>
+<p>Pyapprox provides many utilities for interfacing with complex numerical codes.
+The following shows how to wrap a model and store the wall time required
+to evaluate each sample in a set. First define a function
+with a random execution time that takes in one sample at a time, i.e. a
+1D array. Then wrap that model so that multiple samples can be evaluated at
+once.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">fun_pause_1</span><span class="p">(</span><span class="n">sample</span><span class="p">):</span>
     <span class="k">assert</span> <span class="n">sample</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
     <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">.05</span><span class="p">))</span>
@@ -197,35 +206,24 @@ two functions with different execution times that can be evaluated for multiple 
 
 <span class="k">def</span> <span class="nf">pyapprox_fun_1</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
     <span class="k">return</span> <span class="n">evaluate_1darray_function_on_2d_array</span><span class="p">(</span><span class="n">fun_pause_1</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
-
-
-<span class="k">def</span> <span class="nf">fun_pause_2</span><span class="p">(</span><span class="n">sample</span><span class="p">):</span>
-    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">.05</span><span class="p">,</span> <span class="mf">.1</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sample</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
-
-
-<span class="k">def</span> <span class="nf">pyapprox_fun_2</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
-    <span class="k">return</span> <span class="n">evaluate_1darray_function_on_2d_array</span><span class="p">(</span><span class="n">fun_pause_2</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Now wrap these functions and run them as an ensemble while tracking
-their execution times</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model_ensemble</span> <span class="o">=</span> <span class="n">ModelEnsemble</span><span class="p">([</span><span class="n">pyapprox_fun_1</span><span class="p">,</span> <span class="n">pyapprox_fun_2</span><span class="p">])</span>
-<span class="n">timer_fun_ensemble</span> <span class="o">=</span> <span class="n">TimerModel</span><span class="p">(</span><span class="n">model_ensemble</span><span class="p">)</span>
-<span class="n">worktracking_fun_ensemble</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span>
-    <span class="n">timer_fun_ensemble</span><span class="p">,</span> <span class="n">num_config_vars</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-<span class="n">fun_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">nsamples</span><span class="p">)</span>
-<span class="n">fun_ids</span><span class="p">[:</span><span class="n">nsamples</span><span class="o">//</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="n">ensemble_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">samples</span><span class="p">,</span> <span class="n">fun_ids</span><span class="p">])</span>
-<span class="n">values</span> <span class="o">=</span> <span class="n">worktracking_fun_ensemble</span><span class="p">(</span><span class="n">ensemble_samples</span><span class="p">)</span>
-<span class="n">query_fun_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">worktracking_fun_ensemble</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">(</span><span class="n">query_fun_ids</span><span class="p">))</span>
+<p>Now wrap the latter function and run it while tracking
+their execution times. The last print statement
+prints the median execution time of the model.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">timer_model</span> <span class="o">=</span> <span class="n">TimerModel</span><span class="p">(</span><span class="n">pyapprox_fun_1</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span><span class="n">timer_model</span><span class="p">)</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">())</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.027107   0.07577896]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.03503788]
 </pre></div>
 </div>
+<p>Other wrappers available in PyApprox include those for running multiple models
+at once, useful for multi-fidelity methods, wrappers that fix a subset of inputs
+to user specified values, wrappers that only return a subset of all
+possible model ouputs, and wrappers for evaluating samples in parallel.</p>
 <p>Pyapprox provide numerous benchmarks for verifying, validating and comparing
 model analysis algorithms. The following list the names of all benchmarks and
 then creates a benchmark that can be used to test the creation of surrogates,
@@ -234,14 +232,13 @@ determining the true coefficients of the Karhunene Loeve expansion (KLE)
 used to characterize the uncertain diffusivity field of an advection
 diffusion equation. See documentation of the benchmark for more details).</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">list_benchmarks</span><span class="p">())</span>
-<span class="n">noise_stdev</span> <span class="o">=</span> <span class="mf">1e-1</span>
+<span class="n">noise_stdev</span> <span class="o">=</span> <span class="mi">1</span> <span class="c1">#1e-1</span>
 <span class="n">inv_benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span>
     <span class="s2">&quot;advection_diffusion_kle_inversion&quot;</span><span class="p">,</span> <span class="n">kle_nvars</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
-    <span class="n">noise_stdev</span><span class="o">=</span><span class="n">noise_stdev</span><span class="p">,</span> <span class="n">nobs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">kle_length_scale</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">noise_stdev</span><span class="o">=</span><span class="n">noise_stdev</span><span class="p">,</span> <span class="n">nobs</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">kle_length_scale</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">inv_benchmark</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[&#39;sobol_g&#39;, &#39;ishigami&#39;, &#39;oakley&#39;, &#39;rosenbrock&#39;, &#39;genz&#39;, &#39;cantilever_beam&#39;, &#39;wing_weight&#39;, &#39;piston&#39;, &#39;chemical_reaction&#39;, &#39;random_oscillator&#39;, &#39;coupled_springs&#39;, &#39;hastings_ecology&#39;, &#39;multi_index_advection_diffusion&#39;, &#39;advection_diffusion_kle_inversion&#39;, &#39;polynomial_ensemble&#39;, &#39;tunable_model_ensemble&#39;, &#39;short_column_ensemble&#39;, &#39;parameterized_nonlinear_model&#39;]
 dict_keys([&#39;negloglike&#39;, &#39;variable&#39;, &#39;noiseless_obs&#39;, &#39;obs&#39;, &#39;true_sample&#39;, &#39;obs_indices&#39;, &#39;obs_fun&#39;, &#39;KLE&#39;, &#39;mesh&#39;])
 </pre></div>
@@ -274,7 +271,7 @@ of a GP. The user does not have to change any subsequent code</p>
 
 <span class="n">approx_result</span> <span class="o">=</span> <span class="n">adaptive_approximate</span><span class="p">(</span>
     <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">negloglike</span><span class="p">,</span> <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="s2">&quot;gaussian_process&quot;</span><span class="p">,</span>
-    <span class="p">{</span><span class="s2">&quot;max_nsamples&quot;</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">&quot;ncandidate_samples&quot;</span><span class="p">:</span> <span class="mf">2e3</span><span class="p">,</span> <span class="s2">&quot;verbose&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="p">{</span><span class="s2">&quot;max_nsamples&quot;</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span> <span class="s2">&quot;ncandidate_samples&quot;</span><span class="p">:</span> <span class="mf">2e3</span><span class="p">,</span> <span class="s2">&quot;verbose&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
      <span class="s2">&quot;callback&quot;</span><span class="p">:</span> <span class="n">callback</span><span class="p">,</span> <span class="s2">&quot;kernel_variance&quot;</span><span class="p">:</span> <span class="mi">400</span><span class="p">})</span>
 
 <span class="c1"># approx_result = adaptive_approximate(</span>
@@ -290,6 +287,12 @@ of a GP. The user does not have to change any subsequent code</p>
 <span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">nsamples</span><span class="p">,</span> <span class="n">errors</span><span class="p">,</span> <span class="s2">&quot;o-&quot;</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;No. Samples&quot;</span><span class="p">))</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Error&quot;</span><span class="p">))</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">([</span><span class="mi">10</span><span class="p">,</span> <span class="mi">25</span><span class="p">,</span> <span class="mi">50</span><span class="p">])</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_yticks</span><span class="p">([</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">])</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">get_xaxis</span><span class="p">()</span><span class="o">.</span><span class="n">set_major_formatter</span><span class="p">(</span><span class="n">mpl</span><span class="o">.</span><span class="n">ticker</span><span class="o">.</span><span class="n">ScalarFormatter</span><span class="p">())</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">minorticks_off</span><span class="p">()</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">get_yaxis</span><span class="p">()</span><span class="o">.</span><span class="n">set_major_formatter</span><span class="p">(</span><span class="n">mpl</span><span class="o">.</span><span class="n">ticker</span><span class="o">.</span><span class="n">ScalarFormatter</span><span class="p">())</span>
+<span class="c1">#ax.tick_params(axis=&#39;y&#39;, which=&#39;minor&#39;, bottom=False)</span>
 <span class="k">if</span> <span class="n">savefig</span><span class="p">:</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;gp-error-plot.pdf&quot;</span><span class="p">)</span>
 </pre></div>
@@ -328,50 +331,43 @@ to quantify error in the sensitivity indices from using a surrogate.</p>
 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Surrogate&quot;</span><span class="p">,</span> <span class="n">error</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Surrogate [0.03358284]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Surrogate [0.09102201]
 </pre></div>
 </div>
 <p>Now create a MCMCVariable to sample from the posterior. The benchmark
 has already formulated the negative log likelihood that is needed. Here
-we will use the NUTS sampler from PyMC3. This can run many MCMC chains at once
-by setting njobs &gt; 1. However using njobs&gt;1 cannot be used unless the srcipt
-is invoked inside if __name__ == __main__: and so njobs&gt;1
-is not used for this tutorial.
-Uncomment the commented code to use the numerical model instead of the surrogate
+we will use PyApprox’s native delayed rejection adaptive metropolis (DRAM)
+sampler.</p>
+<p>Uncomment the commented code to use the numerical model instead of the surrogate
 with the MCMC algorithm. Again note the significant increase in computational
 time</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">algorithm</span><span class="p">,</span> <span class="n">npost_samples</span><span class="p">,</span> <span class="n">njobs</span> <span class="o">=</span> <span class="s2">&quot;nuts&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">1</span>
-<span class="c1"># loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">npost_samples</span> <span class="o">=</span> <span class="mi">200</span>
 <span class="n">loglike</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">loglike_from_negloglike</span><span class="p">,</span> <span class="n">approx</span><span class="p">)</span>
-<span class="n">mcmc_variable</span> <span class="o">=</span> <span class="n">MCMCVariable</span><span class="p">(</span>
-    <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">loglike</span><span class="p">,</span> <span class="n">algorithm</span><span class="p">,</span> <span class="n">njobs</span><span class="o">=</span><span class="n">njobs</span><span class="p">,</span> <span class="n">loglike_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="c1"># loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)</span>
+<span class="n">mcmc_variable</span> <span class="o">=</span> <span class="n">MetropolisMCMCVariable</span><span class="p">(</span>
+    <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">loglike</span><span class="p">,</span> <span class="n">method_opts</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;cov_scaling&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">mcmc_variable</span><span class="p">)</span>
-<span class="n">post_samples</span> <span class="o">=</span> <span class="n">mcmc_variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">npost_samples</span><span class="p">)</span>
 <span class="n">map_sample</span> <span class="o">=</span> <span class="n">mcmc_variable</span><span class="o">.</span><span class="n">maximum_aposteriori_point</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Computed Map Point&quot;</span><span class="p">,</span> <span class="n">map_sample</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+<span class="n">post_samples</span> <span class="o">=</span> <span class="n">mcmc_variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">npost_samples</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Acceptance rate&quot;</span><span class="p">,</span> <span class="n">mcmc_variable</span><span class="o">.</span><span class="n">_acceptance_rate</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>MCMCVariable with prior:
-Independent Marginal Variable
-Number of variables: 3
-Unique variables and global id:
-    norm(loc=0,scale=1): z0, z1, z2
-Only 100 samples in chain.
-Sequential sampling (2 chains in 1 job)
-NUTS: [z_2, z_1, z_0]
-The acceptance probability does not match the target. It is 0.9508962216489982, but should be close to 0.8. Try to increase the number of tuning steps.
-The acceptance probability does not match the target. It is 0.9583451279721997, but should be close to 0.8. Try to increase the number of tuning steps.
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>JointVariable
+Computed Map Point [-0.29435322 -0.50083897  0.33631887]
+Acceptance rate 0.345
 </pre></div>
 </div>
 <p>Now plot the posterior samples with the 2D Marginals of the posterior. Note
 do not do this with the numerical model as this would take an eternity due
 to the cost of evaluating the numerical model, which is much higher relative
 to the cost of running the surrogate.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mcmc_variable</span><span class="o">.</span><span class="n">plot_2d_marginals</span><span class="p">(</span>
-    <span class="n">nsamples_1d</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_unnormalized_2d_marginals</span><span class="p">(</span>
+    <span class="n">mcmc_variable</span><span class="o">.</span><span class="n">_variable</span><span class="p">,</span> <span class="n">mcmc_variable</span><span class="o">.</span><span class="n">_loglike</span><span class="p">,</span> <span class="n">nsamples_1d</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
     <span class="n">plot_samples</span><span class="o">=</span><span class="p">[</span>
-        <span class="p">[</span><span class="n">post_samples</span><span class="p">,</span> <span class="p">{}],</span> <span class="p">[</span><span class="n">map_sample</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="s2">&quot;marker&quot;</span><span class="p">:</span> <span class="s2">&quot;X&quot;</span><span class="p">,</span> <span class="s2">&quot;s&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">}]])</span>
+        <span class="p">[</span><span class="n">post_samples</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;orange&quot;</span><span class="p">}],</span>
+        <span class="p">[</span><span class="n">map_sample</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="s2">&quot;marker&quot;</span><span class="p">:</span> <span class="s2">&quot;X&quot;</span><span class="p">,</span> <span class="s2">&quot;s&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">}]],</span>
+    <span class="n">unbounded_alpha</span><span class="o">=</span><span class="mf">0.999</span><span class="p">)</span>
 <span class="k">if</span> <span class="n">savefig</span><span class="p">:</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;posterior-samples.pdf&quot;</span><span class="p">,</span> <span class="n">bbox_inches</span><span class="o">=</span><span class="s2">&quot;tight&quot;</span><span class="p">)</span>
 </pre></div>
@@ -387,25 +383,34 @@ that we do not know the value of the observations.</p>
 <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">mesh</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
     <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">obs_fun</span><span class="o">.</span><span class="n">_fwd_solver</span><span class="o">.</span><span class="n">solve</span><span class="p">()[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="mi">50</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
 
-<span class="n">design_candidates</span> <span class="o">=</span> <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">mesh</span><span class="o">.</span><span class="n">mesh_pts</span><span class="p">[:,</span> <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">obs_indices</span><span class="p">]</span>
-<span class="n">oed</span> <span class="o">=</span> <span class="n">get_bayesian_oed_optimizer</span><span class="p">(</span>
-    <span class="s2">&quot;kl_params&quot;</span><span class="p">,</span> <span class="n">design_candidates</span><span class="p">,</span> <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">obs_fun</span><span class="p">,</span> <span class="n">noise_stdev</span><span class="p">,</span>
-    <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
-<span class="n">oed_results</span> <span class="o">=</span> <span class="p">[]</span>
 <span class="n">ndesign</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">design_candidates</span> <span class="o">=</span> <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">mesh</span><span class="o">.</span><span class="n">mesh_pts</span><span class="p">[:,</span> <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">obs_indices</span><span class="p">]</span>
+<span class="n">ndesign_candidates</span> <span class="o">=</span> <span class="n">design_candidates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">oed</span> <span class="o">=</span> <span class="n">get_bayesian_oed_optimizer</span><span class="p">(</span>
+    <span class="s2">&quot;kl_params&quot;</span><span class="p">,</span> <span class="n">ndesign_candidates</span><span class="p">,</span> <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">obs_fun</span><span class="p">,</span> <span class="n">noise_stdev</span><span class="p">,</span>
+    <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">max_ncollected_obs</span><span class="o">=</span><span class="n">ndesign</span><span class="p">)</span>
+<span class="n">oed_results</span> <span class="o">=</span> <span class="p">[]</span>
 <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ndesign</span><span class="p">):</span>
     <span class="n">results_step</span> <span class="o">=</span> <span class="n">oed</span><span class="o">.</span><span class="n">update_design</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
     <span class="n">oed_results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">results_step</span><span class="p">)</span>
 <span class="n">selected_candidates</span> <span class="o">=</span> <span class="n">design_candidates</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="n">oed_results</span><span class="p">)]</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">selected_candidates</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">design_candidates</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">design_candidates</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s2">&quot;rs&quot;</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">selected_candidates</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">selected_candidates</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s2">&quot;ko&quot;</span><span class="p">)</span>
 <span class="k">if</span> <span class="n">savefig</span><span class="p">:</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;oed-selected-design.pdf&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_paper_demo_005.png" srcset="../_images/sphx_glr_plot_paper_demo_005.png" alt="plot paper demo" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Running 1000 model evaluations
-Running 8000 model evaluations
+<img src="../_images/sphx_glr_plot_paper_demo_005.png" srcset="../_images/sphx_glr_plot_paper_demo_005.png" alt="plot paper demo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Running 1000 outer model evaluations
+Predicted observation bounds 14.015558739913732 1.2516047704780018
+Evaluations took 173.62535405158997
+Running 1000 inner model evaluations
+Evaluations took 164.1499490737915
+Computing utilities in serial took 0.030169010162353516
+Computing utilities in serial took 0.03148293495178223
+Computing utilities in serial took 0.04574394226074219
+[[0.0954915  0.42178277 0.0954915 ]
+ [0.05449674 0.85355339 0.05449674]]
 </pre></div>
 </div>
 <p>Note that typically optimal
@@ -442,12 +447,31 @@ mean value of the QoI to account for the uncertainty in the KLE cofficients.
 So first we must compute the covariance between the QoI returned by
 each of our models. We use samples from the posterior. But uncommenting
 the code below will use samples from the prior.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">npilot_samples</span> <span class="o">=</span> <span class="mi">10</span>
-<span class="c1"># generate_samples = inv_benchmark.variable.rvs # for sampling from prior</span>
-<span class="n">generate_samples</span> <span class="o">=</span> <span class="n">post_samples</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">npilot_samples</span> <span class="o">=</span> <span class="mi">20</span>
+<span class="n">generate_samples</span> <span class="o">=</span> <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span> <span class="c1"># for sampling from prior</span>
+<span class="c1"># generate_samples = post_samples</span>
 <span class="n">cov</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">estimate_model_ensemble_covariance</span><span class="p">(</span>
     <span class="n">npilot_samples</span><span class="p">,</span> <span class="n">generate_samples</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span>
     <span class="n">fwd_benchmark</span><span class="o">.</span><span class="n">model_ensemble</span><span class="o">.</span><span class="n">nmodels</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">cov</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[[0.00246945 0.00194624 0.00208472 0.00164637 0.0024676  0.00194446
+  0.0020831  0.00164483]
+ [0.00194624 0.00156171 0.00163776 0.00131613 0.001945   0.00156053
+  0.00163665 0.0013151 ]
+ [0.00208472 0.00163776 0.00179375 0.00141233 0.00208418 0.00163711
+  0.00179327 0.00141177]
+ [0.00164637 0.00131613 0.00141233 0.00113068 0.00164613 0.00131581
+  0.0014121  0.00113038]
+ [0.0024676  0.001945   0.00208418 0.00164613 0.00246583 0.00194328
+  0.00208263 0.00164464]
+ [0.00194446 0.00156053 0.00163711 0.00131581 0.00194328 0.00155941
+  0.00163605 0.00131482]
+ [0.0020831  0.00163665 0.00179327 0.0014121  0.00208263 0.00163605
+  0.00179285 0.00141158]
+ [0.00164483 0.0013151  0.00141177 0.00113038 0.00164464 0.00131482
+  0.00141158 0.00113013]]
 </pre></div>
 </div>
 <p>By using a WorkTrackingModel we can extract the median costs
@@ -455,8 +479,8 @@ of evaluatin each model which is needed to predict the
 error of the multi-fidelity estimate of the mean which we can
 compare to a prediction of the single fidelity estimate that only uses
 the highest fidelity model.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model_costs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">(</span>
-    <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">fwd_benchmark</span><span class="o">.</span><span class="n">model_ensemble</span><span class="o">.</span><span class="n">nmodels</span><span class="p">)]))</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">fwd_benchmark</span><span class="o">.</span><span class="n">model_ensemble</span><span class="o">.</span><span class="n">nmodels</span><span class="p">)])</span>
+<span class="n">model_costs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">(</span><span class="n">model_ids</span><span class="p">)</span>
 <span class="c1"># make costs in terms of fraction of cost of high-fidelity evaluation</span>
 <span class="n">model_costs</span> <span class="o">/=</span> <span class="n">model_costs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 </pre></div>
@@ -471,141 +495,23 @@ cost relative to the highest-fidelity model cost</p>
 <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Relative model costs&quot;</span><span class="p">))</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_paper_demo_006.png" srcset="../_images/sphx_glr_plot_paper_demo_006.png" alt="$\mathrm{Model\;covariances}$, $\mathrm{Relative\;model\;costs}$" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Text(0.5, 1.0, &#39;$\\mathrm{Relative\\;model\\;costs}$&#39;)
+<img src="../_images/sphx_glr_plot_paper_demo_006.png" srcset="../_images/sphx_glr_plot_paper_demo_006.png" alt="$\mathrm{Model\;covariances}$, $\mathrm{Relative\;model\;costs}$" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Text(0.5, 1.0, &#39;$\\mathrm{Relative\\;model\\;costs}$&#39;)
 </pre></div>
 </div>
-<p>Now find the best multi-fidelity estimator among all avialable option
-Note, he exact predicted variance will change from run to run even with the
+<p>Now find the best multi-fidelity estimator among all available option
+Note, the exact predicted variance will change from run to run even with the
 same seed because the computational time measured will change slightly
 for each run</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">best_est</span><span class="p">,</span> <span class="n">best_model_indices</span> <span class="o">=</span> <span class="p">(</span>
     <span class="n">multifidelity</span><span class="o">.</span><span class="n">get_best_models_for_acv_estimator</span><span class="p">(</span>
         <span class="s2">&quot;acvgmfb&quot;</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">model_costs</span><span class="p">,</span> <span class="n">inv_benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="mf">1e2</span><span class="p">,</span> <span class="n">max_nmodels</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
-        <span class="n">tree_depth</span><span class="o">=</span><span class="mi">4</span><span class="p">))</span>
+        <span class="n">init_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;tree_depth&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">}))</span>
 <span class="n">target_cost</span> <span class="o">=</span> <span class="mi">1000</span>
 <span class="n">best_est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span><span class="n">target_cost</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Predicted variance&quot;</span><span class="p">,</span> <span class="n">best_est</span><span class="o">.</span><span class="n">optimized_variance</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[86.87575245] nsample_ratios
-[  1 135] nsf1
-[  1 135] nsf2
-[135.] rounded nsample_ratios
-[38.99089106] nsample_ratios
-[  3 135] nsf1
-[  3 135] nsf2
-[45.] rounded nsample_ratios
-[27.07874648] nsample_ratios
-[  5 150] nsf1
-[  5 150] nsf2
-[30.] rounded nsample_ratios
-[404.27171433] nsample_ratios
-[  1 404] nsf1
-[  1 404] nsf2
-[404.] rounded nsample_ratios
-[175.37163859] nsample_ratios
-[  2 500] nsf1
-[  2 500] nsf2
-[250.] rounded nsample_ratios
-[76.13018167] nsample_ratios
-[  6 476] nsf1
-[  6 476] nsf2
-[79.33333333] rounded nsample_ratios
-[54.37619228] nsample_ratios
-[ 10 560] nsf1
-[ 10 560] nsf2
-[56.] rounded nsample_ratios
-[ 1.38668057 51.27545332] nsample_ratios
-[  2   3 132] nsf1
-[  2   3 132] nsf2
-[ 1.5 66. ] rounded nsample_ratios
-[ 1.24228401 35.61553865] nsample_ratios
-[  4   5 146] nsf1
-[  4   5 146] nsf2
-[ 1.25 36.5 ] rounded nsample_ratios
-[  2.         398.31856794] nsample_ratios
-[  1   2 398] nsf1
-[  1   2 398] nsf2
-[  2. 398.] rounded nsample_ratios
-[  1.46862603 230.58599008] nsample_ratios
-[  2   3 492] nsf1
-[  2   3 492] nsf2
-[  1.5 246. ] rounded nsample_ratios
-[  1.21601575 100.10944435] nsample_ratios
-[  4   5 463] nsf1
-[  4   5 463] nsf2
-[  1.25 115.75] rounded nsample_ratios
-[ 1.13276368 71.50771587] nsample_ratios
-[  7   8 538] nsf1
-[  7   8 538] nsf2
-[ 1.14285714 76.85714286] rounded nsample_ratios
-[ 1.24114872 35.46346749] nsample_ratios
-[  4   5 147] nsf1
-[  4   5 147] nsf2
-[ 1.25 36.75] rounded nsample_ratios
-[  2.         398.43297763] nsample_ratios
-[  1   2 398] nsf1
-[  1   2 398] nsf2
-[  2. 398.] rounded nsample_ratios
-[  1.46662309 229.66817292] nsample_ratios
-[  2   3 492] nsf1
-[  2   3 492] nsf2
-[  1.5 246. ] rounded nsample_ratios
-[ 1.21502422 99.69606476] nsample_ratios
-[  4   5 463] nsf1
-[  4   5 463] nsf2
-[  1.25 115.75] rounded nsample_ratios
-[ 1.13212277 71.20943715] nsample_ratios
-[  7   8 538] nsf1
-[  7   8 538] nsf2
-[ 1.14285714 76.85714286] rounded nsample_ratios
-[  2.         399.15278882] nsample_ratios
-[  1   2 399] nsf1
-[  1   2 399] nsf2
-[  2. 399.] rounded nsample_ratios
-[  1.45378626 223.76672786] nsample_ratios
-[  2   3 493] nsf1
-[  2   3 493] nsf2
-[  1.5 246.5] rounded nsample_ratios
-[ 1.20881312 97.1057363 ] nsample_ratios
-[  4   5 465] nsf1
-[  4   5 465] nsf2
-[  1.25 116.25] rounded nsample_ratios
-[ 1.12812764 69.35328986] nsample_ratios
-[  7   8 541] nsf1
-[  7   8 541] nsf2
-[ 1.14285714 77.28571429] rounded nsample_ratios
-[  1.3935352  195.68398022] nsample_ratios
-[  2   3 497] nsf1
-[  2   3 497] nsf2
-[  1.5 248.5] rounded nsample_ratios
-[ 1.18019898 84.95574969] nsample_ratios
-[  5   6 471] nsf1
-[  5   6 471] nsf2
-[ 1.2 94.2] rounded nsample_ratios
-[ 1.10989309 60.68437474] nsample_ratios
-[  9  10 552] nsf1
-[  9  10 552] nsf2
-[ 1.11111111 61.33333333] rounded nsample_ratios
-[ 1.17613909 83.20165749] nsample_ratios
-[  5   6 472] nsf1
-[  5   6 472] nsf2
-[ 1.2 94.4] rounded nsample_ratios
-[ 1.1073159  59.42901762] nsample_ratios
-[  9  10 553] nsf1
-[  9  10 553] nsf2
-[ 1.11111111 61.44444444] rounded nsample_ratios
-[ 1.10744368 59.49010641] nsample_ratios
-[  9  10 553] nsf1
-[  9  10 553] nsf2
-[ 1.11111111 61.44444444] rounded nsample_ratios
-[54.37619228] nsample_ratios
-[ 103 5601] nsf1
-[ 103 5601] nsf2
-[54.37864078] rounded nsample_ratios
-Predicted variance 9.571257732073022e-11
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance 5.818767691754899e-07
 </pre></div>
 </div>
 <p>Now we can plot the relative performance of the single and multi-fidelity
@@ -633,23 +539,7 @@ estimates of the mean before requiring any additional model evaluations</p>
     <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;acv-variance-reduction.pdf&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_paper_demo_007.png" srcset="../_images/sphx_glr_plot_paper_demo_007.png" alt="plot paper demo" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[54.37619228] nsample_ratios
-[ 1 56] nsf1
-[ 1 56] nsf2
-[56.] rounded nsample_ratios
-[54.37619228] nsample_ratios
-[ 10 560] nsf1
-[ 10 560] nsf2
-[56.] rounded nsample_ratios
-[54.37619228] nsample_ratios
-[ 103 5601] nsf1
-[ 103 5601] nsf2
-[54.37864078] rounded nsample_ratios
-[54.37619228] nsample_ratios
-[ 1030 56015] nsf1
-[ 1030 56015] nsf2
-[54.38349515] rounded nsample_ratios
+<img src="../_images/sphx_glr_plot_paper_demo_007.png" srcset="../_images/sphx_glr_plot_paper_demo_007.png" alt="plot paper demo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[9.36376795e+00 9.99359811e+01 9.99658112e+02 9.99907829e+03] 1
 </pre></div>
 </div>
 <p>It is clear that the multi-fidelity estimator will be more computationally
@@ -666,23 +556,19 @@ is ready to actually estimate the mean QoI they can use</p>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[54.37619228] nsample_ratios
-[ 1 56] nsf1
-[ 1 56] nsf2
-[56.] rounded nsample_ratios
-Mean QoI 0.0010551070251234526
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Mean QoI 0.5062523937469106
 </pre></div>
 </div>
 <section id="references">
-<h2>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h2>
-<dl class="citation">
-<dt class="label" id="pyapprox2022"><span class="brackets"><a class="fn-backref" href="#id1">PYAPPROX2022</a></span></dt>
-<dd><p><a href="#id2"><span class="problematic" id="id3">`Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022)`_</span></a></p>
-</dd>
-</dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 1 minutes  23.079 seconds)</p>
-<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-paper-demo-py">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h2>
+<div role="list" class="citation-list">
+<div class="citation" id="pyapprox2022" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">PYAPPROX2022</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://www.osti.gov/biblio/1879614">Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022)</a></p>
+</div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 6 minutes  39.425 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-paper-demo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/4231eb2cab42df6435f116bfe8f5e15a/plot_paper_demo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_paper_demo.py</span></code></a></p>
 </div>

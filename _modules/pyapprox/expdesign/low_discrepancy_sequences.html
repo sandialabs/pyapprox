@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.expdesign.low_discrepancy_sequences &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.expdesign.low_discrepancy_sequences &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.expdesign.low_discrepancy_sequences</li>
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.expdesign.low_discrepancy_sequences</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -115,7 +120,7 @@
 
 <span class="k">def</span> <span class="nf">transformed_halton_sequence</span><span class="p">(</span><span class="n">marginal_icdfs</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span>
                                 <span class="n">start_index</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate a Halton sequence using inverse transform sampling.</span>
 
 <span class="sd">    Deprecated: pass a variable argument to</span>
@@ -128,7 +133,7 @@
     <span class="k">if</span> <span class="n">marginal_icdfs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">samples</span>
 
-    <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="n">marginal_icdfs</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">marginal_icdfs</span><span class="p">):</span>
         <span class="n">marginal_icdfs</span> <span class="o">=</span> <span class="p">[</span><span class="n">marginal_icdfs</span><span class="p">]</span><span class="o">*</span><span class="n">num_vars</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">marginal_icdfs</span><span class="p">)</span> <span class="o">==</span> <span class="n">num_vars</span>
@@ -139,7 +144,7 @@
 
 
 <span class="k">def</span> <span class="nf">__index_of_first_zero_bit_moving_right_to_left</span><span class="p">(</span><span class="n">ii</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return the first the index of the first zero bit of the integer ii</span>
 <span class="sd">    when moving right to left. Returns index in [0,...,nbits(ii)-1]</span>
 
@@ -158,7 +163,7 @@
 
 
 <span class="k">def</span> <span class="nf">__load_direction_sequence</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Read direction_numbers from</span>
 <span class="sd">    https://web.maths.unsw.edu.au/~fkuo/sobol/</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -186,7 +191,7 @@
 
 
 <span class="k">def</span> <span class="nf">__compute_direction_numbers</span><span class="p">(</span><span class="n">seq</span><span class="p">,</span> <span class="n">max_nbits</span><span class="p">,</span> <span class="n">power</span><span class="p">,</span> <span class="n">a_val</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Scale the direction sequence by 2**32</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale the direction sequence by 2**32</span>
 
 <span class="sd">    x &lt;&lt; y Returns x with the bits shifted to the left by y places.</span>
 <span class="sd">    This is the same as multiplying x by 2**y.</span>
@@ -200,7 +205,7 @@
     <span class="n">size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">max_nbits</span> <span class="o">&lt;</span> <span class="n">size</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">max_nbits</span><span class="si">}</span><span class="s2">&lt;</span><span class="si">{</span><span class="n">size</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
     <span class="c1"># TODO change loop not to be over min(max_nbits, size) to just be to</span>
     <span class="c1"># max_nbits</span>
 
@@ -215,7 +220,7 @@
 
 
 <span class="k">def</span> <span class="nf">_sobol_sequence</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute Sobol sequence using</span>
 <span class="sd">    Algorithm 659: Implementing Sobol’s quasirandom sequence generator</span>
 <span class="sd">    with direction_numbers obtain from</span>
@@ -262,7 +267,7 @@
 
 
 <div class="viewcode-block" id="sobol_sequence"><a class="viewcode-back" href="../../../api/pyapprox.expdesign.sobol_sequence.html#pyapprox.expdesign.sobol_sequence">[docs]</a><span class="k">def</span> <span class="nf">sobol_sequence</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">,</span> <span class="n">start_index</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate a multivariate Sobol sequence</span>
 
 <span class="sd">    Parameters</span>
@@ -288,12 +293,13 @@
     <span class="n">samples</span> <span class="o">=</span> <span class="n">_sobol_sequence</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">nsamples</span><span class="o">+</span><span class="n">start_index</span><span class="p">)[:,</span> <span class="n">start_index</span><span class="p">:]</span>
     <span class="k">if</span> <span class="n">variable</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">samples</span>
+    <span class="k">assert</span> <span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span> <span class="o">==</span> <span class="n">nvars</span>
     <span class="n">samples</span> <span class="o">=</span> <span class="n">variable</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="s1">&#39;ppf&#39;</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">samples</span></div>
 
 
 <div class="viewcode-block" id="halton_sequence"><a class="viewcode-back" href="../../../api/pyapprox.expdesign.halton_sequence.html#pyapprox.expdesign.halton_sequence">[docs]</a><span class="k">def</span> <span class="nf">halton_sequence</span><span class="p">(</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">,</span> <span class="n">start_index</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate a multivariate Halton sequence</span>
 
 <span class="sd">        Parameters</span>
@@ -323,14 +329,13 @@
 
     <span class="k">try</span><span class="p">:</span>
         <span class="kn">from</span> <span class="nn">pyapprox.cython.utilities</span> <span class="kn">import</span> <span class="n">halton_sequence_pyx</span>
-        <span class="k">return</span> <span class="n">halton_sequence_pyx</span><span class="p">(</span><span class="n">primes</span><span class="p">,</span> <span class="n">index1</span><span class="p">,</span> <span class="n">index2</span><span class="p">)</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">halton_sequence_pyx</span><span class="p">(</span><span class="n">primes</span><span class="p">,</span> <span class="n">index1</span><span class="p">,</span> <span class="n">index2</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
         <span class="n">trace_error_with_msg</span><span class="p">(</span><span class="s1">&#39;halton_sequence extension failed&#39;</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">__halton_sequence</span><span class="p">(</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">index1</span><span class="p">,</span> <span class="n">index2</span><span class="p">,</span> <span class="n">primes</span><span class="p">)</span>
 
-    <span class="n">samples</span> <span class="o">=</span> <span class="n">__halton_sequence</span><span class="p">(</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">index1</span><span class="p">,</span> <span class="n">index2</span><span class="p">,</span> <span class="n">primes</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">variable</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">samples</span>
-
     <span class="k">return</span> <span class="n">variable</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="s1">&#39;ppf&#39;</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span></div>
 </pre></div>
 

@@ -11,27 +11,17 @@ AbstractBayesianOED
    .. autosummary::
 
       ~AbstractBayesianOED.compute_expected_utility
-      ~AbstractBayesianOED.generate_prior_samples
-      ~AbstractBayesianOED.get_outer_loop_obs
-      ~AbstractBayesianOED.loglike_fun
-      ~AbstractBayesianOED.loglike_fun_from_noiseless_obs
-      ~AbstractBayesianOED.noise_fun
+      ~AbstractBayesianOED.compute_utilities
       ~AbstractBayesianOED.populate
-      ~AbstractBayesianOED.reproducible_noise_fun
+      ~AbstractBayesianOED.select_design
       ~AbstractBayesianOED.set_collected_design_indices
-      ~AbstractBayesianOED.set_max_eval_concurrency
       ~AbstractBayesianOED.update_design
 
    .. rubric:: Methods Documentation
 
    .. automethod:: compute_expected_utility
-   .. automethod:: generate_prior_samples
-   .. automethod:: get_outer_loop_obs
-   .. automethod:: loglike_fun
-   .. automethod:: loglike_fun_from_noiseless_obs
-   .. automethod:: noise_fun
+   .. automethod:: compute_utilities
    .. automethod:: populate
-   .. automethod:: reproducible_noise_fun
+   .. automethod:: select_design
    .. automethod:: set_collected_design_indices
-   .. automethod:: set_max_eval_concurrency
    .. automethod:: update_design

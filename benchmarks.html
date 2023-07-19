@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Benchmarks &mdash; PyApprox 1.0.0 documentation</title>
+  <title>Benchmarks &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
         <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -27,7 +28,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="User Reference Guide" href="user_reference_guide.html" />
-    <link rel="prev" title="Gaussian processes" href="auto_tutorials/surrogates/plot_gaussian_processes.html" /> 
+    <link rel="prev" title="MFNets: Multi-fidelity networks" href="auto_tutorials/multi_fidelity/plot_gaussian_mfnets.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="index.html" class="icon icon-home"> PyApprox
-            <img src="_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            PyApprox
+              <img src="_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -53,7 +58,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -84,8 +89,8 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
-      <li>Benchmarks</li>
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Benchmarks</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/benchmarks.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -96,7 +101,7 @@
            <div itemprop="articleBody">
              
   <section id="benchmarks">
-<h1>Benchmarks<a class="headerlink" href="#benchmarks" title="Permalink to this headline"></a></h1>
+<h1>Benchmarks<a class="headerlink" href="#benchmarks" title="Permalink to this heading"></a></h1>
 <p>The <a class="reference internal" href="user_reference_guide.html#module-pyapprox.benchmarks" title="pyapprox.benchmarks"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.benchmarks</span></code></a> provides a number of benchmarks commonly used to evaluate the performance of quadrature, sensitivity analysis, inference and design algorithms.</p>
 <p>Following shows how to use the common interface, provided by <a class="reference internal" href="api/pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark" title="pyapprox.benchmarks.Benchmark"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.benchmarks.Benchmark</span></code></a>, to access the data necessary
 to run a benchmark.</p>
@@ -119,22 +124,22 @@ to run a benchmark.</p>
 above we evaluated the Hessian at the point <span class="math notranslate nohighlight">\(z=(0,0,0)^T\)</span>.</p>
 <p>The following tabulates the benchmarks provided in <a class="reference internal" href="user_reference_guide.html#module-pyapprox.benchmarks" title="pyapprox.benchmarks"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.benchmarks</span></code></a>. Each benchmark can be instantiated with using <cite>setup_benchmark(name,**kwargs)</cite> Follow the links to find details on the options available for each benchmark which are specified via <cite>kwargs</cite>.</p>
 <section id="sensitivity-analysis">
-<h2>Sensitivity Analysis<a class="headerlink" href="#sensitivity-analysis" title="Permalink to this headline"></a></h2>
+<h2>Sensitivity Analysis<a class="headerlink" href="#sensitivity-analysis" title="Permalink to this heading"></a></h2>
 <p><a class="reference internal" href="api/pyapprox.benchmarks.setup_ishigami_function.html#pyapprox.benchmarks.setup_ishigami_function" title="pyapprox.benchmarks.setup_ishigami_function"><code class="xref py py-func docutils literal notranslate"><span class="pre">setup_ishigami_function()</span></code></a>
 <a class="reference internal" href="api/pyapprox.benchmarks.setup_sobol_g_function.html#pyapprox.benchmarks.setup_sobol_g_function" title="pyapprox.benchmarks.setup_sobol_g_function"><code class="xref py py-func docutils literal notranslate"><span class="pre">setup_sobol_g_function()</span></code></a>
 <a class="reference internal" href="api/pyapprox.benchmarks.setup_oakley_function.html#pyapprox.benchmarks.setup_oakley_function" title="pyapprox.benchmarks.setup_oakley_function"><code class="xref py py-func docutils literal notranslate"><span class="pre">setup_oakley_function()</span></code></a></p>
 </section>
 <section id="quadrature">
-<h2>Quadrature<a class="headerlink" href="#quadrature" title="Permalink to this headline"></a></h2>
+<h2>Quadrature<a class="headerlink" href="#quadrature" title="Permalink to this heading"></a></h2>
 <p><a class="reference internal" href="api/pyapprox.benchmarks.setup_genz_function.html#pyapprox.benchmarks.setup_genz_function" title="pyapprox.benchmarks.setup_genz_function"><code class="xref py py-func docutils literal notranslate"><span class="pre">setup_genz_function()</span></code></a></p>
 </section>
 <section id="inference">
-<h2>Inference<a class="headerlink" href="#inference" title="Permalink to this headline"></a></h2>
+<h2>Inference<a class="headerlink" href="#inference" title="Permalink to this heading"></a></h2>
 <p><a class="reference internal" href="api/pyapprox.benchmarks.setup_rosenbrock_function.html#pyapprox.benchmarks.setup_rosenbrock_function" title="pyapprox.benchmarks.setup_rosenbrock_function"><code class="xref py py-func docutils literal notranslate"><span class="pre">setup_rosenbrock_function()</span></code></a>
 <a class="reference internal" href="api/pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark.html#pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark" title="pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark"><code class="xref py py-func docutils literal notranslate"><span class="pre">setup_advection_diffusion_kle_inversion_benchmark()</span></code></a></p>
 </section>
 <section id="multi-fidelity-modeling">
-<h2>Multi-fidelity Modeling<a class="headerlink" href="#multi-fidelity-modeling" title="Permalink to this headline"></a></h2>
+<h2>Multi-fidelity Modeling<a class="headerlink" href="#multi-fidelity-modeling" title="Permalink to this heading"></a></h2>
 <p><a class="reference internal" href="api/pyapprox.benchmarks.setup_polynomial_ensemble.html#pyapprox.benchmarks.setup_polynomial_ensemble" title="pyapprox.benchmarks.setup_polynomial_ensemble"><code class="xref py py-func docutils literal notranslate"><span class="pre">setup_polynomial_ensemble()</span></code></a>
 <a class="reference internal" href="api/pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark.html#pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark" title="pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark"><code class="xref py py-func docutils literal notranslate"><span class="pre">setup_multi_index_advection_diffusion_benchmark()</span></code></a></p>
 </section>
@@ -144,7 +149,7 @@ above we evaluated the Hessian at the point <span class="math notranslate nohigh
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="auto_tutorials/surrogates/plot_gaussian_processes.html" class="btn btn-neutral float-left" title="Gaussian processes" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="auto_tutorials/multi_fidelity/plot_gaussian_mfnets.html" class="btn btn-neutral float-left" title="MFNets: Multi-fidelity networks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="user_reference_guide.html" class="btn btn-neutral float-right" title="User Reference Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

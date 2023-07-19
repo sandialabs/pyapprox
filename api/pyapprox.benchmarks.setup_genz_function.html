@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>setup_genz_function &mdash; PyApprox 1.0.0 documentation</title>
+  <title>setup_genz_function &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -53,7 +58,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -108,9 +113,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
-      <li>setup_genz_function</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../user_reference_guide.html">User Reference Guide</a></li>
+      <li class="breadcrumb-item active">setup_genz_function</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/api/pyapprox.benchmarks.setup_genz_function.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -121,11 +126,16 @@
            <div itemprop="articleBody">
              
   <section id="setup-genz-function">
-<h1>setup_genz_function<a class="headerlink" href="#setup-genz-function" title="Permalink to this headline"></a></h1>
+<h1>setup_genz_function<a class="headerlink" href="#setup-genz-function" title="Permalink to this heading"></a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="pyapprox.benchmarks.setup_genz_function">
-<span class="sig-prename descclassname"><span class="pre">pyapprox.benchmarks.</span></span><span class="sig-name descname"><span class="pre">setup_genz_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nvars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coefficients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/benchmarks/benchmarks.html#setup_genz_function"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.benchmarks.setup_genz_function" title="Permalink to this definition"></a></dt>
-<dd><p>Setup the Genz Benchmarks.</p>
+<span class="sig-prename descclassname"><span class="pre">pyapprox.benchmarks.</span></span><span class="sig-name descname"><span class="pre">setup_genz_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nvars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coeff_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">w</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.25</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c_factor</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coeff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/benchmarks/benchmarks.html#setup_genz_function"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.benchmarks.setup_genz_function" title="Permalink to this definition"></a></dt>
+<dd><p>Setup one of the six Genz integration benchmarks
+<span class="math notranslate nohighlight">\(f_d(x):\mathbb{R}^D\to\mathbb{R}\)</span>,
+where <span class="math notranslate nohighlight">\(x=[x_1,\ldots,x_D]^\top\)</span>.
+The number of inputs <span class="math notranslate nohighlight">\(D\)</span> and the anisotropy (relative importance of
+each variable and interactions) of the functions can be adjusted.
+The definition of each function is in the Notes section.</p>
 <p>For example, the two-dimensional oscillatory Genz problem can be defined
 using</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyapprox.benchmarks.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
@@ -135,22 +145,29 @@ using</p>
 </pre></div>
 </div>
 <dl class="field-list">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl>
 <dt><strong>nvars</strong><span class="classifier">integer</span></dt><dd><p>The number of variables of the Genz function</p>
 </dd>
 <dt><strong>test_name</strong><span class="classifier">string</span></dt><dd><p>The test_name of the specific Genz function. See notes
 for options the string needed is given in brackets
-e.g. (‘oscillatory’)</p>
+e.g. (‘oscillatory’). Choose from
+[“oscillatory”, “product_peak”, “corner_peak”, “c0continuous”, “discontinuous”]</p>
 </dd>
-<dt><strong>coefficients</strong><span class="classifier">tuple (ndarray (nvars), ndarray (nvars))</span></dt><dd><p>The coefficients <span class="math notranslate nohighlight">\(c_i\)</span> and <span class="math notranslate nohighlight">\(w_i\)</span>
-If None (default) then
-<span class="math notranslate nohighlight">\(c_j = \hat{c}_j\left(\sum_{i=1}^d \hat{c}_i\right)^{-1}\)</span> where
-<span class="math notranslate nohighlight">\(\hat{c}_i=(10^{-15\left(\frac{i}{d}\right)^2)})\)</span></p>
+<dt><strong>coef_type</strong><span class="classifier">string</span></dt><dd><p>Choose from [“no_decay”, “quadratic_decay”, “quartic_decay”,
+“exponential_decay”. “squared_exponential_decay”]</p>
+</dd>
+<dt><strong>w</strong><span class="classifier">float 0&lt;=w&lt;=1</span></dt><dd><p>Set <span class="math notranslate nohighlight">\(w_d=w, d=1,\ldots,D\)</span>.</p>
+</dd>
+<dt><strong>c_factor</strong><span class="classifier">float <cite>c_factor&gt;0</cite></span></dt><dd><p>Scale the integrand.</p>
+</dd>
+<dt><strong>coeff</strong><span class="classifier">tuple (ndarray (nvars, 1), ndarray (nvars, 1))</span></dt><dd><p>The coefficients <span class="math notranslate nohighlight">\(c_d\)</span> and <span class="math notranslate nohighlight">\(w_d\)</span>
+If provided it will overwite the coefficients defined by
+<cite>coeff_type</cite>, <cite>w</cite> and <cite>c_factor</cite></p>
 </dd>
 </dl>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl>
 <dt><strong>benchmark</strong><span class="classifier"><a class="reference internal" href="pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark" title="pyapprox.benchmarks.Benchmark"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.benchmarks.Benchmark</span></code></a></span></dt><dd><p>Object containing the benchmark attributes</p>
 </dd>
@@ -164,30 +181,58 @@ If None (default) then
 </dd>
 </dl>
 <p class="rubric">Notes</p>
-<p>Corner Peak (‘corner-peak’)</p>
-<div class="math notranslate nohighlight">
-\[f(z)=\left( 1+\sum_{i=1}^d c_iz_i\right)^{-(d+1)}\]</div>
+<p>The six Genz test function are:</p>
 <p>Oscillatory (‘oscillatory’)</p>
 <div class="math notranslate nohighlight">
-\[f(z) = \cos\left(2\pi w_1 + \sum_{i=1}^d c_iz_i\right)\]</div>
-<p>Gaussian Peak (‘gaussian-peak’)</p>
+\[f(z) = \cos\left(2\pi w_1 + \sum_{d=1}^D c_dz_d\right)\]</div>
+<p>Product Peak (‘product_peak’)</p>
 <div class="math notranslate nohighlight">
-\[f(z) = \exp\left( -\sum_{i=1}^d c_i^2(z_i-w_i)^2\right)\]</div>
-<p>Continuous (‘continuous’)</p>
+\[f(z) = \prod_{d=1}^D \left(c_d^{-2}+(z_d-w_d)^2\right)^{-1}\]</div>
+<p>Corner Peak (‘corner_peak’)</p>
 <div class="math notranslate nohighlight">
-\[f(z) = \exp\left( -\sum_{i=1}^d c_i\lvert z_i-w_i\rvert\right)\]</div>
-<p>Product Peak (‘product-peak’)</p>
+\[f(z)=\left( 1+\sum_{d=1}^D c_dz_d\right)^{-(D+1)}\]</div>
+<p>Gaussian Peak (‘gaussian’)</p>
 <div class="math notranslate nohighlight">
-\[f(z) = \prod_{i=1}^d \left(c_i^{-2}+(z_i-w_i)^2\right)^{-1}\]</div>
+\[f(z) = \exp\left( -\sum_{d=1}^D c_d^2(z_d-w_d)^2\right)\]</div>
+<p>C0 Continuous (‘c0continuous’)</p>
+<div class="math notranslate nohighlight">
+\[f(z) = \exp\left( -\sum_{d=1}^D c_d\lvert z_d-w_d\rvert\right)\]</div>
 <p>Discontinuous (‘discontinuous’)</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}f(z) = \begin{cases}0 &amp; x_1&gt;u_1 \;\mathrm{or}\; x_2&gt;u_2\\\exp\left(\sum_{i=1}^d c_iz_i\right) &amp; \mathrm{otherwise}\end{cases}\end{split}\]</div>
+\[\begin{split}f(z) = \begin{cases}0 &amp; z_1&gt;w_1 \;\mathrm{or}\; z_2&gt;w_2\\\exp\left(\sum_{d=1}^D c_d z_d\right) &amp; \mathrm{otherwise}\end{cases}\end{split}\]</div>
+<p>Increasing <span class="math notranslate nohighlight">\(\lVert c \rVert\)</span> will in general make
+the integrands more difficult.</p>
+<p>The <span class="math notranslate nohighlight">\(0\le w_d \le 1\)</span> parameters do not affect the difficulty
+of the integration problem. We set <span class="math notranslate nohighlight">\(w_1=w_2=\ldots=W_D\)</span>.</p>
+<p>The coefficient types implement different decay rates for <span class="math notranslate nohighlight">\(c_d\)</span>.
+This allows testing of methods that can identify and exploit anisotropy.
+They are as follows:</p>
+<p>No decay (none)</p>
+<div class="math notranslate nohighlight">
+\[\hat{c}_d=\frac{d+0.5}{D}\]</div>
+<p>Quadratic decay (qudratic)</p>
+<div class="math notranslate nohighlight">
+\[\hat{c}_d = \frac{1}{(D + 1)^2}\]</div>
+<p>Quartic decay (quartic)</p>
+<div class="math notranslate nohighlight">
+\[\hat{c}_d = \frac{1}{(D + 1)^4}\]</div>
+<p>Exponential decay (exp)</p>
+<div class="math notranslate nohighlight">
+\[\hat{c}_d=\exp\left(\log(c_\mathrm{min})\frac{d+1}{D}\right)\]</div>
+<p>Squared-exponential decay (sqexp)</p>
+<div class="math notranslate nohighlight">
+\[\hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D}\right)}\]</div>
+<p>Here <span class="math notranslate nohighlight">\(c_\mathrm{min}\)</span> is argument that sets the minimum value of <span class="math notranslate nohighlight">\(c_D\)</span>.</p>
+<p>Once the formula are used the coefficients are normalized such that</p>
+<div class="math notranslate nohighlight">
+\[c_d = c_\text{factor}\frac{\hat{c}_d}{\sum_{d=1}^D \hat{c}_d}.\]</div>
 <p class="rubric">References</p>
-<dl class="citation">
-<dt class="label" id="ra9834a2bcacb-genz1984"><span class="brackets">Genz1984</span></dt>
-<dd><p><a class="reference external" href="https://dl.acm.org/doi/10.5555/2837.2842">Genz, A. Testing multidimensional integration routines. In Proc. of international conference on Tools, methods and languages for scientific and engineering computation (pp. 81-94), 1984</a></p>
-</dd>
-</dl>
+<div role="list" class="citation-list">
+<div class="citation" id="ra9834a2bcacb-genz1984" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Genz1984<span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://dl.acm.org/doi/10.5555/2837.2842">Genz, A. Testing multidimensional integration routines. In Proc. of international conference on Tools, methods and languages for scientific and engineering computation (pp. 81-94), 1984</a></p>
+</div>
+</div>
 </dd></dl>
 
 </section>

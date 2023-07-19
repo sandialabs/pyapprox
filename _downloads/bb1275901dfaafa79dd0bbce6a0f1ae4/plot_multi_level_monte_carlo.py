@@ -44,7 +44,7 @@ MLMC can easily be extended to estimator based on :math:`M+1` models. Letting :m
 
    Q_{0,\mathcal{Z}}^\mathrm{ML} = \sum_{\alpha=0}^M Y_{\alpha,\mathcal{Z}_\alpha}, \quad f_{M+1}=0
 
-To compute this estimator we use the following algorithm, tarting with :math:`\alpha=M`$
+To compute this estimator we use the following algorithm, tarting with :math:`\alpha=M`
 
 #. Draw  :math:`N_\alpha` samples randomly from the PDF  :math:`\pdf` of the random variables.
 #. Estimate :math:`f_{\alpha}` and :math:`f_{\alpha}` at the samples :math:`\mathcal{Z}_\alpha`
@@ -125,7 +125,7 @@ print('MLMC error', abs(mlmc_mean-true_mean))
 #
 #By viewing MLMC as a control variate we can derive its variance reduction [GGEJJCP2020]_
 #
-#.. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1} - \eta_M^2 \frac{\tau_{M}}{\hat{r}_{M}} - \sum_{i=2}^M \frac{1}{\hat{r}_{i-1}}\left( \eta_i^2 \tau_{i}^2 + \tau_{i-1}^2 \tau_{i-1}^2 - 2 \eta_i \eta_{i-1} \rho_{i,i-1} \tau_{i} \tau_{i-1} \right),
+#.. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1} - \eta_M^2 \frac{\tau_{M}^2}{\hat{r}_{M}} - \sum_{i=2}^M \frac{1}{\hat{r}_{i-1}}\left( \eta_i^2 \tau_{i}^2 + \alpha_{i-1}^2 \tau_{i-1}^2 - 2 \eta_i \eta_{i-1} \rho_{i,i-1} \tau_{i} \tau_{i-1} \right),
 #   :label: mlmc-variance-reduction
 #
 #where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1}{2}}`. Recall that and :math:`\hat{r}_\alpha=\lvert\mathcal{Z}_{\alpha,2}\rvert/N` is the ratio of the cardinality of the sets :math:`\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{0,2}`.
@@ -182,7 +182,7 @@ print("Theoretical 3 model MLMC variance reduction for a pathalogical example",
 #
 #.. math::
 #
-#   C_{\mathrm{tot}}=\sum_{l=0}^M C_\alpha N_\alpha
+#   C_{\mathrm{tot}}=\sum_{\alpha=0}^M C_\alpha N_\alpha
 #
 #Now recall that the variance of the estimator is
 #
@@ -260,10 +260,10 @@ cov_mc = multifidelity.estimate_model_ensemble_covariance(
 
 from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
 estimators = [
+    multifidelity.get_estimator("mc", cov, costs, poly_model.variable),
     multifidelity.get_estimator("mlmc", cov, costs, poly_model.variable),
-    multifidelity.get_estimator("mlmc", cov_mc, costs, poly_model.variable),
-    multifidelity.get_estimator("mc", cov, costs, poly_model.variable)]
-est_labels = mathrm_labels(["MLMC", r"MLMC^\dagger", "MC"])
+    multifidelity.get_estimator("mlmc", cov_mc, costs, poly_model.variable)]
+est_labels = mathrm_labels(["MC", "MLMC", r"MLMC^\dagger"])
 optimized_estimators = multifidelity.compare_estimator_variances(
     target_costs, estimators)
 
@@ -273,7 +273,7 @@ multifidelity.plot_estimator_variances(
     ylabel=mathrm_label("Relative Estimator Variance"))
 axs[0].set_xlim(target_costs.min(), target_costs.max())
 multifidelity.plot_acv_sample_allocation_comparison(
-    optimized_estimators[0], model_labels, axs[1])
+    optimized_estimators[1], model_labels, axs[1])
 plt.show()
 
 #%%
@@ -284,7 +284,7 @@ plt.show()
 #%%
 #Multi-index Monte Carlo
 #-----------------------
-#Multi-Level Monte Carlo utilizes a sequence of models controlled by a single hyper-parameter, specifying the level of discretization for example, in a manner that balances computational cost with increasing accuracy. In many applications, however, multiple hyper-parameters may control the model discretization, such as the mesh and time step sizes. In these situations, it may not be clear how to construct a one-dimensional hierarchy represented by a scalar hyper-parameter. To overcome this limitation, a generalization of multi-level Monte Carlo, referred to as multi-index stochastic collocation (MIMC), was developed to deal with multivariate hierarchies with multiple refinement hyper-parameters [HNTNM2016]_.  PyApprox does not implement MIMC but a surrogate based version called Multi-index stochastic collocation (MISC) is presented in this tutorial :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py`.
+#Multi-Level Monte Carlo utilizes a sequence of models controlled by a single hyper-parameter, specifying the level of discretization for example, in a manner that balances computational cost with increasing accuracy. In many applications, however, multiple hyper-parameters may control the model discretization, such as the mesh and time step sizes. In these situations, it may not be clear how to construct a one-dimensional hierarchy represented by a scalar hyper-parameter. To overcome this limitation, a generalization of multi-level Monte Carlo, referred to as multi-index stochastic collocation (MIMC), was developed to deal with multivariate hierarchies with multiple refinement hyper-parameters [HNTNM2016]_.  PyApprox does not implement MIMC but a surrogate based version called Multi-index stochastic collocation (MISC) is presented in this tutorial :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multiindex_collocation.py`.
 
 #%%
 #References

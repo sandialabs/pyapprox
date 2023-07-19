@@ -42,7 +42,7 @@ Starting from two models we introduce the next low fidelity model in a way that 
 
 We repeat this process for all low fidelity models to obtain
 
-.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)
+.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha,2}}\right)
 
 The optimal control variate weights for the MFMC estimator, which minimize the variance of the estimator, are :math:`\eta=(\eta_1,\ldots,\eta_M)^T`, where for :math:`\alpha=1\ldots,M`
 
@@ -50,7 +50,7 @@ The optimal control variate weights for the MFMC estimator, which minimize the v
 
 With this choice of weights the variance reduction obtained is given by
 
-.. math:: \gamma = 1-\rho_1^2\left(\frac{r_1-1}{r_1}+\sum_{\alpha=2}^M \frac{r_\alpha-r_{\alpha-1}}{r_\alpha r_{\alpha-1}}\frac{\rho_\alpha^2}{\rho_1^2}\right)
+.. math:: \gamma = 1-\rho_{0,1}^2\left(\frac{r_1-1}{r_1}+\sum_{\alpha=2}^M \frac{r_\alpha-r_{\alpha-1}}{r_\alpha r_{\alpha-1}}\frac{\rho_{0,\alpha}^2}{\rho_{0,1}^2}\right)
 
 Let us use MFMC to estimate the mean of our high-fidelity model.
 """
@@ -88,17 +88,21 @@ print('MFMC error', abs(mlmc_mean-true_mean))
 #%%
 #Optimal Sample Allocation
 #-------------------------
-#Similarly to MLMC, the optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically (see [PWGSIAM2016]_). Recalling that :math:`C_\mathrm{tot}` is the total budget then the optimal number of high fidelity samples is
+#Similarly to MLMC, the optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically (see [PWGSIAM2016]_) provided the following condition is met
 #
-#.. math:: N_0 = \frac{C_\mathrm{tot}}{\V{w}^T\V{r}}
+#.. math:: \frac{C_{\alpha-1}}{C_\alpha} > \frac{\rho^2_{0,\alpha-1}-\rho^2_{0,\alpha}}{\rho^2_{0,\alpha}-\rho^2_{0,\alpha+1}}
 #
-#where :math:`\V{r}=[r_0,\ldots,r_M]^T` are the sample ratios defining the number of samples assigned to each level, i.e. :math:`N_\alpha=r_\alpha N_0`. The sample ratios are
+#When this condition is met the optimal number of high fidelity samples is
 #
-#.. math::
-#   
-#   r_\alpha=\left(\frac{w_0(\rho^2_{0,\alpha}-\rho^2_{0,\alpha+1})}{w_\alpha(1-\rho^2_{0,1})}\right)^{\frac{1}{2}}
+#.. math:: N_0 = \frac{C_\mathrm{tot}}{\V{C}^T\V{r}}
 #
-#where :math:`\V{w}=[w_0,w_M]^T` are the relative costs of each model, and :math:`\rho_{j,k}` is the correlation between models :math:`j` and :math:`k`.
+#where :math:`\V{C}=[C_0,\cdots,C_M]^T` are the costs of each model and :math:`\V{r}=[r_0,\ldots,r_M]^T` are the sample ratios defining the number of samples assigned to each level, i.e.
+#
+#.. math:: N_\alpha=r_\alpha N_0.
+#
+#Recalling that :math:`\rho_{j,k}` denotes the correlation between models :math:`j` and :math:`k`, the optimal sample ratios are
+#
+#.. math:: r_\alpha=\left(\frac{C_0(\rho^2_{0,\alpha}-\rho^2_{0,\alpha+1})}{C_\alpha(1-\rho^2_{0,1})}\right)^{\frac{1}{2}}.
 #
 #Now lets us compare MC with MFMC using optimal sample allocations
 np.random.seed(1)
@@ -116,9 +120,9 @@ cov_mc = multifidelity.estimate_model_ensemble_covariance(
 
 from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
 estimators = [
-    multifidelity.get_estimator("mfmc", cov, costs, poly_model.variable),
-    multifidelity.get_estimator("mc", cov, costs, poly_model.variable)]
-est_labels = mathrm_labels(["MFMC", "MC"])
+    multifidelity.get_estimator("mc", cov, costs, poly_model.variable),
+    multifidelity.get_estimator("mfmc", cov, costs, poly_model.variable)]
+est_labels = mathrm_labels(["MC", "MFMC"])
 optimized_estimators = multifidelity.compare_estimator_variances(
     target_costs, estimators)
 
@@ -128,7 +132,7 @@ multifidelity.plot_estimator_variances(
     ylabel=mathrm_label("Relative Estimator Variance"))
 axs[0].set_xlim(target_costs.min(), target_costs.max())
 multifidelity.plot_acv_sample_allocation_comparison(
-    optimized_estimators[0], model_labels, axs[1])
+    optimized_estimators[1], model_labels, axs[1])
 plt.show()
 #fig # necessary for jupyter notebook to reshow plot in new cell
 
@@ -136,4 +140,4 @@ plt.show()
 #%%
 #References
 #^^^^^^^^^^
-#.. [PWGSIAM2016] `{Peherstorfer, B., Willcox, K.,  Gunzburger, M., Optimal Model Management for Multifidelity Monte Carlo Estimation, 2016. <https://doi.org/10.1137/15M1046472>`_
+#.. [PWGSIAM2016] `Peherstorfer, B., Willcox, K.,  Gunzburger, M., Optimal Model Management for Multifidelity Monte Carlo Estimation, 2016. <https://doi.org/10.1137/15M1046472>`_

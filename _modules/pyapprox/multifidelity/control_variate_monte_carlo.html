@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.multifidelity.control_variate_monte_carlo &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.multifidelity.control_variate_monte_carlo &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.multifidelity.control_variate_monte_carlo</li>
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.multifidelity.control_variate_monte_carlo</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -116,7 +121,7 @@
 
 
 <span class="k">def</span> <span class="nf">_ndarray_as_pkg_format</span><span class="p">(</span><span class="n">array</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Shallow copy an np.ndarray to the format used by pkg, e.g.</span>
 <span class="sd">    either np.ndarray or torch.tensor. If already in the correct format</span>
 <span class="sd">    a reference to the original object will be returned</span>
@@ -188,7 +193,7 @@
 
 
 <span class="k">def</span> <span class="nf">compute_correlations_from_covariance</span><span class="p">(</span><span class="n">cov</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the correlation matrix of a covariance matrix.</span>
 
 <span class="sd">    Parameters</span>
@@ -208,7 +213,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_variance_reduction</span><span class="p">(</span><span class="n">get_rsquared</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">nsample_ratios</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the variance reduction:</span>
 
 <span class="sd">    .. math:: \gamma = 1-r^2</span>
@@ -232,7 +237,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_control_variate_rsquared</span><span class="p">(</span><span class="n">cov</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute :math:`r^2` used to compute the variance reduction of</span>
 <span class="sd">    control variate Monte Carlo</span>
 
@@ -258,7 +263,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_rsquared_mfmc</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">nsample_ratios</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute r^2 used to compute the variance reduction  of</span>
 <span class="sd">    Multifidelity Monte Carlo (MFMC)</span>
 
@@ -290,7 +295,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_rsquared_mlmc</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">nsample_ratios</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute r^2 used to compute the variance reduction of</span>
 <span class="sd">    Multilevel Monte Carlo (MLMC)</span>
 
@@ -332,7 +337,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_mlmc_control_variate_weights</span><span class="p">(</span><span class="n">nmodels</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the weights used by the MLMC control variate estimator</span>
 
 <span class="sd">    Returns</span>
@@ -344,7 +349,7 @@
 
 
 <span class="k">def</span> <span class="nf">compute_approximate_control_variate_mean_estimate</span><span class="p">(</span><span class="n">weights</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Use approximate control variate Monte Carlo to estimate the mean of</span>
 <span class="sd">    high-fidelity data with low-fidelity models with unknown means</span>
 
@@ -379,7 +384,7 @@
 
 
 <span class="k">def</span> <span class="nf">compute_control_variate_mean_estimate</span><span class="p">(</span><span class="n">weights</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">lf_means</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Use control variate Monte Carlo to estimate the mean of</span>
 <span class="sd">    high-fidelity data with low-fidelity models with known means</span>
 
@@ -414,7 +419,7 @@
 
 
 <span class="k">def</span> <span class="nf">check_mfmc_model_costs_and_correlations</span><span class="p">(</span><span class="n">costs</span><span class="p">,</span> <span class="n">corr</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Check that the model costs and correlations satisfy equation 3.12</span>
 <span class="sd">    in MFMC paper.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -434,7 +439,7 @@
 
 
 <span class="k">def</span> <span class="nf">allocate_samples_mfmc</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Determine the samples to be allocated to each model when using MFMC</span>
 
 <span class="sd">    Parameters</span>
@@ -490,7 +495,7 @@
 
 
 <span class="k">def</span> <span class="nf">allocate_samples_mlmc</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Determine the samples to be allocated to each model when using MLMC</span>
 
 <span class="sd">    Parameters</span>
@@ -578,7 +583,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_lagrange_multiplier_mlmc</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span> <span class="n">eps</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Given an optimal sample allocation recover the optimal value of the</span>
 <span class="sd">    Lagrange multiplier. This is only used for testing</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -596,7 +601,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_discrepancy_covariances_IS</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">nsample_ratios</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the covariances of the discrepancies :math:`\delta`</span>
 <span class="sd">    between each low-fidelity model and its estimated mean when the same</span>
 <span class="sd">    :math:`N` samples are used to compute the covariance between each models</span>
@@ -639,7 +644,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_discrepancy_covariances_MF</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">nsample_ratios</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the covariances of the discrepancies :math:`\delta`</span>
 <span class="sd">    between each low-fidelity model and its estimated mean using the MFMC</span>
 <span class="sd">    sampling strategy.</span>
@@ -676,7 +681,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_discrepancy_covariances_KL</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">nsample_ratios</span><span class="p">,</span> <span class="n">K</span><span class="p">,</span> <span class="n">L</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the covariances of the discrepancies :math:`\delta`</span>
 <span class="sd">    between each low-fidelity model and its estimated mean using the MFMC</span>
 <span class="sd">    sampling strategy and the ACV KL estimator.</span>
@@ -752,7 +757,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_control_variate_weights</span><span class="p">(</span><span class="n">cov</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the weights used by the control variate estimator with known low</span>
 <span class="sd">    fidelity means.</span>
 
@@ -771,7 +776,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_approximate_control_variate_weights</span><span class="p">(</span><span class="n">CF</span><span class="p">,</span> <span class="n">cf</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the weights used by the approximate control variate estimator.</span>
 
 <span class="sd">    Parameters</span>
@@ -791,12 +796,15 @@
     <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">CF</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
         <span class="n">weights</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">CF</span><span class="p">,</span> <span class="n">cf</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">weights</span> <span class="o">=</span> <span class="o">-</span><span class="n">pkg</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">CF</span><span class="p">,</span> <span class="n">cf</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">CF</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">weights</span> <span class="o">=</span> <span class="o">-</span><span class="n">cf</span><span class="o">/</span><span class="n">CF</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">weights</span> <span class="o">=</span> <span class="o">-</span><span class="n">pkg</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">CF</span><span class="p">,</span> <span class="n">cf</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">weights</span>
 
 
 <span class="k">def</span> <span class="nf">get_rsquared_acv</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">nsample_ratios</span><span class="p">,</span> <span class="n">get_discrepancy_covariances</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute r^2 used to compute the variance reduction of</span>
 <span class="sd">    Approximate Control Variate Algorithms</span>
 
@@ -898,7 +906,7 @@
     <span class="c1"># nmodels = len(nsample_ratios)+1</span>
     <span class="n">nmodels</span> <span class="o">=</span> <span class="n">nsamples_per_model</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">nhf_samples</span> <span class="o">=</span> <span class="n">nsamples_per_model</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">callable</span><span class="p">(</span><span class="n">functions</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">functions</span><span class="p">):</span>
         <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">functions</span><span class="p">)</span> <span class="o">==</span> <span class="n">nmodels</span>
     <span class="n">samples1</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">+</span><span class="p">[</span><span class="n">generate_samples</span><span class="p">(</span><span class="n">nhf_samples</span><span class="p">)]</span><span class="o">*</span><span class="n">nmodels</span>
     <span class="n">samples2</span> <span class="o">=</span> <span class="p">[</span><span class="n">samples1</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span><span class="o">+</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
@@ -917,7 +925,7 @@
 
 <span class="k">def</span> <span class="nf">generate_samples_and_values_mlmc</span><span class="p">(</span><span class="n">nsamples_per_model</span><span class="p">,</span> <span class="n">functions</span><span class="p">,</span>
                                      <span class="n">generate_samples</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    nsamples_per_model : np.ndarray (nsamples)</span>
@@ -941,7 +949,7 @@
 <span class="sd">        Model values at the points in samples</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">nmodels</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nsamples_per_model</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">callable</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">:</span>
         <span class="k">assert</span> <span class="n">nmodels</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">functions</span><span class="p">)</span>
     <span class="n">nhf_samples</span> <span class="o">=</span> <span class="n">nsamples_per_model</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">samples1</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span>
@@ -975,7 +983,7 @@
 
 <span class="k">def</span> <span class="nf">generate_samples_and_values_acv_KL</span><span class="p">(</span><span class="n">nsamples_per_model</span><span class="p">,</span> <span class="n">functions</span><span class="p">,</span>
                                        <span class="n">generate_samples</span><span class="p">,</span> <span class="n">K</span><span class="p">,</span> <span class="n">L</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    K : integer (K&lt;=nmodels-1)</span>
@@ -1022,7 +1030,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_sample_allocation_matrix_mlmc</span><span class="p">(</span><span class="n">nmodels</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the sample allocation matrix</span>
 
 <span class="sd">    Parameters</span>
@@ -1046,7 +1054,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_npartition_samples_mlmc</span><span class="p">(</span><span class="n">nsamples_per_model</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the size of the partitions combined to form</span>
 <span class="sd">        :math:`z_i, i=0\ldots, M-1`.</span>
 
@@ -1128,7 +1136,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_npartition_samples_acvis</span><span class="p">(</span><span class="n">nsamples_per_model</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the size of the subsets :math:`z_i\setminus z_i^\star, i=0\ldots, M-1`.</span>
 
 <span class="sd">    # Warning this will likely not work when recursion index is not [0, 0]</span>
@@ -1139,7 +1147,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_nsamples_intersect</span><span class="p">(</span><span class="n">reorder_allocation_mat</span><span class="p">,</span> <span class="n">npartition_samples</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    nsamples_intersect : np.ndarray (2*nmodels, 2*nmodels)</span>
@@ -1161,7 +1169,7 @@
 
 <span class="k">def</span> <span class="nf">get_nsamples_interesect_from_z_subsets_acvgmf</span><span class="p">(</span>
         <span class="n">nsamples_z_subsets</span><span class="p">,</span> <span class="n">recursion_index</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    nsamples_z_subsets : np.ndarray (nmodels)</span>
@@ -1191,7 +1199,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_nsamples_subset</span><span class="p">(</span><span class="n">reorder_allocation_mat</span><span class="p">,</span> <span class="n">npartition_samples</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the number of samples allocated to the sample subsets</span>
 <span class="sd">    :math:`|z^\star_i` and :math:`|z_i|`</span>
 
@@ -1211,7 +1219,7 @@
 
 <span class="k">def</span> <span class="nf">reorder_allocation_matrix_acvgmf</span><span class="p">(</span><span class="n">allocation_mat</span><span class="p">,</span> <span class="n">nsamples_per_model</span><span class="p">,</span>
                                      <span class="n">recursion_index</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Allocation matrix is the reference sample allocation</span>
 
 <span class="sd">    Must make sure that allocation matrix used for sample allocation and</span>
@@ -1277,12 +1285,11 @@
     <span class="n">CF</span><span class="p">,</span> <span class="n">cf</span> <span class="o">=</span> <span class="n">get_acv_discrepancy_covariances</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">Fmat</span><span class="p">,</span> <span class="n">fvec</span><span class="p">)</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">weights</span> <span class="o">=</span> <span class="n">get_approximate_control_variate_weights</span><span class="p">(</span><span class="n">CF</span><span class="p">,</span> <span class="n">cf</span><span class="p">)</span>
-
     <span class="k">except</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;linalgerror: acv weights failed&quot;</span><span class="p">)</span>
+        <span class="c1"># print(&quot;linalgerror: acv weights failed&quot;)</span>
         <span class="n">weights</span> <span class="o">=</span> <span class="n">pkg_ones</span><span class="p">(</span><span class="n">cf</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">cf</span><span class="p">),</span> <span class="n">pkg</span><span class="o">.</span><span class="n">double</span><span class="p">)</span><span class="o">*</span><span class="mf">1e16</span>
     <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;runtime: acv weights failed&quot;</span><span class="p">)</span>
+        <span class="c1"># print(&quot;runtime: acv weights failed&quot;)</span>
         <span class="n">weights</span> <span class="o">=</span> <span class="n">pkg_ones</span><span class="p">(</span><span class="n">cf</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">cf</span><span class="p">),</span> <span class="n">pkg</span><span class="o">.</span><span class="n">double</span><span class="p">)</span><span class="o">*</span><span class="mf">1e16</span>
     <span class="k">return</span> <span class="n">weights</span><span class="p">,</span> <span class="n">cf</span>
 
@@ -1304,7 +1311,7 @@
 
 <span class="k">def</span> <span class="nf">generate_samples_and_values_mfmc</span><span class="p">(</span><span class="n">nsamples_per_model</span><span class="p">,</span> <span class="n">functions</span><span class="p">,</span>
                                      <span class="n">generate_samples</span><span class="p">,</span> <span class="n">acv_modification</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    nsamples_per_model : np.ndarray (nsamples)</span>
@@ -1362,16 +1369,17 @@
     <span class="k">return</span> <span class="n">samples</span><span class="p">,</span> <span class="n">values</span>
 
 
-<span class="k">def</span> <span class="nf">acv_sample_allocation_objective_all</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">acv_sample_allocation_objective_all</span><span class="p">(</span>
+        <span class="n">estimator</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">use_torch</span><span class="p">:</span>
         <span class="n">ratios</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">pkg</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">jac</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">return_grad</span><span class="p">:</span>
             <span class="n">ratios</span><span class="o">.</span><span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">ratios</span> <span class="o">=</span> <span class="n">x</span>
     <span class="n">variance</span> <span class="o">=</span> <span class="n">estimator</span><span class="o">.</span><span class="n">_get_variance_for_optimizer</span><span class="p">(</span><span class="n">target_cost</span><span class="p">,</span> <span class="n">ratios</span><span class="p">)</span>
     <span class="n">log_10_var</span> <span class="o">=</span> <span class="n">pkg</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">variance</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">use_torch</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">log_10_var</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">log_10_var</span>
@@ -1424,26 +1432,26 @@
     <span class="n">nmodels</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">costs</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">nmodels</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
 
-    <span class="c1"># nmodels = cov.shape[0]</span>
-    <span class="c1"># nratios = np.empty(nmodels-1)</span>
-    <span class="c1"># for ii in range(1, nmodels):</span>
-    <span class="c1">#     idx = np.array([0, ii])</span>
-    <span class="c1">#     nratio = allocate_samples_mfmc(</span>
-    <span class="c1">#         cov[np.ix_(idx, idx)], costs[idx], target_cost)[0]</span>
-    <span class="c1">#     nratios[ii-1] = nratio</span>
+    <span class="c1"># # nmodels = cov.shape[0]</span>
+    <span class="c1"># # nratios = np.empty(nmodels-1)</span>
+    <span class="c1"># # for ii in range(1, nmodels):</span>
+    <span class="c1"># #     idx = np.array([0, ii])</span>
+    <span class="c1"># #     nratio = allocate_samples_mfmc(</span>
+    <span class="c1"># #         cov[np.ix_(idx, idx)], costs[idx], target_cost)[0]</span>
+    <span class="c1"># #     nratios[ii-1] = nratio</span>
 
-    <span class="c1"># scale ratios so that nhf_samples is one</span>
-    <span class="n">nhf_samples</span> <span class="o">=</span> <span class="mi">1</span>
-    <span class="c1"># use (1-1e-8) to avoid numerical precision problems so that</span>
-    <span class="c1"># acv_sample_allocation_nhf_samples_constraint is always positive</span>
-    <span class="n">delta</span> <span class="o">=</span> <span class="p">(</span><span class="n">target_cost</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="mf">1e-8</span><span class="p">)</span> <span class="o">-</span> <span class="n">costs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">nhf_samples</span><span class="p">)</span><span class="o">/</span><span class="n">nratios</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
-        <span class="n">costs</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
-    <span class="n">initial_guess</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">nratios</span><span class="p">)</span><span class="o">*</span><span class="n">delta</span>
+    <span class="c1"># # scale ratios so that nhf_samples is one</span>
+    <span class="c1"># nhf_samples = 1</span>
+    <span class="c1"># # use (1-1e-8) to avoid numerical precision problems so that</span>
+    <span class="c1"># # acv_sample_allocation_nhf_samples_constraint is always positive</span>
+    <span class="c1"># delta = (target_cost*(1-1e-8) - costs[0]*nhf_samples)/nratios.dot(</span>
+    <span class="c1">#     costs[1:])</span>
+    <span class="c1"># initial_guess = np.array(nratios)*delta</span>
 
-    <span class="n">constraint_val</span> <span class="o">=</span> <span class="n">acv_sample_allocation_nhf_samples_constraint</span><span class="p">(</span>
-        <span class="n">initial_guess</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span> <span class="n">costs</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">constraint_val</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Not a feasiable initial guess&quot;</span><span class="p">)</span>
+    <span class="c1"># constraint_val = acv_sample_allocation_nhf_samples_constraint(</span>
+    <span class="c1">#     initial_guess, target_cost, costs)</span>
+    <span class="c1"># if constraint_val &lt; 0:</span>
+    <span class="c1">#     raise ValueError(&quot;Not a feasiable initial guess&quot;)</span>
 
     <span class="k">return</span> <span class="n">initial_guess</span>
 
@@ -1475,9 +1483,9 @@
     <span class="c1"># r &gt;= 1+1/nhf</span>
     <span class="c1"># smallest lower bound whenn nhf = max_nhf</span>
 
-    <span class="n">jac</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">return_grad</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="k">if</span> <span class="n">use_torch</span><span class="p">:</span>
-        <span class="n">jac</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">return_grad</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">method</span> <span class="o">=</span> <span class="s2">&quot;SLSQP&quot;</span>
     <span class="c1"># method = &quot;trust-constr&quot;</span>
     <span class="c1"># print(optim_options)</span>
@@ -1486,8 +1494,8 @@
     <span class="c1"># optim_options[&quot;maxiter&quot;] = 10000</span>
     <span class="c1"># optim_options[&quot;gtol&quot;] = 1e-6</span>
     <span class="n">opt</span> <span class="o">=</span> <span class="n">minimize</span><span class="p">(</span>
-        <span class="n">partial</span><span class="p">(</span><span class="n">estimator</span><span class="o">.</span><span class="n">objective</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="n">jac</span><span class="p">),</span>
-        <span class="n">initial_guess</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="n">jac</span><span class="p">,</span>
+        <span class="n">partial</span><span class="p">(</span><span class="n">estimator</span><span class="o">.</span><span class="n">objective</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="n">return_grad</span><span class="p">),</span>
+        <span class="n">initial_guess</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="n">return_grad</span><span class="p">,</span>
         <span class="n">bounds</span><span class="o">=</span><span class="n">bounds</span><span class="p">,</span> <span class="n">constraints</span><span class="o">=</span><span class="n">cons</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">optim_options</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">opt</span>
 
@@ -1496,7 +1504,7 @@
                          <span class="n">cons</span><span class="o">=</span><span class="p">[],</span>
                          <span class="n">initial_guess</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                          <span class="n">optim_options</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">optim_method</span><span class="o">=</span><span class="s1">&#39;SLSQP&#39;</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Determine the samples to be allocated to each model</span>
 
 <span class="sd">    Parameters</span>
@@ -1527,8 +1535,8 @@
         <span class="n">estimator</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span> <span class="n">initial_guess</span><span class="p">,</span> <span class="n">optim_options</span><span class="p">,</span> <span class="n">cons</span><span class="p">)</span>
     <span class="n">nsample_ratios</span> <span class="o">=</span> <span class="n">opt</span><span class="o">.</span><span class="n">x</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">opt</span><span class="o">.</span><span class="n">success</span><span class="p">:</span><span class="c1"># or opt.nit == 1: nit will be 1 if using only two models</span>
-        <span class="k">for</span> <span class="n">con</span> <span class="ow">in</span> <span class="n">cons</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="n">con</span><span class="p">[</span><span class="s1">&#39;fun&#39;</span><span class="p">],</span> <span class="n">con</span><span class="p">[</span><span class="s1">&#39;fun&#39;</span><span class="p">](</span><span class="n">opt</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="o">*</span><span class="n">con</span><span class="p">[</span><span class="s1">&#39;args&#39;</span><span class="p">]))</span>
+        <span class="c1"># for con in cons:</span>
+        <span class="c1">#     print(con[&#39;fun&#39;], con[&#39;fun&#39;](opt.x, *con[&#39;args&#39;]))</span>
         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;SLSQP optimizer failed&#39;</span><span class="o">+</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">opt</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
         <span class="c1"># var = 1e99</span>
         <span class="c1"># log10_var = 99</span>
@@ -1561,7 +1569,7 @@
 
 <div class="viewcode-block" id="estimate_model_ensemble_covariance"><a class="viewcode-back" href="../../../api/pyapprox.multifidelity.estimate_model_ensemble_covariance.html#pyapprox.multifidelity.estimate_model_ensemble_covariance">[docs]</a><span class="k">def</span> <span class="nf">estimate_model_ensemble_covariance</span><span class="p">(</span><span class="n">npilot_samples</span><span class="p">,</span> <span class="n">generate_samples</span><span class="p">,</span>
                                        <span class="n">model_ensemble</span><span class="p">,</span> <span class="n">nmodels</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Estimate the covariance of a model ensemble from a set of pilot samples</span>
 
 <span class="sd">    Parameters</span>
@@ -1596,7 +1604,7 @@
 <span class="sd">        The values of each model at the pilot samples</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># generate pilot samples</span>
-    <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="n">generate_samples</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">generate_samples</span><span class="p">):</span>
         <span class="n">pilot_random_samples</span> <span class="o">=</span> <span class="n">generate_samples</span><span class="p">(</span><span class="n">npilot_samples</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">pilot_random_samples</span> <span class="o">=</span> <span class="n">generate_samples</span><span class="p">[:,</span> <span class="p">:</span><span class="n">npilot_samples</span><span class="p">]</span>
@@ -1614,7 +1622,7 @@
 
 
 <span class="k">def</span> <span class="nf">compute_covariance_from_control_variate_samples</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the covariance between information sources from a set</span>
 <span class="sd">    of evaluations of each information source.</span>
 
@@ -1645,8 +1653,9 @@
     <span class="k">return</span> <span class="n">cov</span>
 
 
-<div class="viewcode-block" id="plot_correlation_matrix"><a class="viewcode-back" href="../../../api/pyapprox.multifidelity.plot_correlation_matrix.html#pyapprox.multifidelity.plot_correlation_matrix">[docs]</a><span class="k">def</span> <span class="nf">plot_correlation_matrix</span><span class="p">(</span><span class="n">corr_matrix</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">model_names</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="plot_correlation_matrix"><a class="viewcode-back" href="../../../api/pyapprox.multifidelity.plot_correlation_matrix.html#pyapprox.multifidelity.plot_correlation_matrix">[docs]</a><span class="k">def</span> <span class="nf">plot_correlation_matrix</span><span class="p">(</span><span class="n">corr_matrix</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">model_names</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                            <span class="n">format_string</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">{:1.3f}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;jet&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Plot a correlation matrix</span>
 
 <span class="sd">    Parameters</span>
@@ -1657,10 +1666,10 @@
     <span class="kn">from</span> <span class="nn">pyapprox.util.configure_plots</span> <span class="kn">import</span> <span class="n">plt</span>
     <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
-    <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">matshow</span><span class="p">(</span><span class="n">corr_matrix</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;jet&quot;</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">)</span>
+    <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">matshow</span><span class="p">(</span><span class="n">corr_matrix</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">)</span>
     <span class="k">for</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">),</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">ndenumerate</span><span class="p">(</span><span class="n">corr_matrix</span><span class="p">):</span>
-        <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">{:1.3f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">z</span><span class="p">),</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span>
-                <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">format_string</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">z</span><span class="p">),</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span>
+                <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">model_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">nmodels</span> <span class="o">=</span> <span class="n">corr_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
@@ -1673,7 +1682,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_nhf_samples</span><span class="p">(</span><span class="n">target_cost</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">nsample_ratios</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the number of high-fidelity samples from a target cost and</span>
 <span class="sd">    set of lower-fidelity sample ratios.</span>
 
@@ -1701,7 +1710,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_nsamples_per_model</span><span class="p">(</span><span class="n">target_cost</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">nsample_ratios</span><span class="p">,</span> <span class="n">isinteger</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the number of samples allocated to each model. The samples may not</span>
 <span class="sd">    be integers.</span>
 
@@ -1734,7 +1743,7 @@
 
 
 <span class="k">def</span> <span class="nf">round_nsample_ratios</span><span class="p">(</span><span class="n">target_cost</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">nsample_ratios</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return sample ratios that produce integer sample allocations.</span>
 <span class="sd">    The cost of the returned allocation will not usually equal target cost</span>
 
@@ -1765,14 +1774,13 @@
     <span class="n">nsamples_floor</span> <span class="o">=</span> <span class="n">nsamples_float</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
     <span class="c1"># ensure all low-fidelity samples &gt; nhf_samples after rounding</span>
     <span class="k">if</span> <span class="n">nsamples_floor</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">nsamples_float</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="o">-</span><span class="mf">1e-8</span><span class="p">:</span>
+        <span class="c1"># print(nsample_ratios)</span>
         <span class="c1"># print(nsamples_floor[0], nsamples_float[0], nsamples_float[0]-1, costs)</span>
         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Rounding likely caused nhf samples to be zero&quot;</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">nsamples_floor</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
         <span class="n">nsamples_floor</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">nsamples_floor</span><span class="p">,</span> <span class="s2">&quot;nsf1&quot;</span><span class="p">)</span>
     <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">nsamples_floor</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">==</span> <span class="n">nsamples_floor</span><span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span>
     <span class="n">nsamples_floor</span><span class="p">[</span><span class="n">II</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">nsamples_floor</span><span class="p">,</span> <span class="s2">&quot;nsf2&quot;</span><span class="p">)</span>
     <span class="n">nsample_ratios_floor</span> <span class="o">=</span> <span class="n">nsamples_floor</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">/</span><span class="n">nsamples_floor</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">rounded_target_cost</span> <span class="o">=</span> <span class="n">nsamples_floor</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">costs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
         <span class="n">nsample_ratios_floor</span><span class="p">,</span> <span class="n">costs</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
@@ -1787,7 +1795,7 @@
 
 <span class="k">def</span> <span class="nf">generate_samples_acv</span><span class="p">(</span><span class="n">reorder_allocation_mat</span><span class="p">,</span> <span class="n">nsamples_per_model</span><span class="p">,</span>
                          <span class="n">npartition_samples</span><span class="p">,</span> <span class="n">generate_samples</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate the samples needded to evaluate the approximate the control</span>
 <span class="sd">    variate estimator</span>
 
@@ -1853,7 +1861,7 @@
 
 <span class="k">def</span> <span class="nf">separate_model_values_acv</span><span class="p">(</span><span class="n">reorder_allocation_mat</span><span class="p">,</span>
                               <span class="n">values_per_model</span><span class="p">,</span> <span class="n">partition_indices_per_model</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Separate a list of model evaluations for each model into the separated</span>
 <span class="sd">    form necessary to evaluate the approximate the control variate estimator</span>
 
@@ -1914,7 +1922,7 @@
 
 <span class="k">def</span> <span class="nf">separate_samples_per_model_acv</span><span class="p">(</span><span class="n">reorder_allocation_mat</span><span class="p">,</span> <span class="n">samples_per_model</span><span class="p">,</span>
                                    <span class="n">subset_indices_per_model</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Separate a list of samples for each model into the separated</span>
 <span class="sd">    form necessary to evaluate the approximate the control variate estimator</span>
 
@@ -1965,7 +1973,7 @@
 <span class="k">def</span> <span class="nf">bootstrap_acv_estimator</span><span class="p">(</span><span class="n">values_per_model</span><span class="p">,</span> <span class="n">partition_indices_per_model</span><span class="p">,</span>
                             <span class="n">npartition_samples</span><span class="p">,</span> <span class="n">reorder_allocation_mat</span><span class="p">,</span>
                             <span class="n">acv_weights</span><span class="p">,</span> <span class="n">nbootstraps</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Approximate the variance of the Monte Carlo estimate of the mean using</span>
 <span class="sd">    bootstraping</span>
 
@@ -2090,7 +2098,7 @@
 
 <span class="k">def</span> <span class="nf">hierarchy_pos</span><span class="p">(</span><span class="n">G</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span> <span class="n">vert_gap</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">vert_loc</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">xcenter</span><span class="o">=</span><span class="mf">0.5</span><span class="p">):</span>
 
-    <span class="sd">&#39;&#39;&#39;</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">    From Joel&#39;s answer at https://stackoverflow.com/a/29597209/2966723.</span>
 <span class="sd">    Licensed under Creative Commons Attribution-Share Alike</span>
 
@@ -2123,7 +2131,7 @@
 
     <span class="k">def</span> <span class="nf">_hierarchy_pos</span><span class="p">(</span><span class="n">G</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span> <span class="n">vert_gap</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">vert_loc</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
                        <span class="n">xcenter</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&#39;&#39;&#39;</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">        see hierarchy_pos docstring for most arguments</span>
 
 <span class="sd">        pos: a dict saying where all nodes go if they have been assigned</span>
@@ -2164,7 +2172,8 @@
             <span class="n">font_size</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">plot_sample_allocation</span><span class="p">(</span><span class="n">reorder_allocation_mat</span><span class="p">,</span> <span class="n">npartition_samples</span><span class="p">,</span> <span class="n">ax</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">plot_sample_allocation</span><span class="p">(</span><span class="n">reorder_allocation_mat</span><span class="p">,</span> <span class="n">npartition_samples</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span>
+                           <span class="n">colors</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="kn">from</span> <span class="nn">pyapprox.util.configure_plots</span> <span class="kn">import</span> <span class="n">plt</span>
     <span class="n">nmodels</span> <span class="o">=</span> <span class="n">reorder_allocation_mat</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">active_partitions</span> <span class="o">=</span> <span class="p">[]</span>
@@ -2172,21 +2181,27 @@
         <span class="n">active_partitions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
             <span class="p">(</span><span class="n">reorder_allocation_mat</span><span class="p">[:,</span> <span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="o">|</span>
             <span class="p">(</span><span class="n">reorder_allocation_mat</span><span class="p">[:,</span> <span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">))[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="c1"># remove z_0^* which is never nonzero</span>
+    <span class="n">reorder_allocation_mat</span> <span class="o">=</span> <span class="n">reorder_allocation_mat</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span>
     <span class="n">index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">reorder_allocation_mat</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">+</span><span class="mf">0.3</span>
     <span class="n">y_offset</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="n">colors</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">rainbow</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">nmodels</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">colors</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">colors</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">rainbow</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">nmodels</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">colors</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="o">*</span><span class="n">nmodels</span>
     <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">npartition_samples</span><span class="p">)):</span>
         <span class="n">used_by</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">reorder_allocation_mat</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
         <span class="n">used_by</span><span class="p">[</span><span class="n">reorder_allocation_mat</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="p">:]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="n">selected_colors</span> <span class="o">=</span> <span class="p">[</span>
             <span class="n">colors</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="k">if</span> <span class="n">uu</span> <span class="k">else</span> <span class="s1">&#39;white&#39;</span> <span class="k">for</span> <span class="n">uu</span> <span class="ow">in</span> <span class="n">used_by</span><span class="p">]</span>
-        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">npartition_samples</span><span class="p">[</span><span class="n">jj</span><span class="p">],</span> <span class="mf">0.4</span><span class="p">,</span> <span class="n">bottom</span><span class="o">=</span><span class="n">y_offset</span><span class="p">,</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">npartition_samples</span><span class="p">[</span><span class="n">jj</span><span class="p">],</span> <span class="mf">0.8</span><span class="p">,</span> <span class="n">bottom</span><span class="o">=</span><span class="n">y_offset</span><span class="p">,</span>
                <span class="n">color</span><span class="o">=</span><span class="n">selected_colors</span><span class="p">)</span>
         <span class="n">y_offset</span> <span class="o">+=</span> <span class="n">npartition_samples</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span>
 
-    <span class="n">xticklabels</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">):</span>
-        <span class="n">xticklabels</span> <span class="o">+=</span> <span class="p">[</span><span class="sa">r</span><span class="s2">&quot;$z_</span><span class="si">%d</span><span class="s2">^\star$&quot;</span> <span class="o">%</span> <span class="n">ii</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;$z_</span><span class="si">%d</span><span class="s2">$&quot;</span> <span class="o">%</span> <span class="n">ii</span><span class="p">]</span>
+    <span class="c1"># xticklabels = []</span>
+    <span class="n">xticklabels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s2">&quot;$\mathcal</span><span class="si">{Z}</span><span class="s2">_</span><span class="si">%d</span><span class="s2">$&quot;</span> <span class="o">%</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nmodels</span><span class="p">):</span>
+        <span class="n">xticklabels</span> <span class="o">+=</span> <span class="p">[</span>
+            <span class="sa">r</span><span class="s2">&quot;$\mathcal</span><span class="si">{Z}</span><span class="s2">_</span><span class="si">%d</span><span class="s2">^\star$&quot;</span> <span class="o">%</span> <span class="n">ii</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;$\mathcal</span><span class="si">{Z}</span><span class="s2">_</span><span class="si">%d</span><span class="s2">$&quot;</span> <span class="o">%</span> <span class="n">ii</span><span class="p">]</span>
     <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
     <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">xticklabels</span><span class="p">)</span>
 
@@ -2207,7 +2222,6 @@
 <span class="c1"># Notes</span>
 <span class="c1"># using pkg.double when ever creating a torch tensor is esssential.</span>
 <span class="c1"># Otherwise autograd will not work.</span>
-
 </pre></div>
 
            </div>

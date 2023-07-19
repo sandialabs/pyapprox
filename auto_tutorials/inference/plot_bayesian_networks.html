@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gaussian Networks &mdash; PyApprox 1.0.0 documentation</title>
+  <title>Gaussian Networks &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -20,13 +20,14 @@
         <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/jquery.js"></script>
         <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
         <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Monte Carlo Quadrature" href="../multi_fidelity/plot_monte_carlo.html" />
+    <link rel="next" title="Push Forward Based Inference" href="plot_push_forward_based_inference.html" />
     <link rel="prev" title="Bayesian Inference" href="plot_bayesian_inference.html" /> 
 </head>
 
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -53,11 +58,10 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#inference">Inference</a><ul class="current">
-<li class="toctree-l3"><a class="reference internal" href="plot_push_forward_based_inference.html">Push Forward Based Inference</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_bayesian_inference.html">Bayesian Inference</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Gaussian Networks</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#directed-acyclic-graphs">Directed Acyclic Graphs</a></li>
@@ -68,10 +72,11 @@
 <li class="toctree-l4"><a class="reference internal" href="#marginalizing-canonical-forms">Marginalizing Canonical Forms</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="plot_push_forward_based_inference.html">Push Forward Based Inference</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
 </ul>
 </li>
 </ul>
@@ -97,9 +102,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../index.html">Theoretical Tutorials</a> &raquo;</li>
-      <li>Gaussian Networks</li>
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">Gaussian Networks</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/auto_tutorials/inference/plot_bayesian_networks.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -111,14 +116,14 @@
              
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-inference-plot-bayesian-networks-py"><span class="std std-ref">here</span></a>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-inference-plot-bayesian-networks-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="gaussian-networks">
-<span id="sphx-glr-auto-tutorials-inference-plot-bayesian-networks-py"></span><h1>Gaussian Networks<a class="headerlink" href="#gaussian-networks" title="Permalink to this headline"></a></h1>
+<span id="sphx-glr-auto-tutorials-inference-plot-bayesian-networks-py"></span><h1>Gaussian Networks<a class="headerlink" href="#gaussian-networks" title="Permalink to this heading"></a></h1>
 <p>This tutorial describes how to perform efficient inference on a network of Gaussian-linear models using Bayesian networks, often referred to as Gaussian networks. Bayesian networks can be constructed to provide a compact representation of joint distribution, which can be used to marginalize out variables and condition on observational data without the need to construct a full representation of the joint density over all variables.</p>
 <section id="directed-acyclic-graphs">
-<h2>Directed Acyclic Graphs<a class="headerlink" href="#directed-acyclic-graphs" title="Permalink to this headline"></a></h2>
+<h2>Directed Acyclic Graphs<a class="headerlink" href="#directed-acyclic-graphs" title="Permalink to this heading"></a></h2>
 <p>A Bayesian network (BN) structure is a directed acyclic graphs (DAG) whose nodes represent random variables and whose edges represent probabilistic relationships between them. The graph can be represented by a tuple of vertices (or nodes) and edges <span class="math notranslate nohighlight">\(\mathcal{G} = \left( \mathbf{V}, \mathbf{E} \right)\)</span>. A node <span class="math notranslate nohighlight">\(\theta_{j} \in \mathbf{V}\)</span> is a parent of a random variable <span class="math notranslate nohighlight">\(\theta_{i} \in \mathbf{V}\)</span> if there is a directed edge <span class="math notranslate nohighlight">\([\theta_{j} \to \theta_{i}] \in \mathbf{E}\)</span>. The set of parents of random variable <span class="math notranslate nohighlight">\(\theta_{i}\)</span> is denoted by <span class="math notranslate nohighlight">\(\theta_{\mathrm{pa}(i)}\)</span>.</p>
 <p>Lets import some necessary modules and then construct a DAG consisting of 3 groups of variables.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">networkx</span> <span class="k">as</span> <span class="nn">nx</span>
@@ -145,7 +150,7 @@ to download the full example code</p>
 <img src="../../_images/sphx_glr_plot_bayesian_networks_001.png" srcset="../../_images/sphx_glr_plot_bayesian_networks_001.png" alt="plot bayesian networks" class = "sphx-glr-single-img"/><p>For this network we have <span class="math notranslate nohighlight">\(\mathrm{pa}(\theta_1)=\emptyset,\;\mathrm{pa}(\theta_2)=\{\theta_1\},\;\mathrm{pa}(\theta_3)=\{\theta_2\}\)</span>.</p>
 </section>
 <section id="conditional-probability-distributions">
-<h2>Conditional probability distributions<a class="headerlink" href="#conditional-probability-distributions" title="Permalink to this headline"></a></h2>
+<h2>Conditional probability distributions<a class="headerlink" href="#conditional-probability-distributions" title="Permalink to this heading"></a></h2>
 <p>Bayesian networks use onditional probability distributions (CPDs) to encode the relationships between variables of the graph. Let <span class="math notranslate nohighlight">\(A,B,C\)</span> denote three random variables. <span class="math notranslate nohighlight">\(A\)</span> is conditionally independent of <span class="math notranslate nohighlight">\(B\)</span> given <span class="math notranslate nohighlight">\(C\)</span> in distribution <span class="math notranslate nohighlight">\(\mathbb{P}\)</span>, denoted by <span class="math notranslate nohighlight">\(A \mathrel{\perp\mspace{-10mu}\perp} B \mid C\)</span>, if</p>
 <div class="math notranslate nohighlight">
 \[\mathbb{P}(A = a, B = b \mid C = c)  = \mathbb{P}(A = a\mid C=c) \mathbb{P}(B = b \mid C = c).\]</div>
@@ -185,7 +190,7 @@ to download the full example code</p>
 \[\mu_i=b_i+A_{ij}\mu_j, \qquad \Sigma_{ii}=\Sigma_{vi}+A_{ij}\Sigma_{jj}A_{ij}^T\]</div>
 </section>
 <section id="the-canonical-form">
-<h2>The Canonical Form<a class="headerlink" href="#the-canonical-form" title="Permalink to this headline"></a></h2>
+<h2>The Canonical Form<a class="headerlink" href="#the-canonical-form" title="Permalink to this heading"></a></h2>
 <p>Unless a variable <span class="math notranslate nohighlight">\(\theta_i\)</span> is a root node of a network, i.e. <span class="math notranslate nohighlight">\(\mathrm{pa}(\theta_i)=\emptyset\)</span> the CPD is in general not Gaussian; for root nodes the CPD is just the density of <span class="math notranslate nohighlight">\(\theta_i\)</span>. However we can represent the CPDs of no-root nodes and the Gaussian density of root nodes with a consistent reprsentation. Specifically we will use the canonical form of a set of variables <span class="math notranslate nohighlight">\(X\)</span></p>
 <div class="math notranslate nohighlight">
 \[\mathcal{\phi}(x;K,h,g) = \exp\left(g+h^T x-\frac{1}{2} x^T K x\right)\]</div>
@@ -199,9 +204,9 @@ to download the full example code</p>
 <p>To form the joint density (which we want to avoid in practice) and perform inference and marginalization of a Gaussian graph we must first understand the notion of <strong>scope</strong> and three basic operations on canonical factors: <strong>multiplication</strong>, <strong>marginalization</strong> and <strong>conditioning</strong> also knows as reduction.</p>
 </section>
 <section id="multiplying-canonical-forms">
-<h2>Multiplying Canonical Forms<a class="headerlink" href="#multiplying-canonical-forms" title="Permalink to this headline"></a></h2>
+<h2>Multiplying Canonical Forms<a class="headerlink" href="#multiplying-canonical-forms" title="Permalink to this heading"></a></h2>
 <section id="the-scope-of-canonical-forms">
-<h3>The scope of canonical forms<a class="headerlink" href="#the-scope-of-canonical-forms" title="Permalink to this headline"></a></h3>
+<h3>The scope of canonical forms<a class="headerlink" href="#the-scope-of-canonical-forms" title="Permalink to this heading"></a></h3>
 <p>The <strong>scope</strong> of a canonical form <span class="math notranslate nohighlight">\(\phi(x)\)</span> is the set of variables <span class="math notranslate nohighlight">\(X\)</span> and is denoted <span class="math notranslate nohighlight">\(\mathrm{Scope}[\phi]\)</span>. Consider the hierarchical structure, just discussed the scope of the 3 factors are</p>
 <div class="math notranslate nohighlight">
 \[\mathrm{Scope}[\phi_1]=\{\theta_1\},\quad\mathrm{Scope}[\phi_2]=\{\theta_1,\theta_2\},\quad\mathrm{Scope}[\phi_3]=\{\theta_2,\theta_3\}.\]</div>
@@ -216,14 +221,14 @@ to download the full example code</p>
 \[\begin{split}&amp;\phi_2\left(\theta_1,\theta_2,\theta_3;\begin{bmatrix}K_{2,11} &amp; K_{2,12} &amp; 0\\ K_{2,21} &amp; K_{2,22} &amp; 0\\ 0 &amp; 0 &amp; 0\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{2,2}\\0 \end{bmatrix},g_2\right)\phi_3\left(\theta_1,\theta_2,\theta_3;\begin{bmatrix}0 &amp; 0 &amp; 0 \\ 0 &amp; K_{3,11} &amp; K_{3,12}\\ 0 &amp;K_{3,21} &amp; K_{3,22}\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{3,2} \end{bmatrix},g_3\right)\\=&amp;\phi_{2\times 3}\left(\theta_1,\theta_2,\theta_3;\begin{bmatrix}K_{2,11} &amp; K_{2,12} &amp; 0\\ K_{2,21} &amp; K_{2,22}+K_{3,11} &amp; K_{3,12}\\ 0 &amp; K_{3,21} &amp; K_{3,22}\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{2,2}+h_{3,1}\\h_{3,2} \end{bmatrix},g_2+g_3\right)\end{split}\]</div>
 </section>
 <section id="the-canonical-form-of-a-gaussian-distribution">
-<h3>The canonical form of a Gaussian distribution<a class="headerlink" href="#the-canonical-form-of-a-gaussian-distribution" title="Permalink to this headline"></a></h3>
+<h3>The canonical form of a Gaussian distribution<a class="headerlink" href="#the-canonical-form-of-a-gaussian-distribution" title="Permalink to this heading"></a></h3>
 <p>Now we understand how to multiply two factors of different scope we can now discuss how to convert CPDs into canonical factors. The canonical form of a normal distribution with mean <span class="math notranslate nohighlight">\(m\)</span> and covariance <span class="math notranslate nohighlight">\(C\)</span> has the parameters <span class="math notranslate nohighlight">\(K=C^{-1}\)</span>, <span class="math notranslate nohighlight">\(h = K m\)</span> and</p>
 <div class="math notranslate nohighlight">
 \[g = -\frac{1}{2} m^T h -\frac{1}{2} n\log(2\pi) +\frac{1}{2} \log |K|.\]</div>
 <p>The derivation of these expressions is simple and we leave to the reader. The derivation of the canonical form of a linear-Gaussian CPD is more involved however and we derive it here.</p>
 </section>
 <section id="the-canonical-form-of-a-cpd">
-<h3>The canonical form of a CPD<a class="headerlink" href="#the-canonical-form-of-a-cpd" title="Permalink to this headline"></a></h3>
+<h3>The canonical form of a CPD<a class="headerlink" href="#the-canonical-form-of-a-cpd" title="Permalink to this heading"></a></h3>
 <p>First we assume that the joint density of two Gaussian variables <span class="math notranslate nohighlight">\(\theta_i,\theta_j\)</span> can be represented as the product of two canonical forms referred to as factors. Specifically let <span class="math notranslate nohighlight">\(\phi_{i}(\theta_i,\theta_j)\)</span> be the factor representing the CPD <span class="math notranslate nohighlight">\(\mathbb{P}(\theta_i\mid\theta_j)\)</span>, let <span class="math notranslate nohighlight">\(\phi_{j}\)</span> be the canonical form of the Gaussian <span class="math notranslate nohighlight">\(\theta_j\)</span>, and assume</p>
 <div class="math notranslate nohighlight">
 \[\mathbb{P}(\theta_i,\theta_j)=\mathbb{P}(\theta_i\mid\theta_j)\mathbb{P}(\theta_j)=\phi_{\theta_i}\phi_{\theta_j}\]</div>
@@ -231,7 +236,7 @@ to download the full example code</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}K_{i}&amp;=\begin{bmatrix}\Sigma_{jj} &amp; \Sigma_{jj}A_{ij}^T\\ A_{ij}\Sigma_{jj} &amp; A_{ij}\Sigma_{jj}A_{ij}^T + \Sigma_{vi}\end{bmatrix}^{-1}\\
  &amp;=\begin{bmatrix}\Sigma_{jj}^{-1}+ A_{ij}^T\Sigma_{vi}^{-1}A_{ij} &amp; -A_{ij}^T\Sigma_{vi}^{-1}\\ -\Sigma_{vi}^{-1}A_{ij} &amp; \Sigma_{vi}^{-1}\end{bmatrix}\end{split}\]</div>
-<p>where the second equality is derived using the matrix inversion lemma. Because <span class="math notranslate nohighlight">\(\mathbb{P}(\theta_i)\)</span>phi_j` has <span class="math notranslate nohighlight">\(K_j=\Sigma_{jj}^{-1}\in\reals^{P_j\times P_j}\)</span>. Multiply he two canonical factors, making sure to account for the different scopes we have</p>
+<p>where the second equality is derived using the matrix inversion lemma. Because <span class="math notranslate nohighlight">\(\mathbb{P}(\theta_i)`is Gaussian we have from before that the factor :math:\)</span>phi_j` has <span class="math notranslate nohighlight">\(K_j=\Sigma_{jj}^{-1}\in\reals^{P_j\times P_j}\)</span>. Multiply he two canonical factors, making sure to account for the different scopes we have</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}\begin{bmatrix}\Sigma_{jj}^{-1} &amp; 0 \\ 0 &amp; 0\end{bmatrix}\begin{bmatrix}K_{i11} &amp; K_{i12} \\ K_{i21} &amp; K_{i22}\end{bmatrix}=\begin{bmatrix}\Sigma_{jj}^{-1}+ A_{ij}^T\Sigma_{vi}^{-1}A_{ij} &amp; -A_{ij}^T\Sigma_{vi}^{-1}\\ -\Sigma_{vi}^{-1}A_{ij} &amp; \Sigma_{vi}^{-1}\end{bmatrix}\end{split}\]</div>
 <p>Equating terms in the above equation yields</p>
@@ -240,7 +245,7 @@ to download the full example code</p>
 <p>A similar procedure can be used to find <span class="math notranslate nohighlight">\(h=[(A_{ij}^T\Sigma_{vi}^{-1}b)^T,(\Sigma_{vi}^{-1}b)^T]^T\)</span> and <span class="math notranslate nohighlight">\(g\)</span>.</p>
 </section>
 <section id="computing-the-joint-density-with-the-canonical-forms">
-<h3>Computing the joint density with the canonical forms<a class="headerlink" href="#computing-the-joint-density-with-the-canonical-forms" title="Permalink to this headline"></a></h3>
+<h3>Computing the joint density with the canonical forms<a class="headerlink" href="#computing-the-joint-density-with-the-canonical-forms" title="Permalink to this heading"></a></h3>
 <p>We are now in a position to be able to compute the joint density of all the variables in a Gaussian Network. Note that we would never want to do this in practice because it negates the benefit of having the compact representation provided by the Gaussian network.</p>
 <p>The following builds a hierarchical network with three ndoes. Each node has <span class="math notranslate nohighlight">\(P_i=2\)</span> variables.  We set the matrices <span class="math notranslate nohighlight">\(A_{ij}=a_{i}jI\)</span> to be a diagonal matrix with the same entries <span class="math notranslate nohighlight">\(a_{ij}\)</span> along the diagonal. This means that we are saying that only the <span class="math notranslate nohighlight">\(k\)</span>-th variable <span class="math notranslate nohighlight">\(k=1,\ldots,P_i\)</span> of the <span class="math notranslate nohighlight">\(i\)</span>-th node is related to the <span class="math notranslate nohighlight">\(k\)</span>-th variable of the <span class="math notranslate nohighlight">\(j\)</span>-th node.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nnodes</span> <span class="o">=</span> <span class="mi">3</span>
@@ -298,7 +303,6 @@ b_3&amp;=\mean{\theta_3}-A_{32}\mean{\theta_2}.\end{split}\]</div>
 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Prior Covariance</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">prior_cov</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Prior Mean
  [-1. -1. -2. -2. -3. -3.]
 Prior Covariance
@@ -325,7 +329,7 @@ Prior Covariance
 </section>
 </section>
 <section id="conditioning-the-canonical-form">
-<h2>Conditioning The Canonical Form<a class="headerlink" href="#conditioning-the-canonical-form" title="Permalink to this headline"></a></h2>
+<h2>Conditioning The Canonical Form<a class="headerlink" href="#conditioning-the-canonical-form" title="Permalink to this heading"></a></h2>
 <p>Using the canonical form of these factors we can easily condition them on available data. Given a canonical form over two variables <span class="math notranslate nohighlight">\(X,Y\)</span> with</p>
 <div class="math notranslate nohighlight" id="equation-eq-canonical-xy">
 <span class="eqno">(2)<a class="headerlink" href="#equation-eq-canonical-xy" title="Permalink to this equation"></a></span>\[\begin{split}K=\begin{bmatrix} K_{XX} &amp; K_{XY}\\ K_{YX} &amp; K_{YY}\end{bmatrix}, \qquad h=\begin{bmatrix}h_{X} \\h_{Y}\end{bmatrix}\end{split}\]</div>
@@ -333,7 +337,7 @@ Prior Covariance
 <div class="math notranslate nohighlight" id="equation-eq-condition-canonical">
 <span class="eqno">(3)<a class="headerlink" href="#equation-eq-condition-canonical" title="Permalink to this equation"></a></span>\[K^\prime=K_{XX}, \quad h^\prime=h_X-K_{XY}y, \quad g^\prime=g+h_Y^Ty-\frac{1}{2}y^TK_{yy}y\]</div>
 <section id="classical-inference-for-linear-gaussian-models-as-a-two-node-network">
-<h3>Classical inference for linear Gaussian models as a two node network<a class="headerlink" href="#classical-inference-for-linear-gaussian-models-as-a-two-node-network" title="Permalink to this headline"></a></h3>
+<h3>Classical inference for linear Gaussian models as a two node network<a class="headerlink" href="#classical-inference-for-linear-gaussian-models-as-a-two-node-network" title="Permalink to this heading"></a></h3>
 <p>Gaussian networks enable efficient inference of the unknown variables using observational data. Classical inference for linear-Gaussian models can be represented with a graph consiting of two nodes. First setup a dataless graph of one node</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nnodes</span> <span class="o">=</span> <span class="mi">1</span>
 <span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
@@ -411,7 +415,7 @@ Prior Covariance
 </section>
 </section>
 <section id="marginalizing-canonical-forms">
-<h2>Marginalizing Canonical Forms<a class="headerlink" href="#marginalizing-canonical-forms" title="Permalink to this headline"></a></h2>
+<h2>Marginalizing Canonical Forms<a class="headerlink" href="#marginalizing-canonical-forms" title="Permalink to this heading"></a></h2>
 <p>Gaussian networks are best used when one wants to comute a marginal of the joint density of parameters, possibly conditioned on data. The following describes the process of marginalization and conditioning often referred to as the sum-product eliminate variable algorithm.</p>
 <p>First lets discuss how to marginalize a canoncial form, e.g. compute</p>
 <div class="math notranslate nohighlight">
@@ -420,7 +424,7 @@ Prior Covariance
 <div class="math notranslate nohighlight">
 \[K^\prime=K_{XX}-K_{XY}K_{YY}^{-1}K_{YX},\quad h^\prime=h_X-K_{XY}K_{YY}^{-1}h_{Y}, \quad g^\prime=g+h_Y^Ty-\frac{1}{2}y^TK_{YY}y\]</div>
 <section id="computing-the-marginal-density-of-a-network-conditioned-on-data">
-<h3>Computing the marginal density of a network conditioned on data<a class="headerlink" href="#computing-the-marginal-density-of-a-network-conditioned-on-data" title="Permalink to this headline"></a></h3>
+<h3>Computing the marginal density of a network conditioned on data<a class="headerlink" href="#computing-the-marginal-density-of-a-network-conditioned-on-data" title="Permalink to this heading"></a></h3>
 <p>Again consider a three model recursive network</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nnodes</span> <span class="o">=</span> <span class="mi">3</span>
 <span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
@@ -493,7 +497,6 @@ Prior Covariance
 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Posterior Covariance</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">gauss_post</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Posterior Mean
  [-0.36647195  1.0164208 ]
 Posterior Covariance
@@ -503,14 +506,15 @@ Posterior Covariance
 </div>
 </section>
 <section id="references">
-<h3>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h3>
-<dl class="citation">
-<dt class="label" id="kfpgm2009"><span class="brackets">KFPGM2009</span></dt>
-<dd><p><a class="reference external" href="https://mitpress.mit.edu/books/probabilistic-graphical-models">Probabilistic Graphical Models: Principles and Techinques. 2009</a></p>
-</dd>
-</dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.176 seconds)</p>
-<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-inference-plot-bayesian-networks-py">
+<h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
+<div role="list" class="citation-list">
+<div class="citation" id="kfpgm2009" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>KFPGM2009<span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://mitpress.mit.edu/books/probabilistic-graphical-models">Probabilistic Graphical Models: Principles and Techinques. 2009</a></p>
+</div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.190 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-inference-plot-bayesian-networks-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/e95bd50d1e271dafaaa9564238b044ae/plot_bayesian_networks.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_bayesian_networks.py</span></code></a></p>
 </div>
@@ -528,7 +532,7 @@ Posterior Covariance
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="plot_bayesian_inference.html" class="btn btn-neutral float-left" title="Bayesian Inference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="../multi_fidelity/plot_monte_carlo.html" class="btn btn-neutral float-right" title="Monte Carlo Quadrature" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="plot_push_forward_based_inference.html" class="btn btn-neutral float-right" title="Push Forward Based Inference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_examples_plot_setup_model.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_examples_plot_setup_model.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -81,14 +81,12 @@ To print a summary of the random variable use
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
     Independent Marginal Variable
     Number of variables: 2
     Unique variables and global id:
-        uniform(loc=-2,scale=4): z0, z1
+        uniform(loc=[-2],scale=[4]): z0, z1
 
 
 
@@ -129,16 +127,14 @@ Summary statistics of the samples and values can be printed using
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
                z0         z1         y0    
     count  1000.000000 1000.000000 1000.000000
-    mean    -0.048368   0.010298  -0.076141
-    std      1.134134   1.155276   3.240788
-    min     -1.995541  -1.999612  -7.983515
-    max      1.999503   1.993267   7.516856
+    mean    -0.038207  -0.041565  -0.159543
+    std      1.165293   1.175000   3.340050
+    min     -1.992304  -1.996393  -7.725900
+    max      1.995606   1.988541   7.762915
 
 
 
@@ -198,28 +194,25 @@ The function :func:`pyapprox.interface.wrappers.evaluate_1darray_function_on_2d_
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.010 seconds)
+   **Total running time of the script:** ( 0 minutes  0.009 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_setup_model.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_setup_model.py <plot_setup_model.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_setup_model.py <plot_setup_model.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_setup_model.ipynb <plot_setup_model.ipynb>`
+      :download:`Download Jupyter notebook: plot_setup_model.ipynb <plot_setup_model.ipynb>`
 
 
 .. only:: html

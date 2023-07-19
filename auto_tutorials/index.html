@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Theoretical Tutorials &mdash; PyApprox 1.0.0 documentation</title>
+  <title>Theoretical Tutorials &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
@@ -33,12 +34,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -51,16 +56,23 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Theoretical Tutorials</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#model-analysis">Model Analysis</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="analysis/plot_sensitivity_analysis.html">Sensitivity Analysis</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#inference">Inference</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="inference/plot_push_forward_based_inference.html">Push Forward Based Inference</a></li>
 <li class="toctree-l3"><a class="reference internal" href="inference/plot_bayesian_inference.html">Bayesian Inference</a></li>
 <li class="toctree-l3"><a class="reference internal" href="inference/plot_bayesian_networks.html">Gaussian Networks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="inference/plot_push_forward_based_inference.html">Push Forward Based Inference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#surrogates">Surrogates</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="surrogates/plot_tensor_product_interpolation.html">Tensor-product Barycentric Interpolation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="surrogates/plot_sparse_grids.html">Sparse Grids</a></li>
+<li class="toctree-l3"><a class="reference internal" href="surrogates/plot_adaptive_leja_interpolation.html">Adaptive Leja Sequences</a></li>
+<li class="toctree-l3"><a class="reference internal" href="surrogates/plot_gaussian_processes.html">Gaussian processes</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#multi-fidelity-methods">Multi-Fidelity Methods</a><ul>
@@ -70,13 +82,10 @@
 <li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_multilevel_blue.html">Multilevel Best Linear Unbiased estimators (MLBLUE)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_multiindex_collocation.html">Multi-level and Multi-index Collocation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_multifidelity_gp.html">Multifidelity Gaussian processes</a></li>
 <li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_gaussian_mfnets.html">MFNets: Multi-fidelity networks</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#surrogates">Surrogates</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="surrogates/plot_tensor_product_interpolation.html">Tensor-product Barycentric Interpolation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="surrogates/plot_adaptive_leja_interpolation.html">Adaptive Leja Sequences</a></li>
-<li class="toctree-l3"><a class="reference internal" href="surrogates/plot_gaussian_processes.html">Gaussian processes</a></li>
 </ul>
 </li>
 </ul>
@@ -104,8 +113,8 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-      <li>Theoretical Tutorials</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Theoretical Tutorials</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/auto_tutorials/index.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -116,155 +125,94 @@
            <div itemprop="articleBody">
              
   <section id="theoretical-tutorials">
-<span id="sphx-glr-auto-tutorials"></span><h1>Theoretical Tutorials<a class="headerlink" href="#theoretical-tutorials" title="Permalink to this headline"></a></h1>
+<h1>Theoretical Tutorials<a class="headerlink" href="#theoretical-tutorials" title="Permalink to this heading"></a></h1>
 <p>Below is a gallery of tutorials providing detailed mathematical background on the methods in PyApprox.</p>
 <p>This tutorials provide more detail than the set of examples found here which simply show how to use different methods with the least amount of code.</p>
-<div class="sphx-glr-clear"></div><section id="model-analysis">
-<span id="sphx-glr-auto-tutorials-analysis"></span><h2>Model Analysis<a class="headerlink" href="#model-analysis" title="Permalink to this headline"></a></h2>
+<div class="sphx-glr-thumbnails"></div><section id="model-analysis">
+<h2>Model Analysis<a class="headerlink" href="#model-analysis" title="Permalink to this heading"></a></h2>
 <p>Below are tutorials on various model analysis techniques</p>
-<div class="sphx-glr-thumbcontainer" tooltip="Sobol Indices ------------- Any function f with finite variance parameterized by a set of indep..."><figure class="align-default" id="id8">
-<img alt="Sensitivity Analysis" src="../_images/sphx_glr_plot_sensitivity_analysis_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="analysis/plot_sensitivity_analysis.html#sphx-glr-auto-tutorials-analysis-plot-sensitivity-analysis-py"><span class="std std-ref">Sensitivity Analysis</span></a></span><a class="headerlink" href="#id8" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
+<div class="sphx-glr-thumbnails"><div class="sphx-glr-thumbcontainer" tooltip="Sobol Indices ------------- Any function f with finite variance parameterized by a set of indep..."><img alt="" src="../_images/sphx_glr_plot_sensitivity_analysis_thumb.png" />
+<p><a class="reference internal" href="analysis/plot_sensitivity_analysis.html#sphx-glr-auto-tutorials-analysis-plot-sensitivity-analysis-py"><span class="std std-ref">Sensitivity Analysis</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Sensitivity Analysis</div>
+</div></div><div class="toctree-wrapper compound">
 </div>
-<div class="sphx-glr-clear"></div></section>
+</section>
 <section id="inference">
-<span id="sphx-glr-auto-tutorials-inference"></span><h2>Inference<a class="headerlink" href="#inference" title="Permalink to this headline"></a></h2>
+<h2>Inference<a class="headerlink" href="#inference" title="Permalink to this heading"></a></h2>
 <p>Below is a gallery of foundational tutorials probabilistic inversion</p>
-<div class="sphx-glr-thumbcontainer" tooltip="PFI solves the inverse problem of inferring parameters \rv of a deterministic model f(\rv) from..."><figure class="align-default" id="id9">
-<img alt="Push Forward Based Inference" src="../_images/sphx_glr_plot_push_forward_based_inference_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="inference/plot_push_forward_based_inference.html#sphx-glr-auto-tutorials-inference-plot-push-forward-based-inference-py"><span class="std std-ref">Push Forward Based Inference</span></a></span><a class="headerlink" href="#id9" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
+<div class="sphx-glr-thumbnails"><div class="sphx-glr-thumbcontainer" tooltip="Background ---------- When observational data are available, that data should be used to inform..."><img alt="" src="../_images/sphx_glr_plot_bayesian_inference_thumb.png" />
+<p><a class="reference internal" href="inference/plot_bayesian_inference.html#sphx-glr-auto-tutorials-inference-plot-bayesian-inference-py"><span class="std std-ref">Bayesian Inference</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Bayesian Inference</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Directed Acyclic Graphs ----------------------- A Bayesian network (BN) structure is a directed..."><img alt="" src="../_images/sphx_glr_plot_bayesian_networks_thumb.png" />
+<p><a class="reference internal" href="inference/plot_bayesian_networks.html#sphx-glr-auto-tutorials-inference-plot-bayesian-networks-py"><span class="std std-ref">Gaussian Networks</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Gaussian Networks</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="PFI solves the inverse problem of inferring parameters \rv of a deterministic model f(\rv) from..."><img alt="" src="../_images/sphx_glr_plot_push_forward_based_inference_thumb.png" />
+<p><a class="reference internal" href="inference/plot_push_forward_based_inference.html#sphx-glr-auto-tutorials-inference-plot-push-forward-based-inference-py"><span class="std std-ref">Push Forward Based Inference</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Push Forward Based Inference</div>
+</div></div><div class="toctree-wrapper compound">
 </div>
-<div class="sphx-glr-thumbcontainer" tooltip="Background ---------- When observational data are available, that data should be used to inform..."><figure class="align-default" id="id10">
-<img alt="Bayesian Inference" src="../_images/sphx_glr_plot_bayesian_inference_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="inference/plot_bayesian_inference.html#sphx-glr-auto-tutorials-inference-plot-bayesian-inference-py"><span class="std std-ref">Bayesian Inference</span></a></span><a class="headerlink" href="#id10" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
-</div>
-<div class="sphx-glr-thumbcontainer" tooltip="Directed Acyclic Graphs ----------------------- A Bayesian network (BN) structure is a directed..."><figure class="align-default" id="id11">
-<img alt="Gaussian Networks" src="../_images/sphx_glr_plot_bayesian_networks_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="inference/plot_bayesian_networks.html#sphx-glr-auto-tutorials-inference-plot-bayesian-networks-py"><span class="std std-ref">Gaussian Networks</span></a></span><a class="headerlink" href="#id11" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
-</div>
-<div class="sphx-glr-clear"></div></section>
-<section id="multi-fidelity-methods">
-<span id="sphx-glr-auto-tutorials-multi-fidelity"></span><h2>Multi-Fidelity Methods<a class="headerlink" href="#multi-fidelity-methods" title="Permalink to this headline"></a></h2>
-<p>Multi-fidelity methods utilize an ensemble of models, enriching a small number of high-fidelity simulations with larger numbers of simulations from models of varying prediction accuracy and reduced cost, to enable greater exploration and resolution of uncertainty while maintaining deterministic prediction accuracy. The effectiveness of multi-fidelity approaches depends on the ability to identify and exploit relationships among models within the ensemble.</p>
-<p>The relationships among models within a model ensemble vary greatly, and most existing approaches focus on exploiting a specific type of structure for a presumed model sequence. For example, <a class="reference internal" href="#kob2000" id="id1"><span>[KOB2000]</span></a>, <a class="reference internal" href="#lgijuq2014" id="id2"><span>[LGIJUQ2014]</span></a>, <a class="reference internal" href="#ngxsisc2014" id="id3"><span>[NGXSISC2014]</span></a>, <a class="reference internal" href="#tjwgsiamuq2015" id="id4"><span>[TJWGSIAMUQ2015]</span></a> build surrogate approximations that leverage a 1D hierarchy of models of increasing fidelity, with varying physics and/or numerical discretizations. While Multi-index collocation <a class="reference internal" href="#hnttcmame2016" id="id5"><span>[HNTTCMAME2016]</span></a> leverage a multi-dimensional hierarchy controlled my two or more numerical discretization hyper-parameters. Similary <a class="reference internal" href="multi_fidelity/plot_multi_level_monte_carlo.html#cgstcvs2011" id="id6"><span>[CGSTCVS2011]</span></a>, <a class="reference internal" href="multi_fidelity/plot_multi_level_monte_carlo.html#gor2008" id="id7"><span>[GOR2008]</span></a> exploit a 1D hierarchy of models to estimate statistics such as mean and variance using Monte Carlo methods.</p>
-<p>This gallery of tutorials discusses the most popular multi-fidelity methods for quantifying uncertainty in complex models.</p>
-<dl class="citation">
-<dt class="label" id="ngxsisc2014"><span class="brackets"><a class="fn-backref" href="#id3">NGXSISC2014</a></span></dt>
-<dd><p><a class="reference external" href="https://doi.org/10.1137/130929461">Narayan, A. and Gittelson, C. and Xiu, D. A Stochastic Collocation Algorithm with Multifidelity Models. SIAM Journal on Scientific Computing 36(2), A495-A521, 2014.</a></p>
-</dd>
-<dt class="label" id="lgijuq2014"><span class="brackets"><a class="fn-backref" href="#id2">LGIJUQ2014</a></span></dt>
-<dd><p><a class="reference external" href="http://dx.doi.org/10.1615/Int.J.UncertaintyQuantification.2014006914">L. Le Gratiet and J. Garnier Recursive co-kriging model for design of computer experiments with multiple levels of fidelity. International Journal for Uncertainty Quantification, 4(5), 365–386, 2014</a></p>
-</dd>
-<dt class="label" id="kob2000"><span class="brackets"><a class="fn-backref" href="#id1">KOB2000</a></span></dt>
-<dd><p><a class="reference external" href="http://www.jstor.org/stable/2673557">M. C. Kennedy and A. O’Hagan. Predicting the Output from a Complex Computer Code When Fast Approximations Are Available. Biometrika, 87(1), 1-13, 2000.</a></p>
-</dd>
-<dt class="label" id="hnttcmame2016"><span class="brackets"><a class="fn-backref" href="#id5">HNTTCMAME2016</a></span></dt>
-<dd><p><a class="reference external" href="http://www.sciencedirect.com/science/article/pii/S0045782516301141,doi:10.1016/j.cma.2016.03.029">A. Haji-Ali, F. Nobile, L. Tamellini, and R. Tempone. Multi-index stochastic collocation for random pdes. Computer Methods in Applied Mechanics and Engineering, 306:95 – 122, 2016.</a></p>
-</dd>
-<dt class="label" id="tjwgsiamuq2015"><span class="brackets"><a class="fn-backref" href="#id4">TJWGSIAMUQ2015</a></span></dt>
-<dd><p><a href="#id22"><span class="problematic" id="id23">`A. Teckentrup, P. Jantsch, C. Webster, and M. Gunzburger. A multilevel stochastic collocation method for partial differential equations with random input data. SIAM/ASA Journal on Uncertainty Quantification, 3(1):1046-1074, 2015. &lt;https://doi.org/10.1137/140969002&gt;1`_</span></a></p>
-</dd>
-</dl>
-<div class="sphx-glr-thumbcontainer" tooltip="We can approximate the integral Q_\alpha using Monte Carlo quadrature by drawing N random sampl..."><figure class="align-default" id="id12">
-<img alt="Monte Carlo Quadrature" src="../_images/sphx_glr_plot_monte_carlo_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="multi_fidelity/plot_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-monte-carlo-py"><span class="std std-ref">Monte Carlo Quadrature</span></a></span><a class="headerlink" href="#id12" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
-</div>
-<div class="sphx-glr-thumbcontainer" tooltip="Let us introduce a model Q_\V{\kappa} with known mean \mu_{\V{\kappa}}. We can use this model t..."><figure class="align-default" id="id13">
-<img alt="Control Variate Monte Carlo" src="../_images/sphx_glr_plot_control_variate_monte_carlo_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="multi_fidelity/plot_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-control-variate-monte-carlo-py"><span class="std std-ref">Control Variate Monte Carlo</span></a></span><a class="headerlink" href="#id13" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
-</div>
-<div class="sphx-glr-thumbcontainer" tooltip="CVMC is often not useful for practical analysis of numerical models because typically the mean ..."><figure class="align-default" id="id14">
-<img alt="Approximate Control Variate Monte Carlo" src="../_images/sphx_glr_plot_approximate_control_variate_monte_carlo_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="multi_fidelity/plot_approximate_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-approximate-control-variate-monte-carlo-py"><span class="std std-ref">Approximate Control Variate Monte Carlo</span></a></span><a class="headerlink" href="#id14" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
-</div>
-<div class="sphx-glr-thumbcontainer" tooltip="Two Model MLMC -------------- The two model MLMC estimator is very similar to the CVMC estimato..."><figure class="align-default" id="id15">
-<img alt="Multi-level Monte Carlo" src="../_images/sphx_glr_plot_multi_level_monte_carlo_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="multi_fidelity/plot_multi_level_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py"><span class="std std-ref">Multi-level Monte Carlo</span></a></span><a class="headerlink" href="#id15" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
-</div>
-<div class="sphx-glr-thumbcontainer" tooltip="Many Model MFMC ---------------"><figure class="align-default" id="id16">
-<img alt="Multi-fidelity Monte Carlo" src="../_images/sphx_glr_plot_multi_fidelity_monte_carlo_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="multi_fidelity/plot_multi_fidelity_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multi-fidelity-monte-carlo-py"><span class="std std-ref">Multi-fidelity Monte Carlo</span></a></span><a class="headerlink" href="#id16" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
-</div>
-<div class="sphx-glr-thumbcontainer" tooltip="Control variate Monte Carlo can be easily extended and applied to more than two models. Conside..."><figure class="align-default" id="id17">
-<img alt="Generalized Approximate Control Variate Monte Carlo" src="../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="multi_fidelity/plot_many_model_approximate_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-many-model-approximate-control-variate-monte-carlo-py"><span class="std std-ref">Generalized Approximate Control Variate Monte Carlo</span></a></span><a class="headerlink" href="#id17" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
-</div>
-<div class="sphx-glr-thumbcontainer" tooltip="In the sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py tutorial we showe..."><figure class="align-default" id="id18">
-<img alt="MFNets: Multi-fidelity networks" src="../_images/sphx_glr_plot_gaussian_mfnets_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="multi_fidelity/plot_gaussian_mfnets.html#sphx-glr-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py"><span class="std std-ref">MFNets: Multi-fidelity networks</span></a></span><a class="headerlink" href="#id18" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
-</div>
-<div class="sphx-glr-clear"></div></section>
+</section>
 <section id="surrogates">
-<span id="sphx-glr-auto-tutorials-surrogates"></span><h2>Surrogates<a class="headerlink" href="#surrogates" title="Permalink to this headline"></a></h2>
-<div class="sphx-glr-thumbcontainer" tooltip="Generally speaking surrogates are built using a &quot;small&quot; number of model simulations and are the..."><figure class="align-default" id="id19">
-<img alt="Tensor-product Barycentric Interpolation" src="../_images/sphx_glr_plot_tensor_product_interpolation_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="surrogates/plot_tensor_product_interpolation.html#sphx-glr-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"><span class="std std-ref">Tensor-product Barycentric Interpolation</span></a></span><a class="headerlink" href="#id19" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
+<h2>Surrogates<a class="headerlink" href="#surrogates" title="Permalink to this heading"></a></h2>
+<div class="sphx-glr-thumbnails"><div class="sphx-glr-thumbcontainer" tooltip="Generally speaking surrogates are built using a &quot;small&quot; number of model simulations and are the..."><img alt="" src="../_images/sphx_glr_plot_tensor_product_interpolation_thumb.png" />
+<p><a class="reference internal" href="surrogates/plot_tensor_product_interpolation.html#sphx-glr-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"><span class="std std-ref">Tensor-product Barycentric Interpolation</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Tensor-product Barycentric Interpolation</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Sparse grids approximate a model (function) f_\alpha with D inputs z=[z_1,\ldots,z_D]^\top as a..."><img alt="" src="../_images/sphx_glr_plot_sparse_grids_thumb.png" />
+<p><a class="reference internal" href="surrogates/plot_sparse_grids.html#sphx-glr-auto-tutorials-surrogates-plot-sparse-grids-py"><span class="std std-ref">Sparse Grids</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Sparse Grids</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Adaptive Leja Sequences"><img alt="" src="../_images/sphx_glr_plot_adaptive_leja_interpolation_thumb.png" />
+<p><a class="reference internal" href="surrogates/plot_adaptive_leja_interpolation.html#sphx-glr-auto-tutorials-surrogates-plot-adaptive-leja-interpolation-py"><span class="std std-ref">Adaptive Leja Sequences</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Adaptive Leja Sequences</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Constructing a GP requires specifying a prior mean m(\rv) and covariance kernel C(\rv, \rv^\sta..."><img alt="" src="../_images/sphx_glr_plot_gaussian_processes_thumb.png" />
+<p><a class="reference internal" href="surrogates/plot_gaussian_processes.html#sphx-glr-auto-tutorials-surrogates-plot-gaussian-processes-py"><span class="std std-ref">Gaussian processes</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Gaussian processes</div>
+</div></div><div class="toctree-wrapper compound">
 </div>
-<div class="sphx-glr-thumbcontainer" tooltip="Adaptive Leja Sequences"><figure class="align-default" id="id20">
-<img alt="Adaptive Leja Sequences" src="../_images/sphx_glr_plot_adaptive_leja_interpolation_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="surrogates/plot_adaptive_leja_interpolation.html#sphx-glr-auto-tutorials-surrogates-plot-adaptive-leja-interpolation-py"><span class="std std-ref">Adaptive Leja Sequences</span></a></span><a class="headerlink" href="#id20" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
+</section>
+<section id="multi-fidelity-methods">
+<h2>Multi-Fidelity Methods<a class="headerlink" href="#multi-fidelity-methods" title="Permalink to this heading"></a></h2>
+<p>Multi-fidelity methods utilize an ensemble of models, enriching a small number of high-fidelity simulations with larger numbers of simulations from models of varying prediction accuracy and reduced cost, to enable greater exploration and resolution of uncertainty while maintaining deterministic prediction accuracy. The effectiveness of multi-fidelity approaches depends on the ability to identify and exploit relationships among models within the ensemble.</p>
+<p>The relationships among models within a model ensemble vary greatly, and most existing approaches focus on exploiting a specific type of structure for a presumed model sequence. For example, <a class="reference internal" href="multi_fidelity/plot_multifidelity_gp.html#kob2000" id="id1"><span>[KOB2000]</span></a>, <a class="reference internal" href="multi_fidelity/plot_multifidelity_gp.html#lgijuq2014" id="id2"><span>[LGIJUQ2014]</span></a>, <a class="reference internal" href="#ngxsisc2014" id="id3"><span>[NGXSISC2014]</span></a>, <a class="reference internal" href="multi_fidelity/plot_multiindex_collocation.html#tjwgsiamuq2015" id="id4"><span>[TJWGSIAMUQ2015]</span></a> build surrogate approximations that leverage a 1D hierarchy of models of increasing fidelity, with varying physics and/or numerical discretizations. While Multi-index collocation <a class="reference internal" href="multi_fidelity/plot_multiindex_collocation.html#hnttcmame2016" id="id5"><span>[HNTTCMAME2016]</span></a> leverage a multi-dimensional hierarchy controlled my two or more numerical discretization hyper-parameters. Similary <a class="reference internal" href="multi_fidelity/plot_multi_level_monte_carlo.html#cgstcvs2011" id="id6"><span>[CGSTCVS2011]</span></a>, <a class="reference internal" href="multi_fidelity/plot_multi_level_monte_carlo.html#gor2008" id="id7"><span>[GOR2008]</span></a> exploit a 1D hierarchy of models to estimate statistics such as mean and variance using Monte Carlo methods.</p>
+<p>This gallery of tutorials discusses the most popular multi-fidelity methods for quantifying uncertainty in complex models.</p>
+<div role="list" class="citation-list">
+<div class="citation" id="ngxsisc2014" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id3">NGXSISC2014</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1137/130929461">Narayan, A. and Gittelson, C. and Xiu, D. A Stochastic Collocation Algorithm with Multifidelity Models. SIAM Journal on Scientific Computing 36(2), A495-A521, 2014.</a></p>
 </div>
-<div class="sphx-glr-thumbcontainer" tooltip="Constructing a GP requires specifying a prior mean m(\rv) and covariance kernel C(\rv, \rv^\sta..."><figure class="align-default" id="id21">
-<img alt="Gaussian processes" src="../_images/sphx_glr_plot_gaussian_processes_thumb.png" />
-<figcaption>
-<p><span class="caption-text"><a class="reference internal" href="surrogates/plot_gaussian_processes.html#sphx-glr-auto-tutorials-surrogates-plot-gaussian-processes-py"><span class="std std-ref">Gaussian processes</span></a></span><a class="headerlink" href="#id21" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-</div><div class="toctree-wrapper compound">
 </div>
-<div class="sphx-glr-clear"></div><div class="sphx-glr-footer class sphx-glr-footer-gallery docutils container">
+<div class="sphx-glr-thumbnails"><div class="sphx-glr-thumbcontainer" tooltip="We can approximate the integral Q_\alpha using Monte Carlo quadrature by drawing N random sampl..."><img alt="" src="../_images/sphx_glr_plot_monte_carlo_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-monte-carlo-py"><span class="std std-ref">Monte Carlo Quadrature</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Monte Carlo Quadrature</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Let us introduce a model Q_\V{\kappa} with known mean \mu_{\V{\kappa}}. We can use this model t..."><img alt="" src="../_images/sphx_glr_plot_control_variate_monte_carlo_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-control-variate-monte-carlo-py"><span class="std std-ref">Control Variate Monte Carlo</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Control Variate Monte Carlo</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="CVMC is often not useful for practical analysis of numerical models because typically the mean ..."><img alt="" src="../_images/sphx_glr_plot_approximate_control_variate_monte_carlo_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_approximate_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-approximate-control-variate-monte-carlo-py"><span class="std std-ref">Approximate Control Variate Monte Carlo</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Approximate Control Variate Monte Carlo</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Two Model MLMC -------------- The two model MLMC estimator is very similar to the CVMC estimato..."><img alt="" src="../_images/sphx_glr_plot_multi_level_monte_carlo_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_multi_level_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py"><span class="std std-ref">Multi-level Monte Carlo</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Multi-level Monte Carlo</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Many Model MFMC ---------------"><img alt="" src="../_images/sphx_glr_plot_multi_fidelity_monte_carlo_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_multi_fidelity_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multi-fidelity-monte-carlo-py"><span class="std std-ref">Multi-fidelity Monte Carlo</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Multi-fidelity Monte Carlo</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Control variate Monte Carlo can be easily extended and applied to more than two models. Conside..."><img alt="" src="../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_many_model_approximate_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-many-model-approximate-control-variate-monte-carlo-py"><span class="std std-ref">Generalized Approximate Control Variate Monte Carlo</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Generalized Approximate Control Variate Monte Carlo</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="   * - .. _MLBLUE-sample-allocation:"><img alt="" src="../_images/sphx_glr_plot_multilevel_blue_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_multilevel_blue.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multilevel-blue-py"><span class="std std-ref">Multilevel Best Linear Unbiased estimators (MLBLUE)</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Multilevel Best Linear Unbiased estimators (MLBLUE)</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Models often utilize numerical discretizations to solve the equations governing the system dyna..."><img alt="" src="../_images/sphx_glr_plot_multiindex_collocation_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_multiindex_collocation.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multiindex-collocation-py"><span class="std std-ref">Multi-level and Multi-index Collocation</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Multi-level and Multi-index Collocation</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Multilevel GPs assume that all the available models \{f_m\}_{m=1}^M can be ordered into a hiera..."><img alt="" src="../_images/sphx_glr_plot_multifidelity_gp_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_multifidelity_gp.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multifidelity-gp-py"><span class="std std-ref">Multifidelity Gaussian processes</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Multifidelity Gaussian processes</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="In the sphx_glr_auto_tutorials_multi_fidelity_plot_multiindex_collocation.py tutorial we showed..."><img alt="" src="../_images/sphx_glr_plot_gaussian_mfnets_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_gaussian_mfnets.html#sphx-glr-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py"><span class="std std-ref">MFNets: Multi-fidelity networks</span></a></p>
+  <div class="sphx-glr-thumbnail-title">MFNets: Multi-fidelity networks</div>
+</div></div><div class="toctree-wrapper compound">
+</div>
+<div class="sphx-glr-footer sphx-glr-footer-gallery docutils container">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/cab7a090c4183ca69dc0cd84d3b04413/auto_tutorials_python.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">all</span> <span class="pre">examples</span> <span class="pre">in</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">auto_tutorials_python.zip</span></code></a></p>
 </div>

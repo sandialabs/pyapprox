@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.surrogates.polychaos.adaptive_polynomial_chaos &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.surrogates.polychaos.adaptive_polynomial_chaos &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
         <script src="../../../../_static/jquery.js"></script>
         <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../../_static/doctools.js"></script>
     <script src="../../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.surrogates.polychaos.adaptive_polynomial_chaos</li>
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.surrogates.polychaos.adaptive_polynomial_chaos</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -140,7 +145,7 @@
 <span class="k">def</span> <span class="nf">variance_pce_refinement_indicator</span><span class="p">(</span>
         <span class="n">subspace_index</span><span class="p">,</span> <span class="n">num_new_subspace_samples</span><span class="p">,</span> <span class="n">adaptive_pce</span><span class="p">,</span>
         <span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">mean_only</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Set pce coefficients of new subspace poly indices to zero to compute</span>
 <span class="sd">    previous mean then set them to be non-zero</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -209,7 +214,7 @@
 <span class="k">def</span> <span class="nf">generate_probability_samples_tolerance</span><span class="p">(</span>
         <span class="n">pce</span><span class="p">,</span> <span class="n">nindices</span><span class="p">,</span> <span class="n">cond_tol</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Add samples in integer increments of nindices.</span>
 <span class="sd">    E.g. if try nsamples = nindices, 2*nindices, 3*nindices</span>
 <span class="sd">    until condition number is less than tolerance.</span>
@@ -257,7 +262,7 @@
 
 <span class="k">def</span> <span class="nf">increment_probability_samples</span><span class="p">(</span><span class="n">pce</span><span class="p">,</span> <span class="n">cond_tol</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span>
                                   <span class="n">new_indices</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    samples : np.ndarray</span>
@@ -287,13 +292,13 @@
 
 
 <div class="viewcode-block" id="AdaptiveInducedPCE"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE">[docs]</a><span class="k">class</span> <span class="nc">AdaptiveInducedPCE</span><span class="p">(</span><span class="n">SubSpaceRefinementManager</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    An adaptive PCE built using induced sampling and generalized sparse grid</span>
 <span class="sd">    like refinement.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">cond_tol</span><span class="o">=</span><span class="mf">1e2</span><span class="p">,</span> <span class="n">induced_sampling</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                  <span class="n">fit_opts</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;omp_tol&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        num_vars : integer</span>
 <span class="sd">            The number of random variables</span>
 
@@ -432,15 +437,15 @@
 
         <span class="k">return</span> <span class="n">num_new_subspace_samples</span></div>
 
-<div class="viewcode-block" id="AdaptiveInducedPCE.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="p">)</span></div>
+<div class="viewcode-block" id="AdaptiveInducedPCE.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="AdaptiveInducedPCE.get_active_unique_poly_indices"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.get_active_unique_poly_indices">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_unique_poly_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">II</span> <span class="o">=</span> <span class="n">get_active_poly_array_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly_indices</span><span class="p">[:,</span> <span class="n">II</span><span class="p">]</span></div>
 
 <div class="viewcode-block" id="AdaptiveInducedPCE.set_preconditioning_function"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.set_preconditioning_function">[docs]</a>    <span class="k">def</span> <span class="nf">set_preconditioning_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">precond_func</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        precond_func : callable</span>
 <span class="sd">            Callable function with signature precond_func(basis_matrix,samples)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -451,7 +456,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span></div>
 
 <div class="viewcode-block" id="AdaptiveInducedPCE.build"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveInducedPCE.html#pyapprox.surrogates.AdaptiveInducedPCE.build">[docs]</a>    <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">while</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_subspace_queue</span><span class="o">.</span><span class="n">empty</span><span class="p">()</span> <span class="ow">or</span>
                <span class="bp">self</span><span class="o">.</span><span class="n">subspace_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
@@ -463,12 +468,12 @@
 
 
 <div class="viewcode-block" id="AdaptiveLejaPCE"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE">[docs]</a><span class="k">class</span> <span class="nc">AdaptiveLejaPCE</span><span class="p">(</span><span class="n">AdaptiveInducedPCE</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    An adaptive PCE built using multivariate Leja sequences and </span>
 <span class="sd">    generalized sparse grid like refinement.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">candidate_samples</span><span class="p">,</span> <span class="n">factorization_type</span><span class="o">=</span><span class="s1">&#39;fast&#39;</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        num_vars : integer</span>
 <span class="sd">            The number of random variables</span>
 
@@ -649,8 +654,8 @@
 
         <span class="k">return</span> <span class="n">num_new_subspace_samples</span></div>
 
-<div class="viewcode-block" id="AdaptiveLejaPCE.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="p">)</span></div>
+<div class="viewcode-block" id="AdaptiveLejaPCE.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pce</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="AdaptiveLejaPCE.get_active_unique_poly_indices"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.AdaptiveLejaPCE.html#pyapprox.surrogates.AdaptiveLejaPCE.get_active_unique_poly_indices">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_unique_poly_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">II</span> <span class="o">=</span> <span class="n">get_active_poly_array_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>

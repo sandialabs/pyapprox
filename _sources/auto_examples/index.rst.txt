@@ -1,11 +1,8 @@
 :orphan:
 
-
-
-.. _sphx_glr_auto_examples:
-
-Software Tutorials
-==================
+#################
+Software Tutorial
+#################
 
 Below is a gallery of examples showing how to use different methods in PyApprox with the least amount of code.
 
@@ -15,14 +12,195 @@ These examples provide less mathematical background than the set of tutorials fo
 
 .. raw:: html
 
+    <div class="sphx-glr-thumbnails">
+
+
+.. raw:: html
+
     <div class="sphx-glr-thumbcontainer" tooltip="PyApprox supports multivariate random variables comprised of independent univariate variables. ...">
 
 .. only:: html
 
- .. figure:: /auto_examples/images/thumb/sphx_glr_plot_variables_thumb.png
-     :alt: Random Variables
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_variables_thumb.png
+    :alt:
 
-     :ref:`sphx_glr_auto_examples_plot_variables.py`
+  :ref:`sphx_glr_auto_examples_plot_variables.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Random Variables</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="We start by defining a function of two random variables. We will use the Rosenbrock benchmark. ...">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_setup_model_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_examples_plot_setup_model.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Model Definition</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Model interfacing">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_interface_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_examples_plot_interface.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Model interfacing</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Lets first generate parameter sweeps for the oakley benchmark. Each sweep will  be a random dir...">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_parameter_sweeps_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_examples_plot_parameter_sweeps.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Parameter Sweeps</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Low-discrepancy quadrature">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_low_discrepancy_quadrature_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_examples_plot_low_discrepancy_quadrature.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Low-discrepancy quadrature</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="To generate a univariate quadrature rule for uniform random variables">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_gaussian_quadrature_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_examples_plot_gaussian_quadrature.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Univariate Gaussian Quadrature</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="We must define the univariate grids that we will use to construct the tensor product grid. Whil...">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_barycentric_interpolation_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_examples_plot_barycentric_interpolation.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Multivariate Lagrange Interpolation</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Multivariate Piecewise Polynomial Interpolation">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_multivariate_piecewise_polynomial_interpolation_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_examples_plot_multivariate_piecewise_polynomial_interpolation.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Multivariate Piecewise Polynomial Interpolation</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="First lets define a Integrator class which can be used to integrate multivariate functions with...">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_pde_convergence_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_examples_plot_pde_convergence.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Convergence studies</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="We will use the Genz benchmark to illustrate how to use a sparse grid as a surrogate for uncert...">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_sparse_grid_uq_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_examples_plot_sparse_grid_uq.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Sparse Grid Interpolation</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="First lets load all the necessary modules and set the random seeds for reproducibility.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_paper_demo_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_examples_plot_paper_demo.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">End-to-End Model Analysis</div>
+    </div>
+
 
 .. raw:: html
 
@@ -33,237 +211,29 @@ These examples provide less mathematical background than the set of tutorials fo
    :hidden:
 
    /auto_examples/plot_variables
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="We start by defining a function of two random variables. We will use the Rosenbrock benchmark. ...">
-
-.. only:: html
-
- .. figure:: /auto_examples/images/thumb/sphx_glr_plot_setup_model_thumb.png
-     :alt: Model Definition
-
-     :ref:`sphx_glr_auto_examples_plot_setup_model.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
    /auto_examples/plot_setup_model
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="Model interfacing">
-
-.. only:: html
-
- .. figure:: /auto_examples/images/thumb/sphx_glr_plot_interface_thumb.png
-     :alt: Model interfacing
-
-     :ref:`sphx_glr_auto_examples_plot_interface.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
    /auto_examples/plot_interface
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="Lets first generate parameter sweeps for the oakley benchmark. Each sweep will  be a random dir...">
-
-.. only:: html
-
- .. figure:: /auto_examples/images/thumb/sphx_glr_plot_parameter_sweeps_thumb.png
-     :alt: Parameter Sweeps
-
-     :ref:`sphx_glr_auto_examples_plot_parameter_sweeps.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
    /auto_examples/plot_parameter_sweeps
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="Low-discrepancy quadrature">
-
-.. only:: html
-
- .. figure:: /auto_examples/images/thumb/sphx_glr_plot_low_discrepancy_quadrature_thumb.png
-     :alt: Low-discrepancy quadrature
-
-     :ref:`sphx_glr_auto_examples_plot_low_discrepancy_quadrature.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
    /auto_examples/plot_low_discrepancy_quadrature
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="To generate a univariate quadrature rule for uniform random variables">
-
-.. only:: html
-
- .. figure:: /auto_examples/images/thumb/sphx_glr_plot_gaussian_quadrature_thumb.png
-     :alt: Univariate Gaussian Quadrature
-
-     :ref:`sphx_glr_auto_examples_plot_gaussian_quadrature.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
    /auto_examples/plot_gaussian_quadrature
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="We must define the univariate grids that we will use to construct the tensor product grid. Whil...">
-
-.. only:: html
-
- .. figure:: /auto_examples/images/thumb/sphx_glr_plot_barycentric_interpolation_thumb.png
-     :alt: Multivariate Lagrange Interpolation
-
-     :ref:`sphx_glr_auto_examples_plot_barycentric_interpolation.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
    /auto_examples/plot_barycentric_interpolation
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="Multivariate Piecewise Polynomial Interpolation">
-
-.. only:: html
-
- .. figure:: /auto_examples/images/thumb/sphx_glr_plot_multivariate_piecewise_polynomial_interpolation_thumb.png
-     :alt: Multivariate Piecewise Polynomial Interpolation
-
-     :ref:`sphx_glr_auto_examples_plot_multivariate_piecewise_polynomial_interpolation.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
    /auto_examples/plot_multivariate_piecewise_polynomial_interpolation
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="First lets define a Integrator class which can be used to integrate multivariate functions with...">
-
-.. only:: html
-
- .. figure:: /auto_examples/images/thumb/sphx_glr_plot_pde_convergence_thumb.png
-     :alt: Convergence studies
-
-     :ref:`sphx_glr_auto_examples_plot_pde_convergence.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
    /auto_examples/plot_pde_convergence
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="We will use the Cantilever Beam benchmark to illustrate how to use a sparse grid as a surrogate...">
-
-.. only:: html
-
- .. figure:: /auto_examples/images/thumb/sphx_glr_plot_sparse_grid_uq_thumb.png
-     :alt: Sparse Grid Interpolation
-
-     :ref:`sphx_glr_auto_examples_plot_sparse_grid_uq.py`
-
-.. raw:: html
-
-    </div>
-
-
-.. toctree::
-   :hidden:
-
    /auto_examples/plot_sparse_grid_uq
+   /auto_examples/plot_paper_demo
 
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="First lets load all the necessary modules and set the random seeds for reproducibility.">
 
 .. only:: html
 
- .. figure:: /auto_examples/images/thumb/sphx_glr_plot_paper_demo_thumb.png
-     :alt: End-to-End Model Analysis
+  .. container:: sphx-glr-footer sphx-glr-footer-gallery
 
-     :ref:`sphx_glr_auto_examples_plot_paper_demo.py`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
-.. raw:: html
+      :download:`Download all examples in Python source code: auto_examples_python.zip </auto_examples/auto_examples_python.zip>`
 
-    </div>
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-
-.. toctree::
-   :hidden:
-
-   /auto_examples/plot_paper_demo
-.. raw:: html
-
-    <div class="sphx-glr-clear"></div>
-
-
-
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-gallery
-
-
-  .. container:: sphx-glr-download sphx-glr-download-python
-
-    :download:`Download all examples in Python source code: auto_examples_python.zip </auto_examples/auto_examples_python.zip>`
-
-
-
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-    :download:`Download all examples in Jupyter notebooks: auto_examples_jupyter.zip </auto_examples/auto_examples_jupyter.zip>`
+      :download:`Download all examples in Jupyter notebooks: auto_examples_jupyter.zip </auto_examples/auto_examples_jupyter.zip>`
 
 
 .. only:: html

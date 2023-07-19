@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.variables.transforms &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.variables.transforms &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.variables.transforms</li>
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.variables.transforms</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -108,9 +113,10 @@
     <span class="n">nlbs</span><span class="p">,</span> <span class="n">nubs</span> <span class="o">=</span> <span class="n">new_ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">::</span><span class="mi">2</span><span class="p">],</span> <span class="n">new_ranges</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">]</span>
     <span class="k">return</span> <span class="p">((</span><span class="n">current_samples</span><span class="o">.</span><span class="n">T</span><span class="o">-</span><span class="n">clbs</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">cubs</span><span class="o">-</span><span class="n">clbs</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">nubs</span><span class="o">-</span><span class="n">nlbs</span><span class="p">)</span><span class="o">+</span><span class="n">nlbs</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
 
+
 <span class="k">def</span> <span class="nf">map_hypercube_samples</span><span class="p">(</span><span class="n">current_samples</span><span class="p">,</span> <span class="n">current_ranges</span><span class="p">,</span> <span class="n">new_ranges</span><span class="p">,</span>
                           <span class="n">active_vars</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Transform samples from one hypercube to another hypercube with different</span>
 <span class="sd">    bounds.</span>
 
@@ -211,13 +217,13 @@
 
 
 <div class="viewcode-block" id="AffineTransform"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform">[docs]</a><span class="k">class</span> <span class="nc">AffineTransform</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Apply an affine transformation to a</span>
 <span class="sd">    :py:class:`pyapprox.variables.IndependentMarginalsVariable`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">enforce_bounds</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Variable uniquness dependes on both the type of random variable</span>
 <span class="sd">        e.g. beta, gaussian, etc. and the parameters of that distribution</span>
 <span class="sd">        e.g. loc and scale parameters as well as any additional parameters</span>
@@ -240,10 +246,11 @@
             <span class="c1">#     lb, ub = -1, 1</span>
             <span class="c1">#     scale /= (ub-lb)</span>
             <span class="c1">#     loc = loc-scale*lb</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">scale_parameters</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">transform_scale_parameters</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scale_parameters</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+                <span class="n">transform_scale_parameters</span><span class="p">(</span><span class="n">var</span><span class="p">))</span>
 
 <div class="viewcode-block" id="AffineTransform.set_identity_maps"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.set_identity_maps">[docs]</a>    <span class="k">def</span> <span class="nf">set_identity_maps</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">identity_map_indices</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Set the dimensions we do not want to map to and from</span>
 <span class="sd">        canonical space</span>
 
@@ -318,7 +325,7 @@
         <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span></div>
 
 <div class="viewcode-block" id="AffineTransform.map_derivatives_from_canonical_space"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.map_derivatives_from_canonical_space">[docs]</a>    <span class="k">def</span> <span class="nf">map_derivatives_from_canonical_space</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">derivatives</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        derivatives : np.ndarray (nvars*nsamples, nqoi)</span>
@@ -344,7 +351,7 @@
         <span class="k">return</span> <span class="n">mapped_derivatives</span></div>
 
 <div class="viewcode-block" id="AffineTransform.map_derivatives_to_canonical_space"><a class="viewcode-back" href="../../../api/pyapprox.variables.AffineTransform.html#pyapprox.variables.AffineTransform.map_derivatives_to_canonical_space">[docs]</a>    <span class="k">def</span> <span class="nf">map_derivatives_to_canonical_space</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_derivatives</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        derivatives : np.ndarray (nvars*nsamples, nqoi)</span>
 <span class="sd">            Derivatives of each qoi. The ith column consists of the derivatives</span>
 <span class="sd">            [d/dx_1 f(x^{(1)}), ..., f(x^{(M)}),</span>
@@ -400,7 +407,7 @@
 
 
 <div class="viewcode-block" id="RosenblattTransform"><a class="viewcode-back" href="../../../api/pyapprox.variables.RosenblattTransform.html#pyapprox.variables.RosenblattTransform">[docs]</a><span class="k">class</span> <span class="nc">RosenblattTransform</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Apply the Rosenblatt transformation to an arbitraty multivariate</span>
 <span class="sd">    random variable.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -431,13 +438,13 @@
 
 
 <span class="k">class</span> <span class="nc">UniformMarginalTransformation</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Transform variables to have uniform marginals on [0,1]</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_marginal_cdfs</span><span class="p">,</span> <span class="n">x_marginal_inv_cdfs</span><span class="p">,</span>
                  <span class="n">enforce_open_bounds</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        enforce_open_bounds: boolean</span>
 <span class="sd">            If True  - enforce that canonical samples are in (0,1)</span>
 <span class="sd">            If False - enforce that canonical samples are in [0,1]</span>
@@ -470,7 +477,7 @@
 
 
 <div class="viewcode-block" id="NatafTransform"><a class="viewcode-back" href="../../../api/pyapprox.variables.NatafTransform.html#pyapprox.variables.NatafTransform">[docs]</a><span class="k">class</span> <span class="nc">NatafTransform</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Apply the Nataf transformation to an arbitraty multivariate</span>
 <span class="sd">    random variable.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -512,13 +519,13 @@
 
 
 <span class="k">class</span> <span class="nc">ComposeTransforms</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Apply a composition of transformation to an multivariate</span>
 <span class="sd">    random variable.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transformations</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        transformations : list of transformation objects</span>
@@ -548,13 +555,13 @@
 
 
 <div class="viewcode-block" id="ConfigureVariableTransformation"><a class="viewcode-back" href="../../../api/pyapprox.variables.ConfigureVariableTransformation.html#pyapprox.variables.ConfigureVariableTransformation">[docs]</a><span class="k">class</span> <span class="nc">ConfigureVariableTransformation</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Class which maps one-to-one configure indices in [0, 1, 2, 3,...]</span>
 <span class="sd">    to a set of configure values accepted by a function</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_values</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        nvars : integer</span>
@@ -573,7 +580,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">variable_labels</span> <span class="o">=</span> <span class="n">labels</span>
 
 <div class="viewcode-block" id="ConfigureVariableTransformation.map_from_canonical"><a class="viewcode-back" href="../../../api/pyapprox.variables.ConfigureVariableTransformation.html#pyapprox.variables.ConfigureVariableTransformation.map_from_canonical">[docs]</a>    <span class="k">def</span> <span class="nf">map_from_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Map a configure multi-dimensional index to the corresponding</span>
 <span class="sd">        configure values</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -586,7 +593,7 @@
         <span class="k">return</span> <span class="n">samples</span></div>
 
 <div class="viewcode-block" id="ConfigureVariableTransformation.map_to_canonical"><a class="viewcode-back" href="../../../api/pyapprox.variables.ConfigureVariableTransformation.html#pyapprox.variables.ConfigureVariableTransformation.map_to_canonical">[docs]</a>    <span class="k">def</span> <span class="nf">map_to_canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        This is the naive slow implementation that searches through all</span>
 <span class="sd">        canonical samples to find one that matches each sample provided</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -605,7 +612,7 @@
         <span class="k">return</span> <span class="n">canonical_samples</span></div>
 
 <div class="viewcode-block" id="ConfigureVariableTransformation.num_vars"><a class="viewcode-back" href="../../../api/pyapprox.variables.ConfigureVariableTransformation.html#pyapprox.variables.ConfigureVariableTransformation.num_vars">[docs]</a>    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return the number of configure variables.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the number of configure variables.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>

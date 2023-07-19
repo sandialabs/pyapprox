@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.analysis.sensitivity_analysis &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.analysis.sensitivity_analysis &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.analysis.sensitivity_analysis</li>
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.analysis.sensitivity_analysis</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -114,7 +119,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_main_and_total_effect_indices_from_pce</span><span class="p">(</span><span class="n">coefficients</span><span class="p">,</span> <span class="n">indices</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Assume basis is orthonormal</span>
 <span class="sd">    Assume first coefficient is the coefficient of the constant basis. Remove</span>
 <span class="sd">    this assumption by extracting array index of constant term from indices</span>
@@ -202,7 +207,7 @@
 
 <div class="viewcode-block" id="plot_main_effects"><a class="viewcode-back" href="../../../api/pyapprox.analysis.plot_main_effects.html#pyapprox.analysis.plot_main_effects">[docs]</a><span class="k">def</span> <span class="nf">plot_main_effects</span><span class="p">(</span><span class="n">main_effects</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">truncation_pct</span><span class="o">=</span><span class="mf">0.95</span><span class="p">,</span>
                       <span class="n">max_slices</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">rv</span><span class="o">=</span><span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="n">qoi</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Plot the main effects in a pie chart showing relative size.</span>
 
 <span class="sd">    Parameters</span>
@@ -307,7 +312,7 @@
 
 <div class="viewcode-block" id="plot_total_effects"><a class="viewcode-back" href="../../../api/pyapprox.analysis.plot_total_effects.html#pyapprox.analysis.plot_total_effects">[docs]</a><span class="k">def</span> <span class="nf">plot_total_effects</span><span class="p">(</span><span class="n">total_effects</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">truncation_pct</span><span class="o">=</span><span class="mf">0.95</span><span class="p">,</span>
                        <span class="n">rv</span><span class="o">=</span><span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="n">qoi</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Plot the total effects in a bar chart showing relative size.</span>
 
 <span class="sd">    Parameters</span>
@@ -342,7 +347,7 @@
 
 <div class="viewcode-block" id="plot_interaction_values"><a class="viewcode-back" href="../../../api/pyapprox.analysis.plot_interaction_values.html#pyapprox.analysis.plot_interaction_values">[docs]</a><span class="k">def</span> <span class="nf">plot_interaction_values</span><span class="p">(</span><span class="n">interaction_values</span><span class="p">,</span> <span class="n">interaction_terms</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span>
                             <span class="n">truncation_pct</span><span class="o">=</span><span class="mf">0.95</span><span class="p">,</span> <span class="n">max_slices</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">rv</span><span class="o">=</span><span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="n">qoi</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Plot sobol indices in a pie chart showing relative size.</span>
 
 <span class="sd">    Parameters</span>
@@ -407,7 +412,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_morris_trajectory</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">nlevels</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute a morris trajectory used to compute elementary effects</span>
 
 <span class="sd">    Parameters</span>
@@ -450,7 +455,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_morris_samples</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">nlevels</span><span class="p">,</span> <span class="n">ntrajectories</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">icdfs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute a set of Morris trajectories used to compute elementary effects</span>
 
 <span class="sd">    Notes</span>
@@ -497,7 +502,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_morris_elementary_effects</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the Morris elementary effects from a set of trajectories.</span>
 
 <span class="sd">    Parameters</span>
@@ -531,7 +536,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_morris_sensitivity_indices</span><span class="p">(</span><span class="n">elem_effects</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the Morris sensitivity indices mu and sigma from the elementary</span>
 <span class="sd">    effects computed for a set of trajectories.</span>
 
@@ -611,7 +616,7 @@
 
 <div class="viewcode-block" id="morris_sensitivities"><a class="viewcode-back" href="../../../api/pyapprox.analysis.morris_sensitivities.html#pyapprox.analysis.morris_sensitivities">[docs]</a><span class="k">def</span> <span class="nf">morris_sensitivities</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">ntrajectories</span><span class="p">,</span>
                          <span class="n">nlevels</span><span class="o">=</span><span class="mi">4</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute sensitivity indices by constructing an adaptive polynomial chaos</span>
 <span class="sd">    expansion.</span>
 
@@ -674,7 +679,7 @@
 
 
 <div class="viewcode-block" id="sparse_grid_sobol_sensitivities"><a class="viewcode-back" href="../../../api/pyapprox.analysis.sparse_grid_sobol_sensitivities.html#pyapprox.analysis.sparse_grid_sobol_sensitivities">[docs]</a><span class="k">def</span> <span class="nf">sparse_grid_sobol_sensitivities</span><span class="p">(</span><span class="n">sparse_grid</span><span class="p">,</span> <span class="n">max_order</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute sensitivity indices from a sparse grid</span>
 <span class="sd">    by converting it to a polynomial chaos expansion</span>
 
@@ -732,7 +737,7 @@
 
 
 <div class="viewcode-block" id="gpc_sobol_sensitivities"><a class="viewcode-back" href="../../../api/pyapprox.analysis.gpc_sobol_sensitivities.html#pyapprox.analysis.gpc_sobol_sensitivities">[docs]</a><span class="k">def</span> <span class="nf">gpc_sobol_sensitivities</span><span class="p">(</span><span class="n">pce</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">max_order</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute variance based sensitivity metrics from a polynomial chaos</span>
 <span class="sd">    expansion</span>
 
@@ -792,7 +797,7 @@
 
 
 <span class="k">def</span> <span class="nf">generate_sobol_index_sample_sets</span><span class="p">(</span><span class="n">samplesA</span><span class="p">,</span> <span class="n">samplesB</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Given two sample sets A and B generate the sets :math:`A_B^{I}` from</span>
 
 <span class="sd">    The rows of A_B^I are all from A except for the rows with non zero entries</span>
@@ -851,7 +856,7 @@
 <span class="k">def</span> <span class="nf">sampling_based_sobol_indices</span><span class="p">(</span>
         <span class="n">fun</span><span class="p">,</span> <span class="n">variables</span><span class="p">,</span> <span class="n">interaction_terms</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">,</span> <span class="n">sampling_method</span><span class="o">=</span><span class="s1">&#39;sobol&#39;</span><span class="p">,</span>
         <span class="n">qmc_start_index</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    See I.M. Sobol. Mathematics and Computers in Simulation 55 (2001) 271–280</span>
 
 <span class="sd">    and</span>
@@ -973,7 +978,7 @@
         <span class="n">summary_stats</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;median&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">,</span> <span class="s2">&quot;quantile-0.25&quot;</span><span class="p">,</span>
                        <span class="s2">&quot;quantile-0.75&quot;</span><span class="p">],</span>
         <span class="n">qmc_start_index</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute sobol indices for different sample sets. This allows estimation</span>
 <span class="sd">    of error due to finite sample sizes. This function requires evaluting</span>
 <span class="sd">    the function at nsobol_realizations * N, where N is the</span>
@@ -1113,7 +1118,7 @@
         <span class="n">stat_functions</span><span class="o">=</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">),</span>
         <span class="n">ninterpolation_samples</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">nvalidation_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
         <span class="n">ncandidate_samples</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">use_cholesky</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute sobol indices from Gaussian process using sampling.</span>
 <span class="sd">    This function returns the mean and variance of these values with</span>
 <span class="sd">    respect to the variability in the GP (i.e. its function error)</span>
@@ -1227,7 +1232,7 @@
 
 <span class="k">def</span> <span class="nf">bootstrapped_borgonovo_sensivities</span><span class="p">(</span>
         <span class="n">fun</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">,</span> <span class="n">nbins</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">nbootstraps</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute main-effect sensitivity indices for a model using</span>
 <span class="sd">    algorithm from [BHPRA2016]_</span>
 
@@ -1282,7 +1287,7 @@
 
 
 <div class="viewcode-block" id="run_sensitivity_analysis"><a class="viewcode-back" href="../../../api/pyapprox.analysis.run_sensitivity_analysis.html#pyapprox.analysis.run_sensitivity_analysis">[docs]</a><span class="k">def</span> <span class="nf">run_sensitivity_analysis</span><span class="p">(</span><span class="n">method</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute sensitivity indices for a model.</span>
 
 <span class="sd">    Parameters</span>

@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -63,7 +63,7 @@ MLMC can easily be extended to estimator based on :math:`M+1` models. Letting :m
 
    Q_{0,\mathcal{Z}}^\mathrm{ML} = \sum_{\alpha=0}^M Y_{\alpha,\mathcal{Z}_\alpha}, \quad f_{M+1}=0
 
-To compute this estimator we use the following algorithm, tarting with :math:`\alpha=M`$
+To compute this estimator we use the following algorithm, tarting with :math:`\alpha=M`
 
 #. Draw  :math:`N_\alpha` samples randomly from the PDF  :math:`\pdf` of the random variables.
 #. Estimate :math:`f_{\alpha}` and :math:`f_{\alpha}` at the samples :math:`\mathcal{Z}_\alpha`
@@ -149,14 +149,8 @@ where :math:`z = (b,h,P,M,Y)^T`
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [32.90178931] nsample_ratios
-    [  5 188] nsf1
-    [  5 188] nsf2
-    [37.6] rounded nsample_ratios
     MC error 0.02681883818073516
     MLMC error 0.016225314022627835
 
@@ -169,7 +163,7 @@ These errors are comparable. However these errors are only for one realization o
 
 By viewing MLMC as a control variate we can derive its variance reduction [GGEJJCP2020]_
 
-.. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1} - \eta_M^2 \frac{\tau_{M}}{\hat{r}_{M}} - \sum_{i=2}^M \frac{1}{\hat{r}_{i-1}}\left( \eta_i^2 \tau_{i}^2 + \tau_{i-1}^2 \tau_{i-1}^2 - 2 \eta_i \eta_{i-1} \rho_{i,i-1} \tau_{i} \tau_{i-1} \right),
+.. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1} - \eta_M^2 \frac{\tau_{M}^2}{\hat{r}_{M}} - \sum_{i=2}^M \frac{1}{\hat{r}_{i-1}}\left( \eta_i^2 \tau_{i}^2 + \alpha_{i-1}^2 \tau_{i-1}^2 - 2 \eta_i \eta_{i-1} \rho_{i,i-1} \tau_{i} \tau_{i-1} \right),
    :label: mlmc-variance-reduction
 
 where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1}{2}}`. Recall that and :math:`\hat{r}_\alpha=\lvert\mathcal{Z}_{\alpha,2}\rvert/N` is the ratio of the cardinality of the sets :math:`\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{0,2}`.
@@ -194,16 +188,10 @@ The following code computes the variance reduction of the MLMC estimator, using 
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [32.90178931] nsample_ratios
-    [  5 188] nsf1
-    [  5 188] nsf2
-    [37.6] rounded nsample_ratios
-    Theoretical 2 model MLMC variance 5.237424316269406e-06
-    Achieved 2 model MLMC variance 1.201156752118136e-06
+    Theoretical 2 model MLMC variance 5.237424316269492e-06
+    Achieved 2 model MLMC variance 1.2011567521181347e-06
 
 
 
@@ -234,15 +222,9 @@ Now let us compute the theoretical variance reduction using 3 models
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [23.38346104 49.40657799] nsample_ratios
-    [  6 154 325] nsf1
-    [  6 154 325] nsf2
-    [25.66666667 54.16666667] rounded nsample_ratios
-    Theoretical 3 model MLMC variance reduction 3.941126333726465e-06
+    Theoretical 3 model MLMC variance reduction 3.941126333726538e-06
 
 
 
@@ -275,14 +257,8 @@ MLMC works extremely well when the variance between the model discrepancies deca
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [ 490.32492728 1704.01595283] nsample_ratios
-    [   10  5265 18300] nsf1
-    [   10  5265 18300] nsf2
-    [ 526.5 1830. ] rounded nsample_ratios
     Theoretical 3 model MLMC variance reduction for a pathalogical example 44142502.4446217
 
 
@@ -303,7 +279,7 @@ Let :math:`C_\alpha` be the cost of evaluating the function :math:`f_\alpha` at 
 
 .. math::
 
-   C_{\mathrm{tot}}=\sum_{l=0}^M C_\alpha N_\alpha
+   C_{\mathrm{tot}}=\sum_{\alpha=0}^M C_\alpha N_\alpha
 
 Now recall that the variance of the estimator is
 
@@ -386,10 +362,10 @@ where each model is the function of a single uniform random variable defined on 
 
     from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
     estimators = [
+        multifidelity.get_estimator("mc", cov, costs, poly_model.variable),
         multifidelity.get_estimator("mlmc", cov, costs, poly_model.variable),
-        multifidelity.get_estimator("mlmc", cov_mc, costs, poly_model.variable),
-        multifidelity.get_estimator("mc", cov, costs, poly_model.variable)]
-    est_labels = mathrm_labels(["MLMC", r"MLMC^\dagger", "MC"])
+        multifidelity.get_estimator("mlmc", cov_mc, costs, poly_model.variable)]
+    est_labels = mathrm_labels(["MC", "MLMC", r"MLMC^\dagger"])
     optimized_estimators = multifidelity.compare_estimator_variances(
         target_costs, estimators)
 
@@ -399,7 +375,7 @@ where each model is the function of a single uniform random variable defined on 
         ylabel=mathrm_label("Relative Estimator Variance"))
     axs[0].set_xlim(target_costs.min(), target_costs.max())
     multifidelity.plot_acv_sample_allocation_comparison(
-        optimized_estimators[0], model_labels, axs[1])
+        optimized_estimators[1], model_labels, axs[1])
     plt.show()
 
 
@@ -413,42 +389,9 @@ where each model is the function of a single uniform random variable defined on 
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [   5.018805     20.86309658   95.01788757 1082.33161809] nsample_ratios
-    [   5   26  109  496 5655] nsf1
-    [   5   26  109  496 5655] nsf2
-    [   5.2   21.8   99.2 1131. ] rounded nsample_ratios
-    [   5.018805     20.86309658   95.01788757 1082.33161809] nsample_ratios
-    [   52   262  1090  4964 56555] nsf1
-    [   52   262  1090  4964 56555] nsf2
-    [   5.03846154   20.96153846   95.46153846 1087.59615385] rounded nsample_ratios
-    [   5.018805     20.86309658   95.01788757 1082.33161809] nsample_ratios
-    [   522   2622  10901  49649 565551] nsf1
-    [   522   2622  10901  49649 565551] nsf2
-    [   5.02298851   20.88314176   95.11302682 1083.43103448] rounded nsample_ratios
-    [   5.018805     20.86309658   95.01788757 1082.33161809] nsample_ratios
-    [   5225   26224  109016  496497 5655516] nsf1
-    [   5225   26224  109016  496497 5655516] nsf2
-    [   5.01894737   20.86430622   95.02334928 1082.3954067 ] rounded nsample_ratios
-    [   5.56398138   26.35508612  130.13935711 1060.71926142] nsample_ratios
-    [   4   27  128  632 5158] nsf1
-    [   4   27  128  632 5158] nsf2
-    [   6.75   32.    158.   1289.5 ] rounded nsample_ratios
-    [   5.56398138   26.35508612  130.13935711 1060.71926142] nsample_ratios
-    [   48   270  1281  6329 51587] nsf1
-    [   48   270  1281  6329 51587] nsf2
-    [   5.625        26.6875      131.85416667 1074.72916667] rounded nsample_ratios
-    [   5.56398138   26.35508612  130.13935711 1060.71926142] nsample_ratios
-    [   486   2706  12817  63292 515873] nsf1
-    [   486   2706  12817  63292 515873] nsf2
-    [   5.56790123   26.37242798  130.23045267 1061.46707819] rounded nsample_ratios
-    [   5.56398138   26.35508612  130.13935711 1060.71926142] nsample_ratios
-    [   4863   27060  128176  632924 5158738] nsf1
-    [   4863   27060  128176  632924 5158738] nsf2
-    [   5.56446638   26.35739256  130.15093564 1060.81390088] rounded nsample_ratios
+    [9.1278000e+00 9.9297700e+01 9.9964930e+02 9.9995578e+03] 1
 
 
 
@@ -463,7 +406,7 @@ The right plot depicts the percentage of the computational cost due to evaluatin
 
 Multi-index Monte Carlo
 -----------------------
-Multi-Level Monte Carlo utilizes a sequence of models controlled by a single hyper-parameter, specifying the level of discretization for example, in a manner that balances computational cost with increasing accuracy. In many applications, however, multiple hyper-parameters may control the model discretization, such as the mesh and time step sizes. In these situations, it may not be clear how to construct a one-dimensional hierarchy represented by a scalar hyper-parameter. To overcome this limitation, a generalization of multi-level Monte Carlo, referred to as multi-index stochastic collocation (MIMC), was developed to deal with multivariate hierarchies with multiple refinement hyper-parameters [HNTNM2016]_.  PyApprox does not implement MIMC but a surrogate based version called Multi-index stochastic collocation (MISC) is presented in this tutorial :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py`.
+Multi-Level Monte Carlo utilizes a sequence of models controlled by a single hyper-parameter, specifying the level of discretization for example, in a manner that balances computational cost with increasing accuracy. In many applications, however, multiple hyper-parameters may control the model discretization, such as the mesh and time step sizes. In these situations, it may not be clear how to construct a one-dimensional hierarchy represented by a scalar hyper-parameter. To overcome this limitation, a generalization of multi-level Monte Carlo, referred to as multi-index stochastic collocation (MIMC), was developed to deal with multivariate hierarchies with multiple refinement hyper-parameters [HNTNM2016]_.  PyApprox does not implement MIMC but a surrogate based version called Multi-index stochastic collocation (MISC) is presented in this tutorial :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multiindex_collocation.py`.
 
 .. GENERATED FROM PYTHON SOURCE LINES 290-299
 
@@ -480,28 +423,25 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.118 seconds)
+   **Total running time of the script:** ( 0 minutes  0.926 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_multi_level_monte_carlo.py <plot_multi_level_monte_carlo.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_multi_level_monte_carlo.py <plot_multi_level_monte_carlo.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_multi_level_monte_carlo.ipynb <plot_multi_level_monte_carlo.ipynb>`
+      :download:`Download Jupyter notebook: plot_multi_level_monte_carlo.ipynb <plot_multi_level_monte_carlo.ipynb>`
 
 
 .. only:: html

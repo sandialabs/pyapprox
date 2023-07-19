@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.bayes.laplace &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.bayes.laplace &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.bayes.laplace</li>
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.bayes.laplace</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -92,7 +97,7 @@
 
 
 <span class="k">class</span> <span class="nc">PriorConditionedHessianMatVecOperator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the action of prior conditioned misfit Hessian on a vector.</span>
 
 <span class="sd">    E.g. for a arbitrary vector w, the Cholesky factor L of the prior</span>
@@ -105,7 +110,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">misfit_hessian_operator</span> <span class="o">=</span> <span class="n">misfit_hessian_operator</span>
 
     <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vectors</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Compute L&#39;*H*L*w.</span>
 
 <span class="sd">        Parameters</span>
@@ -139,7 +144,7 @@
 
 
 <span class="k">class</span> <span class="nc">LaplaceSqrtMatVecOperator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the action of the sqrt of the covariance of a Laplace</span>
 <span class="sd">    approximation of the posterior on a vector.</span>
 
@@ -152,7 +157,7 @@
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prior_covariance_sqrt_operator</span><span class="p">,</span> <span class="n">e_r</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">V_r</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">M</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        e_r : (rank,1) vector</span>
@@ -204,7 +209,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">set_eigenvalues</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;e_r&#39;</span><span class="p">])</span>
 
     <span class="k">def</span> <span class="nf">apply_mass_weighted_eigvec_adjoint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vectors</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Apply the mass weighted adjoint of the eigenvectors V_r to a set</span>
 <span class="sd">        of vectors w. I.e. compute</span>
 <span class="sd">           x = V_r^T*M*w</span>
@@ -228,7 +233,7 @@
         <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">V_r</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">vectors</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vectors</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Compute L*(V*D*V&#39;+I)*w = L(V*D*V&#39;*w+w)</span>
 
 <span class="sd">        Parameters</span>
@@ -266,7 +271,7 @@
 <span class="k">def</span> <span class="nf">get_laplace_covariance_sqrt_operator</span><span class="p">(</span>
         <span class="n">prior_covariance_sqrt_operator</span><span class="p">,</span> <span class="n">misfit_hessian_operator</span><span class="p">,</span> <span class="n">svd_opts</span><span class="p">,</span>
         <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">min_singular_value</span><span class="o">=</span><span class="mf">0.1</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the operator representing the action of the cholesky factorization</span>
 <span class="sd">    of the Laplace posterior approximation on a vector.</span>
 
@@ -308,7 +313,7 @@
 <span class="k">def</span> <span class="nf">get_low_rank_prior_conditioned_misfit_hessian</span><span class="p">(</span>
         <span class="n">prior_covariance_sqrt_operator</span><span class="p">,</span> <span class="n">misfit_hessian_operator</span><span class="p">,</span> <span class="n">svd_opts</span><span class="p">,</span>
         <span class="n">min_singular_value</span><span class="o">=</span><span class="mf">0.1</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the low rank approximation of the prior conditioned misfit hessian</span>
 <span class="sd">    using only matrix vector multiplication operators.</span>
 
@@ -350,7 +355,7 @@
 
 
 <span class="k">def</span> <span class="nf">find_map_point</span><span class="p">(</span><span class="n">objective</span><span class="p">,</span> <span class="n">initial_guess</span><span class="p">,</span> <span class="n">opts</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Find the maximum of the log posterior of Bayes rule.</span>
 
 <span class="sd">    Parameters</span>
@@ -397,7 +402,7 @@
 <div class="viewcode-block" id="laplace_posterior_approximation_for_linear_models"><a class="viewcode-back" href="../../../api/pyapprox.bayes.laplace_posterior_approximation_for_linear_models.html#pyapprox.bayes.laplace_posterior_approximation_for_linear_models">[docs]</a><span class="k">def</span> <span class="nf">laplace_posterior_approximation_for_linear_models</span><span class="p">(</span>
         <span class="n">linear_matrix</span><span class="p">,</span> <span class="n">prior_mean</span><span class="p">,</span> <span class="n">prior_hessian</span><span class="p">,</span> <span class="n">noise_covariance_inv</span><span class="p">,</span> <span class="n">obs</span><span class="p">,</span>
         <span class="n">bvec</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the mean and covariance of the Laplace posterior of a linear model</span>
 <span class="sd">    with a Gaussian prior</span>
 
@@ -440,6 +445,7 @@
     <span class="k">assert</span> <span class="n">prior_mean</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">prior_mean</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
     <span class="k">assert</span> <span class="n">obs</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
     <span class="k">assert</span> <span class="n">linear_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">prior_mean</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">linear_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
     <span class="k">assert</span> <span class="n">noise_covariance_inv</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">misfit_hessian</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
         <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">linear_matrix</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">noise_covariance_inv</span><span class="p">),</span> <span class="n">linear_matrix</span><span class="p">)</span>
@@ -453,7 +459,7 @@
 
 
 <span class="k">def</span> <span class="nf">push_forward_gaussian_though_linear_model</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">mean</span><span class="p">,</span> <span class="n">covariance</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Find the mean and covariance of a gaussian distribution when it</span>
 <span class="sd">    is push forward through a linear model. A linear transformation</span>
 <span class="sd">    applied to a Gaussian is still a Gaussian.</span>
@@ -475,7 +481,7 @@
 
 
 <span class="k">class</span> <span class="nc">MisfitHessianVecOperator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operator which computes the Hessian vector product. The Hessian</span>
 <span class="sd">    is the Hessian of a misfit function and if not available</span>
 <span class="sd">    the action of the Hessian is computed using finite differences of</span>
@@ -484,7 +490,7 @@
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">map_point</span><span class="p">,</span>
                  <span class="n">fd_eps</span><span class="o">=</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Initialize the MisfitHessianVecOperator</span>
 
 <span class="sd">        Parameters</span>
@@ -526,7 +532,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_rows</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vectors</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Compute action of hessian on a vector</span>
 
 <span class="sd">        If self.model has no function hessian() then</span>
@@ -579,7 +585,7 @@
 <span class="k">def</span> <span class="nf">directional_derivatives</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">sample</span><span class="p">,</span> <span class="n">value_at_sample</span><span class="p">,</span> <span class="n">vectors</span><span class="p">,</span> <span class="n">fd_eps</span><span class="p">,</span>
                             <span class="n">normalize_vectors</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                             <span class="n">use_central_finite_difference</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the first-order forward difference directional derivative of a</span>
 <span class="sd">    vector valued function.</span>
 
@@ -653,7 +659,7 @@
 
 <span class="k">def</span> <span class="nf">sample_from_laplace_posterior</span><span class="p">(</span><span class="n">laplace_mean</span><span class="p">,</span> <span class="n">laplace_covariance_sqrt</span><span class="p">,</span>
                                   <span class="n">num_dims</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parameters</span>
 <span class="sd">    -------</span>
 <span class="sd">    laplace_mean : vector (num_dims)</span>
@@ -810,7 +816,7 @@
 
 
 <span class="k">def</span> <span class="nf">laplace_evidence</span><span class="p">(</span><span class="n">likelihood_fun</span><span class="p">,</span> <span class="n">prior_pdf</span><span class="p">,</span> <span class="n">post_covariance</span><span class="p">,</span> <span class="n">map_point</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    References</span>
 <span class="sd">    ----------</span>
 <span class="sd">    Ryan, K. (2003). Estimating Expected Information Gains for Experimental</span>

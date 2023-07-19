@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_tutorials_inference_plot_bayesian_inference.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_tutorials_inference_plot_bayesian_inference.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -44,11 +44,6 @@ Bayes Theorem describes the probability of the parameters :math:`\rv` conditione
   &=\frac{\pi (d\mid \rv)\,\pi (\rv)}{\int_{\mathbb{R}^d} \pi (d\mid \rv)\,\pi (\rv)\,d\rv}
 
 The density :math:`\pi (\rv\mid d)` is referred to as the posterior density.
-
-.. math::
-
-   \pi_{\text{post}}(\rv)=\pi_\text(\rv\mid\V{y})=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom}
-   \pi(\V{y}|\rv)\pi(\rv)d\rv}
 
 Prior
 ^^^^^
@@ -119,14 +114,12 @@ is the covariance between the parameters and data.
 
 Now let us setup this problem in Python
 
-.. GENERATED FROM PYTHON SOURCE LINES 103-150
+.. GENERATED FROM PYTHON SOURCE LINES 98-143
 
 .. code-block:: default
 
-    from pyapprox.bayes.markov_chain_monte_carlo import (
-        run_bayesian_inference_gaussian_error_model, PYMC3LogLikeWrapper
-    )
-    from pyapprox.bayes.tests.test_markov_chain_monte_carlo import (
+    from pyapprox.bayes.metropolis import MetropolisMCMCVariable
+    from pyapprox.bayes.tests.test_metropolis import (
         ExponentialQuarticLogLikelihoodModel)
     from pyapprox.variables.density import NormalDensity
     from scipy import stats
@@ -177,12 +170,12 @@ Now let us setup this problem in Python
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 151-153
+.. GENERATED FROM PYTHON SOURCE LINES 144-146
 
 Now we can plot the joint distribution and some samples from that distribution
 and print the sample covariance of the joint distribution
 
-.. GENERATED FROM PYTHON SOURCE LINES 153-164
+.. GENERATED FROM PYTHON SOURCE LINES 146-157
 
 .. code-block:: default
 
@@ -209,7 +202,7 @@ and print the sample covariance of the joint distribution
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 165-183
+.. GENERATED FROM PYTHON SOURCE LINES 158-176
 
 Conditional probability of multivariate Gaussians
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -230,7 +223,7 @@ where the correlation coefficient between the parameter and data is
 
 Lets use this formula to update the prior when one data :math:`d^\star` becomes available.
 
-.. GENERATED FROM PYTHON SOURCE LINES 183-206
+.. GENERATED FROM PYTHON SOURCE LINES 176-199
 
 .. code-block:: default
 
@@ -264,11 +257,11 @@ Lets use this formula to update the prior when one data :math:`d^\star` becomes 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 207-208
+.. GENERATED FROM PYTHON SOURCE LINES 200-201
 
 Now lets plot the prior and posterior of the parameters as well as the joint distribution and the data.
 
-.. GENERATED FROM PYTHON SOURCE LINES 208-219
+.. GENERATED FROM PYTHON SOURCE LINES 201-211
 
 .. code-block:: default
 
@@ -278,8 +271,7 @@ Now lets plot the prior and posterior of the parameters as well as the joint dis
     axs[0].axvline(x=x_truth, lw=3, label=r'$x_\text{truth}$')
     posterior.plot_density(plot_limits=prior.plot_limits,
                            ls='-', label='posterior', ax=axs[0])
-    colorbar_lims = None  # [0,1.5]
-    joint.plot_density(ax=axs[1], colorbar_lims=colorbar_lims)
+    joint.plot_density(ax=axs[1])
     axhline = axs[1].axhline(y=data_obs, color='k')
     axplot = axs[1].plot(x_truth, data_obs, 'ok', ms=10)
 
@@ -295,11 +287,11 @@ Now lets plot the prior and posterior of the parameters as well as the joint dis
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 220-221
+.. GENERATED FROM PYTHON SOURCE LINES 212-213
 
 Lets also plot the joint distribution and marginals in a 3d plot
 
-.. GENERATED FROM PYTHON SOURCE LINES 221-257
+.. GENERATED FROM PYTHON SOURCE LINES 213-248
 
 .. code-block:: default
 
@@ -341,7 +333,6 @@ Lets also plot the joint distribution and marginals in a 3d plot
 
 
 
-
 .. image-sg:: /auto_tutorials/inference/images/sphx_glr_plot_bayesian_inference_003.png
    :alt: plot bayesian inference
    :srcset: /auto_tutorials/inference/images/sphx_glr_plot_bayesian_inference_003.png
@@ -351,11 +342,11 @@ Lets also plot the joint distribution and marginals in a 3d plot
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 258-259
+.. GENERATED FROM PYTHON SOURCE LINES 249-250
 
 Now lets assume another piece of observational data becomes available we can use the posterior as a new prior.
 
-.. GENERATED FROM PYTHON SOURCE LINES 259-277
+.. GENERATED FROM PYTHON SOURCE LINES 250-268
 
 .. code-block:: default
 
@@ -384,11 +375,11 @@ Now lets assume another piece of observational data becomes available we can use
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 278-279
+.. GENERATED FROM PYTHON SOURCE LINES 269-270
 
 And now lets again plot the joint density before the last data was added and final posterior and the intermediate priors.
 
-.. GENERATED FROM PYTHON SOURCE LINES 279-293
+.. GENERATED FROM PYTHON SOURCE LINES 270-282
 
 .. code-block:: default
 
@@ -400,9 +391,7 @@ And now lets again plot the joint density before the last data was added and fin
         posteriors[ii].plot_density(
             plot_limits=prior.plot_limits, ls='-', label='posterior', ax=axs[0])
 
-    colorbar_lims = None
-    new_joint.plot_density(ax=axs[1], colorbar_lims=colorbar_lims,
-                           plot_limits=joint.plot_limits)
+    new_joint.plot_density(ax=axs[1], plot_limits=joint.plot_limits)
     axhline = axs[1].axhline(y=data_obs, color='k')
     axplot = axs[1].plot(x_truth, data_obs, 'ok', ms=10)
 
@@ -418,11 +407,11 @@ And now lets again plot the joint density before the last data was added and fin
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 294-295
+.. GENERATED FROM PYTHON SOURCE LINES 283-284
 
 As you can see the variance of the joint density decreases as more data is added. The posterior variance also decreases and the posterior will converge to a Dirac-delta function as the number of observations tends to infinity. Currently the mean of the posterior is not near the true parameter value (the horizontal line). Try increasing ``num_obs1`` to see what happens.
 
-.. GENERATED FROM PYTHON SOURCE LINES 297-307
+.. GENERATED FROM PYTHON SOURCE LINES 286-296
 
 Inexact Inference using Markov Chain Monte Carlo
 ------------------------------------------------
@@ -433,9 +422,9 @@ Lets consider non-linear model with two uncertain parameters with independent un
 
 .. math:: -\log\left(\pi(d\mid\rv)\right)=\frac{1}{10}\rv_1^4 + \frac{1}{2}(2\rv_2-\rv_1^2)^2
 
-We can sample the posterior using Sequential Markov Chain Monte Carlo using the following code.
+We can sample the posterior using Delayed Rejection Adaptive Metropolis (DRAM) Markov Chain Monte Carlo using the following code.
 
-.. GENERATED FROM PYTHON SOURCE LINES 307-330
+.. GENERATED FROM PYTHON SOURCE LINES 296-315
 
 .. code-block:: default
 
@@ -444,21 +433,17 @@ We can sample the posterior using Sequential Markov Chain Monte Carlo using the 
     from pyapprox.variables.joint import IndependentMarginalsVariable
     univariate_variables = [stats.uniform(-2, 4), stats.uniform(-2, 4)]
     plot_range = np.asarray([-1, 1, -1, 1])*2
-    variables = IndependentMarginalsVariable(univariate_variables)
+    prior_variable = IndependentMarginalsVariable(univariate_variables)
 
     loglike = ExponentialQuarticLogLikelihoodModel()
-    loglike = PYMC3LogLikeWrapper(loglike)
+    mcmc_variable = MetropolisMCMCVariable(prior_variable, loglike)
 
     # number of draws from the distribution
     ndraws = 500
-    # number of "burn-in points" (which we'll discard)
-    nburn = min(1000, int(ndraws*0.1))
-    # number of parallel chains
-    njobs = 1
-    samples, effective_sample_size, map_sample = \
-        run_bayesian_inference_gaussian_error_model(
-            loglike, variables, ndraws, nburn, njobs,
-            algorithm='smc', get_map=True, print_summary=True)
+    # number of "burn-in points" (which we'll discard) as a fraction of ndraws
+    burn_fraction = 0.1
+    map_sample = mcmc_variable.maximum_aposteriori_point()
+    samples = mcmc_variable.rvs(ndraws)
 
     print('MAP sample', map_sample.squeeze())
 
@@ -468,32 +453,18 @@ We can sample the posterior using Sequential Markov Chain Monte Carlo using the 
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    Warning: gradient not available.(E.g. vars contains discrete variables). MAP estimates may not be accurate for the default parameters. Defaulting to non-gradient minimization 'Powell'.
-    Sample initial stage: ...
-    Stage:   0 Beta: 0.586 Steps:  25 Acce: 1.000
-    Stage:   1 Beta: 1.000 Steps:  25 Acce: 0.443
-    arviz - WARNING - Shape validation failed: input_shape: (1, 500), minimum_shape: (chains=2, draws=4)
-          mean     sd  hdi_3%  hdi_97%  ...  ess_sd  ess_bulk  ess_tail  r_hat
-    z_0 -0.060  0.967  -1.606    1.726  ...   388.0     398.0     460.0    NaN
-    z_1  0.424  0.648  -0.736    1.561  ...   589.0     603.0     515.0    NaN
-
-    [2 rows x 11 columns]
-    MAP sample [ 1.23767663e-11 -7.43454187e-11]
+    MAP sample [1.28985414e-02 8.31903914e-05]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 331-334
-
-The NUTS sampler offerred by PyMC3 can also be used by specifying `algorithm='nuts'`. This sampler requires gradients of the likelihood function which if not provided will be computed using finite difference.
+.. GENERATED FROM PYTHON SOURCE LINES 316-317
 
 Lets plot the posterior distribution and the MCMC samples. First we must compute the evidence
 
-.. GENERATED FROM PYTHON SOURCE LINES 334-369
+.. GENERATED FROM PYTHON SOURCE LINES 317-351
 
 .. code-block:: default
 
@@ -505,9 +476,9 @@ Lets plot the posterior distribution and the MCMC samples. First we must compute
 
 
     def unnormalized_posterior(x):
-        vals = np.exp(loglike.loglike(x))
-        rvs = variables.marginals()
-        for ii in range(variables.num_vars()):
+        vals = np.exp(loglike(x))
+        rvs = prior_variable.marginals()
+        for ii in range(prior_variable.num_vars()):
             vals[:, 0] *= rvs[ii].pdf(x[ii, :])
         return vals
 
@@ -519,7 +490,7 @@ Lets plot the posterior distribution and the MCMC samples. First we must compute
 
 
     x, w = get_tensor_product_quadrature_rule(
-        100, variables.num_vars(), univariate_quadrature_rule)
+        100, prior_variable.num_vars(), univariate_quadrature_rule)
     evidence = unnormalized_posterior(x)[:, 0].dot(w)
     print('evidence', evidence)
 
@@ -529,8 +500,7 @@ Lets plot the posterior distribution and the MCMC samples. First we must compute
     plt.contourf(
         X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 30),
         cmap=matplotlib.cm.coolwarm)
-    plt.plot(samples[0, :], samples[1, :], 'ko')
-    plt.show()
+    _ = plt.plot(samples[0, :], samples[1, :], 'ko')
 
 
 
@@ -543,20 +513,18 @@ Lets plot the posterior distribution and the MCMC samples. First we must compute
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    evidence 0.014953532968320103
+    evidence 0.01495353296832017
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 370-371
+.. GENERATED FROM PYTHON SOURCE LINES 352-353
 
 Now lets compute the mean of the posterior using a highly accurate quadrature rule and compars this to the mean estimated using MCMC samples.
 
-.. GENERATED FROM PYTHON SOURCE LINES 371-376
+.. GENERATED FROM PYTHON SOURCE LINES 353-358
 
 .. code-block:: default
 
@@ -571,17 +539,15 @@ Now lets compute the mean of the posterior using a highly accurate quadrature ru
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    mcmc mean [-0.04713958  0.42756304]
-    exact mean [-3.05426260e-16  4.33326051e-01]
+    mcmc mean [-0.12333069  0.50284828]
+    exact mean [5.97441565e-16 4.33326051e-01]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 377-380
+.. GENERATED FROM PYTHON SOURCE LINES 359-362
 
 References
 ^^^^^^^^^^
@@ -590,28 +556,25 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  4.206 seconds)
+   **Total running time of the script:** ( 0 minutes  0.714 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_inference_plot_bayesian_inference.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_bayesian_inference.py <plot_bayesian_inference.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_bayesian_inference.py <plot_bayesian_inference.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_bayesian_inference.ipynb <plot_bayesian_inference.ipynb>`
+      :download:`Download Jupyter notebook: plot_bayesian_inference.ipynb <plot_bayesian_inference.ipynb>`
 
 
 .. only:: html

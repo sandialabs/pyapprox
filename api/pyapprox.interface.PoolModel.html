@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PoolModel &mdash; PyApprox 1.0.0 documentation</title>
+  <title>PoolModel &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
@@ -33,12 +34,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -51,7 +56,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -101,9 +106,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
-      <li>PoolModel</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../user_reference_guide.html">User Reference Guide</a></li>
+      <li class="breadcrumb-item active">PoolModel</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/api/pyapprox.interface.PoolModel.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -114,7 +119,7 @@
            <div itemprop="articleBody">
              
   <section id="poolmodel">
-<h1>PoolModel<a class="headerlink" href="#poolmodel" title="Permalink to this headline"></a></h1>
+<h1>PoolModel<a class="headerlink" href="#poolmodel" title="Permalink to this heading"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="pyapprox.interface.PoolModel">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyapprox.interface.</span></span><span class="sig-name descname"><span class="pre">PoolModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">function</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_eval_concurrency</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">assert_omp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/interface/wrappers.html#PoolModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.interface.PoolModel" title="Permalink to this definition"></a></dt>
@@ -122,13 +127,9 @@
 <p>Evaluate a function at multiple samples in parallel using
 multiprocessing.Pool</p>
 <p class="rubric">Methods Summary</p>
-<table class="longtable docutils align-default">
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 90%" />
-</colgroup>
+<table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.interface.PoolModel.__call__" title="pyapprox.interface.PoolModel.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(samples[, verbose, jac])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.interface.PoolModel.__call__" title="pyapprox.interface.PoolModel.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(samples[, verbose, return_grad])</p></td>
 <td><p>Evaluate a function at multiple samples in parallel using multiprocessing.Pool</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.interface.PoolModel.set_max_eval_concurrency" title="pyapprox.interface.PoolModel.set_max_eval_concurrency"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_max_eval_concurrency</span></code></a>(max_eval_concurrency)</p></td>
@@ -139,11 +140,11 @@ multiprocessing.Pool</p>
 <p class="rubric">Methods Documentation</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="pyapprox.interface.PoolModel.__call__">
-<span class="sig-name descname"><span class="pre">__call__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jac</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/interface/wrappers.html#PoolModel.__call__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.interface.PoolModel.__call__" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">__call__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_grad</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/interface/wrappers.html#PoolModel.__call__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.interface.PoolModel.__call__" title="Permalink to this definition"></a></dt>
 <dd><p>Evaluate a function at multiple samples in parallel using
 multiprocessing.Pool</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>samples</strong><span class="classifier">np.ndarray (nvars,nsamples)</span></dt><dd><p>Samples used to evaluate self.function</p>
 </dd>
@@ -157,7 +158,7 @@ multiprocessing.Pool</p>
 <span class="sig-name descname"><span class="pre">set_max_eval_concurrency</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">max_eval_concurrency</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/interface/wrappers.html#PoolModel.set_max_eval_concurrency"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.interface.PoolModel.set_max_eval_concurrency" title="Permalink to this definition"></a></dt>
 <dd><p>Set the number of threads used to evaluate the function</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>max_eval_concurrency</strong><span class="classifier">integer</span></dt><dd><p>The maximum number of simulations that can be run in parallel.
 Should be no more than the maximum number of cores on the computer

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.variables.joint &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.variables.joint &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.variables.joint</li>
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.variables.joint</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -100,13 +105,13 @@
 
 
 <div class="viewcode-block" id="JointVariable"><a class="viewcode-back" href="../../../api/pyapprox.variables.JointVariable.html#pyapprox.variables.JointVariable">[docs]</a><span class="k">class</span> <span class="nc">JointVariable</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Base class for multivariate variables.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="JointVariable.rvs"><a class="viewcode-back" href="../../../api/pyapprox.variables.JointVariable.html#pyapprox.variables.JointVariable.rvs">[docs]</a>    <span class="nd">@abstractmethod</span>
     <span class="k">def</span> <span class="nf">rvs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate samples from a random variable.</span>
 
 <span class="sd">        Parameters</span>
@@ -126,7 +131,7 @@
 
 
 <div class="viewcode-block" id="IndependentMarginalsVariable"><a class="viewcode-back" href="../../../api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable">[docs]</a><span class="k">class</span> <span class="nc">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">JointVariable</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Class representing independent random variables</span>
 
 <span class="sd">    Examples</span>
@@ -144,7 +149,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">unique_variables</span><span class="p">,</span> <span class="n">unique_variable_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">variable_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Constructor method</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">unique_variable_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -165,7 +170,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">variable_labels</span> <span class="o">=</span> <span class="n">variable_labels</span>
 
 <div class="viewcode-block" id="IndependentMarginalsVariable.num_vars"><a class="viewcode-back" href="../../../api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable.num_vars">[docs]</a>    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return The number of independent 1D variables</span>
 
 <span class="sd">        Returns</span>
@@ -176,7 +181,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nvars</span></div>
 
 <div class="viewcode-block" id="IndependentMarginalsVariable.marginals"><a class="viewcode-back" href="../../../api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable.marginals">[docs]</a>    <span class="k">def</span> <span class="nf">marginals</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return a list of all the 1D scipy.stats random variables.</span>
 
 <span class="sd">        Returns</span>
@@ -190,8 +195,8 @@
                 <span class="n">all_variables</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unique_variables</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">all_variables</span></div>
 
-<div class="viewcode-block" id="IndependentMarginalsVariable.get_statistics"><a class="viewcode-back" href="../../../api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable.get_statistics">[docs]</a>    <span class="k">def</span> <span class="nf">get_statistics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function_name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="IndependentMarginalsVariable.get_statistics"><a class="viewcode-back" href="../../../api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable.get_statistics">[docs]</a>    <span class="k">def</span> <span class="nf">get_statistics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function_name</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Get a statistic from each univariate random variable.</span>
 
 <span class="sd">        Parameters</span>
@@ -214,7 +219,7 @@
 <span class="sd">        &gt;&gt;&gt; from scipy.stats import uniform</span>
 <span class="sd">        &gt;&gt;&gt; num_vars = 2</span>
 <span class="sd">        &gt;&gt;&gt; variable = pya.IndependentMarginalsVariable([uniform(-2, 3)], [np.arange(num_vars)])</span>
-<span class="sd">        &gt;&gt;&gt; variable.get_statistics(&quot;interval&quot;, alpha=1)</span>
+<span class="sd">        &gt;&gt;&gt; variable.get_statistics(&quot;interval&quot;, confidence=1)</span>
 <span class="sd">        array([[-2.,  1.],</span>
 <span class="sd">               [-2.,  1.]])</span>
 <span class="sd">        &gt;&gt;&gt; variable.get_statistics(&quot;pdf&quot;,x=np.linspace(-2, 1, 3))</span>
@@ -225,7 +230,8 @@
         <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nunique_vars</span><span class="p">):</span>
             <span class="n">var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unique_variables</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
             <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unique_variable_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
-            <span class="n">stats_ii</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">function_name</span><span class="p">)(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+            <span class="n">stats_ii</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">function_name</span><span class="p">)(</span>
+                <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
             <span class="k">assert</span> <span class="n">stats_ii</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
             <span class="k">if</span> <span class="n">ii</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="n">stats</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span> <span class="n">stats_ii</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
@@ -233,7 +239,7 @@
         <span class="k">return</span> <span class="n">stats</span></div>
 
 <div class="viewcode-block" id="IndependentMarginalsVariable.evaluate"><a class="viewcode-back" href="../../../api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable.evaluate">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function_name</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate a frunction for each univariate random variable.</span>
 
 <span class="sd">        Parameters</span>
@@ -263,7 +269,7 @@
         <span class="k">return</span> <span class="n">stats</span></div>
 
 <div class="viewcode-block" id="IndependentMarginalsVariable.pdf"><a class="viewcode-back" href="../../../api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable.pdf">[docs]</a>    <span class="k">def</span> <span class="nf">pdf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">log</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate the joint probability distribution function.</span>
 
 <span class="sd">        Parameters</span>
@@ -283,9 +289,52 @@
         <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
         <span class="k">if</span> <span class="n">log</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
             <span class="n">marginal_vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="s2">&quot;pdf&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">marginal_vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="s2">&quot;logpdf&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">marginal_vals</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span></div>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">marginal_vals</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+        <span class="n">marginal_vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="s2">&quot;logpdf&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">marginal_vals</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">_evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function_name</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluate a frunction for each univariate random variable using rv.dist</span>
+<span class="sd">        This is faster than evaluate because it avoids error checks.</span>
+<span class="sd">        Use with caution. dist is only for canonical distribution so</span>
+<span class="sd">        user must transform variables before using this function</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        function_name : string</span>
+<span class="sd">            The function name of the scipy random variable statistic of</span>
+<span class="sd">            interest</span>
+
+<span class="sd">        x : np.ndarray (nsamples)</span>
+<span class="sd">            The input to the scipy statistic function</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        stat : np.ndarray (nsamples, nqoi)</span>
+<span class="sd">            The outputs of the stat function for each variable</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">stats</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nunique_vars</span><span class="p">):</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unique_variables</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unique_variable_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">:</span>
+                <span class="n">stats_jj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span>
+                    <span class="nb">getattr</span><span class="p">(</span><span class="n">var</span><span class="o">.</span><span class="n">dist</span><span class="p">,</span> <span class="n">function_name</span><span class="p">)(</span><span class="n">x</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="p">:]))</span>
+                <span class="k">assert</span> <span class="n">stats_jj</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">stats</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">stats</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span> <span class="n">stats_jj</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+                <span class="n">stats</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">stats_jj</span>
+        <span class="k">return</span> <span class="n">stats</span>
+
+    <span class="k">def</span> <span class="nf">_pdf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">log</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">log</span><span class="p">:</span>
+            <span class="n">marginal_vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_evaluate</span><span class="p">(</span><span class="s2">&quot;_pdf&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">marginal_vals</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+        <span class="n">marginal_vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_evaluate</span><span class="p">(</span><span class="s2">&quot;_logpdf&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">marginal_vals</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
 
     <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">variable_labels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable_labels</span>
@@ -318,7 +367,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__str__</span><span class="p">()</span>
 
 <div class="viewcode-block" id="IndependentMarginalsVariable.is_bounded_continuous_variable"><a class="viewcode-back" href="../../../api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable.is_bounded_continuous_variable">[docs]</a>    <span class="k">def</span> <span class="nf">is_bounded_continuous_variable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Are all 1D variables are continuous and bounded.</span>
 
 <span class="sd">        Returns</span>
@@ -333,7 +382,7 @@
         <span class="k">return</span> <span class="kc">True</span></div>
 
 <div class="viewcode-block" id="IndependentMarginalsVariable.rvs"><a class="viewcode-back" href="../../../api/pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable.rvs">[docs]</a>    <span class="k">def</span> <span class="nf">rvs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate samples from a tensor-product probability measure.</span>
 
 <span class="sd">        Parameters</span>
@@ -358,7 +407,7 @@
 
 
 <div class="viewcode-block" id="GaussCopulaVariable"><a class="viewcode-back" href="../../../api/pyapprox.variables.GaussCopulaVariable.html#pyapprox.variables.GaussCopulaVariable">[docs]</a><span class="k">class</span> <span class="nc">GaussCopulaVariable</span><span class="p">(</span><span class="n">JointVariable</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Multivariate random variable with Gaussian correlation and arbitrary</span>
 <span class="sd">    marginals</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -407,7 +456,7 @@
 
 
 <span class="k">def</span> <span class="nf">define_iid_random_variable</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create independent identically distributed variables</span>
 
 <span class="sd">    Parameters</span>
@@ -430,7 +479,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_truncated_ranges</span><span class="p">(</span><span class="n">variable</span><span class="p">,</span> <span class="n">unbounded_alpha</span><span class="o">=</span><span class="mf">0.99</span><span class="p">,</span> <span class="n">bounded_alpha</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get truncated ranges for independent random variables or Copulas</span>
 
 <span class="sd">    Parameters</span>
@@ -464,7 +513,7 @@
 
 <div class="viewcode-block" id="combine_uncertain_and_bounded_design_variables"><a class="viewcode-back" href="../../../api/pyapprox.variables.combine_uncertain_and_bounded_design_variables.html#pyapprox.variables.combine_uncertain_and_bounded_design_variables">[docs]</a><span class="k">def</span> <span class="nf">combine_uncertain_and_bounded_design_variables</span><span class="p">(</span>
         <span class="n">random_variable</span><span class="p">,</span> <span class="n">design_variable</span><span class="p">,</span> <span class="n">random_variable_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Convert design variables to random variables defined over them</span>
 <span class="sd">    optimization bounds.</span>
 
@@ -500,11 +549,11 @@
 
 
 <span class="k">class</span> <span class="nc">DesignVariable</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Design variables with no probability information</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bounds</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Constructor method</span>
 
 <span class="sd">        Parameters</span>
@@ -515,7 +564,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span> <span class="o">=</span> <span class="n">bounds</span>
 
     <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return The number of independent 1D variables</span>
 
 <span class="sd">        Returns</span>

@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AffineTransform &mdash; PyApprox 1.0.0 documentation</title>
+  <title>AffineTransform &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
@@ -33,12 +34,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -51,7 +56,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -101,9 +106,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
-      <li>AffineTransform</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../user_reference_guide.html">User Reference Guide</a></li>
+      <li class="breadcrumb-item active">AffineTransform</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/api/pyapprox.variables.AffineTransform.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -114,7 +119,7 @@
            <div itemprop="articleBody">
              
   <section id="affinetransform">
-<h1>AffineTransform<a class="headerlink" href="#affinetransform" title="Permalink to this headline"></a></h1>
+<h1>AffineTransform<a class="headerlink" href="#affinetransform" title="Permalink to this heading"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="pyapprox.variables.AffineTransform">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyapprox.variables.</span></span><span class="sig-name descname"><span class="pre">AffineTransform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">variable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enforce_bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform" title="Permalink to this definition"></a></dt>
@@ -122,18 +127,14 @@
 <p>Apply an affine transformation to a
 <a class="reference internal" href="pyapprox.variables.IndependentMarginalsVariable.html#pyapprox.variables.IndependentMarginalsVariable" title="pyapprox.variables.IndependentMarginalsVariable"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.variables.IndependentMarginalsVariable</span></code></a></p>
 <p class="rubric">Methods Summary</p>
-<table class="longtable docutils align-default">
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 90%" />
-</colgroup>
+<table class="autosummary longtable docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.variables.AffineTransform.get_ranges" title="pyapprox.variables.AffineTransform.get_ranges"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_ranges</span></code></a>()</p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.variables.AffineTransform.map_derivatives_from_canonical_space" title="pyapprox.variables.AffineTransform.map_derivatives_from_canonical_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">map_derivatives_from_canonical_space</span></code></a>(derivatives)</p></td>
 <td><p><dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p></p></dd>
 </dl>
 </p></td>
@@ -174,7 +175,7 @@
 <dt class="sig sig-object py" id="pyapprox.variables.AffineTransform.map_derivatives_from_canonical_space">
 <span class="sig-name descname"><span class="pre">map_derivatives_from_canonical_space</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">derivatives</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/variables/transforms.html#AffineTransform.map_derivatives_from_canonical_space"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.variables.AffineTransform.map_derivatives_from_canonical_space" title="Permalink to this definition"></a></dt>
 <dd><dl class="field-list">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl>
 <dt><strong>derivatives</strong><span class="classifier">np.ndarray (nvars*nsamples, nqoi)</span></dt><dd><p>Derivatives of each qoi. The ith column consists of the derivatives
 [d/dx_1 f(x^{(1)}), …, f(x^{(M)}),
@@ -244,7 +245,7 @@ Here each sample is considered a different QoI</p>
 <dd><p>Set the dimensions we do not want to map to and from
 canonical space</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>identity_map_indices</strong><span class="classifier">iterable</span></dt><dd><p>The dimensions we do not want to map to and from
 canonical space</p>

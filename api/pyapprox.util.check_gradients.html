@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>check_gradients &mdash; PyApprox 1.0.0 documentation</title>
+  <title>check_gradients &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
@@ -33,12 +34,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -51,7 +56,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -97,9 +102,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
-      <li>check_gradients</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../user_reference_guide.html">User Reference Guide</a></li>
+      <li class="breadcrumb-item active">check_gradients</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/api/pyapprox.util.check_gradients.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -110,24 +115,34 @@
            <div itemprop="articleBody">
              
   <section id="check-gradients">
-<h1>check_gradients<a class="headerlink" href="#check-gradients" title="Permalink to this headline"></a></h1>
+<h1>check_gradients<a class="headerlink" href="#check-gradients" title="Permalink to this heading"></a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="pyapprox.util.check_gradients">
-<span class="sig-prename descclassname"><span class="pre">pyapprox.util.</span></span><span class="sig-name descname"><span class="pre">check_gradients</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fun</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jac</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">disp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">direction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jacp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fd_eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/util/utilities.html#check_gradients"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.util.check_gradients" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">pyapprox.util.</span></span><span class="sig-name descname"><span class="pre">check_gradients</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fun</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jac</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">disp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">direction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fd_eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/util/utilities.html#check_gradients"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.util.check_gradients" title="Permalink to this definition"></a></dt>
 <dd><p>Compare a user specified jacobian with the jacobian computed with finite
 difference with multiple step sizes.</p>
 <dl class="field-list">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl>
-<dt><strong>fun</strong><span class="classifier">callable</span></dt><dd><p>A function with signature</p>
-<p><code class="docutils literal notranslate"><span class="pre">fun(z)</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray</span></code></p>
+<dt><strong>fun</strong><span class="classifier">callable</span></dt><dd><p>A function with one of the following signatures</p>
+<p><code class="docutils literal notranslate"><span class="pre">fun(z)</span> <span class="pre">-&gt;</span> <span class="pre">(vals)</span></code></p>
+<p>or</p>
+<p><code class="docutils literal notranslate"><span class="pre">fun(z,</span> <span class="pre">jac)</span> <span class="pre">-&gt;</span> <span class="pre">(vals,</span> <span class="pre">grad)</span></code></p>
+<p>or</p>
+<p><code class="docutils literal notranslate"><span class="pre">fun(z,</span> <span class="pre">direction)</span> <span class="pre">-&gt;</span> <span class="pre">(vals,</span> <span class="pre">directional_grad)</span></code></p>
 <p>where <code class="docutils literal notranslate"><span class="pre">z</span></code> is a 2D np.ndarray with shape (nvars, 1) and the
-output is a 2D np.ndarray with shape (nqoi, 1)</p>
+first output is a 2D np.ndarray with shape (nqoi, 1) and the second
+output is a gradient with shape (nqoi, nvars).
+jac is a flag that specifies if the function returns only
+the funciton value (False) or the function value and gradient (True)</p>
 </dd>
-<dt><strong>jac</strong><span class="classifier">callable</span></dt><dd><p>The jacobian of <code class="docutils literal notranslate"><span class="pre">fun</span></code> with signature</p>
+<dt><strong>jac</strong><span class="classifier">callable or string</span></dt><dd><p>If jac=”jacp” then provided the jacobian of <code class="docutils literal notranslate"><span class="pre">fun</span></code> with signature</p>
 <p><code class="docutils literal notranslate"><span class="pre">jac(z)</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray</span></code></p>
 <p>where <code class="docutils literal notranslate"><span class="pre">z</span></code> is a 2D np.ndarray with shape (nvars, 1) and the
-output is a 2D np.ndarray with shape (nqoi, nvars)</p>
+output is a 2D np.ndarray with shape (nqoi, nvars).
+This assumes that fun
+only returns a value (not gradient) and has signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">fun(z)</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray</span></code></p>
 </dd>
 <dt><strong>zz</strong><span class="classifier">np.ndarray (nvars, 1)</span></dt><dd><p>A sample of <code class="docutils literal notranslate"><span class="pre">z</span></code> at which to compute the gradient</p>
 </dd>
@@ -144,12 +159,12 @@ False - compute the absolute error in the directional derivative</p>
 <dt><strong>direction</strong><span class="classifier">np.ndarray (nvars, 1)</span></dt><dd><p>Direction to which Jacobian is applied. Default is None in which
 case random direction is chosen.</p>
 </dd>
-<dt><strong>fd_eps</strong><span class="classifier">np.ndarray (nstep_sizes)</span></dt><dd><p>The finite difference step sizes used to compute the gradient. 
+<dt><strong>fd_eps</strong><span class="classifier">np.ndarray (nstep_sizes)</span></dt><dd><p>The finite difference step sizes used to compute the gradient.
 If None then fd_eps=np.logspace(-13, 0, 14)[::-1]</p>
 </dd>
 </dl>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl class="simple">
 <dt><strong>errors</strong><span class="classifier">np.ndarray (14, nqoi)</span></dt><dd><p>The errors in the directional derivative of <code class="docutils literal notranslate"><span class="pre">fun</span></code> at 14 different
 values of finite difference tolerance for each quantity of interest</p>

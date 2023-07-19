@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_tutorials_inference_plot_push_forward_based_inference.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_tutorials_inference_plot_push_forward_based_inference.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -244,11 +244,9 @@ for some proposal density :math:`\pi_\text{prop}(\rv)` such that :math:`M\pi_\te
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    Acceptance ratio 0.1699
+    Acceptance ratio 0.172
 
 
 
@@ -306,28 +304,25 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.704 seconds)
+   **Total running time of the script:** ( 0 minutes  0.741 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_inference_plot_push_forward_based_inference.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_push_forward_based_inference.py <plot_push_forward_based_inference.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_push_forward_based_inference.py <plot_push_forward_based_inference.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_push_forward_based_inference.ipynb <plot_push_forward_based_inference.ipynb>`
+      :download:`Download Jupyter notebook: plot_push_forward_based_inference.ipynb <plot_push_forward_based_inference.ipynb>`
 
 
 .. only:: html

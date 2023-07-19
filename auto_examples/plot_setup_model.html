@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Model Definition &mdash; PyApprox 1.0.0 documentation</title>
+  <title>Model Definition &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
@@ -33,12 +34,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -51,7 +56,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorials</a><ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorial</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="plot_variables.html">Random Variables</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Model Definition</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#user-defined-functions">User defined functions</a></li>
@@ -92,9 +97,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="index.html">Software Tutorials</a> &raquo;</li>
-      <li>Model Definition</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Software Tutorial</a></li>
+      <li class="breadcrumb-item active">Model Definition</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/auto_examples/plot_setup_model.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -106,11 +111,11 @@
              
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-examples-plot-setup-model-py"><span class="std std-ref">here</span></a>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-plot-setup-model-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="model-definition">
-<span id="sphx-glr-auto-examples-plot-setup-model-py"></span><h1>Model Definition<a class="headerlink" href="#model-definition" title="Permalink to this headline"></a></h1>
+<span id="sphx-glr-auto-examples-plot-setup-model-py"></span><h1>Model Definition<a class="headerlink" href="#model-definition" title="Permalink to this heading"></a></h1>
 <p>This tutorial describes how to setup a function with random inputs.</p>
 <p>We start by defining a function of two random variables. We will use the Rosenbrock benchmark. See <code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.benchmarks.benchmarks.setup_rosenbrock_function()</span></code></p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
@@ -132,11 +137,10 @@ to download the full example code</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Independent Marginal Variable
 Number of variables: 2
 Unique variables and global id:
-    uniform(loc=-2,scale=4): z0, z1
+    uniform(loc=[-2],scale=[4]): z0, z1
 </pre></div>
 </div>
 <p>We can draw random samples from variable and evaluate the function using</p>
@@ -150,17 +154,16 @@ Unique variables and global id:
 <span class="n">print_statistics</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>           z0         z1         y0
 count  1000.000000 1000.000000 1000.000000
-mean    -0.048368   0.010298  -0.076141
-std      1.134134   1.155276   3.240788
-min     -1.995541  -1.999612  -7.983515
-max      1.999503   1.993267   7.516856
+mean    -0.038207  -0.041565  -0.159543
+std      1.165293   1.175000   3.340050
+min     -1.992304  -1.996393  -7.725900
+max      1.995606   1.988541   7.762915
 </pre></div>
 </div>
 <section id="user-defined-functions">
-<h2>User defined functions<a class="headerlink" href="#user-defined-functions" title="Permalink to this headline"></a></h2>
+<h2>User defined functions<a class="headerlink" href="#user-defined-functions" title="Permalink to this heading"></a></h2>
 <p>PyApprox can be used with pretty much any function provided an appropriate interface is defined. Here will show how to setup a simple function.</p>
 <p>PyApprox requires all functions to take 2D np.ndarray with shape (nvars,nsamples) and requires a function to return a 2D np.ndarray with shape (nsampels,nqoi). nqoi==1 for scalar valued functions and nqoi&gt;1 for vectored value functions.</p>
 <p>Lets define a function which does not match this criteria and use wrappers provided by PyApprox to convert it to the correct format. Specifically we will define a function that only takes a 1D np.ndarray and returns a scalar. We import these functions from a separate file</p>
@@ -185,8 +188,8 @@ max      1.999503   1.993267   7.516856
 <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">values_loop</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.010 seconds)</p>
-<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-setup-model-py">
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.009 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-setup-model-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/ef95eaeb85c8542ff7fc7614b6914d34/plot_setup_model.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_setup_model.py</span></code></a></p>
 </div>

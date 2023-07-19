@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>setup_wing_weight_benchmark &mdash; PyApprox 1.0.0 documentation</title>
+  <title>setup_wing_weight_benchmark &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -53,7 +58,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -108,9 +113,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
-      <li>setup_wing_weight_benchmark</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../user_reference_guide.html">User Reference Guide</a></li>
+      <li class="breadcrumb-item active">setup_wing_weight_benchmark</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/api/pyapprox.benchmarks.setup_wing_weight_benchmark.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -121,7 +126,7 @@
            <div itemprop="articleBody">
              
   <section id="setup-wing-weight-benchmark">
-<h1>setup_wing_weight_benchmark<a class="headerlink" href="#setup-wing-weight-benchmark" title="Permalink to this headline"></a></h1>
+<h1>setup_wing_weight_benchmark<a class="headerlink" href="#setup-wing-weight-benchmark" title="Permalink to this heading"></a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="pyapprox.benchmarks.setup_wing_weight_benchmark">
 <span class="sig-prename descclassname"><span class="pre">pyapprox.benchmarks.</span></span><span class="sig-name descname"><span class="pre">setup_wing_weight_benchmark</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/benchmarks/benchmarks.html#setup_wing_weight_benchmark"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.benchmarks.setup_wing_weight_benchmark" title="Permalink to this definition"></a></dt>
@@ -130,7 +135,7 @@
 <div class="math notranslate nohighlight">
 \[f(x) = 0.036\; S_w^{0.758}W_{fw}^{0.0035}\left(\frac{A}{\cos^2(\Lambda)}\right)^{0.6}q^{0.006}\lambda^{0.04}\left(\frac{100t_c}{\cos(\Lambda)}\right)^{-0.3}(N_zW_{dg})^{0.49}+S_wW_p,\]</div>
 <dl class="field-list">
-<dt class="field-odd">Returns</dt>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><dl>
 <dt><strong>benchmark</strong><span class="classifier"><a class="reference internal" href="pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark" title="pyapprox.benchmarks.Benchmark"><code class="xref py py-class docutils literal notranslate"><span class="pre">Benchmark</span></code></a></span></dt><dd><p>Object containing the benchmark attributes documented below</p>
 </dd>
@@ -152,11 +157,12 @@ uniform variables`.</p>
 </dd>
 </dl>
 <p class="rubric">References</p>
-<dl class="citation">
-<dt class="label" id="r2ce8b76677d7-moon2012"><span class="brackets">Moon2012</span></dt>
-<dd><p><a class="reference external" href="https://doi.org/10.1080/00401706.2012.725994">Moon, H., Dean, A. M., &amp; Santner, T. J. (2012). Two-stage sensitivity-based group screening in computer experiments. Technometrics, 54(4), 376-387.</a></p>
-</dd>
-</dl>
+<div role="list" class="citation-list">
+<div class="citation" id="r2ce8b76677d7-moon2012" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Moon2012<span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1080/00401706.2012.725994">Moon, H., Dean, A. M., &amp; Santner, T. J. (2012). Two-stage sensitivity-based group screening in computer experiments. Technometrics, 54(4), 376-387.</a></p>
+</div>
+</div>
 </dd></dl>
 
 </section>

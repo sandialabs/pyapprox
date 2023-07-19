@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tensor-product Barycentric Interpolation &mdash; PyApprox 1.0.0 documentation</title>
+  <title>Tensor-product Barycentric Interpolation &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -20,14 +20,15 @@
         <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/jquery.js"></script>
         <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
         <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Adaptive Leja Sequences" href="plot_adaptive_leja_interpolation.html" />
-    <link rel="prev" title="MFNets: Multi-fidelity networks" href="../multi_fidelity/plot_gaussian_mfnets.html" /> 
+    <link rel="next" title="Sparse Grids" href="plot_sparse_grids.html" />
+    <link rel="prev" title="Push Forward Based Inference" href="../inference/plot_push_forward_based_inference.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -53,21 +58,23 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#surrogates">Surrogates</a><ul class="current">
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Tensor-product Barycentric Interpolation</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#construction">Construction</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#post-processing">Post-processing</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#piecewise-polynomial-approximation">Piecewise-polynomial approximation</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="plot_sparse_grids.html">Sparse Grids</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_adaptive_leja_interpolation.html">Adaptive Leja Sequences</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_gaussian_processes.html">Gaussian processes</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
 </ul>
 </li>
 </ul>
@@ -93,9 +100,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../index.html">Theoretical Tutorials</a> &raquo;</li>
-      <li>Tensor-product Barycentric Interpolation</li>
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">Tensor-product Barycentric Interpolation</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/auto_tutorials/surrogates/plot_tensor_product_interpolation.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -107,20 +114,20 @@
              
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"><span class="std std-ref">here</span></a>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="tensor-product-barycentric-interpolation">
-<span id="sphx-glr-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"></span><h1>Tensor-product Barycentric Interpolation<a class="headerlink" href="#tensor-product-barycentric-interpolation" title="Permalink to this headline"></a></h1>
+<span id="sphx-glr-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"></span><h1>Tensor-product Barycentric Interpolation<a class="headerlink" href="#tensor-product-barycentric-interpolation" title="Permalink to this heading"></a></h1>
 <p>Many simulation models are extremely computationally expensive such that adequately understanding their behaviour and quantifying uncertainty can be computationally intractable for any of the aforementioned techniques. Various methods have been developed to produce surrogates of the model response to uncertain parameters, the most efficient are goal-oriented in nature and target very specific uncertainty measures.</p>
 <p>Generally speaking surrogates are built using a “small” number of model simulations and are then substituted in place of the expensive simulation models in future analysis. Some of the most popular surrogate types include polynomial chaos expansions (PCE) <a class="reference internal" href="#xksisc2002" id="id1"><span>[XKSISC2002]</span></a>, Gaussian processes (GP) <a class="reference internal" href="#rwmit2006" id="id2"><span>[RWMIT2006]</span></a>, and sparse grids (SG) <a class="reference internal" href="#bgan2004" id="id3"><span>[BGAN2004]</span></a>.</p>
 <p>Reduced order models (e.g. <a class="reference internal" href="#sfijnme2017" id="id4"><span>[SFIJNME2017]</span></a>) can also be used to construct surrogates and have been applied successfully for UQ on many applications. These methods do not construct response surface approximations, but rather solve the governing equations on a reduced basis. PyApprox does not currently implement reduced order modeling, however the modeling analyis tools found in PyApprox can easily be applied to assess or design systems based on reduced order models.</p>
 <p>The use of surrogates for model analysis consists of two phases: (1) construction; and (2) post-processing.</p>
 <section id="construction">
-<h2>Construction<a class="headerlink" href="#construction" title="Permalink to this headline"></a></h2>
+<h2>Construction<a class="headerlink" href="#construction" title="Permalink to this heading"></a></h2>
 <p>In this section we show how to construct a surrogate using tensor-product Lagrange interpolation.</p>
 <section id="tensor-product-lagrange-interpolation">
-<h3>Tensor-product Lagrange interpolation<a class="headerlink" href="#tensor-product-lagrange-interpolation" title="Permalink to this headline"></a></h3>
+<h3>Tensor-product Lagrange interpolation<a class="headerlink" href="#tensor-product-lagrange-interpolation" title="Permalink to this heading"></a></h3>
 <p>Let <span class="math notranslate nohighlight">\(\hat{f}_{\boldsymbol{\alpha},\boldsymbol{\beta}}(\mathbf{z})\)</span> be an M-point tensor-product interpolant of the function <span class="math notranslate nohighlight">\(\hat{f}_{\boldsymbol{\alpha}}\)</span>. This interpolant is a weighted linear combination of tensor-product of univariate Lagrange polynomials</p>
 <div class="math notranslate nohighlight">
 \[\phi_{i,j}(z_i) = \prod_{k=1,k\neq j}^{m_{\beta_i}}\frac{z_i-z_i^{(k)}}{z_i^{(j)}-z_i^{(k)}}, \quad i\in[d],\]</div>
@@ -149,6 +156,21 @@ Here we will use the nested Clenshaw-Curtis points</p>
     <span class="n">tensor_product_barycentric_lagrange_interpolation</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">get_tensor_product_quadrature_rule</span>
 <span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.quadrature</span> <span class="kn">import</span> <span class="n">clenshaw_curtis_pts_wts_1D</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.approximate</span> <span class="kn">import</span> <span class="n">adaptive_approximate</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.adaptive_sparse_grid</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">tensor_product_refinement_indicator</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.quadrature</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">clenshaw_curtis_in_polynomial_order</span><span class="p">,</span> <span class="n">clenshaw_curtis_rule_growth</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.tensorprod</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">canonical_univariate_piecewise_polynomial_quad_rule</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.transforms</span> <span class="kn">import</span> <span class="n">AffineTransform</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.tensorprod</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">tensor_product_piecewise_polynomial_basis</span><span class="p">,</span>
+    <span class="n">tensor_product_piecewise_polynomial_interpolation</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.barycentric_interpolation</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">precompute_tensor_product_lagrange_polynomial_basis</span><span class="p">)</span>
 
 <span class="n">quad_rule</span> <span class="o">=</span> <span class="n">clenshaw_curtis_pts_wts_1D</span>
 <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
@@ -171,8 +193,8 @@ Here we will use the nested Clenshaw-Curtis points</p>
                   <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">z</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]))[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
 
 
-<span class="n">levels</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
-<span class="n">grid_samples_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">clenshaw_curtis_pts_wts_1D</span><span class="p">(</span><span class="n">ll</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="n">levels</span><span class="p">]</span>
+<span class="n">grid_levels</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+<span class="n">grid_samples_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">clenshaw_curtis_pts_wts_1D</span><span class="p">(</span><span class="n">ll</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="n">grid_levels</span><span class="p">]</span>
 <span class="n">grid_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">grid_samples_1d</span><span class="p">)</span>
 
 
@@ -196,22 +218,22 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <span class="n">levels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">Z</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="n">num_contour_levels</span><span class="p">)</span>
 <span class="n">cset</span> <span class="o">=</span> <span class="n">axs</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span>
     <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">levels</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;coolwarm&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_tensor_product_interpolation_002.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_002.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>The error in the tensor product interpolant is given by</p>
 <div class="math notranslate nohighlight">
-\[\lVert f_\ai-f_{\ai,\bi}\rVert_{L^\infty(\rvdom)} \le C_{d,r} N_{\bi}^{-s/d}\]</div>
+\[\lVert f_\ai-f_{\ai,\bi}\rVert_{L^\infty(\rvdom)} \le C_{d,s} N_{\bi}^{-s/d}\]</div>
+<p>where <span class="math notranslate nohighlight">\(f_\alpha\)</span> has continuous mixed derivatives of order <span class="math notranslate nohighlight">\(s\)</span>.</p>
 </section>
 </section>
 <section id="post-processing">
-<h2>Post-processing<a class="headerlink" href="#post-processing" title="Permalink to this headline"></a></h2>
+<h2>Post-processing<a class="headerlink" href="#post-processing" title="Permalink to this heading"></a></h2>
 <p>Once a surrogate has been constructed it can be used for many different purposes. For example one can use it to estimate moments, perform sensitivity analysis, or simply approximate the evaluation of the expensive model at new locations where expensive simulation model data is not available.</p>
 <p>To use the surrogate for computing moments we simply draw realizations of the input random variables <span class="math notranslate nohighlight">\(\rv\)</span> and evaluate the surrogate at those samples. We can approximate the mean of the expensive simluation model as the average of the surrogate values at the random samples.</p>
-<p>We know from <span class="xref std std-ref">sphx_glr_auto_tutorials_foundations_plot_monte_carlo.py</span> that the error in the Monte carlo estimate of the mean using the surrogate is</p>
+<p>We know from <a class="reference internal" href="../multi_fidelity/plot_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-monte-carlo-py"><span class="std std-ref">Monte Carlo Quadrature</span></a> that the error in the Monte carlo estimate of the mean using the surrogate is</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}\mean{\left(Q_{\alpha}-\mean{Q}\right)^2}&amp;=N^{-1}\var{Q_\alpha}+\left(\mean{Q_{\alpha}}-\mean{Q}\right)^2\\
-&amp;\le N^{-1}\var{Q_\alpha}+C_{d,r} N_{\bi}^{-s/d}\end{split}\]</div>
+&amp;\le N^{-1}\var{Q_\alpha}+C_{d,s} N_{\bi}^{-s/d}\end{split}\]</div>
 <p>Because a surrogate is inexpensive to evaluate the first term can be driven to zero so that only the bias remains. Thus the error in the Monte Carlo estimate of the mean using the surrogate is dominated by the error in the surrogate. If this error can be reduced more quickly than frac{N^{-1}} (as is the case for low-dimensional tensor-product interpolation) then using surrogates for computing moments is very effective.</p>
 <p>Note that moments can be estimated without using Monte-Carlo sampling by levaraging properties of the univariate interpolation rules used to build the multi-variate interpolant. Specifically, the expectation of a tensor product interpolant can be computed without explicitly forming the interpolant and is given by</p>
 <div class="math notranslate nohighlight">
@@ -225,7 +247,6 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Quadrature mean&#39;</span><span class="p">,</span> <span class="n">surrogate_mean</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Quadrature mean 0.10540659444426355
 </pre></div>
 </div>
@@ -238,28 +259,166 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Monte Carlo surrogate mean&#39;</span><span class="p">,</span> <span class="n">mc_mean</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Monte Carlo surrogate mean 0.0012580992717837053
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Monte Carlo surrogate mean -0.00027630862064452624
 </pre></div>
 </div>
-<section id="references">
-<h3>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h3>
-<dl class="citation">
-<dt class="label" id="xksisc2002"><span class="brackets"><a class="fn-backref" href="#id1">XKSISC2002</a></span></dt>
-<dd><p><a class="reference external" href="http://dx.doi.org/10.1137/S1064827501387826">D. Xiu and G.E. Karniadakis. The Wiener-Askey Polynomial Chaos for stochastic differential equations. SIAM J. Sci. Comput., 24(2), 619-644, 2002.</a></p>
-</dd>
-<dt class="label" id="rwmit2006"><span class="brackets"><a class="fn-backref" href="#id2">RWMIT2006</a></span></dt>
-<dd><p><a class="reference external" href="http://www.gaussianprocess.org/gpml/chapters/">C.E Rasmussen and C. Williams. Gaussian Processes for Machine Learning. MIT Press, 2006.</a></p>
-</dd>
-<dt class="label" id="bgan2004"><span class="brackets"><a class="fn-backref" href="#id3">BGAN2004</a></span></dt>
-<dd><p><a class="reference external" href="http://dx.doi.org/10.1017/S0962492904000182">H. Bungartz and M. Griebel. Sparse Grids. Acta Numerica, 13, 147-269, 2004.</a></p>
-</dd>
-<dt class="label" id="sfijnme2017"><span class="brackets"><a class="fn-backref" href="#id4">SFIJNME2017</a></span></dt>
-<dd><p><a class="reference external" href="https://onlinelibrary.wiley.com/doi/abs/10.1002/nme.5312">C Soize and C. Farhat. A nonparametric probabilistic approach for quantifying uncertainties in low-dimensional and high-dimensional nonlinear models. International Journal for Numerical Methods in Engineering, 109(6), 837-888, 2017.</a></p>
-</dd>
-</dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.707 seconds)</p>
-<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-surrogates-plot-tensor-product-interpolation-py">
+</section>
+<section id="piecewise-polynomial-approximation">
+<h2>Piecewise-polynomial approximation<a class="headerlink" href="#piecewise-polynomial-approximation" title="Permalink to this heading"></a></h2>
+<p>Polynomial interpolation accurately approximates smooth functions, however its accuracy degrades as the regularity of the target function decreases. For piecewise continuous functions, or functions with only a limited number of continuous derivaties, piecewise-polynomial approximation may be more appropriate.</p>
+<p>The following code compares polynomial and piecewise polynomial univariate basis functions.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">201</span><span class="p">)[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">sharey</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">lagrange_basis</span> <span class="o">=</span> <span class="n">precompute_tensor_product_lagrange_polynomial_basis</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">grid_samples_1d</span><span class="p">[:</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">lagrange_basis</span><span class="p">)</span>
+<span class="n">piecewise_basis</span> <span class="o">=</span> <span class="n">tensor_product_piecewise_polynomial_basis</span><span class="p">(</span>
+    <span class="n">grid_levels</span><span class="p">[:</span><span class="mi">1</span><span class="p">],</span> <span class="n">samples</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="s2">&quot;quadratic&quot;</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">piecewise_basis</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_003.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_003.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>Notice that the unlike the lagrange basis the picewise polynomial basis is non-zero only on a local region of the input space.</p>
+<p>The compares the accuracy of lagrange basis the picewise polynomial approximations for a piecewise continuous function</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">fun</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+    <span class="n">yy</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">yy</span><span class="p">[</span><span class="n">yy</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">yy</span><span class="p">[</span><span class="n">yy</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+    <span class="k">return</span> <span class="n">yy</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+<span class="n">piecewise_basis_type</span> <span class="o">=</span> <span class="s2">&quot;quadratic&quot;</span>
+<span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="p">[</span><span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fun</span><span class="p">(</span><span class="n">samples</span><span class="p">))</span> <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axs</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
+    <span class="n">lgrid_samples_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">clenshaw_curtis_pts_wts_1D</span><span class="p">(</span><span class="n">level</span><span class="p">)[</span><span class="mi">0</span><span class="p">]]</span>
+    <span class="n">lgrid_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">lgrid_samples_1d</span><span class="p">)</span>
+    <span class="n">lvalues</span> <span class="o">=</span> <span class="n">tensor_product_barycentric_lagrange_interpolation</span><span class="p">(</span>
+        <span class="n">lgrid_samples_1d</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
+    <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">lvalues</span><span class="p">,</span> <span class="s1">&#39;:&#39;</span><span class="p">)</span>
+    <span class="n">pvalues</span> <span class="o">=</span> <span class="n">tensor_product_piecewise_polynomial_interpolation</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="p">[</span><span class="n">level</span><span class="p">],</span> <span class="n">fun</span><span class="p">,</span> <span class="n">piecewise_basis_type</span><span class="p">)</span>
+    <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pvalues</span><span class="p">,</span> <span class="s1">&#39;--&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_004.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_004.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>The Lagrange polynomials induce oscillations around the discontinuity, which significantly decreases the convergence rate of the approximation. The picewise quadratic also over and undershoots around the discontinuity, but the phenomena is localized.</p>
+<p>The following compares the convergence of lagrange and picewise polynomial tensor product interpolants. Change the benchmark to see the effect of smoothness on the approximation accuracy.</p>
+<p>First define wrappers to build the tensor product interpolants</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">build_lagrange_tp</span><span class="p">(</span><span class="n">max_level_1d</span><span class="p">):</span>
+    <span class="n">univariate_quad_rule_info</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">clenshaw_curtis_in_polynomial_order</span><span class="p">,</span> <span class="n">clenshaw_curtis_rule_growth</span><span class="p">,</span>
+        <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">adaptive_approximate</span><span class="p">(</span>
+        <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="s2">&quot;sparse_grid&quot;</span><span class="p">,</span>
+        <span class="p">{</span><span class="s2">&quot;refinement_indicator&quot;</span><span class="p">:</span> <span class="n">tensor_product_refinement_indicator</span><span class="p">,</span>
+         <span class="s2">&quot;max_level_1d&quot;</span><span class="p">:</span> <span class="n">max_level_1d</span><span class="p">,</span>
+         <span class="s2">&quot;univariate_quad_rule_info&quot;</span><span class="p">:</span> <span class="n">univariate_quad_rule_info</span><span class="p">,</span>
+         <span class="s2">&quot;max_nsamples&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">})</span><span class="o">.</span><span class="n">approx</span>
+
+<span class="k">def</span> <span class="nf">build_piecewise_tp</span><span class="p">(</span><span class="n">max_level_1d</span><span class="p">):</span>
+    <span class="n">basis_type</span> <span class="o">=</span> <span class="s2">&quot;quadratic&quot;</span>
+    <span class="c1"># basis_type = &quot;linear&quot;</span>
+    <span class="n">univariate_quad_rule_info</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">partial</span><span class="p">(</span><span class="n">canonical_univariate_piecewise_polynomial_quad_rule</span><span class="p">,</span>
+                <span class="n">basis_type</span><span class="p">),</span>
+        <span class="n">clenshaw_curtis_rule_growth</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">adaptive_approximate</span><span class="p">(</span>
+        <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="s2">&quot;sparse_grid&quot;</span><span class="p">,</span>
+        <span class="p">{</span><span class="s2">&quot;refinement_indicator&quot;</span><span class="p">:</span> <span class="n">tensor_product_refinement_indicator</span><span class="p">,</span>
+         <span class="s2">&quot;max_level_1d&quot;</span><span class="p">:</span> <span class="n">max_level_1d</span><span class="p">,</span>
+         <span class="s2">&quot;univariate_quad_rule_info&quot;</span><span class="p">:</span> <span class="n">univariate_quad_rule_info</span><span class="p">,</span>
+         <span class="s2">&quot;basis_type&quot;</span><span class="p">:</span> <span class="n">basis_type</span><span class="p">,</span> <span class="s2">&quot;max_nsamples&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">})</span><span class="o">.</span><span class="n">approx</span>
+</pre></div>
+</div>
+<p>Load a benchmark</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nvars</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;genz&quot;</span><span class="p">,</span> <span class="n">nvars</span><span class="o">=</span><span class="n">nvars</span><span class="p">,</span> <span class="n">test_name</span><span class="o">=</span><span class="s2">&quot;oscillatory&quot;</span><span class="p">)</span>
+<span class="c1"># benchmark = setup_benchmark(&quot;genz&quot;, nvars=nvars, test_name=&quot;c0continuous&quot;,</span>
+<span class="c1">#                            c_factor=0.5, w=0.5)</span>
+</pre></div>
+</div>
+<p>Run a convergence study</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">validation_samples</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="mi">1000</span><span class="p">)</span>
+<span class="n">validation_values</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
+
+<span class="n">piecewise_data</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">lagrange_data</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">7</span><span class="p">):</span>   <span class="c1"># nvars = 2</span>
+<span class="c1"># for level in range(1, 4):  # nvars = 3</span>
+    <span class="n">ltp</span> <span class="o">=</span> <span class="n">build_lagrange_tp</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+    <span class="n">lvalues</span> <span class="o">=</span> <span class="n">ltp</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
+    <span class="n">lerror</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">validation_values</span><span class="o">-</span><span class="n">lvalues</span><span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span>
+        <span class="n">validation_values</span><span class="p">)</span>
+    <span class="n">lagrange_data</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">ltp</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">lerror</span><span class="p">])</span>
+    <span class="n">ptp</span> <span class="o">=</span> <span class="n">build_piecewise_tp</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+    <span class="n">pvalues</span> <span class="o">=</span> <span class="n">ptp</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
+    <span class="n">perror</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">validation_values</span><span class="o">-</span><span class="n">pvalues</span><span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span>
+        <span class="n">validation_values</span><span class="p">)</span>
+    <span class="n">piecewise_data</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">ptp</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">perror</span><span class="p">])</span>
+<span class="n">lagrange_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lagrange_data</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+<span class="n">piecewise_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">piecewise_data</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="o">*</span><span class="n">lagrange_data</span><span class="p">,</span> <span class="s1">&#39;-o&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Lagrange&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="o">*</span><span class="n">piecewise_data</span><span class="p">,</span> <span class="s1">&#39;--o&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Piecewise&#39;</span><span class="p">)</span>
+<span class="n">work</span> <span class="o">=</span> <span class="n">piecewise_data</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">work</span><span class="p">,</span> <span class="n">work</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">),</span> <span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;linear rate&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">work</span><span class="p">,</span> <span class="n">work</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="mf">2.0</span><span class="p">),</span> <span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;quadratic rate&#39;</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_005.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_005.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>Similar behavior occurs when using quadrature.</p>
+<p>Load in the benchmark.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nvars</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;genz&quot;</span><span class="p">,</span> <span class="n">nvars</span><span class="o">=</span><span class="n">nvars</span><span class="p">,</span> <span class="n">test_name</span><span class="o">=</span><span class="s2">&quot;oscillatory&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Run a convergence study</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">piecewise_data</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">lagrange_data</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">7</span><span class="p">):</span>   <span class="c1"># nvars = 2</span>
+    <span class="n">ltp</span> <span class="o">=</span> <span class="n">build_lagrange_tp</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+    <span class="n">lvalues</span> <span class="o">=</span> <span class="n">ltp</span><span class="o">.</span><span class="n">moments</span><span class="p">()[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">lerror</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">mean</span><span class="o">-</span><span class="n">lvalues</span><span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span>
+        <span class="n">benchmark</span><span class="o">.</span><span class="n">mean</span><span class="p">)</span>
+    <span class="n">lagrange_data</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">ltp</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">lerror</span><span class="p">])</span>
+    <span class="n">ptp</span> <span class="o">=</span> <span class="n">build_piecewise_tp</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+    <span class="n">pvalues</span> <span class="o">=</span> <span class="n">ptp</span><span class="o">.</span><span class="n">moments</span><span class="p">()[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">perror</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">mean</span><span class="o">-</span><span class="n">pvalues</span><span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span>
+        <span class="n">benchmark</span><span class="o">.</span><span class="n">mean</span><span class="p">)</span>
+    <span class="n">piecewise_data</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">ptp</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">perror</span><span class="p">])</span>
+<span class="n">lagrange_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lagrange_data</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+<span class="n">piecewise_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">piecewise_data</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="o">*</span><span class="n">lagrange_data</span><span class="p">,</span> <span class="s1">&#39;-o&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Lagrange&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="o">*</span><span class="n">piecewise_data</span><span class="p">,</span> <span class="s1">&#39;--o&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Piecewise&#39;</span><span class="p">)</span>
+<span class="n">work</span> <span class="o">=</span> <span class="n">piecewise_data</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">work</span><span class="p">,</span> <span class="n">work</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">),</span> <span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;linear rate&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">work</span><span class="p">,</span> <span class="n">work</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="mf">2.0</span><span class="p">),</span> <span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;quadratic rate&#39;</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_006.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_006.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><section id="references">
+<h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
+<div role="list" class="citation-list">
+<div class="citation" id="xksisc2002" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">XKSISC2002</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="http://dx.doi.org/10.1137/S1064827501387826">D. Xiu and G.E. Karniadakis. The Wiener-Askey Polynomial Chaos for stochastic differential equations. SIAM J. Sci. Comput., 24(2), 619-644, 2002.</a></p>
+</div>
+<div class="citation" id="rwmit2006" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">RWMIT2006</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="http://www.gaussianprocess.org/gpml/chapters/">C.E Rasmussen and C. Williams. Gaussian Processes for Machine Learning. MIT Press, 2006.</a></p>
+</div>
+<div class="citation" id="bgan2004" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id3">BGAN2004</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="http://dx.doi.org/10.1017/S0962492904000182">H. Bungartz and M. Griebel. Sparse Grids. Acta Numerica, 13, 147-269, 2004.</a></p>
+</div>
+<div class="citation" id="sfijnme2017" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id4">SFIJNME2017</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://onlinelibrary.wiley.com/doi/abs/10.1002/nme.5312">C Soize and C. Farhat. A nonparametric probabilistic approach for quantifying uncertainties in low-dimensional and high-dimensional nonlinear models. International Journal for Numerical Methods in Engineering, 109(6), 837-888, 2017.</a></p>
+</div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.849 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-surrogates-plot-tensor-product-interpolation-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/6adbd4b57861b4fd460bd3079ed801ef/plot_tensor_product_interpolation.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_tensor_product_interpolation.py</span></code></a></p>
 </div>
@@ -276,8 +435,8 @@ Here we will use the nested Clenshaw-Curtis points</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../multi_fidelity/plot_gaussian_mfnets.html" class="btn btn-neutral float-left" title="MFNets: Multi-fidelity networks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="plot_adaptive_leja_interpolation.html" class="btn btn-neutral float-right" title="Adaptive Leja Sequences" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../inference/plot_push_forward_based_inference.html" class="btn btn-neutral float-left" title="Push Forward Based Inference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_sparse_grids.html" class="btn btn-neutral float-right" title="Sparse Grids" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

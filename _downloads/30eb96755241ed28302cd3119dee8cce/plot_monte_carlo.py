@@ -14,26 +14,37 @@ We can approximate the integral :math:`Q_\alpha` using Monte Carlo quadrature by
 The mean squared error (MSE) of this estimator can be expressed as
 
 .. math::
-   
+
    \mean{\left(Q_{\alpha,N}-\mean{Q}\right)^2}&=\mean{\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}+\mean{Q_{\alpha,N}}-\mean{Q}\right)^2}\\
    &=\mean{\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)^2}+\mean{\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)^2}\\
    &\qquad\qquad+\mean{2\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)}\\
-   &=\var{Q_{\alpha,N}}+\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)^2
-   
-Here we used that :math:`Q_{\alpha,N}` is an unbiased estimator, i.e. :math:`\mean{Q_{\alpha,N}}=\mean{Q}` so the third term on the second line is zero. Now using
+   &=\var{Q_{\alpha,N}}+\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)^2\\
+   &=\var{Q_{\alpha,N}}+\left(\mean{Q_{\alpha,N}}-Q\right)^2
 
-.. math::
+Here we used that :math:`\mean{\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)}=0` so the third term on the second line is zero and :math:`\mean{Q}=Q` since the exact value of Q is deterministic. Now using the well known result that for random variable :math:`X_n`
 
-   \var{Q_{\alpha,N}}=\var{N^{-1}\sum_{n=1}^N f^{(n)}_\alpha}=N^{-1}\sum_{n=1}^N \var{f^{(n)}_\alpha}=N^{-1}\var{Q_\alpha}
+.. math:: \var{\sum_{n=1}^N X_n} = \sum_{n=1}^N \var{X_n} + \sum_{n\neq p}\covar{X_n}{X_p}
+
+and the result for a scalar :math:`a`
+
+.. math:: \var{aX_n} =a^2\var{X_n}
 
 yields
 
 .. math::
 
-   \mean{\left(Q_{\alpha}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{Q_\alpha}}_{I}+\underbrace{\left(\mean{Q_{\alpha}}-\mean{Q}\right)^2}_{II}
+   \var{Q_{\alpha,N}}=\var{N^{-1}\sum_{n=1}^N f^{(n)}_\alpha}=N^{-2}\sum_{n=1}^N \var{f^{(n)}_\alpha}=N^{-1}\var{Q_\alpha}
+
+where :math:`\covar{f^{(n)}}{f^{(p)}}=0, n\neq p` because the samples are drawn independently.
+
+Finally, substituting :math:`\var{Q_{\alpha,N}}` into the expression for MSE yields
+
+.. math::
+
+   \mean{\left(Q_{\alpha, N}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{Q_\alpha}}_{I}+\underbrace{\left(\mean{Q_{\alpha}}-Q\right)^2}_{II}
 
 From this expression we can see that the MSE can be decomposed into two terms;
-a so called stochastic error (I) and a deterministic bias (II). The first term is the variance of the Monte Carlo estimator which comes from using a finite number of samples. The second term is due to using an approximation of :math:`f`. These two errors should be balanced, however in the vast majority of all MC analyses a single model :math:`f_\alpha` is used and the choice of :math:`\alpha`, e.g. mesh resolution, is made a priori without much concern for the balancing bias and variance. 
+a so called stochastic error (I) and a deterministic bias (II). The first term is the variance of the Monte Carlo estimator which comes from using a finite number of samples. The second term is due to using an approximation of :math:`f`. These two errors should be balanced, however in the vast majority of all MC analyses a single model :math:`f_\alpha` is used and the choice of :math:`\alpha`, e.g. mesh resolution, is made a priori without much concern for the balancing bias and variance.
 
 Given a fixed :math:`\alpha` the modelers only recourse to reducing the MSE is to reduce the variance of the estimator. In the following we plot the variance of the MC estimate of a simple algebraic function :math:`f_1` which belongs to an ensemble of models
 

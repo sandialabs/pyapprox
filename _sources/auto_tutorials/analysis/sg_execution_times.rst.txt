@@ -3,10 +3,11 @@
 
 .. _sphx_glr_auto_tutorials_analysis_sg_execution_times:
 
+
 Computation times
 =================
-**00:02.293** total execution time for **auto_tutorials_analysis** files:
+**00:00.812** total execution time for **auto_tutorials_analysis** files:
 
 +---------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_analysis_plot_sensitivity_analysis.py` (``plot_sensitivity_analysis.py``) | 00:02.293 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_analysis_plot_sensitivity_analysis.py` (``plot_sensitivity_analysis.py``) | 00:00.812 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------+-----------+--------+

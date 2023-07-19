@@ -17,6 +17,7 @@ GaussianProcess
       ~GaussianProcess.map_from_canonical
       ~GaussianProcess.map_to_canonical
       ~GaussianProcess.num_training_samples
+      ~GaussianProcess.plot_1d
       ~GaussianProcess.predict_random_realization
       ~GaussianProcess.set_variable_transformation
 
@@ -29,5 +30,6 @@ GaussianProcess
    .. automethod:: map_from_canonical
    .. automethod:: map_to_canonical
    .. automethod:: num_training_samples
+   .. automethod:: plot_1d
    .. automethod:: predict_random_realization
    .. automethod:: set_variable_transformation

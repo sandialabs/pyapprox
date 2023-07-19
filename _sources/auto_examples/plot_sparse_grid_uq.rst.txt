@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_examples_plot_sparse_grid_uq.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_examples_plot_sparse_grid_uq.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -21,95 +21,28 @@
 Sparse Grid Interpolation
 =========================
 
-We will use the Cantilever Beam benchmark to illustrate how to use a sparse grid
+We will use the Genz benchmark to illustrate how to use a sparse grid
 as a surrogate for uncertainty quantification and sensitivity analysis
-
-.. figure:: ../../source/figures/cantilever-beam.png
-   :align: center
-
-   Conceptual model of the cantilever-beam
-
-.. table:: Uncertain variables
-   :align: center
-
-   =============== ========= =======================
-   Uncertainty     Symbol    Prior
-   =============== ========= =======================
-   Yield stress    :math:`R` :math:`N(40000,2000)`
-   Young's modulus :math:`E` :math:`N(2.9e7,1.45e6)`
-   Horizontal load :math:`X` :math:`N(500,100)`
-   Vertical Load   :math:`Y` :math:`N(1000,100)`
-   =============== ========= =======================
-
-
-.. table:: Design variables
-   :align: center
-
-   =============== ========= =======================
-   Uncertainty     Symbol    Range
-   =============== ========= =======================
-   Width           :math:`w` :math:`[1, 4]`
-   Thickness       :math:`t` :math:`[1, 4]`
-   =============== ========= =======================
 
 First we must load the benchmark
 
-.. GENERATED FROM PYTHON SOURCE LINES 38-48
+.. GENERATED FROM PYTHON SOURCE LINES 10-24
 
 .. code-block:: default
 
     import numpy as np
     from pyapprox.benchmarks import setup_benchmark
-    from pyapprox.variables import combine_uncertain_and_bounded_design_variables
     from pyapprox import surrogates
     from pyapprox.analysis import visualize
     from pyapprox import util
     import matplotlib.pyplot as plt
-    benchmark = setup_benchmark('cantilever_beam')
+    benchmark = setup_benchmark('genz', nvars=2, test_name="oscillatory")
     np.random.seed(1)
 
-
-
-
-
-
-
-
-.. GENERATED FROM PYTHON SOURCE LINES 49-52
-
-The cantilever beam model is an optimization benchmark. Consequently it
-defines random and design variables. All surrogates require random variable
-information so we define a new variable for this purpose
-
-.. GENERATED FROM PYTHON SOURCE LINES 52-56
-
-.. code-block:: default
-
-
-    variable = combine_uncertain_and_bounded_design_variables(
-        benchmark.variable, benchmark.design_variable)
-
-
-
-
-
-
-
-
-.. GENERATED FROM PYTHON SOURCE LINES 57-60
-
-So lets just approximate the contraint function.
-
-We can set a maximum number of samples using the options dictionary
-
-.. GENERATED FROM PYTHON SOURCE LINES 60-65
-
-.. code-block:: default
-
-
-    options = {"max_nsamples": 1000}
+    #We can set a maximum number of samples using the options dictionary
+    options = {"max_nsamples": 100, "verbose": 0}
     approx = surrogates.adaptive_approximate(
-        benchmark.constraint_fun, variable, "sparse_grid", options).approx
+        benchmark.fun, benchmark.variable, "sparse_grid", options).approx
 
 
 
@@ -118,11 +51,11 @@ We can set a maximum number of samples using the options dictionary
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 66-67
+.. GENERATED FROM PYTHON SOURCE LINES 25-26
 
 Plot the sparse grid samples with
 
-.. GENERATED FROM PYTHON SOURCE LINES 67-71
+.. GENERATED FROM PYTHON SOURCE LINES 26-30
 
 .. code-block:: default
 
@@ -142,16 +75,16 @@ Plot the sparse grid samples with
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 72-73
+.. GENERATED FROM PYTHON SOURCE LINES 31-32
 
 We can estimate the error in the surrogate using some validation samples.
 
-.. GENERATED FROM PYTHON SOURCE LINES 73-80
+.. GENERATED FROM PYTHON SOURCE LINES 32-39
 
 .. code-block:: default
 
-    validation_samples = variable.rvs(100)
-    validation_values = benchmark.constraint_fun(validation_samples)
+    validation_samples = benchmark.variable.rvs(100)
+    validation_values = benchmark.fun(validation_samples)
     approx_values = approx(validation_samples)
     error = np.linalg.norm(validation_values-approx_values, axis=0)/np.sqrt(
         validation_values.shape[0])
@@ -163,25 +96,23 @@ We can estimate the error in the surrogate using some validation samples.
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    The RMSE error is [0.01287552 0.04001449]
+    The RMSE error is [4.6830029e-16]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 81-83
+.. GENERATED FROM PYTHON SOURCE LINES 40-42
 
 and building a kernel density estimator. Lets first just plot the marginal
 PDFs of the output
 
-.. GENERATED FROM PYTHON SOURCE LINES 83-87
+.. GENERATED FROM PYTHON SOURCE LINES 42-46
 
 .. code-block:: default
 
-    surrogate_samples = variable.rvs(10000)
+    surrogate_samples = benchmark.variable.rvs(10000)
     approx_values = approx(surrogate_samples)
     visualize.plot_qoi_marginals(approx_values)
     plt.show()
@@ -200,28 +131,25 @@ PDFs of the output
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.584 seconds)
+   **Total running time of the script:** ( 0 minutes  0.156 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_sparse_grid_uq.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_sparse_grid_uq.py <plot_sparse_grid_uq.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_sparse_grid_uq.py <plot_sparse_grid_uq.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_sparse_grid_uq.ipynb <plot_sparse_grid_uq.ipynb>`
+      :download:`Download Jupyter notebook: plot_sparse_grid_uq.ipynb <plot_sparse_grid_uq.ipynb>`
 
 
 .. only:: html

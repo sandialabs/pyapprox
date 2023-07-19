@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.surrogates.interp.tensorprod &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.surrogates.interp.tensorprod &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
         <script src="../../../../_static/jquery.js"></script>
         <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../../_static/doctools.js"></script>
     <script src="../../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.surrogates.interp.tensorprod</li>
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.surrogates.interp.tensorprod</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -92,12 +97,18 @@
 <span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">cartesian_product</span><span class="p">,</span> <span class="n">get_tensor_product_quadrature_rule</span>
 <span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.quadrature</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">clenshaw_curtis_poly_indices_to_quad_rule_indices</span><span class="p">,</span>
+    <span class="n">clenshaw_curtis_rule_growth</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.leja_quadrature</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_univariate_leja_quadrature_rule</span><span class="p">)</span>
 
 
 <span class="k">def</span> <span class="nf">piecewise_quadratic_interpolation</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">mesh_vals</span><span class="p">,</span> <span class="n">ranges</span><span class="p">):</span>
     <span class="k">assert</span> <span class="n">mesh</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">mesh_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">vals</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">samples</span> <span class="o">=</span> <span class="p">(</span><span class="n">samples</span><span class="o">-</span><span class="n">ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="p">(</span><span class="n">ranges</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">mesh</span> <span class="o">=</span> <span class="p">(</span><span class="n">mesh</span><span class="o">-</span><span class="n">ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="p">(</span><span class="n">ranges</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
     <span class="k">assert</span> <span class="n">mesh</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">1</span>
     <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
         <span class="n">xl</span> <span class="o">=</span> <span class="n">mesh</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
@@ -116,7 +127,7 @@
 
 
 <span class="k">def</span> <span class="nf">canonical_piecewise_quadratic_interpolation</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">nodal_vals</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Piecewise quadratic interpolation of nodes at [0,0.5,1]</span>
 <span class="sd">    Assumes all values are in [0,1].</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -161,7 +172,7 @@
 
 
 <span class="k">def</span> <span class="nf">piecewise_univariate_linear_quad_rule</span><span class="p">(</span><span class="n">range_1d</span><span class="p">,</span> <span class="n">npoints</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the points and weights of a piecewise-linear quadrature</span>
 <span class="sd">    rule that can be used to compute a definite integral</span>
 
@@ -178,15 +189,18 @@
 <span class="sd">    ww : np.ndarray (npoints)</span>
 <span class="sd">        The weights of the quadrature rule</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">npoints</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span><span class="p">]),</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">float</span><span class="p">(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">])]))</span>
     <span class="n">xx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">npoints</span><span class="p">)</span>
-    <span class="n">ww</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">npoints</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="n">npoints</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">ww</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">npoints</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">npoints</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
     <span class="n">ww</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*=</span> <span class="mf">0.5</span>
     <span class="n">ww</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*=</span> <span class="mf">0.5</span>
     <span class="k">return</span> <span class="n">xx</span><span class="p">,</span> <span class="n">ww</span>
 
 
 <span class="k">def</span> <span class="nf">piecewise_univariate_quadratic_quad_rule</span><span class="p">(</span><span class="n">range_1d</span><span class="p">,</span> <span class="n">npoints</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the points and weights of a piecewise-quadratic quadrature</span>
 <span class="sd">    rule that can be used to compute a definite integral</span>
 
@@ -203,6 +217,9 @@
 <span class="sd">    ww : np.ndarray (npoints)</span>
 <span class="sd">        The weights of the quadrature rule</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">npoints</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span><span class="p">]),</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">])]))</span>
     <span class="n">xx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">npoints</span><span class="p">)</span>
     <span class="n">dx</span> <span class="o">=</span> <span class="mi">4</span><span class="o">/</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="p">(</span><span class="n">npoints</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
     <span class="n">ww</span> <span class="o">=</span> <span class="n">dx</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">npoints</span><span class="p">))</span><span class="o">*</span><span class="p">(</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">range_1d</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
@@ -214,7 +231,7 @@
 
 <div class="viewcode-block" id="get_tensor_product_piecewise_polynomial_quadrature_rule"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.get_tensor_product_piecewise_polynomial_quadrature_rule.html#pyapprox.surrogates.get_tensor_product_piecewise_polynomial_quadrature_rule">[docs]</a><span class="k">def</span> <span class="nf">get_tensor_product_piecewise_polynomial_quadrature_rule</span><span class="p">(</span>
         <span class="n">nsamples_1d</span><span class="p">,</span> <span class="n">ranges</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the nodes and weights needed to integrate a 2D function using</span>
 <span class="sd">    piecewise linear interpolation</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -243,7 +260,7 @@
 
 <span class="nd">@njit</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">def</span> <span class="nf">piecewise_quadratic_basis</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="n">xx</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Evaluate each piecewise quadratic basis on a dydatic grid of a specified</span>
 <span class="sd">    level.</span>
 
@@ -265,7 +282,6 @@
     <span class="n">h</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">level</span><span class="p">)</span>
     <span class="n">N</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">level</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span>
     <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">xx</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">N</span><span class="p">))</span>
-
     <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
         <span class="n">xl</span> <span class="o">=</span> <span class="p">(</span><span class="n">ii</span><span class="o">-</span><span class="mf">1.0</span><span class="p">)</span><span class="o">*</span><span class="n">h</span>
         <span class="n">xr</span> <span class="o">=</span> <span class="n">xl</span><span class="o">+</span><span class="mf">2.0</span><span class="o">*</span><span class="n">h</span>
@@ -282,7 +298,7 @@
 
 
 <span class="k">def</span> <span class="nf">piecewise_linear_basis</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="n">xx</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Evaluate each piecewise linear basis on a dydatic grid of a specified</span>
 <span class="sd">    level.</span>
 
@@ -308,7 +324,7 @@
 
 
 <span class="k">def</span> <span class="nf">nsamples_dydactic_grid_1d</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    The number of points in a dydactic grid.</span>
 
 <span class="sd">    Parameters</span>
@@ -327,7 +343,7 @@
 
 
 <span class="k">def</span> <span class="nf">dydactic_grid_1d</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    The points in a dydactic grid.</span>
 
 <span class="sd">    Parameters</span>
@@ -341,13 +357,13 @@
 <span class="sd">        The points in the grid</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">])</span>
-    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nsamples_dydactic_grid_1d</span><span class="p">(</span><span class="n">level</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nsamples_dydactic_grid_1d</span><span class="p">(</span><span class="n">level</span><span class="p">))</span>
 
 
 <span class="k">def</span> <span class="nf">tensor_product_piecewise_polynomial_basis</span><span class="p">(</span>
         <span class="n">levels</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="s2">&quot;linear&quot;</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Evaluate each piecewise polynomial basis on a tensor product dydactic grid</span>
 
 <span class="sd">    Parameters</span>
@@ -366,16 +382,23 @@
 <span class="sd">    basis_vals : np.ndarray(nsamples, nbasis)</span>
 <span class="sd">        Evaluations of each basis function</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="o">-</span><span class="mi">1</span> <span class="ow">and</span> <span class="n">samples</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="mi">1</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="p">(</span><span class="n">samples</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span>
+    <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">samples</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="mi">1</span>
     <span class="n">nvars</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">levels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">levels</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">levels</span><span class="p">)</span> <span class="o">!=</span> <span class="n">nvars</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;levels and samples are inconsistent&quot;</span><span class="p">)</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;levels </span><span class="si">{0}</span><span class="s2"> and samples </span><span class="si">{1}</span><span class="s2"> are inconsistent&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">levels</span><span class="p">,</span> <span class="n">nvars</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
     <span class="n">basis_fun</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;linear&quot;</span><span class="p">:</span> <span class="n">piecewise_linear_basis</span><span class="p">,</span>
                  <span class="s2">&quot;quadratic&quot;</span><span class="p">:</span> <span class="n">piecewise_quadratic_basis</span><span class="p">}[</span><span class="n">basis_type</span><span class="p">]</span>
 
     <span class="n">active_vars</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nvars</span><span class="p">)[</span><span class="n">levels</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
     <span class="n">nactive_vars</span> <span class="o">=</span> <span class="n">active_vars</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">nactive_vars</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mi">1</span><span class="p">))</span>
     <span class="n">nsamples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
     <span class="n">N_active</span> <span class="o">=</span> <span class="p">[</span><span class="n">nsamples_dydactic_grid_1d</span><span class="p">(</span><span class="n">ll</span><span class="p">)</span> <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="n">levels</span><span class="p">[</span><span class="n">active_vars</span><span class="p">]]</span>
     <span class="n">N_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">N_active</span><span class="p">)</span>
@@ -385,6 +408,13 @@
         <span class="n">idx</span> <span class="o">=</span> <span class="n">active_vars</span><span class="p">[</span><span class="n">dd</span><span class="p">]</span>
         <span class="n">basis_vals_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:</span><span class="n">N_active</span><span class="p">[</span><span class="n">dd</span><span class="p">],</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">basis_fun</span><span class="p">(</span>
             <span class="n">levels</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="n">samples</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="p">:])</span><span class="o">.</span><span class="n">T</span>
+        <span class="c1"># assumes that basis functions are nested, i.e.</span>
+        <span class="c1"># basis for x=0.5, 0, 1, 0.25, 0.75 and so on</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">clenshaw_curtis_poly_indices_to_quad_rule_indices</span><span class="p">(</span>
+            <span class="n">levels</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span>
+        <span class="n">basis_vals_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:</span><span class="n">N_active</span><span class="p">[</span><span class="n">dd</span><span class="p">],</span> <span class="p">:]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">basis_vals_1d</span><span class="p">[</span><span class="n">dd</span><span class="p">,</span> <span class="p">:</span><span class="n">N_active</span><span class="p">[</span><span class="n">dd</span><span class="p">],</span> <span class="p">:][</span><span class="n">indices</span><span class="p">,</span> <span class="p">:])</span>
+
     <span class="n">temp1</span> <span class="o">=</span> <span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
         <span class="p">(</span><span class="n">nactive_vars</span><span class="o">*</span><span class="n">basis_vals_1d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">nsamples</span><span class="p">))</span>
     <span class="n">indices</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="k">for</span> <span class="n">N</span> <span class="ow">in</span> <span class="n">N_active</span><span class="p">])</span>
@@ -398,7 +428,7 @@
 
 <span class="k">def</span> <span class="nf">tensor_product_piecewise_polynomial_interpolation_with_values</span><span class="p">(</span>
         <span class="n">samples</span><span class="p">,</span> <span class="n">fn_vals</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="s2">&quot;linear&quot;</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Use a piecewise polynomial basis to interpolate a function from values</span>
 <span class="sd">    defined on a tensor product dydactic grid.</span>
 
@@ -425,12 +455,19 @@
         <span class="n">levels</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">basis_type</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">fn_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">basis_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The size of fn_vals is inconsistent with levels&quot;</span><span class="p">)</span>
+    <span class="c1"># from matplotlib import pyplot as plt</span>
+    <span class="c1"># print(fn_vals)</span>
+    <span class="c1"># II = np.argsort(samples[0])</span>
+    <span class="c1"># plt.plot(samples[0, II], basis_vals[II])</span>
+    <span class="c1"># plt.plot(samples[0, II], basis_vals[II].dot(fn_vals))</span>
+    <span class="c1"># plt.show()</span>
     <span class="k">return</span> <span class="n">basis_vals</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">fn_vals</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="tensor_product_piecewise_polynomial_interpolation"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.tensor_product_piecewise_polynomial_interpolation.html#pyapprox.surrogates.tensor_product_piecewise_polynomial_interpolation">[docs]</a><span class="k">def</span> <span class="nf">tensor_product_piecewise_polynomial_interpolation</span><span class="p">(</span>
-        <span class="n">samples</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="s2">&quot;linear&quot;</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="s2">&quot;linear&quot;</span><span class="p">,</span> <span class="n">var_trans</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">return_all</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Use tensor-product piecewise polynomial basis to interpolate a function.</span>
 
 <span class="sd">    Parameters</span>
@@ -456,11 +493,63 @@
 <span class="sd">    basis_vals : np.ndarray(nsamples, nqoi)</span>
 <span class="sd">        Evaluations of the interpolant at the samples</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">samples_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">dydactic_grid_1d</span><span class="p">(</span><span class="n">ll</span><span class="p">)</span> <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="n">levels</span><span class="p">]</span>
+    <span class="n">samples_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">dydactic_grid_1d</span><span class="p">(</span><span class="n">ll</span><span class="p">)[</span>
+        <span class="n">clenshaw_curtis_poly_indices_to_quad_rule_indices</span><span class="p">(</span><span class="n">ll</span><span class="p">)]</span>
+                  <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="n">levels</span><span class="p">]</span>
     <span class="n">grid_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">samples_1d</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">var_trans</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">grid_samples</span> <span class="o">=</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">map_from_canonical</span><span class="p">(</span><span class="n">grid_samples</span><span class="p">)</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">map_to_canonical</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
     <span class="n">fn_vals</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">grid_samples</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">tensor_product_piecewise_polynomial_interpolation_with_values</span><span class="p">(</span>
-        <span class="n">samples</span><span class="p">,</span> <span class="n">fn_vals</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">basis_type</span><span class="p">)</span></div>
+    <span class="n">approx_vals</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">tensor_product_piecewise_polynomial_interpolation_with_values</span><span class="p">(</span>
+            <span class="n">samples</span><span class="p">,</span> <span class="n">fn_vals</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">basis_type</span><span class="p">))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">return_all</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">approx_vals</span>
+    <span class="k">return</span> <span class="n">approx_vals</span><span class="p">,</span> <span class="n">grid_samples</span><span class="p">,</span> <span class="n">fn_vals</span></div>
+
+
+<span class="k">def</span> <span class="nf">canonical_univariate_piecewise_polynomial_quad_rule</span><span class="p">(</span>
+        <span class="n">basis_type</span><span class="p">,</span>  <span class="n">level</span><span class="p">,</span> <span class="n">return_weights_for_all_levels</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="n">ordered_weights_1d</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">level</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">npts</span> <span class="o">=</span> <span class="n">clenshaw_curtis_rule_growth</span><span class="p">(</span><span class="n">ll</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="s2">&quot;linear&quot;</span><span class="p">:</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">piecewise_univariate_quadratic_quad_rule</span><span class="p">([</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">npts</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="s2">&quot;quadratic&quot;</span><span class="p">:</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">piecewise_univariate_quadratic_quad_rule</span><span class="p">([</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">npts</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">basis_type</span><span class="si">}</span><span class="s2"> not supported&quot;</span><span class="p">)</span>
+        <span class="c1"># piecewise rules are for lebesque integation</span>
+        <span class="c1"># so must divide w/2 so that integation is respcet to</span>
+        <span class="c1"># uniform measure</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">w</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="n">quad_indices</span> <span class="o">=</span> <span class="n">clenshaw_curtis_poly_indices_to_quad_rule_indices</span><span class="p">(</span>
+            <span class="n">ll</span><span class="p">)</span>
+        <span class="n">ordered_weights_1d</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">w</span><span class="p">[</span><span class="n">quad_indices</span><span class="p">])</span>
+        <span class="c1"># ordered samples for last x</span>
+
+    <span class="n">ordered_samples_1d</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">quad_indices</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">return_weights_for_all_levels</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ordered_samples_1d</span><span class="p">,</span> <span class="n">ordered_weights_1d</span>
+
+    <span class="k">return</span> <span class="n">ordered_samples_1d</span><span class="p">,</span> <span class="n">w</span><span class="p">[</span><span class="n">quad_indices</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">get_univariate_leja_quadrature_rules_from_variable</span><span class="p">(</span>
+        <span class="n">variable</span><span class="p">,</span> <span class="n">growth_rules</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">canonical</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">levels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">levels</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">levels</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">levels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span><span class="o">*</span><span class="n">levels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">levels</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;levels must be an integer or specfied for each marginal&quot;</span><span class="p">)</span>
+    <span class="n">univariate_quad_rules</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ii</span><span class="p">,</span> <span class="n">marginal</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">variable</span><span class="o">.</span><span class="n">marginals</span><span class="p">()):</span>
+        <span class="n">quad_rule</span> <span class="o">=</span> <span class="n">get_univariate_leja_quadrature_rule</span><span class="p">(</span>
+            <span class="n">marginal</span><span class="p">,</span> <span class="n">growth_rules</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">univariate_quad_rules</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">quad_rule</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">univariate_quad_rules</span>
 </pre></div>
 
            </div>

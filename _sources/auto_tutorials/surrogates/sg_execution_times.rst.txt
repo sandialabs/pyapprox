@@ -3,14 +3,17 @@
 
 .. _sphx_glr_auto_tutorials_surrogates_sg_execution_times:
 
+
 Computation times
 =================
-**00:02.290** total execution time for **auto_tutorials_surrogates** files:
+**00:32.288** total execution time for **auto_tutorials_surrogates** files:
 
 +---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py` (``plot_adaptive_leja_interpolation.py``)   | 00:01.510 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_surrogates_plot_sparse_grids.py` (``plot_sparse_grids.py``)                                 | 00:32.288 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_surrogates_plot_tensor_product_interpolation.py` (``plot_tensor_product_interpolation.py``) | 00:00.707 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py` (``plot_adaptive_leja_interpolation.py``)   | 00:00.000 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_surrogates_plot_gaussian_processes.py` (``plot_gaussian_processes.py``)                     | 00:00.073 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_surrogates_plot_gaussian_processes.py` (``plot_gaussian_processes.py``)                     | 00:00.000 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_surrogates_plot_tensor_product_interpolation.py` (``plot_tensor_product_interpolation.py``) | 00:00.000 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------+-----------+--------+

@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_examples_plot_multivariate_piecewise_polynomial_interpolation.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_examples_plot_multivariate_piecewise_polynomial_interpolation.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -60,12 +60,11 @@ Here levels specifies the level of each 1D grid
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
+    2
 
-    <matplotlib.contour.QuadContourSet object at 0x16d659400>
+    <matplotlib.contour.QuadContourSet object at 0x1794009a0>
 
 
 
@@ -91,28 +90,25 @@ To plot the difference between the interpolant and the target function use
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.392 seconds)
+   **Total running time of the script:** ( 0 minutes  0.116 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_multivariate_piecewise_polynomial_interpolation.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_multivariate_piecewise_polynomial_interpolation.py <plot_multivariate_piecewise_polynomial_interpolation.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_multivariate_piecewise_polynomial_interpolation.py <plot_multivariate_piecewise_polynomial_interpolation.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_multivariate_piecewise_polynomial_interpolation.ipynb <plot_multivariate_piecewise_polynomial_interpolation.ipynb>`
+      :download:`Download Jupyter notebook: plot_multivariate_piecewise_polynomial_interpolation.ipynb <plot_multivariate_piecewise_polynomial_interpolation.ipynb>`
 
 
 .. only:: html

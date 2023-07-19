@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.surrogates.interp.adaptive_sparse_grid &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.surrogates.interp.adaptive_sparse_grid &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
         <script src="../../../../_static/jquery.js"></script>
         <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../../_static/doctools.js"></script>
     <script src="../../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.surrogates.interp.adaptive_sparse_grid</li>
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.surrogates.interp.adaptive_sparse_grid</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -123,6 +128,10 @@
     <span class="n">evaluate_sparse_grid_from_subspace_values</span><span class="p">,</span>
     <span class="n">integrate_sparse_grid_subspace</span><span class="p">,</span> <span class="n">evaluate_sparse_grid_subspace</span>
  <span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.tensorprod</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">piecewise_univariate_linear_quad_rule</span><span class="p">,</span>
+    <span class="n">piecewise_univariate_quadratic_quad_rule</span>
+<span class="p">)</span>
 
 
 <span class="k">class</span> <span class="nc">mypriorityqueue</span><span class="p">():</span>
@@ -153,7 +162,7 @@
 
 
 <span class="k">def</span> <span class="nf">extract_items_from_priority_queue</span><span class="p">(</span><span class="n">pqueue</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return the items in a priority queue. The items will only be shallow copies</span>
 <span class="sd">    of items in queue</span>
 
@@ -413,7 +422,7 @@
 
 <span class="k">def</span> <span class="nf">variance_refinement_indicator_old</span><span class="p">(</span><span class="n">subspace_index</span><span class="p">,</span> <span class="n">num_new_subspace_samples</span><span class="p">,</span>
                                       <span class="n">sparse_grid</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">mean_only</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    when config index is increased but the other indices are 0 the</span>
 <span class="sd">    subspace will only have one random sample. Thus the variance</span>
 <span class="sd">    contribution will be zero regardless of value of the function value</span>
@@ -466,7 +475,7 @@
 <span class="k">def</span> <span class="nf">variance_refinement_indicator</span><span class="p">(</span><span class="n">subspace_index</span><span class="p">,</span> <span class="n">num_new_subspace_samples</span><span class="p">,</span>
                                   <span class="n">sparse_grid</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                                   <span class="n">mean_only</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">convex_param</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    when config index is increased but the other indices are 0 the</span>
 <span class="sd">    subspace will only have one random sample. Thus the variance</span>
 <span class="sd">    contribution will be zero regardless of value of the function value</span>
@@ -681,7 +690,7 @@
 
 
 <span class="k">def</span> <span class="nf">extract_sparse_grid_quadrature_rule</span><span class="p">(</span><span class="n">asg</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Returns samples in canonical space</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">num_sparse_grid_points</span> <span class="o">=</span> <span class="p">(</span>
@@ -767,7 +776,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">error</span><span class="p">[</span><span class="n">best_subspace_idx</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
 
     <span class="k">def</span> <span class="nf">postpone_subspace_refinement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_active_subspace_indices</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        used to enforce variable ordering</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;postponed_subspace_indices&#39;</span><span class="p">):</span>
@@ -869,7 +878,7 @@
         <span class="k">return</span> <span class="n">new_active_subspace_indices</span>
 
     <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">while</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_subspace_queue</span><span class="o">.</span><span class="n">empty</span><span class="p">()</span> <span class="ow">or</span>
                <span class="bp">self</span><span class="o">.</span><span class="n">subspace_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
@@ -895,7 +904,7 @@
         <span class="k">return</span> <span class="n">new_active_subspace_indices</span><span class="p">,</span> <span class="n">num_new_subspace_samples</span>
 
     <span class="k">def</span> <span class="nf">get_subspace_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subspace_index</span><span class="p">,</span> <span class="n">unique_poly_indices</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Must be implemented by derived class</span>
 <span class="sd">        This function should only be called when updating grid not interogating</span>
 <span class="sd">        grid</span>
@@ -1033,7 +1042,7 @@
 
     <span class="k">def</span> <span class="nf">set_univariate_growth_rules</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">univariate_growth_rule</span><span class="p">,</span>
                                     <span class="n">unique_quadrule_indices</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        self.config_variable_idx must be set if univariate_growth_rule is</span>
 <span class="sd">        a callable function and not a lisf of callable functions. Otherwise</span>
 <span class="sd">        errors such as assert len(growth_rule_1d)==config_variables_idx will</span>
@@ -1050,7 +1059,7 @@
             <span class="n">dd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">dd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_variables_idx</span>
-        <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="n">univariate_growth_rule</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">univariate_growth_rule</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">compact_univariate_growth_rule</span> <span class="o">=</span> <span class="p">[</span><span class="n">univariate_growth_rule</span><span class="p">]</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">unique_quadrule_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">dd</span><span class="p">)]</span>
         <span class="k">else</span><span class="p">:</span>
@@ -1085,7 +1094,7 @@
                                  <span class="n">univariate_growth_rule</span><span class="p">,</span>
                                  <span class="n">cost_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">work_qoi_index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                                  <span class="n">unique_quadrule_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        cost_function : callable (or object is work_qoi_index is not None)</span>
 <span class="sd">            Return the cost of evaluating a function with a unique indentifier.</span>
 <span class="sd">            Identifiers can be strings, integers, etc. The identifier</span>
@@ -1153,7 +1162,7 @@
         <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="fm">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        This function will compare all attributes of the derived class and this</span>
 <span class="sd">        base class.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1208,7 +1217,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_unique_quadrule_variables</span><span class="p">(</span><span class="n">var_trans</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This function will create a quad rule for each variable type with different</span>
 <span class="sd">    scaling. This can cause redundant computation of quad rules which</span>
 <span class="sd">    may be significant when using leja sequences</span>
@@ -1262,7 +1271,7 @@
 
 <span class="k">def</span> <span class="nf">get_sparse_grid_univariate_leja_quadrature_rules_economical</span><span class="p">(</span>
         <span class="n">var_trans</span><span class="p">,</span> <span class="n">growth_rules</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;pdf&#39;</span><span class="p">,</span> <span class="n">growth_incr</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return a list of unique quadrature rules. If each dimension has the same</span>
 <span class="sd">    rule then list will only have one entry.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -1277,7 +1286,7 @@
     <span class="n">unique_quadrule_variables</span><span class="p">,</span> <span class="n">unique_quadrule_indices</span> <span class="o">=</span> \
         <span class="n">get_unique_quadrule_variables</span><span class="p">(</span><span class="n">var_trans</span><span class="p">)</span>
 
-    <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="n">growth_rules</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">growth_rules</span><span class="p">):</span>
         <span class="n">growth_rules</span> <span class="o">=</span> <span class="p">[</span><span class="n">growth_rules</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">unique_quadrule_indices</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">growth_rules</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">unique_quadrule_indices</span><span class="p">):</span>
@@ -1298,13 +1307,13 @@
 
 <span class="k">def</span> <span class="nf">get_sparse_grid_univariate_leja_quadrature_rules</span><span class="p">(</span>
         <span class="n">var_trans</span><span class="p">,</span> <span class="n">growth_rules</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return a list of quadrature rules for every variable</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="p">(</span><span class="n">unique_quad_rules</span><span class="p">,</span> <span class="n">unique_growth_rules</span><span class="p">,</span> <span class="n">unique_quadrule_indices</span><span class="p">,</span>
-     <span class="n">unique_max_level_1d</span><span class="p">)</span> <span class="o">=</span> \
+     <span class="n">unique_max_level_1d</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span>
          <span class="n">get_sparse_grid_univariate_leja_quadrature_rules_economical</span><span class="p">(</span>
-             <span class="n">var_trans</span><span class="p">,</span> <span class="n">growth_rules</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+             <span class="n">var_trans</span><span class="p">,</span> <span class="n">growth_rules</span><span class="o">=</span><span class="kc">None</span><span class="p">))</span>
     <span class="n">quad_rules</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()]</span>
     <span class="n">growth_rules</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()]</span>
     <span class="n">max_level_1d</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()]</span>
@@ -1318,17 +1327,26 @@
 
 
 <div class="viewcode-block" id="CombinationSparseGrid"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.CombinationSparseGrid.html#pyapprox.surrogates.CombinationSparseGrid">[docs]</a><span class="k">class</span> <span class="nc">CombinationSparseGrid</span><span class="p">(</span><span class="n">SubSpaceRefinementManager</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Adaptive sparse grid that uses the combination technique.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="s2">&quot;barycentric&quot;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        num_vars : integer</span>
 <span class="sd">            The number of variables</span>
+
+<span class="sd">        basis_type : string (default=&quot;barycentric&quot;)</span>
+<span class="sd">           Specify the basis type to use. Currently the same basis must be used</span>
+<span class="sd">           for all dimensions. Options &quot;barycentric&quot;, &quot;linear&quot;, &quot;quadratic&quot;</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">CombinationSparseGrid</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">num_vars</span><span class="p">)</span>
 
+        <span class="c1"># to allow for mixed barycentric and piecwise poly basis</span>
+        <span class="c1"># if type(basis_type) == str:</span>
+        <span class="c1">#    basis_type = [basis_type]*num_vars</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">basis_type</span> <span class="o">=</span> <span class="n">basis_type</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">univariate_quad_rule</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">samples_1d</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weights_1d</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">smolyak_coefficients</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">0</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
@@ -1385,7 +1403,7 @@
 <span class="s2">                   &quot;&quot;&quot;</span>
             <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="n">univariate_quad_rule</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">univariate_quad_rule</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">compact_univariate_quad_rule</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">univariate_quad_rule</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">compact_univariate_quad_rule</span> <span class="o">=</span> <span class="n">univariate_quad_rule</span>
@@ -1432,8 +1450,8 @@
         <span class="k">return</span> <span class="n">get_sparse_grid_samples</span><span class="p">(</span>
             <span class="n">unique_poly_indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples_1d</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_variables_idx</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="CombinationSparseGrid.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.CombinationSparseGrid.html#pyapprox.surrogates.CombinationSparseGrid.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="CombinationSparseGrid.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.CombinationSparseGrid.html#pyapprox.surrogates.CombinationSparseGrid.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        config values are ignored. The sparse grid just returns its best</span>
 <span class="sd">        approximation of the highest fidelity model. TODO: consider enforcing</span>
 <span class="sd">        that samples do not have configure variables</span>
@@ -1452,8 +1470,9 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">subspace_poly_indices_list</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">smolyak_coefficients</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples_1d</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">subspace_values_indices_list</span><span class="p">,</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">config_variables_idx</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="n">jac</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">config_variables_idx</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="n">return_grad</span><span class="p">,</span>
+            <span class="n">basis_type</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">basis_type</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">result</span>
         <span class="n">vals</span><span class="p">,</span> <span class="n">jacs</span> <span class="o">=</span> <span class="n">result</span>
         <span class="k">if</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
@@ -1477,7 +1496,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">moments_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">smolyak_coefficients</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="CombinationSparseGrid.set_interrogation_samples"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.CombinationSparseGrid.html#pyapprox.surrogates.CombinationSparseGrid.set_interrogation_samples">[docs]</a>    <span class="k">def</span> <span class="nf">set_interrogation_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Set samples which are used to evaluate a sparse grid repeatedly.</span>
 <span class="sd">        If provided each time a subspace is added the subspace is evaluated</span>
 <span class="sd">        at these points so that when self.evaluate_at_interrogation_samples</span>
@@ -1499,7 +1518,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">canonical_interrogation_samples</span> <span class="o">=</span> <span class="n">canonical_samples</span></div>
 
 <div class="viewcode-block" id="CombinationSparseGrid.evaluate_at_interrogation_samples"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.CombinationSparseGrid.html#pyapprox.surrogates.CombinationSparseGrid.evaluate_at_interrogation_samples">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate_at_interrogation_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate the sparse grid at self.canonical_interrogation_samples.</span>
 
 <span class="sd">        Note, this fuction only uses subspaces which are not active</span>
@@ -1509,7 +1528,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">subspace_interrogation_values</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="CombinationSparseGrid.evaluate_using_all_data"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.CombinationSparseGrid.html#pyapprox.surrogates.CombinationSparseGrid.evaluate_using_all_data">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate_using_all_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate sparse grid using all subspace indices including</span>
 <span class="sd">        active subspaces. __call__ only uses subspaces which are not active</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1598,7 +1617,11 @@
             <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="CombinationSparseGrid.get_samples"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.CombinationSparseGrid.html#pyapprox.surrogates.CombinationSparseGrid.get_samples">[docs]</a>    <span class="k">def</span> <span class="nf">get_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">map_from_canonical</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">map_from_canonical</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">(nvars=</span><span class="si">{1}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">)</span></div>
 
 
 <span class="k">def</span> <span class="nf">plot_adaptive_sparse_grid_3d</span><span class="p">(</span><span class="n">sparse_grid</span><span class="p">,</span> <span class="n">plot_grid</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>

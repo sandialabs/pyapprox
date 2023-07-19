@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sparse Grid Interpolation &mdash; PyApprox 1.0.0 documentation</title>
+  <title>Sparse Grid Interpolation &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,9 +20,8 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
-        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
-        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -35,12 +34,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -53,7 +56,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorials</a><ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorial</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="plot_variables.html">Random Variables</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_interface.html">Model interfacing</a></li>
@@ -91,9 +94,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="index.html">Software Tutorials</a> &raquo;</li>
-      <li>Sparse Grid Interpolation</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Software Tutorial</a></li>
+      <li class="breadcrumb-item active">Sparse Grid Interpolation</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/auto_examples/plot_sparse_grid_uq.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -105,99 +108,27 @@
              
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-examples-plot-sparse-grid-uq-py"><span class="std std-ref">here</span></a>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-plot-sparse-grid-uq-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="sparse-grid-interpolation">
-<span id="sphx-glr-auto-examples-plot-sparse-grid-uq-py"></span><h1>Sparse Grid Interpolation<a class="headerlink" href="#sparse-grid-interpolation" title="Permalink to this headline"></a></h1>
-<p>We will use the Cantilever Beam benchmark to illustrate how to use a sparse grid
+<span id="sphx-glr-auto-examples-plot-sparse-grid-uq-py"></span><h1>Sparse Grid Interpolation<a class="headerlink" href="#sparse-grid-interpolation" title="Permalink to this heading"></a></h1>
+<p>We will use the Genz benchmark to illustrate how to use a sparse grid
 as a surrogate for uncertainty quantification and sensitivity analysis</p>
-<figure class="align-center" id="id1">
-<img alt="../_images/cantilever-beam.png" src="../_images/cantilever-beam.png" />
-<figcaption>
-<p><span class="caption-text">Conceptual model of the cantilever-beam</span><a class="headerlink" href="#id1" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
-<table class="docutils align-center" id="id2">
-<caption><span class="caption-text">Uncertain variables</span><a class="headerlink" href="#id2" title="Permalink to this table"></a></caption>
-<colgroup>
-<col style="width: 32%" />
-<col style="width: 19%" />
-<col style="width: 49%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p>Uncertainty</p></th>
-<th class="head"><p>Symbol</p></th>
-<th class="head"><p>Prior</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>Yield stress</p></td>
-<td><p><span class="math notranslate nohighlight">\(R\)</span></p></td>
-<td><p><span class="math notranslate nohighlight">\(N(40000,2000)\)</span></p></td>
-</tr>
-<tr class="row-odd"><td><p>Young’s modulus</p></td>
-<td><p><span class="math notranslate nohighlight">\(E\)</span></p></td>
-<td><p><span class="math notranslate nohighlight">\(N(2.9e7,1.45e6)\)</span></p></td>
-</tr>
-<tr class="row-even"><td><p>Horizontal load</p></td>
-<td><p><span class="math notranslate nohighlight">\(X\)</span></p></td>
-<td><p><span class="math notranslate nohighlight">\(N(500,100)\)</span></p></td>
-</tr>
-<tr class="row-odd"><td><p>Vertical Load</p></td>
-<td><p><span class="math notranslate nohighlight">\(Y\)</span></p></td>
-<td><p><span class="math notranslate nohighlight">\(N(1000,100)\)</span></p></td>
-</tr>
-</tbody>
-</table>
-<table class="docutils align-center" id="id3">
-<caption><span class="caption-text">Design variables</span><a class="headerlink" href="#id3" title="Permalink to this table"></a></caption>
-<colgroup>
-<col style="width: 32%" />
-<col style="width: 19%" />
-<col style="width: 49%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p>Uncertainty</p></th>
-<th class="head"><p>Symbol</p></th>
-<th class="head"><p>Range</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>Width</p></td>
-<td><p><span class="math notranslate nohighlight">\(w\)</span></p></td>
-<td><p><span class="math notranslate nohighlight">\([1, 4]\)</span></p></td>
-</tr>
-<tr class="row-odd"><td><p>Thickness</p></td>
-<td><p><span class="math notranslate nohighlight">\(t\)</span></p></td>
-<td><p><span class="math notranslate nohighlight">\([1, 4]\)</span></p></td>
-</tr>
-</tbody>
-</table>
 <p>First we must load the benchmark</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
-<span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="n">combine_uncertain_and_bounded_design_variables</span>
 <span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">surrogates</span>
 <span class="kn">from</span> <span class="nn">pyapprox.analysis</span> <span class="kn">import</span> <span class="n">visualize</span>
 <span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">util</span>
 <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
-<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s1">&#39;cantilever_beam&#39;</span><span class="p">)</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s1">&#39;genz&#39;</span><span class="p">,</span> <span class="n">nvars</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">test_name</span><span class="o">=</span><span class="s2">&quot;oscillatory&quot;</span><span class="p">)</span>
 <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>The cantilever beam model is an optimization benchmark. Consequently it
-defines random and design variables. All surrogates require random variable
-information so we define a new variable for this purpose</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">variable</span> <span class="o">=</span> <span class="n">combine_uncertain_and_bounded_design_variables</span><span class="p">(</span>
-    <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">design_variable</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>So lets just approximate the contraint function.</p>
-<p>We can set a maximum number of samples using the options dictionary</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;max_nsamples&quot;</span><span class="p">:</span> <span class="mi">1000</span><span class="p">}</span>
+
+<span class="c1">#We can set a maximum number of samples using the options dictionary</span>
+<span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;max_nsamples&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;verbose&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
 <span class="n">approx</span> <span class="o">=</span> <span class="n">surrogates</span><span class="o">.</span><span class="n">adaptive_approximate</span><span class="p">(</span>
-    <span class="n">benchmark</span><span class="o">.</span><span class="n">constraint_fun</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="s2">&quot;sparse_grid&quot;</span><span class="p">,</span> <span class="n">options</span><span class="p">)</span><span class="o">.</span><span class="n">approx</span>
+    <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="s2">&quot;sparse_grid&quot;</span><span class="p">,</span> <span class="n">options</span><span class="p">)</span><span class="o">.</span><span class="n">approx</span>
 </pre></div>
 </div>
 <p>Plot the sparse grid samples with</p>
@@ -207,28 +138,27 @@ information so we define a new variable for this purpose</p>
 </pre></div>
 </div>
 <img src="../_images/sphx_glr_plot_sparse_grid_uq_001.png" srcset="../_images/sphx_glr_plot_sparse_grid_uq_001.png" alt="plot sparse grid uq" class = "sphx-glr-single-img"/><p>We can estimate the error in the surrogate using some validation samples.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">validation_samples</span> <span class="o">=</span> <span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
-<span class="n">validation_values</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">constraint_fun</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">validation_samples</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+<span class="n">validation_values</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
 <span class="n">approx_values</span> <span class="o">=</span> <span class="n">approx</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
 <span class="n">error</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">validation_values</span><span class="o">-</span><span class="n">approx_values</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
     <span class="n">validation_values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The RMSE error is </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>The RMSE error is [0.01287552 0.04001449]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>The RMSE error is [4.6830029e-16]
 </pre></div>
 </div>
 <p>and building a kernel density estimator. Lets first just plot the marginal
 PDFs of the output</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">surrogate_samples</span> <span class="o">=</span> <span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="mi">10000</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">surrogate_samples</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="mi">10000</span><span class="p">)</span>
 <span class="n">approx_values</span> <span class="o">=</span> <span class="n">approx</span><span class="p">(</span><span class="n">surrogate_samples</span><span class="p">)</span>
 <span class="n">visualize</span><span class="o">.</span><span class="n">plot_qoi_marginals</span><span class="p">(</span><span class="n">approx_values</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_sparse_grid_uq_002.png" srcset="../_images/sphx_glr_plot_sparse_grid_uq_002.png" alt="plot sparse grid uq" class = "sphx-glr-single-img"/><p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.584 seconds)</p>
-<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-sparse-grid-uq-py">
+<img src="../_images/sphx_glr_plot_sparse_grid_uq_002.png" srcset="../_images/sphx_glr_plot_sparse_grid_uq_002.png" alt="plot sparse grid uq" class = "sphx-glr-single-img"/><p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.156 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-sparse-grid-uq-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/36b3fcd9dbd3a600761ae4f7b52bd726/plot_sparse_grid_uq.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_sparse_grid_uq.py</span></code></a></p>
 </div>

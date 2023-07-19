@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_examples_plot_variables.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_examples_plot_variables.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -59,15 +59,13 @@ A summary of the random variable can be printed using
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
     Independent Marginal Variable
     Number of variables: 2
     Unique variables and global id:
-        beta(a=2,b=3,loc=0,scale=1): z0
-        beta(a=5,b=2,loc=1,scale=1): z1
+        beta(a=2,b=3,loc=[0],scale=[1]): z0
+        beta(a=5,b=2,loc=[1],scale=[1]): z1
 
 
 
@@ -109,20 +107,18 @@ using
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [[3.42469991]
-     [0.79357319]
-     [1.01301523]
-     [3.19901255]
-     [1.24238245]
-     [3.05578038]
-     [0.06900139]
-     [4.19242237]
-     [2.76458351]
-     [0.67732564]]
+    [[1.61857392]
+     [1.95802036]
+     [0.60604613]
+     [2.46081611]
+     [2.19411368]
+     [2.8227188 ]
+     [3.43022837]
+     [3.25501853]
+     [3.0926788 ]
+     [3.29308097]]
 
 
 
@@ -148,8 +144,6 @@ For example,
 
 
 .. rst-class:: sphx-glr-script-out
-
- Out:
 
  .. code-block:: none
 
@@ -279,28 +273,25 @@ We can also generate samples using Gaussian copulas. First specify the
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.714 seconds)
+   **Total running time of the script:** ( 0 minutes  2.011 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_variables.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_variables.py <plot_variables.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_variables.py <plot_variables.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_variables.ipynb <plot_variables.ipynb>`
+      :download:`Download Jupyter notebook: plot_variables.ipynb <plot_variables.ipynb>`
 
 
 .. only:: html

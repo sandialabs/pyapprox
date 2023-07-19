@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.surrogates.orthopoly.quadrature &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.surrogates.orthopoly.quadrature &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
         <script src="../../../../_static/jquery.js"></script>
         <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../../_static/doctools.js"></script>
     <script src="../../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.surrogates.orthopoly.quadrature</li>
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.surrogates.orthopoly.quadrature</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -101,7 +106,7 @@
 
 
 <span class="k">def</span> <span class="nf">clenshaw_curtis_rule_growth</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    The number of samples in the 1D Clenshaw-Curtis quadrature rule of a given</span>
 <span class="sd">    level.</span>
 
@@ -122,7 +127,7 @@
 
 
 <span class="k">def</span> <span class="nf">clenshaw_curtis_hierarchical_to_nodal_index</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="n">ll</span><span class="p">,</span> <span class="n">ii</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Convert a 1D hierarchical index (ll,ii) to a nodal index for lookup in a</span>
 <span class="sd">    Clenshaw-Curtis quadrature rule.</span>
 
@@ -164,7 +169,7 @@
 
 
 <span class="k">def</span> <span class="nf">clenshaw_curtis_poly_indices_to_quad_rule_indices</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Convert all 1D polynomial indices of up to and including a given level</span>
 <span class="sd">    to their equivalent nodal index for lookup in a Clenshaw-Curtis</span>
 <span class="sd">    quadrature rule.</span>
@@ -194,7 +199,7 @@
 
 <span class="k">def</span> <span class="nf">clenshaw_curtis_in_polynomial_order</span><span class="p">(</span><span class="n">level</span><span class="p">,</span>
                                         <span class="n">return_weights_for_all_levels</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return the samples and weights of the Clenshaw-Curtis rule using</span>
 <span class="sd">    polynomial ordering.</span>
 
@@ -241,7 +246,7 @@
 
 
 <span class="k">def</span> <span class="nf">clenshaw_curtis_pts_wts_1D</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generated a nested, exponentially-growing Clenshaw-Curtis quadrature rule</span>
 <span class="sd">    that exactly integrates polynomials of degree 2**level+1 with respect to</span>
 <span class="sd">    the uniform probability measure on [-1,1].</span>
@@ -309,7 +314,7 @@
 
 
 <span class="k">def</span> <span class="nf">gauss_hermite_pts_wts_1D</span><span class="p">(</span><span class="n">num_samples</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return Gauss Hermite quadrature rule that exactly integrates polynomials</span>
 <span class="sd">    of degree 2*num_samples-1 with respect to the Gaussian probability measure</span>
 <span class="sd">    1/sqrt(2*pi)exp(-x**2/2)</span>
@@ -334,7 +339,7 @@
 
 
 <span class="k">def</span> <span class="nf">gauss_jacobi_pts_wts_1D</span><span class="p">(</span><span class="n">num_samples</span><span class="p">,</span> <span class="n">alpha_poly</span><span class="p">,</span> <span class="n">beta_poly</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return Gauss Jacobi quadrature rule that exactly integrates polynomials</span>
 <span class="sd">    of num_samples 2*num_samples-1 with respect to the probabilty density</span>
 <span class="sd">    function of Beta random variables on [-1,1]</span>
@@ -377,8 +382,23 @@
     <span class="k">return</span> <span class="n">gauss_quadrature</span><span class="p">(</span><span class="n">ab</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">)</span>
 
 
+<span class="k">def</span> <span class="nf">one_point_growth_rule</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    level : integer</span>
+<span class="sd">       The level of the quadrature rule</span>
+
+<span class="sd">    Return</span>
+<span class="sd">    ------</span>
+<span class="sd">    num_samples_1d : integer</span>
+<span class="sd">        The number of samples in the quadrature rule</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">level</span><span class="o">+</span><span class="mi">1</span>
+
+
 <span class="k">def</span> <span class="nf">leja_growth_rule</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    The number of samples in the 1D Leja quadrature rule of a given</span>
 <span class="sd">    level. Most leja rules produce two point quadrature rules which</span>
 <span class="sd">    have zero weight assigned to one point. Avoid this by skipping from</span>
@@ -400,7 +420,7 @@
 
 
 <span class="k">def</span> <span class="nf">constant_increment_growth_rule</span><span class="p">(</span><span class="n">increment</span><span class="p">,</span> <span class="n">level</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    The number of samples in the 1D quadrature rule where number of of points</span>
 <span class="sd">    grow by a fixed constant at each level.</span>
 
@@ -425,7 +445,7 @@
 
 
 <span class="k">def</span> <span class="nf">exponential_growth</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="n">constant</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    The number of samples in an exponentially growing 1D quadrature rule of</span>
 <span class="sd">    a given level.</span>
 
@@ -457,7 +477,7 @@
 
 <div class="viewcode-block" id="get_gauss_quadrature_rule_from_marginal"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.get_gauss_quadrature_rule_from_marginal.html#pyapprox.surrogates.get_gauss_quadrature_rule_from_marginal">[docs]</a><span class="k">def</span> <span class="nf">get_gauss_quadrature_rule_from_marginal</span><span class="p">(</span>
         <span class="n">marginal</span><span class="p">,</span> <span class="n">max_nsamples</span><span class="p">,</span> <span class="n">canonical</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return the quadrature rule associated with the marginal.</span>
 
 <span class="sd">    Parameters</span>

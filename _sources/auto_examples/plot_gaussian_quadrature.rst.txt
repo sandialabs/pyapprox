@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_examples_plot_gaussian_quadrature.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_examples_plot_gaussian_quadrature.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -66,11 +66,9 @@ with repsect to the uniform PDF on [-1, 1], i.e. 1/2
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    0.33333333333333337
+    0.3333333333333332
 
 
 
@@ -103,11 +101,9 @@ For example
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    1.3333333333333315
+    1.3333333333333346
 
 
 
@@ -134,11 +130,9 @@ we will generate a quadrature rule for an exponential random variable
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    1.9999999999999993
+    2.000000000000001
 
 
 
@@ -176,28 +170,25 @@ variable
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.087 seconds)
+   **Total running time of the script:** ( 0 minutes  0.093 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_gaussian_quadrature.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_gaussian_quadrature.py <plot_gaussian_quadrature.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_gaussian_quadrature.py <plot_gaussian_quadrature.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_gaussian_quadrature.ipynb <plot_gaussian_quadrature.ipynb>`
+      :download:`Download Jupyter notebook: plot_gaussian_quadrature.ipynb <plot_gaussian_quadrature.ipynb>`
 
 
 .. only:: html

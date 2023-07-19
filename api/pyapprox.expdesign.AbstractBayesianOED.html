@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AbstractBayesianOED &mdash; PyApprox 1.0.0 documentation</title>
+  <title>AbstractBayesianOED &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
@@ -33,12 +34,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -51,7 +56,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -102,9 +107,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
-      <li>AbstractBayesianOED</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../user_reference_guide.html">User Reference Guide</a></li>
+      <li class="breadcrumb-item active">AbstractBayesianOED</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/api/pyapprox.expdesign.AbstractBayesianOED.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -115,50 +120,31 @@
            <div itemprop="articleBody">
              
   <section id="abstractbayesianoed">
-<h1>AbstractBayesianOED<a class="headerlink" href="#abstractbayesianoed" title="Permalink to this headline"></a></h1>
+<h1>AbstractBayesianOED<a class="headerlink" href="#abstractbayesianoed" title="Permalink to this heading"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="pyapprox.expdesign.AbstractBayesianOED">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyapprox.expdesign.</span></span><span class="sig-name descname"><span class="pre">AbstractBayesianOED</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">design_candidates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">obs_fun</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">noise_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prior_variable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nouter_loop_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ninner_loop_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generate_inner_prior_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">econ</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_eval_concurrency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED" title="Permalink to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABC</span></code></p>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyapprox.expdesign.</span></span><span class="sig-name descname"><span class="pre">AbstractBayesianOED</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ndesign_candidates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">obs_fun</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">noise_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prior_variable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_quad_opts</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">in_quad_opts</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nprocs=1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_ncollected_obs=2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ndata_per_candidate=1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_risk_fun=&lt;function</span> <span class="pre">oed_data_expectation&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
 <p>Base Bayesian OED class</p>
 <p class="rubric">Methods Summary</p>
-<table class="longtable docutils align-default">
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 90%" />
-</colgroup>
+<table class="autosummary longtable docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.compute_expected_utility" title="pyapprox.expdesign.AbstractBayesianOED.compute_expected_utility"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_expected_utility</span></code></a>(...[, return_all])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.generate_prior_samples" title="pyapprox.expdesign.AbstractBayesianOED.generate_prior_samples"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_prior_samples</span></code></a>(nsamples)</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.get_outer_loop_obs" title="pyapprox.expdesign.AbstractBayesianOED.get_outer_loop_obs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_outer_loop_obs</span></code></a>(active_indices)</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.loglike_fun" title="pyapprox.expdesign.AbstractBayesianOED.loglike_fun"><code class="xref py py-obj docutils literal notranslate"><span class="pre">loglike_fun</span></code></a>(obs, pred_obs[, active_indices])</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.loglike_fun_from_noiseless_obs" title="pyapprox.expdesign.AbstractBayesianOED.loglike_fun_from_noiseless_obs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">loglike_fun_from_noiseless_obs</span></code></a>(...)</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.noise_fun" title="pyapprox.expdesign.AbstractBayesianOED.noise_fun"><code class="xref py py-obj docutils literal notranslate"><span class="pre">noise_fun</span></code></a>(values[, active_indices])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.compute_utilities" title="pyapprox.expdesign.AbstractBayesianOED.compute_utilities"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_utilities</span></code></a>(ncandidates, ...)</p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.populate" title="pyapprox.expdesign.AbstractBayesianOED.populate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">populate</span></code></a>()</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.reproducible_noise_fun" title="pyapprox.expdesign.AbstractBayesianOED.reproducible_noise_fun"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reproducible_noise_fun</span></code></a>(values, active_indices)</p></td>
-<td><p></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.select_design" title="pyapprox.expdesign.AbstractBayesianOED.select_design"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select_design</span></code></a>(collected_design_indices, ...)</p></td>
+<td><p>Update an experimental design.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.set_collected_design_indices" title="pyapprox.expdesign.AbstractBayesianOED.set_collected_design_indices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_collected_design_indices</span></code></a>(indices)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.set_max_eval_concurrency" title="pyapprox.expdesign.AbstractBayesianOED.set_max_eval_concurrency"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_max_eval_concurrency</span></code></a>(max_eval_concurrency)</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.update_design" title="pyapprox.expdesign.AbstractBayesianOED.update_design"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_design</span></code></a>([return_all, rounding_decimals])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.expdesign.AbstractBayesianOED.update_design" title="pyapprox.expdesign.AbstractBayesianOED.update_design"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_design</span></code></a>([return_all, nnew])</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -170,28 +156,8 @@
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="pyapprox.expdesign.AbstractBayesianOED.generate_prior_samples">
-<span class="sig-name descname"><span class="pre">generate_prior_samples</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nsamples</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED.generate_prior_samples"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED.generate_prior_samples" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="pyapprox.expdesign.AbstractBayesianOED.get_outer_loop_obs">
-<span class="sig-name descname"><span class="pre">get_outer_loop_obs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">active_indices</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED.get_outer_loop_obs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED.get_outer_loop_obs" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="pyapprox.expdesign.AbstractBayesianOED.loglike_fun">
-<span class="sig-name descname"><span class="pre">loglike_fun</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_obs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_indices</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED.loglike_fun"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED.loglike_fun" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="pyapprox.expdesign.AbstractBayesianOED.loglike_fun_from_noiseless_obs">
-<span class="sig-name descname"><span class="pre">loglike_fun_from_noiseless_obs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">noiseless_obs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_obs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_indices</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED.loglike_fun_from_noiseless_obs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED.loglike_fun_from_noiseless_obs" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="pyapprox.expdesign.AbstractBayesianOED.noise_fun">
-<span class="sig-name descname"><span class="pre">noise_fun</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_indices</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED.noise_fun"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED.noise_fun" title="Permalink to this definition"></a></dt>
+<dt class="sig sig-object py" id="pyapprox.expdesign.AbstractBayesianOED.compute_utilities">
+<span class="sig-name descname"><span class="pre">compute_utilities</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ncandidates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">collected_design_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_all</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED.compute_utilities"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED.compute_utilities" title="Permalink to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -200,9 +166,32 @@
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="pyapprox.expdesign.AbstractBayesianOED.reproducible_noise_fun">
-<span class="sig-name descname"><span class="pre">reproducible_noise_fun</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_indices</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED.reproducible_noise_fun"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED.reproducible_noise_fun" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
+<dt class="sig sig-object py" id="pyapprox.expdesign.AbstractBayesianOED.select_design">
+<span class="sig-name descname"><span class="pre">select_design</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">collected_design_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nnew</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_all</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED.select_design"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED.select_design" title="Permalink to this definition"></a></dt>
+<dd><p>Update an experimental design.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>collected_design_indices</strong><span class="classifier">np.ndarray (nobs)</span></dt><dd><p>The indices into the qoi vector associated with the
+collected observations</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>utility_vals</strong><span class="classifier">np.ndarray (ncandidates)</span></dt><dd><p>The utility vals at the candidate design samples. If the candidate
+sample is already in collected design then the utility value will
+be set to -np.inf</p>
+</dd>
+<dt><strong>selected_index</strong><span class="classifier">integer</span></dt><dd><p>The index of the best design, i.e. the largest utility</p>
+</dd>
+<dt><strong>results</strong><span class="classifier">dict</span></dt><dd><p>Dictionary of useful data used to compute expected utility
+At a minimum it has the keys [“utilties”, “evidences”, “weights”]</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="pyapprox.expdesign.AbstractBayesianOED.set_collected_design_indices">
@@ -210,13 +199,8 @@
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="pyapprox.expdesign.AbstractBayesianOED.set_max_eval_concurrency">
-<span class="sig-name descname"><span class="pre">set_max_eval_concurrency</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">max_eval_concurrency</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED.set_max_eval_concurrency"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED.set_max_eval_concurrency" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
 <dt class="sig sig-object py" id="pyapprox.expdesign.AbstractBayesianOED.update_design">
-<span class="sig-name descname"><span class="pre">update_design</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">return_all</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rounding_decimals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">16</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED.update_design"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED.update_design" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">update_design</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">return_all</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nnew</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#AbstractBayesianOED.update_design"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.AbstractBayesianOED.update_design" title="Permalink to this definition"></a></dt>
 <dd></dd></dl>
 
 </dd></dl>

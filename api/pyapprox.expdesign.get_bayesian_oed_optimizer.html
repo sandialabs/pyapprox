@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>get_bayesian_oed_optimizer &mdash; PyApprox 1.0.0 documentation</title>
+  <title>get_bayesian_oed_optimizer &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
@@ -33,12 +34,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -51,7 +56,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -98,9 +103,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
-      <li>get_bayesian_oed_optimizer</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../user_reference_guide.html">User Reference Guide</a></li>
+      <li class="breadcrumb-item active">get_bayesian_oed_optimizer</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/api/pyapprox.expdesign.get_bayesian_oed_optimizer.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -111,13 +116,13 @@
            <div itemprop="articleBody">
              
   <section id="get-bayesian-oed-optimizer">
-<h1>get_bayesian_oed_optimizer<a class="headerlink" href="#get-bayesian-oed-optimizer" title="Permalink to this headline"></a></h1>
+<h1>get_bayesian_oed_optimizer<a class="headerlink" href="#get-bayesian-oed-optimizer" title="Permalink to this heading"></a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="pyapprox.expdesign.get_bayesian_oed_optimizer">
-<span class="sig-prename descclassname"><span class="pre">pyapprox.expdesign.</span></span><span class="sig-name descname"><span class="pre">get_bayesian_oed_optimizer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">short_oed_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">design_candidates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">obs_fun</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">noise_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prior_variable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nouter_loop_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ninner_loop_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quad_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pre_collected_design_indices</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#get_bayesian_oed_optimizer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.get_bayesian_oed_optimizer" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">pyapprox.expdesign.</span></span><span class="sig-name descname"><span class="pre">get_bayesian_oed_optimizer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">short_oed_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ndesign_candidates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">obs_fun</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">noise_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prior_variable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_quad_opts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">in_quad_opts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nprocs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pre_collected_design_indices</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#get_bayesian_oed_optimizer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.get_bayesian_oed_optimizer" title="Permalink to this definition"></a></dt>
 <dd><p>Initialize a Bayesian OED optimizer.</p>
 <dl class="field-list">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl>
 <dt><strong>short_oed_type</strong><span class="classifier">string</span></dt><dd><p>The type of experimental design strategy</p>
 </dd>
@@ -130,11 +135,11 @@
 <dt><strong>noise_std</strong><span class="classifier">float or np.ndarray (nobs, 1)</span></dt><dd><p>The standard deviation of the mean zero Gaussian noise added to each
 observation</p>
 </dd>
-<dt><strong>ninner_loop_samples</strong><span class="classifier">integer</span></dt><dd><p>The number of quadrature samples used for the inner integral that
+<dt><strong>nin_samples</strong><span class="classifier">integer</span></dt><dd><p>The number of quadrature samples used for the inner integral that
 computes the evidence for each realiaztion of the predicted
 observations</p>
 </dd>
-<dt><strong>nouter_loop_samples</strong><span class="classifier">integer</span></dt><dd><p>The number of Monte Carlo samples used to compute the outer integral
+<dt><strong>nout_samples</strong><span class="classifier">integer</span></dt><dd><p>The number of Monte Carlo samples used to compute the outer integral
 over all possible observations</p>
 </dd>
 <dt><strong>quad_method</strong><span class="classifier">string</span></dt><dd><p>The method used to compute the inner loop integral needed to
@@ -151,7 +156,7 @@ collected observations</p>
 </dd>
 </dl>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl class="simple">
 <dt><strong>oed</strong><span class="classifier">pyapprox.expdesign.AbstractBayesianOED</span></dt><dd><p>Bayesian OED optimizer object</p>
 </dd>

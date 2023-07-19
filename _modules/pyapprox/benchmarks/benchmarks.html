@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.benchmarks.benchmarks &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.benchmarks.benchmarks &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.benchmarks.benchmarks</li>
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.benchmarks.benchmarks</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -94,8 +99,7 @@
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks.sensitivity_benchmarks</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">get_sobol_g_function_statistics</span><span class="p">,</span> <span class="n">get_ishigami_funciton_statistics</span><span class="p">,</span>
     <span class="n">oakley_function</span><span class="p">,</span> <span class="n">oakley_function_statistics</span><span class="p">,</span> <span class="n">sobol_g_function</span><span class="p">,</span>
-    <span class="n">ishigami_function</span><span class="p">,</span> <span class="n">ishigami_function_jacobian</span><span class="p">,</span> <span class="n">ishigami_function_hessian</span>
-    <span class="p">)</span>
+    <span class="n">ishigami_function</span><span class="p">,</span> <span class="n">ishigami_function_jacobian</span><span class="p">,</span> <span class="n">ishigami_function_hessian</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks.surrogate_benchmarks</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">rosenbrock_function</span><span class="p">,</span>
     <span class="n">rosenbrock_function_jacobian</span><span class="p">,</span> <span class="n">rosenbrock_function_hessian_prod</span><span class="p">,</span>
@@ -109,19 +113,13 @@
     <span class="n">RandomOscillator</span><span class="p">,</span> <span class="n">piston_function_gradient</span><span class="p">,</span> <span class="n">CoupledSprings</span><span class="p">,</span>
     <span class="n">define_coupled_springs_random_variables</span><span class="p">,</span> <span class="n">HastingsEcology</span><span class="p">,</span>
     <span class="n">define_nondim_hastings_ecology_random_variables</span><span class="p">,</span>
-    <span class="n">ParameterizedNonlinearModel</span>
-    <span class="p">)</span>
+    <span class="n">ParameterizedNonlinearModel</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks.genz</span> <span class="kn">import</span> <span class="n">GenzFunction</span>
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks.multifidelity_benchmarks</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">PolynomialModelEnsemble</span><span class="p">,</span> <span class="n">TunableModelEnsemble</span><span class="p">,</span> <span class="n">ShortColumnModelEnsemble</span>
-<span class="p">)</span>
+    <span class="n">PolynomialModelEnsemble</span><span class="p">,</span> <span class="n">TunableModelEnsemble</span><span class="p">,</span> <span class="n">ShortColumnModelEnsemble</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.variables.joint</span> <span class="kn">import</span> <span class="n">IndependentMarginalsVariable</span>
-<span class="kn">from</span> <span class="nn">pyapprox.variables.transforms</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">ConfigureVariableTransformation</span>
-<span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.interface.wrappers</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">TimerModel</span><span class="p">,</span> <span class="n">PoolModel</span><span class="p">,</span> <span class="n">WorkTrackingModel</span>
-<span class="p">)</span>
+    <span class="n">TimerModel</span><span class="p">,</span> <span class="n">PoolModel</span><span class="p">,</span> <span class="n">WorkTrackingModel</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks.pde_benchmarks</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">_setup_inverse_advection_diffusion_benchmark</span><span class="p">,</span>
     <span class="n">_setup_multi_index_advection_diffusion_benchmark</span>
@@ -129,7 +127,7 @@
 
 
 <div class="viewcode-block" id="Benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.Benchmark.html#pyapprox.benchmarks.Benchmark">[docs]</a><span class="k">class</span> <span class="nc">Benchmark</span><span class="p">(</span><span class="n">OptimizeResult</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Contains functions and results needed to implement known</span>
 <span class="sd">    benchmarks.</span>
 
@@ -176,8 +174,9 @@
 <span class="sd">    attributes for a specific benchmark</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
 
+
 <div class="viewcode-block" id="setup_sobol_g_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_sobol_g_function.html#pyapprox.benchmarks.setup_sobol_g_function">[docs]</a><span class="k">def</span> <span class="nf">setup_sobol_g_function</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Setup the Sobol-G function benchmark</span>
 
 <span class="sd">    .. math:: f(z) = \prod_{i=1}^d\frac{\lvert 4z_i-2\rvert+a_i}{1+a_i}, \quad a_i=\frac{i-2}{2}</span>
@@ -234,7 +233,7 @@
 
 
 <div class="viewcode-block" id="setup_ishigami_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_ishigami_function.html#pyapprox.benchmarks.setup_ishigami_function">[docs]</a><span class="k">def</span> <span class="nf">setup_ishigami_function</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Setup the Ishigami function benchmark</span>
 
 <span class="sd">    .. math:: f(z) = \sin(z_1)+a\sin^2(z_2) + bz_3^4\sin(z_0)</span>
@@ -313,7 +312,7 @@
 
 
 <div class="viewcode-block" id="setup_oakley_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_oakley_function.html#pyapprox.benchmarks.setup_oakley_function">[docs]</a><span class="k">def</span> <span class="nf">setup_oakley_function</span><span class="p">():</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Setup the Oakely function benchmark</span>
 
 <span class="sd">    .. math:: f(z) = a_1^Tz + a_2^T\sin(z) + a_3^T\cos(z) + z^TMz</span>
@@ -359,7 +358,7 @@
 
 
 <div class="viewcode-block" id="setup_rosenbrock_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_rosenbrock_function.html#pyapprox.benchmarks.setup_rosenbrock_function">[docs]</a><span class="k">def</span> <span class="nf">setup_rosenbrock_function</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Setup the Rosenbrock function benchmark</span>
 
 <span class="sd">    .. math:: f(z) = \sum_{i=1}^{d/2}\left[100(z_{2i-1}^{2}-z_{2i})^{2}+(z_{2i-1}-1)^{2}\right]</span>
@@ -465,9 +464,15 @@
     <span class="k">return</span> <span class="n">benchmark</span></div>
 
 
-<div class="viewcode-block" id="setup_genz_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_genz_function.html#pyapprox.benchmarks.setup_genz_function">[docs]</a><span class="k">def</span> <span class="nf">setup_genz_function</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">test_name</span><span class="p">,</span> <span class="n">coefficients</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Setup the Genz Benchmarks.</span>
+<div class="viewcode-block" id="setup_genz_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_genz_function.html#pyapprox.benchmarks.setup_genz_function">[docs]</a><span class="k">def</span> <span class="nf">setup_genz_function</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">test_name</span><span class="p">,</span> <span class="n">coeff_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">w</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="n">c_factor</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                        <span class="n">coeff</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Setup one of the six Genz integration benchmarks</span>
+<span class="sd">    :math:`f_d(x):\mathbb{R}^D\to\mathbb{R}`,</span>
+<span class="sd">    where :math:`x=[x_1,\ldots,x_D]^\top`.</span>
+<span class="sd">    The number of inputs :math:`D` and the anisotropy (relative importance of</span>
+<span class="sd">    each variable and interactions) of the functions can be adjusted.</span>
+<span class="sd">    The definition of each function is in the Notes section.</span>
 
 <span class="sd">    For example, the two-dimensional oscillatory Genz problem can be defined</span>
 <span class="sd">    using</span>
@@ -485,13 +490,23 @@
 <span class="sd">    test_name : string</span>
 <span class="sd">        The test_name of the specific Genz function. See notes</span>
 <span class="sd">        for options the string needed is given in brackets</span>
-<span class="sd">        e.g. (&#39;oscillatory&#39;)</span>
+<span class="sd">        e.g. (&#39;oscillatory&#39;). Choose from</span>
+<span class="sd">        [&quot;oscillatory&quot;, &quot;product_peak&quot;, &quot;corner_peak&quot;, &quot;c0continuous&quot;, &quot;discontinuous&quot;]</span>
 
-<span class="sd">    coefficients : tuple (ndarray (nvars), ndarray (nvars))</span>
-<span class="sd">        The coefficients :math:`c_i` and :math:`w_i`</span>
-<span class="sd">        If None (default) then</span>
-<span class="sd">        :math:`c_j = \hat{c}_j\left(\sum_{i=1}^d \hat{c}_i\right)^{-1}` where</span>
-<span class="sd">        :math:`\hat{c}_i=(10^{-15\left(\frac{i}{d}\right)^2)})`</span>
+<span class="sd">    coef_type : string</span>
+<span class="sd">        Choose from [&quot;no_decay&quot;, &quot;quadratic_decay&quot;, &quot;quartic_decay&quot;,</span>
+<span class="sd">        &quot;exponential_decay&quot;. &quot;squared_exponential_decay&quot;]</span>
+
+<span class="sd">    w : float 0&lt;=w&lt;=1</span>
+<span class="sd">        Set :math:`w_d=w, d=1,\ldots,D`.</span>
+
+<span class="sd">    c_factor : float `c_factor&gt;0`</span>
+<span class="sd">        Scale the integrand.</span>
+
+<span class="sd">    coeff : tuple (ndarray (nvars, 1), ndarray (nvars, 1))</span>
+<span class="sd">        The coefficients :math:`c_d` and :math:`w_d`</span>
+<span class="sd">        If provided it will overwite the coefficients defined by</span>
+<span class="sd">        `coeff_type`, `w` and `c_factor`</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -513,42 +528,84 @@
 
 <span class="sd">    Notes</span>
 <span class="sd">    -----</span>
-
-<span class="sd">    Corner Peak (&#39;corner-peak&#39;)</span>
-
-<span class="sd">    .. math:: f(z)=\left( 1+\sum_{i=1}^d c_iz_i\right)^{-(d+1)}</span>
+<span class="sd">    The six Genz test function are:</span>
 
 <span class="sd">    Oscillatory (&#39;oscillatory&#39;)</span>
 
-<span class="sd">    .. math:: f(z) = \cos\left(2\pi w_1 + \sum_{i=1}^d c_iz_i\right)</span>
+<span class="sd">    .. math:: f(z) = \cos\left(2\pi w_1 + \sum_{d=1}^D c_dz_d\right)</span>
 
-<span class="sd">    Gaussian Peak (&#39;gaussian-peak&#39;)</span>
+<span class="sd">    Product Peak (&#39;product_peak&#39;)</span>
 
-<span class="sd">    .. math:: f(z) = \exp\left( -\sum_{i=1}^d c_i^2(z_i-w_i)^2\right)</span>
+<span class="sd">    .. math:: f(z) = \prod_{d=1}^D \left(c_d^{-2}+(z_d-w_d)^2\right)^{-1}</span>
 
-<span class="sd">    Continuous (&#39;continuous&#39;)</span>
+<span class="sd">    Corner Peak (&#39;corner_peak&#39;)</span>
 
-<span class="sd">    .. math:: f(z) = \exp\left( -\sum_{i=1}^d c_i\lvert z_i-w_i\rvert\right)</span>
+<span class="sd">    .. math:: f(z)=\left( 1+\sum_{d=1}^D c_dz_d\right)^{-(D+1)}</span>
 
-<span class="sd">    Product Peak (&#39;product-peak&#39;)</span>
+<span class="sd">    Gaussian Peak (&#39;gaussian&#39;)</span>
 
-<span class="sd">    .. math:: f(z) = \prod_{i=1}^d \left(c_i^{-2}+(z_i-w_i)^2\right)^{-1}</span>
+<span class="sd">    .. math:: f(z) = \exp\left( -\sum_{d=1}^D c_d^2(z_d-w_d)^2\right)</span>
+
+<span class="sd">    C0 Continuous (&#39;c0continuous&#39;)</span>
+
+<span class="sd">    .. math:: f(z) = \exp\left( -\sum_{d=1}^D c_d\lvert z_d-w_d\rvert\right)</span>
 
 <span class="sd">    Discontinuous (&#39;discontinuous&#39;)</span>
 
-<span class="sd">    .. math:: f(z) = \begin{cases}0 &amp; x_1&gt;u_1 \;\mathrm{or}\; x_2&gt;u_2\\\exp\left(\sum_{i=1}^d c_iz_i\right) &amp; \mathrm{otherwise}\end{cases}</span>
+<span class="sd">    .. math:: f(z) = \begin{cases}0 &amp; z_1&gt;w_1 \;\mathrm{or}\; z_2&gt;w_2\\\exp\left(\sum_{d=1}^D c_d z_d\right) &amp; \mathrm{otherwise}\end{cases}</span>
 
+<span class="sd">    Increasing :math:`\lVert c \rVert` will in general make</span>
+<span class="sd">    the integrands more difficult.</span>
+
+<span class="sd">    The :math:`0\le w_d \le 1` parameters do not affect the difficulty</span>
+<span class="sd">    of the integration problem. We set :math:`w_1=w_2=\ldots=W_D`.</span>
+
+<span class="sd">    The coefficient types implement different decay rates for :math:`c_d`.</span>
+<span class="sd">    This allows testing of methods that can identify and exploit anisotropy.</span>
+<span class="sd">    They are as follows:</span>
+
+<span class="sd">    No decay (none)</span>
+
+<span class="sd">    .. math:: \hat{c}_d=\frac{d+0.5}{D}</span>
+
+<span class="sd">    Quadratic decay (qudratic)</span>
+
+<span class="sd">    .. math:: \hat{c}_d = \frac{1}{(D + 1)^2}</span>
+
+<span class="sd">    Quartic decay (quartic)</span>
+
+<span class="sd">    .. math:: \hat{c}_d = \frac{1}{(D + 1)^4}</span>
+
+<span class="sd">    Exponential decay (exp)</span>
+
+<span class="sd">    .. math:: \hat{c}_d=\exp\left(\log(c_\mathrm{min})\frac{d+1}{D}\right)</span>
+
+<span class="sd">    Squared-exponential decay (sqexp)</span>
+
+<span class="sd">    .. math:: \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D}\right)}</span>
+
+<span class="sd">    Here :math:`c_\mathrm{min}` is argument that sets the minimum value of :math:`c_D`.</span>
+
+<span class="sd">    Once the formula are used the coefficients are normalized such that</span>
+
+<span class="sd">    .. math:: c_d = c_\text{factor}\frac{\hat{c}_d}{\sum_{d=1}^D \hat{c}_d}.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">genz</span> <span class="o">=</span> <span class="n">GenzFunction</span><span class="p">(</span><span class="n">test_name</span><span class="p">,</span> <span class="n">nvars</span><span class="p">)</span>
+    <span class="n">genz</span> <span class="o">=</span> <span class="n">GenzFunction</span><span class="p">()</span>
     <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span><span class="o">*</span><span class="n">nvars</span>
     <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">coefficients</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">genz</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;squared-exponential-decay&#39;</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">genz</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="n">genz</span><span class="o">.</span><span class="n">w</span> <span class="o">=</span> <span class="n">coefficients</span>
-    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">genz</span><span class="p">,</span> <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">genz</span><span class="o">.</span><span class="n">integrate</span><span class="p">(),</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">}</span>
-    <span class="k">if</span> <span class="n">test_name</span> <span class="o">==</span> <span class="s1">&#39;corner-peak&#39;</span><span class="p">:</span>
-        <span class="n">attributes</span><span class="p">[</span><span class="s1">&#39;variance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">genz</span><span class="o">.</span><span class="n">variance</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">coeff_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">coeff_type</span> <span class="o">=</span> <span class="s1">&#39;none&#39;</span>
+    <span class="n">genz</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">c_factor</span><span class="p">,</span> <span class="n">coeff_type</span><span class="p">,</span> <span class="n">w</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">genz</span><span class="o">.</span><span class="n">_c</span><span class="p">,</span> <span class="n">genz</span><span class="o">.</span><span class="n">_w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">coeff</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">coeff</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">genz</span><span class="o">.</span><span class="n">_c</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">genz</span><span class="o">.</span><span class="n">_c</span> <span class="o">=</span> <span class="n">genz</span><span class="o">.</span><span class="n">_c</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">genz</span><span class="o">.</span><span class="n">_w</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">genz</span><span class="o">.</span><span class="n">_w</span> <span class="o">=</span> <span class="n">genz</span><span class="o">.</span><span class="n">_w</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="k">assert</span> <span class="n">genz</span><span class="o">.</span><span class="n">_c</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">genz</span><span class="o">.</span><span class="n">_w</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">genz</span><span class="p">,</span> <span class="n">test_name</span><span class="p">),</span>
+                  <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">genz</span><span class="o">.</span><span class="n">integrate</span><span class="p">(</span><span class="n">test_name</span><span class="p">),</span>
+                  <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">}</span>
     <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span></div>
 
 
@@ -565,7 +622,7 @@
 
 
 <div class="viewcode-block" id="setup_piston_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_piston_benchmark.html#pyapprox.benchmarks.setup_piston_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_piston_benchmark</span><span class="p">():</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    benchmark : :py:class:`~pyapprox.benchmarks.Benchmark`</span>
@@ -597,7 +654,7 @@
 
 
 <div class="viewcode-block" id="setup_wing_weight_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_wing_weight_benchmark.html#pyapprox.benchmarks.setup_wing_weight_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_wing_weight_benchmark</span><span class="p">():</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Setup the wing weight model benchmark.</span>
 
 <span class="sd">    The model is given by</span>
@@ -646,7 +703,7 @@
 
 
 <span class="k">def</span> <span class="nf">setup_chemical_reaction_benchmark</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Setup the chemical reaction model benchmark</span>
 
 <span class="sd">    Model of species absorbing onto a surface out of gas phase</span>
@@ -710,7 +767,7 @@
 
 
 <div class="viewcode-block" id="setup_polynomial_ensemble"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_polynomial_ensemble.html#pyapprox.benchmarks.setup_polynomial_ensemble">[docs]</a><span class="k">def</span> <span class="nf">setup_polynomial_ensemble</span><span class="p">():</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return an ensemble of 5 univariate models of the form</span>
 
 <span class="sd">    .. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4</span>
@@ -771,17 +828,19 @@
 <div class="viewcode-block" id="setup_multi_index_advection_diffusion_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark.html#pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_multi_index_advection_diffusion_benchmark</span><span class="p">(</span>
         <span class="n">kle_nvars</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">kle_length_scale</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">kle_stdev</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
         <span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">time_scenario</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="n">functional</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">config_values</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+        <span class="n">functional</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">config_values</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">source_loc</span><span class="o">=</span><span class="p">[</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">],</span> <span class="n">source_scale</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">source_amp</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span> <span class="n">vel_vec</span><span class="o">=</span><span class="p">[</span><span class="mf">1.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">],</span> <span class="n">kle_mean_field</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This benchmark is used to test methods for forward propagation of</span>
 <span class="sd">    uncertainty. The forward simulation model is the transient</span>
 <span class="sd">    advection-diffusion model</span>
 
 <span class="sd">    .. math::</span>
 
-<span class="sd">       \frac{\partial u}{\partial t}(x,t,\rv) &amp;= \nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] -\nabla u(x,t,\rv)+g(x,t) &amp;(x,t,\rv)\in D\times [0,1]\times\rvdom\\</span>
-<span class="sd">       \mathcal{B}(x,t,\rv)&amp;=0  &amp;(x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\</span>
-<span class="sd">       u(x,t,\rv)&amp;=u_0(x,\rv) &amp; (x,t,\rv)\in D\times\{t=0\}\times\rvdom</span>
+<span class="sd">       \frac{\partial u}{\partial t}(x,t,\rv) = \nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] -\nabla \cdot (v u(x,t,\rv))+g(x,t) &amp;(x,t,\rv)\in D\times [0,1]\times\rvdom\\</span>
+<span class="sd">       \mathcal{B}(x,t,\rv)=0  &amp;(x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\</span>
+<span class="sd">       u(x,t,\rv)=u_0(x,\rv) &amp; (x,t,\rv)\in D\times\{t=0\}\times\rvdom</span>
 
 <span class="sd">    where</span>
 
@@ -789,15 +848,15 @@
 
 <span class="sd">        g(x,t)=\frac{100}{2\pi 0.1^2}\exp\left(-\frac{\lvert x-[0.25,0.75]^\top\rvert^2}{2\cdot 0.1^2}\right)-\frac{s_\mathrm{sink}}{2\pi h_\mathrm{sink}^2}\exp\left(-\frac{\lvert x-x_\mathrm{sink}\rvert^2}{2h_\mathrm{sink}^2}\right)</span>
 
-<span class="sd">    and :math:`B(x,t,z)` is set to enforce Dirichlet boundary conditions, i.e.</span>
+<span class="sd">    and :math:`B(x,t,z)` enforces Robin boundary conditions, i.e.</span>
 
-<span class="sd">    .. math:: u(x) = 0 \quad\mathrm{on} \quad\partial D</span>
+<span class="sd">    .. math:: K(x,\rv)\nabla u(x,t,\rv)\cdot n -0.1 u(x,t,\rv)= 0 \quad\mathrm{on} \quad\partial D</span>
 
 
 <span class="sd">    As with the :py:func:`pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark`</span>
 <span class="sd">    we parameterize the uncertain diffusivity with a Karhunen Loeve Expansion (KLE)</span>
 
-<span class="sd">    .. math:: k(x, \rv)=\exp\left(\sum_{d=1}^D \sqrt{\lambda_d}\psi_d(x)\rv_d\right).</span>
+<span class="sd">    .. math:: k(x, \rv)=\exp\left(k_0+\sum_{d=1}^D \sqrt{\lambda_d}\psi_d(x)\rv_d\right).</span>
 
 <span class="sd">    If no initial condition is provided by the user then the governing equations in :py:func:`pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark` is used to create an initial condition, where the forcing is set to be the first term of :math:`g` here. I.e. the steady state solution before the second term of :math:`g` is used to remove the concentration :math:`u` from the domain.</span>
 
@@ -810,7 +869,7 @@
 <span class="sd">    If not time_scenario is provided. The QoI from the steady state solution is returned.</span>
 
 <span class="sd">    This benchmark can be modified by</span>
-<span class="sd">    changing the default keyword arguments if necessary but is not recommended.</span>
+<span class="sd">    changing the default keyword arguments if necessary.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -837,10 +896,10 @@
 <span class="sd">               &quot;butcher_tableau&quot;: &quot;im_crank2&quot;,</span>
 <span class="sd">               &quot;deltat&quot;: 0.1,  # default will be overwritten</span>
 <span class="sd">               &quot;init_sol_fun&quot;: None,</span>
-<span class="sd">               &quot;sink&quot;: [50, 0.1, [0.75, 0.75]]</span>
+<span class="sd">               &quot;sink&quot;: None</span>
 <span class="sd">               }</span>
 
-<span class="sd">        Respectively, the entries of sink are :math:`s_\mathrm{sink}, h_\mathrm{sink}, x_\mathrm{sink}`</span>
+<span class="sd">        Respectively, the entries of sink are :math:`s_\mathrm{sink}, h_\mathrm{sink}, x_\mathrm{sink}`, e.g. [50, 0.1, [0.75, 0.75]]. If None then the sink will be turned off.</span>
 <span class="sd">        init_sol is a callable function with signature ``init_sol_fun(x) -&gt; np.ndarray (nx, 1)``</span>
 <span class="sd">        where ``x`` is np.ndarray (nphys_vars, nx) are physical coordinates in the mesh. ``butcher_tableau`` specifies the time-stepping scheme which can be either</span>
 <span class="sd">        ``im_beuler1`` or ``im_crank2``. ``final_time`` specifies :math:`T`.</span>
@@ -860,6 +919,21 @@
 <span class="sd">        the values of the degrees that can be used to construct the</span>
 <span class="sd">        collocation mesh in each physical direction. The third is an array of</span>
 <span class="sd">        the timestep sizes that can be used to integrate the PDE in time.</span>
+
+<span class="sd">    source_loc : np.ndarray (2)</span>
+<span class="sd">        The center of the source</span>
+
+<span class="sd">    source_amp : float</span>
+<span class="sd">        The source strength :math:`s`</span>
+
+<span class="sd">    source_scale : float</span>
+<span class="sd">        The source width :math:`h`</span>
+
+<span class="sd">    vel_vec: iterable (2) default [1., 0.]</span>
+<span class="sd">        The spatially independent velocity field :math:`v`</span>
+
+<span class="sd">    kle_mean_field : float (default 0)</span>
+<span class="sd">        The spatially independent mean :math:`k_0` of the KLE field in log space</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -915,9 +989,12 @@
 <span class="sd">    dict_keys([&#39;fun&#39;, &#39;variable&#39;])</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">base_model</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">config_var_trans</span><span class="p">,</span> <span class="n">model_ensemble</span> <span class="o">=</span> <span class="p">(</span>
-         <span class="n">_setup_multi_index_advection_diffusion_benchmark</span><span class="p">(</span>
+        <span class="n">_setup_multi_index_advection_diffusion_benchmark</span><span class="p">(</span>
             <span class="n">kle_length_scale</span><span class="p">,</span> <span class="n">kle_stdev</span><span class="p">,</span> <span class="n">kle_nvars</span><span class="p">,</span> <span class="n">time_scenario</span><span class="o">=</span><span class="n">time_scenario</span><span class="p">,</span>
-            <span class="n">functional</span><span class="o">=</span><span class="n">functional</span><span class="p">,</span> <span class="n">config_values</span><span class="o">=</span><span class="n">config_values</span><span class="p">))</span>
+            <span class="n">functional</span><span class="o">=</span><span class="n">functional</span><span class="p">,</span> <span class="n">config_values</span><span class="o">=</span><span class="n">config_values</span><span class="p">,</span>
+            <span class="n">source_loc</span><span class="o">=</span><span class="n">source_loc</span><span class="p">,</span> <span class="n">source_scale</span><span class="o">=</span><span class="n">source_scale</span><span class="p">,</span>
+            <span class="n">source_amp</span><span class="o">=</span><span class="n">source_amp</span><span class="p">,</span> <span class="n">vel_vec</span><span class="o">=</span><span class="n">vel_vec</span><span class="p">,</span>
+            <span class="n">kle_mean_field</span><span class="o">=</span><span class="n">kle_mean_field</span><span class="p">))</span>
     <span class="n">timer_model</span> <span class="o">=</span> <span class="n">TimerModel</span><span class="p">(</span><span class="n">base_model</span><span class="p">,</span> <span class="n">base_model</span><span class="p">)</span>
     <span class="n">pool_model</span> <span class="o">=</span> <span class="n">PoolModel</span><span class="p">(</span>
         <span class="n">timer_model</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">,</span> <span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span><span class="p">)</span>
@@ -937,7 +1014,7 @@
         <span class="n">kle_length_scale</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">kle_stdev</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">kle_nvars</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">true_sample</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">orders</span><span class="o">=</span><span class="p">[</span><span class="mi">20</span><span class="p">,</span> <span class="mi">20</span><span class="p">],</span> <span class="n">noise_stdev</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">nobs</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
         <span class="n">obs_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A benchmark for testing maximum likelihood estimation and Bayesian inference algorithms that involves</span>
 <span class="sd">    learning the uncertain parameters :math:`\rv` from synthteically generated observational data using</span>
 <span class="sd">    the model</span>
@@ -1118,7 +1195,7 @@
 
 
 <div class="viewcode-block" id="setup_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_benchmark.html#pyapprox.benchmarks.setup_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_benchmark</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Setup a PyApprox benchmark.</span>
 
 <span class="sd">    Parameters</span>
@@ -1157,7 +1234,7 @@
 
 
 <div class="viewcode-block" id="list_benchmarks"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.list_benchmarks.html#pyapprox.benchmarks.list_benchmarks">[docs]</a><span class="k">def</span> <span class="nf">list_benchmarks</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    List the names of all available benchmarks</span>
 
 <span class="sd">    Returns</span>

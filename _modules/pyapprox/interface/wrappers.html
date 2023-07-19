@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.interface.wrappers &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.interface.wrappers &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.interface.wrappers</li>
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.interface.wrappers</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -92,20 +97,20 @@
 <span class="kn">import</span> <span class="nn">glob</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
 <span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">Pool</span>
-<span class="kn">import</span> <span class="nn">sys</span>
 <span class="kn">import</span> <span class="nn">pickle</span>
 <span class="kn">import</span> <span class="nn">copy</span>
+<span class="c1"># from tqdm import tqdm</span>
 
 <span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">get_all_sample_combinations</span><span class="p">,</span> <span class="n">hash_array</span><span class="p">,</span> <span class="n">cartesian_product</span>
 <span class="p">)</span>
-<span class="kn">from</span> <span class="nn">pyapprox.util.sys_utilities</span> <span class="kn">import</span> <span class="n">get_num_args</span><span class="p">,</span> <span class="n">has_kwarg</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.sys_utilities</span> <span class="kn">import</span> <span class="n">has_kwarg</span>
 <span class="kn">from</span> <span class="nn">pyapprox.variables.transforms</span> <span class="kn">import</span> <span class="n">ConfigureVariableTransformation</span>
 
 
 <div class="viewcode-block" id="evaluate_1darray_function_on_2d_array"><a class="viewcode-back" href="../../../api/pyapprox.interface.evaluate_1darray_function_on_2d_array.html#pyapprox.interface.evaluate_1darray_function_on_2d_array">[docs]</a><span class="k">def</span> <span class="nf">evaluate_1darray_function_on_2d_array</span><span class="p">(</span>
-        <span class="n">function</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">statusbar</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+        <span class="n">function</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">statusbar</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Evaluate a function at a set of samples using a function that only takes</span>
 <span class="sd">    one sample at a time</span>
 
@@ -127,28 +132,29 @@
 <span class="sd">        True - print status bar showing progress to stdout</span>
 <span class="sd">        False - do not print</span>
 
-<span class="sd">    jac : boolean</span>
+<span class="sd">    return_grad : boolean</span>
 <span class="sd">        True - values and return gradient</span>
 <span class="sd">        False - return just gradient</span>
-<span class="sd">        If function does not accept the jac kwarg an exception wil be raised</span>
+<span class="sd">        If function does not accept the return_grad kwarg an exception will</span>
+<span class="sd">         be raised</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    values : np.ndarray (num_samples, num_qoi)</span>
 <span class="sd">        The value of each requested QoI of the model for each sample</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">has_jac</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="s2">&quot;jac&quot;</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">jac</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_jac</span><span class="p">:</span>
-        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;jac set to true but function does not return jac&quot;</span>
+    <span class="n">has_return_grad</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="s2">&quot;return_grad&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">return_grad</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_return_grad</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;return_grad set to true but function does not return grad&quot;</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
     <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
     <span class="n">num_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
     <span class="n">grads</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">has_jac</span> <span class="ow">or</span> <span class="n">jac</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">has_return_grad</span> <span class="ow">or</span> <span class="n">return_grad</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
         <span class="n">values_0</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">values_0</span><span class="p">,</span> <span class="n">grad_0</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">jac</span><span class="o">=</span><span class="n">jac</span><span class="p">)</span>
+        <span class="n">values_0</span><span class="p">,</span> <span class="n">grad_0</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">return_grad</span><span class="o">=</span><span class="n">return_grad</span><span class="p">)</span>
         <span class="k">assert</span> <span class="n">grad_0</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
         <span class="n">grads</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">grad_0</span><span class="p">)</span>
     <span class="n">values_0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">values_0</span><span class="p">)</span>
@@ -156,23 +162,19 @@
     <span class="n">num_qoi</span> <span class="o">=</span> <span class="n">values_0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_samples</span><span class="p">,</span> <span class="n">num_qoi</span><span class="p">),</span> <span class="nb">float</span><span class="p">)</span>
     <span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">values_0</span>
+    <span class="c1"># if statusbar:</span>
+    <span class="c1">#     pbar = tqdm(total=num_samples)</span>
+    <span class="c1">#     pbar.update(1)</span>
     <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_jac</span> <span class="ow">or</span> <span class="n">jac</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_return_grad</span> <span class="ow">or</span> <span class="n">return_grad</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
             <span class="n">values</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">])</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">val_ii</span><span class="p">,</span> <span class="n">grad_ii</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">],</span> <span class="n">jac</span><span class="o">=</span><span class="n">jac</span><span class="p">)</span>
+            <span class="n">val_ii</span><span class="p">,</span> <span class="n">grad_ii</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">],</span> <span class="n">return_grad</span><span class="o">=</span><span class="n">return_grad</span><span class="p">)</span>
             <span class="n">values</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">val_ii</span>
             <span class="n">grads</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">grad_ii</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">statusbar</span><span class="p">:</span>
-            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\r</span><span class="s1">&#39;</span><span class="p">)</span>
-            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;[{:</span><span class="si">{}</span><span class="s2">}] </span><span class="si">{:.1f}</span><span class="s2">%&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
-                <span class="s2">&quot;=&quot;</span><span class="o">*</span><span class="nb">int</span><span class="p">(</span><span class="n">ii</span><span class="o">/</span><span class="p">(</span><span class="n">num_samples</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="mi">10</span><span class="p">),</span> <span class="mi">10</span><span class="p">,</span> <span class="p">(</span><span class="mi">100</span><span class="o">/</span><span class="p">(</span><span class="n">num_samples</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">ii</span><span class="p">)))</span>
-            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">statusbar</span><span class="p">:</span>
-        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
-        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
-
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+        <span class="c1"># if statusbar:</span>
+        <span class="c1">#     pbar.update(1)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">values</span>
     <span class="k">if</span> <span class="n">num_qoi</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">grads</span><span class="p">)</span>
@@ -189,7 +191,7 @@
 
 
 <span class="k">def</span> <span class="nf">run_shell_command</span><span class="p">(</span><span class="n">shell_command</span><span class="p">,</span> <span class="n">opts</span><span class="o">=</span><span class="p">{}):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Execute a shell command.</span>
 
 <span class="sd">    Parameters</span>
@@ -230,7 +232,7 @@
 
 
 <div class="viewcode-block" id="DataFunctionModel"><a class="viewcode-back" href="../../../api/pyapprox.interface.DataFunctionModel.html#pyapprox.interface.DataFunctionModel">[docs]</a><span class="k">class</span> <span class="nc">DataFunctionModel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create a queriable function that stores samples and</span>
 <span class="sd">    associated function values and returns stored values</span>
 <span class="sd">    for samples in the database or otherwise evaluate the</span>
@@ -238,8 +240,9 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_basename</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                 <span class="n">save_frequency</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_hash</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">digits</span><span class="o">=</span><span class="mi">16</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+                 <span class="n">save_frequency</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_hash</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">digits</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span>
+                 <span class="n">base_model</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        function : callable</span>
@@ -274,10 +277,11 @@
 <span class="sd">            all samples in the database. This is slower.</span>
 
 <span class="sd">        digits : integer</span>
-<span class="sd">            The number of significant digits used to ahs or compare samples</span>
+<span class="sd">            The number of significant digits used to has or compare samples</span>
 <span class="sd">            in the database</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_model</span> <span class="o">=</span> <span class="n">base_model</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
@@ -356,7 +360,7 @@
         <span class="c1"># ran samples</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">num_evaluations_ran</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span></div>
 
-    <span class="k">def</span> <span class="nf">_batch_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_batch_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="p">):</span>
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_frequency</span> <span class="o">&gt;</span> <span class="mi">0</span>
         <span class="n">num_batch_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_frequency</span>
         <span class="n">lb</span> <span class="o">=</span> <span class="mi">0</span>
@@ -366,16 +370,26 @@
             <span class="n">ub</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">lb</span><span class="o">+</span><span class="n">num_batch_samples</span><span class="p">,</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
             <span class="n">num_evaluations_ran</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_evaluations_ran</span>
             <span class="n">batch_vals</span><span class="p">,</span> <span class="n">batch_grads</span><span class="p">,</span> <span class="n">new_sample_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_call</span><span class="p">(</span>
-                <span class="n">samples</span><span class="p">[:,</span> <span class="n">lb</span><span class="p">:</span><span class="n">ub</span><span class="p">],</span> <span class="n">jac</span><span class="p">)</span>
-            <span class="n">data_filename</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_basename</span><span class="o">+</span><span class="s1">&#39;-</span><span class="si">%d</span><span class="s1">-</span><span class="si">%d</span><span class="s1">.pkl&#39;</span> <span class="o">%</span> <span class="p">(</span>
-                <span class="n">num_evaluations_ran</span><span class="p">,</span>
-                <span class="n">num_evaluations_ran</span><span class="o">+</span><span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">jac</span><span class="p">:</span>
+                <span class="n">samples</span><span class="p">[:,</span> <span class="n">lb</span><span class="p">:</span><span class="n">ub</span><span class="p">],</span> <span class="n">return_grad</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">return_grad</span><span class="p">:</span>
                 <span class="n">grads_4_save</span> <span class="o">=</span> <span class="p">[</span><span class="n">batch_grads</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">new_sample_indices</span><span class="p">]</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">grads_4_save</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">new_sample_indices</span><span class="p">]</span>
             <span class="c1"># I think this code will work only if function always does or does</span>
             <span class="c1"># not return grads</span>
+            <span class="k">if</span> <span class="n">vals</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">vals</span> <span class="o">=</span> <span class="n">batch_vals</span>
+                <span class="n">grads</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">batch_grads</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">vals</span><span class="p">,</span> <span class="n">batch_vals</span><span class="p">))</span>
+                <span class="n">grads</span> <span class="o">+=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">batch_grads</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">lb</span> <span class="o">=</span> <span class="n">ub</span>
+                <span class="k">continue</span>
+            <span class="n">data_filename</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_basename</span><span class="o">+</span><span class="s1">&#39;-</span><span class="si">%d</span><span class="s1">-</span><span class="si">%d</span><span class="s1">.pkl&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                <span class="n">num_evaluations_ran</span><span class="p">,</span>
+                <span class="n">num_evaluations_ran</span><span class="o">+</span><span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
             <span class="c1"># np.savez(data_filename, vals=batch_vals[new_sample_indices],</span>
             <span class="c1">#          samples=samples[:, lb:ub][:, new_sample_indices],</span>
             <span class="c1">#          grads=grads_4_save)</span>
@@ -383,21 +397,16 @@
                 <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">((</span>
                     <span class="n">batch_vals</span><span class="p">[</span><span class="n">new_sample_indices</span><span class="p">],</span>
                     <span class="n">samples</span><span class="p">[:,</span> <span class="n">lb</span><span class="p">:</span><span class="n">ub</span><span class="p">][:,</span> <span class="n">new_sample_indices</span><span class="p">],</span> <span class="n">grads_4_save</span><span class="p">),</span> <span class="n">f</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">vals</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">vals</span> <span class="o">=</span> <span class="n">batch_vals</span>
-                <span class="n">grads</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">batch_grads</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">vals</span><span class="p">,</span> <span class="n">batch_vals</span><span class="p">))</span>
-                <span class="n">grads</span> <span class="o">+=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">batch_grads</span><span class="p">)</span>
             <span class="n">lb</span> <span class="o">=</span> <span class="n">ub</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">vals</span>
         <span class="k">return</span> <span class="n">vals</span><span class="p">,</span> <span class="n">grads</span>
 
-    <span class="k">def</span> <span class="nf">_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="p">):</span>
-        <span class="n">has_jac</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="s2">&quot;jac&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">jac</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_jac</span><span class="p">:</span>
-            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;jac set to true but function does not return jac&quot;</span>
+    <span class="k">def</span> <span class="nf">_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="p">):</span>
+        <span class="n">has_return_grad</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="s2">&quot;return_grad&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">return_grad</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_return_grad</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;return_grad set to true but function does not return return_grad&quot;</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
         <span class="n">evaluated_sample_indices</span> <span class="o">=</span> <span class="p">[]</span>
@@ -424,12 +433,13 @@
         <span class="n">evaluated_sample_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">evaluated_sample_indices</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">new_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[:,</span> <span class="n">new_sample_indices</span><span class="p">]</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">has_jac</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">has_return_grad</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
                 <span class="n">new_values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="n">new_samples</span><span class="p">)</span>
                 <span class="n">num_qoi</span> <span class="o">=</span> <span class="n">new_values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
                 <span class="n">new_grads</span> <span class="o">=</span> <span class="kc">None</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">new_values</span><span class="p">,</span> <span class="n">new_grads</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="n">new_samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="n">jac</span><span class="p">)</span>
+                <span class="n">new_values</span><span class="p">,</span> <span class="n">new_grads</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">(</span>
+                    <span class="n">new_samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="n">return_grad</span><span class="p">)</span>
                 <span class="n">num_qoi</span> <span class="o">=</span> <span class="n">new_values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
 
         <span class="k">else</span><span class="p">:</span>
@@ -442,7 +452,7 @@
             <span class="n">new_grads_list</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">))]</span>
             <span class="k">if</span> <span class="n">new_grads</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)):</span>
-                    <span class="c1"># TODO need to make sure fun(sampels, jac)=True</span>
+                    <span class="c1"># TODO need to make sure fun(sampels, return_grad)=True</span>
                     <span class="c1"># can return list of grads for each sample</span>
                     <span class="c1"># or a 2d array if nqoi=1</span>
                     <span class="n">new_grads_list</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">new_grads</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
@@ -453,7 +463,7 @@
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
             <span class="n">values</span><span class="p">[</span><span class="n">evaluated_sample_indices</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> \
                 <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">evaluated_sample_indices</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">:]</span>
-            <span class="k">if</span> <span class="n">has_jac</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">has_return_grad</span><span class="p">:</span>
                 <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">evaluated_sample_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
                     <span class="n">grads</span><span class="p">[</span><span class="n">evaluated_sample_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">grads</span><span class="p">[</span>
@@ -463,14 +473,14 @@
                 <span class="n">jj</span> <span class="o">=</span> <span class="mi">0</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">samples</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">values</span> <span class="o">=</span> <span class="n">values</span>
-                <span class="k">if</span> <span class="n">has_jac</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">has_return_grad</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">grads</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">grads</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">jj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
                     <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span> <span class="n">samples</span><span class="p">[:,</span> <span class="n">new_sample_indices</span><span class="p">]))</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">new_values</span><span class="p">))</span>
-                <span class="k">if</span> <span class="n">has_jac</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">has_return_grad</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">grads</span> <span class="o">+=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">new_grads</span><span class="p">)</span>
 
             <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)):</span>
@@ -491,19 +501,20 @@
         <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">grads</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">g</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="c1"># TODO remove exception and rerun samples to get grads</span>
-                <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;jac=True but previous samples evaluated did not have grads&quot;</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;return_grad=True but previous samples evaluated did &quot;</span>
+                <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;not have grads&quot;</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
-<div class="viewcode-block" id="DataFunctionModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.interface.DataFunctionModel.html#pyapprox.interface.DataFunctionModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<div class="viewcode-block" id="DataFunctionModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.interface.DataFunctionModel.html#pyapprox.interface.DataFunctionModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_frequency</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_frequency</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_batch_call</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="p">)</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_batch_call</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">out</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_grads_valid</span><span class="p">(</span><span class="n">out</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
             <span class="k">return</span> <span class="n">out</span>
 
-        <span class="n">values</span><span class="p">,</span> <span class="n">grads</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_call</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-        <span class="k">if</span> <span class="n">jac</span><span class="p">:</span>
+        <span class="n">values</span><span class="p">,</span> <span class="n">grads</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_call</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">return_grad</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_grads_valid</span><span class="p">(</span><span class="n">grads</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="n">grads</span>
         <span class="k">return</span> <span class="n">values</span></div></div>
@@ -511,7 +522,7 @@
 
 <span class="k">def</span> <span class="nf">run_model_samples_in_parallel</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span>
                                   <span class="n">pool</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">assert_omp</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Warning</span>
 <span class="sd">    -------</span>
 <span class="sd">    pool.map serializes each argument and so if model is a class,</span>
@@ -543,42 +554,42 @@
     <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="nb">tuple</span><span class="p">:</span>
         <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="mi">2</span>
         <span class="n">num_qoi</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">jac</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">jacs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">return_grad</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">return_grads</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">num_qoi</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">jac</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">return_grad</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_samples</span><span class="p">,</span> <span class="n">num_qoi</span><span class="p">))</span>
     <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
             <span class="n">values</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">values</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
             <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="nb">list</span><span class="p">:</span>
-                <span class="n">jacs</span> <span class="o">+=</span> <span class="n">result</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">return_grads</span> <span class="o">+=</span> <span class="n">result</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">jacs</span> <span class="o">+=</span> <span class="p">[</span><span class="n">result</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="mi">1</span><span class="p">]]</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+                <span class="n">return_grads</span> <span class="o">+=</span> <span class="p">[</span><span class="n">result</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="mi">1</span><span class="p">]]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">values</span>
-    <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="n">jacs</span>
+    <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="n">return_grads</span>
 
 
-<span class="k">def</span> <span class="nf">time_function_evaluations</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="n">has_jac</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="s2">&quot;jac&quot;</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">jac</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_jac</span><span class="p">:</span>
-        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;jac set to true but function does not return jac&quot;</span>
+<span class="k">def</span> <span class="nf">time_function_evaluations</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="n">has_return_grad</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="s2">&quot;return_grad&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">return_grad</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_return_grad</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;return_grad set to true but function does not return grad&quot;</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
     <span class="n">vals</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">grads</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">times</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">has_jac</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="s2">&quot;jac&quot;</span><span class="p">)</span>
+    <span class="n">has_return_grad</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="s2">&quot;return_grad&quot;</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
         <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_jac</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_return_grad</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
             <span class="n">val</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">])[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">out</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="n">jac</span><span class="o">=</span><span class="n">jac</span><span class="p">)</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="n">return_grad</span><span class="o">=</span><span class="n">return_grad</span><span class="p">)</span>
             <span class="n">val</span> <span class="o">=</span> <span class="n">out</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
             <span class="n">grads</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">out</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
         <span class="n">t1</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
@@ -594,13 +605,13 @@
 
 
 <div class="viewcode-block" id="TimerModel"><a class="viewcode-back" href="../../../api/pyapprox.interface.TimerModel.html#pyapprox.interface.TimerModel">[docs]</a><span class="k">class</span> <span class="nc">TimerModel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return the wall-time needed to evaluate a function at each sample</span>
 <span class="sd">    as an additional quantity of interest.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">base_model</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        function : callable</span>
@@ -650,13 +661,13 @@
     <span class="c1">#     raise AttributeError(</span>
     <span class="c1">#         f&quot; {self} or its member {self}.function has no attribute &#39;{name}&#39;&quot;)</span>
 
-<div class="viewcode-block" id="TimerModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.interface.TimerModel.html#pyapprox.interface.TimerModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<div class="viewcode-block" id="TimerModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.interface.TimerModel.html#pyapprox.interface.TimerModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">time_function_evaluations</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">function_to_time</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="n">jac</span><span class="p">)</span></div></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">function_to_time</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="n">return_grad</span><span class="p">)</span></div></div>
 
 
 <span class="k">class</span> <span class="nc">WorkTracker</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Store the cost needed to evaluate a function under different</span>
 <span class="sd">    configurations, e.g. mesh resolution of a finite element model</span>
 <span class="sd">    used to solve a PDE.</span>
@@ -665,16 +676,18 @@
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">costs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_samples</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Read the cost of evaluating the functions with the ids given in</span>
 <span class="sd">        a set of config_samples.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        config_samples : np.ndarray (nconfig_vars,nsamples)</span>
-<span class="sd">            The configuration indices</span>
+<span class="sd">            The configuration indices. If None the default Id [0] is used</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">config_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">config_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([[</span><span class="mi">0</span><span class="p">]])</span>
         <span class="n">num_config_vars</span><span class="p">,</span> <span class="n">nqueries</span> <span class="o">=</span> <span class="n">config_samples</span><span class="o">.</span><span class="n">shape</span>
         <span class="n">costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nqueries</span><span class="p">))</span>
         <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nqueries</span><span class="p">):</span>
@@ -689,7 +702,7 @@
         <span class="k">return</span> <span class="n">costs</span>
 
     <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_samples</span><span class="p">,</span> <span class="n">costs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Update the cost of evaluating the functions with the ids given in</span>
 <span class="sd">        a set of config_samples.</span>
 
@@ -726,12 +739,12 @@
 
 
 <div class="viewcode-block" id="WorkTrackingModel"><a class="viewcode-back" href="../../../api/pyapprox.interface.WorkTrackingModel.html#pyapprox.interface.WorkTrackingModel">[docs]</a><span class="k">class</span> <span class="nc">WorkTrackingModel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Keep track of the wall time needed to evaluate a function.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">base_model</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">num_config_vars</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Keep track of the wall time needed to evaluate a function.</span>
 
 <span class="sd">        Parameters</span>
@@ -772,8 +785,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">base_model</span> <span class="o">=</span> <span class="n">base_model</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">num_config_vars</span> <span class="o">=</span> <span class="n">num_config_vars</span>
 
-<div class="viewcode-block" id="WorkTrackingModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.interface.WorkTrackingModel.html#pyapprox.interface.WorkTrackingModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="WorkTrackingModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.interface.WorkTrackingModel.html#pyapprox.interface.WorkTrackingModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate self.function</span>
 
 <span class="sd">        Parameters</span>
@@ -789,15 +802,15 @@
 <span class="sd">            is the cost of the simulation. This column is not included in</span>
 <span class="sd">            values.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">has_jac</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wt_function</span><span class="p">,</span> <span class="s2">&quot;jac&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">jac</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_jac</span><span class="p">:</span>
-            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;jac set to true but function does not return jac&quot;</span>
+        <span class="n">has_return_grad</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wt_function</span><span class="p">,</span> <span class="s2">&quot;return_grad&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">return_grad</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_return_grad</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;return_grad set to true but function does not return grad&quot;</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_jac</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_return_grad</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
             <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wt_function</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">data</span><span class="p">,</span> <span class="n">grads</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wt_function</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="n">jac</span><span class="p">)</span>
+            <span class="n">data</span><span class="p">,</span> <span class="n">grads</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wt_function</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="n">return_grad</span><span class="p">)</span>
         <span class="n">values</span> <span class="o">=</span> <span class="n">data</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
         <span class="n">work</span> <span class="o">=</span> <span class="n">data</span><span class="p">[:,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_config_vars</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
@@ -805,12 +818,12 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">config_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">work_tracker</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">config_samples</span><span class="p">,</span> <span class="n">work</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">values</span>
         <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="n">grads</span></div>
 
 <div class="viewcode-block" id="WorkTrackingModel.cost_function"><a class="viewcode-back" href="../../../api/pyapprox.interface.WorkTrackingModel.html#pyapprox.interface.WorkTrackingModel.cost_function">[docs]</a>    <span class="k">def</span> <span class="nf">cost_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_samples</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Retrun the cost of evaluating the functions with the ids given in</span>
 <span class="sd">        a set of config_samples. These samples are assumed to be in user space</span>
 <span class="sd">        not canonical space</span>
@@ -825,14 +838,14 @@
 
 
 <div class="viewcode-block" id="PoolModel"><a class="viewcode-back" href="../../../api/pyapprox.interface.PoolModel.html#pyapprox.interface.PoolModel">[docs]</a><span class="k">class</span> <span class="nc">PoolModel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Evaluate a function at multiple samples in parallel using</span>
 <span class="sd">    multiprocessing.Pool</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">,</span> <span class="n">assert_omp</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                  <span class="n">base_model</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        function : callable</span>
@@ -883,7 +896,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">pool_function</span> <span class="o">=</span> <span class="n">function</span>
 
 <div class="viewcode-block" id="PoolModel.set_max_eval_concurrency"><a class="viewcode-back" href="../../../api/pyapprox.interface.PoolModel.html#pyapprox.interface.PoolModel.set_max_eval_concurrency">[docs]</a>    <span class="k">def</span> <span class="nf">set_max_eval_concurrency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Set the number of threads used to evaluate the function</span>
 
 <span class="sd">        Parameters</span>
@@ -895,8 +908,8 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">max_eval_concurrency</span> <span class="o">=</span> <span class="n">max_eval_concurrency</span></div>
 
-<div class="viewcode-block" id="PoolModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.interface.PoolModel.html#pyapprox.interface.PoolModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="PoolModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.interface.PoolModel.html#pyapprox.interface.PoolModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate a function at multiple samples in parallel using</span>
 <span class="sd">        multiprocessing.Pool</span>
 
@@ -905,15 +918,15 @@
 <span class="sd">        samples : np.ndarray (nvars,nsamples)</span>
 <span class="sd">            Samples used to evaluate self.function</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">has_jac</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pool_function</span><span class="p">,</span> <span class="s2">&quot;jac&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">jac</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_jac</span><span class="p">:</span>
-            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;jac set to true but function does not return jac&quot;</span>
+        <span class="n">has_return_grad</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pool_function</span><span class="p">,</span> <span class="s2">&quot;return_grad&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">return_grad</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_return_grad</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;return_grad set to true but function does not return grad&quot;</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_jac</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_return_grad</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
             <span class="n">fun</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool_function</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">fun</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pool_function</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="n">jac</span><span class="p">)</span>
+            <span class="n">fun</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pool_function</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="n">return_grad</span><span class="p">)</span>
 
         <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
         <span class="n">vals</span> <span class="o">=</span> <span class="n">run_model_samples_in_parallel</span><span class="p">(</span>
@@ -927,25 +940,26 @@
 
 
 <span class="k">def</span> <span class="nf">get_active_set_model_from_variable</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">active_var_indices</span><span class="p">,</span>
-                                       <span class="n">nominal_values</span><span class="p">):</span>
-    <span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">IndependentMarginalsVariable</span>
+                                       <span class="n">nominal_values</span><span class="p">,</span> <span class="n">base_model</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.variables.joint</span> <span class="kn">import</span> <span class="n">IndependentMarginalsVariable</span>
     <span class="n">active_variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span>
         <span class="p">[</span><span class="n">variable</span><span class="o">.</span><span class="n">marginals</span><span class="p">()[</span><span class="n">ii</span><span class="p">]</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">active_var_indices</span><span class="p">])</span>
     <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
     <span class="n">mask</span><span class="p">[</span><span class="n">active_var_indices</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">inactive_var_values</span> <span class="o">=</span> <span class="n">nominal_values</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
     <span class="n">model</span> <span class="o">=</span> <span class="n">ActiveSetVariableModel</span><span class="p">(</span>
-        <span class="n">function</span><span class="p">,</span> <span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span> <span class="n">inactive_var_values</span><span class="p">,</span> <span class="n">active_var_indices</span><span class="p">)</span>
+        <span class="n">function</span><span class="p">,</span> <span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span> <span class="n">inactive_var_values</span><span class="p">,</span> <span class="n">active_var_indices</span><span class="p">,</span>
+        <span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">model</span><span class="p">,</span> <span class="n">active_variable</span>
 
 
 <span class="k">class</span> <span class="nc">ActiveSetVariableModel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create a model wrapper that only accepts a subset of the model variables.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span> <span class="n">inactive_var_values</span><span class="p">,</span>
-                 <span class="n">active_var_indices</span><span class="p">):</span>
+                 <span class="n">active_var_indices</span><span class="p">,</span> <span class="n">base_model</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="c1"># num_vars can de determined from inputs but making it</span>
         <span class="c1"># necessary allows for better error checking</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">function</span>
@@ -958,13 +972,10 @@
         <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">active_var_indices</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">inactive_var_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span>
             <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">),</span> <span class="n">active_var_indices</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_model</span> <span class="o">=</span> <span class="n">base_model</span>
 
-    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduced_samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="n">has_jac</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="s2">&quot;jac&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">jac</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_jac</span><span class="p">:</span>
-            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;jac set to true but function does not return jac&quot;</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-
+    <span class="k">def</span> <span class="nf">_expand_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduced_samples</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">reduced_samples</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
         <span class="n">raw_samples</span> <span class="o">=</span> <span class="n">get_all_sample_combinations</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">inactive_var_values</span><span class="p">,</span> <span class="n">reduced_samples</span><span class="p">)</span>
         <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">raw_samples</span><span class="p">)</span>
@@ -972,9 +983,17 @@
                 <span class="p">:]</span> <span class="o">=</span> <span class="n">raw_samples</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">inactive_var_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
         <span class="n">samples</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">active_var_indices</span><span class="p">,</span>
                 <span class="p">:]</span> <span class="o">=</span> <span class="n">raw_samples</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">inactive_var_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]:]</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_jac</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">samples</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduced_samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">has_return_grad</span> <span class="o">=</span> <span class="n">has_kwarg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="s2">&quot;return_grad&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">return_grad</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_return_grad</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;return_grad set to true but function does not return grad&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expand_samples</span><span class="p">(</span><span class="n">reduced_samples</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_return_grad</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">num_active_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inactive_var_indices</span><span class="p">)</span>
@@ -1006,15 +1025,18 @@
 
 
 <span class="k">class</span> <span class="nc">SingleFidelityWrapper</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create a single fidelity model that fixes the configuration variables</span>
 <span class="sd">    to user-defined nominal values.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">config_values</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">config_values</span><span class="p">,</span> <span class="n">base_model</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model</span>
         <span class="k">assert</span> <span class="n">config_values</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">config_values</span> <span class="o">=</span> <span class="n">config_values</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">base_model</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">base_model</span> <span class="o">=</span> <span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_model</span> <span class="o">=</span> <span class="n">base_model</span>
 
     <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
         <span class="n">multif_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span>
@@ -1033,7 +1055,7 @@
 
 
 <span class="k">class</span> <span class="nc">MultiLevelWrapper</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Specify a one-dimension model hierachy from a multiple dimensional</span>
 <span class="sd">    hierarchy</span>
 <span class="sd">    For example if model has configure variables which refine the x and y</span>
@@ -1077,13 +1099,13 @@
 
 
 <div class="viewcode-block" id="ModelEnsemble"><a class="viewcode-back" href="../../../api/pyapprox.interface.ModelEnsemble.html#pyapprox.interface.ModelEnsemble">[docs]</a><span class="k">class</span> <span class="nc">ModelEnsemble</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Wrapper class to allow easy one-dimensional</span>
 <span class="sd">    indexing of models in an ensemble.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">functions</span><span class="p">,</span> <span class="n">names</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        functions : list of callable</span>
@@ -1097,7 +1119,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="n">names</span>
 
 <div class="viewcode-block" id="ModelEnsemble.evaluate_at_separated_samples"><a class="viewcode-back" href="../../../api/pyapprox.interface.ModelEnsemble.html#pyapprox.interface.ModelEnsemble.evaluate_at_separated_samples">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate_at_separated_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples_list</span><span class="p">,</span> <span class="n">active_model_ids</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate a set of models at different sets of samples.</span>
 <span class="sd">        The models need not have the same parameters.</span>
 
@@ -1125,7 +1147,7 @@
         <span class="k">return</span> <span class="n">values_list</span></div>
 
 <div class="viewcode-block" id="ModelEnsemble.evaluate_models"><a class="viewcode-back" href="../../../api/pyapprox.interface.ModelEnsemble.html#pyapprox.interface.ModelEnsemble.evaluate_models">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate_models</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples_per_model</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate a set of models at a set of samples.</span>
 
 <span class="sd">        Parameters</span>
@@ -1158,7 +1180,7 @@
         <span class="k">return</span> <span class="n">values_per_model</span></div>
 
 <div class="viewcode-block" id="ModelEnsemble.__call__"><a class="viewcode-back" href="../../../api/pyapprox.interface.ModelEnsemble.html#pyapprox.interface.ModelEnsemble.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate a set of models at a set of samples. The models must have the</span>
 <span class="sd">        same parameters.</span>
 
@@ -1187,17 +1209,22 @@
             <span class="n">active_model_id</span> <span class="o">=</span> <span class="n">active_model_ids</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
             <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">model_ids</span> <span class="o">==</span> <span class="n">active_model_id</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
             <span class="n">values</span><span class="p">[</span><span class="n">II</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">functions</span><span class="p">[</span><span class="n">active_model_id</span><span class="p">](</span><span class="n">samples</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">II</span><span class="p">])</span>
-        <span class="k">return</span> <span class="n">values</span></div></div>
+        <span class="k">return</span> <span class="n">values</span></div>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">(nmodels=</span><span class="si">{1}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nmodels</span><span class="p">)</span></div>
 
 
 <span class="k">class</span> <span class="nc">MultiIndexModel</span><span class="p">():</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">setup_model</span><span class="p">,</span> <span class="n">config_values</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_nconfig_vars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">config_values</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_config_values</span> <span class="o">=</span> <span class="n">config_values</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_model_ensemble</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_multi_index_to_model_id_map</span> <span class="o">=</span> <span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_create_model_ensemble</span><span class="p">(</span><span class="n">setup_model</span><span class="p">,</span> <span class="n">config_values</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">_create_model_ensemble</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">setup_model</span><span class="p">,</span> <span class="n">config_values</span><span class="p">):</span>
-        <span class="n">config_var_trans</span> <span class="o">=</span> <span class="n">ConfigureVariableTransformation</span><span class="p">(</span><span class="n">config_values</span><span class="p">)</span>
+        <span class="c1"># config_var_trans = ConfigureVariableTransformation(config_values)</span>
         <span class="n">config_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">config_values</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
         <span class="n">models</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">config_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])]</span>
         <span class="n">multi_index_to_model_id_map</span> <span class="o">=</span> <span class="p">{}</span>
@@ -1213,11 +1240,86 @@
         <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nsamples</span><span class="p">):</span>
             <span class="n">key</span> <span class="o">=</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">config_samples</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">])</span>
             <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_multi_index_to_model_id_map</span><span class="p">:</span>
-                <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Model ID for : </span><span class="si">{</span><span class="n">config_samples</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">]</span><span class="si">}</span><span class="s2"> not found.&quot;</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Model ID for : </span><span class="si">{</span><span class="n">config_samples</span><span class="p">[:,</span><span class="w"> </span><span class="n">ii</span><span class="p">]</span><span class="si">}</span><span class="s2"> not found.&quot;</span>
                 <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
             <span class="n">model_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_multi_index_to_model_id_map</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_model_ensemble</span><span class="p">(</span>
             <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">samples</span><span class="p">[:</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_nconfig_vars</span><span class="p">,</span> <span class="p">:],</span> <span class="n">model_ids</span><span class="p">)))</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">(nconfig_values_per_config_var=</span><span class="si">{1}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config_values</span><span class="p">])</span>
+
+
+<span class="k">class</span> <span class="nc">ArchivedDataModel</span><span class="p">():</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+        <span class="c1"># todo add gradients and hess vec prods as optional args</span>
+
+        <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;values must have shape (nsamples, nqoi) but has shape&quot;</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">values</span> <span class="o">=</span> <span class="n">values</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_samples_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_samples_dict</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+        <span class="c1"># when randomness is None then rvs just iterates sequentially</span>
+        <span class="c1"># through samples until none are left. Useful for methods</span>
+        <span class="c1"># that require unique samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sample_cnt</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_samples_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_samples_dict</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_set_samples_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="n">samples_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hash_sample</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">samples_dict</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Duplicate samples detected&quot;</span><span class="p">)</span>
+            <span class="n">samples_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">ii</span>
+        <span class="k">return</span> <span class="n">samples_dict</span>
+
+    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_hash_sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sample</span><span class="p">):</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">key</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hash_sample</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samples_dict</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Sample not found&quot;</span><span class="p">)</span>
+            <span class="n">sample_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samples_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+            <span class="n">values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">sample_id</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">rvs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">randomness</span><span class="o">=</span><span class="s2">&quot;wo_replacement&quot;</span><span class="p">,</span>
+            <span class="n">return_indices</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Randomly sample with replacement from all available samples</span>
+<span class="sd">        if weights is None uniform weights are applied to each sample</span>
+<span class="sd">        otherwise sample according to weights</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">randomness</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sample_cnt</span><span class="o">+</span><span class="n">nsamples</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Too many samples requested when randomness is None. &quot;</span>
+                <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;self._sample+cnt_nsamples=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_sample_cnt</span><span class="o">+</span><span class="n">nsamples</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; but only </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> samples available&quot;</span>
+                <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot; This can be overidden by reseting self._sample_cnt=0&quot;</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sample_cnt</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sample_cnt</span><span class="o">+</span><span class="n">nsamples</span><span class="p">,</span>
+                                <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sample_cnt</span> <span class="o">+=</span> <span class="n">nsamples</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">nsamples</span><span class="p">,</span>
+                <span class="n">p</span><span class="o">=</span><span class="n">weights</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="p">(</span><span class="n">randomness</span> <span class="o">==</span> <span class="s2">&quot;replacement&quot;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">return_indices</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[:,</span> <span class="n">indices</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[:,</span> <span class="n">indices</span><span class="p">],</span> <span class="n">indices</span>
 </pre></div>
 
            </div>

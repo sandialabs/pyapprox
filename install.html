@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Installation &mdash; PyApprox 1.0.0 documentation</title>
+  <title>Installation &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
@@ -20,11 +20,12 @@
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Software Tutorials" href="auto_examples/index.html" />
+    <link rel="next" title="Software Tutorial" href="auto_examples/index.html" />
     <link rel="prev" title="About" href="intro.html" /> 
 </head>
 
@@ -33,12 +34,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="index.html" class="icon icon-home"> PyApprox
-            <img src="_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            PyApprox
+              <img src="_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,9 +53,11 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="intro.html">About</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#download">Download</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#install">Install</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#install-using-pip">Install using pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install-from-source">Install from source</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#download">Download</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#conda">Conda</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#conda-mamba">Conda+Mamba</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#pip">Pip</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
 </ul>
@@ -62,7 +69,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -87,8 +94,8 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
-      <li>Installation</li>
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Installation</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/install.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -99,21 +106,28 @@
            <div itemprop="articleBody">
              
   <section id="installation">
-<h1>Installation<a class="headerlink" href="#installation" title="Permalink to this headline"></a></h1>
+<h1>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h1>
+<section id="install-using-pip">
+<h2>Install using pip<a class="headerlink" href="#install-using-pip" title="Permalink to this heading"></a></h2>
+<p>The latest release of PyApprox can be installed using pip:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">pyapprox</span>
+</pre></div>
+</div>
+</section>
+<section id="install-from-source">
+<h2>Install from source<a class="headerlink" href="#install-from-source" title="Permalink to this heading"></a></h2>
+<p>PyApprox uploads wheels to PyPi for most operating systems and versions of Python. However, if the pip install fails, or you would just like to use the most recent version of PyApprox the following instructions can be used to install PyApprox from source.</p>
 <section id="download">
-<h2>Download<a class="headerlink" href="#download" title="Permalink to this headline"></a></h2>
+<h3>Download<a class="headerlink" href="#download" title="Permalink to this heading"></a></h3>
 <p>Clone the latest version of the software using:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">sandialabs</span><span class="o">/</span><span class="n">pyapprox</span><span class="o">.</span><span class="n">git</span>
 </pre></div>
 </div>
 <p>or download the source from the <a class="reference external" href="https://github.com/sandialabs/pyapprox">PyApprox github repository</a>.</p>
 </section>
-<section id="install">
-<h2>Install<a class="headerlink" href="#install" title="Permalink to this headline"></a></h2>
-<p>To get all the features of PyApprox it is best to install PyApprox dependencies with conda. However if this is not possible or desirable PyApprox can also be installed entirely with pip. If pip is used the user will not have access to the benchmarks based on the finite element modeling package fenics.</p>
 <section id="conda">
-<h3>Conda<a class="headerlink" href="#conda" title="Permalink to this headline"></a></h3>
-<p>The most robust way to install PyApprox is to create a new environment. Pyapprox can be installed in an existing environment, however the user will need to take care to ensure that any upgrades or downgrades suggested by conda will not cause issues with the current environment.</p>
+<h3>Conda<a class="headerlink" href="#conda" title="Permalink to this heading"></a></h3>
+<p>Create a new environment or use an existing one. Pyapprox can be installed in an existing environment, however the user will need to take care to ensure that any upgrades or downgrades suggested by conda will not cause issues with the current environment.</p>
 <p>To create a new environment use:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">env</span> <span class="n">create</span> <span class="o">-</span><span class="n">f</span> <span class="n">environment</span><span class="o">.</span><span class="n">yml</span>
 </pre></div>
@@ -128,15 +142,36 @@
 </div>
 <p>The -e argument specifies to install softlinks so that any changes made by the user to the source in the source folders are reflected in the install when importing modules.</p>
 </section>
+<section id="conda-mamba">
+<h3>Conda+Mamba<a class="headerlink" href="#conda-mamba" title="Permalink to this heading"></a></h3>
+<p>Installing this package with conda can be slow due to limitations of Conda (not PyApprox). The speed of install can be improved using Mamba</p>
+<p>Before creating an enviornment install Mamba with:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">install</span> <span class="o">-</span><span class="n">c</span> <span class="n">conda</span><span class="o">-</span><span class="n">forge</span> <span class="n">mamba</span>
+</pre></div>
+</div>
+<p>To create a new environment use:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mamba</span> <span class="n">env</span> <span class="n">create</span> <span class="o">-</span><span class="n">f</span> <span class="n">environment</span><span class="o">.</span><span class="n">yml</span>
+</pre></div>
+</div>
+<p>This will create an environment called pyapprox-base. Activate this environment with:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">activate</span> <span class="n">pyapprox</span><span class="o">-</span><span class="n">base</span>
+</pre></div>
+</div>
+<p>Once the new environment, or an existing environment, has been activated run the following in the PyApprox root directory to install PyApprox:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">e</span> <span class="o">.</span>
+</pre></div>
+</div>
+<p>The -e argument specifies to install softlinks so that any changes made by the user to the source in the source folders are reflected in the install when importing modules.</p>
+</section>
 <section id="pip">
-<h3>Pip<a class="headerlink" href="#pip" title="Permalink to this headline"></a></h3>
+<h3>Pip<a class="headerlink" href="#pip" title="Permalink to this heading"></a></h3>
 <p>To install PyApprox entirely with pip simply run the following in the PyApprox root directory to install PyApprox:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">e</span> <span class="o">.</span>
 </pre></div>
 </div>
 </section>
 <section id="troubleshooting">
-<h3>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this headline"></a></h3>
+<h3>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this heading"></a></h3>
 <p>Sometimes pip will cause incompatabilities with your currently installed packages and will fail. If so try to reinstall with:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">e</span> <span class="o">.</span> <span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">build</span><span class="o">-</span><span class="n">isolation</span>
 </pre></div>
@@ -152,9 +187,9 @@
 </section>
 </section>
 <section id="test">
-<h2>Test<a class="headerlink" href="#test" title="Permalink to this headline"></a></h2>
+<h2>Test<a class="headerlink" href="#test" title="Permalink to this heading"></a></h2>
 <p>To run all tests run the following in the root directory of PyApprox:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">unittest</span> <span class="n">discover</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pytest</span> <span class="o">.</span> <span class="o">--</span><span class="n">disable</span><span class="o">-</span><span class="n">warnings</span>
 </pre></div>
 </div>
 <p>To test docstring examples use:</p>
@@ -172,8 +207,16 @@
 <p>Some tests will be skipped if not all optional packages are installed.</p>
 </section>
 <section id="create-documentation">
-<h2>Create Documentation<a class="headerlink" href="#create-documentation" title="Permalink to this headline"></a></h2>
-<p>To create the documentation fenics must be installed. Creating documentation also requires Sphinx 1.7 or later, sphinx, numpydoc, and sphinx-automodapi. These are automatically installed with pip install -e . command.</p>
+<h2>Create Documentation<a class="headerlink" href="#create-documentation" title="Permalink to this heading"></a></h2>
+<p>To create the documentation fenics must be installed. Creating documentation also requires Sphinx 1.7 or later, sphinx, numpydoc, and sphinx-automodapi.</p>
+<p>To install these requirements when installing from PyPi first run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">pyapprox</span><span class="p">[</span><span class="n">docs</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>When installing from source run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">e</span> <span class="o">.</span><span class="p">[</span><span class="n">docs</span><span class="p">]</span>
+</pre></div>
+</div>
 <p>Html documentation can be generated with:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">docs</span>
 <span class="n">make</span> <span class="n">html</span>
@@ -204,7 +247,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="intro.html" class="btn btn-neutral float-left" title="About" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="auto_examples/index.html" class="btn btn-neutral float-right" title="Software Tutorials" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="auto_examples/index.html" class="btn btn-neutral float-right" title="Software Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.bayes.gaussian_network &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.bayes.gaussian_network &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.bayes.gaussian_network</li>
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.bayes.gaussian_network</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -107,7 +112,7 @@
 <span class="k">def</span> <span class="nf">get_var_ids_to_eliminate_from_node_query</span><span class="p">(</span>
         <span class="n">network_node_var_ids</span><span class="p">,</span> <span class="n">network_labels</span><span class="p">,</span> <span class="n">query_labels</span><span class="p">,</span>
         <span class="n">evidence_node_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the ids of all variables in a network not associated with nodes being</span>
 <span class="sd">    queried. A given node can consist of multiple variables.</span>
 <span class="sd">    This function will always exclude from elimination any ids which are in</span>
@@ -173,7 +178,7 @@
 
 <span class="k">def</span> <span class="nf">get_var_ids_to_eliminate</span><span class="p">(</span><span class="n">network_ids</span><span class="p">,</span> <span class="n">network_labels</span><span class="p">,</span> <span class="n">query_labels</span><span class="p">,</span>
                              <span class="n">evidence_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the ids of variables in a network which are not being queried.</span>
 <span class="sd">    This function will always exclude from elimination any ids which are in</span>
 <span class="sd">    evidence_ids.</span>
@@ -242,7 +247,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_cpd_block_diagonal_linear_matrix</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">node_index</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the mathrix :math:`A` from the conditional probability density</span>
 
 <span class="sd">    .. math:: \mathbb{P}(\theta_i\mid \mathrm{pa}(theta_i))\sim\mathcal{A\theta+b,\Sigma_v}</span>
@@ -324,7 +329,7 @@
 <span class="k">def</span> <span class="nf">get_gaussian_factor_in_canonical_form</span><span class="p">(</span><span class="n">Amat</span><span class="p">,</span> <span class="n">bvec</span><span class="p">,</span> <span class="n">cov2g1</span><span class="p">,</span>
                                           <span class="n">var1_ids</span><span class="p">,</span> <span class="n">nvars_per_var1</span><span class="p">,</span>
                                           <span class="n">var2_ids</span><span class="p">,</span> <span class="n">nvars_per_var2</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Todo consider massing inv(cov2g1) to function so can leverage structure</span>
 <span class="sd">    in matrix and not to inversion inside convert_conditional function</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -341,7 +346,7 @@
 <span class="k">def</span> <span class="nf">build_hierarchical_polynomial_network</span><span class="p">(</span>
         <span class="n">prior_covs</span><span class="p">,</span> <span class="n">cpd_scales</span><span class="p">,</span> <span class="n">basis_matrix_funcs</span><span class="p">,</span>
         <span class="n">nparams</span><span class="p">,</span> <span class="n">model_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    prior_scales : list</span>
 <span class="sd">        List of diagonal matrices (represented by either a scalar for a</span>
 <span class="sd">        constant diagonal or a vector)</span>
@@ -381,7 +386,7 @@
 
 
 <div class="viewcode-block" id="GaussianNetwork"><a class="viewcode-back" href="../../../api/pyapprox.bayes.GaussianNetwork.html#pyapprox.bayes.GaussianNetwork">[docs]</a><span class="k">class</span> <span class="nc">GaussianNetwork</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A Bayesian network of linear Gaussian models.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -392,7 +397,7 @@
     <span class="c1"># with dataless nodes. For example if k=2 and each node has two</span>
     <span class="c1"># vars number of dataless variables is 4, yet self.evidence_ids starts at 2.</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Constructor.</span>
 
 <span class="sd">        Parameters</span>
@@ -436,7 +441,7 @@
                     <span class="k">assert</span> <span class="n">child</span> <span class="o">&lt;</span> <span class="n">ii</span></div>
 
 <div class="viewcode-block" id="GaussianNetwork.num_vars"><a class="viewcode-back" href="../../../api/pyapprox.bayes.GaussianNetwork.html#pyapprox.bayes.GaussianNetwork.num_vars">[docs]</a>    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return number of uncertain variables in the network</span>
 
 <span class="sd">        Returns</span>
@@ -447,7 +452,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nnetwork_vars</span></div>
 
 <div class="viewcode-block" id="GaussianNetwork.convert_to_compact_factors"><a class="viewcode-back" href="../../../api/pyapprox.bayes.GaussianNetwork.html#pyapprox.bayes.GaussianNetwork.convert_to_compact_factors">[docs]</a>    <span class="k">def</span> <span class="nf">convert_to_compact_factors</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Compute the factors of the network</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">factors</span> <span class="o">=</span> <span class="p">[]</span>
@@ -479,7 +484,7 @@
 
 <div class="viewcode-block" id="GaussianNetwork.add_data_to_network"><a class="viewcode-back" href="../../../api/pyapprox.bayes.GaussianNetwork.html#pyapprox.bayes.GaussianNetwork.add_data_to_network">[docs]</a>    <span class="k">def</span> <span class="nf">add_data_to_network</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data_cpd_mats</span><span class="p">,</span> <span class="n">data_cpd_vecs</span><span class="p">,</span>
                             <span class="n">noise_covariances</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Todo pass in argument containing nodes which have data for situations</span>
 <span class="sd">        when not all nodes have data</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -518,7 +523,7 @@
             <span class="nb">len</span><span class="p">(</span><span class="n">dataless_graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">),</span> <span class="n">kk</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="GaussianNetwork.assemble_evidence"><a class="viewcode-back" href="../../../api/pyapprox.bayes.GaussianNetwork.html#pyapprox.bayes.GaussianNetwork.assemble_evidence">[docs]</a>    <span class="k">def</span> <span class="nf">assemble_evidence</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Assemble the evidence in the form needed to condition the network</span>
 
 <span class="sd">        Returns</span>
@@ -548,7 +553,7 @@
 
 
 <span class="k">def</span> <span class="nf">sum_product_eliminate_variable</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">var_id_to_eliminate</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Marginalize out a variable from a multivariate Gaussian defined by</span>
 <span class="sd">    the product of the gaussian variables in factors.</span>
 
@@ -604,7 +609,7 @@
 
 
 <span class="k">def</span> <span class="nf">sum_product_variable_elimination</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">var_ids_to_eliminate</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Marginalize out a list of variables from the multivariate Gaussian variable</span>
 <span class="sd">    which is the product of all factors.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -626,7 +631,7 @@
 
 <span class="k">def</span> <span class="nf">cond_prob_variable_elimination</span><span class="p">(</span><span class="n">network</span><span class="p">,</span> <span class="n">query_labels</span><span class="p">,</span> <span class="n">evidence_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                                    <span class="n">evidence</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Marginalize out variables not in query labels.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">eliminate_ids</span> <span class="o">=</span> <span class="n">get_var_ids_to_eliminate_from_node_query</span><span class="p">(</span>
@@ -647,7 +652,7 @@
 
 <span class="k">def</span> <span class="nf">build_peer_polynomial_network</span><span class="p">(</span><span class="n">prior_covs</span><span class="p">,</span> <span class="n">cpd_scales</span><span class="p">,</span> <span class="n">basis_matrix_funcs</span><span class="p">,</span>
                                   <span class="n">nparams</span><span class="p">,</span> <span class="n">model_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    All list arguments must contain high-fidelity info in last entry</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
@@ -685,7 +690,7 @@
 
 
 <span class="k">def</span> <span class="nf">nonlinear_constraint_peer</span><span class="p">(</span><span class="n">covs</span><span class="p">,</span> <span class="n">scales</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    All list arguments must contain high-fidelity info in last entry</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">cpd_cov</span> <span class="o">=</span> <span class="p">[</span><span class="n">covs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">scales</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">covs</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">-</span><span class="mf">1e-7</span><span class="p">]</span>
@@ -693,7 +698,7 @@
 
 
 <span class="k">def</span> <span class="nf">nonlinear_constraint_hierarchical</span><span class="p">(</span><span class="n">covs</span><span class="p">,</span> <span class="n">scales</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    All list arguments must contain model info ordered lowest-highest fidelity</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">cpd_cov</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">scales</span><span class="p">)</span>

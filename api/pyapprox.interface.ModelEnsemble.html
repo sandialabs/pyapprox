@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ModelEnsemble &mdash; PyApprox 1.0.0 documentation</title>
+  <title>ModelEnsemble &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
@@ -33,12 +34,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -51,7 +56,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -101,9 +106,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
-      <li>ModelEnsemble</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../user_reference_guide.html">User Reference Guide</a></li>
+      <li class="breadcrumb-item active">ModelEnsemble</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/api/pyapprox.interface.ModelEnsemble.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -114,7 +119,7 @@
            <div itemprop="articleBody">
              
   <section id="modelensemble">
-<h1>ModelEnsemble<a class="headerlink" href="#modelensemble" title="Permalink to this headline"></a></h1>
+<h1>ModelEnsemble<a class="headerlink" href="#modelensemble" title="Permalink to this heading"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="pyapprox.interface.ModelEnsemble">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyapprox.interface.</span></span><span class="sig-name descname"><span class="pre">ModelEnsemble</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">functions</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/interface/wrappers.html#ModelEnsemble"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.interface.ModelEnsemble" title="Permalink to this definition"></a></dt>
@@ -122,11 +127,7 @@
 <p>Wrapper class to allow easy one-dimensional
 indexing of models in an ensemble.</p>
 <p class="rubric">Methods Summary</p>
-<table class="longtable docutils align-default">
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 90%" />
-</colgroup>
+<table class="autosummary longtable docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.interface.ModelEnsemble.__call__" title="pyapprox.interface.ModelEnsemble.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(samples)</p></td>
 <td><p>Evaluate a set of models at a set of samples.</p></td>
@@ -146,14 +147,14 @@ indexing of models in an ensemble.</p>
 <dd><p>Evaluate a set of models at a set of samples. The models must have the
 same parameters.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>samples</strong><span class="classifier">np.ndarray (nvars+1,nsamples)</span></dt><dd><p>Realizations of a multivariate random variable each with an
 additional scalar model id indicating which model to evaluate.</p>
 </dd>
 </dl>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl class="simple">
 <dt><strong>values</strong><span class="classifier">np.ndarray (nsamples,nqoi)</span></dt><dd><p>The values of the models at samples</p>
 </dd>
@@ -168,7 +169,7 @@ additional scalar model id indicating which model to evaluate.</p>
 <dd><p>Evaluate a set of models at different sets of samples.
 The models need not have the same parameters.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>samples_list</strong><span class="classifier">list[np.ndarray (nvars_ii, nsamples_ii)]</span></dt><dd><p>Realizations of the multivariate random variable model to evaluate
 each model.</p>
@@ -177,7 +178,7 @@ each model.</p>
 </dd>
 </dl>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl class="simple">
 <dt><strong>values_list</strong><span class="classifier">list[np.ndarray (nsamples, nqoi)]</span></dt><dd><p>The values of the models at the different sets of samples</p>
 </dd>
@@ -191,14 +192,14 @@ each model.</p>
 <span class="sig-name descname"><span class="pre">evaluate_models</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">samples_per_model</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/interface/wrappers.html#ModelEnsemble.evaluate_models"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.interface.ModelEnsemble.evaluate_models" title="Permalink to this definition"></a></dt>
 <dd><p>Evaluate a set of models at a set of samples.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>samples_per_model</strong><span class="classifier">list (nmodels)</span></dt><dd><p>The ith entry contains the set of samples
 np.narray(nvars, nsamples_ii) used to evaluate the ith model.</p>
 </dd>
 </dl>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl class="simple">
 <dt><strong>values_per_model</strong><span class="classifier">list (nmodels)</span></dt><dd><p>The ith entry contains the set of values
 np.narray(nsamples_ii, nqoi) obtained from the ith model.</p>

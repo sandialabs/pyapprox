@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_examples_plot_paper_demo.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_examples_plot_paper_demo.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -25,17 +25,17 @@ following the exposition in [PYAPPROX2022]_.
 
 First lets load all the necessary modules and set the random seeds for reproducibility.
 
-.. GENERATED FROM PYTHON SOURCE LINES 9-34
+.. GENERATED FROM PYTHON SOURCE LINES 9-36
 
 .. code-block:: default
 
     from scipy import stats
     import numpy as np
+    import matplotlib as mpl
     import matplotlib.pyplot as plt
     from functools import partial
     import torch
     import time
-    import warnings
     from pyapprox.util.configure_plots import mathrm_label, mathrm_labels
     from pyapprox.variables import (
         IndependentMarginalsVariable, print_statistics, AffineTransform)
@@ -46,13 +46,15 @@ First lets load all the necessary modules and set the random seeds for reproduci
     from pyapprox.surrogates import adaptive_approximate
     from pyapprox.analysis.sensitivity_analysis import (
         run_sensitivity_analysis, plot_sensitivity_indices)
-    from pyapprox.bayes.markov_chain_monte_carlo import (
-        loglike_from_negloglike, MCMCVariable)
+    from pyapprox.bayes.metropolis import (
+        loglike_from_negloglike, plot_unnormalized_2d_marginals)
+    from pyapprox.bayes.metropolis import MetropolisMCMCVariable
     from pyapprox.expdesign.bayesian_oed import get_bayesian_oed_optimizer
     from pyapprox import multifidelity
-    warnings.filterwarnings("ignore", category=DeprecationWarning)
-    np.random.seed(2)
-    torch.manual_seed(2)
+    import warnings
+    # warnings.filterwarnings("ignore", category=DeprecationWarning)
+    np.random.seed(2023)
+    torch.manual_seed(2023)
 
 
 
@@ -60,21 +62,20 @@ First lets load all the necessary modules and set the random seeds for reproduci
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
 
-    <torch._C.Generator object at 0x14f968190>
+    <torch._C.Generator object at 0x16bde39d0>
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 35-37
+.. GENERATED FROM PYTHON SOURCE LINES 37-40
 
 The tutorial can save the figures to file if desired. If you do want the plots
 set savefig=True
+ savefig = True
 
-.. GENERATED FROM PYTHON SOURCE LINES 37-39
+.. GENERATED FROM PYTHON SOURCE LINES 40-42
 
 .. code-block:: default
 
@@ -87,11 +88,11 @@ set savefig=True
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 40-41
+.. GENERATED FROM PYTHON SOURCE LINES 43-44
 
-The following code shows how to create and sample from two independent uniform random variables defined on [−2, 2]. We use uniform variables here, but any marginal from the scipy.stats module can be used.
+The following code shows how to create and sample from two independent uniform random variables defined on :math:`[-2, 2]`. We use uniform variables here, but any marginal from the scipy.stats module can be used.
 
-.. GENERATED FROM PYTHON SOURCE LINES 41-47
+.. GENERATED FROM PYTHON SOURCE LINES 44-50
 
 .. code-block:: default
 
@@ -107,27 +108,25 @@ The following code shows how to create and sample from two independent uniform r
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
                z0         z1    
     count   30.000000  30.000000
-    mean    -0.486291   0.116079
-    std      0.926995   1.107798
-    min     -1.896295  -1.891191
-    max      1.415901   1.975408
+    mean    -0.528053   0.197078
+    std      0.905072   1.114676
+    min     -1.911641  -1.684959
+    max      1.722128   1.922229
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 48-51
+.. GENERATED FROM PYTHON SOURCE LINES 51-54
 
 PyApprox supports various types of variable transformations. The following code
 shows how to use an affinte transformation to map samples from variables
 to samples from the variable's canonical form.
 
-.. GENERATED FROM PYTHON SOURCE LINES 51-55
+.. GENERATED FROM PYTHON SOURCE LINES 54-58
 
 .. code-block:: default
 
@@ -141,30 +140,28 @@ to samples from the variable's canonical form.
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
                z0         z1    
     count   30.000000  30.000000
-    mean    -0.243145   0.058040
-    std      0.463497   0.553899
-    min     -0.948148  -0.945595
-    max      0.707951   0.987704
+    mean    -0.264027   0.098539
+    std      0.452536   0.557338
+    min     -0.955821  -0.842480
+    max      0.861064   0.961114
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 56-62
+.. GENERATED FROM PYTHON SOURCE LINES 59-65
 
-Pyapprox provides many utilities for interfacing with complex numerical codes
-and show how to use the ModelEnsemble and
-WorkTrackingModel to evaluate two models at once and time the wall time
-of each evaluation of each model. The last print statement
-prints the median execution time of each model. First lest defined
-two functions with different execution times that can be evaluated for multiple samples
+Pyapprox provides many utilities for interfacing with complex numerical codes.
+The following shows how to wrap a model and store the wall time required
+to evaluate each sample in a set. First define a function
+with a random execution time that takes in one sample at a time, i.e. a
+1D array. Then wrap that model so that multiple samples can be evaluated at
+once.
 
-.. GENERATED FROM PYTHON SOURCE LINES 62-80
+.. GENERATED FROM PYTHON SOURCE LINES 65-75
 
 .. code-block:: default
 
@@ -178,13 +175,6 @@ two functions with different execution times that can be evaluated for multiple 
         return evaluate_1darray_function_on_2d_array(fun_pause_1, samples)
 
 
-    def fun_pause_2(sample):
-        time.sleep(np.random.uniform(.05, .1))
-        return np.sum(sample**2)
-
-
-    def pyapprox_fun_2(samples):
-        return evaluate_1darray_function_on_2d_array(fun_pause_2, samples)
 
 
 
@@ -192,26 +182,20 @@ two functions with different execution times that can be evaluated for multiple 
 
 
 
+.. GENERATED FROM PYTHON SOURCE LINES 76-79
 
-.. GENERATED FROM PYTHON SOURCE LINES 81-83
+Now wrap the latter function and run it while tracking
+their execution times. The last print statement
+prints the median execution time of the model.
 
-Now wrap these functions and run them as an ensemble while tracking
-their execution times
-
-.. GENERATED FROM PYTHON SOURCE LINES 83-94
+.. GENERATED FROM PYTHON SOURCE LINES 79-84
 
 .. code-block:: default
 
-    model_ensemble = ModelEnsemble([pyapprox_fun_1, pyapprox_fun_2])
-    timer_fun_ensemble = TimerModel(model_ensemble)
-    worktracking_fun_ensemble = WorkTrackingModel(
-        timer_fun_ensemble, num_config_vars=1)
-    fun_ids = np.ones(nsamples)
-    fun_ids[:nsamples//2] = 0
-    ensemble_samples = np.vstack([samples, fun_ids])
-    values = worktracking_fun_ensemble(ensemble_samples)
-    query_fun_ids = np.atleast_2d([0, 1])
-    print(worktracking_fun_ensemble.work_tracker(query_fun_ids))
+    timer_model = TimerModel(pyapprox_fun_1)
+    model = WorkTrackingModel(timer_model)
+    values = model(samples)
+    print(model.work_tracker())
 
 
 
@@ -219,16 +203,21 @@ their execution times
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [0.027107   0.07577896]
+    [0.03503788]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 95-102
+.. GENERATED FROM PYTHON SOURCE LINES 85-89
+
+Other wrappers available in PyApprox include those for running multiple models
+at once, useful for multi-fidelity methods, wrappers that fix a subset of inputs
+to user specified values, wrappers that only return a subset of all
+possible model ouputs, and wrappers for evaluating samples in parallel.
+
+.. GENERATED FROM PYTHON SOURCE LINES 91-98
 
 Pyapprox provide numerous benchmarks for verifying, validating and comparing
 model analysis algorithms. The following list the names of all benchmarks and
@@ -238,15 +227,15 @@ determining the true coefficients of the Karhunene Loeve expansion (KLE)
 used to characterize the uncertain diffusivity field of an advection
 diffusion equation. See documentation of the benchmark for more details).
 
-.. GENERATED FROM PYTHON SOURCE LINES 102-109
+.. GENERATED FROM PYTHON SOURCE LINES 98-105
 
 .. code-block:: default
 
     print(list_benchmarks())
-    noise_stdev = 1e-1
+    noise_stdev = 1 #1e-1
     inv_benchmark = setup_benchmark(
         "advection_diffusion_kle_inversion", kle_nvars=3,
-        noise_stdev=noise_stdev, nobs=10, kle_length_scale=0.5)
+        noise_stdev=noise_stdev, nobs=5, kle_length_scale=0.5)
     print(inv_benchmark.keys())
 
 
@@ -254,8 +243,6 @@ diffusion equation. See documentation of the benchmark for more details).
 
 
 .. rst-class:: sphx-glr-script-out
-
- Out:
 
  .. code-block:: none
 
@@ -265,11 +252,11 @@ diffusion equation. See documentation of the benchmark for more details).
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 110-111
+.. GENERATED FROM PYTHON SOURCE LINES 106-107
 
 The following plots the modes of the KLE
 
-.. GENERATED FROM PYTHON SOURCE LINES 111-117
+.. GENERATED FROM PYTHON SOURCE LINES 107-113
 
 .. code-block:: default
 
@@ -291,7 +278,7 @@ The following plots the modes of the KLE
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 118-126
+.. GENERATED FROM PYTHON SOURCE LINES 114-122
 
 PyApprox provides many popular methods for constructing surrogates
 that once constructed can be evaluated in place of a computaionally
@@ -302,7 +289,7 @@ Here we use to compute the error of the surrogate as it is constructed using
 validation data. Uncomment the code to use a polynomial based surrogate instead
 of a GP. The user does not have to change any subsequent code
 
-.. GENERATED FROM PYTHON SOURCE LINES 126-148
+.. GENERATED FROM PYTHON SOURCE LINES 122-144
 
 .. code-block:: default
 
@@ -318,7 +305,7 @@ of a GP. The user does not have to change any subsequent code
 
     approx_result = adaptive_approximate(
         inv_benchmark.negloglike, inv_benchmark.variable, "gaussian_process",
-        {"max_nsamples": 30, "ncandidate_samples": 2e3, "verbose": 0,
+        {"max_nsamples": 50, "ncandidate_samples": 2e3, "verbose": 0,
          "callback": callback, "kernel_variance": 400})
 
     # approx_result = adaptive_approximate(
@@ -335,11 +322,11 @@ of a GP. The user does not have to change any subsequent code
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 149-150
+.. GENERATED FROM PYTHON SOURCE LINES 145-146
 
 We can plot the errors obtained from the callback with
 
-.. GENERATED FROM PYTHON SOURCE LINES 150-157
+.. GENERATED FROM PYTHON SOURCE LINES 146-159
 
 .. code-block:: default
 
@@ -347,6 +334,12 @@ We can plot the errors obtained from the callback with
     ax.loglog(nsamples, errors, "o-")
     ax.set_xlabel(mathrm_label("No. Samples"))
     ax.set_ylabel(mathrm_label("Error"))
+    ax.set_xticks([10, 25, 50])
+    ax.set_yticks([0.3, 0.75, 1.5])
+    ax.get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+    ax.minorticks_off()
+    ax.get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+    #ax.tick_params(axis='y', which='minor', bottom=False)
     if savefig:
         plt.savefig("gp-error-plot.pdf")
 
@@ -362,7 +355,7 @@ We can plot the errors obtained from the callback with
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 158-167
+.. GENERATED FROM PYTHON SOURCE LINES 160-169
 
 Now we will perform a sensitivity analysis. Specifically we compute
 variance based sensitivity indices that measure the impact of each KLE mode
@@ -374,7 +367,7 @@ the drastic increase in computational cost. Warning: using the numerical model
 will take many minutes. The plots in the figure, generated from
 left to right are: main effect, largest Sobol indices and total effect indices.
 
-.. GENERATED FROM PYTHON SOURCE LINES 167-176
+.. GENERATED FROM PYTHON SOURCE LINES 169-178
 
 .. code-block:: default
 
@@ -399,7 +392,7 @@ left to right are: main effect, largest Sobol indices and total effect indices.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 177-186
+.. GENERATED FROM PYTHON SOURCE LINES 179-188
 
 Now we will use the surrogate with Bayesian inference to learn the
 coefficients of the KL. Specifically we will draw a set of samples from
@@ -411,7 +404,7 @@ and print out the error which can be compared to the errors previously plotted.
 The error of the original surrogate was kept low to demonstrate the ability
 to quantify error in the sensitivity indices from using a surrogate.
 
-.. GENERATED FROM PYTHON SOURCE LINES 186-192
+.. GENERATED FROM PYTHON SOURCE LINES 188-194
 
 .. code-block:: default
 
@@ -427,39 +420,38 @@ to quantify error in the sensitivity indices from using a surrogate.
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    Surrogate [0.03358284]
+    Surrogate [0.09102201]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 193-202
+.. GENERATED FROM PYTHON SOURCE LINES 195-203
 
 Now create a MCMCVariable to sample from the posterior. The benchmark
 has already formulated the negative log likelihood that is needed. Here
-we will use the NUTS sampler from PyMC3. This can run many MCMC chains at once
-by setting njobs > 1. However using njobs>1 cannot be used unless the srcipt
-is invoked inside if __name__ == __main__: and so njobs>1
-is not used for this tutorial.
+we will use PyApprox's native delayed rejection adaptive metropolis (DRAM)
+sampler.
+
 Uncomment the commented code to use the numerical model instead of the surrogate
 with the MCMC algorithm. Again note the significant increase in computational
 time
 
-.. GENERATED FROM PYTHON SOURCE LINES 202-211
+.. GENERATED FROM PYTHON SOURCE LINES 203-214
 
 .. code-block:: default
 
-    algorithm, npost_samples, njobs = "nuts", 100, 1
-    # loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)
+    npost_samples = 200
     loglike = partial(loglike_from_negloglike, approx)
-    mcmc_variable = MCMCVariable(
-        inv_benchmark.variable, loglike, algorithm, njobs=njobs, loglike_grad=True)
+    # loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)
+    mcmc_variable = MetropolisMCMCVariable(
+        inv_benchmark.variable, loglike, method_opts={"cov_scaling": 1})
     print(mcmc_variable)
-    post_samples = mcmc_variable.rvs(npost_samples)
     map_sample = mcmc_variable.maximum_aposteriori_point()
+    print("Computed Map Point", map_sample[:, 0])
+    post_samples = mcmc_variable.rvs(npost_samples)
+    print("Acceptance rate", mcmc_variable._acceptance_rate)
 
 
 
@@ -467,39 +459,32 @@ time
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    MCMCVariable with prior:
-    Independent Marginal Variable
-    Number of variables: 3
-    Unique variables and global id:
-        norm(loc=0,scale=1): z0, z1, z2
-    Only 100 samples in chain.
-    Sequential sampling (2 chains in 1 job)
-    NUTS: [z_2, z_1, z_0]
-    The acceptance probability does not match the target. It is 0.9508962216489982, but should be close to 0.8. Try to increase the number of tuning steps.
-    The acceptance probability does not match the target. It is 0.9583451279721997, but should be close to 0.8. Try to increase the number of tuning steps.
+    JointVariable
+    Computed Map Point [-0.29435322 -0.50083897  0.33631887]
+    Acceptance rate 0.345
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 212-216
+.. GENERATED FROM PYTHON SOURCE LINES 215-219
 
 Now plot the posterior samples with the 2D Marginals of the posterior. Note
 do not do this with the numerical model as this would take an eternity due
 to the cost of evaluating the numerical model, which is much higher relative
 to the cost of running the surrogate.
 
-.. GENERATED FROM PYTHON SOURCE LINES 216-223
+.. GENERATED FROM PYTHON SOURCE LINES 219-228
 
 .. code-block:: default
 
-    mcmc_variable.plot_2d_marginals(
-        nsamples_1d=30,
+    plot_unnormalized_2d_marginals(
+        mcmc_variable._variable, mcmc_variable._loglike, nsamples_1d=50,
         plot_samples=[
-            [post_samples, {}], [map_sample, {"c": "k", "marker": "X", "s": 100}]])
+            [post_samples, {"alpha": 0.3, "c": "orange"}],
+            [map_sample, {"c": "k", "marker": "X", "s": 100}]],
+        unbounded_alpha=0.999)
     if savefig:
         plt.savefig("posterior-samples.pdf", bbox_inches="tight")
 
@@ -515,7 +500,7 @@ to the cost of running the surrogate.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 224-230
+.. GENERATED FROM PYTHON SOURCE LINES 229-235
 
 In the Bayesian inference above we used a fixed number of observations
 at randomly chosen spatial locations. However choosing observation locations
@@ -524,7 +509,7 @@ in the parameters equally. Here we use Bayesian optimal experimental design
 to choose the 3 best design locations from the previously observed 10 pretending
 that we do not know the value of the observations.
 
-.. GENERATED FROM PYTHON SOURCE LINES 230-251
+.. GENERATED FROM PYTHON SOURCE LINES 235-258
 
 .. code-block:: default
 
@@ -533,16 +518,18 @@ that we do not know the value of the observations.
     inv_benchmark.mesh.plot(
         inv_benchmark.obs_fun._fwd_solver.solve()[:, None], 50, ax=ax)
 
-    design_candidates = inv_benchmark.mesh.mesh_pts[:, inv_benchmark.obs_indices]
-    oed = get_bayesian_oed_optimizer(
-        "kl_params", design_candidates, inv_benchmark.obs_fun, noise_stdev,
-        inv_benchmark.variable)
-    oed_results = []
     ndesign = 3
+    design_candidates = inv_benchmark.mesh.mesh_pts[:, inv_benchmark.obs_indices]
+    ndesign_candidates = design_candidates.shape[1]
+    oed = get_bayesian_oed_optimizer(
+        "kl_params", ndesign_candidates, inv_benchmark.obs_fun, noise_stdev,
+        inv_benchmark.variable, max_ncollected_obs=ndesign)
+    oed_results = []
     for step in range(ndesign):
         results_step = oed.update_design()[1]
         oed_results.append(results_step)
     selected_candidates = design_candidates[:, np.hstack(oed_results)]
+    print(selected_candidates)
     ax.plot(design_candidates[0, :], design_candidates[1, :], "rs")
     ax.plot(selected_candidates[0, :], selected_candidates[1, :], "ko")
     if savefig:
@@ -560,17 +547,23 @@ that we do not know the value of the observations.
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    Running 1000 model evaluations
-    Running 8000 model evaluations
+    Running 1000 outer model evaluations
+    Predicted observation bounds 14.015558739913732 1.2516047704780018
+    Evaluations took 173.62535405158997
+    Running 1000 inner model evaluations
+    Evaluations took 164.1499490737915
+    Computing utilities in serial took 0.030169010162353516
+    Computing utilities in serial took 0.03148293495178223
+    Computing utilities in serial took 0.04574394226074219
+    [[0.0954915  0.42178277 0.0954915 ]
+     [0.05449674 0.85355339 0.05449674]]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 252-262
+.. GENERATED FROM PYTHON SOURCE LINES 259-269
 
 Note that typically optimal
 experimental design (OED) would be used before conducting Bayesian inference.
@@ -583,7 +576,7 @@ calibrations used by OED must only be sufficient to distinguish between designs.
 This accuracy is typically much lower than the accuracy required in
 estimates of uncertainty in the parameters or predictions needed for decision making tasks such as risk assessment.
 
-.. GENERATED FROM PYTHON SOURCE LINES 264-275
+.. GENERATED FROM PYTHON SOURCE LINES 271-282
 
 Here we will set up a related benchmark to the one we have been using,
 which can be used to demonstrate the forward propagation of uncertainty.
@@ -597,7 +590,7 @@ and accuracy that use different discretizations of the spatial PDE mesh
 and number of time steps which can be used with multi-fideilty methods.
 To setup the benchmark use the following
 
-.. GENERATED FROM PYTHON SOURCE LINES 275-282
+.. GENERATED FROM PYTHON SOURCE LINES 282-289
 
 .. code-block:: default
 
@@ -615,7 +608,7 @@ To setup the benchmark use the following
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 283-288
+.. GENERATED FROM PYTHON SOURCE LINES 290-295
 
 Here we will use Multi-fidelity statistical estimation to compute the
 mean value of the QoI to account for the uncertainty in the KLE cofficients.
@@ -623,25 +616,47 @@ So first we must compute the covariance between the QoI returned by
 each of our models. We use samples from the posterior. But uncommenting
 the code below will use samples from the prior.
 
-.. GENERATED FROM PYTHON SOURCE LINES 288-295
+.. GENERATED FROM PYTHON SOURCE LINES 295-303
 
 .. code-block:: default
 
-    npilot_samples = 10
-    # generate_samples = inv_benchmark.variable.rvs # for sampling from prior
-    generate_samples = post_samples 
+    npilot_samples = 20
+    generate_samples = inv_benchmark.variable.rvs # for sampling from prior
+    # generate_samples = post_samples 
     cov = multifidelity.estimate_model_ensemble_covariance(
         npilot_samples, generate_samples, model,
         fwd_benchmark.model_ensemble.nmodels)[0]
+    print(cov)
 
 
 
 
 
+.. rst-class:: sphx-glr-script-out
+
+ .. code-block:: none
+
+    [[0.00246945 0.00194624 0.00208472 0.00164637 0.0024676  0.00194446
+      0.0020831  0.00164483]
+     [0.00194624 0.00156171 0.00163776 0.00131613 0.001945   0.00156053
+      0.00163665 0.0013151 ]
+     [0.00208472 0.00163776 0.00179375 0.00141233 0.00208418 0.00163711
+      0.00179327 0.00141177]
+     [0.00164637 0.00131613 0.00141233 0.00113068 0.00164613 0.00131581
+      0.0014121  0.00113038]
+     [0.0024676  0.001945   0.00208418 0.00164613 0.00246583 0.00194328
+      0.00208263 0.00164464]
+     [0.00194446 0.00156053 0.00163711 0.00131581 0.00194328 0.00155941
+      0.00163605 0.00131482]
+     [0.0020831  0.00163665 0.00179327 0.0014121  0.00208263 0.00163605
+      0.00179285 0.00141158]
+     [0.00164483 0.0013151  0.00141177 0.00113038 0.00164464 0.00131482
+      0.00141158 0.00113013]]
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 296-301
+
+.. GENERATED FROM PYTHON SOURCE LINES 304-309
 
 By using a WorkTrackingModel we can extract the median costs
 of evaluatin each model which is needed to predict the
@@ -649,12 +664,12 @@ error of the multi-fidelity estimate of the mean which we can
 compare to a prediction of the single fidelity estimate that only uses
 the highest fidelity model.
 
-.. GENERATED FROM PYTHON SOURCE LINES 301-306
+.. GENERATED FROM PYTHON SOURCE LINES 309-314
 
 .. code-block:: default
 
-    model_costs = model.work_tracker(
-        np.asarray([np.arange(fwd_benchmark.model_ensemble.nmodels)]))
+    model_ids = np.asarray([np.arange(fwd_benchmark.model_ensemble.nmodels)])
+    model_costs = model.work_tracker(model_ids)
     # make costs in terms of fraction of cost of high-fidelity evaluation
     model_costs /= model_costs[0]
 
@@ -665,12 +680,12 @@ the highest fidelity model.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 307-309
+.. GENERATED FROM PYTHON SOURCE LINES 315-317
 
 Now visualize the correlation between the models and their computational
 cost relative to the highest-fidelity model cost
 
-.. GENERATED FROM PYTHON SOURCE LINES 309-316
+.. GENERATED FROM PYTHON SOURCE LINES 317-324
 
 .. code-block:: default
 
@@ -692,8 +707,6 @@ cost relative to the highest-fidelity model cost
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
 
@@ -701,21 +714,21 @@ cost relative to the highest-fidelity model cost
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 317-321
+.. GENERATED FROM PYTHON SOURCE LINES 325-329
 
-Now find the best multi-fidelity estimator among all avialable option
-Note, he exact predicted variance will change from run to run even with the
+Now find the best multi-fidelity estimator among all available option
+Note, the exact predicted variance will change from run to run even with the
 same seed because the computational time measured will change slightly
 for each run
 
-.. GENERATED FROM PYTHON SOURCE LINES 321-329
+.. GENERATED FROM PYTHON SOURCE LINES 329-337
 
 .. code-block:: default
 
     best_est, best_model_indices = (
         multifidelity.get_best_models_for_acv_estimator(
             "acvgmfb", cov, model_costs, inv_benchmark.variable, 1e2, max_nmodels=3,
-            tree_depth=4))
+            init_kwargs={"tree_depth": 4}))
     target_cost = 1000
     best_est.allocate_samples(target_cost)
     print("Predicted variance", best_est.optimized_variance)
@@ -726,137 +739,19 @@ for each run
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [86.87575245] nsample_ratios
-    [  1 135] nsf1
-    [  1 135] nsf2
-    [135.] rounded nsample_ratios
-    [38.99089106] nsample_ratios
-    [  3 135] nsf1
-    [  3 135] nsf2
-    [45.] rounded nsample_ratios
-    [27.07874648] nsample_ratios
-    [  5 150] nsf1
-    [  5 150] nsf2
-    [30.] rounded nsample_ratios
-    [404.27171433] nsample_ratios
-    [  1 404] nsf1
-    [  1 404] nsf2
-    [404.] rounded nsample_ratios
-    [175.37163859] nsample_ratios
-    [  2 500] nsf1
-    [  2 500] nsf2
-    [250.] rounded nsample_ratios
-    [76.13018167] nsample_ratios
-    [  6 476] nsf1
-    [  6 476] nsf2
-    [79.33333333] rounded nsample_ratios
-    [54.37619228] nsample_ratios
-    [ 10 560] nsf1
-    [ 10 560] nsf2
-    [56.] rounded nsample_ratios
-    [ 1.38668057 51.27545332] nsample_ratios
-    [  2   3 132] nsf1
-    [  2   3 132] nsf2
-    [ 1.5 66. ] rounded nsample_ratios
-    [ 1.24228401 35.61553865] nsample_ratios
-    [  4   5 146] nsf1
-    [  4   5 146] nsf2
-    [ 1.25 36.5 ] rounded nsample_ratios
-    [  2.         398.31856794] nsample_ratios
-    [  1   2 398] nsf1
-    [  1   2 398] nsf2
-    [  2. 398.] rounded nsample_ratios
-    [  1.46862603 230.58599008] nsample_ratios
-    [  2   3 492] nsf1
-    [  2   3 492] nsf2
-    [  1.5 246. ] rounded nsample_ratios
-    [  1.21601575 100.10944435] nsample_ratios
-    [  4   5 463] nsf1
-    [  4   5 463] nsf2
-    [  1.25 115.75] rounded nsample_ratios
-    [ 1.13276368 71.50771587] nsample_ratios
-    [  7   8 538] nsf1
-    [  7   8 538] nsf2
-    [ 1.14285714 76.85714286] rounded nsample_ratios
-    [ 1.24114872 35.46346749] nsample_ratios
-    [  4   5 147] nsf1
-    [  4   5 147] nsf2
-    [ 1.25 36.75] rounded nsample_ratios
-    [  2.         398.43297763] nsample_ratios
-    [  1   2 398] nsf1
-    [  1   2 398] nsf2
-    [  2. 398.] rounded nsample_ratios
-    [  1.46662309 229.66817292] nsample_ratios
-    [  2   3 492] nsf1
-    [  2   3 492] nsf2
-    [  1.5 246. ] rounded nsample_ratios
-    [ 1.21502422 99.69606476] nsample_ratios
-    [  4   5 463] nsf1
-    [  4   5 463] nsf2
-    [  1.25 115.75] rounded nsample_ratios
-    [ 1.13212277 71.20943715] nsample_ratios
-    [  7   8 538] nsf1
-    [  7   8 538] nsf2
-    [ 1.14285714 76.85714286] rounded nsample_ratios
-    [  2.         399.15278882] nsample_ratios
-    [  1   2 399] nsf1
-    [  1   2 399] nsf2
-    [  2. 399.] rounded nsample_ratios
-    [  1.45378626 223.76672786] nsample_ratios
-    [  2   3 493] nsf1
-    [  2   3 493] nsf2
-    [  1.5 246.5] rounded nsample_ratios
-    [ 1.20881312 97.1057363 ] nsample_ratios
-    [  4   5 465] nsf1
-    [  4   5 465] nsf2
-    [  1.25 116.25] rounded nsample_ratios
-    [ 1.12812764 69.35328986] nsample_ratios
-    [  7   8 541] nsf1
-    [  7   8 541] nsf2
-    [ 1.14285714 77.28571429] rounded nsample_ratios
-    [  1.3935352  195.68398022] nsample_ratios
-    [  2   3 497] nsf1
-    [  2   3 497] nsf2
-    [  1.5 248.5] rounded nsample_ratios
-    [ 1.18019898 84.95574969] nsample_ratios
-    [  5   6 471] nsf1
-    [  5   6 471] nsf2
-    [ 1.2 94.2] rounded nsample_ratios
-    [ 1.10989309 60.68437474] nsample_ratios
-    [  9  10 552] nsf1
-    [  9  10 552] nsf2
-    [ 1.11111111 61.33333333] rounded nsample_ratios
-    [ 1.17613909 83.20165749] nsample_ratios
-    [  5   6 472] nsf1
-    [  5   6 472] nsf2
-    [ 1.2 94.4] rounded nsample_ratios
-    [ 1.1073159  59.42901762] nsample_ratios
-    [  9  10 553] nsf1
-    [  9  10 553] nsf2
-    [ 1.11111111 61.44444444] rounded nsample_ratios
-    [ 1.10744368 59.49010641] nsample_ratios
-    [  9  10 553] nsf1
-    [  9  10 553] nsf2
-    [ 1.11111111 61.44444444] rounded nsample_ratios
-    [54.37619228] nsample_ratios
-    [ 103 5601] nsf1
-    [ 103 5601] nsf2
-    [54.37864078] rounded nsample_ratios
-    Predicted variance 9.571257732073022e-11
+    Predicted variance 5.818767691754899e-07
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 330-332
+.. GENERATED FROM PYTHON SOURCE LINES 338-340
 
 Now we can plot the relative performance of the single and multi-fidelity
 estimates of the mean before requiring any additional model evaluations
 
-.. GENERATED FROM PYTHON SOURCE LINES 332-354
+.. GENERATED FROM PYTHON SOURCE LINES 340-362
 
 .. code-block:: default
 
@@ -893,37 +788,20 @@ estimates of the mean before requiring any additional model evaluations
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [54.37619228] nsample_ratios
-    [ 1 56] nsf1
-    [ 1 56] nsf2
-    [56.] rounded nsample_ratios
-    [54.37619228] nsample_ratios
-    [ 10 560] nsf1
-    [ 10 560] nsf2
-    [56.] rounded nsample_ratios
-    [54.37619228] nsample_ratios
-    [ 103 5601] nsf1
-    [ 103 5601] nsf2
-    [54.37864078] rounded nsample_ratios
-    [54.37619228] nsample_ratios
-    [ 1030 56015] nsf1
-    [ 1030 56015] nsf2
-    [54.38349515] rounded nsample_ratios
+    [9.36376795e+00 9.99359811e+01 9.99658112e+02 9.99907829e+03] 1
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 355-358
+.. GENERATED FROM PYTHON SOURCE LINES 363-366
 
 It is clear that the multi-fidelity estimator will be more computationally
 efficient for multiple computational budgets (target costs). Once the user
 is ready to actually estimate the mean QoI they can use
 
-.. GENERATED FROM PYTHON SOURCE LINES 358-368
+.. GENERATED FROM PYTHON SOURCE LINES 366-376
 
 .. code-block:: default
 
@@ -943,50 +821,41 @@ is ready to actually estimate the mean QoI they can use
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [54.37619228] nsample_ratios
-    [ 1 56] nsf1
-    [ 1 56] nsf2
-    [56.] rounded nsample_ratios
-    Mean QoI 0.0010551070251234526
+    Mean QoI 0.5062523937469106
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 369-372
+.. GENERATED FROM PYTHON SOURCE LINES 377-380
 
 References
 ^^^^^^^^^^
-.. [PYAPPROX2022] `Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022)`_
+.. [PYAPPROX2022] `Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022) <https://www.osti.gov/biblio/1879614>`_
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 1 minutes  23.079 seconds)
+   **Total running time of the script:** ( 6 minutes  39.425 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_paper_demo.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_paper_demo.py <plot_paper_demo.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_paper_demo.py <plot_paper_demo.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_paper_demo.ipynb <plot_paper_demo.ipynb>`
+      :download:`Download Jupyter notebook: plot_paper_demo.ipynb <plot_paper_demo.ipynb>`
 
 
 .. only:: html

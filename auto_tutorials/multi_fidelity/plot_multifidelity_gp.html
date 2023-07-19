@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multifidelity Gaussian processes &mdash; PyApprox 1.0.2 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="MFNets: Multi-fidelity networks" href="plot_gaussian_mfnets.html" />
+    <link rel="prev" title="Multi-level and Multi-index Collocation" href="plot_multiindex_collocation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multilevel_blue.html">Multilevel Best Linear Unbiased estimators (MLBLUE)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-level and Multi-index Collocation</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Multifidelity Gaussian processes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#two-models">Two models</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#m-models">M models</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sequential-construction">Sequential Construction</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#experimental-design">Experimental design</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#remarks">Remarks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#multifidelity-deep-gaussian-processes">Multifidelity Deep Gaussian Processes</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="plot_gaussian_mfnets.html">MFNets: Multi-fidelity networks</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">Multifidelity Gaussian processes</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/auto_tutorials/multi_fidelity/plot_multifidelity_gp.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-multifidelity-gp-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="multifidelity-gaussian-processes">
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-multifidelity-gp-py"></span><h1>Multifidelity Gaussian processes<a class="headerlink" href="#multifidelity-gaussian-processes" title="Permalink to this heading"></a></h1>
+<p>This tutorial describes how to implement and deploy multi-level Gaussian processes built using the output of a high-fidelity model and evaluations of a set of lower-fidelity models of lower accuracy and cost <a class="reference internal" href="#kob2000" id="id1"><span>[KOB2000]</span></a>. This tutorial assumes understanding of the concepts in <a class="reference internal" href="../surrogates/plot_gaussian_processes.html#sphx-glr-auto-tutorials-surrogates-plot-gaussian-processes-py"><span class="std std-ref">Gaussian processes</span></a></p>
+<p>Multilevel GPs assume that all the available models <span class="math notranslate nohighlight">\(\{f_m\}_{m=1}^M\)</span> can be ordered into a hierarchy of increasing cost and accuracy, where <span class="math notranslate nohighlight">\(m=1\)</span> denotes the lowest fidelity model and <span class="math notranslate nohighlight">\(m=M\)</span> denotes the hightest-fidelity model.
+We model the output <span class="math notranslate nohighlight">\(y_m\)</span> from the <span class="math notranslate nohighlight">\(m\)</span>-th level code as <span class="math notranslate nohighlight">\(y_m = f_m(\rv)\)</span>
+and assume the models satisfy the  hierarchical relationship</p>
+<div class="math notranslate nohighlight">
+\[f_m(\rv)=\rho_{m-1}f_{m-1}(\rv)+\delta_m(\rv), \quad m=2,\ldots,M.\]</div>
+<p>with <span class="math notranslate nohighlight">\(f_1(\rv)=\delta_1(\rv)\)</span>. We assume that the prior distributions on <span class="math notranslate nohighlight">\(\delta_m(\cdot)\sim\mathcal{N}(0, C_m(\cdot,\cdot))\)</span> are independent.</p>
+<p>Just like traditional GPs the posterior mean and variance of the multi-fidelity GP are given by</p>
+<div class="math notranslate nohighlight">
+\[m^\star(\rv)=t(\rv)^\top C(\mathcal{Z}, \mathcal{Z})^{-1}y \quad\quad C^\star(\rv,\rv^\prime)=C(\rv,\rv^\prime)-t(\rv)^\top C(\mathcal{Z}, \mathcal{Z})^{-1}t(\rv^\prime),\]</div>
+<p>where <span class="math notranslate nohighlight">\(C(\mathcal{Z}, \mathcal{Z})\)</span> is the prior covariance evaluated at the training data <span class="math notranslate nohighlight">\(\mathcal{Z}\)</span>.</p>
+<p>The difference comes from the definitions of the prior covariance <span class="math notranslate nohighlight">\(C\)</span> and the vector <span class="math notranslate nohighlight">\(t(\rv)\)</span>.</p>
+<section id="two-models">
+<h2>Two models<a class="headerlink" href="#two-models" title="Permalink to this heading"></a></h2>
+<p>Given data <span class="math notranslate nohighlight">\(\mathcal{Z}=[\mathcal{Z}_1, \mathcal{Z}_2]\)</span> from two models of differing fidelity, the data covariance of the multi-fidelity GP consisting of two models can be expressed in block form</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}C(\mathcal{Z},\mathcal{Z})=\begin{bmatrix}
+ \covar{f_1(\mathcal{Z}_1)}{f_1(\mathcal{Z}_1)} &amp; \covar{f_1(\mathcal{Z}_1)}{f_2(\mathcal{Z}_2)}\\
+\covar{f_2(\mathcal{Z}_2)}{f_1(\mathcal{Z}_1)} &amp; \covar{f_2(\mathcal{Z}_2)}{f_2(\mathcal{Z}_2)}
+ \end{bmatrix}\end{split}\]</div>
+<p>The upper-diagonal block is given by</p>
+<div class="math notranslate nohighlight">
+\[\covar{f_1(\mathcal{Z}_1)}{f_1(\mathcal{Z}_1)} = \covar{\delta_1(\mathcal{Z}_1)}{\delta_1(\mathcal{Z}_1)} = C_1(\mathcal{Z}_1, \mathcal{Z}_1)\]</div>
+<p>The lower-diagonal block is given by</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}   \covar{f_2(\mathcal{Z}_2)}{f_2(\mathcal{Z}_2)} &amp;= \covar{\rho_1f_1(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)}{\rho_1f_1(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)}
+\\ &amp;= \covar{\rho_1\delta_2(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)}{\rho_1\delta_1(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)} \\ &amp;= \covar{\rho_1\delta_2(\mathcal{Z}_1)}{\rho_1\delta_1(\mathcal{Z}_2)}+\covar{\delta_2(\mathcal{Z}_2)}{\delta_2(\mathcal{Z}_2)}\\ &amp;= \rho_1^2C_1(\mathcal{Z}_2, \mathcal{Z}_2) + C_2(\mathcal{Z}_2, \mathcal{Z}_2)\end{split}\]</div>
+<p>Where on the second last line we used that <span class="math notranslate nohighlight">\(\delta_1\)</span> and <span class="math notranslate nohighlight">\(\delta_2\)</span> are independent.</p>
+<p>The upper-right block is given by</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\covar{f_1(\mathcal{Z}_1)}{f_2(\mathcal{Z}_2)} &amp;= \covar{\delta_1(\mathcal{Z}_1)}{\rho_1\delta_1(\mathcal{Z}_2)+\delta_2(\mathcal{Z}_2)} \\ &amp;= \covar{\delta_1(\mathcal{Z}_1)}{\rho_1\delta_1(\mathcal{Z}_2)} = \rho_1 C_1(\mathcal{Z}_1, \mathcal{Z}_2)\end{split}\]</div>
+<p>and <span class="math notranslate nohighlight">\(\covar{f_2(\mathcal{Z}_2)}{f_1(\mathcal{Z}_1)}=\covar{f_1(\mathcal{Z}_2)}{f_2(\mathcal{Z}_2)}^\top.\)</span></p>
+<p>Combining yields</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}C(\mathcal{Z},\mathcal{Z})=\begin{bmatrix}
+C_1(\mathcal{Z}_1, \mathcal{Z}_1) &amp; \rho_1 C_1(\mathcal{Z}_1, \mathcal{Z}_2)\\
+\rho_1C_1(\mathcal{Z}_2, \mathcal{Z}_1) &amp; \rho_1^2C_1(\mathcal{Z}_2, \mathcal{Z}_2) + C_2(\mathcal{Z}_2, \mathcal{Z}_2)
+\end{bmatrix}\end{split}\]</div>
+<p>In this tutorial we assume <span class="math notranslate nohighlight">\(\rho_m\)</span> are scalars. However PyApprox supports polynomial versions <span class="math notranslate nohighlight">\(\rho_m(\rv)\)</span>. The above formulas must be slightly modified in this case.</p>
+<p>Similary we have</p>
+<div class="math notranslate nohighlight">
+\[t_m(\rv;\mathcal{Z})^\top=\left[\covar{f_m(\rv)}{f_m(\mathcal{Z}_1)}, \covar{f_m(\rv)}{f_m(\mathcal{Z}_2)}\right]\]</div>
+<p>where</p>
+<div class="math notranslate nohighlight">
+\[t_1(\rv;\mathcal{Z})^\top=\left[C_1(\rv, \mathcal{Z}_1), \rho_1C_1(\rv, \mathcal{Z}_2)\right]^\top\]</div>
+<div class="math notranslate nohighlight">
+\[t_2(\rv;\mathcal{Z})^\top=\left[\rho_1 C_1(\rv, \mathcal{Z}_1), \rho_1^2C_1(\rv, \mathcal{Z}_2) + C_2(\rv, \mathcal{Z}_2)\right]\]</div>
+</section>
+<section id="m-models">
+<h2>M models<a class="headerlink" href="#m-models" title="Permalink to this heading"></a></h2>
+<p>The diagonal covariance blocks of the prior covariance <span class="math notranslate nohighlight">\(C\)</span> for <span class="math notranslate nohighlight">\(m&gt;1\)</span> satisfy</p>
+<div class="math notranslate nohighlight">
+\[C_m(\mathcal{Z}_m,\mathcal{Z}_m)+\rho_{m-1}^2C_{m-1}(\mathcal{Z}_m,\mathcal{Z}_m)+\cdots+\prod_{i=1}^{m-1}\rho_i^2C_1(\mathcal{Z}_m,\mathcal{Z}_m).\]</div>
+<p>The off-diagonal covariance blocks for <span class="math notranslate nohighlight">\(m&lt;n\)</span> satisfy</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}C_{m,n}(\mathcal{Z}_m,\mathcal{Z}_n)=&amp;\prod_{i=m}^{n-1}\rho_iC_m(\mathcal{Z}_m,\mathcal{Z}_n)+\rho_{m-1}\prod_{i=m-1}^{n-1}\rho_i\,C_{m-1}(\mathcal{Z}_m,\mathcal{Z}_n)+\\ &amp;\prod_{j=m-2}^{m-1}\rho_{j}\,\prod_{i=m-2}^{n-1}\rho_i\,C_{m-2}(\mathcal{Z}_m,\mathcal{Z}_n)+\cdots+ \prod_{j=2}^{m-1}\rho_{j}\,\prod_{i=2}^{n-1}\rho_i\,C_{2}(\mathcal{Z}_m,\mathcal{Z}_n)+\\ &amp;\prod_{j=1}^{m-1}\rho_{j}\,\prod_{i=1}^{n-1}\rho_i\,C_{1}(\mathcal{Z}_m,\mathcal{Z}_n)\end{split}\]</div>
+<p>For example, the covariance matrix for <span class="math notranslate nohighlight">\(M=3\)</span> models is</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}C=\begin{bmatrix}
+C_1(\mathcal{Z}_1,\mathcal{Z}_1) &amp; \rho_1C_1(\mathcal{Z}_1,\mathcal{Z}_2) &amp; \rho_1\rho_2C_1(\mathcal{Z}_1,\mathcal{Z}_3)\\
+\rho_1C_1(\mathcal{Z}_2,\mathcal{Z}_1) &amp; \rho_1^2C_1(\mathcal{Z}_2,\mathcal{Z}_2)+C_2(\mathcal{Z}_2,\mathcal{Z}_2) &amp; \rho_1^2\rho_2C_1(\mathcal{Z}_2,\mathcal{Z}_3) + \rho_2C_2(\mathcal{Z}_2,\mathcal{Z}_3) \\
+\rho_1\rho_2C_1(\mathcal{Z}_3,\mathcal{Z}_1) &amp; \rho_1^2\rho_2C_1(\mathcal{Z}_3,\mathcal{Z}_2)+\rho_2C_2(\mathcal{Z}_3,\mathcal{Z}_2) &amp; \rho_1^2\rho_2^2C_1(\mathcal{Z}_3,\mathcal{Z}_3)+\rho_2^2C_2(\mathcal{Z}_3,\mathcal{Z}_3)+C_3(\mathcal{Z}_3,\mathcal{Z}_3)
+\end{bmatrix}\end{split}\]</div>
+<p>and <span class="math notranslate nohighlight">\(t_m\)</span> is the mth row of <span class="math notranslate nohighlight">\(C\)</span> that replaces the first argument of each covariance kernel with <span class="math notranslate nohighlight">\(\rv\)</span>, for example</p>
+<div class="math notranslate nohighlight">
+\[t_3(\rv)^\top = \left[\rho_1\rho_2C_1(\rv,\mathcal{Z}_1), \rho_1^2\rho_2C_1(\rv,\mathcal{Z}_2)+\rho_2C_2(\rv,\mathcal{Z}_2), \rho_1^2\rho_2^2C_1(\rv,\mathcal{Z}_3)+\rho_2^2C_2(\rv,\mathcal{Z}_3)+C_3(\rv,\mathcal{Z}_3)\right]\]</div>
+<p>Now lets plot the structure of the multi-fidelity covariance matrix when using two models and scalar scaling <span class="math notranslate nohighlight">\(\rho\)</span>. The blocks correspond to the four blocks of the two model data covariance matrix.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.joint</span> <span class="kn">import</span> <span class="n">IndependentMarginalsVariable</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.gaussianprocess.multilevel</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">GreedyMultifidelityIntegratedVarianceSampler</span><span class="p">,</span> <span class="n">MultifidelityGaussianProcess</span><span class="p">,</span>
+    <span class="n">GaussianProcess</span><span class="p">,</span> <span class="n">SequentialMultifidelityGaussianProcess</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.gaussianprocess.kernels</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">RBF</span><span class="p">,</span> <span class="n">MultifidelityPeerKernel</span><span class="p">,</span> <span class="n">MonomialScaling</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.integrate</span> <span class="kn">import</span> <span class="n">integrate</span>
+
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">nvars</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nvars</span><span class="p">)])</span>
+
+<span class="n">nmodels</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">kernels</span> <span class="o">=</span> <span class="p">[</span><span class="n">RBF</span> <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+<span class="n">sigma</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">]</span>
+<span class="n">length_scale</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">)]</span><span class="o">*</span><span class="n">nmodels</span><span class="p">)</span>
+
+<span class="n">rho</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">]</span>
+<span class="n">degree</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">kernel_scalings</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">MonomialScaling</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">degree</span><span class="p">)</span> <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
+<span class="n">kernel</span> <span class="o">=</span> <span class="n">MultifidelityPeerKernel</span><span class="p">(</span>
+    <span class="n">nvars</span><span class="p">,</span> <span class="n">kernels</span><span class="p">,</span> <span class="n">kernel_scalings</span><span class="p">,</span> <span class="n">length_scale</span><span class="o">=</span><span class="n">length_scale</span><span class="p">,</span>
+    <span class="n">length_scale_bounds</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-10</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">rho</span><span class="o">=</span><span class="n">rho</span><span class="p">,</span>
+    <span class="n">rho_bounds</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-3</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">sigma</span><span class="o">=</span><span class="n">sigma</span><span class="p">,</span>
+    <span class="n">sigma_bounds</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-3</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+<span class="c1"># sort for plotting covariance matrices</span>
+<span class="n">nsamples_per_model</span> <span class="o">=</span> <span class="p">[</span><span class="mi">100</span><span class="p">,</span> <span class="mi">50</span><span class="p">]</span>
+<span class="n">train_samples</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">integrate</span><span class="p">(</span><span class="s2">&quot;quasimontecarlo&quot;</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span>
+                      <span class="n">nsamples</span><span class="o">=</span><span class="n">nsamples_per_model</span><span class="p">[</span><span class="n">nn</span><span class="p">],</span>
+                      <span class="n">startindex</span><span class="o">=</span><span class="mi">1000</span><span class="o">*</span><span class="n">nn</span><span class="o">+</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">kernel</span><span class="o">.</span><span class="n">set_nsamples_per_model</span><span class="p">(</span><span class="n">nsamples_per_model</span><span class="p">)</span>
+<span class="n">Kmat</span> <span class="o">=</span> <span class="n">kernel</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">Kmat</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_multifidelity_gp_001.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_001.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.colorbar.Colorbar object at 0x17a548dc0&gt;
+</pre></div>
+</div>
+<p>Now lets plot the structure of the multi-fidelity covariance matrix when using two models a linear polynomial scaling <span class="math notranslate nohighlight">\(\rho(x)=a+bx\)</span>. In comparison to a scalar scaling the correlation between the low and high-fidelity models changes as a function of the input <span class="math notranslate nohighlight">\(\rv\)</span>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">rho_2</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]</span>  <span class="c1"># [a, b]</span>
+<span class="n">kernel_scalings_2</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">MonomialScaling</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
+<span class="n">kernel_2</span> <span class="o">=</span> <span class="n">MultifidelityPeerKernel</span><span class="p">(</span>
+    <span class="n">nvars</span><span class="p">,</span> <span class="n">kernels</span><span class="p">,</span> <span class="n">kernel_scalings_2</span><span class="p">,</span> <span class="n">length_scale</span><span class="o">=</span><span class="n">length_scale</span><span class="p">,</span>
+    <span class="n">length_scale_bounds</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-10</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">rho</span><span class="o">=</span><span class="n">rho_2</span><span class="p">,</span>
+    <span class="n">rho_bounds</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-3</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">sigma</span><span class="o">=</span><span class="n">sigma</span><span class="p">,</span>
+    <span class="n">sigma_bounds</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-3</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+<span class="n">kernel_2</span><span class="o">.</span><span class="n">set_nsamples_per_model</span><span class="p">(</span><span class="n">nsamples_per_model</span><span class="p">)</span>
+<span class="n">Kmat2</span> <span class="o">=</span> <span class="n">kernel_2</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">Kmat2</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_multifidelity_gp_002.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_002.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/><p>Now lets define two functions with multilevel structure</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">scale</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">kk</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">degree</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">rho</span><span class="p">[</span><span class="n">kk</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">rho</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">kk</span><span class="p">]</span> <span class="o">+</span> <span class="n">x</span><span class="o">.</span><span class="n">T</span><span class="o">*</span><span class="n">rho</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">rho</span><span class="p">[</span><span class="mi">3</span><span class="o">*</span><span class="n">kk</span><span class="p">]</span> <span class="o">+</span> <span class="n">x</span><span class="p">[:</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="o">*</span><span class="n">rho</span><span class="p">[</span><span class="mi">3</span><span class="o">*</span><span class="n">kk</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="o">*</span><span class="n">rho</span><span class="p">[</span><span class="mi">3</span><span class="o">*</span><span class="n">kk</span><span class="o">+</span><span class="mi">2</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">f0</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="c1"># y = x.sum(axis=0)[:, None]</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
+    <span class="k">return</span> <span class="p">((</span><span class="n">y</span><span class="o">*</span><span class="mi">3</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">((</span><span class="n">y</span><span class="o">*</span><span class="mi">10</span><span class="o">-</span><span class="mi">2</span><span class="p">))</span><span class="o">/</span><span class="mi">5</span>
+
+
+<span class="k">def</span> <span class="nf">f1</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="c1"># y = x.sum(axis=0)[:, None]</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
+    <span class="k">return</span> <span class="n">scale</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span><span class="o">*</span><span class="n">f0</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">+</span><span class="p">((</span><span class="n">y</span><span class="o">-</span><span class="mf">0.5</span><span class="p">))</span><span class="o">/</span><span class="mi">2</span>
+</pre></div>
+</div>
+<p>Now build a GP with 8 samples from the low-fidelity model and four samples from the high-fidelity model</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nsamples_per_model</span> <span class="o">=</span> <span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>
+<span class="n">train_samples</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">integrate</span><span class="p">(</span><span class="s2">&quot;quasimontecarlo&quot;</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span>
+                      <span class="n">nsamples</span><span class="o">=</span><span class="n">nsamples_per_model</span><span class="p">[</span><span class="n">nn</span><span class="p">],</span>
+                      <span class="n">startindex</span><span class="o">=</span><span class="mi">1000</span><span class="o">*</span><span class="n">nn</span><span class="o">+</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+<span class="n">true_rho</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">degree</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">)</span>
+<span class="n">models</span> <span class="o">=</span> <span class="p">[</span><span class="n">f0</span><span class="p">,</span> <span class="n">f1</span><span class="p">]</span>
+<span class="n">train_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">models</span><span class="p">,</span> <span class="n">train_samples</span><span class="p">)]</span>
+
+<span class="n">gp</span> <span class="o">=</span> <span class="n">MultifidelityGaussianProcess</span><span class="p">(</span><span class="n">kernel</span><span class="p">,</span> <span class="n">n_restarts_optimizer</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+<span class="n">gp</span><span class="o">.</span><span class="n">set_data</span><span class="p">(</span><span class="n">train_samples</span><span class="p">,</span> <span class="n">train_values</span><span class="p">)</span>
+<span class="n">gp</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+<span class="n">prior_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;gray&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">}</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">train_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">train_values</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;ko&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">train_samples</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">train_values</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;rs&#39;</span><span class="p">)</span>
+<span class="n">xx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">101</span><span class="p">)[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">models</span><span class="p">[</span><span class="mi">0</span><span class="p">](</span><span class="n">xx</span><span class="p">),</span> <span class="s1">&#39;k-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$f_0$&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">models</span><span class="p">[</span><span class="mi">1</span><span class="p">](</span><span class="n">xx</span><span class="p">),</span> <span class="s1">&#39;r-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$f_1$&quot;</span><span class="p">)</span>
+<span class="n">gp</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ls&quot;</span><span class="p">:</span> <span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;MF2&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;b&quot;</span><span class="p">},</span>
+           <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">fill_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">})</span>
+<span class="n">gp</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ls&quot;</span><span class="p">:</span> <span class="s2">&quot;:&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;MF1&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;g&quot;</span><span class="p">},</span>
+           <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">model_eval_id</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_multifidelity_gp_003.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_003.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/><p>The low-fidelity model is very well approximated and the high-fidelity is very good even away from the high-fidelity training data. The low-fidelity data is being used to extrapolate.</p>
+<p>Now lets compare the multi-fidelity GP to a single fidelity GP built using only the high-fidelity data</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sf_kernel</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">*</span><span class="n">RBF</span><span class="p">(</span><span class="n">length_scale</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="mf">1e-3</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+<span class="n">sf_gp</span> <span class="o">=</span> <span class="n">GaussianProcess</span><span class="p">(</span><span class="n">sf_kernel</span><span class="p">)</span>
+<span class="n">sf_gp</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train_samples</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">train_values</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">models</span><span class="p">[</span><span class="mi">1</span><span class="p">](</span><span class="n">xx</span><span class="p">),</span> <span class="s1">&#39;r-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$f_1$&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">train_samples</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">train_values</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;rs&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">train_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">train_values</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;ko&#39;</span><span class="p">)</span>
+<span class="n">sf_gp</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;SF&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;gray&quot;</span><span class="p">},</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span>
+              <span class="n">fill_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;gray&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">})</span>
+<span class="n">gp</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ls&quot;</span><span class="p">:</span> <span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;MF2&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;b&quot;</span><span class="p">},</span>
+           <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">fill_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">})</span>
+<span class="n">gp</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ls&quot;</span><span class="p">:</span> <span class="s2">&quot;:&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;MF1&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;g&quot;</span><span class="p">},</span>
+           <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">model_eval_id</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_multifidelity_gp_004.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_004.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/><p>The single fidelity approximation of the high-fidelity model is much worse than the multi-fidelity approximation.</p>
+</section>
+<section id="sequential-construction">
+<h2>Sequential Construction<a class="headerlink" href="#sequential-construction" title="Permalink to this heading"></a></h2>
+<p>The computational cost of the multi-level GP presented grows cubically with the number of model evaluations <span class="math notranslate nohighlight">\(N_m\)</span> for all models, that is the number of operations is</p>
+<div class="math notranslate nohighlight">
+\[O\left(\left(\sum_{m=1}^M N_m)\right)^3\right).\]</div>
+<p>When the training data is nested, e.g. <span class="math notranslate nohighlight">\(\mathcal{Z_m}\subseteq \mathcal{Z}_{m+1}\)</span> and noiseless, the algorithm in <a class="reference internal" href="#lgijuq2014" id="id2"><span>[LGIJUQ2014]</span></a> can be used to construct a MF GP in</p>
+<div class="math notranslate nohighlight">
+\[O\left(\sum_{m=1}^M N_m^3\right)\]</div>
+<p>operations.</p>
+<p>Another popular approach used to build MF GPs with either nested or unnested noisy data is to construct a single fidelity GP of the lowest model, then fix that GP and consruct a GP of the difference. This sequential algorithm is also much cheaper than the algorithm presented here, but the mean of the sequentially constructed GP is often less accurate and the posterior variance over- or under-estimated.</p>
+<p>The following plot compares a sequential multi-level GP with the exact co-kriging on the toy problem introduced earlier.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sml_kernels</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">RBF</span><span class="p">(</span><span class="n">length_scale</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">length_scale_bounds</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-10</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+<span class="n">sml_gp</span> <span class="o">=</span> <span class="n">SequentialMultifidelityGaussianProcess</span><span class="p">(</span>
+    <span class="n">sml_kernels</span><span class="p">,</span> <span class="n">n_restarts_optimizer</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">default_rho</span><span class="o">=</span><span class="p">[</span><span class="mf">1.0</span><span class="p">])</span>
+<span class="n">sml_gp</span><span class="o">.</span><span class="n">set_data</span><span class="p">(</span><span class="n">train_samples</span><span class="p">,</span> <span class="n">train_values</span><span class="p">)</span>
+<span class="n">sml_gp</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">sml_gp</span><span class="p">)</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">models</span><span class="p">[</span><span class="mi">0</span><span class="p">](</span><span class="n">xx</span><span class="p">),</span> <span class="s1">&#39;k-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$f_0$&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">models</span><span class="p">[</span><span class="mi">1</span><span class="p">](</span><span class="n">xx</span><span class="p">),</span> <span class="s1">&#39;r-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$f_1$&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">train_samples</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">train_values</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;rs&#39;</span><span class="p">)</span>
+<span class="n">gp</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ls&quot;</span><span class="p">:</span> <span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;Co-kriging&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;b&quot;</span><span class="p">},</span>
+           <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">fill_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">})</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">sml_gp</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+                   <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ls&quot;</span><span class="p">:</span> <span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;Sequential&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;g&quot;</span><span class="p">},</span>
+                   <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">fill_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;g&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">})</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_multifidelity_gp_005.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_005.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>SequentialMultifidelityGaussianProcess(rho=[0.44179754961116136])
+</pre></div>
+</div>
+</section>
+<section id="experimental-design">
+<h2>Experimental design<a class="headerlink" href="#experimental-design" title="Permalink to this heading"></a></h2>
+<p>As with single fidelity GPs the location of the training data significantly impacts the accuracy of a multi-fidelity GP. The remainder of this tutorial discusses xtensions of the experimental design methods used for single-fidelity GPs in <a class="reference internal" href="../surrogates/plot_gaussian_processes.html#sphx-glr-auto-tutorials-surrogates-plot-gaussian-processes-py"><span class="std std-ref">Gaussian processes</span></a>.</p>
+<p>The following code demonstrates the additional complexity faced when desigining  experimental designs for multi-fidelity GPs, specifically one must not only choose what input to sample but also what model to sample.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">kernel</span> <span class="o">=</span> <span class="n">MultifidelityPeerKernel</span><span class="p">(</span>
+    <span class="n">nvars</span><span class="p">,</span> <span class="n">kernels</span><span class="p">,</span> <span class="n">kernel_scalings</span><span class="p">,</span> <span class="n">length_scale</span><span class="o">=</span><span class="n">length_scale</span><span class="p">,</span>
+    <span class="n">length_scale_bounds</span><span class="o">=</span><span class="s2">&quot;fixed&quot;</span><span class="p">,</span> <span class="n">rho</span><span class="o">=</span><span class="n">rho</span><span class="p">,</span>
+    <span class="n">rho_bounds</span><span class="o">=</span><span class="s2">&quot;fixed&quot;</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">sigma</span><span class="p">,</span>
+    <span class="n">sigma_bounds</span><span class="o">=</span><span class="s2">&quot;fixed&quot;</span><span class="p">)</span>
+
+<span class="c1"># build GP using only one low-fidelity data point. The values of the function</span>
+<span class="c1"># do not matter as we are just going to plot the pointwise variance of the GP.</span>
+<span class="n">gp_2</span> <span class="o">=</span> <span class="n">MultifidelityGaussianProcess</span><span class="p">(</span><span class="n">kernel</span><span class="p">)</span>
+<span class="n">gp_2</span><span class="o">.</span><span class="n">set_data</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">nvars</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="mf">0.5</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nvars</span><span class="p">,</span> <span class="mi">0</span><span class="p">))],</span>
+              <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))])</span>
+<span class="n">gp_2</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="c1"># plot the variance of the multi-fidelity GP approximation of the</span>
+<span class="c1"># high-fidelity model</span>
+<span class="n">gp_2</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+             <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ls&quot;</span><span class="p">:</span> <span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;1 LF data&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;gray&quot;</span><span class="p">},</span>
+             <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">fill_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;g&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">})</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;rs&#39;</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">15</span><span class="p">)</span>
+
+<span class="c1"># build GP using only one high-fidelity data point</span>
+<span class="n">gp_2</span><span class="o">.</span><span class="n">set_data</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nvars</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">nvars</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="mf">0.5</span><span class="p">)],</span>
+              <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))])</span>
+<span class="n">gp_2</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+<span class="n">gp_2</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+             <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ls&quot;</span><span class="p">:</span> <span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;1 HF data&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;b&quot;</span><span class="p">},</span>
+             <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">fill_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">})</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;ko&#39;</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_multifidelity_gp_006.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_006.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/><p>As expected the high-fidelity data point reduces the high-fidelity GP variance the most.</p>
+<p>The following shows that two low-fidelity points may produce smaller variance than a single high-fidelity point.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+
+<span class="c1"># plot one point high-fidelity GP against two low-fidelity points</span>
+<span class="n">gp_2</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+             <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ls&quot;</span><span class="p">:</span> <span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;1 HF data&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;b&quot;</span><span class="p">},</span>
+             <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">fill_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">})</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;ko&#39;</span><span class="p">)</span>
+
+<span class="c1"># build GP using twp low-fidelity data points.</span>
+<span class="n">gp_2</span><span class="o">.</span><span class="n">set_data</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">]]),</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nvars</span><span class="p">,</span> <span class="mi">0</span><span class="p">))],</span>
+              <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))])</span>
+<span class="n">gp_2</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+<span class="n">gp_2</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+             <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ls&quot;</span><span class="p">:</span> <span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;2 LF data&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;gray&quot;</span><span class="p">},</span>
+             <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">fill_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;g&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">})</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">([</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;rs&#39;</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">15</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_multifidelity_gp_007.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_007.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/><p>Analagous to single-fidelity GPs we will now use integrated variance to produce good experimental designs. Two model, multi-fidelity, integrated variance designs, as they are often called, find a set of samples <span class="math notranslate nohighlight">\(\mathcal{Z}\subset\Omega\subset\rvdom\)</span> from a set of candidate samples <span class="math notranslate nohighlight">\(\Omega=\Omega_1\cup\Omega_2\)</span> by greedily selecting a new point <span class="math notranslate nohighlight">\(\rv^{(n+1)}\)</span> to add to an existing set <span class="math notranslate nohighlight">\(\mathcal{Z}_n\)</span> according to</p>
+<div class="math notranslate nohighlight">
+\[\rv^{(n+1)} = \argmin_{\mathcal{Z}_n\cup \rv \subset\Omega\subset\rvdom} W(z) \int_{\rvdom} C^\star(\rv, \rv\mid \mathcal{Z})\pdf(\rv)d\rv.\]</div>
+<p>Here <span class="math notranslate nohighlight">\(\Omega_m\)</span> denotes the candidate samples for the mth model, <span class="math notranslate nohighlight">\(W(\rv)\)</span> is the cost of evaluating the candidate which is typically constant for all inputs for a given model, but different between models.</p>
+<p>Now generate a sample set</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nquad_samples</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="n">model_costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="n">ncandidate_samples_per_model</span> <span class="o">=</span> <span class="mi">101</span>
+<span class="n">sampler</span> <span class="o">=</span> <span class="n">GreedyMultifidelityIntegratedVarianceSampler</span><span class="p">(</span>
+    <span class="n">nmodels</span><span class="p">,</span> <span class="n">nvars</span><span class="p">,</span> <span class="n">nquad_samples</span><span class="p">,</span> <span class="n">ncandidate_samples_per_model</span><span class="p">,</span>
+    <span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">econ</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">compute_cond_nums</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">nugget</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">model_costs</span><span class="o">=</span><span class="n">model_costs</span><span class="p">)</span>
+
+<span class="n">integrate_args</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;tensorproduct&quot;</span><span class="p">,</span> <span class="n">variable</span><span class="p">]</span>
+<span class="n">integrate_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;rule&quot;</span><span class="p">:</span> <span class="s2">&quot;gauss&quot;</span><span class="p">,</span> <span class="s2">&quot;levels&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">}</span>
+<span class="n">sampler</span><span class="o">.</span><span class="n">set_kernel</span><span class="p">(</span><span class="n">kernel</span><span class="p">,</span> <span class="o">*</span><span class="n">integrate_args</span><span class="p">,</span> <span class="o">**</span><span class="n">integrate_kwargs</span><span class="p">)</span>
+
+<span class="n">nsamples</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">samples</span> <span class="o">=</span> <span class="n">sampler</span><span class="p">(</span><span class="n">nsamples</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Now fit a GP with the selected samples</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">train_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">split</span><span class="p">(</span>
+    <span class="n">samples</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">nsamples_per_model</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+    <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">nsamples_per_model</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">s</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">train_samples</span><span class="p">])</span>
+<span class="n">costs</span> <span class="o">=</span> <span class="n">nsamples_per_model</span><span class="o">*</span><span class="n">model_costs</span>
+<span class="n">total_cost</span> <span class="o">=</span> <span class="n">costs</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;NSAMPLES&quot;</span><span class="p">,</span> <span class="n">nsamples_per_model</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TOTAL COST&quot;</span><span class="p">,</span> <span class="n">total_cost</span><span class="p">)</span>
+<span class="n">train_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">models</span><span class="p">,</span> <span class="n">train_samples</span><span class="p">)]</span>
+<span class="n">gp</span><span class="o">.</span><span class="n">set_data</span><span class="p">(</span><span class="n">train_samples</span><span class="p">,</span> <span class="n">train_values</span><span class="p">)</span>
+<span class="n">gp</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>NSAMPLES [6 4]
+TOTAL COST 18
+</pre></div>
+</div>
+<p>Now build a single-fidelity GP using IVAR.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.surrogates.gaussianprocess.gaussian_process</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">GreedyIntegratedVarianceSampler</span><span class="p">)</span>
+<span class="n">sf_sampler</span> <span class="o">=</span> <span class="n">GreedyIntegratedVarianceSampler</span><span class="p">(</span>
+    <span class="n">nvars</span><span class="p">,</span> <span class="mi">2000</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span>
+    <span class="n">variable</span><span class="p">,</span> <span class="n">use_gauss_quadrature</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">econ</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">compute_cond_nums</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">nugget</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">sf_sampler</span><span class="o">.</span><span class="n">set_kernel</span><span class="p">(</span><span class="n">sf_kernel</span><span class="p">)</span>
+<span class="n">nsf_train_samples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">total_cost</span><span class="o">//</span><span class="n">model_costs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;NSAMPLES SF&quot;</span><span class="p">,</span> <span class="n">nsf_train_samples</span><span class="p">)</span>
+<span class="n">sf_train_samples</span> <span class="o">=</span> <span class="n">sf_sampler</span><span class="p">(</span><span class="n">nsf_train_samples</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">sf_kernel</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">*</span><span class="n">RBF</span><span class="p">(</span><span class="n">length_scale</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="mf">1e-3</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+<span class="n">sf_gp</span> <span class="o">=</span> <span class="n">GaussianProcess</span><span class="p">(</span><span class="n">sf_kernel</span><span class="p">)</span>
+<span class="n">sf_train_values</span> <span class="o">=</span> <span class="n">models</span><span class="p">[</span><span class="mi">1</span><span class="p">](</span><span class="n">sf_train_samples</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">sf_gp</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">sf_train_samples</span><span class="p">,</span> <span class="n">sf_train_values</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>NSAMPLES SF 6
+</pre></div>
+</div>
+<p>Compare the multi- and single-fidelity GPs.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">models</span><span class="p">[</span><span class="mi">1</span><span class="p">](</span><span class="n">xx</span><span class="p">),</span> <span class="s1">&#39;r-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$f_1$&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">train_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">train_values</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;gD&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">train_samples</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">train_values</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;rs&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">sf_train_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">sf_train_values</span><span class="p">,</span> <span class="s1">&#39;kX&#39;</span><span class="p">)</span>
+<span class="n">sf_gp</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;SF&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;gray&quot;</span><span class="p">},</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span>
+              <span class="n">fill_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;gray&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">})</span>
+<span class="n">gp</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ls&quot;</span><span class="p">:</span> <span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;MF2&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;b&quot;</span><span class="p">},</span>
+           <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">fill_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">})</span>
+<span class="n">gp</span><span class="o">.</span><span class="n">plot_1d</span><span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">plt_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ls&quot;</span><span class="p">:</span> <span class="s2">&quot;:&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;MF1&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="s2">&quot;g&quot;</span><span class="p">},</span>
+           <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">model_eval_id</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_multifidelity_gp_008.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_008.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/><p>The multi-fidelity GP is again clearly superior.</p>
+<p>Note the selected samples depend on hyperparameter values, change the hyper-parameters and see how the design changes. The relative cost of evaluating each model also impacts the design. For fixed hyper-parameters a larger ratio will typically result in more low-fidelity samples.</p>
+</section>
+<section id="remarks">
+<h2>Remarks<a class="headerlink" href="#remarks" title="Permalink to this heading"></a></h2>
+<p>Some approaches train the GPs of each sequentially, that is train a GP of the lowest-fidelity model. The lowest-fidelity GP is then fixed and data from the next lowest fidelity model is then used to train the GP associated with that data, and so on. However this approach typically produces less accurate approximations (GP means) and does not provide a way to estimate the correct posterior uncertainty of the multilevel GP.</p>
+</section>
+<section id="multifidelity-deep-gaussian-processes">
+<h2>Multifidelity Deep Gaussian Processes<a class="headerlink" href="#multifidelity-deep-gaussian-processes" title="Permalink to this heading"></a></h2>
+<p>The aforementioned algorithms assumed that the hierarchy of models are linearly related. However, for some model ensembles this may be inefficient and a nonlinear relationship may be more appropriate, e.g.</p>
+<div class="math notranslate nohighlight">
+\[f_m(\rv)=\rho_{m-1}g(f_{m-1}(\rv))+\delta_m(\rv),\]</div>
+<p>where <span class="math notranslate nohighlight">\(g\)</span> is a nonlinear function. Setting <span class="math notranslate nohighlight">\(g\)</span> to be Gaussian process leads to multi-fidelity deep Gaussian processes <a class="reference internal" href="#kpdl2019" id="id3"><span>[KPDL2019]</span></a>, <a class="reference internal" href="#prdlk2017" id="id4"><span>[PRDLK2017]</span></a>.</p>
+<p>The following figures (generated using Emukit <a class="reference internal" href="#emukit" id="id5"><span>[EMUKIT]</span></a>) demonstrate that the nonlinear formulation works better for the bi-fidelity model enesmble</p>
+<div class="math notranslate nohighlight">
+\[f_1^\text{NL}(\rv)=\sin(8\pi\rv), \qquad f_2^\text{NL}(\rv)=(\rv-\sqrt{2})f_1^\text{NL}(\rv)^2.\]</div>
+<table class="docutils align-default">
+<tbody>
+<tr class="row-odd"><td><figure class="align-center" id="id7">
+<span id="linear-mf-gp-nonlinear-model"></span><a class="reference internal image-reference" href="../../_images/linear-mf-gp-nonlinear-model.png"><img alt="../../_images/linear-mf-gp-nonlinear-model.png" src="../../_images/linear-mf-gp-nonlinear-model.png" style="width: 100%;" /></a>
+<figcaption>
+<p><span class="caption-text">Linear MF GP</span><a class="headerlink" href="#id7" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+</td>
+<td><figure class="align-center" id="id8">
+<span id="nonlinear-mf-gp-nonlinear-model"></span><a class="reference internal image-reference" href="../../_images/nonlinear-mf-gp-nonlinear-model.png"><img alt="../../_images/nonlinear-mf-gp-nonlinear-model.png" src="../../_images/nonlinear-mf-gp-nonlinear-model.png" style="width: 100%;" /></a>
+<figcaption>
+<p><span class="caption-text">Nonlinear MF GP</span><a class="headerlink" href="#id8" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+</td>
+</tr>
+</tbody>
+</table>
+<p>The following plots the correlations between the models used previously in this tutorial with the non-linear ensemble used here</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">nonlinear_models</span> <span class="o">=</span> <span class="p">[</span><span class="k">lambda</span> <span class="n">xx</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="mi">8</span><span class="o">*</span><span class="n">xx</span><span class="o">.</span><span class="n">T</span><span class="p">),</span>
+                    <span class="k">lambda</span> <span class="n">xx</span><span class="p">:</span> <span class="p">(</span><span class="n">xx</span><span class="o">.</span><span class="n">T</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="mi">8</span><span class="o">*</span><span class="n">xx</span><span class="o">.</span><span class="n">T</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">]</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">models</span><span class="p">[</span><span class="mi">0</span><span class="p">](</span><span class="n">xx</span><span class="p">),</span> <span class="n">models</span><span class="p">[</span><span class="mi">1</span><span class="p">](</span><span class="n">xx</span><span class="p">))</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">nonlinear_models</span><span class="p">[</span><span class="mi">0</span><span class="p">](</span><span class="n">xx</span><span class="p">),</span> <span class="n">nonlinear_models</span><span class="p">[</span><span class="mi">1</span><span class="p">](</span><span class="n">xx</span><span class="p">))</span>
+<span class="c1"># axs[0].legend([&#39;HF-LF Correlation&#39;])</span>
+<span class="c1"># axs[1].legend([&#39;HF-LF Correlation&#39;])</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$f_1(z)$&#39;</span><span class="p">)</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$f_2(z)$&#39;</span><span class="p">)</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$f_1^{\mathrm</span><span class="si">{NL}</span><span class="s1">}(z)$&#39;</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$f_2^{\mathrm</span><span class="si">{NL}</span><span class="s1">}(z)$&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_multifidelity_gp_009.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_009.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/><p>No exact statements can be made about a problem from such plots, however according to <a class="reference internal" href="#prdlk2017" id="id6"><span>[PRDLK2017]</span></a>, the additional complexity of the models with the non-linear relationship often indicates that a linear MF GP will perform poorly.</p>
+<section id="references">
+<h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
+<div role="list" class="citation-list">
+<div class="citation" id="lgijuq2014" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">LGIJUQ2014</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="http://dx.doi.org/10.1615/Int.J.UncertaintyQuantification.2014006914">L. Le Gratiet and J. Garnier Recursive co-kriging model for design of computer experiments with multiple levels of fidelity. International Journal for Uncertainty Quantification, 4(5), 365–386, 2014.</a></p>
+</div>
+<div class="citation" id="kob2000" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">KOB2000</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="http://www.jstor.org/stable/2673557">M. C. Kennedy and A. O’Hagan. Predicting the Output from a Complex Computer Code When Fast Approximations Are Available. Biometrika, 87(1), 1-13, 2000.</a></p>
+</div>
+<div class="citation" id="kpdl2019" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id3">KPDL2019</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.48550/arXiv.1903.07320">K. Cutajar et al. Deep Gaussian Processes for Multi-fidelity Modeling. 2019.</a></p>
+</div>
+<div class="citation" id="prdlk2017" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>PRDLK2017<span class="fn-bracket">]</span></span>
+<span class="backrefs">(<a role="doc-backlink" href="#id4">1</a>,<a role="doc-backlink" href="#id6">2</a>)</span>
+<p><a class="reference external" href="http://rspa.royalsocietypublishing.org/content/473/2198/20160751">P. Perdikaris, et al. Nonlinear information fusion algorithms for data-efficient multi-fidelity modelling. Proceedings of the Royal Society of London A. 2017.</a></p>
+</div>
+<div class="citation" id="emukit" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id5">EMUKIT</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://github.com/EmuKit/emukit">A. Paleyes et al. Emulation of physical processes with Emukit. econd Workshop on Machine Learning and the Physical Sciences, NeurIPS.</a></p>
+</div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  2.340 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multifidelity-gp-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/0e692174a041f356a0c2b1c2a37ee927/plot_multifidelity_gp.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multifidelity_gp.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/fa1d2d34e97b7fd09b6ab431af92317f/plot_multifidelity_gp.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_multifidelity_gp.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="plot_multiindex_collocation.html" class="btn btn-neutral float-left" title="Multi-level and Multi-index Collocation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_gaussian_mfnets.html" class="btn btn-neutral float-right" title="MFNets: Multi-fidelity networks" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

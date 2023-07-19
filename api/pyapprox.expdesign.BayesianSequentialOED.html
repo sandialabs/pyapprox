@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BayesianSequentialOED &mdash; PyApprox 1.0.0 documentation</title>
+  <title>BayesianSequentialOED &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
@@ -33,12 +34,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -51,7 +56,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -102,9 +107,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
-      <li>BayesianSequentialOED</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../user_reference_guide.html">User Reference Guide</a></li>
+      <li class="breadcrumb-item active">BayesianSequentialOED</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/api/pyapprox.expdesign.BayesianSequentialOED.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -115,19 +120,15 @@
            <div itemprop="articleBody">
              
   <section id="bayesiansequentialoed">
-<h1>BayesianSequentialOED<a class="headerlink" href="#bayesiansequentialoed" title="Permalink to this headline"></a></h1>
+<h1>BayesianSequentialOED<a class="headerlink" href="#bayesiansequentialoed" title="Permalink to this heading"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="pyapprox.expdesign.BayesianSequentialOED">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyapprox.expdesign.</span></span><span class="sig-name descname"><span class="pre">BayesianSequentialOED</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obs_process</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/expdesign/bayesian_oed.html#BayesianSequentialOED"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.expdesign.BayesianSequentialOED" title="Permalink to this definition"></a></dt>
-<dd><p>Bases: <a class="reference internal" href="pyapprox.expdesign.AbstractBayesianOED.html#pyapprox.expdesign.AbstractBayesianOED" title="pyapprox.expdesign.bayesian_oed.AbstractBayesianOED"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.expdesign.bayesian_oed.AbstractBayesianOED</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="pyapprox.expdesign.AbstractBayesianOED.html#pyapprox.expdesign.AbstractBayesianOED" title="pyapprox.expdesign.bayesian_oed.AbstractBayesianOED"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractBayesianOED</span></code></a></p>
 <p>Compute sequential optimal experimental designs that collect
 data and use this to inform the choice of subsequent design locations.</p>
 <p class="rubric">Methods Summary</p>
-<table class="longtable docutils align-default">
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 90%" />
-</colgroup>
+<table class="autosummary longtable docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.expdesign.BayesianSequentialOED.compute_importance_weights" title="pyapprox.expdesign.BayesianSequentialOED.compute_importance_weights"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_importance_weights</span></code></a>()</p></td>
 <td><p>Compute the importance weights used in the computation of the expected utility that acccount for the fact we want to use the current posterior as the prior in the utility formula.</p></td>
@@ -155,7 +156,7 @@ as the prior in the utility formula.</p>
 <dd><p>Set the initial design indices and collect data at the
 corresponding design points.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>indices</strong><span class="classifier">np.ndarray (nindices, 1)</span></dt><dd><p>The indices corresponding to an initial design</p>
 </dd>
@@ -170,7 +171,7 @@ corresponding design points.</p>
 <dd><p>Store the newly collected obsevations which will dictate
 the next design point.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>new_obs</strong><span class="classifier">np.ndarray (1, nnew_obs)</span></dt><dd><p>The new observations</p>
 </dd>
@@ -179,8 +180,8 @@ the next design point.</p>
 </dl>
 <p class="rubric">Notes</p>
 <p>self.inner_importance_weights contains likelihood vals/evidence
-at inner_loop_samples
-self.inner_loop_weights is the prior quadrature weights which
+at in_samples
+self.in_weights is the prior quadrature weights which
 for random samples drawn from
 prior is just 1/N and for Gauss Quadrature is the quadrature rule
 weights.</p>

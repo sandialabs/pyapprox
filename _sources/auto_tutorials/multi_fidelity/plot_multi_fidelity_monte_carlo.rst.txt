@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -61,7 +61,7 @@ Starting from two models we introduce the next low fidelity model in a way that 
 
 We repeat this process for all low fidelity models to obtain
 
-.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)
+.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha,2}}\right)
 
 The optimal control variate weights for the MFMC estimator, which minimize the variance of the estimator, are :math:`\eta=(\eta_1,\ldots,\eta_M)^T`, where for :math:`\alpha=1\ldots,M`
 
@@ -69,7 +69,7 @@ The optimal control variate weights for the MFMC estimator, which minimize the v
 
 With this choice of weights the variance reduction obtained is given by
 
-.. math:: \gamma = 1-\rho_1^2\left(\frac{r_1-1}{r_1}+\sum_{\alpha=2}^M \frac{r_\alpha-r_{\alpha-1}}{r_\alpha r_{\alpha-1}}\frac{\rho_\alpha^2}{\rho_1^2}\right)
+.. math:: \gamma = 1-\rho_{0,1}^2\left(\frac{r_1-1}{r_1}+\sum_{\alpha=2}^M \frac{r_\alpha-r_{\alpha-1}}{r_\alpha r_{\alpha-1}}\frac{\rho_{0,\alpha}^2}{\rho_{0,1}^2}\right)
 
 Let us use MFMC to estimate the mean of our high-fidelity model.
 
@@ -114,39 +114,37 @@ Let us use MFMC to estimate the mean of our high-fidelity model.
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [ 14.65121753 316.63036044] nsample_ratios
-    [   4   60 1310] nsf1
-    [   4   60 1310] nsf2
-    [ 15.  327.5] rounded nsample_ratios
     MC error 0.007037370239274421
     MFMC error 0.017509111944310596
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 89-104
+.. GENERATED FROM PYTHON SOURCE LINES 89-108
 
 Optimal Sample Allocation
 -------------------------
-Similarly to MLMC, the optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically (see [PWGSIAM2016]_). Recalling that :math:`C_\mathrm{tot}` is the total budget then the optimal number of high fidelity samples is
+Similarly to MLMC, the optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically (see [PWGSIAM2016]_) provided the following condition is met
 
-.. math:: N_0 = \frac{C_\mathrm{tot}}{\V{w}^T\V{r}}
+.. math:: \frac{C_{\alpha-1}}{C_\alpha} > \frac{\rho^2_{0,\alpha-1}-\rho^2_{0,\alpha}}{\rho^2_{0,\alpha}-\rho^2_{0,\alpha+1}}
 
-where :math:`\V{r}=[r_0,\ldots,r_M]^T` are the sample ratios defining the number of samples assigned to each level, i.e. :math:`N_\alpha=r_\alpha N_0`. The sample ratios are
+When this condition is met the optimal number of high fidelity samples is
 
-.. math::
+.. math:: N_0 = \frac{C_\mathrm{tot}}{\V{C}^T\V{r}}
 
-   r_\alpha=\left(\frac{w_0(\rho^2_{0,\alpha}-\rho^2_{0,\alpha+1})}{w_\alpha(1-\rho^2_{0,1})}\right)^{\frac{1}{2}}
+where :math:`\V{C}=[C_0,\cdots,C_M]^T` are the costs of each model and :math:`\V{r}=[r_0,\ldots,r_M]^T` are the sample ratios defining the number of samples assigned to each level, i.e.
 
-where :math:`\V{w}=[w_0,w_M]^T` are the relative costs of each model, and :math:`\rho_{j,k}` is the correlation between models :math:`j` and :math:`k`.
+.. math:: N_\alpha=r_\alpha N_0.
+
+Recalling that :math:`\rho_{j,k}` denotes the correlation between models :math:`j` and :math:`k`, the optimal sample ratios are
+
+.. math:: r_\alpha=\left(\frac{C_0(\rho^2_{0,\alpha}-\rho^2_{0,\alpha+1})}{C_\alpha(1-\rho^2_{0,1})}\right)^{\frac{1}{2}}.
 
 Now lets us compare MC with MFMC using optimal sample allocations
 
-.. GENERATED FROM PYTHON SOURCE LINES 104-136
+.. GENERATED FROM PYTHON SOURCE LINES 108-140
 
 .. code-block:: default
 
@@ -165,9 +163,9 @@ Now lets us compare MC with MFMC using optimal sample allocations
 
     from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
     estimators = [
-        multifidelity.get_estimator("mfmc", cov, costs, poly_model.variable),
-        multifidelity.get_estimator("mc", cov, costs, poly_model.variable)]
-    est_labels = mathrm_labels(["MFMC", "MC"])
+        multifidelity.get_estimator("mc", cov, costs, poly_model.variable),
+        multifidelity.get_estimator("mfmc", cov, costs, poly_model.variable)]
+    est_labels = mathrm_labels(["MC", "MFMC"])
     optimized_estimators = multifidelity.compare_estimator_variances(
         target_costs, estimators)
 
@@ -177,7 +175,7 @@ Now lets us compare MC with MFMC using optimal sample allocations
         ylabel=mathrm_label("Relative Estimator Variance"))
     axs[0].set_xlim(target_costs.min(), target_costs.max())
     multifidelity.plot_acv_sample_allocation_comparison(
-        optimized_estimators[0], model_labels, axs[1])
+        optimized_estimators[1], model_labels, axs[1])
     plt.show()
     #fig # necessary for jupyter notebook to reshow plot in new cell
 
@@ -193,61 +191,41 @@ Now lets us compare MC with MFMC using optimal sample allocations
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [  6.275565    30.20633774 136.34720835 820.65180665] nsample_ratios
-    [   4   29  140  634 3820] nsf1
-    [   4   29  140  634 3820] nsf2
-    [  7.25  35.   158.5  955.  ] rounded nsample_ratios
-    [  6.275565    30.20633774 136.34720835 820.65180665] nsample_ratios
-    [   46   292  1406  6347 38204] nsf1
-    [   46   292  1406  6347 38204] nsf2
-    [  6.34782609  30.56521739 137.97826087 830.52173913] rounded nsample_ratios
-    [  6.275565    30.20633774 136.34720835 820.65180665] nsample_ratios
-    [   465   2921  14062  63475 382048] nsf1
-    [   465   2921  14062  63475 382048] nsf2
-    [  6.28172043  30.24086022 136.50537634 821.60860215] rounded nsample_ratios
-    [  6.275565    30.20633774 136.34720835 820.65180665] nsample_ratios
-    [   4655   29215  140623  634754 3820481] nsf1
-    [   4655   29215  140623  634754 3820481] nsf2
-    [  6.27604726  30.20902256 136.35961332 820.72631579] rounded nsample_ratios
+    [9.3160000e+00 9.9427400e+01 9.9939980e+02 9.9995321e+03] 1
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 137-140
+.. GENERATED FROM PYTHON SOURCE LINES 141-144
 
 References
 ^^^^^^^^^^
-.. [PWGSIAM2016] `{Peherstorfer, B., Willcox, K.,  Gunzburger, M., Optimal Model Management for Multifidelity Monte Carlo Estimation, 2016. <https://doi.org/10.1137/15M1046472>`_
+.. [PWGSIAM2016] `Peherstorfer, B., Willcox, K.,  Gunzburger, M., Optimal Model Management for Multifidelity Monte Carlo Estimation, 2016. <https://doi.org/10.1137/15M1046472>`_
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.594 seconds)
+   **Total running time of the script:** ( 0 minutes  0.460 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_multi_fidelity_monte_carlo.py <plot_multi_fidelity_monte_carlo.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_multi_fidelity_monte_carlo.py <plot_multi_fidelity_monte_carlo.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_multi_fidelity_monte_carlo.ipynb <plot_multi_fidelity_monte_carlo.ipynb>`
+      :download:`Download Jupyter notebook: plot_multi_fidelity_monte_carlo.ipynb <plot_multi_fidelity_monte_carlo.ipynb>`
 
 
 .. only:: html

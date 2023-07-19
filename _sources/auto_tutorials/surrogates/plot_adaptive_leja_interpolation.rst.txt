@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -69,10 +69,10 @@ Our goal is to demonstrate how to use a polynomial chaos expansion (PCE) to appr
 .. code-block:: default
 
 
-    c = np.array([10, 0.01])
-    w = np.zeros(2)
+    c = np.array([[10, 0.01]]).T
+    w = np.full((2, 1), 0.25)
     benchmark = setup_benchmark('genz', nvars=2, test_name='oscillatory',
-                                coefficients=(c, w))
+                                coeff=(c, w))
     model = benchmark.fun
     variable = benchmark.variable
 
@@ -241,11 +241,11 @@ Now we are in a position to start the adaptive process
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
-    [10  0] 5.595353455867515e-17
+    [1 2] 4.1460014785669786e-15
+    Accuracy misleadingly appears reached because admissibility  criterion is preventing new subspaces from being added to the active set
+    [0 3] 4.1460014785669786e-15
     Accuracy misleadingly appears reached because admissibility  criterion is preventing new subspaces from being added to the active set
 
 
@@ -304,28 +304,25 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.510 seconds)
+   **Total running time of the script:** ( 0 minutes  1.066 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_adaptive_leja_interpolation.py <plot_adaptive_leja_interpolation.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_adaptive_leja_interpolation.py <plot_adaptive_leja_interpolation.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_adaptive_leja_interpolation.ipynb <plot_adaptive_leja_interpolation.ipynb>`
+      :download:`Download Jupyter notebook: plot_adaptive_leja_interpolation.ipynb <plot_adaptive_leja_interpolation.ipynb>`
 
 
 .. only:: html

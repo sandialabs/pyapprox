@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.variables.sampling &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.variables.sampling &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.variables.sampling</li>
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.variables.sampling</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -91,7 +96,7 @@
 
 
 <div class="viewcode-block" id="print_statistics"><a class="viewcode-back" href="../../../api/pyapprox.variables.print_statistics.html#pyapprox.variables.print_statistics">[docs]</a><span class="k">def</span> <span class="nf">print_statistics</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">value_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Print statistics about a set of samples and associated values</span>
 
 <span class="sd">    Parameters</span>
@@ -149,7 +154,7 @@
 
 <span class="k">def</span> <span class="nf">generate_independent_random_samples</span><span class="p">(</span><span class="n">variable</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span>
                                         <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate samples from a tensor-product probability measure. This function</span>
 <span class="sd">    still exists to maintain backwards compatability. Please use</span>
 <span class="sd">    variable.rvs() instead</span>
@@ -173,7 +178,7 @@
                        <span class="n">generate_proposal_samples</span><span class="p">,</span> <span class="n">envelope_factor</span><span class="p">,</span>
                        <span class="n">num_vars</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                        <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Obtain samples from a density f(x) using samples from a proposal</span>
 <span class="sd">    distribution g(x).</span>
 
@@ -253,7 +258,7 @@
 
 
 <span class="k">def</span> <span class="nf">discrete_sampling</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">probs</span><span class="p">,</span> <span class="n">states</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    discrete_sampling -- samples iid from a discrete probability measure</span>
 
 <span class="sd">    x = discrete_sampling(N, prob, states)</span>

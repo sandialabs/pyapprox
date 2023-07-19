@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.surrogates.polychaos.gpc &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.surrogates.polychaos.gpc &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
         <script src="../../../../_static/jquery.js"></script>
         <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../../_static/doctools.js"></script>
     <script src="../../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.surrogates.polychaos.gpc</li>
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.surrogates.polychaos.gpc</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -117,7 +122,7 @@
 
 
 <span class="k">def</span> <span class="nf">make_2D_array</span><span class="p">(</span><span class="n">lis</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Funciton to get 2D array from a list of lists</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Funciton to get 2D array from a list of lists</span>
 
 <span class="sd">    numba does not support lists of lists so need to compute lists to 2D array</span>
 <span class="sd">    and store different lengths</span>
@@ -217,7 +222,7 @@
 <span class="k">def</span> <span class="nf">evaluate_multivariate_orthonormal_polynomial</span><span class="p">(</span>
         <span class="n">samples</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">recursion_coeffs</span><span class="p">,</span> <span class="n">deriv_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
         <span class="n">basis_type_index_map</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Evaluate a multivaiate orthonormal polynomial and its s-derivatives</span>
 <span class="sd">    (s=1,...,num_derivs) using a three-term recurrence coefficients.</span>
 
@@ -287,11 +292,11 @@
 
 
 <div class="viewcode-block" id="PolynomialChaosExpansion"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion">[docs]</a><span class="k">class</span> <span class="nc">PolynomialChaosExpansion</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A polynomial chaos expansion for independent random variables.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; Constructor. &quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot; Constructor. &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">recursion_coeffs</span> <span class="o">=</span> <span class="p">[]</span>
@@ -371,7 +376,7 @@
     <span class="c1">#     raise Exception(Not implemented)</span>
 
 <div class="viewcode-block" id="PolynomialChaosExpansion.configure"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.configure">[docs]</a>    <span class="k">def</span> <span class="nf">configure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">opts</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        var_trans : :class:`pyapprox.variables.transforms.AffineTransform`</span>
@@ -495,9 +500,9 @@
 <div class="viewcode-block" id="PolynomialChaosExpansion.num_vars"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.num_vars">[docs]</a>    <span class="k">def</span> <span class="nf">num_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="PolynomialChaosExpansion.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">jac</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<div class="viewcode-block" id="PolynomialChaosExpansion.__call__"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="n">vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">jac</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">return_grad</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">vals</span>
         <span class="n">jacs</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">jacobian</span><span class="p">(</span><span class="n">sample</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])</span> <span class="k">for</span> <span class="n">sample</span> <span class="ow">in</span> <span class="n">samples</span><span class="o">.</span><span class="n">T</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
@@ -505,7 +510,7 @@
         <span class="k">return</span> <span class="n">vals</span><span class="p">,</span> <span class="n">jacs</span></div>
 
 <div class="viewcode-block" id="PolynomialChaosExpansion.mean"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.mean">[docs]</a>    <span class="k">def</span> <span class="nf">mean</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Compute the mean of the polynomial chaos expansion</span>
 
 <span class="sd">        Returns</span>
@@ -516,7 +521,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span></div>
 
 <div class="viewcode-block" id="PolynomialChaosExpansion.variance"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.variance">[docs]</a>    <span class="k">def</span> <span class="nf">variance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Compute the variance of the polynomial chaos expansion</span>
 
 <span class="sd">        Returns</span>
@@ -529,7 +534,7 @@
         <span class="k">return</span> <span class="n">var</span></div>
 
 <div class="viewcode-block" id="PolynomialChaosExpansion.covariance"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.PolynomialChaosExpansion.html#pyapprox.surrogates.PolynomialChaosExpansion.covariance">[docs]</a>    <span class="k">def</span> <span class="nf">covariance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Compute the covariance between each quantity of interest of the</span>
 <span class="sd">        polynomial chaos expansion</span>
 
@@ -608,7 +613,7 @@
 
 <span class="k">def</span> <span class="nf">conditional_moments_of_polynomial_chaos_expansion</span><span class="p">(</span>
         <span class="n">poly</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">inactive_idx</span><span class="p">,</span> <span class="n">return_variance</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return mean and variance of polynomial chaos expansion with some variables</span>
 <span class="sd">    fixed at specified values.</span>
 
@@ -671,7 +676,7 @@
 
 
 <span class="k">def</span> <span class="nf">marginalize_polynomial_chaos_expansion</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">inactive_idx</span><span class="p">,</span> <span class="n">center</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This function is not optimal. It will recreate the options</span>
 <span class="sd">    used to configure the polynomial. Any recursion coefficients</span>
 <span class="sd">    calculated which are still relevant will need to be computed.</span>
@@ -727,7 +732,7 @@
 
 <span class="k">def</span> <span class="nf">compute_univariate_orthonormal_basis_products</span><span class="p">(</span><span class="n">get_recursion_coefficients</span><span class="p">,</span>
                                                   <span class="n">max_degree1</span><span class="p">,</span> <span class="n">max_degree2</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute all the products of univariate orthonormal bases and re-express</span>
 <span class="sd">    them as expansions using the orthnormal basis.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -779,7 +784,7 @@
 <span class="k">def</span> <span class="nf">compute_multivariate_orthonormal_basis_product</span><span class="p">(</span>
         <span class="n">product_coefs_1d</span><span class="p">,</span> <span class="n">poly_index_ii</span><span class="p">,</span> <span class="n">poly_index_jj</span><span class="p">,</span> <span class="n">max_degrees1</span><span class="p">,</span>
         <span class="n">max_degrees2</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the product of two multivariate orthonormal bases and re-express</span>
 <span class="sd">    as an expansion using the orthnormal basis.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -867,7 +872,7 @@
 
 
 <span class="k">def</span> <span class="nf">get_coefficients_for_plotting</span><span class="p">(</span><span class="n">pce</span><span class="p">,</span> <span class="n">qoi_idx</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">   Get the coefficients of a</span>
 <span class="sd">    :class:`pyapprox.polynomial_chaos.multivariate_polynomials.PolynomialChaosExpansion`</span>
 <span class="sd">&quot;&quot;&quot;</span>
@@ -917,7 +922,7 @@
                                    <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                                    <span class="n">cutoffs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                                    <span class="n">ylim</span><span class="o">=</span><span class="p">[</span><span class="mf">1e-6</span><span class="p">,</span> <span class="mf">1.</span><span class="p">]):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Plot the coefficients of linear (in parameters) approximation</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -971,7 +976,7 @@
 
 
 <span class="k">def</span> <span class="nf">plot_pce_coefficients</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">pces</span><span class="p">,</span> <span class="n">ylim</span><span class="o">=</span><span class="p">[</span><span class="mf">1e-6</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">qoi_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Plot the coefficients of multiple</span>
 <span class="sd">    :class:`pyapprox.polynomial_chaos.multivariate_polynomials.PolynomialChaosExpansion`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -999,7 +1004,8 @@
         <span class="n">coeffs</span><span class="p">,</span> <span class="n">indices_list</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">degree_breaks</span><span class="o">=</span><span class="n">breaks</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ylim</span><span class="o">=</span><span class="n">ylim</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">_marginalize_function_1d</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">quad_degrees</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">samples_ii</span><span class="p">,</span> <span class="n">qoi</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">_marginalize_function_1d</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">quad_degrees</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">samples_ii</span><span class="p">,</span>
+                             <span class="n">qoi</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
     <span class="k">assert</span> <span class="n">samples_ii</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
     <span class="n">all_variables</span> <span class="o">=</span> <span class="n">variable</span><span class="o">.</span><span class="n">marginals</span><span class="p">()</span>
     <span class="n">sub_variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span>
@@ -1014,6 +1020,7 @@
     <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">samples_ii</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples_ii</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
         <span class="n">samples</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">samples_ii</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span>
+        <span class="c1"># print(jj, samples.shape, samples_ii.shape)</span>
         <span class="n">values_jj</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">samples</span><span class="p">)[:,</span> <span class="n">qoi</span><span class="p">]</span>
         <span class="n">values</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">values_jj</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">wquad</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">values</span>

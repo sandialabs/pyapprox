@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Push Forward Based Inference &mdash; PyApprox 1.0.0 documentation</title>
+  <title>Push Forward Based Inference &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -20,14 +20,15 @@
         <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/jquery.js"></script>
         <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
         <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Bayesian Inference" href="plot_bayesian_inference.html" />
-    <link rel="prev" title="Sensitivity Analysis" href="../analysis/plot_sensitivity_analysis.html" /> 
+    <link rel="next" title="Tensor-product Barycentric Interpolation" href="../surrogates/plot_tensor_product_interpolation.html" />
+    <link rel="prev" title="Gaussian Networks" href="plot_bayesian_networks.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -53,20 +58,20 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#inference">Inference</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_bayesian_inference.html">Bayesian Inference</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_bayesian_networks.html">Gaussian Networks</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Push Forward Based Inference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="plot_bayesian_inference.html">Bayesian Inference</a></li>
-<li class="toctree-l3"><a class="reference internal" href="plot_bayesian_networks.html">Gaussian Networks</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
 </ul>
 </li>
 </ul>
@@ -92,9 +97,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../index.html">Theoretical Tutorials</a> &raquo;</li>
-      <li>Push Forward Based Inference</li>
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">Push Forward Based Inference</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/auto_tutorials/inference/plot_push_forward_based_inference.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -106,11 +111,11 @@
              
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-inference-plot-push-forward-based-inference-py"><span class="std std-ref">here</span></a>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-inference-plot-push-forward-based-inference-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="push-forward-based-inference">
-<span id="sphx-glr-auto-tutorials-inference-plot-push-forward-based-inference-py"></span><h1>Push Forward Based Inference<a class="headerlink" href="#push-forward-based-inference" title="Permalink to this headline"></a></h1>
+<span id="sphx-glr-auto-tutorials-inference-plot-push-forward-based-inference-py"></span><h1>Push Forward Based Inference<a class="headerlink" href="#push-forward-based-inference" title="Permalink to this heading"></a></h1>
 <p>This tutorial describes push forward based inference (PFI) <a class="reference internal" href="#bjwsisc2018" id="id1"><span>[BJWSISC2018]</span></a>.</p>
 <p>PFI solves the inverse problem of inferring parameters <span class="math notranslate nohighlight">\(\rv\)</span> of a deterministic model <span class="math notranslate nohighlight">\(f(\rv)\)</span> from stochastic observational data on quantities of interest.  The solution is a posterior probability measure that when propagated through the deterministic model produces a push-forward measure that exactly matches a given observed probability measure on available data.</p>
 <p>The solution to the PFI inverse problem is given by</p>
@@ -222,8 +227,7 @@ Given a random number <span class="math notranslate nohighlight">\(u\sim U[0,1]\
 <span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">ranges</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_push_forward_based_inference_002.png" srcset="../../_images/sphx_glr_plot_push_forward_based_inference_002.png" alt="plot push forward based inference" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Acceptance ratio 0.1699
+<img src="../../_images/sphx_glr_plot_push_forward_based_inference_002.png" srcset="../../_images/sphx_glr_plot_push_forward_based_inference_002.png" alt="plot push forward based inference" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Acceptance ratio 0.172
 </pre></div>
 </div>
 <p>The goal of inverse problem was to define the posterior density that when push forward through the forward model exactly matches the observed PDF. Lets check that by pushing forward our samples from the posterior.</p>
@@ -247,17 +251,19 @@ Given a random number <span class="math notranslate nohighlight">\(u\sim U[0,1]\
 </div>
 <img src="../../_images/sphx_glr_plot_push_forward_based_inference_003.png" srcset="../../_images/sphx_glr_plot_push_forward_based_inference_003.png" alt="plot push forward based inference" class = "sphx-glr-single-img"/><p>Explore the number effect of changing the number of prior samples on the posterior and its push-forward.</p>
 <section id="references">
-<h2>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h2>
-<dl class="citation">
-<dt class="label" id="bjwsisc2018"><span class="brackets"><a class="fn-backref" href="#id1">BJWSISC2018</a></span></dt>
-<dd><p><a class="reference external" href="https://doi.org/10.1137/16M1087229">T Butler, J Jakeman, T Wildey. Combining push-forward measures and Bayes’ rule to construct consistent solutions to stochastic inverse problems. SIAM Journal on Scientific Computing, 40 (2), A984-A1011 (2018).</a></p>
-</dd>
-<dt class="label" id="bjwsisc2018b"><span class="brackets"><a class="fn-backref" href="#id2">BJWSISC2018b</a></span></dt>
-<dd><p><a class="reference external" href="https://doi.org/10.1137/18M1181675">T Butler, J Jakeman, T Wildey. Convergence of probability densities using approximate models for forward and inverse problems in uncertainty quantification. SIAM Journal on Scientific Computing, 40 (5), A3523-A3548 (2018).</a></p>
-</dd>
-</dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.704 seconds)</p>
-<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-inference-plot-push-forward-based-inference-py">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h2>
+<div role="list" class="citation-list">
+<div class="citation" id="bjwsisc2018" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">BJWSISC2018</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1137/16M1087229">T Butler, J Jakeman, T Wildey. Combining push-forward measures and Bayes’ rule to construct consistent solutions to stochastic inverse problems. SIAM Journal on Scientific Computing, 40 (2), A984-A1011 (2018).</a></p>
+</div>
+<div class="citation" id="bjwsisc2018b" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">BJWSISC2018b</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1137/18M1181675">T Butler, J Jakeman, T Wildey. Convergence of probability densities using approximate models for forward and inverse problems in uncertainty quantification. SIAM Journal on Scientific Computing, 40 (5), A3523-A3548 (2018).</a></p>
+</div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.741 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-inference-plot-push-forward-based-inference-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/be108a4564a52a9c7f1610bf923454f3/plot_push_forward_based_inference.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_push_forward_based_inference.py</span></code></a></p>
 </div>
@@ -273,8 +279,8 @@ Given a random number <span class="math notranslate nohighlight">\(u\sim U[0,1]\
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../analysis/plot_sensitivity_analysis.html" class="btn btn-neutral float-left" title="Sensitivity Analysis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="plot_bayesian_inference.html" class="btn btn-neutral float-right" title="Bayesian Inference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="plot_bayesian_networks.html" class="btn btn-neutral float-left" title="Gaussian Networks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../surrogates/plot_tensor_product_interpolation.html" class="btn btn-neutral float-right" title="Tensor-product Barycentric Interpolation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

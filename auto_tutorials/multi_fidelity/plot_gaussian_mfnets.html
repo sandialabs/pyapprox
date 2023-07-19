@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MFNets: Multi-fidelity networks &mdash; PyApprox 1.0.0 documentation</title>
+  <title>MFNets: Multi-fidelity networks &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -20,14 +20,15 @@
         <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/jquery.js"></script>
         <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
         <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Tensor-product Barycentric Interpolation" href="../surrogates/plot_tensor_product_interpolation.html" />
-    <link rel="prev" title="Generalized Approximate Control Variate Monte Carlo" href="plot_many_model_approximate_control_variate_monte_carlo.html" /> 
+    <link rel="next" title="Benchmarks" href="../../benchmarks.html" />
+    <link rel="prev" title="Multifidelity Gaussian processes" href="plot_multifidelity_gp.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -53,10 +58,11 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
@@ -64,6 +70,9 @@
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multilevel_blue.html">Multilevel Best Linear Unbiased estimators (MLBLUE)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-level and Multi-index Collocation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multifidelity_gp.html">Multifidelity Gaussian processes</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">MFNets: Multi-fidelity networks</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#linear-gaussian-models">Linear-Gaussian models</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gaussian-networks">Gaussian Networks</a></li>
@@ -71,7 +80,6 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
 </ul>
 </li>
 </ul>
@@ -97,9 +105,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../index.html">Theoretical Tutorials</a> &raquo;</li>
-      <li>MFNets: Multi-fidelity networks</li>
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">MFNets: Multi-fidelity networks</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/auto_tutorials/multi_fidelity/plot_gaussian_mfnets.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -111,20 +119,20 @@
              
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py"><span class="std std-ref">here</span></a>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="mfnets-multi-fidelity-networks">
-<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py"></span><h1>MFNets: Multi-fidelity networks<a class="headerlink" href="#mfnets-multi-fidelity-networks" title="Permalink to this headline"></a></h1>
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py"></span><h1>MFNets: Multi-fidelity networks<a class="headerlink" href="#mfnets-multi-fidelity-networks" title="Permalink to this heading"></a></h1>
 <p>This tutorial describes how to implement and deploy multi-fidelity networks to construct a surrogate of the output of a high-fidelity model using a set of lower-fidelity models of lower accuracy and cost <a class="reference internal" href="#gjgeijuq2020" id="id1"><span>[GJGEIJUQ2020]</span></a>.</p>
-<p>In the <span class="xref std std-ref">sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py</span> tutorial we showed how multi-index collocation takes adavantage of a specific type of relationship between models to build a surrogate. In some applications this structure may not exist and so methods that can exlpoit other types of structures are needed. MFNets provide a means to encode problem specific relationships between information sources.</p>
+<p>In the <a class="reference internal" href="plot_multiindex_collocation.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multiindex-collocation-py"><span class="std std-ref">Multi-level and Multi-index Collocation</span></a> tutorial we showed how multi-index collocation takes adavantage of a specific type of relationship between models to build a surrogate. In some applications this structure may not exist and so methods that can exploit other types of structures are needed. MFNets provide a means to encode problem specific relationships between information sources.</p>
 <p>In the following we will approximate each information source with a linear subspace model. Specifically given a basis (features) <span class="math notranslate nohighlight">\(\phi_\alpha=\{\phi_{\alpha p}\}_{p=1}^P\)</span> for each information source <span class="math notranslate nohighlight">\(\alpha=1\ldots,M\)</span> we seek approximations of the form</p>
 <div class="math notranslate nohighlight">
 \[Y_\alpha = h(Z_\alpha)\theta_\alpha = \sum_{p=1}^{P_\alpha} \phi_p(Z_\alpha)\theta_{\alpha p}\]</div>
-<p>Given data for each model <span class="math notranslate nohighlight">\(y_\alpha=[(y_\alpha^{(1)})^T,(y_\alpha^{(N_\alpha)})^T]^T\)</span> where <span class="math notranslate nohighlight">\(y_\alpha^{(i)}=h(\rv_\alpha^{(i)})\theta_\alpha+\epsilon_\alpha^{(i)}\in\reals^{1\times Q}\)</span></p>
+<p>Given data for each model <span class="math notranslate nohighlight">\(y_\alpha=[(y_\alpha^{(1)})^\top,\ldots,(y_\alpha^{(N_\alpha)})^\top]^\top\)</span> where <span class="math notranslate nohighlight">\(y_\alpha^{(i)}=h(\rv_\alpha^{(i)})\theta_\alpha+\epsilon_\alpha^{(i)}\in\reals^{1\times Q}\)</span></p>
 <p>MFNets provides a framework to encode correlation between information sources to with the goal of producing high-fidelity approximations which are more accurate than single-fidelity approximations using ony high-fidelity data. The first part of this tutorial will show how to apply MFNets to a simple problem using standard results for the posterior of Gaussian linear models. The second part of this tutorial will show how to generalize the MFNets procedure using Bayesian Networks.</p>
 <section id="linear-gaussian-models">
-<h2>Linear-Gaussian models<a class="headerlink" href="#linear-gaussian-models" title="Permalink to this headline"></a></h2>
+<h2>Linear-Gaussian models<a class="headerlink" href="#linear-gaussian-models" title="Permalink to this heading"></a></h2>
 <p>As our first example we will consider the following ensemble of three univariate information sources which are parameterized by the same variable <span class="math notranslate nohighlight">\(\rv_1\)</span></p>
 <div class="math notranslate nohighlight">
 \[\begin{split}f_1(\rv) &amp;= \cos\left(3\pi\rv_1\right), \\
@@ -170,8 +178,7 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 <span class="c1">#plt.show()</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_gaussian_mfnets_001.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_001.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.legend.Legend object at 0x16d7de880&gt;
+<img src="../../_images/sphx_glr_plot_gaussian_mfnets_001.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_001.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.legend.Legend object at 0x17e9bbe20&gt;
 </pre></div>
 </div>
 <p>Now setup the polynomial approximations of each information source</p>
@@ -193,7 +200,7 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 <p>With the goal of applying classical formulas for the posterior of Gaussian-linear models let’s first define the linear model which involves all information sources</p>
 <div class="math notranslate nohighlight">
 \[y=\Phi\theta+\epsilon\]</div>
-<p>Specifically let <span class="math notranslate nohighlight">\(\Phi_\alpha\in\reals^{N_i\times P_i}\)</span> be Vandermonde-like matrices with entries <span class="math notranslate nohighlight">\(\phi_{\alpha p}(\rv_\alpha^{(n)})\)</span> in the nth row and pth column. Now define <span class="math notranslate nohighlight">\(\Phi=\mathrm{blockdiag}\left(\Phi_1,\ldots,\Phi_M\right)\)</span> and <span class="math notranslate nohighlight">\(\Sigma_\epsilon=\mathrm{blockdiag}\left(\Sigma_{\epsilon 1},\ldots,\Sigma_{\epsilon M}\right)\)</span>, <span class="math notranslate nohighlight">\(y=\left[y_1^T,\ldots,y_M^T\right]^T\)</span>,  <span class="math notranslate nohighlight">\(\theta=\left[\theta_1^T,\ldots,\theta_M^T\right]^T\)</span>, and <span class="math notranslate nohighlight">\(\epsilon=\left[\epsilon_1^T,\ldots,\epsilon_M^T\right]^T\)</span>.</p>
+<p>Specifically let <span class="math notranslate nohighlight">\(\Phi_\alpha\in\reals^{N_i\times P_i}\)</span> be Vandermonde-like matrices with entries <span class="math notranslate nohighlight">\(\phi_{\alpha p}(\rv_\alpha^{(n)})\)</span> in the nth row and pth column. Now define <span class="math notranslate nohighlight">\(\Phi=\mathrm{blockdiag}\left(\Phi_1,\ldots,\Phi_M\right)\)</span> and <span class="math notranslate nohighlight">\(\Sigma_\epsilon=\mathrm{blockdiag}\left(\Sigma_{\epsilon 1},\ldots,\Sigma_{\epsilon M}\right)\)</span>, <span class="math notranslate nohighlight">\(y=\left[y_1^\top,\ldots,y_M^\top\right]^\top\)</span>,  <span class="math notranslate nohighlight">\(\theta=\left[\theta_1^\top,\ldots,\theta_M^\top\right]^\top\)</span>, and <span class="math notranslate nohighlight">\(\epsilon=\left[\epsilon_1^\top,\ldots,\epsilon_M^\top\right]^\top\)</span>.</p>
 <p>For our three model example we have</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}\Phi=\begin{bmatrix}\Phi_1 &amp; 0_{N_1P_2} &amp; 0_{N_1P_3}\\ 0_{N_2P_1} &amp; \Phi_2 &amp; 0_{N_2P_3}\\0_{N_3P_1} &amp; 0_{N_3P_1} &amp; \Phi_3 \end{bmatrix} \qquad \Sigma_\epsilon=\begin{bmatrix}\Sigma_{\epsilon_1} &amp; 0_{N_1N_2} &amp; 0_{N_1N_3}\\ 0_{N_2N_1} &amp; \Sigma_{\epsilon_2} &amp; 0_{N_2N_3}\\0_{N_3N_1} &amp; 0_{N_3N_1} &amp; \Sigma_{\epsilon_3} \end{bmatrix}\qquad y= \begin{bmatrix}y_1\\y_2\\y_3 \end{bmatrix}\end{split}\]</div>
@@ -208,15 +215,15 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 </div>
 <p>Now let the prior on the coefficients of <span class="math notranslate nohighlight">\(Y_\alpha\)</span> be Gaussian with mean <span class="math notranslate nohighlight">\(\mu_\alpha\)</span> and covariance <span class="math notranslate nohighlight">\(\Sigma_{\alpha\alpha}\)</span>, and the covariance between the coefficients of different information sources <span class="math notranslate nohighlight">\(Y_\alpha\)</span> and <span class="math notranslate nohighlight">\(Y_\beta\)</span> be <span class="math notranslate nohighlight">\(\Sigma_{\alpha\beta}\)</span>, such that the joint density of the coefficients of all information sources is Gaussian with mean and covariance given by</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}\mu=\left[\mu_1^T,\ldots,\mu_M^T\right]^T` \qquad \Sigma=\begin{bmatrix}\Sigma_{11} &amp;\Sigma_{12} &amp;\ldots &amp;\Sigma_{1M} \\ \Sigma_{21} &amp;\Sigma_{22} &amp;\ldots &amp;\Sigma_{2M}\\\vdots &amp;\vdots &amp; \ddots &amp;\vdots \\ \Sigma_{M1} &amp;\Sigma_{M2} &amp;\ldots &amp;\Sigma_{MM}\end{bmatrix}\end{split}\]</div>
+\[\begin{split}\mu=\left[\mu_1^\top,\ldots,\mu_M^\top\right]^\top` \qquad \Sigma=\begin{bmatrix}\Sigma_{11} &amp;\Sigma_{12} &amp;\ldots &amp;\Sigma_{1M} \\ \Sigma_{21} &amp;\Sigma_{22} &amp;\ldots &amp;\Sigma_{2M}\\\vdots &amp;\vdots &amp; \ddots &amp;\vdots \\ \Sigma_{M1} &amp;\Sigma_{M2} &amp;\ldots &amp;\Sigma_{MM}\end{bmatrix}\end{split}\]</div>
 <p>In the following we will set the prior mean to zero for all coefficients and first try setting all the coefficients to be independent</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">prior_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nparams</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="mi">1</span><span class="p">))</span>
 <span class="n">prior_cov</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
 </pre></div>
 </div>
-<p>With these definition the posterior distribution of the coefficients is (see <span class="xref std std-ref">sphx_glr_auto_tutorials_foundations_plot_bayesian_inference.py</span>)</p>
+<p>With these definition the posterior distribution of the coefficients is (see <a class="reference internal" href="../inference/plot_bayesian_inference.html#sphx-glr-auto-tutorials-inference-plot-bayesian-inference-py"><span class="std std-ref">Bayesian Inference</span></a>)</p>
 <div class="math notranslate nohighlight">
-\[\Sigma^\mathrm{post}=\left(\Sigma^{-1}+\Phi^T\Sigma_\epsilon^{-1}\Phi\right)^{-1}, \qquad  \mu^\mathrm{post}=\Sigma^\mathrm{post}\left(\Phi^T\Sigma_\epsilon^{-1}y+\Sigma^{-1}\mu\right),\]</div>
+\[\Sigma^\mathrm{post}=\left(\Sigma^{-1}+\Phi^\top\Sigma_\epsilon^{-1}\Phi\right)^{-1}, \qquad  \mu^\mathrm{post}=\Sigma^\mathrm{post}\left(\Phi^\top\Sigma_\epsilon^{-1}y+\Sigma^{-1}\mu\right),\]</div>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">post_mean</span><span class="p">,</span> <span class="n">post_cov</span> <span class="o">=</span> <span class="n">laplace_posterior_approximation_for_linear_models</span><span class="p">(</span>
     <span class="n">basis_mat</span><span class="p">,</span> <span class="n">prior_mean</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">prior_cov</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">noise_cov</span><span class="p">),</span>
     <span class="n">values</span><span class="p">)</span>
@@ -241,8 +248,7 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 <span class="c1"># plt.show()</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_gaussian_mfnets_002.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_002.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[&lt;matplotlib.lines.Line2D object at 0x1693f26d0&gt;]
+<img src="../../_images/sphx_glr_plot_gaussian_mfnets_002.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_002.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[&lt;matplotlib.lines.Line2D object at 0x17c010fd0&gt;]
 </pre></div>
 </div>
 <p>Unfortunately by assuming that the coefficients of each information source are independent the lower fidelity data is not informing the estimation of the coefficients of the high-fidelity approximation. This statement can be verified by computing an approximation with only the high-fidelity data</p>
@@ -264,10 +270,10 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 <p>and assume that <span class="math notranslate nohighlight">\(\covar{\theta_\alpha}{v_3}=0\: \forall \alpha\)</span> and  <span class="math notranslate nohighlight">\(\covar{\theta_1}{\theta_2}=0\)</span>. Note the later relationship does not mean data from the information from <span class="math notranslate nohighlight">\(Y_1\)</span> cannot be used to inform the coefficients of <span class="math notranslate nohighlight">\(Y_2\)</span>.</p>
 <p>Given the defined relationship between the coefficients of each information source we can compute the prior over the joint distribiution of the coefficients of all information sources. Without loss of generality we assume the variables have zero mean and <span class="math notranslate nohighlight">\(b_3=0\)</span> so that</p>
 <div class="math notranslate nohighlight">
-\[\covar{\theta_1}{\theta_3}=\mean{\theta_1\theta_3^T}=\mean{\theta_1\left(A_{31}\theta_1+A_{32}\theta_2+v_\alpha\right)^T}=\covar{\theta_1}{\theta_1}A_{31}^T\]</div>
-<p>similarly <span class="math notranslate nohighlight">\(\covar{\theta_2}{\theta_3}=\covar{\theta_2}{\theta_2}A_{32}^T\)</span>. We also have</p>
+\[\covar{\theta_1}{\theta_3}=\mean{\theta_1\theta_3^\top}=\mean{\theta_1\left(A_{31}\theta_1+A_{32}\theta_2+v_\alpha\right)^\top}=\covar{\theta_1}{\theta_1}A_{31}^\top\]</div>
+<p>similarly <span class="math notranslate nohighlight">\(\covar{\theta_2}{\theta_3}=\covar{\theta_2}{\theta_2}A_{32}^\top\)</span>. We also have</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}\covar{\theta_3}{\theta_3}&amp;=\mean{\theta_1\theta_1^T}=\mean{\left(A_{13}\theta_1+A_{12}\theta_2+v_\alpha\right)\left(A_{31}\theta_1+A_{32}\theta_2+v_3\right)^T}\\&amp;=A_{31}\covar{\theta_1}{\theta_1}A_{31}^T+A_{32}\covar{\theta_2}{\theta_2}A_{32}^T+\covar{v_3}{v_3}\end{split}\]</div>
+\[\begin{split}\covar{\theta_3}{\theta_3}&amp;=\mean{\theta_1\theta_1^\top}=\mean{\left(A_{13}\theta_1+A_{12}\theta_2+v_\alpha\right)\left(A_{31}\theta_1+A_{32}\theta_2+v_3\right)^\top}\\&amp;=A_{31}\covar{\theta_1}{\theta_1}A_{31}^\top+A_{32}\covar{\theta_2}{\theta_2}A_{32}^\top+\covar{v_3}{v_3}\end{split}\]</div>
 <p>In this tutorial we will set <span class="math notranslate nohighlight">\(A_{31}=a_{31} I\)</span>, <span class="math notranslate nohighlight">\(A_{32}=a_{32} I\)</span>, <span class="math notranslate nohighlight">\(\Sigma_{11}=s_{11} I\)</span>, <span class="math notranslate nohighlight">\(\Sigma_{22}=s_{22} I\)</span> and  <span class="math notranslate nohighlight">\(\Sigma_{v_3}=v_{3} I\)</span> to be diagonal matrices with the same value for all entries on the diagonal which gives</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}\Sigma=\begin{bmatrix}\Sigma_{11} &amp; 0 &amp; a_{31}\Sigma_{11}\\ 0 &amp; \Sigma_{22} &amp; a_{32}\Sigma_{22}\\ a_{31}\Sigma_{11} &amp; a_{32}\Sigma_{22} &amp; a_{31}^2\Sigma_{11}+a_{32}^2\Sigma_{22}+\Sigma_{v_3}\end{bmatrix}\end{split}\]</div>
@@ -290,8 +296,7 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 <span class="c1"># plt.show()</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_gaussian_mfnets_003.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_003.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.image.AxesImage object at 0x16d55c9a0&gt;
+<img src="../../_images/sphx_glr_plot_gaussian_mfnets_003.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_003.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.image.AxesImage object at 0x1796020b0&gt;
 </pre></div>
 </div>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">post_mean</span><span class="p">,</span> <span class="n">post_cov</span> <span class="o">=</span> <span class="n">laplace_posterior_approximation_for_linear_models</span><span class="p">(</span>
@@ -317,15 +322,14 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 <span class="c1"># plt.show()</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_gaussian_mfnets_004.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_004.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[&lt;matplotlib.lines.Line2D object at 0x16c3edb50&gt;]
+<img src="../../_images/sphx_glr_plot_gaussian_mfnets_004.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_004.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[&lt;matplotlib.lines.Line2D object at 0x17a5184c0&gt;]
 </pre></div>
 </div>
 <p>Depsite using only a very small number of samples of the high-fidelity information source, the multi-fidelity approximation has smaller variance and the mean more closely approximates the true high-fidelity information source, when compared to the single fidelity strategy.</p>
 </section>
 <section id="gaussian-networks">
-<h2>Gaussian Networks<a class="headerlink" href="#gaussian-networks" title="Permalink to this headline"></a></h2>
-<p>In this section of the tutorial we will use show how to use Gaussian (Bayesian networks to encode a large class of relationships between information sources and perform compuationally efficient inference. This tutorial builds on the material presented in the <span class="xref std std-ref">sphx_glr_auto_tutorials_foundations_plot_bayesian_networks.py</span> tutorial.</p>
+<h2>Gaussian Networks<a class="headerlink" href="#gaussian-networks" title="Permalink to this heading"></a></h2>
+<p>In this section of the tutorial we will use show how to use Gaussian (Bayesian networks to encode a large class of relationships between information sources and perform compuationally efficient inference. This tutorial builds on the material presented in the <a class="reference internal" href="../inference/plot_bayesian_networks.html#sphx-glr-auto-tutorials-inference-plot-bayesian-networks-py"><span class="std std-ref">Gaussian Networks</span></a> tutorial.</p>
 <p>In the following we will use use Gaussian networks to fuse information from a modification of the information enembles used in the previous section. Specifically consider the enemble</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}f_1(\rv) &amp;= \cos\left(3\pi\rv_1+0.1\rv_2\right), \\
@@ -449,35 +453,38 @@ f_3(\rv) &amp;= f_2(\rv)+\cos(3\pi\rv_1)\end{split}\]</div>
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_gaussian_mfnets_006.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_006.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><section id="references">
-<h3>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h3>
-<dl class="citation">
-<dt class="label" id="gjgeijuq2020"><span class="brackets">GJGEIJUQ2020</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>)</span></dt>
-<dd><p><a class="reference external" href="https://www.alexgorodetsky.com/static/papers/gorodetsky_jakeman_geraci_eldred_mfnets_2020.pdf">MFNets: Multi-fidelity data-driven networks for bayesian learning and prediction, International Journal for Uncertainty Quantification, 2020.</a></p>
-</dd>
-<dt class="label" id="gjgjcp2020"><span class="brackets">GJGJCP2020</span></dt>
-<dd><p><a class="reference external" href="https://res.arxiv.org/abs/2008.02672">MFNets: Learning network representations for multifidelity surrogate modeling, 2020.</a></p>
-</dd>
-</dl>
+<h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
+<div role="list" class="citation-list">
+<div class="citation" id="gjgeijuq2020" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>GJGEIJUQ2020<span class="fn-bracket">]</span></span>
+<span class="backrefs">(<a role="doc-backlink" href="#id1">1</a>,<a role="doc-backlink" href="#id2">2</a>)</span>
+<p><a class="reference external" href="https://www.alexgorodetsky.com/static/papers/gorodetsky_jakeman_geraci_eldred_mfnets_2020.pdf">A. Gorodetsky et al. MFNets: Multi-fidelity data-driven networks for bayesian learning and prediction, International Journal for Uncertainty Quantification, 2020.</a></p>
+</div>
+<div class="citation" id="gjgjcp2020" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>GJGJCP2020<span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://res.arxiv.org/abs/2008.02672">A. Gorodetsky et al. MFNets: Learning network representations for multifidelity surrogate modeling, 2020.</a></p>
+</div>
+</div>
 </section>
 <section id="appendix">
-<h3>Appendix<a class="headerlink" href="#appendix" title="Permalink to this headline"></a></h3>
+<h3>Appendix<a class="headerlink" href="#appendix" title="Permalink to this heading"></a></h3>
 <p>There is a strong connection between the mean of the Bayes posterior distribution of linear-Gaussian models with least squares regression. Specifically the mean of the posterior is equivalent to linear least-squares regression with a regulrization that penalizes deviations from the prior estimate of the parameters. Let the least squares objective function be</p>
 <div class="math notranslate nohighlight">
-\[f(\theta)=\frac{1}{2}(y-A\theta)^T\Sigma_\epsilon^{-1}(y-A\theta)+\frac{1}{2}(\mu_\theta-\theta)^T\Sigma_\theta^{-1}(\mu_\theta-\theta),\]</div>
+\[f(\theta)=\frac{1}{2}(y-A\theta)^\top\Sigma_\epsilon^{-1}(y-A\theta)+\frac{1}{2}(\mu_\theta-\theta)^\top\Sigma_\theta^{-1}(\mu_\theta-\theta),\]</div>
 <p>where the first term on the right hand side is the usual least squares objective and the second is the regularization term. This regularized objective is minimized by setting its gradient to zero, i.e.</p>
 <div class="math notranslate nohighlight">
-\[\nabla_\theta f(\theta)=A^T\Sigma_\epsilon^{-1}(y-A\theta)+\Sigma_\theta^{-1}(\mu_\theta-\theta)=0,\]</div>
+\[\nabla_\theta f(\theta)=A^\top\Sigma_\epsilon^{-1}(y-A\theta)+\Sigma_\theta^{-1}(\mu_\theta-\theta)=0,\]</div>
 <p>thus</p>
 <div class="math notranslate nohighlight">
-\[A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\theta=A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\]</div>
+\[A^\top\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\theta=A^\top\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\]</div>
 <p>and so</p>
 <div class="math notranslate nohighlight">
-\[\theta=\left(A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}\left(A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right).\]</div>
-<p>Noting that <span class="math notranslate nohighlight">\(\left(A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}\)</span> is the posterior covariance we obtain the usual expression for the posterior mean</p>
+\[\theta=\left(A^\top\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}\left(A^\top\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right).\]</div>
+<p>Noting that <span class="math notranslate nohighlight">\(\left(A^\top\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}\)</span> is the posterior covariance we obtain the usual expression for the posterior mean</p>
 <div class="math notranslate nohighlight">
-\[\mu^\mathrm{post}=\Sigma^\mathrm{post}\left(A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right)\]</div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.502 seconds)</p>
-<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py">
+\[\mu^\mathrm{post}=\Sigma^\mathrm{post}\left(A^\top\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right)\]</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.380 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/61a19ff484b6fbbccbed5bda217b6b9b/plot_gaussian_mfnets.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_gaussian_mfnets.py</span></code></a></p>
 </div>
@@ -494,8 +501,8 @@ f_3(\rv) &amp;= f_2(\rv)+\cos(3\pi\rv_1)\end{split}\]</div>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="plot_many_model_approximate_control_variate_monte_carlo.html" class="btn btn-neutral float-left" title="Generalized Approximate Control Variate Monte Carlo" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="../surrogates/plot_tensor_product_interpolation.html" class="btn btn-neutral float-right" title="Tensor-product Barycentric Interpolation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="plot_multifidelity_gp.html" class="btn btn-neutral float-left" title="Multifidelity Gaussian processes" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../benchmarks.html" class="btn btn-neutral float-right" title="Benchmarks" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

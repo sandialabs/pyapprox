@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.surrogates.approximate &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.surrogates.approximate &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.surrogates.approximate</li>
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.surrogates.approximate</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -144,8 +149,8 @@
         <span class="n">refinement_indicator</span><span class="o">=</span><span class="n">variance_refinement_indicator</span><span class="p">,</span>
         <span class="n">univariate_quad_rule_info</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_nsamples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
         <span class="n">config_variables_idx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">config_var_trans</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cost_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="n">max_level_1d</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+        <span class="n">max_level_1d</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_level</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="s2">&quot;barycentric&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute a sparse grid approximation of a function.</span>
 
 <span class="sd">    Parameters</span>
@@ -266,6 +271,16 @@
 <span class="sd">        The maximum level of the sparse grid in each dimension. If None</span>
 <span class="sd">        There is no limit</span>
 
+<span class="sd">    max_level : integer</span>
+<span class="sd">        The maximum level l of the sparse grid. Only subspaces with indices</span>
+<span class="sd">        i that satisfy : math:`\lvert i \rvert_1\le l` can be added. If None</span>
+<span class="sd">        l=np.inf</span>
+
+<span class="sd">    basis_type : string (default=&quot;barycentric&quot;)</span>
+<span class="sd">        Specify the basis type to use. Currently the same basis must be used</span>
+<span class="sd">        for all dimensions. Options &quot;barycentric&quot;, &quot;linear&quot;, &quot;quadratic&quot;</span>
+
+
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    result : :class:`pyapprox.surrogates.approximate.ApproximateResult`</span>
@@ -278,12 +293,15 @@
     <span class="n">nvars</span> <span class="o">=</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">config_var_trans</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">nvars</span> <span class="o">+=</span> <span class="n">config_var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
-    <span class="n">sparse_grid</span> <span class="o">=</span> <span class="n">CombinationSparseGrid</span><span class="p">(</span><span class="n">nvars</span><span class="p">)</span>
+    <span class="n">sparse_grid</span> <span class="o">=</span> <span class="n">CombinationSparseGrid</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="n">basis_type</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">max_level_1d</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">max_level_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span>
     <span class="k">elif</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">max_level_1d</span><span class="p">):</span>
         <span class="n">max_level_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">max_level_1d</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span>
+
+    <span class="k">if</span> <span class="n">max_level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">max_level</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span>
 
     <span class="k">if</span> <span class="n">univariate_quad_rule_info</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">quad_rules</span><span class="p">,</span> <span class="n">growth_rules</span><span class="p">,</span> <span class="n">unique_quadrule_indices</span><span class="p">,</span> \
@@ -311,9 +329,19 @@
                     <span class="n">max_level_1d</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span>
                         <span class="n">unique_max_level_1d</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">max_level_1d</span><span class="p">[</span><span class="n">jj</span><span class="p">])</span>
 
+    <span class="k">if</span> <span class="n">config_var_trans</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">ii</span><span class="p">,</span> <span class="n">cv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">config_var_trans</span><span class="o">.</span><span class="n">config_values</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cv</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">max_level_1d</span><span class="p">[</span><span class="n">config_variables_idx</span><span class="o">+</span><span class="n">ii</span><span class="p">]:</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;maxlevel_1d </span><span class="si">{</span><span class="n">max_level_1d</span><span class="si">}</span><span class="s2"> and &quot;</span>
+                <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;config_var_trans.config_values with shapes </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">config_var_trans</span><span class="o">.</span><span class="n">config_values</span><span class="p">])</span>
+                <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot; are inconsistent.&quot;</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
     <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">max_level_1d</span><span class="p">)</span> <span class="o">==</span> <span class="n">nvars</span>
+    <span class="c1"># todo change np.inf to argument that is passed into approximate</span>
     <span class="n">admissibility_function</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
-        <span class="n">max_level_admissibility_function</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">max_level_1d</span><span class="p">,</span> <span class="n">max_nsamples</span><span class="p">,</span>
+        <span class="n">max_level_admissibility_function</span><span class="p">,</span> <span class="n">max_level</span><span class="p">,</span> <span class="n">max_level_1d</span><span class="p">,</span> <span class="n">max_nsamples</span><span class="p">,</span>
         <span class="n">tol</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
     <span class="n">sparse_grid</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span>
         <span class="n">fun</span><span class="p">,</span> <span class="n">config_variables_idx</span><span class="p">,</span> <span class="n">refinement_indicator</span><span class="p">,</span>
@@ -380,7 +408,7 @@
     <span class="k">if</span> <span class="n">growth_rules</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">growth_incr</span> <span class="o">=</span> <span class="mi">2</span>
         <span class="n">growth_rules</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">constant_increment_growth_rule</span><span class="p">,</span> <span class="n">growth_incr</span><span class="p">)</span>
-    <span class="k">assert</span> <span class="n">callable</span><span class="p">(</span><span class="n">growth_rules</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">callable</span><span class="p">(</span><span class="n">growth_rules</span><span class="p">)</span>
     <span class="n">unique_quadrule_variables</span><span class="p">,</span> <span class="n">unique_quadrule_indices</span> <span class="o">=</span> \
         <span class="n">get_unique_quadrule_variables</span><span class="p">(</span><span class="n">var_trans</span><span class="p">)</span>
     <span class="n">growth_rules</span> <span class="o">=</span> <span class="p">[</span><span class="n">growth_rules</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">unique_quadrule_indices</span><span class="p">)</span>
@@ -418,7 +446,7 @@
         <span class="n">growth_rules</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_nsamples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
         <span class="n">max_level_1d</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">induced_sampling</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cond_tol</span><span class="o">=</span><span class="mf">1e6</span><span class="p">,</span>
         <span class="n">fit_opts</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;omp_tol&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute an adaptive Polynomial Chaos Expansion of a function based upon</span>
 <span class="sd">    random induced or probability measure sampling.</span>
 
@@ -526,7 +554,7 @@
         <span class="n">growth_rules</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_nsamples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
         <span class="n">max_level_1d</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">ncandidate_samples</span><span class="o">=</span><span class="mf">1e4</span><span class="p">,</span> <span class="n">generate_candidate_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute an adaptive Polynomial Chaos Expansion of a function based upon</span>
 <span class="sd">    multivariate Leja sequences.</span>
 
@@ -639,7 +667,7 @@
         <span class="n">generate_candidate_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">weight_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">normalize_inputs</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Adaptively construct a Gaussian process approximation of a function using</span>
 <span class="sd">    weighted-pivoted-Cholesky sampling and the Matern kernel</span>
 
@@ -807,12 +835,14 @@
             <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;If more samples are really required increase alpha or &#39;</span>
             <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;manually fix kernel_length to a smaller value&#39;</span>
             <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Exiting: &#39;</span> <span class="o">+</span> <span class="n">msg</span><span class="p">)</span>
+            <span class="c1"># print(gp.kernel_)</span>
+            <span class="c1"># print(np.linalg.norm(gp.sampler.candidate_samples))</span>
             <span class="k">break</span>
     <span class="k">return</span> <span class="n">ApproximateResult</span><span class="p">({</span><span class="s1">&#39;approx&#39;</span><span class="p">:</span> <span class="n">gp</span><span class="p">})</span>
 
 
 <span class="k">def</span> <span class="nf">compute_l2_error</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">,</span> <span class="n">rel</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the :math:`\ell^2` error of the output of two functions f and g,</span>
 <span class="sd">    i.e.</span>
 
@@ -869,7 +899,7 @@
 
 
 <div class="viewcode-block" id="adaptive_approximate"><a class="viewcode-back" href="../../../api/pyapprox.surrogates.adaptive_approximate.html#pyapprox.surrogates.adaptive_approximate">[docs]</a><span class="k">def</span> <span class="nf">adaptive_approximate</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Adaptive approximation of a scalar or vector-valued function of one or</span>
 <span class="sd">    more variables. These methods choose the samples to at which to</span>
 <span class="sd">    evaluate the function being approximated.</span>
@@ -926,7 +956,7 @@
 <span class="k">def</span> <span class="nf">approximate_polynomial_chaos</span><span class="p">(</span><span class="n">train_samples</span><span class="p">,</span> <span class="n">train_vals</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
                                  <span class="n">basis_type</span><span class="o">=</span><span class="s1">&#39;expanding_basis&#39;</span><span class="p">,</span>
                                  <span class="n">variable</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">poly_opts</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute a Polynomial Chaos Expansion of a function from a fixed data set.</span>
 
 <span class="sd">    Parameters</span>
@@ -1009,7 +1039,7 @@
 
 
 <div class="viewcode-block" id="approximate"><a class="viewcode-back" href="../../../api/pyapprox.surrogates.approximate.html#pyapprox.surrogates.approximate">[docs]</a><span class="k">def</span> <span class="nf">approximate</span><span class="p">(</span><span class="n">train_samples</span><span class="p">,</span> <span class="n">train_vals</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Approximate a scalar or vector-valued function of one or</span>
 <span class="sd">    more variables from a set of points provided by the user</span>
 
@@ -1063,7 +1093,7 @@
 
 
 <span class="k">class</span> <span class="nc">LinearLeastSquaresCV</span><span class="p">(</span><span class="n">LinearModel</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    - None, to use the default 5-fold cross-validation</span>
@@ -1223,7 +1253,7 @@
         <span class="n">pce</span><span class="p">,</span> <span class="n">train_samples</span><span class="p">,</span> <span class="n">train_vals</span><span class="p">,</span> <span class="n">min_degree</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_degree</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
         <span class="n">hcross_strength</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">solver_type</span><span class="o">=</span><span class="s1">&#39;lasso&#39;</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
         <span class="n">linear_solver_options</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;cv&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">}):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Use cross validation to find the polynomial degree which best fits the</span>
 <span class="sd">    data.</span>
 <span class="sd">    A polynomial is constructed for each degree and the degree with the highest</span>
@@ -1422,7 +1452,7 @@
                         <span class="n">max_num_expansion_steps_iter</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
                         <span class="n">max_iters</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
                         <span class="n">max_num_step_increases</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Iteratively expand and restrict the polynomial basis and use</span>
 <span class="sd">    cross validation to find the best basis [JESJCP2015]_</span>
 
@@ -1687,7 +1717,7 @@
 <span class="k">def</span> <span class="nf">approximate_fixed_pce</span><span class="p">(</span><span class="n">pce</span><span class="p">,</span> <span class="n">train_samples</span><span class="p">,</span> <span class="n">train_vals</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span>
                           <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">solver_type</span><span class="o">=</span><span class="s1">&#39;lasso&#39;</span><span class="p">,</span>
                           <span class="n">linear_solver_options</span><span class="o">=</span><span class="p">{}):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Estimate the coefficients of a polynomial chaos using regression methods</span>
 <span class="sd">    and pre-specified (fixed) basis and regularization parameters</span>
 
@@ -1789,7 +1819,7 @@
                                  <span class="n">var_trans</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                                  <span class="n">length_scale</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
                                  <span class="n">length_scale_bounds</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-2</span><span class="p">,</span> <span class="mi">10</span><span class="p">)):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute a Gaussian process approximation of a function from a fixed data</span>
 <span class="sd">    set using the Matern kernel</span>
 

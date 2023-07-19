@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Multivariate Lagrange Interpolation &mdash; PyApprox 1.0.0 documentation</title>
+  <title>Multivariate Lagrange Interpolation &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -53,7 +58,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorials</a><ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorial</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="plot_variables.html">Random Variables</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_interface.html">Model interfacing</a></li>
@@ -91,9 +96,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="index.html">Software Tutorials</a> &raquo;</li>
-      <li>Multivariate Lagrange Interpolation</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Software Tutorial</a></li>
+      <li class="breadcrumb-item active">Multivariate Lagrange Interpolation</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/auto_examples/plot_barycentric_interpolation.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -105,11 +110,11 @@
              
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-examples-plot-barycentric-interpolation-py"><span class="std std-ref">here</span></a>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-plot-barycentric-interpolation-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="multivariate-lagrange-interpolation">
-<span id="sphx-glr-auto-examples-plot-barycentric-interpolation-py"></span><h1>Multivariate Lagrange Interpolation<a class="headerlink" href="#multivariate-lagrange-interpolation" title="Permalink to this headline"></a></h1>
+<span id="sphx-glr-auto-examples-plot-barycentric-interpolation-py"></span><h1>Multivariate Lagrange Interpolation<a class="headerlink" href="#multivariate-lagrange-interpolation" title="Permalink to this heading"></a></h1>
 <p>For smooth function Lagrange polynomials can be used to
 interpolate univariate functions evaluated on a tensor-product grid.
 Pyapprox uses the Barycentric formulation of Lagrange interpolation
@@ -159,8 +164,8 @@ interpolation. Here we use the samples of a Gaussian quadrature rule.</p>
 <img src="../_images/sphx_glr_plot_barycentric_interpolation_001.png" srcset="../_images/sphx_glr_plot_barycentric_interpolation_001.png" alt="plot barycentric interpolation" class = "sphx-glr-single-img"/><p>Barycentric interpolation can be used for any number of variables. However,
 the number of evaluations of the target function grows exponentially with
 the number of variables</p>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.047 seconds)</p>
-<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-barycentric-interpolation-py">
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.048 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-barycentric-interpolation-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/6d103f35aaded0cf3e99afdcc546e2a3/plot_barycentric_interpolation.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_barycentric_interpolation.py</span></code></a></p>
 </div>

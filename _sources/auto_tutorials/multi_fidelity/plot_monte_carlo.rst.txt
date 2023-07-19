@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_monte_carlo.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_tutorials_multi_fidelity_plot_monte_carlo.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -33,26 +33,37 @@ We can approximate the integral :math:`Q_\alpha` using Monte Carlo quadrature by
 The mean squared error (MSE) of this estimator can be expressed as
 
 .. math::
-   
+
    \mean{\left(Q_{\alpha,N}-\mean{Q}\right)^2}&=\mean{\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}+\mean{Q_{\alpha,N}}-\mean{Q}\right)^2}\\
    &=\mean{\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)^2}+\mean{\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)^2}\\
    &\qquad\qquad+\mean{2\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)}\\
-   &=\var{Q_{\alpha,N}}+\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)^2
-   
-Here we used that :math:`Q_{\alpha,N}` is an unbiased estimator, i.e. :math:`\mean{Q_{\alpha,N}}=\mean{Q}` so the third term on the second line is zero. Now using
+   &=\var{Q_{\alpha,N}}+\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)^2\\
+   &=\var{Q_{\alpha,N}}+\left(\mean{Q_{\alpha,N}}-Q\right)^2
 
-.. math::
+Here we used that :math:`\mean{\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)}=0` so the third term on the second line is zero and :math:`\mean{Q}=Q` since the exact value of Q is deterministic. Now using the well known result that for random variable :math:`X_n`
 
-   \var{Q_{\alpha,N}}=\var{N^{-1}\sum_{n=1}^N f^{(n)}_\alpha}=N^{-1}\sum_{n=1}^N \var{f^{(n)}_\alpha}=N^{-1}\var{Q_\alpha}
+.. math:: \var{\sum_{n=1}^N X_n} = \sum_{n=1}^N \var{X_n} + \sum_{n\neq p}\covar{X_n}{X_p}
+
+and the result for a scalar :math:`a`
+
+.. math:: \var{aX_n} =a^2\var{X_n}
 
 yields
 
 .. math::
 
-   \mean{\left(Q_{\alpha}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{Q_\alpha}}_{I}+\underbrace{\left(\mean{Q_{\alpha}}-\mean{Q}\right)^2}_{II}
+   \var{Q_{\alpha,N}}=\var{N^{-1}\sum_{n=1}^N f^{(n)}_\alpha}=N^{-2}\sum_{n=1}^N \var{f^{(n)}_\alpha}=N^{-1}\var{Q_\alpha}
+
+where :math:`\covar{f^{(n)}}{f^{(p)}}=0, n\neq p` because the samples are drawn independently.
+
+Finally, substituting :math:`\var{Q_{\alpha,N}}` into the expression for MSE yields
+
+.. math::
+
+   \mean{\left(Q_{\alpha, N}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{Q_\alpha}}_{I}+\underbrace{\left(\mean{Q_{\alpha}}-Q\right)^2}_{II}
 
 From this expression we can see that the MSE can be decomposed into two terms;
-a so called stochastic error (I) and a deterministic bias (II). The first term is the variance of the Monte Carlo estimator which comes from using a finite number of samples. The second term is due to using an approximation of :math:`f`. These two errors should be balanced, however in the vast majority of all MC analyses a single model :math:`f_\alpha` is used and the choice of :math:`\alpha`, e.g. mesh resolution, is made a priori without much concern for the balancing bias and variance. 
+a so called stochastic error (I) and a deterministic bias (II). The first term is the variance of the Monte Carlo estimator which comes from using a finite number of samples. The second term is due to using an approximation of :math:`f`. These two errors should be balanced, however in the vast majority of all MC analyses a single model :math:`f_\alpha` is used and the choice of :math:`\alpha`, e.g. mesh resolution, is made a priori without much concern for the balancing bias and variance.
 
 Given a fixed :math:`\alpha` the modelers only recourse to reducing the MSE is to reduce the variance of the estimator. In the following we plot the variance of the MC estimate of a simple algebraic function :math:`f_1` which belongs to an ensemble of models
 
@@ -65,11 +76,11 @@ Given a fixed :math:`\alpha` the modelers only recourse to reducing the MSE is t
 
 where :math:`\rv_1,\rv_2\sim\mathcal{U}(-1,1)` and all :math:`A` and :math:`\theta` coefficients are real. We choose to set :math:`A=\sqrt{11}`, :math:`A_1=\sqrt{7}` and :math:`A_2=\sqrt{3}` to obtain unitary variance for each model. The parameters :math:`s_1,s_2` control the bias between the models. Here we set :math:`s_1=1/10,s_2=1/5`. Similarly we can change the correlation between the models in a systematic way (by varying :math:`\theta_1`. We will levarage this later in the tutorial.
 
-.. GENERATED FROM PYTHON SOURCE LINES 51-52
+.. GENERATED FROM PYTHON SOURCE LINES 62-63
 
 Lets setup the problem
 
-.. GENERATED FROM PYTHON SOURCE LINES 52-67
+.. GENERATED FROM PYTHON SOURCE LINES 63-78
 
 .. code-block:: default
 
@@ -94,23 +105,21 @@ Lets setup the problem
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
     Independent Marginal Variable
     Number of variables: 2
     Unique variables and global id:
-        uniform(loc=-1,scale=2): z0, z1
+        uniform(loc=[-1],scale=[2]): z0, z1
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 68-69
+.. GENERATED FROM PYTHON SOURCE LINES 79-80
 
 Now let us compute the mean of :math:`f_1` using Monte Carlo
 
-.. GENERATED FROM PYTHON SOURCE LINES 69-76
+.. GENERATED FROM PYTHON SOURCE LINES 80-87
 
 .. code-block:: default
 
@@ -127,8 +136,6 @@ Now let us compute the mean of :math:`f_1` using Monte Carlo
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
                z0         z1         y0    
@@ -141,11 +148,11 @@ Now let us compute the mean of :math:`f_1` using Monte Carlo
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 77-78
+.. GENERATED FROM PYTHON SOURCE LINES 88-89
 
 We can compute the exact mean using sympy and compute the MC MSE
 
-.. GENERATED FROM PYTHON SOURCE LINES 78-83
+.. GENERATED FROM PYTHON SOURCE LINES 89-94
 
 .. code-block:: default
 
@@ -160,8 +167,6 @@ We can compute the exact mean using sympy and compute the MC MSE
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
     MC difference squared = 0.003541926877288237
@@ -169,14 +174,14 @@ We can compute the exact mean using sympy and compute the MC MSE
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 84-88
+.. GENERATED FROM PYTHON SOURCE LINES 95-99
 
 .. _estimator-histogram:
 
 Now let us compute the MSE for different sample sets of the same size for :math:`N=100,1000` and plot the distribution of the MC estimator :math:`Q_{\alpha,N}`
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 88-112
+.. GENERATED FROM PYTHON SOURCE LINES 99-123
 
 .. code-block:: default
 
@@ -216,7 +221,7 @@ Now let us compute the MSE for different sample sets of the same size for :math:
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 113-118
+.. GENERATED FROM PYTHON SOURCE LINES 124-129
 
 The numerical results match our theory. Specifically the estimator is unbiased( i.e. mean zero, and the variance of the estimator is :math:`\var{Q_{0,N}}=\var{Q_{0}}/N=1/N`.
 
@@ -224,7 +229,7 @@ The variance of the estimator can be driven to zero by increasing the number of 
 
 Let our true model be :math:`f_0` above. The following code compues the bias induced by using :math:`f_\alpha=f_1` and also plots the contours of :math:`f_0(\rv)-f_1(\rv)`.
 
-.. GENERATED FROM PYTHON SOURCE LINES 118-135
+.. GENERATED FROM PYTHON SOURCE LINES 129-146
 
 .. code-block:: default
 
@@ -256,8 +261,6 @@ Let our true model be :math:`f_0` above. The following code compues the bias ind
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
     MC f1 bias = 0.010000000000000002
@@ -267,15 +270,15 @@ Let our true model be :math:`f_0` above. The following code compues the bias ind
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 136-137
+.. GENERATED FROM PYTHON SOURCE LINES 147-148
 
 As :math:`N\to\infty` the MSE will only converge to the bias (:math:`s_1`). Try this by increasing :math:`\texttt{nsamples}`.
 
-.. GENERATED FROM PYTHON SOURCE LINES 139-140
+.. GENERATED FROM PYTHON SOURCE LINES 150-151
 
 We can produced unbiased estimators using the high fidelity model. However if this high-fidelity model is more expensive then this comes at the cost of the estimator having larger variance. To see this the following plots the distribution of the MC estimators using 100 samples of the :math:`f_1` and 10 samples of :math:`f_0`. The cost of constructing these estimators would be equivalent if the high-fidelity model is 10 times more expensive than the low-fidelity model.
 
-.. GENERATED FROM PYTHON SOURCE LINES 140-164
+.. GENERATED FROM PYTHON SOURCE LINES 151-175
 
 .. code-block:: default
 
@@ -315,35 +318,32 @@ We can produced unbiased estimators using the high fidelity model. However if th
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 165-166
+.. GENERATED FROM PYTHON SOURCE LINES 176-177
 
 In a series of tutorials starting with :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` we show how to produce an unbiased estimator with small variance using both these models.
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.517 seconds)
+   **Total running time of the script:** ( 0 minutes  0.347 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_monte_carlo.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_monte_carlo.py <plot_monte_carlo.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_monte_carlo.py <plot_monte_carlo.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_monte_carlo.ipynb <plot_monte_carlo.ipynb>`
+      :download:`Download Jupyter notebook: plot_monte_carlo.ipynb <plot_monte_carlo.ipynb>`
 
 
 .. only:: html

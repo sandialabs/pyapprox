@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.surrogates.interp.barycentric_interpolation &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.surrogates.interp.barycentric_interpolation &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
         <script src="../../../../_static/jquery.js"></script>
         <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../../_static/doctools.js"></script>
     <script src="../../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.surrogates.interp.barycentric_interpolation</li>
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.surrogates.interp.barycentric_interpolation</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -99,7 +104,7 @@
 <span class="k">def</span> <span class="nf">compute_barycentric_weights_1d</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">interval_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                                    <span class="n">return_sequence</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                                    <span class="n">normalize_weights</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return barycentric weights for a sequence of samples. e.g. of sequence</span>
 <span class="sd">    x0,x1,x2 where order represents the order in which the samples are added</span>
 <span class="sd">    to the interpolant.</span>
@@ -238,7 +243,7 @@
         <span class="n">fn_vals</span><span class="p">,</span>
         <span class="n">active_dims</span><span class="p">,</span>
         <span class="n">active_abscissa_indices_1d</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    x : np.ndarray (num_vars, num_samples)</span>
@@ -560,7 +565,7 @@
 
 <div class="viewcode-block" id="tensor_product_barycentric_lagrange_interpolation"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.tensor_product_barycentric_lagrange_interpolation.html#pyapprox.surrogates.tensor_product_barycentric_lagrange_interpolation">[docs]</a><span class="k">def</span> <span class="nf">tensor_product_barycentric_lagrange_interpolation</span><span class="p">(</span>
         <span class="n">grid_samples_1d</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">return_all</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Use tensor-product Barycentric Lagrange interpolation to approximate a</span>
 <span class="sd">    function.</span>
 

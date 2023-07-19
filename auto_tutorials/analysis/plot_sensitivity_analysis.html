@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sensitivity Analysis &mdash; PyApprox 1.0.0 documentation</title>
+  <title>Sensitivity Analysis &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -20,13 +20,14 @@
         <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/jquery.js"></script>
         <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
         <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Push Forward Based Inference" href="../inference/plot_push_forward_based_inference.html" />
+    <link rel="next" title="Bayesian Inference" href="../inference/plot_bayesian_inference.html" />
     <link rel="prev" title="Theoretical Tutorials" href="../index.html" /> 
 </head>
 
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -53,7 +58,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a><ul class="current">
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Sensitivity Analysis</a><ul>
@@ -63,8 +68,8 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
 </ul>
 </li>
 </ul>
@@ -90,9 +95,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../index.html">Theoretical Tutorials</a> &raquo;</li>
-      <li>Sensitivity Analysis</li>
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">Sensitivity Analysis</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/auto_tutorials/analysis/plot_sensitivity_analysis.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -104,14 +109,14 @@
              
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-analysis-plot-sensitivity-analysis-py"><span class="std std-ref">here</span></a>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-analysis-plot-sensitivity-analysis-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="sensitivity-analysis">
-<span id="sphx-glr-auto-tutorials-analysis-plot-sensitivity-analysis-py"></span><h1>Sensitivity Analysis<a class="headerlink" href="#sensitivity-analysis" title="Permalink to this headline"></a></h1>
+<span id="sphx-glr-auto-tutorials-analysis-plot-sensitivity-analysis-py"></span><h1>Sensitivity Analysis<a class="headerlink" href="#sensitivity-analysis" title="Permalink to this heading"></a></h1>
 <p>Quantifying the sensitivity of a model output <span class="math notranslate nohighlight">\(f\)</span> to the model parameters <span class="math notranslate nohighlight">\(\rv\)</span> can be an important component of any modeling exercise. This section demonstrates how to use popular local and global sensitivity analysis.</p>
 <section id="sobol-indices">
-<h2>Sobol Indices<a class="headerlink" href="#sobol-indices" title="Permalink to this headline"></a></h2>
+<h2>Sobol Indices<a class="headerlink" href="#sobol-indices" title="Permalink to this heading"></a></h2>
 <p>Any function <span class="math notranslate nohighlight">\(f\)</span> with finite variance parameterized by a set of independent variables <span class="math notranslate nohighlight">\(\rv\)</span> with <span class="math notranslate nohighlight">\(\pdf(\rv)=\prod_{j=1}^d\pdf(\rv_j)\)</span> and support <span class="math notranslate nohighlight">\(\rvdom=\bigotimes_{j=1}^d\rvdom_j\)</span> can be decomposed into a finite sum, referred to as the ANOVA decomposition,</p>
 <div class="math notranslate nohighlight">
 \[f(\rv) = \hat{f}_0 + \sum_{i=1}^d \hat{f}_i(\rv_i)+ \sum_{i,j=1}^d \hat{f}_{i,j}(\rv_i,\rv_j) + \cdots + \hat{f}_{1,\ldots,d}(\rv_1,\ldots,\rv_d)\]</div>
@@ -159,8 +164,7 @@ to download the full example code</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">main_effects</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[3.14929701e-01 4.41895729e-01 8.31169315e-07]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[3.14495119e-01 4.42301102e-01 4.44427797e-07]
 [0.31390519 0.44241114 0.        ]
 </pre></div>
 </div>
@@ -177,22 +181,25 @@ to download the full example code</p>
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_sensitivity_analysis_001.png" srcset="../../_images/sphx_glr_plot_sensitivity_analysis_001.png" alt="$\mathrm{Main\;Effects}$, $\mathrm{Total\;Effects}$, $\mathrm{Sobol\;Indices}$" class = "sphx-glr-single-img"/><section id="references">
-<h3>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h3>
-<dl class="citation">
-<dt class="label" id="smcs2001"><span class="brackets"><a class="fn-backref" href="#id1">SMCS2001</a></span></dt>
-<dd><p><a class="reference external" href="https://doi.org/10.1016/S0378-4754(00)00270-6">I.M. Sobol. Global sensitivity indices for nonlinear mathematical models and their Monte Carlo estimates. Mathematics and Computers in Simulation, 55(3): 271-280, 2001.</a></p>
-</dd>
-<dt class="label" id="sress2008"><span class="brackets"><a class="fn-backref" href="#id2">SRESS2008</a></span></dt>
-<dd><p><a class="reference external" href="https://doi.org/10.1016/j.ress.2007.04.002">B. Sudret. Global sensitivity analysis using polynomial chaos expansions. Reliability Engineering &amp; System Safety, 93(7): 964-979, 2008.</a></p>
-</dd>
-</dl>
-<dl class="citation">
-<dt class="label" id="mt1991"><span class="brackets">MT1991</span></dt>
-<dd><p><a class="reference external" href="https://doi.org/10.1080/00401706.1991.10484804">M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991</a></p>
-</dd>
-</dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  2.293 seconds)</p>
-<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-analysis-plot-sensitivity-analysis-py">
+<h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
+<div role="list" class="citation-list">
+<div class="citation" id="smcs2001" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">SMCS2001</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1016/S0378-4754(00)00270-6">I.M. Sobol. Global sensitivity indices for nonlinear mathematical models and their Monte Carlo estimates. Mathematics and Computers in Simulation, 55(3): 271-280, 2001.</a></p>
+</div>
+<div class="citation" id="sress2008" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">SRESS2008</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1016/j.ress.2007.04.002">B. Sudret. Global sensitivity analysis using polynomial chaos expansions. Reliability Engineering &amp; System Safety, 93(7): 964-979, 2008.</a></p>
+</div>
+</div>
+<div role="list" class="citation-list">
+<div class="citation" id="mt1991" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>MT1991<span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1080/00401706.1991.10484804">M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991</a></p>
+</div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.812 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-analysis-plot-sensitivity-analysis-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/721a21f1cd1e267ca0bb95e75a2842b8/plot_sensitivity_analysis.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_sensitivity_analysis.py</span></code></a></p>
 </div>
@@ -210,7 +217,7 @@ to download the full example code</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="../index.html" class="btn btn-neutral float-left" title="Theoretical Tutorials" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="../inference/plot_push_forward_based_inference.html" class="btn btn-neutral float-right" title="Push Forward Based Inference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../inference/plot_bayesian_inference.html" class="btn btn-neutral float-right" title="Bayesian Inference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

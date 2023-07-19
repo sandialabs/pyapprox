@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.surrogates.polychaos.arbitrary_polynomial_chaos &mdash; PyApprox 1.0.0 documentation</title>
+  <title>pyapprox.surrogates.polychaos.arbitrary_polynomial_chaos &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../../_static/graphviz.css" type="text/css" />
@@ -19,6 +19,7 @@
         <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
         <script src="../../../../_static/jquery.js"></script>
         <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../../_static/doctools.js"></script>
     <script src="../../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../../genindex.html" />
@@ -30,12 +31,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -48,7 +53,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -73,9 +78,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../../../index.html">Module code</a> &raquo;</li>
-      <li>pyapprox.surrogates.polychaos.arbitrary_polynomial_chaos</li>
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.surrogates.polychaos.arbitrary_polynomial_chaos</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -106,12 +111,12 @@
 
 
 <div class="viewcode-block" id="APC"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.APC.html#pyapprox.surrogates.APC">[docs]</a><span class="k">class</span> <span class="nc">APC</span><span class="p">(</span><span class="n">PolynomialChaosExpansion</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A polynomial chaos expansion for dependent random variables.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">compute_moment_matrix_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">moments</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">compute_grammian_function</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Constructor.</span>
 
 <span class="sd">        Parameters</span>
@@ -158,7 +163,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">R_inv</span> <span class="o">=</span> <span class="n">compute_rotation_from_moments_linear_system</span><span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">moments</span><span class="p">)</span>
         <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_moment_matrix_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compute_moment_matrix_function</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compute_moment_matrix_function</span><span class="p">):</span>
                 <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;compute_moment_matrix_function was given but was &#39;</span>
                 <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;not a callable function&#39;</span>
                 <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
@@ -170,7 +175,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">R_inv</span> <span class="o">=</span> <span class="n">compute_rotation_qr</span><span class="p">(</span><span class="n">moment_matrix</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">moment_matrix_cond</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cond</span><span class="p">(</span><span class="n">moment_matrix</span><span class="p">)</span>
         <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_grammian_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compute_grammian_function</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compute_grammian_function</span><span class="p">):</span>
                 <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;compute_grammian_function was given but was &#39;</span>
                 <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;not a callable function&#39;</span>
                 <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
@@ -188,7 +193,7 @@
             <span class="k">raise</span> <span class="ne">Exception</span></div>
 
 <div class="viewcode-block" id="APC.unrotated_canonical_basis_matrix"><a class="viewcode-back" href="../../../../api/pyapprox.surrogates.APC.html#pyapprox.surrogates.APC.unrotated_canonical_basis_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">unrotated_canonical_basis_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">canonical_samples</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Cannot just call super(APCE,self).canonical_basis because I was</span>
 <span class="sd">        running into inheritance problems.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -290,7 +295,7 @@
 <span class="k">def</span> <span class="nf">compute_moment_matrix_using_tensor_product_quadrature</span><span class="p">(</span>
         <span class="n">basis_matrix_func</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span>
         <span class="n">univariate_quadrature_rule</span><span class="p">,</span> <span class="n">density_function</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    num_samples : integer</span>
@@ -315,7 +320,7 @@
 
 
 <span class="k">def</span> <span class="nf">compute_coefficients_of_unrotated_basis</span><span class="p">(</span><span class="n">coefficients</span><span class="p">,</span> <span class="n">R_inv</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Given pce coefficients a such that p(z)=\Phi(Z)*a</span>
 <span class="sd">    where phi is the multivariate orthgonal Gram-Schmidt basis compute</span>
 <span class="sd">    coefficients of tensor-product basis \psi where \Phi(Z)=\Psi(Z)*R_inv</span>
@@ -435,7 +440,7 @@
 <span class="k">def</span> <span class="nf">compute_polynomial_moments_using_tensor_product_quadrature</span><span class="p">(</span>
         <span class="n">basis_matrix_function</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span>
         <span class="n">univariate_quadrature_rule</span><span class="p">,</span> <span class="n">density_function</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute the moments of a polynomial basis using tensor product quadrature</span>
 
 <span class="sd">    Parameters</span>

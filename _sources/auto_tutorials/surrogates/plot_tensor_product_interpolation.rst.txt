@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_tutorials_surrogates_plot_tensor_product_interpolation.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_tutorials_surrogates_plot_tensor_product_interpolation.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -69,7 +69,7 @@ Here we will use the nested Clenshaw-Curtis points
 to define the univariate Lagrange polynomials. The number of points :math:`m(l)` of this rule grows exponentially with the level :math:`l`, specifically
 :math:`m(0)=1` and :math:`m(l)=2^{l}+1` for :math:`l\geq1`. The univariate Clenshaw-Curtis points, the tensor-product grid :math:`\mathcal{Z}_{\boldsymbol{\beta}}`, and two multivariate Lagrange polynomials with their corresponding univariate Lagrange polynomials are shown below for :math:`\boldsymbol{\beta}=(2,2)`.
 
-.. GENERATED FROM PYTHON SOURCE LINES 53-75
+.. GENERATED FROM PYTHON SOURCE LINES 53-90
 
 .. code-block:: default
 
@@ -81,6 +81,21 @@ to define the univariate Lagrange polynomials. The number of points :math:`m(l)`
         tensor_product_barycentric_lagrange_interpolation)
     from pyapprox.util.utilities import get_tensor_product_quadrature_rule
     from pyapprox.surrogates.orthopoly.quadrature import clenshaw_curtis_pts_wts_1D
+    from pyapprox.surrogates.approximate import adaptive_approximate
+    from pyapprox.surrogates.interp.adaptive_sparse_grid import (
+        tensor_product_refinement_indicator)
+    from functools import partial
+    from pyapprox.surrogates.orthopoly.quadrature import (
+        clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth)
+    from pyapprox.surrogates.interp.tensorprod import (
+        canonical_univariate_piecewise_polynomial_quad_rule)
+    from pyapprox.benchmarks.benchmarks import setup_benchmark
+    from pyapprox.variables.transforms import AffineTransform
+    from pyapprox.surrogates.interp.tensorprod import (
+        tensor_product_piecewise_polynomial_basis,
+        tensor_product_piecewise_polynomial_interpolation)
+    from pyapprox.surrogates.interp.barycentric_interpolation import (
+        precompute_tensor_product_lagrange_polynomial_basis)
 
     quad_rule = clenshaw_curtis_pts_wts_1D
     fig = plt.figure(figsize=(2*8, 6))
@@ -107,13 +122,13 @@ to define the univariate Lagrange polynomials. The number of points :math:`m(l)`
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 76-79
+.. GENERATED FROM PYTHON SOURCE LINES 91-94
 
 To construct a surrogate using tensor product interpolation we simply multiply all such basis functions by the value of the function :math:`f_\ai` evaluated at the corresponding interpolation point. The following uses tensor product interpolation to approximate the simple function
 
 .. math:: f_\ai(\rv) = \cos(2\pi\rv_1)\cos(2\pi\rv_2), \qquad \rv\in\rvdom=[-1,1]^2
 
-.. GENERATED FROM PYTHON SOURCE LINES 79-112
+.. GENERATED FROM PYTHON SOURCE LINES 94-126
 
 .. code-block:: default
 
@@ -123,8 +138,8 @@ To construct a surrogate using tensor product interpolation we simply multiply a
                       np.cos(2*np.pi*z[1, :]))[:, np.newaxis]
 
 
-    levels = [2, 3]
-    grid_samples_1d = [clenshaw_curtis_pts_wts_1D(ll)[0] for ll in levels]
+    grid_levels = [2, 3]
+    grid_samples_1d = [clenshaw_curtis_pts_wts_1D(ll)[0] for ll in grid_levels]
     grid_samples = cartesian_product(grid_samples_1d)
 
 
@@ -148,7 +163,6 @@ To construct a surrogate using tensor product interpolation we simply multiply a
     levels = np.linspace(Z.min(), Z.max(), num_contour_levels)
     cset = axs.contourf(
         X, Y, Z, levels=levels, cmap="coolwarm", alpha=alpha)
-    plt.show()
 
 
 
@@ -162,11 +176,15 @@ To construct a surrogate using tensor product interpolation we simply multiply a
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 113-142
+.. GENERATED FROM PYTHON SOURCE LINES 127-132
 
 The error in the tensor product interpolant is given by
 
-.. math:: \lVert f_\ai-f_{\ai,\bi}\rVert_{L^\infty(\rvdom)} \le C_{d,r} N_{\bi}^{-s/d}
+.. math:: \lVert f_\ai-f_{\ai,\bi}\rVert_{L^\infty(\rvdom)} \le C_{d,s} N_{\bi}^{-s/d}
+
+where :math:`f_\alpha` has continuous mixed derivatives of order :math:`s`.
+
+.. GENERATED FROM PYTHON SOURCE LINES 135-160
 
 Post-processing
 ---------------
@@ -174,11 +192,11 @@ Once a surrogate has been constructed it can be used for many different purposes
 
 To use the surrogate for computing moments we simply draw realizations of the input random variables :math:`\rv` and evaluate the surrogate at those samples. We can approximate the mean of the expensive simluation model as the average of the surrogate values at the random samples.
 
-We know from :ref:`sphx_glr_auto_tutorials_foundations_plot_monte_carlo.py` that the error in the Monte carlo estimate of the mean using the surrogate is
+We know from :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py` that the error in the Monte carlo estimate of the mean using the surrogate is
 
 .. math::
   \mean{\left(Q_{\alpha}-\mean{Q}\right)^2}&=N^{-1}\var{Q_\alpha}+\left(\mean{Q_{\alpha}}-\mean{Q}\right)^2\\
-  &\le N^{-1}\var{Q_\alpha}+C_{d,r} N_{\bi}^{-s/d}
+  &\le N^{-1}\var{Q_\alpha}+C_{d,s} N_{\bi}^{-s/d}
 
 Because a surrogate is inexpensive to evaluate the first term can be driven to zero so that only the bias remains. Thus the error in the Monte Carlo estimate of the mean using the surrogate is dominated by the error in the surrogate. If this error can be reduced more quickly than \frac{N^{-1}} (as is the case for low-dimensional tensor-product interpolation) then using surrogates for computing moments is very effective.
 
@@ -194,7 +212,7 @@ The expectation is simply the weighted sum of the Cartesian-product of the univa
 
 which can be computed analytically.
 
-.. GENERATED FROM PYTHON SOURCE LINES 142-145
+.. GENERATED FROM PYTHON SOURCE LINES 160-163
 
 .. code-block:: default
 
@@ -207,8 +225,6 @@ which can be computed analytically.
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
     Quadrature mean 0.10540659444426355
@@ -216,13 +232,13 @@ which can be computed analytically.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 146-149
+.. GENERATED FROM PYTHON SOURCE LINES 164-167
 
 Here we have recomptued the values of :math:`f` at the interpolation samples, but in practice we sould just re-use the values collected when building the interpolant.
 
 Now let us compare the quadrature mean with the MC mean computed using the surrogate
 
-.. GENERATED FROM PYTHON SOURCE LINES 149-154
+.. GENERATED FROM PYTHON SOURCE LINES 167-173
 
 .. code-block:: default
 
@@ -235,18 +251,269 @@ Now let us compare the quadrature mean with the MC mean computed using the surro
 
 
 
-.. rst-class:: sphx-glr-script-out
 
- Out:
+.. rst-class:: sphx-glr-script-out
 
  .. code-block:: none
 
-    Monte Carlo surrogate mean 0.0012580992717837053
+    Monte Carlo surrogate mean -0.00027630862064452624
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 155-165
+.. GENERATED FROM PYTHON SOURCE LINES 174-179
+
+Piecewise-polynomial approximation
+----------------------------------
+Polynomial interpolation accurately approximates smooth functions, however its accuracy degrades as the regularity of the target function decreases. For piecewise continuous functions, or functions with only a limited number of continuous derivaties, piecewise-polynomial approximation may be more appropriate.
+
+The following code compares polynomial and piecewise polynomial univariate basis functions.
+
+.. GENERATED FROM PYTHON SOURCE LINES 179-188
+
+.. code-block:: default
+
+    samples = np.linspace(-1, 1, 201)[None, :]
+    ax = plt.subplots(1, 2, figsize=(2*8, 6), sharey=True)[1]
+    lagrange_basis = precompute_tensor_product_lagrange_polynomial_basis(
+            samples, grid_samples_1d[:1], [0])[0].T
+    ax[0].plot(samples[0], lagrange_basis)
+    piecewise_basis = tensor_product_piecewise_polynomial_basis(
+        grid_levels[:1], samples, basis_type="quadratic")
+    _ = ax[1].plot(samples[0], piecewise_basis)
+
+
+
+
+.. image-sg:: /auto_tutorials/surrogates/images/sphx_glr_plot_tensor_product_interpolation_003.png
+   :alt: plot tensor product interpolation
+   :srcset: /auto_tutorials/surrogates/images/sphx_glr_plot_tensor_product_interpolation_003.png
+   :class: sphx-glr-single-img
+
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 189-192
+
+Notice that the unlike the lagrange basis the picewise polynomial basis is non-zero only on a local region of the input space.
+
+The compares the accuracy of lagrange basis the picewise polynomial approximations for a piecewise continuous function
+
+.. GENERATED FROM PYTHON SOURCE LINES 192-212
+
+.. code-block:: default
+
+    def fun(samples):
+        yy = samples[0].copy()
+        yy[yy > 1/3] = 1.0
+        yy[yy <= 1/3] = 0.
+        return yy[:, None]
+
+    piecewise_basis_type = "quadratic"
+    axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
+    [ax.plot(samples[0], fun(samples)) for ax in axs]
+    for level in range(1, 5):
+        lgrid_samples_1d = [clenshaw_curtis_pts_wts_1D(level)[0]]
+        lgrid_samples = cartesian_product(lgrid_samples_1d)
+        lvalues = tensor_product_barycentric_lagrange_interpolation(
+            lgrid_samples_1d, fun, samples)
+        axs[0].plot(samples[0], lvalues, ':')
+        pvalues = tensor_product_piecewise_polynomial_interpolation(
+            samples, [level], fun, piecewise_basis_type)
+        axs[1].plot(samples[0], pvalues, '--')
+
+
+
+
+
+.. image-sg:: /auto_tutorials/surrogates/images/sphx_glr_plot_tensor_product_interpolation_004.png
+   :alt: plot tensor product interpolation
+   :srcset: /auto_tutorials/surrogates/images/sphx_glr_plot_tensor_product_interpolation_004.png
+   :class: sphx-glr-single-img
+
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 213-218
+
+The Lagrange polynomials induce oscillations around the discontinuity, which significantly decreases the convergence rate of the approximation. The picewise quadratic also over and undershoots around the discontinuity, but the phenomena is localized.
+
+The following compares the convergence of lagrange and picewise polynomial tensor product interpolants. Change the benchmark to see the effect of smoothness on the approximation accuracy.
+
+First define wrappers to build the tensor product interpolants
+
+.. GENERATED FROM PYTHON SOURCE LINES 218-244
+
+.. code-block:: default
+
+
+    def build_lagrange_tp(max_level_1d):
+        univariate_quad_rule_info = [
+            clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth,
+            None, None]
+        return adaptive_approximate(
+            benchmark.fun, benchmark.variable, "sparse_grid",
+            {"refinement_indicator": tensor_product_refinement_indicator,
+             "max_level_1d": max_level_1d,
+             "univariate_quad_rule_info": univariate_quad_rule_info,
+             "max_nsamples": np.inf}).approx
+
+    def build_piecewise_tp(max_level_1d):
+        basis_type = "quadratic"
+        # basis_type = "linear"
+        univariate_quad_rule_info = [
+            partial(canonical_univariate_piecewise_polynomial_quad_rule,
+                    basis_type),
+            clenshaw_curtis_rule_growth, None, None]
+        return adaptive_approximate(
+            benchmark.fun, benchmark.variable, "sparse_grid",
+            {"refinement_indicator": tensor_product_refinement_indicator,
+             "max_level_1d": max_level_1d,
+             "univariate_quad_rule_info": univariate_quad_rule_info,
+             "basis_type": basis_type, "max_nsamples": np.inf}).approx
+
+
+
+
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 245-246
+
+Load a benchmark
+
+.. GENERATED FROM PYTHON SOURCE LINES 246-251
+
+.. code-block:: default
+
+    nvars = 2
+    benchmark = setup_benchmark("genz", nvars=nvars, test_name="oscillatory")
+    # benchmark = setup_benchmark("genz", nvars=nvars, test_name="c0continuous",
+    #                            c_factor=0.5, w=0.5)
+
+
+
+
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 252-253
+
+Run a convergence study
+
+.. GENERATED FROM PYTHON SOURCE LINES 253-281
+
+.. code-block:: default
+
+    validation_samples = benchmark.variable.rvs(1000)
+    validation_values = benchmark.fun(validation_samples)
+
+    piecewise_data = []
+    lagrange_data = []
+    for level in range(1, 7):   # nvars = 2
+    # for level in range(1, 4):  # nvars = 3
+        ltp = build_lagrange_tp(level)
+        lvalues = ltp(validation_samples)
+        lerror = np.linalg.norm(validation_values-lvalues)/np.linalg.norm(
+            validation_values)
+        lagrange_data.append([ltp.samples.shape[1], lerror])
+        ptp = build_piecewise_tp(level)
+        pvalues = ptp(validation_samples)
+        perror = np.linalg.norm(validation_values-pvalues)/np.linalg.norm(
+            validation_values)
+        piecewise_data.append([ptp.samples.shape[1], perror])
+    lagrange_data = np.array(lagrange_data).T
+    piecewise_data = np.array(piecewise_data).T
+
+    ax = plt.subplots()[1]
+    ax.loglog(*lagrange_data, '-o', label='Lagrange')
+    ax.loglog(*piecewise_data, '--o', label='Piecewise')
+    work = piecewise_data[0][1:3]
+    ax.loglog(work, work**(-1.0), ':', label='linear rate')
+    ax.loglog(work, work**(-2.0), ':', label='quadratic rate')
+    _ = ax.legend()
+
+
+
+
+.. image-sg:: /auto_tutorials/surrogates/images/sphx_glr_plot_tensor_product_interpolation_005.png
+   :alt: plot tensor product interpolation
+   :srcset: /auto_tutorials/surrogates/images/sphx_glr_plot_tensor_product_interpolation_005.png
+   :class: sphx-glr-single-img
+
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 282-285
+
+Similar behavior occurs when using quadrature.
+
+Load in the benchmark.
+
+.. GENERATED FROM PYTHON SOURCE LINES 285-288
+
+.. code-block:: default
+
+    nvars = 2
+    benchmark = setup_benchmark("genz", nvars=nvars, test_name="oscillatory")
+
+
+
+
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 289-290
+
+Run a convergence study
+
+.. GENERATED FROM PYTHON SOURCE LINES 290-314
+
+.. code-block:: default
+
+    piecewise_data = []
+    lagrange_data = []
+    for level in range(1, 7):   # nvars = 2
+        ltp = build_lagrange_tp(level)
+        lvalues = ltp.moments()[0, 0]
+        lerror = np.linalg.norm(benchmark.mean-lvalues)/np.linalg.norm(
+            benchmark.mean)
+        lagrange_data.append([ltp.samples.shape[1], lerror])
+        ptp = build_piecewise_tp(level)
+        pvalues = ptp.moments()[0, 0]
+        perror = np.linalg.norm(benchmark.mean-pvalues)/np.linalg.norm(
+            benchmark.mean)
+        piecewise_data.append([ptp.samples.shape[1], perror])
+    lagrange_data = np.array(lagrange_data).T
+    piecewise_data = np.array(piecewise_data).T
+
+    ax = plt.subplots()[1]
+    ax.loglog(*lagrange_data, '-o', label='Lagrange')
+    ax.loglog(*piecewise_data, '--o', label='Piecewise')
+    work = piecewise_data[0][1:3]
+    ax.loglog(work, work**(-1.0), ':', label='linear rate')
+    ax.loglog(work, work**(-2.0), ':', label='quadratic rate')
+    _ = ax.legend()
+
+
+
+
+.. image-sg:: /auto_tutorials/surrogates/images/sphx_glr_plot_tensor_product_interpolation_006.png
+   :alt: plot tensor product interpolation
+   :srcset: /auto_tutorials/surrogates/images/sphx_glr_plot_tensor_product_interpolation_006.png
+   :class: sphx-glr-single-img
+
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 315-325
 
 References
 ^^^^^^^^^^
@@ -262,28 +529,25 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.707 seconds)
+   **Total running time of the script:** ( 0 minutes  1.849 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_surrogates_plot_tensor_product_interpolation.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_tensor_product_interpolation.py <plot_tensor_product_interpolation.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_tensor_product_interpolation.py <plot_tensor_product_interpolation.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_tensor_product_interpolation.ipynb <plot_tensor_product_interpolation.ipynb>`
+      :download:`Download Jupyter notebook: plot_tensor_product_interpolation.ipynb <plot_tensor_product_interpolation.ipynb>`
 
 
 .. only:: html

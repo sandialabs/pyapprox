@@ -11,9 +11,11 @@ BayesianBatchDeviationOED
    .. autosummary::
 
       ~BayesianBatchDeviationOED.compute_expected_utility
+      ~BayesianBatchDeviationOED.compute_utilities
       ~BayesianBatchDeviationOED.populate
 
    .. rubric:: Methods Documentation
 
    .. automethod:: compute_expected_utility
+   .. automethod:: compute_utilities
    .. automethod:: populate

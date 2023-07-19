@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Approximate Control Variate Monte Carlo &mdash; PyApprox 1.0.0 documentation</title>
+  <title>Approximate Control Variate Monte Carlo &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/jquery.js"></script>
         <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
         <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../index.html" class="icon icon-home"> PyApprox
-            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -53,10 +58,11 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
@@ -67,10 +73,12 @@
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multilevel_blue.html">Multilevel Best Linear Unbiased estimators (MLBLUE)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-level and Multi-index Collocation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multifidelity_gp.html">Multifidelity Gaussian processes</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_gaussian_mfnets.html">MFNets: Multi-fidelity networks</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
 </ul>
 </li>
 </ul>
@@ -96,9 +104,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../index.html">Theoretical Tutorials</a> &raquo;</li>
-      <li>Approximate Control Variate Monte Carlo</li>
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">Approximate Control Variate Monte Carlo</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/auto_tutorials/multi_fidelity/plot_approximate_control_variate_monte_carlo.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -110,11 +118,11 @@
              
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-approximate-control-variate-monte-carlo-py"><span class="std std-ref">here</span></a>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-approximate-control-variate-monte-carlo-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="approximate-control-variate-monte-carlo">
-<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-approximate-control-variate-monte-carlo-py"></span><h1>Approximate Control Variate Monte Carlo<a class="headerlink" href="#approximate-control-variate-monte-carlo" title="Permalink to this headline"></a></h1>
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-approximate-control-variate-monte-carlo-py"></span><h1>Approximate Control Variate Monte Carlo<a class="headerlink" href="#approximate-control-variate-monte-carlo" title="Permalink to this heading"></a></h1>
 <p>This tutorial builds upon <a class="reference internal" href="plot_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-control-variate-monte-carlo-py"><span class="std std-ref">Control Variate Monte Carlo</span></a> and describes how to implement and deploy <em>approximate</em> control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from multiple low-fidelity models with unknown means.</p>
 <p>CVMC is often not useful for practical analysis of numerical models because typically the mean of the lower fidelity model, i.e. <span class="math notranslate nohighlight">\(\mu_\V{\kappa}\)</span>, is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.</p>
 <p>Let the cost of the high fidelity model per sample be <span class="math notranslate nohighlight">\(C_\alpha\)</span> and let the cost of the low fidelity model be <span class="math notranslate nohighlight">\(C_\kappa\)</span>. Now lets use <span class="math notranslate nohighlight">\(N\)</span> samples to estimate <span class="math notranslate nohighlight">\(Q_{\V{\alpha},N}\)</span> and <span class="math notranslate nohighlight">\(Q_{\V{\kappa},N}\)</span> and these  <span class="math notranslate nohighlight">\(N\)</span> samples plus another <span class="math notranslate nohighlight">\((r-1)N\)</span> samples to estimate <span class="math notranslate nohighlight">\(\mu_{\V{\kappa}}\)</span> so that</p>
@@ -172,9 +180,6 @@ Using the above expression yields</p>
 \[Q_{\V{\alpha},\mathcal{Z}}^{\text{ACV}}=Q_{\V{\alpha},\mathcal{Z}_0} + \eta \left( Q_{\V{\kappa},\mathcal{Z}_{\alpha,1}} - \mu_{\V{\kappa},\mathcal{Z}_{\alpha,2}} \right)\]</div>
 <p>where <span class="math notranslate nohighlight">\(\mathcal{Z}=\bigcup_{\alpha=0}^M Z_\alpha\)</span>. The nature of these samples can be changed to produce different ACV estimators. Here we choose  <span class="math notranslate nohighlight">\(\mathcal{Z}_{\alpha,1}\cap\mathcal{Z}_{\alpha,2}=\emptyset\)</span> and <span class="math notranslate nohighlight">\(\mathcal{Z}_{\alpha,1}=\mathcal{Z_0}\)</span>. That is we use the set a common set of samples to compute the covariance between all the models and a second independent set to estimate the lower fidelity mean. The sample partitioning for <span class="math notranslate nohighlight">\(M\)</span> models is  shown in the following Figure. We call this scheme the ACV IS sampling strategy where IS indicates that the second sample set <span class="math notranslate nohighlight">\(\mathcal{Z}_{\alpha,2}\)</span> assigned to each model are not shared.</p>
 <table class="docutils align-default">
-<colgroup>
-<col style="width: 100%" />
-</colgroup>
 <tbody>
 <tr class="row-odd"><td><figure class="align-center" id="id1">
 <span id="acv-is-sample-allocation"></span><a class="reference internal image-reference" href="../../_images/acv_is.png"><img alt="../../_images/acv_is.png" src="../../_images/acv_is.png" style="width: 50%;" /></a>
@@ -201,7 +206,6 @@ Using the above expression yields</p>
 <span class="n">samples_lf_only</span> <span class="o">=</span> <span class="n">samples_per_model</span><span class="p">[</span><span class="mi">1</span><span class="p">][:,</span> <span class="n">partition_indices_per_model</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">]</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1., 1., 1., 1., 1.,
        1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,
        1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,
@@ -234,7 +238,6 @@ Using the above expression yields</p>
 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ACVMC difference squared =&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">acv_mean</span><span class="o">-</span><span class="n">exact_integral_f0</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>MC difference squared = 0.1663308327274871
 ACVMC difference squared = 0.010697826122695035
 </pre></div>
@@ -258,7 +261,6 @@ ACVMC difference squared = 0.010697826122695035
 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Achieved ACV variance&quot;</span><span class="p">,</span> <span class="n">numerical_var</span><span class="p">)</span>
 </pre></div>
 </div>
-<p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Theoretical ACV variance 0.014971109874541333
 Achieved ACV variance 0.01617124648499629
 </pre></div>
@@ -284,14 +286,15 @@ Achieved ACV variance 0.01617124648499629
 </div>
 <img src="../../_images/sphx_glr_plot_approximate_control_variate_monte_carlo_002.png" srcset="../../_images/sphx_glr_plot_approximate_control_variate_monte_carlo_002.png" alt="plot approximate control variate monte carlo" class = "sphx-glr-single-img"/><p>For a fixed number of high-fidelity evaluations <span class="math notranslate nohighlight">\(N\)</span> the ACVMC variance reduction will converge to the CVMC variance reduction. Try changing <span class="math notranslate nohighlight">\(N\)</span>.</p>
 <section id="references">
-<h2>References<a class="headerlink" href="#references" title="Permalink to this headline"></a></h2>
-<dl class="citation">
-<dt class="label" id="ggejjcp2020"><span class="brackets">GGEJJCP2020</span></dt>
-<dd><p><a class="reference external" href="https://doi.org/10.1016/j.jcp.2020.109257">A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020.</a></p>
-</dd>
-</dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.703 seconds)</p>
-<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-approximate-control-variate-monte-carlo-py">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h2>
+<div role="list" class="citation-list">
+<div class="citation" id="ggejjcp2020" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>GGEJJCP2020<span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1016/j.jcp.2020.109257">A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020.</a></p>
+</div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.666 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-approximate-control-variate-monte-carlo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/a16d77e9e7aa03c9bf0384cc74f9053b/plot_approximate_control_variate_monte_carlo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_approximate_control_variate_monte_carlo.py</span></code></a></p>
 </div>

@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>gpc_sobol_sensitivities &mdash; PyApprox 1.0.0 documentation</title>
+  <title>gpc_sobol_sensitivities &mdash; PyApprox 1.0.2 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -20,6 +20,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
@@ -33,12 +34,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> PyApprox
-            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -51,7 +56,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Software Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
@@ -102,9 +107,9 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="../user_reference_guide.html">User Reference Guide</a> &raquo;</li>
-      <li>gpc_sobol_sensitivities</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../user_reference_guide.html">User Reference Guide</a></li>
+      <li class="breadcrumb-item active">gpc_sobol_sensitivities</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/api/pyapprox.analysis.gpc_sobol_sensitivities.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -115,16 +120,16 @@
            <div itemprop="articleBody">
              
   <section id="gpc-sobol-sensitivities">
-<h1>gpc_sobol_sensitivities<a class="headerlink" href="#gpc-sobol-sensitivities" title="Permalink to this headline"></a></h1>
+<h1>gpc_sobol_sensitivities<a class="headerlink" href="#gpc-sobol-sensitivities" title="Permalink to this heading"></a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="pyapprox.analysis.gpc_sobol_sensitivities">
 <span class="sig-prename descclassname"><span class="pre">pyapprox.analysis.</span></span><span class="sig-name descname"><span class="pre">gpc_sobol_sensitivities</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pce</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/analysis/sensitivity_analysis.html#gpc_sobol_sensitivities"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.analysis.gpc_sobol_sensitivities" title="Permalink to this definition"></a></dt>
 <dd><p>Compute variance based sensitivity metrics from a polynomial chaos
 expansion</p>
 <dl class="field-list">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl>
-<dt><strong>pce</strong><span class="classifier">class:<cite>pyapprox.surrogates.polychaos.gpc.PolynomialChaosExpansion</cite></span></dt><dd><p>The polynomial chaos expansion</p>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>pce :class:`pyapprox.surrogates.polychaos.gpc.PolynomialChaosExpansion`</strong></dt><dd><p>The polynomial chaos expansion</p>
 </dd>
 <dt><strong>max_order</strong><span class="classifier">integer</span></dt><dd><p>The maximum interaction order of Sobol indices to compute. A value
 of 2 will compute all pairwise interactions, a value of 3 will
@@ -135,7 +140,7 @@ max_order.</p>
 </dd>
 </dl>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl>
 <dt><strong>result</strong><span class="classifier"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.analysis.sensitivity_analysis.SensitivityResult</span></code></span></dt><dd><p>Result object with the following attributes</p>
 </dd>

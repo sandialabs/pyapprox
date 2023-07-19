@@ -10,7 +10,7 @@
     .. note::
         :class: sphx-glr-download-link-note
 
-        Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py>`
+        :ref:`Go to the end <sphx_glr_download_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py>`
         to download the full example code
 
 .. rst-class:: sphx-glr-example-title
@@ -20,7 +20,7 @@
 
 Control Variate Monte Carlo
 ===========================
-This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute the expectations of the output of a high-fidelity model using a lower-fidelity model with a known mean. The information presented here builds upon the tutorial :ref:`sphx_glr_auto_tutorials_foundations_plot_monte_carlo.py`.
+This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute the expectations of the output of a high-fidelity model using a lower-fidelity model with a known mean. The information presented here builds upon the tutorial :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py`.
 
 Let us introduce a model :math:`Q_\V{\kappa}` with known mean :math:`\mu_{\V{\kappa}}`. We can use this model to estimate the mean of :math:`Q_{\V{\alpha}}` via [LMWOR1982]_
 
@@ -105,14 +105,12 @@ First let us setup the problem and compute a single estimate using CVMC
 
 .. rst-class:: sphx-glr-script-out
 
- Out:
-
  .. code-block:: none
 
     Independent Marginal Variable
     Number of variables: 2
     Unique variables and global id:
-        uniform(loc=-1,scale=2): z0, z1
+        uniform(loc=[-1],scale=[2]): z0, z1
     MC difference squared = 0.01473604359753749
     CVMC difference squared = 5.954528881712521e-05
 
@@ -147,8 +145,6 @@ Now lets look at the statistical properties of the CVMC estimator
 
 
 .. rst-class:: sphx-glr-script-out
-
- Out:
 
  .. code-block:: none
 
@@ -208,28 +204,25 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.111 seconds)
+   **Total running time of the script:** ( 0 minutes  0.100 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py:
 
+.. only:: html
 
-.. only :: html
-
- .. container:: sphx-glr-footer
-    :class: sphx-glr-footer-example
+  .. container:: sphx-glr-footer sphx-glr-footer-example
 
 
 
-  .. container:: sphx-glr-download sphx-glr-download-python
 
-     :download:`Download Python source code: plot_control_variate_monte_carlo.py <plot_control_variate_monte_carlo.py>`
+    .. container:: sphx-glr-download sphx-glr-download-python
 
+      :download:`Download Python source code: plot_control_variate_monte_carlo.py <plot_control_variate_monte_carlo.py>`
 
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
 
-  .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-     :download:`Download Jupyter notebook: plot_control_variate_monte_carlo.ipynb <plot_control_variate_monte_carlo.ipynb>`
+      :download:`Download Jupyter notebook: plot_control_variate_monte_carlo.ipynb <plot_control_variate_monte_carlo.ipynb>`
 
 
 .. only:: html

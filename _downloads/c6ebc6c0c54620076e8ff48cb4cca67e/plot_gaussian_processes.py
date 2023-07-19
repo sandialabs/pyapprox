@@ -3,13 +3,13 @@ Gaussian processes
 ==================
 Gaussian processes (GPs) are an extremely popular tool for approximating multivariate functions from limited data. A GP is a distribution over a set of functions. Given a prior distribution on the class of admissible functions an approximation of a deterministic function is obtained by conditioning the GP on available observations of the function.
 
-Constructing a GP requires specifying a prior mean :math:`m(\rv)` and covariance kernel :math:`C(\rv, \rv^\star)`. The GP leverages the correlation between training samples to approximate the residuals between the training data and the mean function. In the following we set the mean to zero. The covariance kernel should be tailored to the smoothness of the class of functions under consideration.
+Constructing a GP requires specifying a prior mean :math:`m(\rv)` and covariance kernel :math:`C(\rv, \rv^\star)`. The GP leverages the correlation between training samples to approximate the residuals between the training data and the mean function. In the following we set the mean to zero. The covariance kernel should be tailored to the smoothness of the class of functions under consideration. The matern kernel with hyper-parameters :math:`\theta=[\sigma^2,\ell^\top]^\top` is a common choice.
 
 .. math::
-   C(\rv, \rv^\star; \ell)=\sigma^2 \frac{2^{1-\nu}}{\mathsf{\Gamma}(\nu)}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right)^{\nu}K_{\nu}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right).
+   C_\nu(\rv, \rv^\star; \theta)=\sigma^2 \frac{2^{1-\nu}}{\mathsf{\Gamma}(\nu)}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right)^{\nu}K_{\nu}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right).
 
-Here :math:`d(\rv,\rv^\star; \ell)` is the weighted Euclidean distance between two points parameterized by the  vector hyper-parameters :math:`\ell=[\ell_1,\ldots,\ell_d]^\top` is. The variance of the kernel is determined by :math:`\sigma^2` and we define :math:`K_{\nu}` as the modified Bessel function of the second
-kind of order :math:`\nu` and :math:`\mathsf{\Gamma}` as the gamma function.
+Here :math:`d(\rv,\rv^\star; \ell)` is the weighted Euclidean distance between two points parameterized by the  vector hyper-parameters :math:`\ell=[\ell_1,\ldots,\ell_d]^\top`. The variance of the kernel is determined by :math:`\sigma^2` and :math:`K_{\nu}` is the modified Bessel function of the second
+kind of order :math:`\nu` and :math:`\mathsf{\Gamma}` is the gamma function.
 Note that the parameter :math:`\nu` dictates for the smoothness of the
 kernel function. The analytic squared-exponential kernel can be obtained as
 :math:`\nu\to\infty`.
@@ -21,55 +21,82 @@ Given a kernel and mean function, a Gaussian process approximation assumes that 
    f(\cdot) \mid \theta \sim \mathcal{N}\left(m(\cdot),C(\cdot,\cdot;\theta)+\epsilon^2I\right)
 
 where :math:`\epsilon^2` is the variance of the mean zero white noise in the observations.
-Given a set of training samples :math:`\mathcal{Z}=\{\rv^{(m)}\}_{m=1}^M` and associated values :math:`y=[y^{(1)}, \ldots, y^{(M)}]^\top` the posterior distribution of the GP is
 
-.. math::  f(\cdot) \mid \theta,y \sim \mathcal{N}\left(m^\star(\cdot),C^\star(\cdot,\cdot;\theta)+\epsilon^2I\right)
+The following plots realizations from the prior distribution of a Gaussian process at a set :math:`\mathcal{Z}` of values of :math:`\rv`. Random realizations are drawn by taking the singular value decomposition of the kernel evaluated at the set of points :math:`\mathcal{Z}`, such that 
 
-where
+.. math:: USV = C(\mathcal{Z}, \mathcal{Z}),
 
-.. math::  m^\star(\rv)=t(\rv)^\top A^{-1}y \quad\quad C^\star(\rv,\rv^\prime)=C(\rv,\rv^\prime)-t(\rv)^\top A^{-1}t(\rv^\prime)
+where :math:`U, V` are the left and right singular vectors and :math:`S` are the singular values. The left singular vectors and singular values are then used to generate random realizations :math:`y` using independent and identically distributed draws :math:`X` from the multivariate standard Normal distribution :math:`\mathcal{N}(0, \V{I}_N)`, where :math:`\V{I}_N` is the identity matrix of size :math:`N`, and :math:`N` is the number of samples in :math:`\mathcal{Z}`. Specifically
 
-with
+.. math:: y = US^{\frac{1}{2}}X.
 
-.. math::      t(\rv)=[C(\rv,\rv^{(1)}),\ldots,C(\rv,\rv^{(N)})]^\top
-
-and :math:`A` is a matrix with with elements :math:`A_{ij}=C(\rv^{(i)},\rv^{(j)})` for :math:`i,j=1,\ldots,M`. Here we dropped the dependence on the hyper-parameters :math:`\theta` for convenience.
-
-Supervised Learning
--------------------
-Consider the univariate Runge function
-
-.. math:: f(\rv) = \frac{1}{1+25\rv^2}, \quad \rv\in[-1,1]
-
-Lets construct a GP with a fixed set of training samples and associated values we can train the Gaussian process. But first lets plot the true function and prior GP mean and plus/minus 2 standard deviations using the prior covariance
+Note the Cholesky decomposition could also be used instead of the singular value decomposition.
 """
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.surrogates import gaussianprocess as gp
+from pyapprox.surrogates import gaussianprocess as gps
+np.random.seed(1)
+
+kernel = gps.Matern(0.5, length_scale_bounds=(1e-1, 1e1), nu=np.inf)
+gp = gps.GaussianProcess(kernel)
 
 lb, ub = -1, 1
+xx = np.linspace(lb, ub, 101)
+nsamples = 40
+rand_noise = np.random.normal(lb, ub, (xx.shape[0], nsamples))
+for ii in range(nsamples):
+    plt.plot(xx, gp.predict_random_realization(xx[None, :], rand_noise[:, ii:ii+1]))
+#%%
+#The length scale effects the variability of the GP realizations. Try chaning the length_scale to see effect on the GP realizations.
+#
+#The type of kernel used by the GP also effects the GP realizations. The squared-exponential kernel above is very useful for smooth functions. For less smooth functions a Matern kernel with a smaller :math:`\nu` hyper-parameter may be more effective,
+
+other_kernel = gps.Matern(0.5, length_scale_bounds=(1e-1, 1e1), nu=0.5)
+other_gp = gps.GaussianProcess(other_kernel)
+for ii in range(nsamples):
+    plt.plot(xx, other_gp.predict_random_realization(xx[None, :], rand_noise[:, ii:ii+1]))
+
+#%%
+#Given a set of training samples :math:`\mathcal{Z}=\{\rv^{(m)}\}_{m=1}^M` and associated values :math:`y=[y^{(1)}, \ldots, y^{(M)}]^\top` the posterior distribution of the GP is
+#
+#.. math::  f(\cdot) \mid \theta,y \sim \mathcal{N}\left(m^\star(\cdot),C^\star(\cdot,\cdot;\theta)+\epsilon^2I\right)
+#
+#where
+#
+#.. math::  m^\star(\rv)=t(\rv)^\top A^{-1}_\mathcal{Z}y \quad\quad C^\star(\rv,\rv^\prime)=C(\rv,\rv^\prime)-t(\rv)^\top A^{-1}_\mathcal{Z}t(\rv^\prime)
+#
+#with
+#
+#.. math::      t(\rv)=[C(\rv,\rv^{(1)}),\ldots,C(\rv,\rv^{(N)})]^\top
+#
+#and :math:`A_\mathcal{Z}` is a matrix with with elements :math:`(A_\mathcal{Z})_{ij}=C(\rv^{(i)},\rv^{(j)})` for :math:`i,j=1,\ldots,M`. Here we dropped the dependence on the hyper-parameters :math:`\theta` for convenience.
+#
+#Consider the univariate Runge function
+#
+#.. math:: f(\rv) = \frac{1}{1+25\rv^2}, \quad \rv\in[-1,1]
+#
+#Lets construct a GP with a fixed set of training samples and associated values we can train the Gaussian process. But first lets plot the true function and prior GP mean and plus/minus 2 standard deviations using the prior covariance
 
 def func(x):
     return 1/(1+25*x[0, :]**2)[:, np.newaxis]
-
-kernel = gp.Matern(1, length_scale_bounds=(1e-1, 1e1), nu=np.inf)
-gp = gp.GaussianProcess(kernel)
 
 validation_samples = np.linspace(lb, ub, 101)[None, :]
 validation_values = func(validation_samples)
 plt.plot(validation_samples[0, :], validation_values[:, 0], 'r-', label='Exact')
 gp_vals, gp_std = gp(validation_samples, return_std=True)
 plt.plot(validation_samples[0, :], gp_vals[:, 0], 'b-', label='GP prior mean')
-plt.fill_between(validation_samples[0, :], gp_vals[:, 0]-2*gp_std,
+_ = plt.fill_between(validation_samples[0, :], gp_vals[:, 0]-2*gp_std,
                  gp_vals[:, 0]+2*gp_std,
                  alpha=0.2, color='blue', label='GP prior uncertainty')
 
-#%% Now lets train the GP using a small number of evaluations and plot
+#%%
+#Now lets train the GP using a small number of evaluations and plot
 #the posterior mean and variance.
 ntrain_samples = 5
 train_samples = np.linspace(lb, ub, ntrain_samples)[None, :]
 train_values = func(train_samples)
 gp.fit(train_samples, train_values)
+print(gp.kernel_)
 gp_vals, gp_std = gp(validation_samples, return_std=True)
 plt.plot(validation_samples[0, :], validation_values[:, 0], 'r-', label='Exact')
 plt.plot(train_samples[0, :], train_values[:, 0], 'or')
@@ -79,24 +106,72 @@ plt.fill_between(validation_samples[0, :], gp_vals[:, 0]-2*gp_std,
                  gp_vals[:, 0]+2*gp_std,
                  alpha=0.5, color='gray', label='GP posterior uncertainty')
 
-plt.legend()
-plt.show()
+_ = plt.legend()
 
 #%% As we add more training data the posterior uncertainty will decrease and the mean will become a more accurate estimate of the true function.
 
 #%%
 #Experimental design
 #-------------------
-#The nature of the training samples significantly impacts the accuracy of a Gaussian process. Noting that the variance of a GP reflects the accuracy of a Gaussian process [SWMW1989]_ developed an experimental design procedure which minimizes the average variance with respect to a specified measure. This measure is typically the probability measure :math:`\pdf(\rv)` of the random variables :math:`\rv`. Integrated variance designs, as they are often called, find a set of samples :math:`\mathcal{Z}\subset\Omega\subset\rvdom` from a set of candidate samples :math:`\Omega` by solving the minimization problem
+#The nature of the training samples significantly impacts the accuracy of a Gaussian process. Noting that the variance of a GP reflects the accuracy of a Gaussian process, [SWMW1989]_ developed an experimental design procedure which minimizes the average variance with respect to a specified measure. This measure is typically the probability measure :math:`\pdf(\rv)` of the random variables :math:`\rv`. Integrated variance designs, as they are often called, find a set of samples :math:`\mathcal{Z}\subset\Omega\subset\rvdom` from a set of candidate samples :math:`\Omega` by solving the minimization problem
 #
 #.. math:: \mathcal{Z}^\dagger=\argmin_{\mathcal{Z}\subset\Omega\subset\rvdom, \lvert\mathcal{Z}\rvert=M} \int_{\rvdom} C^\star(\rv, \rv\mid \mathcal{Z})\pdf(\rv)d\rv
 #
 #where we have made explicit the posterior variance dependence on :math:`\mathcal{Z}`.
 #
-#The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples. The IVAR criterion - also called active learning Cohn (ALC) - can be minimized over discrete [HJZ2021]_ or continuous [GM2016]_ design spaces :math:`\Omega`. When employing a discrete design space, greedy methods [C2006]_ are used to sample one at a time from a finite set of candidate samples to minimize the learning objective.  This approach requires a representative candidate set which, we have found, can be generated with low-discrepancy sequences, e.g. Sobol sequences. The continuous optimization optimization is non-convex and thus requires a good initial guess to start the gradient based optimization. Greedy methods can be used to produce the initial guess, however we found that optimizing from this design resulted in minimal improvement.
+#The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples. The IVAR criterion - also called active learning Cohn (ALC) - can be minimized over discrete [HJZ2021]_ or continuous [GM2016]_ design spaces :math:`\Omega`. When employing a discrete design space, greedy methods [C2006]_ are used to sample one at a time from a finite set of candidate samples to minimize the learning objective.  This approach requires a representative candidate set which, we have found, can be generated with low-discrepancy sequences, e.g. Sobol sequences. The continuous optimization optimization is non-convex and thus requires a good initial guess to start the gradient based optimization. Greedy methods can be used to produce the initial guess, however in certain situation optimizing from the greedy design resulted in minimal improvement.
 #
-#Talk a bit more how adaptive designs work e,g. start with initial set then select points one at a time.???
+#The following code plots the samples chosen by greedily minimizing the IVAR criterion
 #
+#.. math:: \int_{\rvdom} C^\star(\rv, \rv\mid \mathcal{Z})\pdf(\rv)d\rv = 1-\mathrm{Trace}\left[A_\mathcal{Z}P_\mathcal{Z}\right]\qquad P_\mathcal{Z}=\int_{\rvdom} A_{\mathcal{Z}\cup\{\rv\}}A_{\mathcal{Z}\cup\{\rv\}}^\top\pdf(\rv)d\rv
+#
+#from a set of candidate samples :math:`\mathcal{Z}_\mathrm{cand}`. Because the additive constant does not effect the design IVAR designs are found by greedily adding points such that the :math:`N+1` point satisfies
+#
+#.. math:: \rv_{N+1}=\argmin_{\rv^\prime\in\mathcal{Z}_\mathrm{cand}} \mathrm{Trace}\left[A_{\mathcal{Z}_N\cup\{\rv^\prime\}}P_{\mathcal{Z}_N\cup\{\rv^\prime\}}\right].
+
+from pyapprox.surrogates.gaussianprocess.gaussian_process import (
+    IVARSampler, GreedyIntegratedVarianceSampler, CholeskySampler)
+from pyapprox.variables.joint import IndependentMarginalsVariable, stats
+variable = IndependentMarginalsVariable([stats.uniform(-1, 2)])
+ncandidate_samples = 101
+sampler = GreedyIntegratedVarianceSampler(
+    1, 100, ncandidate_samples, variable.rvs, variable,
+    use_gauss_quadrature=True, econ=False,
+    candidate_samples=np.linspace(
+       *variable.get_statistics("interval", 1)[0, :], 101)[None, :])
+
+kernel = gps.Matern(0.5, length_scale_bounds="fixed", nu=np.inf)
+sampler.set_kernel(kernel)
+
+
+def plot_gp_samples(ntrain_samples, kernel, variable):
+    axs = plt.subplots(1, ntrain_samples, figsize=(ntrain_samples*8, 6))[1]
+    gp = gps.GaussianProcess(kernel)
+    for ii in range(1, ntrain_samples+1):
+        gp.plot_1d(101, variable.get_statistics("interval", 1)[0, :], ax=axs[ii-1])
+
+    train_samples = sampler(ntrain_samples)[0]
+    train_values = func(train_samples)*0
+    for ii in range(1, ntrain_samples+1):
+        gp.fit(train_samples[:, :ii], train_values[:ii])
+        gp.plot_1d(101, variable.get_statistics("interval", 1)[0, :], ax=axs[ii-1])
+        axs[ii-1].plot(train_samples[0, :ii], train_values[:ii, 0], 'ko', ms=15)
+
+
+ntrain_samples = 5
+plot_gp_samples(ntrain_samples, kernel, variable)
+
+#%%
+#The following plots the variance obtained by a global optimiaztion of IVAR,
+#starting from the greedy IVAR samples as the intial guess. The samples are plotted sequentially, however this is just for visualization as the global optimization does not produce a nested sequence of samples.
+sampler = IVARSampler(
+    1, 100, ncandidate_samples, variable.rvs, variable,
+    'ivar', use_gauss_quadrature=True, nugget=1e-14)
+sampler.set_kernel(kernel)
+ntrain_samples = 5
+plot_gp_samples(ntrain_samples, kernel, variable)
+
+#%%
 #Computing IVAR designs can be computationally expensive. An alternative cheaper algorithm called active learning Mckay (ALM) greedily chooses samples that minimizes the maximum variance of the Gaussian process. That is, given M training samples the next sample is chosen via
 #
 #.. math:: \rv^{(n+1)}=\argmax_{\mathcal{Z}\subset\Omega\subset\rvdom} C^\star(\rv, \rv\mid \mathcal{Z}_M)
@@ -109,10 +184,17 @@ plt.show()
 #
 #Finally we remark that while ALM and ALC are the most popular experimental design strategies for GPs, alternative methods have been proposed. Of note are those methods which approximately minimize the mutual information between the Gaussian process evaluated at the training data and the Gaussian process evaluated at the remaining candidate samples [KSG2008]_, [BG2016]_. We do not consider these methods in our numerical comparisons.
 #
-#ACTIVE LEARNING
-# guillas jakeman, gramacy adaptive
-#
-#Compare designs with fixed hyper-parameters with those that are learnt as data is added. Show can drastically improve efficiency in anisotrioic functions
+#The following code shows how to use pivoted Cholesky factorization to greedily choose trainig samples for a GP.
+sampler = CholeskySampler(1, 100, variable)
+sampler.set_kernel(kernel)
+ntrain_samples = 5
+plot_gp_samples(ntrain_samples, kernel, variable)
+plt.show()
+
+#%%
+#Active Learning
+#---------------
+# The samples selected by the aforementioned methods depends on the kernel specified. Change the length_scale of the kernel above to see how the selected samples changes. Active learning chooses a small initial sample set then trains the GP to learn the best kernel hyper-parameters. These parameters are then used to increment the training set and then used to train the GP hyper-parameters again and so until a sufficient accuracy or computational budget is reached. PyApprox's AdaptiveGaussianProcess implements this procedure [HJZ2021]_.
 
 #%%
 #References
