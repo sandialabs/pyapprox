@@ -106,7 +106,17 @@ Some tests will be skipped if not all optional packages are installed.
 
 Create Documentation
 --------------------
-To create the documentation fenics must be installed. Creating documentation also requires Sphinx 1.7 or later, sphinx, numpydoc, and sphinx-automodapi. These are automatically installed with pip install -e . command.
+To create the documentation fenics must be installed. Creating documentation also requires Sphinx 1.7 or later, sphinx, numpydoc, and sphinx-automodapi.
+
+
+To install these requirements when installing from PyPi first run::
+
+    pip install pyapprox[docs]
+
+
+When installing from source run::
+
+    pip install -e .[docs]
 
 Html documentation can be generated with::
 
