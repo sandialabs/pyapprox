@@ -143,7 +143,8 @@ ani = generate_animation(
     model._fwd_solver.physics.mesh, sols, times,
     filename=None, maxn_frames=100, duration=2)
 import matplotlib.animation as animation
-ani.save('ad-sol.gif', writer=animation.ImageMagickFileWriter())
+ani.save('ad-sol.gif', writer=animation.ImageMagickFileWriter(),
+         dpi=100)
 
 #%%
 #Now perform a convgernce study
