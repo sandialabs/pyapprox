@@ -259,7 +259,7 @@ class MetropolisMCMCVariable(JointVariable):
                 self._variable.get_statistics("std")[:, 0]**2)
         if init_proposal_cov.shape[0] != self._variable.num_vars():
             raise ValueError("init_proposal_cov specified has wrong shape")
-        print(num_samples, self._burn_fraction)
+        # print(num_samples, self._burn_fraction)
         nburn_samples = int(np.ceil(num_samples*self._burn_fraction))
         if self._algorithm == "DRAM":
             nugget = self._method_opts.get("nugget", 1e-6)
@@ -271,7 +271,7 @@ class MetropolisMCMCVariable(JointVariable):
                 num_samples+nburn_samples, self._nsamples_per_tuning, nugget,
                 cov_scaling, verbosity=self._verbosity, sd=sd)
             # print(accepted)
-            print(accepted[nburn_samples:].sum(), num_samples, nburn_samples)
+            # print(accepted[nburn_samples:].sum(), num_samples, nburn_samples)
             acceptance_rate = accepted[nburn_samples:].sum()/num_samples
         elif self._algorithm == "hmc":
             L, eps = self._method_opts["L"], self._method_opts["eps"]
@@ -304,7 +304,6 @@ class MetropolisMCMCVariable(JointVariable):
                 obj, bounds, maxiter=100, popsize=15)
             # res = dual_annealing(
             #     obj, bounds, maxiter=100, maxfun=10000)
-            print(res)
             init_guess = res.x[:, None]
             # init_guess = self._variable.get_statistics("mean")
 
@@ -321,7 +320,6 @@ class MetropolisMCMCVariable(JointVariable):
         res = minimize(obj, init_guess, jac=return_grad, method="l-bfgs-b",
                        options={"disp": False}, bounds=bounds)
         MAP = res.x[:, None]
-        print(res)
         return MAP
 
     @staticmethod

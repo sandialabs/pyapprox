@@ -57,8 +57,8 @@ def adaptive_approximate_sparse_grid(
         refinement_indicator=variance_refinement_indicator,
         univariate_quad_rule_info=None, max_nsamples=100, tol=0, verbose=0,
         config_variables_idx=None, config_var_trans=None, cost_function=None,
-        max_level_1d=None):
-    """
+        max_level_1d=None, max_level=None, basis_type="barycentric"):
+    r"""
     Compute a sparse grid approximation of a function.
 
     Parameters
@@ -179,6 +179,16 @@ def adaptive_approximate_sparse_grid(
         The maximum level of the sparse grid in each dimension. If None
         There is no limit
 
+    max_level : integer
+        The maximum level l of the sparse grid. Only subspaces with indices
+        i that satisfy : math:`\lvert i \rvert_1\le l` can be added. If None
+        l=np.inf
+
+    basis_type : string (default="barycentric")
+        Specify the basis type to use. Currently the same basis must be used
+        for all dimensions. Options "barycentric", "linear", "quadratic"
+
+
     Returns
     -------
     result : :class:`pyapprox.surrogates.approximate.ApproximateResult`
@@ -191,12 +201,15 @@ def adaptive_approximate_sparse_grid(
     nvars = var_trans.num_vars()
     if config_var_trans is not None:
         nvars += config_var_trans.num_vars()
-    sparse_grid = CombinationSparseGrid(nvars)
+    sparse_grid = CombinationSparseGrid(nvars, basis_type)
 
     if max_level_1d is None:
         max_level_1d = [np.inf]*nvars
     elif np.isscalar(max_level_1d):
         max_level_1d = [max_level_1d]*nvars
+
+    if max_level is None:
+        max_level = np.inf
 
     if univariate_quad_rule_info is None:
         quad_rules, growth_rules, unique_quadrule_indices, \
@@ -224,9 +237,19 @@ def adaptive_approximate_sparse_grid(
                     max_level_1d[jj] = np.minimum(
                         unique_max_level_1d[ii], max_level_1d[jj])
 
+    if config_var_trans is not None:
+        for ii, cv in enumerate(config_var_trans.config_values):
+            if len(cv) <= max_level_1d[config_variables_idx+ii]:
+                msg = f"maxlevel_1d {max_level_1d} and "
+                msg += "config_var_trans.config_values with shapes {0}".format(
+                    [len(v) for v in config_var_trans.config_values])
+                msg += " are inconsistent."
+                raise ValueError(msg)
+
     assert len(max_level_1d) == nvars
+    # todo change np.inf to argument that is passed into approximate
     admissibility_function = partial(
-        max_level_admissibility_function, np.inf, max_level_1d, max_nsamples,
+        max_level_admissibility_function, max_level, max_level_1d, max_nsamples,
         tol, verbose=verbose)
     sparse_grid.setup(
         fun, config_variables_idx, refinement_indicator,
@@ -720,6 +743,8 @@ def adaptive_approximate_gaussian_process(
             msg += 'If more samples are really required increase alpha or '
             msg += 'manually fix kernel_length to a smaller value'
             print('Exiting: ' + msg)
+            # print(gp.kernel_)
+            # print(np.linalg.norm(gp.sampler.candidate_samples))
             break
     return ApproximateResult({'approx': gp})
 

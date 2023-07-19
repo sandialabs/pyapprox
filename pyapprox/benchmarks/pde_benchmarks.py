@@ -29,9 +29,21 @@ def gauss_forc_fun(amp, scale, loc, xx):
     loc = torch.as_tensor(loc, dtype=torch.double)
     if loc.ndim == 1:
         loc = loc[:, None]
-    return amp*torch.exp(
+    vals = amp*torch.exp(
         -torch.sum((torch.as_tensor(xx, dtype=torch.double)-loc)**2/scale**2,
                    axis=0))[:, None]
+    return vals
+
+
+def beta_forc_fun(amp, scale, loc, xx):
+    a1, b1 = 5, 5
+    a2, b2 = 5, 5
+    from scipy.special import beta
+    amp /= beta(a1, b1)*beta(a2, b2)*10
+    vals = torch.as_tensor((amp*xx[0]**(a1-1)*(1-xx[0])**(b1-1) *
+                            xx[1]**(a2-1)*(1-xx[1])**(b2-1)),
+                           dtype=torch.double)[:, None]
+    return vals
 
 
 def mesh_locations_obs_functional(obs_indices, sol, params):
@@ -41,6 +53,7 @@ def mesh_locations_obs_functional(obs_indices, sol, params):
 def transient_multi_index_forcing(source1_args, xx, time=0,
                                   source2_args=None):
     vals = gauss_forc_fun(*source1_args, xx)
+    # vals = beta_forc_fun(*source1_args, xx)
     if time == 0:
         return vals
     if source2_args is None:
@@ -239,21 +252,24 @@ class TransientAdvectionDiffusionReactionKLEModel(
         self._steady_state_fwd_solver = super()._set_forward_solver(
             mesh, bndry_conds, vel_fun, react_funs, forc_fun)
 
-    def _eval(self, sample, return_grad=False):
-        if return_grad:
-            raise ValueError("return_grad=True is not supported")
-        sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)
-        self._set_random_sample(sample_copy)
+    def _get_init_sol(self, sample):
         if self._init_sol is None:
             self._steady_state_fwd_solver.physics._diff_fun = partial(
                 self._fast_interpolate,
-                self._kle(sample_copy[:, None]))
+                self._kle(sample[:, None]))
             self._fwd_solver.physics._set_time(self._init_time)
             init_sol = self._steady_state_fwd_solver.solve(
                 **self._newton_kwargs)
         else:
             init_sol = self._init_sol
-            assert False
+        return init_sol
+
+    def _eval(self, sample, return_grad=False):
+        if return_grad:
+            raise ValueError("return_grad=True is not supported")
+        sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)
+        self._set_random_sample(sample_copy)
+        init_sol = self._get_init_sol(sample_copy)
         sols, times = self._fwd_solver.solve(
             init_sol, 0, self._final_time,
             newton_kwargs=self._newton_kwargs, verbosity=0)
@@ -286,7 +302,8 @@ class TransientAdvectionDiffusionReactionKLEModel(
 def _setup_advection_diffusion_benchmark(
         amp, scale, loc, length_scale, sigma, nvars, orders, functional,
         functional_deriv_funs=[None, None], kle_args=None,
-        newton_kwargs={}, time_scenario=None):
+        newton_kwargs={}, time_scenario=None, vel_vec=[1., 0.],
+        kle_mean_field=0.):
     variable = IndependentMarginalsVariable([stats.norm(0, 1)]*nvars)
     orders = np.asarray(orders, dtype=int)
 
@@ -308,10 +325,12 @@ def _setup_advection_diffusion_benchmark(
         [lambda x: torch.full(
             (x.shape[1], 1), alpha*nominal_value), "R", alpha]]
     react_funs = None
-    vel_fun = partial(constant_vel_fun, [1, 0])
+    vel_fun = partial(constant_vel_fun, vel_vec)
 
     if kle_args is None:
-        kle = MeshKLE(mesh.mesh_pts, use_log=True, use_torch=True)
+        kle = MeshKLE(
+            mesh.mesh_pts, use_log=True, use_torch=True,
+            mean_field=kle_mean_field)
         kle.compute_basis(
             length_scale, sigma=sigma, nterms=nvars)
     else:
@@ -363,8 +382,10 @@ class InterpolatedMeshKLE(MeshKLE):
         self._kle.use_log = False
         vals = self._kle(coef)
         interp_vals = self._fast_interpolate(vals, self._mesh.mesh_pts)
+        mean_field = self._fast_interpolate(
+            self._kle.mean_field[:, None], self._mesh.mesh_pts)
         if use_log:
-            interp_vals = np.exp(interp_vals)
+            interp_vals = np.exp(mean_field+interp_vals)
         self._kle.use_log = use_log
         return interp_vals
 
@@ -416,7 +437,9 @@ def _setup_inverse_advection_diffusion_benchmark(
 
 def _setup_multi_index_advection_diffusion_benchmark(
         length_scale, sigma, nvars, time_scenario=None,
-        functional=None, config_values=None):
+        functional=None, config_values=None,
+        source_loc=[0.25, 0.75], source_scale=0.1,
+        source_amp=100.0, vel_vec=[1., 0.], kle_mean_field=0.):
 
     if time_scenario is True:
         time_scenario = {
@@ -428,9 +451,10 @@ def _setup_multi_index_advection_diffusion_benchmark(
             "sink": None
         }
 
-    amp, scale = 100.0, 0.1
-    loc = torch.tensor([0.25, 0.75])[:, None]
-    # loc = torch.tensor([0.25, 0.5])[:, None]
+    source_loc = np.asarray(source_loc)
+    if source_loc.ndim == 1:
+        source_loc = source_loc[:, None]
+    assert source_loc.shape[1] == 1
 
     newton_kwargs = {"maxiters": 1, "rtol": 0}
     if config_values is None:
@@ -460,8 +484,10 @@ def _setup_multi_index_advection_diffusion_benchmark(
         time_scenario["deltat"] = config_values[2][-1]
 
     hf_model, variable = _setup_advection_diffusion_benchmark(
-        amp, scale, loc, length_scale, sigma, nvars, hf_orders, functional,
-        newton_kwargs=newton_kwargs, time_scenario=time_scenario)
+        source_amp, source_scale, source_loc,
+        length_scale, sigma, nvars, hf_orders, functional,
+        newton_kwargs=newton_kwargs, time_scenario=time_scenario,
+        vel_vec=vel_vec, kle_mean_field=kle_mean_field)
     kle_args = [hf_model._fwd_solver.physics.mesh, hf_model._kle]
 
     def setup_model(config_vals):
@@ -469,9 +495,11 @@ def _setup_multi_index_advection_diffusion_benchmark(
         if time_scenario is not None:
             time_scenario["deltat"] = config_vals[2]
         return _setup_advection_diffusion_benchmark(
-            amp, scale, loc, length_scale, sigma, nvars, orders, functional,
+            source_amp, source_scale, source_loc, length_scale,
+            sigma, nvars, orders, functional,
             kle_args=kle_args, newton_kwargs=newton_kwargs,
-            time_scenario=time_scenario)[0]
+            time_scenario=time_scenario, vel_vec=vel_vec,
+            kle_mean_field=kle_mean_field)[0]
     multi_index_model = MultiIndexModel(setup_model, config_values)
     config_var_trans = ConfigureVariableTransformation(config_values)
     # order models from highest to lowest fidelity to match ACV MC convention

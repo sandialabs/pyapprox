@@ -2,8 +2,8 @@ name: Build Docs Using Conda
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
+    # branches: [master, devel]
 
   workflow_dispatch:
 

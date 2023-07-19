@@ -1,6 +1,6 @@
 import numpy as np
 
-from pyapprox.util.pya_numba import njit
+from pyapprox.util.pya_numba import njit, gammaln_float64
 from pyapprox.variables.marginals import get_distribution_info
 
 
@@ -31,12 +31,6 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     # warnings.filterwarnings("ignore", message="numpy.dtype size changed")
     # warnings.filterwarnings("ignore", message="numpy.ndarray size changed")
 
-    x = np.asarray(x, dtype=float)
-    from pyapprox.cython.orthonormal_polynomials_1d import \
-        evaluate_orthonormal_polynomial_deriv_1d_pyx
-    return evaluate_orthonormal_polynomial_deriv_1d_pyx(
-        x, nmax, ab, deriv_order)
-
     try:
         # necessary when discrete variables are define on integers
         x = np.asarray(x, dtype=float)
@@ -44,9 +38,9 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
             evaluate_orthonormal_polynomial_deriv_1d_pyx
         return evaluate_orthonormal_polynomial_deriv_1d_pyx(
             x, nmax, ab, deriv_order)
-    except ImportError:
+    except (ImportError, ValueError):
         print('evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed')
-    return __evaluate_orthonormal_polynomial_deriv_1d
+    return __evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order)
 
 
 @njit(cache=True)

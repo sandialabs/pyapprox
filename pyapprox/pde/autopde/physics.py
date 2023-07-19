@@ -151,10 +151,13 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
 
             tmp = torch.linalg.multi_dot(
                 (self._linear_jac_factors[0].T, res))[:, None]
-            # return torch.triangular_solve(
-            #     tmp, self._linear_jac_factors[1], upper=True)[0][:, 0]
-            return torch.linalg.solve_triangular(
-                self._linear_jac_factors[1], tmp, upper=True)[:, 0]
+            try:
+                return torch.linalg.solve_triangular(
+                    self._linear_jac_factors[1], tmp, upper=True)[:, 0]
+            except AttributeError:
+                return torch.triangular_solve(
+                    tmp, self._linear_jac_factors[1], upper=True)[0][:, 0]
+
         return super()._linear_solve(jac, res)
 
     def _clear_data(self):
@@ -184,7 +187,7 @@ class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
     def _linear_raw_residual(
             self, mesh, sol, diff_fun, vel_fun, forc_fun, auto_jac):
         if (not self._store_data or self._linear_jac is None or
-            self._nl_diff_fun is not None):
+                self._nl_diff_fun is not None):
             # if nl_diff_fun active then linear jac will change because diff vals
             # used to construct will change
             linear_jac = self._linear_raw_residual_jac(mesh, diff_fun, vel_fun)

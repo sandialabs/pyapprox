@@ -82,6 +82,7 @@ class Benchmark(OptimizeResult):
     attributes for a specific benchmark
     """
 
+
 def setup_sobol_g_function(nvars):
     r"""
     Setup the Sobol-G function benchmark
@@ -459,8 +460,7 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
     Discontinuous ('discontinuous')
 
-    .. math:: f(z) = \begin{cases}0 & z_1>w_1 \;\mathrm{or}\; z_2>w_2\\\exp\left(\sum_{d=1
-}^D c_dz_d\right) & \mathrm{otherwise}\end{cases}
+    .. math:: f(z) = \begin{cases}0 & z_1>w_1 \;\mathrm{or}\; z_2>w_2\\\exp\left(\sum_{d=1}^D c_d z_d\right) & \mathrm{otherwise}\end{cases}
 
     Increasing :math:`\lVert c \rVert` will in general make
     the integrands more difficult.
@@ -505,7 +505,11 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
         coeff_type = 'none'
     genz.set_coefficients(nvars, c_factor, coeff_type, w)
     if coeff is not None:
-        genz._c, genz._w = coeff
+        genz._c, genz._w = np.asarray(coeff[0]), np.asarray(coeff[1])
+        if genz._c.ndim == 1:
+            genz._c = genz._c[:, None]
+        if genz._w.ndim == 1:
+            genz._w = genz._w[:, None]
         assert genz._c.ndim == 2 and genz._w.ndim == 2
     attributes = {'fun': partial(genz, test_name),
                   'mean': genz.integrate(test_name),
@@ -732,7 +736,9 @@ def setup_parameterized_nonlinear_model():
 def setup_multi_index_advection_diffusion_benchmark(
         kle_nvars=2, kle_length_scale=0.5, kle_stdev=1,
         max_eval_concurrency=1, time_scenario=None,
-        functional=None, config_values=None):
+        functional=None, config_values=None,
+        source_loc=[0.25, 0.75], source_scale=0.1,
+        source_amp=100.0, vel_vec=[1., 0.], kle_mean_field=0):
     r"""
     This benchmark is used to test methods for forward propagation of
     uncertainty. The forward simulation model is the transient
@@ -740,7 +746,7 @@ def setup_multi_index_advection_diffusion_benchmark(
 
     .. math::
 
-       \frac{\partial u}{\partial t}(x,t,\rv) = \nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] -\nabla u(x,t,\rv)+g(x,t) &(x,t,\rv)\in D\times [0,1]\times\rvdom\\
+       \frac{\partial u}{\partial t}(x,t,\rv) = \nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] -\nabla \cdot (v u(x,t,\rv))+g(x,t) &(x,t,\rv)\in D\times [0,1]\times\rvdom\\
        \mathcal{B}(x,t,\rv)=0  &(x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
        u(x,t,\rv)=u_0(x,\rv) & (x,t,\rv)\in D\times\{t=0\}\times\rvdom
 
@@ -758,7 +764,7 @@ def setup_multi_index_advection_diffusion_benchmark(
     As with the :py:func:`pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark`
     we parameterize the uncertain diffusivity with a Karhunen Loeve Expansion (KLE)
 
-    .. math:: k(x, \rv)=\exp\left(\sum_{d=1}^D \sqrt{\lambda_d}\psi_d(x)\rv_d\right).
+    .. math:: k(x, \rv)=\exp\left(k_0+\sum_{d=1}^D \sqrt{\lambda_d}\psi_d(x)\rv_d\right).
 
     If no initial condition is provided by the user then the governing equations in :py:func:`pyapprox.benchmarks.setup_advection_diffusion_kle_inversion_benchmark` is used to create an initial condition, where the forcing is set to be the first term of :math:`g` here. I.e. the steady state solution before the second term of :math:`g` is used to remove the concentration :math:`u` from the domain.
 
@@ -771,7 +777,7 @@ def setup_multi_index_advection_diffusion_benchmark(
     If not time_scenario is provided. The QoI from the steady state solution is returned.
 
     This benchmark can be modified by
-    changing the default keyword arguments if necessary but is not recommended.
+    changing the default keyword arguments if necessary.
 
     Parameters
     ----------
@@ -821,6 +827,21 @@ def setup_multi_index_advection_diffusion_benchmark(
         the values of the degrees that can be used to construct the
         collocation mesh in each physical direction. The third is an array of
         the timestep sizes that can be used to integrate the PDE in time.
+
+    source_loc : np.ndarray (2)
+        The center of the source
+
+    source_amp : float
+        The source strength :math:`s`
+
+    source_scale : float
+        The source width :math:`h`
+
+    vel_vec: iterable (2) default [1., 0.]
+        The spatially independent velocity field :math:`v`
+
+    kle_mean_field : float (default 0)
+        The spatially independent mean :math:`k_0` of the KLE field in log space
 
     Returns
     -------
@@ -878,7 +899,10 @@ def setup_multi_index_advection_diffusion_benchmark(
     base_model, variable, config_var_trans, model_ensemble = (
         _setup_multi_index_advection_diffusion_benchmark(
             kle_length_scale, kle_stdev, kle_nvars, time_scenario=time_scenario,
-            functional=functional, config_values=config_values))
+            functional=functional, config_values=config_values,
+            source_loc=source_loc, source_scale=source_scale,
+            source_amp=source_amp, vel_vec=vel_vec,
+            kle_mean_field=kle_mean_field))
     timer_model = TimerModel(base_model, base_model)
     pool_model = PoolModel(
         timer_model, max_eval_concurrency, base_model=base_model)

@@ -304,14 +304,16 @@ def create_3d_axis():
     """
     Create a 3D axis for plotting surfaces
     """
-    fig = plt.figure()
-    try:
-        ax = fig.gca(projection='3d')
-    except TypeError:
-        # Add following import to avoid error Unknown projection '3d'
-        # when using ax = fig.gca(projection='3d')
-        from mpl_toolkits.mplot3d import Axes3D
-        ax = Axes3D(fig)
+    # try:
+    #     fig = plt.figure()
+    #     ax = fig.gca(projection='3d')
+    # except TypeError:
+    #    # Add following import to avoid error Unknown projection '3d'
+    #    # when using ax = fig.gca(projection='3d')
+    #    # from mpl_toolkits.mplot3d import Axes3D
+    #    # fig = plt.figure()
+    #    # ax = Axes3D(fig)
+    ax = plt.subplots(subplot_kw={"projection": "3d"})[1]
     return ax
 
 
@@ -380,6 +382,7 @@ def plot_surface(X, Y, Z, ax, samples=None, limit_state=None,
                          Y.reshape((1, Y.shape[0]*Y.shape[1]))))
         vals = Z.flatten()
         I, default_value = limit_state(pts, vals)
+        # print(I, default_value)
         vals[I] = default_value
         Z_tmp = vals.reshape((X.shape[0], X.shape[1]))
     else:

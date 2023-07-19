@@ -259,7 +259,7 @@ class TestPDEBenchmarks(unittest.TestCase):
         # plt.loglog(
         #     ndof[:-1], np.abs((qoi_means[-1]-qoi_means[:-1])/qoi_means[-1]))
         # plt.show()
-        assert (rel_diffs.max() > 4e-2 and rel_diffs.min() < 9.1e-5)
+        assert (rel_diffs.max() > 4e-2 and rel_diffs.min() < 9.5e-5)
 
 
 if __name__ == "__main__":

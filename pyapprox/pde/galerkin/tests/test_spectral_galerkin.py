@@ -81,7 +81,6 @@ class TestSpectralGalerkin(unittest.TestCase):
         # print(sol_vals-exact_sol_vals)
         assert np.allclose(sol_vals, exact_sol_vals)
 
-
     def test_advection_diffusion(self):
         test_cases = [
             [[0, 1], [3], "x**2", "1", ["2"], ["D"]*2],

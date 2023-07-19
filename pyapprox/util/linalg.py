@@ -526,7 +526,7 @@ def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
         #         L[pivots[ii],:ii].dot(L[pivots[jj],:ii]))/L[pivots[ii],ii]
         #     diag[pivots[jj]] -= L[pivots[jj],ii]**2
         error = diag[pivots[ii+1:]].sum()/init_error
-        # print(ii,'error',error)
+        # print(ii, 'error', error)
         if error < tol:
             msg = 'Tolerance reached. '
             msg += f'Iteration:{ii}. Tol={tol}. Error={error}'

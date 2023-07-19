@@ -373,7 +373,8 @@ def tensor_product_piecewise_polynomial_interpolation_with_values(
 
 
 def tensor_product_piecewise_polynomial_interpolation(
-        samples, levels, fun, basis_type="linear"):
+        samples, levels, fun, basis_type="linear", var_trans=None,
+        return_all=False):
     """
     Use tensor-product piecewise polynomial basis to interpolate a function.
 
@@ -404,9 +405,16 @@ def tensor_product_piecewise_polynomial_interpolation(
         clenshaw_curtis_poly_indices_to_quad_rule_indices(ll)]
                   for ll in levels]
     grid_samples = cartesian_product(samples_1d)
+    if var_trans is not None:
+        grid_samples = var_trans.map_from_canonical(grid_samples)
+        samples = var_trans.map_to_canonical(samples)
     fn_vals = fun(grid_samples)
-    return tensor_product_piecewise_polynomial_interpolation_with_values(
-        samples, fn_vals, levels, basis_type)
+    approx_vals = (
+        tensor_product_piecewise_polynomial_interpolation_with_values(
+            samples, fn_vals, levels, basis_type))
+    if not return_all:
+        return approx_vals
+    return approx_vals, grid_samples, fn_vals
 
 
 def canonical_univariate_piecewise_polynomial_quad_rule(

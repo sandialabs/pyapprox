@@ -18,3 +18,4 @@ except ImportError:
         def decorator(func):
             return func
         return decorator
+    gammaln_float64 = None

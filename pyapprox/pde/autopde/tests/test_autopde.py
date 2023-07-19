@@ -597,7 +597,7 @@ class TestAutoPDE(unittest.TestCase):
             residual._diff_fun = partial(
                 residual.mesh.interpolate, mesh_vals)
             return init_sol
-        
+
         self._check_adjoint(adj_solver, param_vals, functional,
                             set_param_values, init_sol, final_time)
 
@@ -1462,7 +1462,7 @@ class TestAutoPDE(unittest.TestCase):
         # print('j_man', j_man)
         # print('j_auto', j_auto)
         assert np.allclose(j_man, j_auto)
-        
+
         for sol_fun in sol_funs:
             sol_fun.set_time(0)
         init_sol = torch.cat(

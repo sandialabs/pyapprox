@@ -145,9 +145,9 @@ _ = plt.ylabel(mathrm_label('Variance reduction ratio ')+ r'$\gamma$')
 #
 #The optimal sample allocation is obtained by solving
 #
-#.. math:: \min_{m\in\mathbb{N}_0^K}⁡ \var{Q^B_\beta(m)} \quad \text{such that}\quad  \sum_{k=1}^K m_k \sum_{j=1}^{|S_k|} W_j \le W_\max,
+#.. math:: \min_{m\in\mathbb{N}_0^K}\var{Q^B_\beta(m)}\quad\text{such that}\quad\sum_{k=1}^K m_k \sum_{j=1}^{|S_k|} W_j \le W_{\max},
 #
-#where \(W_j\) denotes the cost of evaluating the jth model and \(W_\max\) is the total budget.
+#where :math:`W_j` denotes the cost of evaluating the jth model and :math:`W_{\max}` is the total budget.
 #
 # We will again use the polynomail model and to be consistent with previous tutoriuals, we will only use the first 4 models
 cov = cov[:4, :4]

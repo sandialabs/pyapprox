@@ -7,7 +7,8 @@ from pyapprox.pde.galerkin.util import (
     _get_mesh, _get_element)
 from pyapprox.pde.galerkin.physics import (
     _assemble_advection_diffusion_reaction, _assemble_stokes)
-from pyapprox.pde.galerkin.solvers import newton_solve, SteadyStatePDE
+from pyapprox.pde.galerkin.solvers import (
+    newton_solve, SteadyStatePDE, TransientPDE, TransientFunction)
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction, Stokes
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
@@ -105,8 +106,19 @@ def _get_bndry_keys_indices_from_types(mesh, bndry_types):
             R_bndry_keys, R_indices)
 
 
-def _extract_bdnry_fun(key, idx, bndry_conds, x):
-    return bndry_conds[idx][0](x)[:, 0]
+class MSBoundaryConditionFunction():
+    # Boundary condtion wrapper for manufactured solutions (MS)
+    def __init__(self, idx, bndry_conds):
+        self._idx = idx
+        self._fun = bndry_conds[self._idx][0]
+        if isinstance(self._fun, TransientFunction):
+            self.set_time = self._fun.set_time
+
+    def __call__(self, xx):
+        vals = self._fun(xx)
+        if isinstance(self._fun, TransientFunction):
+            return vals
+        return vals[:, 0]
 
 
 def _get_advection_diffusion_reaction_bndry_conds(
@@ -121,21 +133,19 @@ def _get_advection_diffusion_reaction_bndry_conds(
 
     D_bndry_conds = dict()
     for key, idx in zip(D_bndry_keys, D_indices):
-        D_bndry_conds[key] = [
-            partial(_extract_bdnry_fun, key, idx, bndry_conds)]
+        D_bndry_conds[key] = [MSBoundaryConditionFunction(idx, bndry_conds)]
         # lambda does not work due to wierd way python does shallow copying
         # D_bndry_conds[key] = [lambda x: bndry_conds[idx][0](x)[:, 0]]
 
     N_bndry_conds = dict()
     for key, idx in zip(N_bndry_keys, N_indices):
         assert bndry_conds[idx][2] == 0
-        N_bndry_conds[key] = [
-            partial(_extract_bdnry_fun, key, idx, bndry_conds)]
+        N_bndry_conds[key] = [MSBoundaryConditionFunction(idx, bndry_conds)]
 
     R_bndry_conds = dict()
     for key, idx in zip(R_bndry_keys, R_indices):
         R_bndry_conds[key] = [
-            partial(_extract_bdnry_fun, key, idx, bndry_conds),
+            MSBoundaryConditionFunction(idx, bndry_conds),
             bndry_conds[idx][2]]
     return D_bndry_conds, N_bndry_conds, R_bndry_conds
 
@@ -167,8 +177,21 @@ def _get_stokes_boundary_conditions(mesh, bndry_types, domain_bounds, vel_fun,
     return D_bndry_conds, N_bndry_conds, R_bndry_conds
 
 
-def _convert_manufactured_solution_to_skfem(fun, x):
-    return fun(x)[:, 0]
+class Function():
+    def __init__(self, fun, name="fun"):
+        self._fun = fun
+        self._name = name
+
+    def __call__(self, xx):
+        vals = self._fun(xx)
+        # if self._fun is not implemented correctly this will fail
+        # E.g. when manufactured solution, diff etc. string does not have x
+        # in it. If not dependent on x then must use 1e-16*x
+        assert xx.ndim == vals.ndim
+        return vals[:, 0]
+
+    def __repr__(self):
+        return "{0}()".format(self._name)
 
 
 class TestFiniteElements(unittest.TestCase):
@@ -198,10 +221,8 @@ class TestFiniteElements(unittest.TestCase):
                 sol_string, diff_string, vel_strings, react_funs[0], False,
                 nl_diff_funs[0]))
 
-        diff_fun = partial(
-            _convert_manufactured_solution_to_skfem, diff_fun)
-        forc_fun = partial(
-            _convert_manufactured_solution_to_skfem, forc_fun)
+        diff_fun = Function(diff_fun)
+        forc_fun = Function(forc_fun)
 
         mesh = _get_mesh(domain_bounds, nrefine)
         element = _get_element(mesh, order)
@@ -268,7 +289,6 @@ class TestFiniteElements(unittest.TestCase):
         # plt.semilogy(
         #     mesh_pts[0], np.abs(sol_fun(mesh_pts)[:, 0]-fem_sol_on_mesh[II]), '--')
         # plt.show()
-
 
     def test_advection_diffusion_reaction(self):
         power = 1  # power of nonlinear diffusion
@@ -382,6 +402,64 @@ class TestFiniteElements(unittest.TestCase):
 
         for test_case in test_cases[-1:]:
             self.check_stokes(*test_case)
+
+    def _check_transient_advection_diffusion_reaction(
+            self, domain_bounds, nrefine, order, sol_string,
+            diff_string, react_funs, bndry_types,
+            tableau_name, nl_diff_funs=[None, None]):
+        vel_strings = ["0"]*(len(domain_bounds)//2)
+        sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
+            setup_advection_diffusion_reaction_manufactured_solution(
+                sol_string, diff_string, vel_strings, react_funs[0], True))
+
+        diff_fun = Function(diff_fun)
+        forc_fun = TransientFunction(forc_fun, name='forcing')
+        flux_funs = TransientFunction(flux_funs, name='flux')
+        sol_fun = TransientFunction(sol_fun, name='sol')
+
+        mesh = _get_mesh(domain_bounds, nrefine)
+        element = _get_element(mesh, order)
+        basis = Basis(mesh, element)
+
+        bndry_conds = _get_advection_diffusion_reaction_bndry_conds(
+            mesh, bndry_types, domain_bounds, sol_fun, flux_funs)
+
+        physics = AdvectionDiffusionReaction(
+            mesh, element, basis, bndry_conds, diff_fun, forc_fun,
+            None, nl_diff_funs, react_funs)
+
+        deltat = 1  # 0.1
+        final_time = deltat*2  # 5
+        sol_fun.set_time(0)
+        init_sol = basis.project(lambda x: sol_fun(x))
+        print(init_sol.shape)
+
+        solver = TransientPDE(physics, deltat, tableau_name)
+        sols, times = solver.solve(
+            init_sol, 0, final_time,
+            newton_kwargs={"atol": 1e-8, "rtol": 1e-8, "maxiters": 2})
+        for ii, time in enumerate(times):
+            sol_fun.set_time(time)
+            exact_sol_t = sol_fun(solver.physics.mesh.mesh_pts).numpy()
+            model_sol_t = sols[:, ii:ii+1].numpy()
+            # print(exact_sol_t)
+            # print(model_sol_t, 'm')
+            L2_error = np.sqrt(
+                solver.physics.mesh.integrate((exact_sol_t-model_sol_t)**2))
+            factor = np.sqrt(
+                solver.physics.mesh.integrate(exact_sol_t**2))
+            # print(time, L2_error, 1e-8*factor)
+            assert L2_error < 1e-8*factor
+
+    @unittest.skip(reason="Test and code incomplete")
+    def test_transient_advection_diffusion_reaction(self):
+        test_cases = [
+            [[0, 1], 2, 1, "(1-x)*x", "4+x", [None, None],
+             ["D", "D"], "im_beuler1"],
+        ]
+
+        for test_case in test_cases:
+            self._check_transient_advection_diffusion_reaction(*test_case)
 
 
 if __name__ == "__main__":

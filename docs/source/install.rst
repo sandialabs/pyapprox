@@ -1,22 +1,29 @@
 ############
 Installation
 ############
+Install using pip
+-----------------
+The latest release of PyApprox can be installed using pip::
+  
+  pip install pyapprox
+
+
+Install from source
+-------------------
+PyApprox uploads wheels to PyPi for most operating systems and versions of Python. However, if the pip install fails, or you would just like to use the most recent version of PyApprox the following instructions can be used to install PyApprox from source.
 
 Download
---------
+^^^^^^^^
 Clone the latest version of the software using::
   
   git clone https://github.com/sandialabs/pyapprox.git
 
 or download the source from the `PyApprox github repository <https://github.com/sandialabs/pyapprox>`_.
 
-Install
--------
-To get all the features of PyApprox it is best to install PyApprox dependencies with conda. However if this is not possible or desirable PyApprox can also be installed entirely with pip. If pip is used the user will not have access to the benchmarks based on the finite element modeling package fenics.
 
 Conda
 ^^^^^
-The most robust way to install PyApprox is to create a new environment. Pyapprox can be installed in an existing environment, however the user will need to take care to ensure that any upgrades or downgrades suggested by conda will not cause issues with the current environment.
+Create a new environment or use an existing one. Pyapprox can be installed in an existing environment, however the user will need to take care to ensure that any upgrades or downgrades suggested by conda will not cause issues with the current environment.
 
 To create a new environment use::
 

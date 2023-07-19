@@ -2,8 +2,8 @@ name: Build and Test Using Conda
 
 on:
   push:
-    branches:
-      - master
+    # branches: [master, devel]
+    branches: [master]
 
   workflow_dispatch:
 

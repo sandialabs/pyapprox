@@ -20,9 +20,9 @@ from pyapprox.pde.galerkin.util import (
     _robin, _robin_prev_sol)
 
 
-def _enforce_scalar_boundary_conditions(
+def _enforce_dirichlet_scalar_boundary_conditions(
         mesh, element, basis, bilinear_mat, linear_vec,
-        D_bndry_conds, N_bndry_conds, R_bndry_conds, u_prev=None):
+        D_bndry_conds, u_prev):
     """
     u_prev is none indicates that newtons method is calling enforce boundaries
     In this case linear_vec represents the residual and so contributions
@@ -46,6 +46,12 @@ def _enforce_scalar_boundary_conditions(
     else:
         D_dofs = np.empty(0, dtype=int)
 
+    return D_vals, D_dofs
+
+
+def _enforce_scalar_robin_neumann_boundary_conditions(
+        mesh, element, bilinear_mat, linear_vec, N_bndry_conds, R_bndry_conds,
+        u_prev):
     N_bases = [
         FacetBasis(mesh, element, facets=mesh.boundaries[key])
         for key in N_bndry_conds.keys()]
@@ -70,7 +76,19 @@ def _enforce_scalar_boundary_conditions(
             b.project(fun)))
     # see https://fenicsproject.org/pub/tutorial/sphinx1/._ftut1005.html
     # for useful notes
+    return bilinear_mat, linear_vec
 
+
+def _enforce_scalar_boundary_conditions(
+        mesh, element, basis, bilinear_mat, linear_vec,
+        D_bndry_conds, N_bndry_conds, R_bndry_conds, u_prev=None):
+    bilinear_mat, linear_vec = (
+        _enforce_scalar_robin_neumann_boundary_conditions(
+            mesh, element, bilinear_mat, linear_vec, N_bndry_conds,
+            R_bndry_conds, u_prev))
+    D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
+        mesh, element, basis, bilinear_mat, linear_vec,
+        D_bndry_conds, u_prev)
     return bilinear_mat, linear_vec, D_vals, D_dofs
 
 
@@ -101,7 +119,7 @@ def _diffusion_residual(v, w):
 #     return dot(mul(C, grad(u)), grad(v))
 
 
-def _assemble_advection_diffusion_reaction(
+def _raw_assemble_advection_diffusion_reaction(
         diff_fun, forc_fun, nl_diff_funs, react_funs,
         bndry_conds, mesh, element, basis, u_prev=None):
 
@@ -157,10 +175,21 @@ def _assemble_advection_diffusion_reaction(
             basis, forc=forc,  diff=diff, react=react,
             u_prev=u_prev_interp)
 
-    bilinear_mat, linear_vec, D_vals, D_dofs = (
-        _enforce_scalar_boundary_conditions(
-            mesh, element, basis, bilinear_mat, linear_vec, *bndry_conds,
-            u_prev))
+    bilinear_mat, linear_vec = (
+        _enforce_scalar_robin_neumann_boundary_conditions(
+            mesh, element, bilinear_mat, linear_vec, *bndry_conds[1:], u_prev))
+    return bilinear_mat, linear_vec
+
+
+def _assemble_advection_diffusion_reaction(
+        diff_fun, forc_fun, nl_diff_funs, react_funs,
+        bndry_conds, mesh, element, basis, u_prev=None):
+    bilinear_mat, linear_vec = _raw_assemble_advection_diffusion_reaction(
+        diff_fun, forc_fun, nl_diff_funs, react_funs,
+        bndry_conds, mesh, element, basis, u_prev)
+    D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
+        mesh, element, basis, bilinear_mat, linear_vec,
+        bndry_conds[0], u_prev)
     return bilinear_mat, linear_vec, D_vals, D_dofs
 
 
@@ -250,7 +279,7 @@ def _enforce_stokes_boundary_conditions(
     return bilinear_mat, linear_vec, D_vals, D_dofs
 
 
-def _assemble_stokes(
+def _raw_assemble_stokes(
         vel_forc_fun, pres_forc_fun, navier_stokes,
         bndry_conds, mesh, element, basis, u_prev=None, return_K=False,
         viscosity=1):
@@ -289,13 +318,27 @@ def _assemble_stokes(
         # the following is true only for stokes (not navier stokes)
         # linear_vec -= K.dot(u_prev)
 
+    if not return_K:
+        return bilinear_mat, linear_vec, A.shape
+    return bilinear_mat, linear_vec, A.shape, K
+
+
+def _assemble_stokes(
+        vel_forc_fun, pres_forc_fun, navier_stokes,
+        bndry_conds, mesh, element, basis, u_prev=None, return_K=False,
+        viscosity=1):
+    result = _raw_assemble_stokes(
+        vel_forc_fun, pres_forc_fun, navier_stokes,
+        bndry_conds, mesh, element, basis, u_prev, return_K,
+        viscosity)
+    bilinear_mat, linear_vec, A_shape = result[:3]
     bilinear_mat, linear_vec, D_vals, D_dofs = (
         _enforce_stokes_boundary_conditions(
             mesh, element, basis, bilinear_mat, linear_vec, *bndry_conds,
-            A.shape, u_prev))
+            A_shape, u_prev))
     if not return_K:
         return bilinear_mat, linear_vec, D_vals, D_dofs
-    return bilinear_mat, linear_vec, D_vals, D_dofs, K
+    return bilinear_mat, linear_vec, D_vals, D_dofs, result[3]
 
 
 class Physics(ABC):
@@ -308,18 +351,56 @@ class Physics(ABC):
         self.element = element
         self.basis = basis
         self.bndry_conds = bndry_conds
+        self.funs = self._set_funs()
+
+    def _set_funs(self) -> List:
+        return []
 
     @abstractmethod
     def init_guess(self) -> np.ndarray:
         raise NotImplementedError()
 
     @abstractmethod
-    def assemble(self, sol: np.ndarray = None) -> Tuple[
+    def raw_assemble(self, sol: np.ndarray) -> Tuple[
             spmatrix,
             Union[np.ndarray, spmatrix],
             np.ndarray,
             np.ndarray]:
         raise NotImplementedError()
+
+    @abstractmethod
+    def apply_dirichlet_boundary_conditions(
+            self,
+            sol: np.ndarray,
+            bilinear_mat: spmatrix,
+            linear_vec: Union[np.ndarray, spmatrix]) -> Tuple[
+                spmatrix,
+                Union[np.ndarray, spmatrix],
+                np.ndarray,
+                np.ndarray]:
+        raise NotImplementedError()
+
+    def assemble(self, sol: np.ndarray = None) -> Tuple[
+            spmatrix,
+            Union[np.ndarray, spmatrix],
+            np.ndarray,
+            np.ndarray]:
+        return self.apply_dirichlet_boundary_conditions(
+            sol, *self.raw_assemble(sol))
+
+    def _transient_residual(self,
+                            sol: np.ndarray,
+                            time: float):
+        # correct equations for boundary conditions
+        self._set_time(time)
+        res, jac = self._raw_residual(sol)
+        if jac is None:
+            assert self._auto_jac
+        return res, jac
+
+    def mass_matrix(self) -> Tuple[spmatrix]:
+        mass_mat = asm(mass, self.basis)
+        return mass_mat
 
 
 class AdvectionDiffusionReaction(Physics):
@@ -340,16 +421,21 @@ class AdvectionDiffusionReaction(Physics):
                 Tuple[Callable[[np.ndarray],  np.ndarray],
                       Callable[[np.ndarray],  np.ndarray]]] = [None, None]):
 
-        super().__init__(mesh, element, basis, bndry_conds)
         self.diff_fun = diff_fun
         self.vel_fun = vel_fun
         self.forc_fun = forc_fun
         self.nl_diff_funs = nl_diff_funs
         self.react_funs = react_funs
 
+        super().__init__(mesh, element, basis, bndry_conds)
+
         if self.vel_fun is not None:
             # TODO add these terms
             raise NotImplementedError("Options currently not supported")
+
+    def _set_funs(self) -> List:
+        return [self.diff_fun, self.vel_fun, self.forc_fun, self.nl_diff_funs,
+                self.react_funs]
 
     def init_guess(self) -> np.ndarray:
         bilinear_mat, linear_vec, D_vals, D_dofs = (
@@ -358,14 +444,26 @@ class AdvectionDiffusionReaction(Physics):
                 self.bndry_conds, self.mesh, self.element, self.basis))
         return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
 
-    def assemble(self, sol: np.ndarray = None) -> Tuple[
+    def raw_assemble(self, sol: np.ndarray = None) -> Tuple[
             spmatrix,
-            Union[np.ndarray, spmatrix],
-            np.ndarray,
-            np.ndarray]:
-        return _assemble_advection_diffusion_reaction(
+            Union[np.ndarray, spmatrix]]:
+        return _raw_assemble_advection_diffusion_reaction(
             self.diff_fun, self.forc_fun, self.nl_diff_funs, self.react_funs,
             self.bndry_conds, self.mesh, self.element, self.basis, sol)
+
+    def apply_dirichlet_boundary_conditions(
+            self,
+            sol: np.ndarray,
+            bilinear_mat: spmatrix,
+            linear_vec: Union[np.ndarray, spmatrix]) -> Tuple[
+                spmatrix,
+                Union[np.ndarray, spmatrix],
+                np.ndarray,
+                np.ndarray]:
+        D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
+            self.mesh, self.element, self.basis, bilinear_mat, linear_vec,
+            self.bndry_conds[0], sol)
+        return bilinear_mat, linear_vec, D_vals, D_dofs
 
 
 class Stokes(Physics):
@@ -386,6 +484,8 @@ class Stokes(Physics):
         self.navier_stokes = navier_stokes
         self.viscosity = viscosity
 
+        self.A_shape = None
+
     def init_guess(self) -> np.ndarray:
         bilinear_mat, linear_vec, D_vals, D_dofs = _assemble_stokes(
             self.vel_forc_fun, self.pres_forc_fun, False,
@@ -393,15 +493,31 @@ class Stokes(Physics):
             return_K=False, viscosity=self.viscosity)
         return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
 
-    def assemble(self, sol: Optional[np.ndarray] = None) -> Tuple[
+    def raw_assemble(self, sol: Optional[np.ndarray] = None) -> Tuple[
             spmatrix,
             Union[np.ndarray, spmatrix],
             np.ndarray,
             np.ndarray]:
-        return _assemble_stokes(
+        bilinear_mat, linear_vec, self.A_shape = _raw_assemble_stokes(
             self.vel_forc_fun, self.pres_forc_fun, self.navier_stokes,
             self.bndry_conds, self.mesh, self.element, self.basis, sol,
             viscosity=self.viscosity)
+        return bilinear_mat, linear_vec
+
+    def apply_dirichlet_boundary_conditions(
+            self,
+            sol: np.ndarray,
+            bilinear_mat: spmatrix,
+            linear_vec: Union[np.ndarray, spmatrix]) -> Tuple[
+                spmatrix,
+                Union[np.ndarray, spmatrix],
+                np.ndarray,
+                np.ndarray]:
+        bilinear_mat, linear_vec, D_vals, D_dofs = (
+            _enforce_stokes_boundary_conditions(
+                self.mesh, self.element, self.basis, bilinear_mat, linear_vec,
+                *self.bndry_conds, self.A_shape, sol))
+        return bilinear_mat, linear_vec, D_vals, D_dofs
 
 
 def _diffusion_reaction(u, v, w):

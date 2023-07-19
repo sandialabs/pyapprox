@@ -95,44 +95,70 @@ convergence_data = run_convergence_study(
     model.get_num_degrees_of_freedom, config_var_trans,
     num_samples=10, coarsest_levels=coarsest_levels,
     reference_model=true_value)
-plot_convergence_data(convergence_data)
+_ = plot_convergence_data(convergence_data)
 
 #%%
 #The left plots depicts the convergence of the estimated integral as :math:`n_1` is increased for varying values of :math:`n_1` and vice-versa for the right plot. These plots confirm that the Integrator converges as the expected linear rate. Until the error introduced by fixing the other configuration variables dominates.
 #
-#We can also generate similar plots for methods used to solve parameterized partial differential equations. I the following we will assess convergence of a spectral collocation method used to solve the transient advection diffusion equation on a rectangle.
-
+#We can also generate similar plots for methods used to solve parameterized partial differential equations. I the following we will assess convergence of a spectral collocation method used to solve the transient advection diffusion equation on a rectangle (see :func:`~pyapprox.benchmarks.setup_multi_index_advection_diffusion_benchmark`).
 
 from pyapprox.benchmarks import setup_benchmark
 np.random.seed(1)
-final_time = .1
+final_time = 0.5
 time_scenario = {
     "final_time": final_time,
-    "butcher_tableau": "im_beuler1",
-    # "butcher_tableau": "im_crank2",
+    # "butcher_tableau": "im_beuler1",
+    "butcher_tableau": "im_crank2",
     "deltat": final_time/100,  # will be overwritten
     "init_sol_fun": None,
     # "init_sol_fun": partial(full_fun_axis_1, 0),
-    "sink": [50, 0.1, [0.75, 0.75]]
+    "sink": None  # [50, 0.1, [0.75, 0.75]]
 }
 
-N = 4
+N = 8
 config_values = [2*np.arange(1, N+2)+5, 2*np.arange(1, N+2)+5,
-                 final_time/((2**np.arange(1, N+2)))]
+                 final_time/((2**np.arange(1, N+2)+40))]
+# values of kle stdev and mean before exponential is taken
+log_kle_mean_field = np.log(0.1)
+log_kle_stdev = 1
 benchmark = setup_benchmark(
     "multi_index_advection_diffusion", kle_nvars=3, kle_length_scale=1,
-    kle_stdev=1, time_scenario=time_scenario, config_values=config_values)
-validation_levels = [N, N, N]
-coarsest_levels = [0, 0, 0]
+    kle_stdev=log_kle_stdev,
+    time_scenario=time_scenario, config_values=config_values,
+    vel_vec=[0.2, -0.2], source_loc=[0.5, 0.5], source_amp=1,
+    kle_mean_field=log_kle_mean_field)
+
+#%%
+#First plot the evolution of the PDE for a realization of the model inputs
+import torch
+from pyapprox.pde.autopde.mesh import generate_animation
+model = benchmark.fun.base_model._model_ensemble.functions[0]
+sample = torch.as_tensor(benchmark.variable.rvs(1)[:, 0])
+model._set_random_sample(sample)
+init_sol = model._get_init_sol(sample)
+sols, times = model._fwd_solver.solve(
+    init_sol, 0, model._final_time,
+    newton_kwargs=model._newton_kwargs, verbosity=0)
+ani = generate_animation(
+    model._fwd_solver.physics.mesh, sols, times,
+    filename=None, maxn_frames=100, duration=2)
+import matplotlib.animation as animation
+ani.save('ad-sol.gif', writer=animation.ImageMagickFileWriter())
+
+#%%
+#Now perform a convgernce study
+validation_levels = np.full(3, N)
+coarsest_levels = np.full(3, 0)
+finest_levels = np.full(3, N-4)
 if final_time is None:
     validation_levels = validation_levels[:2]
     coarsest_levels = coarsest_levels[:2]
 convergence_data = run_convergence_study(
     benchmark.fun, benchmark.variable, validation_levels,
     benchmark.get_num_degrees_of_freedom, benchmark.config_var_trans,
-    num_samples=10, coarsest_levels=coarsest_levels)
-plot_convergence_data(convergence_data, cost_type="time")
-plt.show()
+    num_samples=1, coarsest_levels=coarsest_levels,
+    finest_levels=finest_levels)
+_ = plot_convergence_data(convergence_data, cost_type="ndof")
 
 #%%
 #Note when because the benchmark fun is run using multiprocessing.Pool

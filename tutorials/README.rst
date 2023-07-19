@@ -1,5 +1,6 @@
+#####################
 Theoretical Tutorials
-=====================
+#####################
 
 Below is a gallery of tutorials providing detailed mathematical background on the methods in PyApprox.
 

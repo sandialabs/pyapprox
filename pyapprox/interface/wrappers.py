@@ -1120,18 +1120,19 @@ class ModelEnsemble(object):
         return values
 
     def __repr__(self):
-        return "{0})(nmodels={1})".format(
+        return "{0}(nmodels={1})".format(
             self.__class__.__name__, self.nmodels)
 
 
 class MultiIndexModel():
     def __init__(self, setup_model, config_values):
         self._nconfig_vars = len(config_values)
+        self._config_values = config_values
         self._model_ensemble, self._multi_index_to_model_id_map = (
             self._create_model_ensemble(setup_model, config_values))
 
     def _create_model_ensemble(self, setup_model, config_values):
-        config_var_trans = ConfigureVariableTransformation(config_values)
+        # config_var_trans = ConfigureVariableTransformation(config_values)
         config_samples = cartesian_product(config_values).astype(np.double)
         models = [None for ii in range(config_samples.shape[1])]
         multi_index_to_model_id_map = {}
@@ -1152,6 +1153,10 @@ class MultiIndexModel():
             model_ids[0, ii] = self._multi_index_to_model_id_map[key]
         return self._model_ensemble(
             np.vstack((samples[:-self._nconfig_vars, :], model_ids)))
+
+    def __repr__(self):
+        return "{0}(nconfig_values_per_config_var={1})".format(
+            self.__class__.__name__, [len(v) for v in self._config_values])
 
 
 class ArchivedDataModel():

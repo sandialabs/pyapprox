@@ -10,20 +10,27 @@ from pyapprox.util.configure_plots import plt, mathrm_label
 def run_convergence_study(model, variable, validation_levels,
                           get_num_degrees_of_freedom, config_var_trans,
                           num_samples=10, coarsest_levels=None,
-                          reference_model=None):
+                          finest_levels=None, reference_model=None):
     if type(model) != WorkTrackingModel:
         raise ValueError("Model must be wrapped as a work tracking model")
     validation_levels = np.asarray(validation_levels)
     assert len(validation_levels) == config_var_trans.num_vars()
     if coarsest_levels is None:
         coarsest_levels = [0]*len(validation_levels)
+    if finest_levels is None:
+        finest_levels = np.asarray(validation_levels)-1
+    finest_levels = np.asarray(finest_levels)
     if np.any(coarsest_levels >= validation_levels):
         msg = "Entries of coarsest_levels must be smaller than "
         msg += "validation_levels"
         raise ValueError(msg)
+    if np.any(finest_levels >= validation_levels):
+        msg = "Entries of finest_levels must be smaller than "
+        msg += "validation_levels"
+        raise ValueError(msg)
     canonical_config_samples_1d = [
-        np.arange(kk, ll)
-        for kk, ll in zip(coarsest_levels, validation_levels)]
+        np.arange(jj, kk)
+        for jj, kk in zip(coarsest_levels, finest_levels+1)]
     canonical_config_samples = cartesian_product(
         canonical_config_samples_1d)
     config_samples = config_var_trans.map_from_canonical(
@@ -32,10 +39,9 @@ def run_convergence_study(model, variable, validation_levels,
     random_samples = variable.rvs(num_samples)
     samples = get_all_sample_combinations(random_samples, config_samples)
 
-    reference_samples = samples[:, ::config_samples.shape[1]].copy()
-    reference_samples[-config_var_trans.num_vars():, :] =\
-        config_var_trans.map_from_canonical(
-            validation_levels[:, np.newaxis])
+    reference_samples = get_all_sample_combinations(
+        random_samples, config_var_trans.map_from_canonical(
+            validation_levels[:, None]))
 
     reference_values = model(reference_samples)
     if reference_model is None:
@@ -72,7 +78,7 @@ def run_convergence_study(model, variable, validation_levels,
     # make costs relative
     # costs /= costs[-1]
 
-    shape = tuple(validation_levels-coarsest_levels)
+    shape = tuple(np.asarray(finest_levels)-np.asarray(coarsest_levels)+1)
     indices = np.reshape(
         np.arange(len(keys), dtype=int), shape, order='F')
     costs = np.reshape(np.array(costs), shape, order='F')
@@ -84,8 +90,7 @@ def run_convergence_study(model, variable, validation_levels,
     validation_time = np.median(
         model.work_tracker.costs[tuple(
             reference_samples[-config_var_trans.num_vars():, 0])])
-    validation_cost = validation_time/costs[-1]
-
+    validation_cost = validation_time  # /costs[[-1]*len(costs)]
     data = {"costs": costs, "errors": errors, "indices": indices,
             "times": times, "validation_index": validation_index,
             "validation_cost": validation_cost,
@@ -107,7 +112,7 @@ def plot_convergence_data(data, cost_type='ndof'):
     nconfig_vars = len(validation_levels)
     fig, axs = plt.subplots(1, nconfig_vars,
                             figsize=(nconfig_vars*8, 6),
-                            sharey=True)
+                            sharey=False)
     if nconfig_vars == 1:
         label = r'$(\cdot)$'
         axs.loglog(costs, errors, 'o-', label=label)
