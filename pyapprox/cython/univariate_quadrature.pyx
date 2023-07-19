@@ -11,7 +11,7 @@ cpdef clenshaw_curtis_pts_wts_1D_pyx(int level):
     cdef int jj,kk
     cdef int num_samples = 1
     if (level>0):
-        num_samples = 2**level+1
+        num_samples = int(2**level+1)
   
     cdef double wt_factor = 1./2.
 
