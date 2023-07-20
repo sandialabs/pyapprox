@@ -136,7 +136,7 @@ for ii in range(len(est_labels)):
                  label=est_labels[ii])
 plt.legend()
 plt.xlabel(r'$\log_2(r_i)-i$')
-_ = plt.ylabel(mathrm_label('Variance reduction ratio ')+ r'$\gamma$')
+_ = plt.ylabel(mathrm_label('Variance reduction ratio ')+r'$\gamma$')
 
 #%%
 #Optimal sample allocation
@@ -187,10 +187,8 @@ ax.legend()
 #%%
 #Now plot the number of samples allocated for each target cost
 model_labels = [r"$M_{0}$".format(ii) for ii in range(cov.shape[0])]
-multifidelity.plot_acv_sample_allocation_comparison(
+_= multifidelity.plot_acv_sample_allocation_comparison(
     optimized_estimators[-1], model_labels, plt.figure().gca())
-plt.show()
-
 
 #%%
 #References

@@ -1419,7 +1419,7 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         return BLUE_evaluate_models(
             variable.rvs, models, self.nsamples_per_subset, pilot_values)
 
-    def _estimate(self, values, asketch):
+    def _estimate(self, values, asketch=None):
         if asketch is None:
             asketch = np.zeros((self.nmodels, 1))
             asketch[0] = 1.0

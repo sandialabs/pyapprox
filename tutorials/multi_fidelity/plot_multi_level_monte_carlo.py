@@ -272,9 +272,8 @@ multifidelity.plot_estimator_variances(
     optimized_estimators, est_labels, axs[0],
     ylabel=mathrm_label("Relative Estimator Variance"))
 axs[0].set_xlim(target_costs.min(), target_costs.max())
-multifidelity.plot_acv_sample_allocation_comparison(
+_ = multifidelity.plot_acv_sample_allocation_comparison(
     optimized_estimators[1], model_labels, axs[1])
-plt.show()
 
 #%%
 #The left plot shows that the variance of the MLMC estimator is over and order of magnitude smaller than the variance of the single fidelity MC estimator for a fixed cost. The impact of using the approximate covariance is more significant for small samples sizes.

@@ -101,6 +101,9 @@ setuptools.setup(
 # To build wheel locally use
 # python -m build
 
+#to create from empty environment use from directory contatining setup
+#pip install twine wheel setuptools numpy scipy cython && python setup.py sdist --format=gztar bdist_wheel
+
 # To test wheel locally create virtual environment and install using
 # pip install mypackage-0.31.0-py2.py3-none-any.whl
 # with docs use (quotes are important)

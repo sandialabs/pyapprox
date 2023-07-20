@@ -6,8 +6,7 @@ import numpy as np
 import os
 from multiprocessing import Pool
 
-from pyapprox.cython.orthonormal_polynomials_1d import\
-    continuous_induced_measure_cdf_pyx
+
 from pyapprox.surrogates.orthopoly.leja_sequences import (
     christoffel_weights, christoffel_function
 )
@@ -819,9 +818,15 @@ def continuous_induced_measure_ppf(var, ab, ii, u_samples,
         return vals
 
     # pdf = var.pdf
-    # func = partial(continuous_induced_measure_cdf,pdf,ab,ii,lb,ub,quad_tol)
-    func = partial(continuous_induced_measure_cdf_pyx,
-                   canonical_pdf, ab, ii, can_lb, quad_tol)
+    try:
+        from pyapprox.cython.orthonormal_polynomials_1d import\
+            continuous_induced_measure_cdf_pyx
+        func = partial(continuous_induced_measure_cdf_pyx,
+                       canonical_pdf, ab, ii, can_lb, quad_tol)
+    except ImportError:
+        print("failed to load continuous_induced_measure_cdf_pyx")
+        func = partial(
+            continuous_induced_measure_cdf, pdf, ab, ii, lb, ub, quad_tol)
     method = 'bisect'
 
     samples = invert_monotone_function(

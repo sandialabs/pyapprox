@@ -266,7 +266,6 @@ sml_gp = SequentialMultifidelityGaussianProcess(
     sml_kernels, n_restarts_optimizer=20, default_rho=[1.0])
 sml_gp.set_data(train_samples, train_values)
 sml_gp.fit()
-print(sml_gp)
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 ax.plot(xx[0], models[0](xx), 'k-', label=r"$f_0$")

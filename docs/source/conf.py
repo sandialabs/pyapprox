@@ -100,7 +100,8 @@ example_filenames_in_order += [
     'plot_multivariate_piecewise_polynomial_interpolation.py',
     'plot_pde_convergence.py',
     'plot_sparse_grid_uq.py',
-    'plot_paper_demo.py']
+    'plot_paper_demo.py',
+    'plot_multifidelity_quadrature.py']
 
 # print(installed_pkgs)
 # print(example_filenames_in_order)

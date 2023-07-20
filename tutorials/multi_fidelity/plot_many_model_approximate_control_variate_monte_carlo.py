@@ -348,8 +348,8 @@ fig, ax = plt.subplots(1, 1, figsize=(8, 6))
 multifidelity.plot_estimator_variances(
     optimized_estimators, est_labels, ax,
     ylabel=mathrm_label("Relative Estimator Variance"))
-ax.set_xlim(target_costs.min(), target_costs.max())
-plt.show()
+_ = ax.set_xlim(target_costs.min(), target_costs.max())
+
 #fig # necessary for jupyter notebook to reshow plot in new cell
 
 #%%

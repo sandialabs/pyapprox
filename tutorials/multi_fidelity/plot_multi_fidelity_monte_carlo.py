@@ -131,9 +131,8 @@ multifidelity.plot_estimator_variances(
     optimized_estimators, est_labels, axs[0],
     ylabel=mathrm_label("Relative Estimator Variance"))
 axs[0].set_xlim(target_costs.min(), target_costs.max())
-multifidelity.plot_acv_sample_allocation_comparison(
+_ = multifidelity.plot_acv_sample_allocation_comparison(
     optimized_estimators[1], model_labels, axs[1])
-plt.show()
 #fig # necessary for jupyter notebook to reshow plot in new cell
 
 

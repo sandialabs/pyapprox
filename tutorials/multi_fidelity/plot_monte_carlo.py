@@ -118,7 +118,6 @@ ax.text(0.65, 0.8, textstr, transform=ax.transAxes, bbox=props)
 ax.set_xlabel(r'$\mathbb{E}[Q_N]$')
 ax.set_ylabel(r'$\mathbb{P}(\mathbb{E}[Q_N])$')
 _ = ax.legend(loc='upper left')
-plt.show()
 
 #%%
 #The numerical results match our theory. Specifically the estimator is unbiased( i.e. mean zero, and the variance of the estimator is :math:`\var{Q_{0,N}}=\var{Q_{0}}/N=1/N`.
@@ -170,7 +169,6 @@ ax.text(0.65, 0.8, textstr, transform=ax.transAxes, bbox=props)
 ax.set_xlabel(r'$\mathbb{E}[Q_N]$')
 ax.set_ylabel(r'$\mathbb{P}(\mathbb{E}[Q_N])$')
 _ = ax.legend(loc='upper left')
-# plt.show()
 
 #%%
 #In a series of tutorials starting with :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` we show how to produce an unbiased estimator with small variance using both these models.

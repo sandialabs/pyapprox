@@ -60,8 +60,7 @@ xx = np.linspace(0, 1, 101)[None, :]
 plt.plot(xx[0, :],  f1(xx), label=r'$f_1$', c='b')
 plt.plot(xx[0, :],  f2(xx), label=r'$f_2$', c='r')
 plt.plot(xx[0, :],  f3(xx), label=r'$f_3$', c='k')
-plt.legend()
-#plt.show()
+_ = plt.legend()
 
 #%%
 #Now setup the polynomial approximations of each information source
@@ -138,8 +137,7 @@ plot_1d_lvn_approx(
     colors=['k'], mean_label=r'$\mathrm{Single\;Fidelity}$')
 axs.set_xlabel(r'$z$')
 axs.set_ylabel(r'$f(z)$')
-plt.plot(xx, f3(xx), 'k', label=r'$f_3$')
-# plt.show()
+_ = plt.plot(xx, f3(xx), 'k', label=r'$f_3$')
 
 #%%
 #Unfortunately by assuming that the coefficients of each information source are independent the lower fidelity data is not informing the estimation of the coefficients of the high-fidelity approximation. This statement can be verified by computing an approximation with only the high-fidelity data
@@ -193,8 +191,7 @@ prior_cov = np.vstack(rows)
 #%%
 #Plot the structure of the prior covariance
 fig, axs = plt.subplots(1, 1, figsize=(8, 6))
-plt.spy(prior_cov)
-# plt.show()
+_ = plt.spy(prior_cov)
 
 #%% Now lets compute the posterior distribution and plot the resulting approximations
 post_mean, post_cov = laplace_posterior_approximation_for_linear_models(
@@ -216,8 +213,7 @@ plot_1d_lvn_approx(xx, nmodels, polys[2].basis_matrix, hf_posterior, hf_prior,
                    colors=['b', 'r', 'k'])
 axs.set_xlabel(r'$z$')
 axs.set_ylabel(r'$f(z)$')
-plt.plot(xx, f3(xx), 'k', label=r'$f_3$')
-# plt.show()
+_ = plt.plot(xx, f3(xx), 'k', label=r'$f_3$')
 
 #%%
 #Depsite using only a very small number of samples of the high-fidelity information source, the multi-fidelity approximation has smaller variance and the mean more closely approximates the true high-fidelity information source, when compared to the single fidelity strategy.
@@ -322,9 +318,7 @@ noise_covs = [np.eye(nsamples[ii])*noise_std[ii]**2
 
 network.add_data_to_network(data_cpd_mats, data_cpd_vecs, noise_covs)
 fig, ax = plt.subplots(1, 1, figsize=(8, 5))
-plot_peer_network_with_data(network.graph, ax)
-# plt.show()
-
+_ = plot_peer_network_with_data(network.graph, ax)
 
 #%%
 #For this network we have :math:`\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(2)=\{1,2\}` and the graph has one CPDs which for this example is given by
@@ -356,8 +350,7 @@ xx = np.linspace(0, 1, 101)
 fig, axs = plt.subplots(1, 1, figsize=(8, 6))
 plot_1d_lvn_approx(xx, nmodels, polys[2].basis_matrix, hf_posterior, hf_prior,
                    axs, samples_train, values_train, None, [0, 1])
-axs.plot(xx, functions[2](xx[np.newaxis, :]), 'r', label=r'$f_3$')
-plt.show()
+_ = axs.plot(xx, functions[2](xx[np.newaxis, :]), 'r', label=r'$f_3$')
 
 
 #%%
