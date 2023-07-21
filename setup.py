@@ -41,7 +41,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/sandialabs/pyapprox",
     packages=setuptools.find_packages(),
-    python_requires='>=3.6', 
+    python_requires='>=3.7', 
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
@@ -77,7 +77,7 @@ setuptools.setup(
 # to add config file for coverage tests to exclude certain files from coverage tests
 
 # to install using specific version of python use, e.g.
-# conda env create -f environment.yml python=3.6 --name pyapprox-base-3-6
+# conda env create -f environment.yml python=3.9 --name pyapprox-base-3-9
 
 # to run all tests use
 # python -m unittest discover pyapprox
