@@ -1,7 +1,7 @@
 """
-Multivariate Quadrature
------------------------
-The following provides an example of how to use multivariate quadrature, e.g. multilevel Monte Carlo, control variates to estimate the mean of a high-fidelity model from an ensemble of related models of varying cost and accuracy. A set of detailed tutorials on this subject can be found in the tutorials section, e.g. :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py`.
+Multi-fidelity Quadrature
+-------------------------
+The following provides an example of how to use multi-fidelity quadrature, e.g. multilevel Monte Carlo, control variates to estimate the mean of a high-fidelity model from an ensemble of related models of varying cost and accuracy. A set of detailed tutorials on this subject can be found in the tutorials section, e.g. :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py`.
 """
 #%%
 #Load the necessary modules
@@ -13,7 +13,7 @@ from pyapprox import interface
 np.random.seed(1)
 
 #%%
-#First define an ensemble of models
+#First define an ensemble of models using :py:class:`~pyapprox.benchmarks.setup_benchmark`, see  :mod:`pyapprox.benchmarks`.
 benchmark = setup_benchmark(
     "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=[.1, .2])
 model_ensemble = interface.ModelEnsemble(benchmark.fun.models)
@@ -48,7 +48,7 @@ print("Exact high-fidelity mean", hf_mean)
 
 #%%
 #Questions
-#---------
+#^^^^^^^^^
 #Compare the multi-fidelity mean to the single-fidelity means using only one model
 #
 #Increase the target cost

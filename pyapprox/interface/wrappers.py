@@ -1125,6 +1125,31 @@ class ModelEnsemble(object):
 
 
 class MultiIndexModel():
+    """
+    Define a multi-index model to be used for multi-index collocation
+
+    Parameters
+    ----------
+    setup_model : callable
+       Function with the signature
+
+       ``setup_model(config_values) -> model_instance``
+
+       where config_values np.ndarray (nconfig_vars, 1)
+       defines the numerical resolution of model instance
+       where model instance is a callable with the signature
+
+       ``setup_model(random_samples) -> np.ndarray (nsamples, nqoi)``
+
+       where random_samples is np.ndarray (nvars, nsamples).
+
+    config_values : 2d list [nconfig_vars, nconfig_values_i]
+        Contains the possible model discretization values for each config
+        var, e.g. [[100, 200], [0.1, 0.2, 0.3]] would be use to specify
+        a 1D spartial mesh with 100 elements or 200 elements and time step
+        sizes of [0.1, 0.2, 0.3]
+    """
+
     def __init__(self, setup_model, config_values):
         self._nconfig_vars = len(config_values)
         self._config_values = config_values
@@ -1142,6 +1167,18 @@ class MultiIndexModel():
         return ModelEnsemble(models), multi_index_to_model_id_map
 
     def __call__(self, samples):
+        """
+        Parameters
+        ----------
+        samples : np.ndarray (nvars+nconfig_vars, nsamples)
+            Each row is the concatenation of a random sample and a
+            configuration sample.
+
+        Returns
+        -------
+        values : np.ndarray (nsamples, nqoi)
+           Evaluations of the model at the samples.
+        """
         nsamples = samples.shape[1]
         config_samples = samples[-self._nconfig_vars:, :]
         model_ids = np.empty((1, nsamples))

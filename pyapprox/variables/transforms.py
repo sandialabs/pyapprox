@@ -527,3 +527,7 @@ class ConfigureVariableTransformation(object):
         The number of configure variables
         """
         return self.nvars
+
+    def __repr__(self):
+        return "{0}(nvars={1}, {2})".format(
+            self.__class__.__name__, self.num_vars(), self.config_values)
