@@ -241,7 +241,7 @@ C_1(\mathcal{Z}_1,\mathcal{Z}_1) &amp; \rho_1C_1(\mathcal{Z}_1,\mathcal{Z}_2) &a
 <span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_multifidelity_gp_001.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_001.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.colorbar.Colorbar object at 0x17a548dc0&gt;
+<img src="../../_images/sphx_glr_plot_multifidelity_gp_001.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_001.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.colorbar.Colorbar object at 0x16c747280&gt;
 </pre></div>
 </div>
 <p>Now lets plot the structure of the multi-fidelity covariance matrix when using two models a linear polynomial scaling <span class="math notranslate nohighlight">\(\rho(x)=a+bx\)</span>. In comparison to a scalar scaling the correlation between the low and high-fidelity models changes as a function of the input <span class="math notranslate nohighlight">\(\rv\)</span>.</p>
@@ -347,7 +347,6 @@ C_1(\mathcal{Z}_1,\mathcal{Z}_1) &amp; \rho_1C_1(\mathcal{Z}_1,\mathcal{Z}_2) &a
     <span class="n">sml_kernels</span><span class="p">,</span> <span class="n">n_restarts_optimizer</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">default_rho</span><span class="o">=</span><span class="p">[</span><span class="mf">1.0</span><span class="p">])</span>
 <span class="n">sml_gp</span><span class="o">.</span><span class="n">set_data</span><span class="p">(</span><span class="n">train_samples</span><span class="p">,</span> <span class="n">train_values</span><span class="p">)</span>
 <span class="n">sml_gp</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">sml_gp</span><span class="p">)</span>
 
 <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">models</span><span class="p">[</span><span class="mi">0</span><span class="p">](</span><span class="n">xx</span><span class="p">),</span> <span class="s1">&#39;k-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$f_0$&quot;</span><span class="p">)</span>
@@ -360,10 +359,7 @@ C_1(\mathcal{Z}_1,\mathcal{Z}_1) &amp; \rho_1C_1(\mathcal{Z}_1,\mathcal{Z}_2) &a
                    <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">fill_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;g&quot;</span><span class="p">,</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">})</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_multifidelity_gp_005.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_005.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>SequentialMultifidelityGaussianProcess(rho=[0.44179754961116136])
-</pre></div>
-</div>
-</section>
+<img src="../../_images/sphx_glr_plot_multifidelity_gp_005.png" srcset="../../_images/sphx_glr_plot_multifidelity_gp_005.png" alt="plot multifidelity gp" class = "sphx-glr-single-img"/></section>
 <section id="experimental-design">
 <h2>Experimental design<a class="headerlink" href="#experimental-design" title="Permalink to this heading"></a></h2>
 <p>As with single fidelity GPs the location of the training data significantly impacts the accuracy of a multi-fidelity GP. The remainder of this tutorial discusses xtensions of the experimental design methods used for single-fidelity GPs in <a class="reference internal" href="../surrogates/plot_gaussian_processes.html#sphx-glr-auto-tutorials-surrogates-plot-gaussian-processes-py"><span class="std std-ref">Gaussian processes</span></a>.</p>
@@ -570,7 +566,7 @@ TOTAL COST 18
 <p><a class="reference external" href="https://github.com/EmuKit/emukit">A. Paleyes et al. Emulation of physical processes with Emukit. econd Workshop on Machine Learning and the Physical Sciences, NeurIPS.</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  2.340 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  3.423 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multifidelity-gp-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/0e692174a041f356a0c2b1c2a37ee927/plot_multifidelity_gp.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multifidelity_gp.py</span></code></a></p>

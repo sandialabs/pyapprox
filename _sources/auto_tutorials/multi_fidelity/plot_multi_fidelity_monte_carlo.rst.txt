@@ -144,7 +144,7 @@ Recalling that :math:`\rho_{j,k}` denotes the correlation between models :math:`
 
 Now lets us compare MC with MFMC using optimal sample allocations
 
-.. GENERATED FROM PYTHON SOURCE LINES 108-140
+.. GENERATED FROM PYTHON SOURCE LINES 108-139
 
 .. code-block:: default
 
@@ -174,9 +174,8 @@ Now lets us compare MC with MFMC using optimal sample allocations
         optimized_estimators, est_labels, axs[0],
         ylabel=mathrm_label("Relative Estimator Variance"))
     axs[0].set_xlim(target_costs.min(), target_costs.max())
-    multifidelity.plot_acv_sample_allocation_comparison(
+    _ = multifidelity.plot_acv_sample_allocation_comparison(
         optimized_estimators[1], model_labels, axs[1])
-    plt.show()
     #fig # necessary for jupyter notebook to reshow plot in new cell
 
 
@@ -198,7 +197,7 @@ Now lets us compare MC with MFMC using optimal sample allocations
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 141-144
+.. GENERATED FROM PYTHON SOURCE LINES 140-143
 
 References
 ^^^^^^^^^^
@@ -207,7 +206,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.460 seconds)
+   **Total running time of the script:** ( 0 minutes  0.472 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py:

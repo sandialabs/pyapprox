@@ -342,7 +342,7 @@ To demonstrate the effectiveness of MLMC consider the model ensemble
 
 where each model is the function of a single uniform random variable defined on the unit interval :math:`[0,1]`. The following code computes the variance of the MLMC estimator for different target costs using the optimal sample allocation using an exact estimate of the covariance between models and an approximation.
 
-.. GENERATED FROM PYTHON SOURCE LINES 247-279
+.. GENERATED FROM PYTHON SOURCE LINES 247-278
 
 .. code-block:: default
 
@@ -374,9 +374,8 @@ where each model is the function of a single uniform random variable defined on 
         optimized_estimators, est_labels, axs[0],
         ylabel=mathrm_label("Relative Estimator Variance"))
     axs[0].set_xlim(target_costs.min(), target_costs.max())
-    multifidelity.plot_acv_sample_allocation_comparison(
+    _ = multifidelity.plot_acv_sample_allocation_comparison(
         optimized_estimators[1], model_labels, axs[1])
-    plt.show()
 
 
 
@@ -396,19 +395,19 @@ where each model is the function of a single uniform random variable defined on 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 280-283
+.. GENERATED FROM PYTHON SOURCE LINES 279-282
 
 The left plot shows that the variance of the MLMC estimator is over and order of magnitude smaller than the variance of the single fidelity MC estimator for a fixed cost. The impact of using the approximate covariance is more significant for small samples sizes.
 
 The right plot depicts the percentage of the computational cost due to evaluating each model. The numbers in the bars represent the number of samples allocated to each model. Relative to the low fidelity models only a small number of samples are allocated to the high-fidelity model, however evaluating these samples represents approximately 50\% of the total cost.
 
-.. GENERATED FROM PYTHON SOURCE LINES 285-288
+.. GENERATED FROM PYTHON SOURCE LINES 284-287
 
 Multi-index Monte Carlo
 -----------------------
 Multi-Level Monte Carlo utilizes a sequence of models controlled by a single hyper-parameter, specifying the level of discretization for example, in a manner that balances computational cost with increasing accuracy. In many applications, however, multiple hyper-parameters may control the model discretization, such as the mesh and time step sizes. In these situations, it may not be clear how to construct a one-dimensional hierarchy represented by a scalar hyper-parameter. To overcome this limitation, a generalization of multi-level Monte Carlo, referred to as multi-index stochastic collocation (MIMC), was developed to deal with multivariate hierarchies with multiple refinement hyper-parameters [HNTNM2016]_.  PyApprox does not implement MIMC but a surrogate based version called Multi-index stochastic collocation (MISC) is presented in this tutorial :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multiindex_collocation.py`.
 
-.. GENERATED FROM PYTHON SOURCE LINES 290-299
+.. GENERATED FROM PYTHON SOURCE LINES 289-298
 
 References
 ^^^^^^^^^^
@@ -423,7 +422,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.926 seconds)
+   **Total running time of the script:** ( 0 minutes  0.986 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py:

@@ -101,7 +101,7 @@ Now define the information sources and their inputs
 
 Plot the 3 functions
 
-.. GENERATED FROM PYTHON SOURCE LINES 59-66
+.. GENERATED FROM PYTHON SOURCE LINES 59-65
 
 .. code-block:: default
 
@@ -109,8 +109,7 @@ Plot the 3 functions
     plt.plot(xx[0, :],  f1(xx), label=r'$f_1$', c='b')
     plt.plot(xx[0, :],  f2(xx), label=r'$f_2$', c='r')
     plt.plot(xx[0, :],  f3(xx), label=r'$f_3$', c='k')
-    plt.legend()
-    #plt.show()
+    _ = plt.legend()
 
 
 
@@ -121,20 +120,14 @@ Plot the 3 functions
    :class: sphx-glr-single-img
 
 
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
-
-    <matplotlib.legend.Legend object at 0x17e9bbe20>
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 67-68
+.. GENERATED FROM PYTHON SOURCE LINES 66-67
 
 Now setup the polynomial approximations of each information source
 
-.. GENERATED FROM PYTHON SOURCE LINES 68-72
+.. GENERATED FROM PYTHON SOURCE LINES 67-71
 
 .. code-block:: default
 
@@ -149,11 +142,11 @@ Now setup the polynomial approximations of each information source
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 73-74
+.. GENERATED FROM PYTHON SOURCE LINES 72-73
 
 Next generate the training data. Here we will set the noise to be independent Gaussian with mean zero and variance :math:`0.01^2`.
 
-.. GENERATED FROM PYTHON SOURCE LINES 74-81
+.. GENERATED FROM PYTHON SOURCE LINES 73-80
 
 .. code-block:: default
 
@@ -171,7 +164,7 @@ Next generate the training data. Here we will set the noise to be independent Ga
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 82-99
+.. GENERATED FROM PYTHON SOURCE LINES 81-98
 
 In the following we will assume a Gaussian prior on the coefficients of each approximation. Because the noise is also Gaussian and we are using linear subspace models the posterior of the approximation coefficients will also be Gaussian.
 
@@ -191,7 +184,7 @@ For our three model example we have
 
 where the :math:`0_{mp}\in\reals^{m\times p}` is a matrix of zeros.
 
-.. GENERATED FROM PYTHON SOURCE LINES 99-107
+.. GENERATED FROM PYTHON SOURCE LINES 98-106
 
 .. code-block:: default
 
@@ -210,7 +203,7 @@ where the :math:`0_{mp}\in\reals^{m\times p}` is a matrix of zeros.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 108-113
+.. GENERATED FROM PYTHON SOURCE LINES 107-112
 
 Now let the prior on the coefficients of :math:`Y_\alpha` be Gaussian with mean :math:`\mu_\alpha` and covariance :math:`\Sigma_{\alpha\alpha}`, and the covariance between the coefficients of different information sources :math:`Y_\alpha` and :math:`Y_\beta` be :math:`\Sigma_{\alpha\beta}`, such that the joint density of the coefficients of all information sources is Gaussian with mean and covariance given by
 
@@ -218,7 +211,7 @@ Now let the prior on the coefficients of :math:`Y_\alpha` be Gaussian with mean 
 
 In the following we will set the prior mean to zero for all coefficients and first try setting all the coefficients to be independent
 
-.. GENERATED FROM PYTHON SOURCE LINES 113-116
+.. GENERATED FROM PYTHON SOURCE LINES 112-115
 
 .. code-block:: default
 
@@ -232,14 +225,14 @@ In the following we will set the prior mean to zero for all coefficients and fir
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 117-121
+.. GENERATED FROM PYTHON SOURCE LINES 116-120
 
 With these definition the posterior distribution of the coefficients is (see :ref:`sphx_glr_auto_tutorials_inference_plot_bayesian_inference.py`)
 
 .. math:: \Sigma^\mathrm{post}=\left(\Sigma^{-1}+\Phi^\top\Sigma_\epsilon^{-1}\Phi\right)^{-1}, \qquad  \mu^\mathrm{post}=\Sigma^\mathrm{post}\left(\Phi^\top\Sigma_\epsilon^{-1}y+\Sigma^{-1}\mu\right),
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 121-125
+.. GENERATED FROM PYTHON SOURCE LINES 120-124
 
 .. code-block:: default
 
@@ -254,11 +247,11 @@ With these definition the posterior distribution of the coefficients is (see :re
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 126-127
+.. GENERATED FROM PYTHON SOURCE LINES 125-126
 
 Now let's plot the resulting approximation of the high-fidelity data.
 
-.. GENERATED FROM PYTHON SOURCE LINES 127-144
+.. GENERATED FROM PYTHON SOURCE LINES 126-142
 
 .. code-block:: default
 
@@ -276,8 +269,7 @@ Now let's plot the resulting approximation of the high-fidelity data.
         colors=['k'], mean_label=r'$\mathrm{Single\;Fidelity}$')
     axs.set_xlabel(r'$z$')
     axs.set_ylabel(r'$f(z)$')
-    plt.plot(xx, f3(xx), 'k', label=r'$f_3$')
-    # plt.show()
+    _ = plt.plot(xx, f3(xx), 'k', label=r'$f_3$')
 
 
 
@@ -288,20 +280,14 @@ Now let's plot the resulting approximation of the high-fidelity data.
    :class: sphx-glr-single-img
 
 
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
-
-    [<matplotlib.lines.Line2D object at 0x17c010fd0>]
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 145-146
+.. GENERATED FROM PYTHON SOURCE LINES 143-144
 
 Unfortunately by assuming that the coefficients of each information source are independent the lower fidelity data is not informing the estimation of the coefficients of the high-fidelity approximation. This statement can be verified by computing an approximation with only the high-fidelity data
 
-.. GENERATED FROM PYTHON SOURCE LINES 146-153
+.. GENERATED FROM PYTHON SOURCE LINES 144-151
 
 .. code-block:: default
 
@@ -319,7 +305,7 @@ Unfortunately by assuming that the coefficients of each information source are i
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 154-181
+.. GENERATED FROM PYTHON SOURCE LINES 152-179
 
 We can improve the high-fidelity approximation by encoding a correlation between the coefficients of each information source. In the following we will assume that the cofficients of an information source is linearly related to the coefficients of the other information sources. Specifically we will assume that
 
@@ -349,7 +335,7 @@ In this tutorial we will set :math:`A_{31}=a_{31} I`, :math:`A_{32}=a_{32} I`, :
 
 In the following we want to set the prior covariance of each individual information source to be the same, i.e. we set :math:`s_{11}=s_{22}` and :math:`v_3=s_{33}-(a_{31}^2\Sigma_{11}+a_{32}^2\Sigma_{22})`
 
-.. GENERATED FROM PYTHON SOURCE LINES 181-193
+.. GENERATED FROM PYTHON SOURCE LINES 179-191
 
 .. code-block:: default
 
@@ -372,17 +358,16 @@ In the following we want to set the prior covariance of each individual informat
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 194-195
+.. GENERATED FROM PYTHON SOURCE LINES 192-193
 
 Plot the structure of the prior covariance
 
-.. GENERATED FROM PYTHON SOURCE LINES 195-199
+.. GENERATED FROM PYTHON SOURCE LINES 193-196
 
 .. code-block:: default
 
     fig, axs = plt.subplots(1, 1, figsize=(8, 6))
-    plt.spy(prior_cov)
-    # plt.show()
+    _ = plt.spy(prior_cov)
 
 
 
@@ -393,16 +378,10 @@ Plot the structure of the prior covariance
    :class: sphx-glr-single-img
 
 
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
-
-    <matplotlib.image.AxesImage object at 0x1796020b0>
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 200-204
+.. GENERATED FROM PYTHON SOURCE LINES 197-201
 
 .. code-block:: default
 
@@ -417,11 +396,11 @@ Plot the structure of the prior covariance
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 205-206
+.. GENERATED FROM PYTHON SOURCE LINES 202-203
 
 Now let's plot the resulting approximation of the high-fidelity data.
 
-.. GENERATED FROM PYTHON SOURCE LINES 206-222
+.. GENERATED FROM PYTHON SOURCE LINES 203-218
 
 .. code-block:: default
 
@@ -438,8 +417,7 @@ Now let's plot the resulting approximation of the high-fidelity data.
                        colors=['b', 'r', 'k'])
     axs.set_xlabel(r'$z$')
     axs.set_ylabel(r'$f(z)$')
-    plt.plot(xx, f3(xx), 'k', label=r'$f_3$')
-    # plt.show()
+    _ = plt.plot(xx, f3(xx), 'k', label=r'$f_3$')
 
 
 
@@ -450,16 +428,10 @@ Now let's plot the resulting approximation of the high-fidelity data.
    :class: sphx-glr-single-img
 
 
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
-
-    [<matplotlib.lines.Line2D object at 0x17a5184c0>]
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 223-237
+.. GENERATED FROM PYTHON SOURCE LINES 219-233
 
 Depsite using only a very small number of samples of the high-fidelity information source, the multi-fidelity approximation has smaller variance and the mean more closely approximates the true high-fidelity information source, when compared to the single fidelity strategy.
 
@@ -476,7 +448,7 @@ In the following we will use use Gaussian networks to fuse information from a mo
   f_3(\rv) &= f_2(\rv)+\cos(3\pi\rv_1)
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 237-249
+.. GENERATED FROM PYTHON SOURCE LINES 233-245
 
 .. code-block:: default
 
@@ -499,7 +471,7 @@ In the following we will use use Gaussian networks to fuse information from a mo
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 250-255
+.. GENERATED FROM PYTHON SOURCE LINES 246-251
 
 The difference between this example and the previous is that one of the low-fidelity information sources has two inputs in contrast to the other sources (functions) which have one. These types of sources CANNOT be fused by other multi-fidelity methods. Fusion is possible with MFNets because it relates information sources through correlation between the coefficients of the approximations of each information source. In the context of Bayesian networks the coefficients are called latent variables.
 
@@ -507,7 +479,7 @@ Again assume that the coefficients of one source are only related to the coeffic
 
 Use the following to setup a Gaussian network for our example
 
-.. GENERATED FROM PYTHON SOURCE LINES 255-299
+.. GENERATED FROM PYTHON SOURCE LINES 251-295
 
 .. code-block:: default
 
@@ -562,11 +534,11 @@ Use the following to setup a Gaussian network for our example
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 300-301
+.. GENERATED FROM PYTHON SOURCE LINES 296-297
 
 We can compute the prior from this network using by instantiating the factors used to represent the joint density of the coefficients and then multiplying them together using the conditional probability variable elimination algorithm. We will describe this algorithm in more detail when infering the posterior distribution of the coefficients from data using the graph. When computing the prior this algorithm simply amounts to multiplying the factors of the graph together.
 
-.. GENERATED FROM PYTHON SOURCE LINES 301-329
+.. GENERATED FROM PYTHON SOURCE LINES 297-323
 
 .. code-block:: default
 
@@ -594,9 +566,7 @@ We can compute the prior from this network using by instantiating the factors us
 
     network.add_data_to_network(data_cpd_mats, data_cpd_vecs, noise_covs)
     fig, ax = plt.subplots(1, 1, figsize=(8, 5))
-    plot_peer_network_with_data(network.graph, ax)
-    # plt.show()
-
+    _ = plot_peer_network_with_data(network.graph, ax)
 
 
 
@@ -610,7 +580,7 @@ We can compute the prior from this network using by instantiating the factors us
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 330-341
+.. GENERATED FROM PYTHON SOURCE LINES 324-335
 
 For this network we have :math:`\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(2)=\{1,2\}` and the graph has one CPDs which for this example is given by
 
@@ -624,7 +594,7 @@ The joint density of the network is given by
 
 .. math:: \mathbb{P}(\theta_1,\theta_2,\theta_3)=\mathbb{P}(\theta_3\mid \theta_1,\theta_2)\mathbb{P}(\theta_1)\mathbb{P}(\theta_2)
 
-.. GENERATED FROM PYTHON SOURCE LINES 341-363
+.. GENERATED FROM PYTHON SOURCE LINES 335-356
 
 .. code-block:: default
 
@@ -646,8 +616,7 @@ The joint density of the network is given by
     fig, axs = plt.subplots(1, 1, figsize=(8, 6))
     plot_1d_lvn_approx(xx, nmodels, polys[2].basis_matrix, hf_posterior, hf_prior,
                        axs, samples_train, values_train, None, [0, 1])
-    axs.plot(xx, functions[2](xx[np.newaxis, :]), 'r', label=r'$f_3$')
-    plt.show()
+    _ = axs.plot(xx, functions[2](xx[np.newaxis, :]), 'r', label=r'$f_3$')
 
 
 
@@ -662,7 +631,7 @@ The joint density of the network is given by
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 364-397
+.. GENERATED FROM PYTHON SOURCE LINES 357-390
 
 References
 ^^^^^^^^^^
@@ -701,7 +670,7 @@ Noting that :math:`\left(A^\top\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\ri
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.380 seconds)
+   **Total running time of the script:** ( 0 minutes  0.323 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_gaussian_mfnets.py:

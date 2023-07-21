@@ -1511,7 +1511,7 @@
         <span class="k">return</span> <span class="n">BLUE_evaluate_models</span><span class="p">(</span>
             <span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span> <span class="n">models</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nsamples_per_subset</span><span class="p">,</span> <span class="n">pilot_values</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_estimate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">asketch</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_estimate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">asketch</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">asketch</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">asketch</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">nmodels</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
             <span class="n">asketch</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>

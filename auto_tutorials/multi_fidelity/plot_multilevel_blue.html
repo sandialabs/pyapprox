@@ -246,7 +246,7 @@ multi-fidelity estimators.</p>
                  <span class="n">label</span><span class="o">=</span><span class="n">est_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\log_2(r_i)-i$&#39;</span><span class="p">)</span>
-<span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s1">&#39;Variance reduction ratio &#39;</span><span class="p">)</span><span class="o">+</span> <span class="sa">r</span><span class="s1">&#39;$\gamma$&#39;</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s1">&#39;Variance reduction ratio &#39;</span><span class="p">)</span><span class="o">+</span><span class="sa">r</span><span class="s1">&#39;$\gamma$&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_multilevel_blue_002.png" srcset="../../_images/sphx_glr_plot_multilevel_blue_002.png" alt="plot multilevel blue" class = "sphx-glr-single-img"/><section id="optimal-sample-allocation">
@@ -296,14 +296,13 @@ multi-fidelity estimators.</p>
 </div>
 <img src="../../_images/sphx_glr_plot_multilevel_blue_003.png" srcset="../../_images/sphx_glr_plot_multilevel_blue_003.png" alt="plot multilevel blue" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[9.948000e+00 9.990200e+01 9.997170e+02 9.999442e+03] 1
 
-&lt;matplotlib.legend.Legend object at 0x17c010850&gt;
+&lt;matplotlib.legend.Legend object at 0x2b3feb370&gt;
 </pre></div>
 </div>
 <p>Now plot the number of samples allocated for each target cost</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s2">&quot;$M_</span><span class="si">{0}</span><span class="s2">$&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">cov</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])]</span>
-<span class="n">multifidelity</span><span class="o">.</span><span class="n">plot_acv_sample_allocation_comparison</span><span class="p">(</span>
+<span class="n">_</span><span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">plot_acv_sample_allocation_comparison</span><span class="p">(</span>
     <span class="n">optimized_estimators</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">model_labels</span><span class="p">,</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span><span class="o">.</span><span class="n">gca</span><span class="p">())</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_multilevel_blue_004.png" srcset="../../_images/sphx_glr_plot_multilevel_blue_004.png" alt="plot multilevel blue" class = "sphx-glr-single-img"/><section id="references">
@@ -314,7 +313,7 @@ multi-fidelity estimators.</p>
 <p><a class="reference external" href="https://doi.org/10.1137/19M1263534">D Schaden, E Ullmann. On multilevel best linear unbiased estimators, SIAM/ASA J. Uncertainty Quantification 8 (2), 601 - 635, 2020.</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  25.128 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  24.980 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multilevel-blue-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/8d43fa77f8a9c321fe613eb95e949ae6/plot_multilevel_blue.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multilevel_blue.py</span></code></a></p>

@@ -158,7 +158,7 @@ Now lets look at the statistical properties of the CVMC estimator
 
 The following plot shows that unlike the :ref:`Monte Carlo estimator <estimator-histogram>`. :math:`\mean{f_1}` the CVMC estimator is unbiased and has a smaller variance.
 
-.. GENERATED FROM PYTHON SOURCE LINES 97-114
+.. GENERATED FROM PYTHON SOURCE LINES 97-113
 
 .. code-block:: default
 
@@ -177,7 +177,6 @@ The following plot shows that unlike the :ref:`Monte Carlo estimator <estimator-
     props = {'boxstyle': 'round', 'facecolor': 'white', 'alpha': 1}
     ax.text(0.6, 0.75, textstr,transform=ax.transAxes, bbox=props)
     _ = ax.legend(loc='upper left')
-    plt.show()
 
 
 
@@ -191,11 +190,11 @@ The following plot shows that unlike the :ref:`Monte Carlo estimator <estimator-
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 115-116
+.. GENERATED FROM PYTHON SOURCE LINES 114-115
 
 Change ``eta`` to ``eta_mc`` to see how the variance reduction changes when the covariance between models is approximated
 
-.. GENERATED FROM PYTHON SOURCE LINES 118-121
+.. GENERATED FROM PYTHON SOURCE LINES 117-120
 
 References
 ^^^^^^^^^^
@@ -204,7 +203,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.100 seconds)
+   **Total running time of the script:** ( 0 minutes  0.102 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py:

@@ -177,7 +177,7 @@ Second, plot the variance reduction of multi-fidelity estimators that do not ass
                      label=est_labels[ii])
     plt.legend()
     plt.xlabel(r'$\log_2(r_i)-i$')
-    _ = plt.ylabel(mathrm_label('Variance reduction ratio ')+ r'$\gamma$')
+    _ = plt.ylabel(mathrm_label('Variance reduction ratio ')+r'$\gamma$')
 
 
 
@@ -258,7 +258,7 @@ where :math:`W_j` denotes the cost of evaluating the jth model and :math:`W_{\ma
 
     [9.948000e+00 9.990200e+01 9.997170e+02 9.999442e+03] 1
 
-    <matplotlib.legend.Legend object at 0x17c010850>
+    <matplotlib.legend.Legend object at 0x2b3feb370>
 
 
 
@@ -266,15 +266,13 @@ where :math:`W_j` denotes the cost of evaluating the jth model and :math:`W_{\ma
 
 Now plot the number of samples allocated for each target cost
 
-.. GENERATED FROM PYTHON SOURCE LINES 189-195
+.. GENERATED FROM PYTHON SOURCE LINES 189-193
 
 .. code-block:: default
 
     model_labels = [r"$M_{0}$".format(ii) for ii in range(cov.shape[0])]
-    multifidelity.plot_acv_sample_allocation_comparison(
+    _= multifidelity.plot_acv_sample_allocation_comparison(
         optimized_estimators[-1], model_labels, plt.figure().gca())
-    plt.show()
-
 
 
 
@@ -288,7 +286,7 @@ Now plot the number of samples allocated for each target cost
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 196-199
+.. GENERATED FROM PYTHON SOURCE LINES 194-197
 
 References
 ^^^^^^^^^^
@@ -297,7 +295,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  25.128 seconds)
+   **Total running time of the script:** ( 0 minutes  24.980 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multilevel_blue.py:

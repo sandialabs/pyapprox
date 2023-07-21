@@ -190,7 +190,7 @@ Now lets plot the structure of the multi-fidelity covariance matrix when using t
  .. code-block:: none
 
 
-    <matplotlib.colorbar.Colorbar object at 0x17a548dc0>
+    <matplotlib.colorbar.Colorbar object at 0x16c747280>
 
 
 
@@ -369,7 +369,7 @@ Another popular approach used to build MF GPs with either nested or unnested noi
 
 The following plot compares a sequential multi-level GP with the exact co-kriging on the toy problem introduced earlier.
 
-.. GENERATED FROM PYTHON SOURCE LINES 261-282
+.. GENERATED FROM PYTHON SOURCE LINES 261-281
 
 .. code-block:: default
 
@@ -381,7 +381,6 @@ The following plot compares a sequential multi-level GP with the exact co-krigin
         sml_kernels, n_restarts_optimizer=20, default_rho=[1.0])
     sml_gp.set_data(train_samples, train_values)
     sml_gp.fit()
-    print(sml_gp)
 
     ax = plt.subplots(1, 1, figsize=(8, 6))[1]
     ax.plot(xx[0], models[0](xx), 'k-', label=r"$f_0$")
@@ -403,16 +402,10 @@ The following plot compares a sequential multi-level GP with the exact co-krigin
    :class: sphx-glr-single-img
 
 
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
-    SequentialMultifidelityGaussianProcess(rho=[0.44179754961116136])
 
 
 
-
-.. GENERATED FROM PYTHON SOURCE LINES 283-288
+.. GENERATED FROM PYTHON SOURCE LINES 282-287
 
 Experimental design
 -------------------
@@ -420,7 +413,7 @@ As with single fidelity GPs the location of the training data significantly impa
 
 The following code demonstrates the additional complexity faced when desigining  experimental designs for multi-fidelity GPs, specifically one must not only choose what input to sample but also what model to sample.
 
-.. GENERATED FROM PYTHON SOURCE LINES 288-319
+.. GENERATED FROM PYTHON SOURCE LINES 287-318
 
 .. code-block:: default
 
@@ -467,13 +460,13 @@ The following code demonstrates the additional complexity faced when desigining 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 320-323
+.. GENERATED FROM PYTHON SOURCE LINES 319-322
 
 As expected the high-fidelity data point reduces the high-fidelity GP variance the most.
 
 The following shows that two low-fidelity points may produce smaller variance than a single high-fidelity point.
 
-.. GENERATED FROM PYTHON SOURCE LINES 323-342
+.. GENERATED FROM PYTHON SOURCE LINES 322-341
 
 .. code-block:: default
 
@@ -508,7 +501,7 @@ The following shows that two low-fidelity points may produce smaller variance th
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 343-350
+.. GENERATED FROM PYTHON SOURCE LINES 342-349
 
 Analagous to single-fidelity GPs we will now use integrated variance to produce good experimental designs. Two model, multi-fidelity, integrated variance designs, as they are often called, find a set of samples :math:`\mathcal{Z}\subset\Omega\subset\rvdom` from a set of candidate samples :math:`\Omega=\Omega_1\cup\Omega_2` by greedily selecting a new point :math:`\rv^{(n+1)}` to add to an existing set :math:`\mathcal{Z}_n` according to 
 
@@ -518,7 +511,7 @@ Here :math:`\Omega_m` denotes the candidate samples for the mth model, :math:`W(
 
 Now generate a sample set
 
-.. GENERATED FROM PYTHON SOURCE LINES 350-365
+.. GENERATED FROM PYTHON SOURCE LINES 349-364
 
 .. code-block:: default
 
@@ -544,11 +537,11 @@ Now generate a sample set
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 366-367
+.. GENERATED FROM PYTHON SOURCE LINES 365-366
 
 Now fit a GP with the selected samples
 
-.. GENERATED FROM PYTHON SOURCE LINES 367-379
+.. GENERATED FROM PYTHON SOURCE LINES 366-378
 
 .. code-block:: default
 
@@ -578,11 +571,11 @@ Now fit a GP with the selected samples
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 380-381
+.. GENERATED FROM PYTHON SOURCE LINES 379-380
 
 Now build a single-fidelity GP using IVAR.
 
-.. GENERATED FROM PYTHON SOURCE LINES 381-396
+.. GENERATED FROM PYTHON SOURCE LINES 380-395
 
 .. code-block:: default
 
@@ -614,11 +607,11 @@ Now build a single-fidelity GP using IVAR.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 397-398
+.. GENERATED FROM PYTHON SOURCE LINES 396-397
 
 Compare the multi- and single-fidelity GPs.
 
-.. GENERATED FROM PYTHON SOURCE LINES 398-411
+.. GENERATED FROM PYTHON SOURCE LINES 397-410
 
 .. code-block:: default
 
@@ -647,19 +640,19 @@ Compare the multi- and single-fidelity GPs.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 412-415
+.. GENERATED FROM PYTHON SOURCE LINES 411-414
 
 The multi-fidelity GP is again clearly superior.
 
 Note the selected samples depend on hyperparameter values, change the hyper-parameters and see how the design changes. The relative cost of evaluating each model also impacts the design. For fixed hyper-parameters a larger ratio will typically result in more low-fidelity samples.
 
-.. GENERATED FROM PYTHON SOURCE LINES 417-420
+.. GENERATED FROM PYTHON SOURCE LINES 416-419
 
 Remarks
 -------
 Some approaches train the GPs of each sequentially, that is train a GP of the lowest-fidelity model. The lowest-fidelity GP is then fixed and data from the next lowest fidelity model is then used to train the GP associated with that data, and so on. However this approach typically produces less accurate approximations (GP means) and does not provide a way to estimate the correct posterior uncertainty of the multilevel GP.
 
-.. GENERATED FROM PYTHON SOURCE LINES 422-455
+.. GENERATED FROM PYTHON SOURCE LINES 421-454
 
 Multifidelity Deep Gaussian Processes
 -------------------------------------
@@ -695,7 +688,7 @@ The following figures (generated using Emukit [EMUKIT]_) demonstrate that the no
 
 The following plots the correlations between the models used previously in this tutorial with the non-linear ensemble used here
 
-.. GENERATED FROM PYTHON SOURCE LINES 455-468
+.. GENERATED FROM PYTHON SOURCE LINES 454-467
 
 .. code-block:: default
 
@@ -724,11 +717,11 @@ The following plots the correlations between the models used previously in this 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 469-470
+.. GENERATED FROM PYTHON SOURCE LINES 468-469
 
 No exact statements can be made about a problem from such plots, however according to [PRDLK2017]_, the additional complexity of the models with the non-linear relationship often indicates that a linear MF GP will perform poorly.
 
-.. GENERATED FROM PYTHON SOURCE LINES 472-483
+.. GENERATED FROM PYTHON SOURCE LINES 471-482
 
 References
 ^^^^^^^^^^
@@ -745,7 +738,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  2.340 seconds)
+   **Total running time of the script:** ( 0 minutes  3.423 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multifidelity_gp.py:

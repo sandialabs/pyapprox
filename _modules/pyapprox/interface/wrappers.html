@@ -1216,7 +1216,32 @@
             <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nmodels</span><span class="p">)</span></div>
 
 
-<span class="k">class</span> <span class="nc">MultiIndexModel</span><span class="p">():</span>
+<div class="viewcode-block" id="MultiIndexModel"><a class="viewcode-back" href="../../../api/pyapprox.interface.MultiIndexModel.html#pyapprox.interface.MultiIndexModel">[docs]</a><span class="k">class</span> <span class="nc">MultiIndexModel</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Define a multi-index model to be used for multi-index collocation</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    setup_model : callable</span>
+<span class="sd">       Function with the signature</span>
+
+<span class="sd">       ``setup_model(config_values) -&gt; model_instance``</span>
+
+<span class="sd">       where config_values np.ndarray (nconfig_vars, 1)</span>
+<span class="sd">       defines the numerical resolution of model instance</span>
+<span class="sd">       where model instance is a callable with the signature</span>
+
+<span class="sd">       ``setup_model(random_samples) -&gt; np.ndarray (nsamples, nqoi)``</span>
+
+<span class="sd">       where random_samples is np.ndarray (nvars, nsamples).</span>
+
+<span class="sd">    config_values : 2d list [nconfig_vars, nconfig_values_i]</span>
+<span class="sd">        Contains the possible model discretization values for each config</span>
+<span class="sd">        var, e.g. [[100, 200], [0.1, 0.2, 0.3]] would be use to specify</span>
+<span class="sd">        a 1D spartial mesh with 100 elements or 200 elements and time step</span>
+<span class="sd">        sizes of [0.1, 0.2, 0.3]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">setup_model</span><span class="p">,</span> <span class="n">config_values</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_nconfig_vars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">config_values</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_config_values</span> <span class="o">=</span> <span class="n">config_values</span>
@@ -1233,7 +1258,19 @@
             <span class="n">multi_index_to_model_id_map</span><span class="p">[</span><span class="n">hash_array</span><span class="p">(</span><span class="n">config_samples</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">])]</span> <span class="o">=</span> <span class="n">ii</span>
         <span class="k">return</span> <span class="n">ModelEnsemble</span><span class="p">(</span><span class="n">models</span><span class="p">),</span> <span class="n">multi_index_to_model_id_map</span>
 
-    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+<div class="viewcode-block" id="MultiIndexModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.interface.MultiIndexModel.html#pyapprox.interface.MultiIndexModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        samples : np.ndarray (nvars+nconfig_vars, nsamples)</span>
+<span class="sd">            Each row is the concatenation of a random sample and a</span>
+<span class="sd">            configuration sample.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        values : np.ndarray (nsamples, nqoi)</span>
+<span class="sd">           Evaluations of the model at the samples.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">nsamples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
         <span class="n">config_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_nconfig_vars</span><span class="p">:,</span> <span class="p">:]</span>
         <span class="n">model_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="n">nsamples</span><span class="p">))</span>
@@ -1244,11 +1281,11 @@
                 <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
             <span class="n">model_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_multi_index_to_model_id_map</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_model_ensemble</span><span class="p">(</span>
-            <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">samples</span><span class="p">[:</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_nconfig_vars</span><span class="p">,</span> <span class="p">:],</span> <span class="n">model_ids</span><span class="p">)))</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">samples</span><span class="p">[:</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_nconfig_vars</span><span class="p">,</span> <span class="p">:],</span> <span class="n">model_ids</span><span class="p">)))</span></div>
 
     <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">(nconfig_values_per_config_var=</span><span class="si">{1}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config_values</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config_values</span><span class="p">])</span></div>
 
 
 <span class="k">class</span> <span class="nc">ArchivedDataModel</span><span class="p">():</span>

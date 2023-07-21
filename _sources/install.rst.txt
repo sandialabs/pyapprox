@@ -7,6 +7,8 @@ The latest release of PyApprox can be installed using pip::
   
   pip install pyapprox
 
+Wheels are available for Python versions >= 3.7 on all platforms except macosx M1 architecture which only supports Python versions >= 3.9.
+
 
 Install from source
 -------------------

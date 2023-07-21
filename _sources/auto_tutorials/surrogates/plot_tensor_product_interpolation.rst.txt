@@ -256,7 +256,7 @@ Now let us compare the quadrature mean with the MC mean computed using the surro
 
  .. code-block:: none
 
-    Monte Carlo surrogate mean -0.00027630862064452624
+    Monte Carlo surrogate mean -7.621895538507388e-07
 
 
 
@@ -529,7 +529,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.849 seconds)
+   **Total running time of the script:** ( 0 minutes  3.138 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_surrogates_plot_tensor_product_interpolation.py:

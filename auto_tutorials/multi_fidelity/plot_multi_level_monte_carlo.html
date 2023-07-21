@@ -354,9 +354,8 @@ Now let us compute the theoretical variance reduction using 3 models</p>
     <span class="n">optimized_estimators</span><span class="p">,</span> <span class="n">est_labels</span><span class="p">,</span> <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
     <span class="n">ylabel</span><span class="o">=</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Relative Estimator Variance&quot;</span><span class="p">))</span>
 <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">target_costs</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">target_costs</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
-<span class="n">multifidelity</span><span class="o">.</span><span class="n">plot_acv_sample_allocation_comparison</span><span class="p">(</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">plot_acv_sample_allocation_comparison</span><span class="p">(</span>
     <span class="n">optimized_estimators</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">model_labels</span><span class="p">,</span> <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_multi_level_monte_carlo_001.png" srcset="../../_images/sphx_glr_plot_multi_level_monte_carlo_001.png" alt="plot multi level monte carlo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[9.1278000e+00 9.9297700e+01 9.9964930e+02 9.9995578e+03] 1
@@ -388,7 +387,7 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 <p><a class="reference external" href="https://doi.org/10.1007/s00211-015-0734-5">A. Haji-Ali, F. Nobile and R. Tempone. Multi-index Monte Carlo: when sparsity meets sampling. Numerische Mathematik, 132(4), 767-806, 2016.</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.926 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.986 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/bb1275901dfaafa79dd0bbce6a0f1ae4/plot_multi_level_monte_carlo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multi_level_monte_carlo.py</span></code></a></p>

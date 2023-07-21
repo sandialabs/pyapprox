@@ -109,7 +109,6 @@ ax.axvline(x=0,c='k',label=r'$E[Q_0]$')
 props = {'boxstyle': 'round', 'facecolor': 'white', 'alpha': 1}
 ax.text(0.6, 0.75, textstr,transform=ax.transAxes, bbox=props)
 _ = ax.legend(loc='upper left')
-plt.show()
 
 #%%
 #Change ``eta`` to ``eta_mc`` to see how the variance reduction changes when the covariance between models is approximated

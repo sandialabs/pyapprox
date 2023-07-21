@@ -65,7 +65,7 @@ First lets load all the necessary modules and set the random seeds for reproduci
  .. code-block:: none
 
 
-    <torch._C.Generator object at 0x16bde39d0>
+    <torch._C.Generator object at 0x14d916ff0>
 
 
 
@@ -205,7 +205,7 @@ prints the median execution time of the model.
 
  .. code-block:: none
 
-    [0.03503788]
+    [0.03149188]
 
 
 
@@ -551,12 +551,12 @@ that we do not know the value of the observations.
 
     Running 1000 outer model evaluations
     Predicted observation bounds 14.015558739913732 1.2516047704780018
-    Evaluations took 173.62535405158997
+    Evaluations took 125.454519033432
     Running 1000 inner model evaluations
-    Evaluations took 164.1499490737915
-    Computing utilities in serial took 0.030169010162353516
-    Computing utilities in serial took 0.03148293495178223
-    Computing utilities in serial took 0.04574394226074219
+    Evaluations took 201.8737268447876
+    Computing utilities in serial took 0.2799699306488037
+    Computing utilities in serial took 0.029626131057739258
+    Computing utilities in serial took 0.035611867904663086
     [[0.0954915  0.42178277 0.0954915 ]
      [0.05449674 0.85355339 0.05449674]]
 
@@ -741,7 +741,7 @@ for each run
 
  .. code-block:: none
 
-    Predicted variance 5.818767691754899e-07
+    Predicted variance 4.84624417752133e-07
 
 
 
@@ -790,7 +790,7 @@ estimates of the mean before requiring any additional model evaluations
 
  .. code-block:: none
 
-    [9.36376795e+00 9.99359811e+01 9.99658112e+02 9.99907829e+03] 1
+    [9.78768226e+00 9.91557684e+01 9.99557684e+02 9.99894877e+03] 1
 
 
 
@@ -823,7 +823,7 @@ is ready to actually estimate the mean QoI they can use
 
  .. code-block:: none
 
-    Mean QoI 0.5062523937469106
+    Mean QoI 0.524862037525883
 
 
 
@@ -837,7 +837,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 6 minutes  39.425 seconds)
+   **Total running time of the script:** ( 6 minutes  19.697 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_paper_demo.py:

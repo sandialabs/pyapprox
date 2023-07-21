@@ -27,7 +27,7 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Theoretical Tutorials" href="../auto_tutorials/index.html" />
+    <link rel="next" title="Multi-fidelity Quadrature" href="plot_multifidelity_quadrature.html" />
     <link rel="prev" title="Sparse Grid Interpolation" href="plot_sparse_grid_uq.html" /> 
 </head>
 
@@ -59,6 +59,7 @@
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorial</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-index Collocation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_variables.html">Random Variables</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_interface.html">Model interfacing</a></li>
@@ -73,6 +74,8 @@
 <li class="toctree-l3"><a class="reference internal" href="#references">References</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="plot_multifidelity_quadrature.html">Multi-fidelity Quadrature</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_multiindex_collocation_ex.html">Multi-index Collocation</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">Theoretical Tutorials</a></li>
@@ -149,7 +152,7 @@ following the exposition in <a class="reference internal" href="#pyapprox2022" i
 <span class="n">torch</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span><span class="mi">2023</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;torch._C.Generator object at 0x16bde39d0&gt;
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;torch._C.Generator object at 0x14d916ff0&gt;
 </pre></div>
 </div>
 <p>The tutorial can save the figures to file if desired. If you do want the plots
@@ -217,7 +220,7 @@ prints the median execution time of the model.</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">())</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.03503788]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.03149188]
 </pre></div>
 </div>
 <p>Other wrappers available in PyApprox include those for running multiple models
@@ -403,12 +406,12 @@ that we do not know the value of the observations.</p>
 </div>
 <img src="../_images/sphx_glr_plot_paper_demo_005.png" srcset="../_images/sphx_glr_plot_paper_demo_005.png" alt="plot paper demo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Running 1000 outer model evaluations
 Predicted observation bounds 14.015558739913732 1.2516047704780018
-Evaluations took 173.62535405158997
+Evaluations took 125.454519033432
 Running 1000 inner model evaluations
-Evaluations took 164.1499490737915
-Computing utilities in serial took 0.030169010162353516
-Computing utilities in serial took 0.03148293495178223
-Computing utilities in serial took 0.04574394226074219
+Evaluations took 201.8737268447876
+Computing utilities in serial took 0.2799699306488037
+Computing utilities in serial took 0.029626131057739258
+Computing utilities in serial took 0.035611867904663086
 [[0.0954915  0.42178277 0.0954915 ]
  [0.05449674 0.85355339 0.05449674]]
 </pre></div>
@@ -511,7 +514,7 @@ for each run</p>
 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Predicted variance&quot;</span><span class="p">,</span> <span class="n">best_est</span><span class="o">.</span><span class="n">optimized_variance</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance 5.818767691754899e-07
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance 4.84624417752133e-07
 </pre></div>
 </div>
 <p>Now we can plot the relative performance of the single and multi-fidelity
@@ -539,7 +542,7 @@ estimates of the mean before requiring any additional model evaluations</p>
     <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;acv-variance-reduction.pdf&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_paper_demo_007.png" srcset="../_images/sphx_glr_plot_paper_demo_007.png" alt="plot paper demo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[9.36376795e+00 9.99359811e+01 9.99658112e+02 9.99907829e+03] 1
+<img src="../_images/sphx_glr_plot_paper_demo_007.png" srcset="../_images/sphx_glr_plot_paper_demo_007.png" alt="plot paper demo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[9.78768226e+00 9.91557684e+01 9.99557684e+02 9.99894877e+03] 1
 </pre></div>
 </div>
 <p>It is clear that the multi-fidelity estimator will be more computationally
@@ -556,7 +559,7 @@ is ready to actually estimate the mean QoI they can use</p>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Mean QoI 0.5062523937469106
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Mean QoI 0.524862037525883
 </pre></div>
 </div>
 <section id="references">
@@ -567,7 +570,7 @@ is ready to actually estimate the mean QoI they can use</p>
 <p><a class="reference external" href="https://www.osti.gov/biblio/1879614">Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022)</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 6 minutes  39.425 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 6 minutes  19.697 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-paper-demo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/4231eb2cab42df6435f116bfe8f5e15a/plot_paper_demo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_paper_demo.py</span></code></a></p>
@@ -585,7 +588,7 @@ is ready to actually estimate the mean QoI they can use</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="plot_sparse_grid_uq.html" class="btn btn-neutral float-left" title="Sparse Grid Interpolation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="../auto_tutorials/index.html" class="btn btn-neutral float-right" title="Theoretical Tutorials" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="plot_multifidelity_quadrature.html" class="btn btn-neutral float-right" title="Multi-fidelity Quadrature" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

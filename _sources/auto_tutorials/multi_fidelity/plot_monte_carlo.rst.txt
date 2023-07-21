@@ -181,7 +181,7 @@ We can compute the exact mean using sympy and compute the MC MSE
 Now let us compute the MSE for different sample sets of the same size for :math:`N=100,1000` and plot the distribution of the MC estimator :math:`Q_{\alpha,N}`
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 99-123
+.. GENERATED FROM PYTHON SOURCE LINES 99-122
 
 .. code-block:: default
 
@@ -207,7 +207,6 @@ Now let us compute the MSE for different sample sets of the same size for :math:
     ax.set_xlabel(r'$\mathbb{E}[Q_N]$')
     ax.set_ylabel(r'$\mathbb{P}(\mathbb{E}[Q_N])$')
     _ = ax.legend(loc='upper left')
-    plt.show()
 
 
 
@@ -221,7 +220,7 @@ Now let us compute the MSE for different sample sets of the same size for :math:
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 124-129
+.. GENERATED FROM PYTHON SOURCE LINES 123-128
 
 The numerical results match our theory. Specifically the estimator is unbiased( i.e. mean zero, and the variance of the estimator is :math:`\var{Q_{0,N}}=\var{Q_{0}}/N=1/N`.
 
@@ -229,7 +228,7 @@ The variance of the estimator can be driven to zero by increasing the number of 
 
 Let our true model be :math:`f_0` above. The following code compues the bias induced by using :math:`f_\alpha=f_1` and also plots the contours of :math:`f_0(\rv)-f_1(\rv)`.
 
-.. GENERATED FROM PYTHON SOURCE LINES 129-146
+.. GENERATED FROM PYTHON SOURCE LINES 128-145
 
 .. code-block:: default
 
@@ -270,15 +269,15 @@ Let our true model be :math:`f_0` above. The following code compues the bias ind
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 147-148
+.. GENERATED FROM PYTHON SOURCE LINES 146-147
 
 As :math:`N\to\infty` the MSE will only converge to the bias (:math:`s_1`). Try this by increasing :math:`\texttt{nsamples}`.
 
-.. GENERATED FROM PYTHON SOURCE LINES 150-151
+.. GENERATED FROM PYTHON SOURCE LINES 149-150
 
 We can produced unbiased estimators using the high fidelity model. However if this high-fidelity model is more expensive then this comes at the cost of the estimator having larger variance. To see this the following plots the distribution of the MC estimators using 100 samples of the :math:`f_1` and 10 samples of :math:`f_0`. The cost of constructing these estimators would be equivalent if the high-fidelity model is 10 times more expensive than the low-fidelity model.
 
-.. GENERATED FROM PYTHON SOURCE LINES 151-175
+.. GENERATED FROM PYTHON SOURCE LINES 150-173
 
 .. code-block:: default
 
@@ -304,7 +303,6 @@ We can produced unbiased estimators using the high fidelity model. However if th
     ax.set_xlabel(r'$\mathbb{E}[Q_N]$')
     ax.set_ylabel(r'$\mathbb{P}(\mathbb{E}[Q_N])$')
     _ = ax.legend(loc='upper left')
-    # plt.show()
 
 
 
@@ -318,14 +316,14 @@ We can produced unbiased estimators using the high fidelity model. However if th
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 176-177
+.. GENERATED FROM PYTHON SOURCE LINES 174-175
 
 In a series of tutorials starting with :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` we show how to produce an unbiased estimator with small variance using both these models.
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.347 seconds)
+   **Total running time of the script:** ( 0 minutes  0.345 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_monte_carlo.py:

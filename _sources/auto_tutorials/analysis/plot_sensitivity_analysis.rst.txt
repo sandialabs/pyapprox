@@ -104,7 +104,7 @@ Now lets compare the estimated values with the exact value
 
  .. code-block:: none
 
-    [3.14495119e-01 4.42301102e-01 4.44427797e-07]
+    [3.13906188e-01 4.43520053e-01 2.19587001e-08]
     [0.31390519 0.44241114 0.        ]
 
 
@@ -161,7 +161,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.812 seconds)
+   **Total running time of the script:** ( 0 minutes  2.404 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_analysis_plot_sensitivity_analysis.py:
