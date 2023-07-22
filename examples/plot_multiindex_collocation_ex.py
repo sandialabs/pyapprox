@@ -1,7 +1,7 @@
 """
 Multi-index Collocation
 -----------------------
-The following provides an example of how to use multivariate quadrature, e.g. multilevel Monte Carlo, control variates to estimate the mean of a high-fidelity model from an ensemble of related models of varying cost and accuracy. Refer to :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multindex_collocation.py` for a detailed tutorial on the theory behind multi-index collocation.
+The following provides an example of how to use multivariate quadrature, e.g. multilevel Monte Carlo, control variates to estimate the mean of a high-fidelity model from an ensemble of related models of varying cost and accuracy. Refer to :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multiindex_collocation.py` for a detailed tutorial on the theory behind multi-index collocation.
 """
 #%%
 #Load the necessary modules

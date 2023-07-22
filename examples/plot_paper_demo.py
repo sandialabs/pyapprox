@@ -31,11 +31,12 @@ from pyapprox import multifidelity
 import warnings
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
 np.random.seed(2023)
-torch.manual_seed(2023)
+_ = torch.manual_seed(2023)
 
 #%%
 #The tutorial can save the figures to file if desired. If you do want the plots
 #set savefig=True
+
 # savefig = True
 savefig = False
 
