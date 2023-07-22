@@ -214,7 +214,7 @@ prints the median execution time of the model.</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">())</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.03154039]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.02975035]
 </pre></div>
 </div>
 <p>Other wrappers available in PyApprox include those for running multiple models
@@ -472,12 +472,12 @@ that we do not know the value of the observations.</p>
 </div>
 <img src="../_images/sphx_glr_plot_paper_demo_005.png" srcset="../_images/sphx_glr_plot_paper_demo_005.png" alt="plot paper demo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Running 1000 outer model evaluations
 Predicted observation bounds 14.368521367743933 0.1862208291821532
-Evaluations took 6.038690090179443
+Evaluations took 6.097654104232788
 Running 1000 inner model evaluations
-Evaluations took 5.848551034927368
-Computing utilities in serial took 0.2003018856048584
-Computing utilities in serial took 0.024533748626708984
-Computing utilities in serial took 0.028362751007080078
+Evaluations took 5.288910150527954
+Computing utilities in serial took 0.20087194442749023
+Computing utilities in serial took 0.025046110153198242
+Computing utilities in serial took 0.03351783752441406
 [[0.0954915  0.42178277 0.42178277]
  [0.05449674 0.85355339 0.85355339]]
 </pre></div>
@@ -905,7 +905,7 @@ for each run</p>
 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Predicted variance&quot;</span><span class="p">,</span> <span class="n">best_est</span><span class="o">.</span><span class="n">optimized_variance</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance 3.3843426739379908e-06
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance 3.39968691376498e-06
 </pre></div>
 </div>
 <p>Now we can plot the relative performance of the single and multi-fidelity
@@ -933,7 +933,7 @@ estimates of the mean before requiring any additional model evaluations</p>
     <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;acv-variance-reduction.pdf&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_paper_demo_007.png" srcset="../_images/sphx_glr_plot_paper_demo_007.png" alt="plot paper demo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[9.74934166e+00 9.98696067e+01 9.98263682e+02 9.99908039e+03] 1
+<img src="../_images/sphx_glr_plot_paper_demo_007.png" srcset="../_images/sphx_glr_plot_paper_demo_007.png" alt="plot paper demo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[9.79375957e+00 9.97825054e+01 9.98180393e+02 9.99934885e+03] 1
 </pre></div>
 </div>
 <p>It is clear that the multi-fidelity estimator will be more computationally
@@ -961,7 +961,7 @@ is ready to actually estimate the mean QoI they can use</p>
 <p><a class="reference external" href="https://www.osti.gov/biblio/1879614">Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022)</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  33.962 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  31.178 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-paper-demo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/4231eb2cab42df6435f116bfe8f5e15a/plot_paper_demo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_paper_demo.py</span></code></a></p>

@@ -200,7 +200,7 @@ prints the median execution time of the model.
 
  .. code-block:: none
 
-    [0.03154039]
+    [0.02975035]
 
 
 
@@ -618,12 +618,12 @@ that we do not know the value of the observations.
 
     Running 1000 outer model evaluations
     Predicted observation bounds 14.368521367743933 0.1862208291821532
-    Evaluations took 6.038690090179443
+    Evaluations took 6.097654104232788
     Running 1000 inner model evaluations
-    Evaluations took 5.848551034927368
-    Computing utilities in serial took 0.2003018856048584
-    Computing utilities in serial took 0.024533748626708984
-    Computing utilities in serial took 0.028362751007080078
+    Evaluations took 5.288910150527954
+    Computing utilities in serial took 0.20087194442749023
+    Computing utilities in serial took 0.025046110153198242
+    Computing utilities in serial took 0.03351783752441406
     [[0.0954915  0.42178277 0.42178277]
      [0.05449674 0.85355339 0.85355339]]
 
@@ -1137,7 +1137,7 @@ for each run
 
  .. code-block:: none
 
-    Predicted variance 3.3843426739379908e-06
+    Predicted variance 3.39968691376498e-06
 
 
 
@@ -1186,7 +1186,7 @@ estimates of the mean before requiring any additional model evaluations
 
  .. code-block:: none
 
-    [9.74934166e+00 9.98696067e+01 9.98263682e+02 9.99908039e+03] 1
+    [9.79375957e+00 9.97825054e+01 9.98180393e+02 9.99934885e+03] 1
 
 
 
@@ -1233,7 +1233,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  33.962 seconds)
+   **Total running time of the script:** ( 0 minutes  31.178 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_paper_demo.py:

@@ -26742,42 +26742,42 @@ First plot the evolution of the PDE for a realization of the model inputs
      </style>
 
      <div class="animation">
-       <img id="_anim_img8e601227e1474ee5ae2adc53c1bd920c">
+       <img id="_anim_img88c54f2723fe4f1ea4eaf466ba307f2c">
        <div class="anim-controls">
-         <input id="_anim_slider8e601227e1474ee5ae2adc53c1bd920c" type="range" class="anim-slider"
+         <input id="_anim_slider88c54f2723fe4f1ea4eaf466ba307f2c" type="range" class="anim-slider"
                 name="points" min="0" max="1" step="1" value="0"
-                oninput="anim8e601227e1474ee5ae2adc53c1bd920c.set_frame(parseInt(this.value));">
+                oninput="anim88c54f2723fe4f1ea4eaf466ba307f2c.set_frame(parseInt(this.value));">
          <div class="anim-buttons">
-           <button title="Decrease speed" aria-label="Decrease speed" onclick="anim8e601227e1474ee5ae2adc53c1bd920c.slower()">
+           <button title="Decrease speed" aria-label="Decrease speed" onclick="anim88c54f2723fe4f1ea4eaf466ba307f2c.slower()">
                <i class="fa fa-minus"></i></button>
-           <button title="First frame" aria-label="First frame" onclick="anim8e601227e1474ee5ae2adc53c1bd920c.first_frame()">
+           <button title="First frame" aria-label="First frame" onclick="anim88c54f2723fe4f1ea4eaf466ba307f2c.first_frame()">
              <i class="fa fa-fast-backward"></i></button>
-           <button title="Previous frame" aria-label="Previous frame" onclick="anim8e601227e1474ee5ae2adc53c1bd920c.previous_frame()">
+           <button title="Previous frame" aria-label="Previous frame" onclick="anim88c54f2723fe4f1ea4eaf466ba307f2c.previous_frame()">
                <i class="fa fa-step-backward"></i></button>
-           <button title="Play backwards" aria-label="Play backwards" onclick="anim8e601227e1474ee5ae2adc53c1bd920c.reverse_animation()">
+           <button title="Play backwards" aria-label="Play backwards" onclick="anim88c54f2723fe4f1ea4eaf466ba307f2c.reverse_animation()">
                <i class="fa fa-play fa-flip-horizontal"></i></button>
-           <button title="Pause" aria-label="Pause" onclick="anim8e601227e1474ee5ae2adc53c1bd920c.pause_animation()">
+           <button title="Pause" aria-label="Pause" onclick="anim88c54f2723fe4f1ea4eaf466ba307f2c.pause_animation()">
                <i class="fa fa-pause"></i></button>
-           <button title="Play" aria-label="Play" onclick="anim8e601227e1474ee5ae2adc53c1bd920c.play_animation()">
+           <button title="Play" aria-label="Play" onclick="anim88c54f2723fe4f1ea4eaf466ba307f2c.play_animation()">
                <i class="fa fa-play"></i></button>
-           <button title="Next frame" aria-label="Next frame" onclick="anim8e601227e1474ee5ae2adc53c1bd920c.next_frame()">
+           <button title="Next frame" aria-label="Next frame" onclick="anim88c54f2723fe4f1ea4eaf466ba307f2c.next_frame()">
                <i class="fa fa-step-forward"></i></button>
-           <button title="Last frame" aria-label="Last frame" onclick="anim8e601227e1474ee5ae2adc53c1bd920c.last_frame()">
+           <button title="Last frame" aria-label="Last frame" onclick="anim88c54f2723fe4f1ea4eaf466ba307f2c.last_frame()">
                <i class="fa fa-fast-forward"></i></button>
-           <button title="Increase speed" aria-label="Increase speed" onclick="anim8e601227e1474ee5ae2adc53c1bd920c.faster()">
+           <button title="Increase speed" aria-label="Increase speed" onclick="anim88c54f2723fe4f1ea4eaf466ba307f2c.faster()">
                <i class="fa fa-plus"></i></button>
          </div>
-         <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_select8e601227e1474ee5ae2adc53c1bd920c"
+         <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_select88c54f2723fe4f1ea4eaf466ba307f2c"
                class="anim-state">
-           <input type="radio" name="state" value="once" id="_anim_radio1_8e601227e1474ee5ae2adc53c1bd920c"
+           <input type="radio" name="state" value="once" id="_anim_radio1_88c54f2723fe4f1ea4eaf466ba307f2c"
                   >
-           <label for="_anim_radio1_8e601227e1474ee5ae2adc53c1bd920c">Once</label>
-           <input type="radio" name="state" value="loop" id="_anim_radio2_8e601227e1474ee5ae2adc53c1bd920c"
+           <label for="_anim_radio1_88c54f2723fe4f1ea4eaf466ba307f2c">Once</label>
+           <input type="radio" name="state" value="loop" id="_anim_radio2_88c54f2723fe4f1ea4eaf466ba307f2c"
                   checked>
-           <label for="_anim_radio2_8e601227e1474ee5ae2adc53c1bd920c">Loop</label>
-           <input type="radio" name="state" value="reflect" id="_anim_radio3_8e601227e1474ee5ae2adc53c1bd920c"
+           <label for="_anim_radio2_88c54f2723fe4f1ea4eaf466ba307f2c">Loop</label>
+           <input type="radio" name="state" value="reflect" id="_anim_radio3_88c54f2723fe4f1ea4eaf466ba307f2c"
                   >
-           <label for="_anim_radio3_8e601227e1474ee5ae2adc53c1bd920c">Reflect</label>
+           <label for="_anim_radio3_88c54f2723fe4f1ea4eaf466ba307f2c">Reflect</label>
          </form>
        </div>
      </div>
@@ -26787,9 +26787,9 @@ First plot the evolution of the PDE for a realization of the model inputs
        /* Instantiate the Animation class. */
        /* The IDs given should match those used in the template above. */
        (function() {
-         var img_id = "_anim_img8e601227e1474ee5ae2adc53c1bd920c";
-         var slider_id = "_anim_slider8e601227e1474ee5ae2adc53c1bd920c";
-         var loop_select_id = "_anim_loop_select8e601227e1474ee5ae2adc53c1bd920c";
+         var img_id = "_anim_img88c54f2723fe4f1ea4eaf466ba307f2c";
+         var slider_id = "_anim_slider88c54f2723fe4f1ea4eaf466ba307f2c";
+         var loop_select_id = "_anim_loop_select88c54f2723fe4f1ea4eaf466ba307f2c";
          var frames = new Array(43);
     
        frames[0] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAyAAAAJYCAYAAACadoJwAAAAOXRFWHRTb2Z0d2FyZQBNYXRwbG90\
@@ -57543,7 +57543,7 @@ First plot the evolution of the PDE for a realization of the model inputs
          /* set a timeout to make sure all the above elements are created before
             the object is initialized. */
          setTimeout(function() {
-             anim8e601227e1474ee5ae2adc53c1bd920c = new Animation(frames, img_id, slider_id, 46.0,
+             anim88c54f2723fe4f1ea4eaf466ba307f2c = new Animation(frames, img_id, slider_id, 46.0,
                                       loop_select_id);
          }, 0);
        })()
@@ -57599,7 +57599,7 @@ must be called inside
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  46.208 seconds)
+   **Total running time of the script:** ( 0 minutes  42.265 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_pde_convergence.py:

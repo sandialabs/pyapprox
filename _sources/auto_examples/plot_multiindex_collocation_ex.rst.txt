@@ -838,7 +838,7 @@ The following can be used to plot the approximation and high-fidelity target fun
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.169 seconds)
+   **Total running time of the script:** ( 0 minutes  0.179 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_multiindex_collocation_ex.py:

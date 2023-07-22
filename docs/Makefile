@@ -1,5 +1,7 @@
 # Minimal makefile for Sphinx documentation
 #
+#WARNING: This should be run from a fresh clone of the repository to avoid
+#user created files in directories from being added by git add -A
 
 # You can set these variables from the command line, and also
 # from the environment for the first two.
