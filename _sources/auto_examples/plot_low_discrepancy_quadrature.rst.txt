@@ -140,6 +140,12 @@ space. This can be seen by comparing the Monte Carlo and Sobol sequence samples
 
  .. code-block:: none
 
+    halton_sequence extension failed
+    Failed with error: No module named 'pyapprox.cython.utilities'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: low_discrepancy_sequences.py | 239
+    
                z0         z1         y0    
     count  100.000000 100.000000 100.000000
     mean     0.488438   0.484856  -0.454770
@@ -163,7 +169,7 @@ then request 200 samples while resuing the first 100.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.041 seconds)
+   **Total running time of the script:** ( 0 minutes  0.035 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_low_discrepancy_quadrature.py:

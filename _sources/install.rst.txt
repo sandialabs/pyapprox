@@ -108,7 +108,7 @@ Some tests will be skipped if not all optional packages are installed.
 
 Create Documentation
 --------------------
-To create the documentation fenics must be installed. Creating documentation also requires Sphinx 1.7 or later, sphinx, numpydoc, and sphinx-automodapi.
+To create the documentation fenics must be installed. Creating documentation also requires Sphinx 1.7 or later, sphinx, numpydoc, and sphinx-automodapi. A local install of latex is also required.
 
 
 To install these requirements when installing from PyPi first run::

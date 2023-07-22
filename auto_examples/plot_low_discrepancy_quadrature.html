@@ -59,7 +59,6 @@
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorial</a><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-index Collocation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_variables.html">Random Variables</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_interface.html">Model interfacing</a></li>
@@ -192,7 +191,13 @@ space. This can be seen by comparing the Monte Carlo and Sobol sequence samples<
 <span class="n">print_statistics</span><span class="p">(</span><span class="n">halton_samples</span><span class="p">,</span> <span class="n">values</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_low_discrepancy_quadrature_001.png" srcset="../_images/sphx_glr_plot_low_discrepancy_quadrature_001.png" alt="plot low discrepancy quadrature" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>           z0         z1         y0
+<img src="../_images/sphx_glr_plot_low_discrepancy_quadrature_001.png" srcset="../_images/sphx_glr_plot_low_discrepancy_quadrature_001.png" alt="plot low discrepancy quadrature" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>halton_sequence extension failed
+Failed with error: No module named &#39;pyapprox.cython.utilities&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: low_discrepancy_sequences.py | 239
+
+           z0         z1         y0
 count  100.000000 100.000000 100.000000
 mean     0.488438   0.484856  -0.454770
 std      0.288831   0.290073   0.199483
@@ -208,7 +213,7 @@ samples for quadrature. Pyapprox does not support such designs as unlike
 Sobol and Halton Sequences they are not nested. For example, when using Latin
 Hypercube designs, it is not possible to requrest 100 samples
 then request 200 samples while resuing the first 100.</p>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.041 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.035 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-low-discrepancy-quadrature-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/0ab8cf693453cc1c9b15d4fe2f93dccc/plot_low_discrepancy_quadrature.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_low_discrepancy_quadrature.py</span></code></a></p>

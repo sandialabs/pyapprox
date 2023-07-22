@@ -47,8 +47,8 @@ print("Multi-fidelity mean", mf_mean)
 print("Exact high-fidelity mean", hf_mean)
 
 #%%
-#Questions
-#^^^^^^^^^
+#Excercises
+#^^^^^^^^^^
 #Compare the multi-fidelity mean to the single-fidelity means using only one model
 #
 #Increase the target cost

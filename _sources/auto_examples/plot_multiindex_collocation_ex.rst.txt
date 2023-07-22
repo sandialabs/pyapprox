@@ -20,7 +20,7 @@
 
 Multi-index Collocation
 -----------------------
-The following provides an example of how to use multivariate quadrature, e.g. multilevel Monte Carlo, control variates to estimate the mean of a high-fidelity model from an ensemble of related models of varying cost and accuracy. Refer to :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multindex_collocation.py` for a detailed tutorial on the theory behind multi-index collocation.
+The following provides an example of how to use multivariate quadrature, e.g. multilevel Monte Carlo, control variates to estimate the mean of a high-fidelity model from an ensemble of related models of varying cost and accuracy. Refer to :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multiindex_collocation.py` for a detailed tutorial on the theory behind multi-index collocation.
 
 .. GENERATED FROM PYTHON SOURCE LINES 7-8
 
@@ -106,14 +106,634 @@ Now set up and run the multi-index algorithm
 
     [inf, 2]
     3
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
     Cannot add subspace [0 3]
     Max level of 2 reached in variable 1
+    update_smolyak_coefficients extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
+    update_smolyak_coefficients extension failed
     Max num evaluations (20) reached
-    Error estimate 0.5336307283210865
+    Error estimate 0.533630728321022
+    update_smolyak_coefficients extension failed
     Max num evaluations (20) reached
-    Error estimate 0.19831215919512346
+    Error estimate 0.1983121591950588
+    update_smolyak_coefficients extension failed
     Max num evaluations (20) reached
-    Error estimate 0.08311648892091944
+    Error estimate 0.08311648892092083
+    update_smolyak_coefficients extension failed
 
 
 
@@ -147,13 +767,78 @@ The following can be used to plot the approximation and high-fidelity target fun
    :class: sphx-glr-single-img
 
 
+.. rst-class:: sphx-glr-script-out
+
+ .. code-block:: none
+
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 213
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 213
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 213
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 213
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 213
+    
+
 
 
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.132 seconds)
+   **Total running time of the script:** ( 0 minutes  0.169 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_multiindex_collocation_ex.py:

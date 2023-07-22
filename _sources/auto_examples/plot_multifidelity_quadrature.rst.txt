@@ -126,8 +126,8 @@ Define a target cost and determine the optimal number of samples to allocate to 
 
 .. GENERATED FROM PYTHON SOURCE LINES 50-59
 
-Questions
-^^^^^^^^^
+Excercises
+^^^^^^^^^^
 Compare the multi-fidelity mean to the single-fidelity means using only one model
 
 Increase the target cost
@@ -158,7 +158,7 @@ Change the estimator. Names of the available estimators can be printed via
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.008 seconds)
+   **Total running time of the script:** ( 0 minutes  0.006 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_multifidelity_quadrature.py:

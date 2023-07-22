@@ -186,7 +186,70 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <span class="n">plot_tensor_product_lagrange_basis_2d</span><span class="p">(</span><span class="n">quad_rule</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_001.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_001.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>To construct a surrogate using tensor product interpolation we simply multiply all such basis functions by the value of the function <span class="math notranslate nohighlight">\(f_\ai\)</span> evaluated at the corresponding interpolation point. The following uses tensor product interpolation to approximate the simple function</p>
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_001.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_001.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>clenshaw_curtis_pts_wts failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+clenshaw_curtis_pts_wts failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+</pre></div>
+</div>
+<p>To construct a surrogate using tensor product interpolation we simply multiply all such basis functions by the value of the function <span class="math notranslate nohighlight">\(f_\ai\)</span> evaluated at the corresponding interpolation point. The following uses tensor product interpolation to approximate the simple function</p>
 <div class="math notranslate nohighlight">
 \[f_\ai(\rv) = \cos(2\pi\rv_1)\cos(2\pi\rv_2), \qquad \rv\in\rvdom=[-1,1]^2\]</div>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">f</span><span class="p">(</span><span class="n">z</span><span class="p">):</span> <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">z</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:])</span> <span class="o">*</span>
@@ -220,7 +283,28 @@ Here we will use the nested Clenshaw-Curtis points</p>
     <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">levels</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;coolwarm&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_002.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_002.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>The error in the tensor product interpolant is given by</p>
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_002.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_002.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+</pre></div>
+</div>
+<p>The error in the tensor product interpolant is given by</p>
 <div class="math notranslate nohighlight">
 \[\lVert f_\ai-f_{\ai,\bi}\rVert_{L^\infty(\rvdom)} \le C_{d,s} N_{\bi}^{-s/d}\]</div>
 <p>where <span class="math notranslate nohighlight">\(f_\alpha\)</span> has continuous mixed derivatives of order <span class="math notranslate nohighlight">\(s\)</span>.</p>
@@ -247,7 +331,9 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Quadrature mean&#39;</span><span class="p">,</span> <span class="n">surrogate_mean</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Quadrature mean 0.10540659444426355
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+Quadrature mean 0.10540659444426355
 </pre></div>
 </div>
 <p>Here we have recomptued the values of <span class="math notranslate nohighlight">\(f\)</span> at the interpolation samples, but in practice we sould just re-use the values collected when building the interpolant.</p>
@@ -259,7 +345,25 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Monte Carlo surrogate mean&#39;</span><span class="p">,</span> <span class="n">mc_mean</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Monte Carlo surrogate mean -7.621895538507388e-07
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+Monte Carlo surrogate mean -7.621895538505044e-07
 </pre></div>
 </div>
 </section>
@@ -299,7 +403,60 @@ Here we will use the nested Clenshaw-Curtis points</p>
     <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pvalues</span><span class="p">,</span> <span class="s1">&#39;--&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_004.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_004.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>The Lagrange polynomials induce oscillations around the discontinuity, which significantly decreases the convergence rate of the approximation. The picewise quadratic also over and undershoots around the discontinuity, but the phenomena is localized.</p>
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_004.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_004.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>clenshaw_curtis_pts_wts failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+clenshaw_curtis_pts_wts failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+clenshaw_curtis_pts_wts failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+clenshaw_curtis_pts_wts failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+</pre></div>
+</div>
+<p>The Lagrange polynomials induce oscillations around the discontinuity, which significantly decreases the convergence rate of the approximation. The picewise quadratic also over and undershoots around the discontinuity, but the phenomena is localized.</p>
 <p>The following compares the convergence of lagrange and picewise polynomial tensor product interpolants. Change the benchmark to see the effect of smoothness on the approximation accuracy.</p>
 <p>First define wrappers to build the tensor product interpolants</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">build_lagrange_tp</span><span class="p">(</span><span class="n">max_level_1d</span><span class="p">):</span>
@@ -365,7 +522,463 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_005.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_005.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>Similar behavior occurs when using quadrature.</p>
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_005.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_005.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+</pre></div>
+</div>
+<p>Similar behavior occurs when using quadrature.</p>
 <p>Load in the benchmark.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nvars</span> <span class="o">=</span> <span class="mi">2</span>
 <span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;genz&quot;</span><span class="p">,</span> <span class="n">nvars</span><span class="o">=</span><span class="n">nvars</span><span class="p">,</span> <span class="n">test_name</span><span class="o">=</span><span class="s2">&quot;oscillatory&quot;</span><span class="p">)</span>
@@ -397,7 +1010,355 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_006.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_006.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><section id="references">
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_006.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_006.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+clenshaw_curtis_pts_wts failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+update_smolyak_coefficients extension failed
+</pre></div>
+</div>
+<section id="references">
 <h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
 <div role="list" class="citation-list">
 <div class="citation" id="xksisc2002" role="doc-biblioentry">
@@ -417,7 +1378,7 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <p><a class="reference external" href="https://onlinelibrary.wiley.com/doi/abs/10.1002/nme.5312">C Soize and C. Farhat. A nonparametric probabilistic approach for quantifying uncertainties in low-dimensional and high-dimensional nonlinear models. International Journal for Numerical Methods in Engineering, 109(6), 837-888, 2017.</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  3.138 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  6.774 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-surrogates-plot-tensor-product-interpolation-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/6adbd4b57861b4fd460bd3079ed801ef/plot_tensor_product_interpolation.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_tensor_product_interpolation.py</span></code></a></p>

@@ -59,7 +59,6 @@
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorial</a><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-index Collocation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_variables.html">Random Variables</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_interface.html">Model interfacing</a></li>
@@ -164,10 +163,29 @@ interpolation. Here we use the samples of a Gaussian quadrature rule.</p>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_barycentric_interpolation_001.png" srcset="../_images/sphx_glr_plot_barycentric_interpolation_001.png" alt="plot barycentric interpolation" class = "sphx-glr-single-img"/><p>Barycentric interpolation can be used for any number of variables. However,
+<img src="../_images/sphx_glr_plot_barycentric_interpolation_001.png" srcset="../_images/sphx_glr_plot_barycentric_interpolation_001.png" alt="plot barycentric interpolation" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 213
+</pre></div>
+</div>
+<p>Barycentric interpolation can be used for any number of variables. However,
 the number of evaluations of the target function grows exponentially with
 the number of variables</p>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.047 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.064 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-barycentric-interpolation-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/6d103f35aaded0cf3e99afdcc546e2a3/plot_barycentric_interpolation.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_barycentric_interpolation.py</span></code></a></p>

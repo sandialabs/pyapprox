@@ -82,6 +82,35 @@ Sobol indices can be computed different ways. In the following we will use polyn
 
 
 
+.. rst-class:: sphx-glr-script-out
+
+ .. code-block:: none
+
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+
 
 
 
@@ -104,7 +133,7 @@ Now lets compare the estimated values with the exact value
 
  .. code-block:: none
 
-    [3.13906188e-01 4.43520053e-01 2.19587001e-08]
+    [3.13644142e-01 4.42927249e-01 2.65934368e-07]
     [0.31390519 0.44241114 0.        ]
 
 
@@ -161,7 +190,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  2.404 seconds)
+   **Total running time of the script:** ( 0 minutes  3.598 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_analysis_plot_sensitivity_analysis.py:

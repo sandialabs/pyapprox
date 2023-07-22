@@ -59,7 +59,6 @@
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">Software Tutorial</a><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-index Collocation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_variables.html">Random Variables</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="plot_interface.html">Model interfacing</a></li>
@@ -149,18 +148,13 @@ following the exposition in <a class="reference internal" href="#pyapprox2022" i
 <span class="kn">import</span> <span class="nn">warnings</span>
 <span class="c1"># warnings.filterwarnings(&quot;ignore&quot;, category=DeprecationWarning)</span>
 <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">2023</span><span class="p">)</span>
-<span class="n">torch</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span><span class="mi">2023</span><span class="p">)</span>
-</pre></div>
-</div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;torch._C.Generator object at 0x14d916ff0&gt;
+<span class="n">_</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span><span class="mi">2023</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>The tutorial can save the figures to file if desired. If you do want the plots
 set savefig=True</p>
-<blockquote>
-<div><p>savefig = True</p>
-</div></blockquote>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">savefig</span> <span class="o">=</span> <span class="kc">False</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># savefig = True</span>
+<span class="n">savefig</span> <span class="o">=</span> <span class="kc">False</span>
 </pre></div>
 </div>
 <p>The following code shows how to create and sample from two independent uniform random variables defined on <span class="math notranslate nohighlight">\([-2, 2]\)</span>. We use uniform variables here, but any marginal from the scipy.stats module can be used.</p>
@@ -220,7 +214,7 @@ prints the median execution time of the model.</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">())</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.03149188]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.03154039]
 </pre></div>
 </div>
 <p>Other wrappers available in PyApprox include those for running multiple models
@@ -243,6 +237,78 @@ diffusion equation. See documentation of the benchmark for more details).</p>
 </pre></div>
 </div>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[&#39;sobol_g&#39;, &#39;ishigami&#39;, &#39;oakley&#39;, &#39;rosenbrock&#39;, &#39;genz&#39;, &#39;cantilever_beam&#39;, &#39;wing_weight&#39;, &#39;piston&#39;, &#39;chemical_reaction&#39;, &#39;random_oscillator&#39;, &#39;coupled_springs&#39;, &#39;hastings_ecology&#39;, &#39;multi_index_advection_diffusion&#39;, &#39;advection_diffusion_kle_inversion&#39;, &#39;polynomial_ensemble&#39;, &#39;tunable_model_ensemble&#39;, &#39;short_column_ensemble&#39;, &#39;parameterized_nonlinear_model&#39;]
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
 dict_keys([&#39;negloglike&#39;, &#39;variable&#39;, &#39;noiseless_obs&#39;, &#39;obs&#39;, &#39;true_sample&#39;, &#39;obs_indices&#39;, &#39;obs_fun&#39;, &#39;KLE&#39;, &#39;mesh&#39;])
 </pre></div>
 </div>
@@ -334,7 +400,7 @@ to quantify error in the sensitivity indices from using a surrogate.</p>
 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Surrogate&quot;</span><span class="p">,</span> <span class="n">error</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Surrogate [0.09102201]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Surrogate [0.05443602]
 </pre></div>
 </div>
 <p>Now create a MCMCVariable to sample from the posterior. The benchmark
@@ -357,8 +423,8 @@ time</p>
 </pre></div>
 </div>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>JointVariable
-Computed Map Point [-0.29435322 -0.50083897  0.33631887]
-Acceptance rate 0.345
+Computed Map Point [ 0.89519953  1.43960341 -0.52807295]
+Acceptance rate 0.47
 </pre></div>
 </div>
 <p>Now plot the posterior samples with the 2D Marginals of the posterior. Note
@@ -405,15 +471,15 @@ that we do not know the value of the observations.</p>
 </pre></div>
 </div>
 <img src="../_images/sphx_glr_plot_paper_demo_005.png" srcset="../_images/sphx_glr_plot_paper_demo_005.png" alt="plot paper demo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Running 1000 outer model evaluations
-Predicted observation bounds 14.015558739913732 1.2516047704780018
-Evaluations took 125.454519033432
+Predicted observation bounds 14.368521367743933 0.1862208291821532
+Evaluations took 6.038690090179443
 Running 1000 inner model evaluations
-Evaluations took 201.8737268447876
-Computing utilities in serial took 0.2799699306488037
-Computing utilities in serial took 0.029626131057739258
-Computing utilities in serial took 0.035611867904663086
-[[0.0954915  0.42178277 0.0954915 ]
- [0.05449674 0.85355339 0.05449674]]
+Evaluations took 5.848551034927368
+Computing utilities in serial took 0.2003018856048584
+Computing utilities in serial took 0.024533748626708984
+Computing utilities in serial took 0.028362751007080078
+[[0.0954915  0.42178277 0.42178277]
+ [0.05449674 0.85355339 0.85355339]]
 </pre></div>
 </div>
 <p>Note that typically optimal
@@ -445,6 +511,331 @@ To setup the benchmark use the following</p>
     <span class="n">TimerModel</span><span class="p">(</span><span class="n">fwd_benchmark</span><span class="o">.</span><span class="n">model_ensemble</span><span class="p">),</span> <span class="n">num_config_vars</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </pre></div>
 </div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+
+compute_barycentric_weights_1d extension failed
+Failed with error: No module named &#39;pyapprox.cython.barycentric_interpolation&#39;
+
+    Error type: &lt;class &#39;ModuleNotFoundError&#39;&gt;
+    file/location: barycentric_interpolation.py | 48
+</pre></div>
+</div>
 <p>Here we will use Multi-fidelity statistical estimation to compute the
 mean value of the QoI to account for the uncertainty in the KLE cofficients.
 So first we must compute the covariance between the QoI returned by
@@ -459,22 +850,22 @@ the code below will use samples from the prior.</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">cov</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[[0.00246945 0.00194624 0.00208472 0.00164637 0.0024676  0.00194446
-  0.0020831  0.00164483]
- [0.00194624 0.00156171 0.00163776 0.00131613 0.001945   0.00156053
-  0.00163665 0.0013151 ]
- [0.00208472 0.00163776 0.00179375 0.00141233 0.00208418 0.00163711
-  0.00179327 0.00141177]
- [0.00164637 0.00131613 0.00141233 0.00113068 0.00164613 0.00131581
-  0.0014121  0.00113038]
- [0.0024676  0.001945   0.00208418 0.00164613 0.00246583 0.00194328
-  0.00208263 0.00164464]
- [0.00194446 0.00156053 0.00163711 0.00131581 0.00194328 0.00155941
-  0.00163605 0.00131482]
- [0.0020831  0.00163665 0.00179327 0.0014121  0.00208263 0.00163605
-  0.00179285 0.00141158]
- [0.00164483 0.0013151  0.00141177 0.00113038 0.00164464 0.00131482
-  0.00141158 0.00113013]]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[[0.01251412 0.01144806 0.01072525 0.00968564 0.01253109 0.01146204
+  0.01073947 0.00969732]
+ [0.01144806 0.01060934 0.00979071 0.00894832 0.01146434 0.0106228
+  0.00980431 0.00895954]
+ [0.01072525 0.00979071 0.00926167 0.008341   0.01074109 0.00980375
+  0.00927501 0.00835195]
+ [0.00968564 0.00894832 0.008341   0.00759577 0.0097004  0.00896051
+  0.00835339 0.00760598]
+ [0.01253109 0.01146434 0.01074109 0.0097004  0.01254817 0.01147841
+  0.0107554  0.00971216]
+ [0.01146204 0.0106228  0.00980375 0.00896051 0.01147841 0.01063634
+  0.00981743 0.0089718 ]
+ [0.01073947 0.00980431 0.00927501 0.00835339 0.0107554  0.00981743
+  0.00928843 0.00836441]
+ [0.00969732 0.00895954 0.00835195 0.00760598 0.00971216 0.0089718
+  0.00836441 0.00761626]]
 </pre></div>
 </div>
 <p>By using a WorkTrackingModel we can extract the median costs
@@ -514,7 +905,7 @@ for each run</p>
 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Predicted variance&quot;</span><span class="p">,</span> <span class="n">best_est</span><span class="o">.</span><span class="n">optimized_variance</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance 4.84624417752133e-07
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance 3.3843426739379908e-06
 </pre></div>
 </div>
 <p>Now we can plot the relative performance of the single and multi-fidelity
@@ -542,7 +933,7 @@ estimates of the mean before requiring any additional model evaluations</p>
     <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;acv-variance-reduction.pdf&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../_images/sphx_glr_plot_paper_demo_007.png" srcset="../_images/sphx_glr_plot_paper_demo_007.png" alt="plot paper demo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[9.78768226e+00 9.91557684e+01 9.99557684e+02 9.99894877e+03] 1
+<img src="../_images/sphx_glr_plot_paper_demo_007.png" srcset="../_images/sphx_glr_plot_paper_demo_007.png" alt="plot paper demo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[9.74934166e+00 9.98696067e+01 9.98263682e+02 9.99908039e+03] 1
 </pre></div>
 </div>
 <p>It is clear that the multi-fidelity estimator will be more computationally
@@ -559,7 +950,7 @@ is ready to actually estimate the mean QoI they can use</p>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Mean QoI 0.524862037525883
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Mean QoI 0.510429358059939
 </pre></div>
 </div>
 <section id="references">
@@ -570,7 +961,7 @@ is ready to actually estimate the mean QoI they can use</p>
 <p><a class="reference external" href="https://www.osti.gov/biblio/1879614">Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022)</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 6 minutes  19.697 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  33.962 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-paper-demo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/4231eb2cab42df6435f116bfe8f5e15a/plot_paper_demo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_paper_demo.py</span></code></a></p>

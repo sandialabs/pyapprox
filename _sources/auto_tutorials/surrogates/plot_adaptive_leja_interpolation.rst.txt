@@ -243,10 +243,76 @@ Now we are in a position to start the adaptive process
 
  .. code-block:: none
 
-    [1 2] 4.1460014785669786e-15
+    halton_sequence extension failed
+    Failed with error: No module named 'pyapprox.cython.utilities'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: low_discrepancy_sequences.py | 239
+    
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    [1 2] 4.146001447686336e-15
     Accuracy misleadingly appears reached because admissibility  criterion is preventing new subspaces from being added to the active set
-    [0 3] 4.1460014785669786e-15
+    [0 3] 4.146001447686336e-15
     Accuracy misleadingly appears reached because admissibility  criterion is preventing new subspaces from being added to the active set
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
+    evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
 
 
 
@@ -304,7 +370,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.220 seconds)
+   **Total running time of the script:** ( 0 minutes  1.621 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py:

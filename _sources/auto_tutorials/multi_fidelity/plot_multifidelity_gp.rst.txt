@@ -190,7 +190,7 @@ Now lets plot the structure of the multi-fidelity covariance matrix when using t
  .. code-block:: none
 
 
-    <matplotlib.colorbar.Colorbar object at 0x16c747280>
+    <matplotlib.colorbar.Colorbar object at 0x13c063790>
 
 
 
@@ -738,7 +738,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  3.423 seconds)
+   **Total running time of the script:** ( 0 minutes  4.617 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multifidelity_gp.py:

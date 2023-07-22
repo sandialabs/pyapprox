@@ -54,31 +54,26 @@ First lets load all the necessary modules and set the random seeds for reproduci
     import warnings
     # warnings.filterwarnings("ignore", category=DeprecationWarning)
     np.random.seed(2023)
-    torch.manual_seed(2023)
+    _ = torch.manual_seed(2023)
 
 
 
 
 
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
-
-    <torch._C.Generator object at 0x14d916ff0>
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 37-40
+.. GENERATED FROM PYTHON SOURCE LINES 37-39
 
 The tutorial can save the figures to file if desired. If you do want the plots
 set savefig=True
- savefig = True
 
-.. GENERATED FROM PYTHON SOURCE LINES 40-42
+.. GENERATED FROM PYTHON SOURCE LINES 39-43
 
 .. code-block:: default
 
+
+    # savefig = True
     savefig = False
 
 
@@ -88,11 +83,11 @@ set savefig=True
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 43-44
+.. GENERATED FROM PYTHON SOURCE LINES 44-45
 
 The following code shows how to create and sample from two independent uniform random variables defined on :math:`[-2, 2]`. We use uniform variables here, but any marginal from the scipy.stats module can be used.
 
-.. GENERATED FROM PYTHON SOURCE LINES 44-50
+.. GENERATED FROM PYTHON SOURCE LINES 45-51
 
 .. code-block:: default
 
@@ -120,13 +115,13 @@ The following code shows how to create and sample from two independent uniform r
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 51-54
+.. GENERATED FROM PYTHON SOURCE LINES 52-55
 
 PyApprox supports various types of variable transformations. The following code
 shows how to use an affinte transformation to map samples from variables
 to samples from the variable's canonical form.
 
-.. GENERATED FROM PYTHON SOURCE LINES 54-58
+.. GENERATED FROM PYTHON SOURCE LINES 55-59
 
 .. code-block:: default
 
@@ -152,7 +147,7 @@ to samples from the variable's canonical form.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 59-65
+.. GENERATED FROM PYTHON SOURCE LINES 60-66
 
 Pyapprox provides many utilities for interfacing with complex numerical codes.
 The following shows how to wrap a model and store the wall time required
@@ -161,7 +156,7 @@ with a random execution time that takes in one sample at a time, i.e. a
 1D array. Then wrap that model so that multiple samples can be evaluated at
 once.
 
-.. GENERATED FROM PYTHON SOURCE LINES 65-75
+.. GENERATED FROM PYTHON SOURCE LINES 66-76
 
 .. code-block:: default
 
@@ -182,13 +177,13 @@ once.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 76-79
+.. GENERATED FROM PYTHON SOURCE LINES 77-80
 
 Now wrap the latter function and run it while tracking
 their execution times. The last print statement
 prints the median execution time of the model.
 
-.. GENERATED FROM PYTHON SOURCE LINES 79-84
+.. GENERATED FROM PYTHON SOURCE LINES 80-85
 
 .. code-block:: default
 
@@ -205,19 +200,19 @@ prints the median execution time of the model.
 
  .. code-block:: none
 
-    [0.03149188]
+    [0.03154039]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 85-89
+.. GENERATED FROM PYTHON SOURCE LINES 86-90
 
 Other wrappers available in PyApprox include those for running multiple models
 at once, useful for multi-fidelity methods, wrappers that fix a subset of inputs
 to user specified values, wrappers that only return a subset of all
 possible model ouputs, and wrappers for evaluating samples in parallel.
 
-.. GENERATED FROM PYTHON SOURCE LINES 91-98
+.. GENERATED FROM PYTHON SOURCE LINES 92-99
 
 Pyapprox provide numerous benchmarks for verifying, validating and comparing
 model analysis algorithms. The following list the names of all benchmarks and
@@ -227,7 +222,7 @@ determining the true coefficients of the Karhunene Loeve expansion (KLE)
 used to characterize the uncertain diffusivity field of an advection
 diffusion equation. See documentation of the benchmark for more details).
 
-.. GENERATED FROM PYTHON SOURCE LINES 98-105
+.. GENERATED FROM PYTHON SOURCE LINES 99-106
 
 .. code-block:: default
 
@@ -247,16 +242,88 @@ diffusion equation. See documentation of the benchmark for more details).
  .. code-block:: none
 
     ['sobol_g', 'ishigami', 'oakley', 'rosenbrock', 'genz', 'cantilever_beam', 'wing_weight', 'piston', 'chemical_reaction', 'random_oscillator', 'coupled_springs', 'hastings_ecology', 'multi_index_advection_diffusion', 'advection_diffusion_kle_inversion', 'polynomial_ensemble', 'tunable_model_ensemble', 'short_column_ensemble', 'parameterized_nonlinear_model']
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
     dict_keys(['negloglike', 'variable', 'noiseless_obs', 'obs', 'true_sample', 'obs_indices', 'obs_fun', 'KLE', 'mesh'])
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 106-107
+.. GENERATED FROM PYTHON SOURCE LINES 107-108
 
 The following plots the modes of the KLE
 
-.. GENERATED FROM PYTHON SOURCE LINES 107-113
+.. GENERATED FROM PYTHON SOURCE LINES 108-114
 
 .. code-block:: default
 
@@ -278,7 +345,7 @@ The following plots the modes of the KLE
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 114-122
+.. GENERATED FROM PYTHON SOURCE LINES 115-123
 
 PyApprox provides many popular methods for constructing surrogates
 that once constructed can be evaluated in place of a computaionally
@@ -289,7 +356,7 @@ Here we use to compute the error of the surrogate as it is constructed using
 validation data. Uncomment the code to use a polynomial based surrogate instead
 of a GP. The user does not have to change any subsequent code
 
-.. GENERATED FROM PYTHON SOURCE LINES 122-144
+.. GENERATED FROM PYTHON SOURCE LINES 123-145
 
 .. code-block:: default
 
@@ -322,11 +389,11 @@ of a GP. The user does not have to change any subsequent code
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 145-146
+.. GENERATED FROM PYTHON SOURCE LINES 146-147
 
 We can plot the errors obtained from the callback with
 
-.. GENERATED FROM PYTHON SOURCE LINES 146-159
+.. GENERATED FROM PYTHON SOURCE LINES 147-160
 
 .. code-block:: default
 
@@ -355,7 +422,7 @@ We can plot the errors obtained from the callback with
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 160-169
+.. GENERATED FROM PYTHON SOURCE LINES 161-170
 
 Now we will perform a sensitivity analysis. Specifically we compute
 variance based sensitivity indices that measure the impact of each KLE mode
@@ -367,7 +434,7 @@ the drastic increase in computational cost. Warning: using the numerical model
 will take many minutes. The plots in the figure, generated from
 left to right are: main effect, largest Sobol indices and total effect indices.
 
-.. GENERATED FROM PYTHON SOURCE LINES 169-178
+.. GENERATED FROM PYTHON SOURCE LINES 170-179
 
 .. code-block:: default
 
@@ -392,7 +459,7 @@ left to right are: main effect, largest Sobol indices and total effect indices.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 179-188
+.. GENERATED FROM PYTHON SOURCE LINES 180-189
 
 Now we will use the surrogate with Bayesian inference to learn the
 coefficients of the KL. Specifically we will draw a set of samples from
@@ -404,7 +471,7 @@ and print out the error which can be compared to the errors previously plotted.
 The error of the original surrogate was kept low to demonstrate the ability
 to quantify error in the sensitivity indices from using a surrogate.
 
-.. GENERATED FROM PYTHON SOURCE LINES 188-194
+.. GENERATED FROM PYTHON SOURCE LINES 189-195
 
 .. code-block:: default
 
@@ -422,12 +489,12 @@ to quantify error in the sensitivity indices from using a surrogate.
 
  .. code-block:: none
 
-    Surrogate [0.09102201]
+    Surrogate [0.05443602]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 195-203
+.. GENERATED FROM PYTHON SOURCE LINES 196-204
 
 Now create a MCMCVariable to sample from the posterior. The benchmark
 has already formulated the negative log likelihood that is needed. Here
@@ -438,7 +505,7 @@ Uncomment the commented code to use the numerical model instead of the surrogate
 with the MCMC algorithm. Again note the significant increase in computational
 time
 
-.. GENERATED FROM PYTHON SOURCE LINES 203-214
+.. GENERATED FROM PYTHON SOURCE LINES 204-215
 
 .. code-block:: default
 
@@ -462,20 +529,20 @@ time
  .. code-block:: none
 
     JointVariable
-    Computed Map Point [-0.29435322 -0.50083897  0.33631887]
-    Acceptance rate 0.345
+    Computed Map Point [ 0.89519953  1.43960341 -0.52807295]
+    Acceptance rate 0.47
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 215-219
+.. GENERATED FROM PYTHON SOURCE LINES 216-220
 
 Now plot the posterior samples with the 2D Marginals of the posterior. Note
 do not do this with the numerical model as this would take an eternity due
 to the cost of evaluating the numerical model, which is much higher relative
 to the cost of running the surrogate.
 
-.. GENERATED FROM PYTHON SOURCE LINES 219-228
+.. GENERATED FROM PYTHON SOURCE LINES 220-229
 
 .. code-block:: default
 
@@ -500,7 +567,7 @@ to the cost of running the surrogate.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 229-235
+.. GENERATED FROM PYTHON SOURCE LINES 230-236
 
 In the Bayesian inference above we used a fixed number of observations
 at randomly chosen spatial locations. However choosing observation locations
@@ -509,7 +576,7 @@ in the parameters equally. Here we use Bayesian optimal experimental design
 to choose the 3 best design locations from the previously observed 10 pretending
 that we do not know the value of the observations.
 
-.. GENERATED FROM PYTHON SOURCE LINES 235-258
+.. GENERATED FROM PYTHON SOURCE LINES 236-259
 
 .. code-block:: default
 
@@ -550,20 +617,20 @@ that we do not know the value of the observations.
  .. code-block:: none
 
     Running 1000 outer model evaluations
-    Predicted observation bounds 14.015558739913732 1.2516047704780018
-    Evaluations took 125.454519033432
+    Predicted observation bounds 14.368521367743933 0.1862208291821532
+    Evaluations took 6.038690090179443
     Running 1000 inner model evaluations
-    Evaluations took 201.8737268447876
-    Computing utilities in serial took 0.2799699306488037
-    Computing utilities in serial took 0.029626131057739258
-    Computing utilities in serial took 0.035611867904663086
-    [[0.0954915  0.42178277 0.0954915 ]
-     [0.05449674 0.85355339 0.05449674]]
+    Evaluations took 5.848551034927368
+    Computing utilities in serial took 0.2003018856048584
+    Computing utilities in serial took 0.024533748626708984
+    Computing utilities in serial took 0.028362751007080078
+    [[0.0954915  0.42178277 0.42178277]
+     [0.05449674 0.85355339 0.85355339]]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 259-269
+.. GENERATED FROM PYTHON SOURCE LINES 260-270
 
 Note that typically optimal
 experimental design (OED) would be used before conducting Bayesian inference.
@@ -576,7 +643,7 @@ calibrations used by OED must only be sufficient to distinguish between designs.
 This accuracy is typically much lower than the accuracy required in
 estimates of uncertainty in the parameters or predictions needed for decision making tasks such as risk assessment.
 
-.. GENERATED FROM PYTHON SOURCE LINES 271-282
+.. GENERATED FROM PYTHON SOURCE LINES 272-283
 
 Here we will set up a related benchmark to the one we have been using,
 which can be used to demonstrate the forward propagation of uncertainty.
@@ -590,7 +657,7 @@ and accuracy that use different discretizations of the spatial PDE mesh
 and number of time steps which can be used with multi-fideilty methods.
 To setup the benchmark use the following
 
-.. GENERATED FROM PYTHON SOURCE LINES 282-289
+.. GENERATED FROM PYTHON SOURCE LINES 283-290
 
 .. code-block:: default
 
@@ -605,10 +672,339 @@ To setup the benchmark use the following
 
 
 
+.. rst-class:: sphx-glr-script-out
+
+ .. code-block:: none
+
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
+    compute_barycentric_weights_1d extension failed
+    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
+
+        Error type: <class 'ModuleNotFoundError'>
+        file/location: barycentric_interpolation.py | 48
+    
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 290-295
+
+.. GENERATED FROM PYTHON SOURCE LINES 291-296
 
 Here we will use Multi-fidelity statistical estimation to compute the
 mean value of the QoI to account for the uncertainty in the KLE cofficients.
@@ -616,7 +1012,7 @@ So first we must compute the covariance between the QoI returned by
 each of our models. We use samples from the posterior. But uncommenting
 the code below will use samples from the prior.
 
-.. GENERATED FROM PYTHON SOURCE LINES 295-303
+.. GENERATED FROM PYTHON SOURCE LINES 296-304
 
 .. code-block:: default
 
@@ -636,27 +1032,27 @@ the code below will use samples from the prior.
 
  .. code-block:: none
 
-    [[0.00246945 0.00194624 0.00208472 0.00164637 0.0024676  0.00194446
-      0.0020831  0.00164483]
-     [0.00194624 0.00156171 0.00163776 0.00131613 0.001945   0.00156053
-      0.00163665 0.0013151 ]
-     [0.00208472 0.00163776 0.00179375 0.00141233 0.00208418 0.00163711
-      0.00179327 0.00141177]
-     [0.00164637 0.00131613 0.00141233 0.00113068 0.00164613 0.00131581
-      0.0014121  0.00113038]
-     [0.0024676  0.001945   0.00208418 0.00164613 0.00246583 0.00194328
-      0.00208263 0.00164464]
-     [0.00194446 0.00156053 0.00163711 0.00131581 0.00194328 0.00155941
-      0.00163605 0.00131482]
-     [0.0020831  0.00163665 0.00179327 0.0014121  0.00208263 0.00163605
-      0.00179285 0.00141158]
-     [0.00164483 0.0013151  0.00141177 0.00113038 0.00164464 0.00131482
-      0.00141158 0.00113013]]
+    [[0.01251412 0.01144806 0.01072525 0.00968564 0.01253109 0.01146204
+      0.01073947 0.00969732]
+     [0.01144806 0.01060934 0.00979071 0.00894832 0.01146434 0.0106228
+      0.00980431 0.00895954]
+     [0.01072525 0.00979071 0.00926167 0.008341   0.01074109 0.00980375
+      0.00927501 0.00835195]
+     [0.00968564 0.00894832 0.008341   0.00759577 0.0097004  0.00896051
+      0.00835339 0.00760598]
+     [0.01253109 0.01146434 0.01074109 0.0097004  0.01254817 0.01147841
+      0.0107554  0.00971216]
+     [0.01146204 0.0106228  0.00980375 0.00896051 0.01147841 0.01063634
+      0.00981743 0.0089718 ]
+     [0.01073947 0.00980431 0.00927501 0.00835339 0.0107554  0.00981743
+      0.00928843 0.00836441]
+     [0.00969732 0.00895954 0.00835195 0.00760598 0.00971216 0.0089718
+      0.00836441 0.00761626]]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 304-309
+.. GENERATED FROM PYTHON SOURCE LINES 305-310
 
 By using a WorkTrackingModel we can extract the median costs
 of evaluatin each model which is needed to predict the
@@ -664,7 +1060,7 @@ error of the multi-fidelity estimate of the mean which we can
 compare to a prediction of the single fidelity estimate that only uses
 the highest fidelity model.
 
-.. GENERATED FROM PYTHON SOURCE LINES 309-314
+.. GENERATED FROM PYTHON SOURCE LINES 310-315
 
 .. code-block:: default
 
@@ -680,12 +1076,12 @@ the highest fidelity model.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 315-317
+.. GENERATED FROM PYTHON SOURCE LINES 316-318
 
 Now visualize the correlation between the models and their computational
 cost relative to the highest-fidelity model cost
 
-.. GENERATED FROM PYTHON SOURCE LINES 317-324
+.. GENERATED FROM PYTHON SOURCE LINES 318-325
 
 .. code-block:: default
 
@@ -714,14 +1110,14 @@ cost relative to the highest-fidelity model cost
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 325-329
+.. GENERATED FROM PYTHON SOURCE LINES 326-330
 
 Now find the best multi-fidelity estimator among all available option
 Note, the exact predicted variance will change from run to run even with the
 same seed because the computational time measured will change slightly
 for each run
 
-.. GENERATED FROM PYTHON SOURCE LINES 329-337
+.. GENERATED FROM PYTHON SOURCE LINES 330-338
 
 .. code-block:: default
 
@@ -741,17 +1137,17 @@ for each run
 
  .. code-block:: none
 
-    Predicted variance 4.84624417752133e-07
+    Predicted variance 3.3843426739379908e-06
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 338-340
+.. GENERATED FROM PYTHON SOURCE LINES 339-341
 
 Now we can plot the relative performance of the single and multi-fidelity
 estimates of the mean before requiring any additional model evaluations
 
-.. GENERATED FROM PYTHON SOURCE LINES 340-362
+.. GENERATED FROM PYTHON SOURCE LINES 341-363
 
 .. code-block:: default
 
@@ -790,18 +1186,18 @@ estimates of the mean before requiring any additional model evaluations
 
  .. code-block:: none
 
-    [9.78768226e+00 9.91557684e+01 9.99557684e+02 9.99894877e+03] 1
+    [9.74934166e+00 9.98696067e+01 9.98263682e+02 9.99908039e+03] 1
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 363-366
+.. GENERATED FROM PYTHON SOURCE LINES 364-367
 
 It is clear that the multi-fidelity estimator will be more computationally
 efficient for multiple computational budgets (target costs). Once the user
 is ready to actually estimate the mean QoI they can use
 
-.. GENERATED FROM PYTHON SOURCE LINES 366-376
+.. GENERATED FROM PYTHON SOURCE LINES 367-377
 
 .. code-block:: default
 
@@ -823,12 +1219,12 @@ is ready to actually estimate the mean QoI they can use
 
  .. code-block:: none
 
-    Mean QoI 0.524862037525883
+    Mean QoI 0.510429358059939
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 377-380
+.. GENERATED FROM PYTHON SOURCE LINES 378-381
 
 References
 ^^^^^^^^^^
@@ -837,7 +1233,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 6 minutes  19.697 seconds)
+   **Total running time of the script:** ( 0 minutes  33.962 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_paper_demo.py:

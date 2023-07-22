@@ -17,23 +17,6 @@ These examples provide less mathematical background than the set of tutorials fo
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Multi-index Collocation">
-
-.. only:: html
-
-  .. image:: /auto_examples/images/thumb/sphx_glr_plot_multiindex_collocation_thumb.png
-    :alt:
-
-  :ref:`sphx_glr_auto_examples_plot_multiindex_collocation.py`
-
-.. raw:: html
-
-      <div class="sphx-glr-thumbnail-title">Multi-index Collocation</div>
-    </div>
-
-
-.. raw:: html
-
     <div class="sphx-glr-thumbcontainer" tooltip="PyApprox supports multivariate random variables comprised of independent univariate variables. ...">
 
 .. only:: html
@@ -261,7 +244,6 @@ These examples provide less mathematical background than the set of tutorials fo
 .. toctree::
    :hidden:
 
-   /auto_examples/plot_multiindex_collocation
    /auto_examples/plot_variables
    /auto_examples/plot_setup_model
    /auto_examples/plot_interface

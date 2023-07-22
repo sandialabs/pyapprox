@@ -258,7 +258,7 @@ where :math:`W_j` denotes the cost of evaluating the jth model and :math:`W_{\ma
 
     [9.948000e+00 9.990200e+01 9.997170e+02 9.999442e+03] 1
 
-    <matplotlib.legend.Legend object at 0x2b3feb370>
+    <matplotlib.legend.Legend object at 0x13b4a3d30>
 
 
 
@@ -295,7 +295,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  24.980 seconds)
+   **Total running time of the script:** ( 0 minutes  26.489 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multilevel_blue.py:
