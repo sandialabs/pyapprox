@@ -165,7 +165,7 @@ to download the full example code</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">costs</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.048840999603271484, 0.030681848526000977, 0.04108595848083496, 0.04320979118347168, 0.03810906410217285, 0.052477121353149414, 0.03301215171813965, 0.033239126205444336, 0.027804851531982422, 0.008516073226928711]}
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.048851966857910156, 0.030686140060424805, 0.04111194610595703, 0.04323410987854004, 0.03814506530761719, 0.05255603790283203, 0.0352940559387207, 0.03332686424255371, 0.027848005294799805, 0.008494138717651367]}
 </pre></div>
 </div>
 <p>We can also call the work tracker to query the median cost for a model with a given id. The default id is 0.</p>
@@ -173,7 +173,7 @@ to download the full example code</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">worktracking_fun</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">(</span><span class="n">fun_id</span><span class="p">))</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.0356741]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.03671956]
 </pre></div>
 </div>
 </section>
@@ -221,8 +221,8 @@ WorkTrackingModel. PyApprox assumes that the configure variables are the last ro
 <span class="nb">print</span><span class="p">(</span><span class="n">worktracking_fun_ensemble</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">(</span><span class="n">query_fun_ids</span><span class="p">))</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.04669189453125, 0.0359339714050293, 0.007134914398193359, 0.04042482376098633, 0.005942106246948242], (1.0,): [0.06744694709777832, 0.07487678527832031, 0.0667870044708252, 0.06782698631286621, 0.08484578132629395]}
-[0.03593397 0.06782699]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.04669690132141113, 0.04035592079162598, 0.0060231685638427734, 0.040384769439697266, 0.005959987640380859], (1.0,): [0.06752824783325195, 0.07092499732971191, 0.0667259693145752, 0.06674790382385254, 0.0886991024017334]}
+[0.04035592 0.06752825]
 </pre></div>
 </div>
 <p>As expected there are 5 samples tracked for each model and the median evaluation time of the second function is about twice as large as for the first function.</p>
@@ -264,9 +264,9 @@ be used with WorkTrackingModel using the sequence of wrappers below.</p>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;With </span><span class="si">{</span><span class="n">max_eval_concurrency</span><span class="si">}</span><span class="s1"> threads that took </span><span class="si">{</span><span class="n">t1</span><span class="o">-</span><span class="n">t0</span><span class="si">}</span><span class="s1"> seconds&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>With 1 threads that took 0.4681379795074463 seconds
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>With 1 threads that took 0.4701979160308838 seconds
 Warning set OMP_NUM_THREADS=1 for best performance
-With 4 threads that took 1.219390869140625 seconds
+With 4 threads that took 1.2375938892364502 seconds
 </pre></div>
 </div>
 <p>Lets print a summary of the costs to make sure individual function evaluation
@@ -276,8 +276,8 @@ costs are still being recorded correctly</p>
 </div>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>WorkTracker Cost Summary
 Funtion ID Median Cost
-(0.0,)     0.04051709175109863
-(1.0,)     0.06640458106994629
+(0.0,)     0.012865543365478516
+(1.0,)     0.07081997394561768
 </pre></div>
 </div>
 </section>
@@ -287,7 +287,7 @@ Funtion ID Median Cost
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># sphinx_gallery_thumbnail_path = &#39;./figures/cantilever-beam.png&#39;</span>
 </pre></div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  3.037 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  3.076 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-interface-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/b46e5c7eeabdb0d4d28ef61aca452c9d/plot_interface.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_interface.py</span></code></a></p>

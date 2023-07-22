@@ -209,11 +209,6 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">values_train</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
-evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
-evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
-</pre></div>
-</div>
 <p>Now let the prior on the coefficients of <span class="math notranslate nohighlight">\(Y_\alpha\)</span> be Gaussian with mean <span class="math notranslate nohighlight">\(\mu_\alpha\)</span> and covariance <span class="math notranslate nohighlight">\(\Sigma_{\alpha\alpha}\)</span>, and the covariance between the coefficients of different information sources <span class="math notranslate nohighlight">\(Y_\alpha\)</span> and <span class="math notranslate nohighlight">\(Y_\beta\)</span> be <span class="math notranslate nohighlight">\(\Sigma_{\alpha\beta}\)</span>, such that the joint density of the coefficients of all information sources is Gaussian with mean and covariance given by</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}\mu=\left[\mu_1^\top,\ldots,\mu_M^\top\right]^\top` \qquad \Sigma=\begin{bmatrix}\Sigma_{11} &amp;\Sigma_{12} &amp;\ldots &amp;\Sigma_{1M} \\ \Sigma_{21} &amp;\Sigma_{22} &amp;\ldots &amp;\Sigma_{2M}\\\vdots &amp;\vdots &amp; \ddots &amp;\vdots \\ \Sigma_{M1} &amp;\Sigma_{M2} &amp;\ldots &amp;\Sigma_{MM}\end{bmatrix}\end{split}\]</div>
@@ -248,10 +243,7 @@ evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
 <span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">f3</span><span class="p">(</span><span class="n">xx</span><span class="p">),</span> <span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$f_3$&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_gaussian_mfnets_002.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_002.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
-</pre></div>
-</div>
-<p>Unfortunately by assuming that the coefficients of each information source are independent the lower fidelity data is not informing the estimation of the coefficients of the high-fidelity approximation. This statement can be verified by computing an approximation with only the high-fidelity data</p>
+<img src="../../_images/sphx_glr_plot_gaussian_mfnets_002.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_002.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><p>Unfortunately by assuming that the coefficients of each information source are independent the lower fidelity data is not informing the estimation of the coefficients of the high-fidelity approximation. This statement can be verified by computing an approximation with only the high-fidelity data</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">single_hf_posterior</span> <span class="o">=</span> <span class="n">laplace_posterior_approximation_for_linear_models</span><span class="p">(</span>
     <span class="n">basis_matrices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">hf_prior</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">hf_prior</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
     <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">noise_matrices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span> <span class="n">values_train</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
@@ -317,10 +309,7 @@ evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
 <span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">f3</span><span class="p">(</span><span class="n">xx</span><span class="p">),</span> <span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$f_3$&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_gaussian_mfnets_004.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_004.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
-</pre></div>
-</div>
-<p>Depsite using only a very small number of samples of the high-fidelity information source, the multi-fidelity approximation has smaller variance and the mean more closely approximates the true high-fidelity information source, when compared to the single fidelity strategy.</p>
+<img src="../../_images/sphx_glr_plot_gaussian_mfnets_004.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_004.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><p>Depsite using only a very small number of samples of the high-fidelity information source, the multi-fidelity approximation has smaller variance and the mean more closely approximates the true high-fidelity information source, when compared to the single fidelity strategy.</p>
 </section>
 <section id="gaussian-networks">
 <h2>Gaussian Networks<a class="headerlink" href="#gaussian-networks" title="Permalink to this heading"></a></h2>
@@ -417,13 +406,7 @@ f_3(\rv) &amp;= f_2(\rv)+\cos(3\pi\rv_1)\end{split}\]</div>
 <span class="n">_</span> <span class="o">=</span> <span class="n">plot_peer_network_with_data</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_gaussian_mfnets_005.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_005.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
-evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
-evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
-evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
-</pre></div>
-</div>
-<p>For this network we have <span class="math notranslate nohighlight">\(\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(2)=\{1,2\}\)</span> and the graph has one CPDs which for this example is given by</p>
+<img src="../../_images/sphx_glr_plot_gaussian_mfnets_005.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_005.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><p>For this network we have <span class="math notranslate nohighlight">\(\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(2)=\{1,2\}\)</span> and the graph has one CPDs which for this example is given by</p>
 <div class="math notranslate nohighlight">
 \[\mathbb{P}(\theta_3\mid \theta_1,\theta_2) \sim \mathcal{N}\left(A_{31}\theta_1+A_{32}\theta_2+b_3,\Sigma_{v_3}\right),\]</div>
 <p>with <span class="math notranslate nohighlight">\(b_3=0\)</span>.</p>
@@ -451,10 +434,7 @@ evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
 <span class="n">_</span> <span class="o">=</span> <span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">functions</span><span class="p">[</span><span class="mi">2</span><span class="p">](</span><span class="n">xx</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]),</span> <span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$f_3$&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_gaussian_mfnets_006.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_006.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
-</pre></div>
-</div>
-<section id="references">
+<img src="../../_images/sphx_glr_plot_gaussian_mfnets_006.png" srcset="../../_images/sphx_glr_plot_gaussian_mfnets_006.png" alt="plot gaussian mfnets" class = "sphx-glr-single-img"/><section id="references">
 <h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
 <div role="list" class="citation-list">
 <div class="citation" id="gjgeijuq2020" role="doc-biblioentry">
@@ -485,7 +465,7 @@ evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed
 <p>Noting that <span class="math notranslate nohighlight">\(\left(A^\top\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}\)</span> is the posterior covariance we obtain the usual expression for the posterior mean</p>
 <div class="math notranslate nohighlight">
 \[\mu^\mathrm{post}=\Sigma^\mathrm{post}\left(A^\top\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right)\]</div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.661 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.641 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/61a19ff484b6fbbccbed5bda217b6b9b/plot_gaussian_mfnets.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_gaussian_mfnets.py</span></code></a></p>

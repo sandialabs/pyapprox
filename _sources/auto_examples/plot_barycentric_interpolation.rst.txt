@@ -94,29 +94,6 @@ Now lets define the function we want to interpolate, e.g.
    :class: sphx-glr-single-img
 
 
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    multivariate_hierarchical_barycentric_lagrange_interpolation extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 213
-    
-
 
 
 
@@ -129,7 +106,7 @@ the number of variables
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.064 seconds)
+   **Total running time of the script:** ( 0 minutes  0.048 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_barycentric_interpolation.py:

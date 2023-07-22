@@ -200,7 +200,7 @@ prints the median execution time of the model.
 
  .. code-block:: none
 
-    [0.02975035]
+    [0.03101802]
 
 
 
@@ -242,78 +242,6 @@ diffusion equation. See documentation of the benchmark for more details).
  .. code-block:: none
 
     ['sobol_g', 'ishigami', 'oakley', 'rosenbrock', 'genz', 'cantilever_beam', 'wing_weight', 'piston', 'chemical_reaction', 'random_oscillator', 'coupled_springs', 'hastings_ecology', 'multi_index_advection_diffusion', 'advection_diffusion_kle_inversion', 'polynomial_ensemble', 'tunable_model_ensemble', 'short_column_ensemble', 'parameterized_nonlinear_model']
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
     dict_keys(['negloglike', 'variable', 'noiseless_obs', 'obs', 'true_sample', 'obs_indices', 'obs_fun', 'KLE', 'mesh'])
 
 
@@ -618,12 +546,12 @@ that we do not know the value of the observations.
 
     Running 1000 outer model evaluations
     Predicted observation bounds 14.368521367743933 0.1862208291821532
-    Evaluations took 6.097654104232788
+    Evaluations took 7.935432195663452
     Running 1000 inner model evaluations
-    Evaluations took 5.288910150527954
-    Computing utilities in serial took 0.20087194442749023
-    Computing utilities in serial took 0.025046110153198242
-    Computing utilities in serial took 0.03351783752441406
+    Evaluations took 6.951390266418457
+    Computing utilities in serial took 0.21903228759765625
+    Computing utilities in serial took 0.02485513687133789
+    Computing utilities in serial took 0.028775930404663086
     [[0.0954915  0.42178277 0.42178277]
      [0.05449674 0.85355339 0.85355339]]
 
@@ -671,335 +599,6 @@ To setup the benchmark use the following
 
 
 
-
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
-    compute_barycentric_weights_1d extension failed
-    Failed with error: No module named 'pyapprox.cython.barycentric_interpolation'
-
-        Error type: <class 'ModuleNotFoundError'>
-        file/location: barycentric_interpolation.py | 48
-    
 
 
 
@@ -1137,7 +736,7 @@ for each run
 
  .. code-block:: none
 
-    Predicted variance 3.39968691376498e-06
+    Predicted variance 3.500546156874328e-06
 
 
 
@@ -1186,7 +785,7 @@ estimates of the mean before requiring any additional model evaluations
 
  .. code-block:: none
 
-    [9.79375957e+00 9.97825054e+01 9.98180393e+02 9.99934885e+03] 1
+    [9.81725802e+00 9.97936215e+01 9.98267603e+02 9.99855495e+03] 1
 
 
 
@@ -1233,7 +832,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  31.178 seconds)
+   **Total running time of the script:** ( 0 minutes  38.202 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_paper_demo.py:
