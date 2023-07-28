@@ -26,7 +26,7 @@ print(integral)
 
 #%%
 # The quadrature recovers the integral value of 1/3 to machine precision. Note
-# unlike :class:`numpy.polynomial.legendre.leggauss` we are integrating with
+# unlike :class:`~numpy.polynomial.legendre.leggauss` we are integrating with
 # resepect to the uniform PDF.
 
 #%%
