@@ -14,7 +14,7 @@ class AynchModel(object):
 
     Parameters
     ----------
-    process sample: callable function (default=None)
+    process_sample: callable function (default=None)
         Function that overwrites the basic implementation
         which reads the sample in from a file called params_filename.
         This is useful if there are a number of pre-processing steps
@@ -45,10 +45,29 @@ class AynchModel(object):
         A identifier used when printing model evaluation info
 
     saved_data_basename : string (default=None)
-        The basename of the file used to store the output data from the 
+        The basename of the file used to store the output data from the
         model. A new file is created every time __call__ is exceuted.
         a unique identifier is created based upon the value of evaluation id
         when __call__ is started.
+
+    link_filenames : list (default=[])
+        List of filenames (strings), including their absolute path that will
+        be made available in each workdirectory using soft links
+
+    max_eval_concurrency : integer (default=1)
+        How many shell commands to execute a synchronously.
+
+    params_filename : string (default='params.in')
+        The name of the file containing the sample realization read in by the
+        shell script.
+
+    results_filename : string (default='results.out')
+        The name of the file containing the model output written by the
+        shell script.
+
+    params_file_header : string (default='')
+        A header that will be added to the params_file, which may be
+        required by some scripts.
     """
 
     def __init__(self, shell_command, max_eval_concurrency=1,
