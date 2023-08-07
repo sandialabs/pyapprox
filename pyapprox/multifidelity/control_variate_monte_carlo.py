@@ -89,6 +89,18 @@ def pkg_solve(A, b):
     return np.linalg.solve(A, b)
 
 
+def pkg_multi_dot(arrays):
+    if use_torch and pkg.is_tensor(arrays[0]):
+        return torch.linalg.multi_dot(arrays)
+    return np.linalg.multi_dot(arrays)
+
+
+def pkg_det(array):
+    if use_torch and pkg.is_tensor(array):
+        return torch.linalg.det(array)
+    return np.linalg.det(array)
+
+
 def check_safe_cast_to_integers(array):
     array_int = np.array(np.round(array), dtype=int)
     if not np.allclose(array, array_int, 1e-15):
@@ -1193,10 +1205,10 @@ def get_generalized_approximate_control_variate_weights(
     CF, cf = get_acv_discrepancy_covariances(cov, Fmat, fvec)
     try:
         weights = get_approximate_control_variate_weights(CF, cf)
-    except np.linalg.LinAlgError as err:
+    except np.linalg.LinAlgError:
         # print("linalgerror: acv weights failed")
         weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
-    except RuntimeError as err:
+    except RuntimeError:
         # print("runtime: acv weights failed")
         weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
     return weights, cf

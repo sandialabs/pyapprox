@@ -65,12 +65,8 @@ class AbstractMonteCarloEstimator(ABC):
         sampling_method : string
             Supported types are ["random", "sobol", "halton"]
         """
-        if cov.shape[0] != len(costs):
-            print(cov.shape, costs.shape)
-            raise ValueError("cov and costs are inconsistent")
+        self.cov, self.costs = self._check_cov(cov, costs)
 
-        self.cov = cov.copy()
-        self.costs = np.array(costs)
         self.variable = variable
         self.sampling_method = sampling_method
         self.set_random_state(None)
@@ -83,6 +79,12 @@ class AbstractMonteCarloEstimator(ABC):
                 self.cov_opt = pkg.tensor(self.cov, dtype=pkg.double)
             if not pkg.is_tensor(self.costs):
                 self.costs_opt = pkg.tensor(self.costs, dtype=pkg.double)
+
+    def _check_cov(self, cov, costs):
+        if cov.shape[0] != len(costs):
+            print(cov.shape, costs.shape)
+            raise ValueError("cov and costs are inconsistent")
+        return cov.copy(), np.array(costs)
 
     def set_sampling_method(self):
         sampling_methods = {
@@ -730,7 +732,7 @@ class AbstractNumericalACVEstimator(AbstractACVEstimator):
             opt_mfmc = allocate_samples_acv(
                 self.cov_opt, self.costs, target_cost, self, cons,
                 initial_guess=mfmc_initial_guess)
-            #print(opt[1], opt_mfmc[1])
+            # print(opt[1], opt_mfmc[1])
             if opt_mfmc[1] < opt[1]:
                 # print("using mfmc initial guess")
                 opt = opt_mfmc
@@ -871,7 +873,7 @@ class ACVGMFBEstimator(ACVGMFEstimator):
         target_cost = nhf_samples*self.costs[0]+nsample_ratios.dot(
             self.costs[1:])*nhf_samples
         best_rsq = -np.inf
-        for index in get_acv_recursion_indices(cov.shape[0]):
+        for index in get_acv_recursion_indices(self.nmodels):
             self.set_recursion_index(index)
             rsq = super()._get_rsquared(cov, nsample_ratios, target_cost)
             best_rsq = max(best_rsq, rsq)
@@ -1051,7 +1053,6 @@ class BestModelSubsetEstimator():
             self.__class__.__name__, self.best_est.__class__.__name__,
             self.optimized_variance, self.rounded_target_cost,
             self.best_model_indices)
-
 
 
 def compute_single_fidelity_and_approximate_control_variate_mean_estimates(
