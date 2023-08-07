@@ -725,8 +725,10 @@ class AbstractNumericalACVEstimator(AbstractACVEstimator):
             self.cov_opt, self.costs, target_cost, self,  cons,
             initial_guess=self.initial_guess)
 
-        if check_mfmc_model_costs_and_correlations(
-                self.costs, get_correlation_from_covariance(self.cov)):
+        if (check_mfmc_model_costs_and_correlations(
+                self.costs, get_correlation_from_covariance(self.cov)) and
+            len(self.cov_opt) == len(self.costs)):
+            # second condition above  will not be true for multiple qoi
             mfmc_initial_guess = allocate_samples_mfmc(
                 self.cov_opt, self.costs, target_cost)[0]
             opt_mfmc = allocate_samples_acv(

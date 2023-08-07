@@ -343,7 +343,7 @@ def check_mfmc_model_costs_and_correlations(costs, corr):
     Check that the model costs and correlations satisfy equation 3.12
     in MFMC paper.
     """
-    nmodels = corr.shape[0]
+    nmodels = len(costs)
     for ii in range(1, nmodels):
         if ii < nmodels-1:
             denom = corr[0, ii]**2 - corr[0, ii+1]**2
@@ -352,6 +352,7 @@ def check_mfmc_model_costs_and_correlations(costs, corr):
         if denom <= np.finfo(float).eps:
             return False
         corr_ratio = (corr[0, ii-1]**2 - corr[0, ii]**2)/denom
+        print(len(costs), nmodels)
         cost_ratio = costs[ii-1] / costs[ii]
         if corr_ratio >= cost_ratio:
             return False
@@ -384,7 +385,7 @@ def allocate_samples_mfmc(cov, costs, target_cost):
         The base 10 logarithm of the variance of the estimator
     """
 
-    nmodels = cov.shape[0]
+    nmodels = len(costs)
     corr = compute_correlations_from_covariance(cov)
     II = np.argsort(np.absolute(corr[0, 1:]))[::-1]
     if not np.allclose(II, np.arange(nmodels-1)):
