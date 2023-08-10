@@ -294,6 +294,43 @@ def get_multioutput_acv_variance_discrepancy_covariances(
     return discp_cov, discp_vec
 
 
+def torch_2x2_block(blocks):
+    return torch.vstack(
+        [torch.hstack(blocks[0]),
+         torch.hstack(blocks[1])])
+
+
+def get_multioutput_acv_mean_and_variance_discrepancy_covariances(
+        cov, V, W, B, Gmat, gvec, Hmat, hvec):
+    CF_mean, cf_mean = get_multioutput_acv_mean_discrepancy_covariances(
+        cov, Gmat, gvec)
+    CF_var, cf_var = get_multioutput_acv_variance_discrepancy_covariances(
+        V, W, Gmat, gvec, Hmat, hvec)
+    nmodels = len(gvec)+1
+    nqoi = cov.shape[0]//nmodels
+    nqsq = V.shape[0]//nmodels
+    CF_mean_var = torch.empty(
+        (nqoi*(nmodels-1), nqsq*(nmodels-1)), dtype=torch.double)
+    cf_mean_var = torch.empty((nqoi, nqsq*(nmodels-1)), dtype=torch.double)
+    cf_mean_var_T = torch.empty((nqsq*(nmodels-1), nqoi), dtype=torch.double)
+    for ii in range(nmodels-1):
+        B_0i = B[0:nqoi, (ii+1)*nqsq:(ii+2)*nqsq]
+        B_0i_T = B.T[0:nqsq, (ii+1)*nqoi:(ii+2)*nqoi]
+        cf_mean_var[ii*nqoi:(ii+1)*nqoi, ii*nqsq:(ii+1)*nqsq] = gvec[ii]*B_0i
+        cf_mean_var_T[ii*nqsq:(ii+1)*nqsq, ii*nqoi:(ii+1)*nqoi] = (
+            gvec[ii]*B_0i_T)
+        for jj in range(nmodels-1):
+            B_ij = B[(ii+1)*nqoi:(ii+2)*nqoi, (jj+1)*nqsq:(ii+2)*nqsq]
+            CF_mean_var[ii*nqoi:(ii+1)*nqsq, jj*nqsq:(jj+1)*nqsq] = (
+                Gmat[ii, jj]*B_ij)
+    CF = torch_2x2_block(
+        [[CF_mean, CF_mean_var],
+         [CF_mean_var.T, CF_var]])
+    cf = torch_2x2_block([[cf_mean, cf_mean_var],
+                          [cf_mean_var_T, cf_var]])
+    return CF, cf
+
+
 def get_npartition_samples_acvmf(nsamples_per_model):
     nmodels = len(nsamples_per_model)
     II = np.unique(nsamples_per_model.numpy(), return_index=True)[1]
@@ -378,8 +415,19 @@ class MultiOutputACVEstimator(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _estimate(self, values, weights):
+    def _sample_estimate(self, values):
         raise NotImplementedError
+
+    def _estimate(self, values, weights):
+        nmodels = len(values)
+        assert len(values) == nmodels
+        # high fidelity monte carlo estimate of mean
+        deltas = np.hstack(
+            [self._sample_estimate(values[ii][0]) -
+             self._sample_estimate(values[ii][1])
+             for ii in range(1, nmodels)])
+        est = self._sample_estimate(values[0][1]) + weights.numpy().dot(deltas)
+        return est
 
     def __call__(self, values):
         r"""
@@ -650,15 +698,8 @@ class MultiOutputACVMeanEstimator(MultiOutputACVEstimator):
         return get_multioutput_acv_mean_discrepancy_covariances(
             self.cov, Gmat, gvec)
 
-    def _estimate(self, values, weights):
-        nmodels = len(values)
-        assert len(values) == nmodels
-        # high fidelity monte carlo estimate of mean
-        deltas = np.hstack(
-            [(values[ii][0].mean(axis=0) - values[ii][1].mean(axis=0))
-             for ii in range(1, nmodels)])
-        est = values[0][1].mean(axis=0) + weights.numpy().dot(deltas)
-        return est
+    def _sample_estimate(self, values):
+        return np.mean(values, axis=0)
 
     def high_fidelity_estimator_covariance(self, nsamples_per_model):
         return self.cov[:self.nqoi, :self.nqoi]/nsamples_per_model[0]
@@ -671,7 +712,9 @@ class MultiOutputACVVarianceEstimator(MultiOutputACVEstimator):
                          recursion_index=None)
         self.V = get_V_from_covariance(self.cov, self.nmodels)
         if W.shape != self.V.shape:
-            raise ValueError("W has the wrong shape")
+            msg = "W has the wrong shape {0}. Should be {1}".format(
+                W.shape, self.V.shape)
+            raise ValueError(msg)
         self.W = W
 
     def _get_discpreancy_covariances(self):
@@ -685,16 +728,48 @@ class MultiOutputACVVarianceEstimator(MultiOutputACVEstimator):
         return get_multioutput_acv_variance_discrepancy_covariances(
             self.V, self.W, Gmat, gvec, Hmat, hvec)
 
-    def _estimate(self, values, weights):
-        nmodels = len(values)
-        assert len(values) == nmodels
-        # high fidelity monte carlo estimate of mean
-        deltas = np.hstack(
-            [(values[ii][0].var(axis=0, ddof=1) -
-              values[ii][1].var(axis=0, ddof=1))
-             for ii in range(1, nmodels)])
-        est = values[0][1].var(axis=0, ddof=1) + weights.numpy().dot(deltas)
-        return est
+    def _sample_estimate(self, values):
+        return np.cov(values.T, ddof=1).flatten()
 
     def high_fidelity_estimator_covariance(self, nsamples_per_model):
-        return self.cov[:self.nqoi, :self.nqoi]/nsamples_per_model[0]
+        return covariance_of_variance_estimator(
+            self.W[:self.nqoi**2, :self.nqoi**2],
+            self.V[:self.nqoi**2, :self.nqoi**2], nsamples_per_model[0])
+
+
+class MultiOutputACVMeanAndVarianceEstimator(MultiOutputACVVarianceEstimator):
+    def __init__(self, cov, costs, variable, W, B, partition="mf",
+                 recursion_index=None):
+        super().__init__(cov, costs, variable, W, partition="mf",
+                         recursion_index=None)
+        B_shape = cov.shape[0], self.V.shape[1]
+        if B.shape != B_shape:
+            msg = "B has the wrong shape {0}. Should be {1}".format(
+                B.shape, B_shape)
+            raise ValueError(msg)
+        self.B = B
+
+    def _get_discpreancy_covariances(self):
+        Gmat, gvec = get_acv_mean_discrepancy_covariances_multipliers(
+            self.allocation_mat, self.nsamples_per_model,
+            self._get_npartition_samples, self.recursion_index)
+        Hmat, hvec = (
+            get_acv_variance_discrepancy_covariances_multipliers(
+                self.allocation_mat, self.nsamples_per_model,
+                self._get_npartition_samples, self.recursion_index))
+        return get_multioutput_acv_mean_and_variance_discrepancy_covariances(
+            self.cov, self.V, self.W, self.B, Gmat, gvec, Hmat, hvec)
+
+    def _sample_estimate(self, values):
+        return np.hstack([np.mean(values, axis=0),
+                          np.cov(values.T, ddof=1).flatten()])
+
+    def high_fidelity_estimator_covariance(self, nsamples_per_model):
+        block_11 = self.cov[:self.nqoi, :self.nqoi]/nsamples_per_model[0]
+        block_22 = covariance_of_variance_estimator(
+            self.W[:self.nqoi**2, :self.nqoi**2],
+            self.V[:self.nqoi**2, :self.nqoi**2], nsamples_per_model[0])
+        block_12 = self.B[:self.nqoi, :self.nqoi**2]/nsamples_per_model[0]
+        return torch_2x2_block(
+            [[block_11, block_12],
+             [block_12.T, block_22]])

@@ -10,7 +10,7 @@ from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.multifidelity.multioutput_monte_carlo import (
     get_V_from_covariance, covariance_of_variance_estimator, get_W_from_pilot,
     get_B_from_pilot, MultiOutputACVMeanEstimator,
-    MultiOutputACVVarianceEstimator)
+    MultiOutputACVVarianceEstimator, MultiOutputACVMeanAndVarianceEstimator)
 
 
 class MultioutputModelEnsemble():
@@ -496,11 +496,12 @@ class TestMOMC(unittest.TestCase):
         rtol, atol = 4.6e-2, 1e-3
         funs, cov, costs, model = self._setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
+        nmodels, nqoi = len(model_idx), len(qoi_idx)
         if est_type == "MOACVM":
             est = MultiOutputACVMeanEstimator(
                 cov, costs, model.variable,
                 recursion_index=np.asarray(recursion_index))
-            mc_est = np.mean
+            idx = nqoi
         elif est_type == "MOACVV":
             W = model.covariance_of_centered_values_kronker_product()
             W = self._nqoisq_nqoisq_subproblem(
@@ -508,24 +509,35 @@ class TestMOMC(unittest.TestCase):
             est = MultiOutputACVVarianceEstimator(
                 cov, costs, model.variable, W,
                 recursion_index=np.asarray(recursion_index))
-            mc_est = partial(np.var, ddof=1)
+            idx = nqoi**2
+        elif est_type == "MOACVMV":
+            W = model.covariance_of_centered_values_kronker_product()
+            W = self._nqoisq_nqoisq_subproblem(
+                W, model.nmodels, model.nqoi, model_idx, qoi_idx)
+            B = model.covariance_of_mean_and_variance_estimators()
+            B = self._nqoi_nqoisq_subproblem(
+                B, model.nmodels, model.nqoi, model_idx, qoi_idx)
+            est = MultiOutputACVMeanAndVarianceEstimator(
+                cov, costs, model.variable, W, B,
+                recursion_index=np.asarray(recursion_index))
+            idx = nqoi+nqoi**2
 
         # set nsamples per model tso generate data can be called
         # without optimizing the sample allocaiton
         est.nsamples_per_model = torch.tensor([10, 20, 30][:len(funs)])
-        nmodels, nqoi = len(model_idx), len(qoi_idx)
+        mc_est = est._sample_estimate
 
-        ntrials = int(1e3)
+        ntrials = int(1e4)
         Q = []
         delta = []
         estimator_vals = []
         for ii in range(ntrials):
             acv_values = est.generate_data(funs)[1]
             estimator_vals.append(est(acv_values))
-            Q.append(mc_est(acv_values[0][1], axis=0))
+            Q.append(mc_est(acv_values[0][1]))
             delta.append(
-                np.hstack([mc_est(acv_values[ii][0], axis=0) -
-                           mc_est(acv_values[ii][1], axis=0)
+                np.hstack([mc_est(acv_values[ii][0]) -
+                           mc_est(acv_values[ii][1])
                            for ii in range(1, nmodels)]))
 
         delta = np.array(delta)
@@ -537,28 +549,30 @@ class TestMOMC(unittest.TestCase):
         CF, cf = est._get_discpreancy_covariances()
         CF, cf = CF.numpy(), cf.numpy()
         # print(CF, "CF")
-        # print(np.cov(delta.T), "MC CF")
+        # print(np.cov(delta.T, ddof=1), "MC CF")
         # print((CF-np.cov(delta.T))/CF, "MC CF")
-        assert np.allclose(np.cov(delta.T), CF, atol=atol, rtol=rtol)
+        assert np.allclose(np.cov(delta.T, ddof=1), CF, atol=atol, rtol=rtol)
 
         # print(cf, "cf")
-        # print(np.cov(Q.T, delta.T)[:3, 3:], "MC cf")
-        assert np.allclose(np.cov(Q.T, delta.T)[:nqoi, nqoi:], cf,
+        # print(np.cov(Q.T, delta.T)[:idx, idx:], "MC cf")
+        # print(np.cov(Q.T, delta.T, ddof=1).shape, cf.shape, idx)
+        assert np.allclose(np.cov(Q.T, delta.T, ddof=1)[:idx, idx:], cf,
                            atol=atol, rtol=rtol)
 
-        var_mc = np.cov(estimator_vals.T)
+        var_mc = np.cov(estimator_vals.T, ddof=1)
         variance = est._get_variance(est.nsamples_per_model)
         # print(var_mc)
-        print(variance)
+        # print(variance)
         assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
 
     def test_estimator_variances(self):
         test_cases = [
             [[0, 1, 2], [0, 1, 2], [0, 0], "MOACVM"],
             [[0, 1, 2], [0, 1, 2], [0, 1], "MOACVM"],
-            [[0, 1, 2], [0, 1, 2], [0, 0], "MOACVV"],
+            [[0, 1], [0, 1], [0, 0], "MOACVV"],
+            [[0, 1], [0, 1], [0, 0], "MOACVMV"],
         ]
-        for test_case in test_cases[-1:]:
+        for test_case in test_cases:
             np.random.seed(1)
             self._check_estimator_variances(*test_case)
 
