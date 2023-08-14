@@ -352,7 +352,6 @@ def check_mfmc_model_costs_and_correlations(costs, corr):
         if denom <= np.finfo(float).eps:
             return False
         corr_ratio = (corr[0, ii-1]**2 - corr[0, ii]**2)/denom
-        print(len(costs), nmodels)
         cost_ratio = costs[ii-1] / costs[ii]
         if corr_ratio >= cost_ratio:
             return False

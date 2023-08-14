@@ -307,14 +307,12 @@ def get_multioutput_acv_variance_discrepancy_covariances(
         W_0i = W[0:nqsq, (ii+1)*nqsq:(ii+2)*nqsq]
         discp_cov[ii*nqsq:(ii+1)*nqsq, ii*nqsq:(ii+1)*nqsq] = (
             Gmat[ii, ii]*W_ii + Hmat[ii, ii]*V_ii)
-        # print(np.linalg.det(discp_cov[ii*nqsq:(ii+1)*nqsq, ii*nqsq:(ii+1)*nqsq]), ii, ii)
         discp_vec[:, ii*nqsq:(ii+1)*nqsq] = gvec[ii]*W_0i+hvec[ii]*V_0i
         for jj in range(ii+1, nmodels-1):
             V_ij = V[(ii+1)*nqsq:(ii+2)*nqsq, (jj+1)*nqsq:(jj+2)*nqsq]
             W_ij = W[(ii+1)*nqsq:(ii+2)*nqsq, (jj+1)*nqsq:(jj+2)*nqsq]
             discp_cov[ii*nqsq:(ii+1)*nqsq, jj*nqsq:(jj+1)*nqsq] = (
                 Gmat[ii, jj]*W_ij+Hmat[ii, jj]*V_ij)
-            # print(np.linalg.det(discp_cov[ii*nqsq:(ii+1)*nqsq, jj*nqsq:(jj+1)*nqsq]), ii, jj)
             discp_cov[jj*nqsq:(jj+1)*nqsq, ii*nqsq:(ii+1)*nqsq] = (
                 discp_cov[ii*nqsq:(ii+1)*nqsq, jj*nqsq:(jj+1)*nqsq].T)
     return discp_cov, discp_vec
@@ -398,7 +396,7 @@ def get_multioutput_acv_mean_and_variance_discrepancy_covariances(
 
 def get_npartition_samples_acvmf(nsamples_per_model):
     nmodels = len(nsamples_per_model)
-    II = np.unique(nsamples_per_model.numpy(), return_index=True)[1]
+    II = np.unique(nsamples_per_model.detach().numpy(), return_index=True)[1]
     sort_array = nsamples_per_model[II]
     if sort_array.shape[0] < nmodels:
         pad = sort_array[-1]*torch.ones(
@@ -542,7 +540,7 @@ class MultiOutputACVEstimator(ABC):
         return weights.T
 
     @abstractmethod
-    def _get_discpreancy_covariances(self):
+    def _get_discrepancy_covariances(self):
         raise NotImplementedError
 
     @abstractmethod
@@ -583,7 +581,7 @@ class MultiOutputACVEstimator(ABC):
             The covariance of the estimator values for
             each high-fidelity model QoI
         """
-        CF, cf = self._get_discpreancy_covariances()
+        CF, cf = self._get_discrepancy_covariances(self.nsamples_per_model)
         weights = self._weights(CF, cf)
         return self._estimate(values, weights)
 
@@ -635,7 +633,11 @@ class MultiOutputACVEstimator(ABC):
         return val.item(), grad
 
     def set_initial_guess(self, initial_guess):
-        self.initial_guess = initial_guess
+        if initial_guess is not None:
+            self.initial_guess = torch.as_tensor(
+                initial_guess, dtype=torch.double)
+        else:
+            self.initial_guess = None
 
     def _allocate_samples_opt_slsqp(
             self, costs, target_cost, initial_guess, optim_options, cons):
@@ -684,34 +686,35 @@ class MultiOutputACVEstimator(ABC):
                               optim_options=None, optim_method='SLSQP'):
         initial_guess = get_acv_initial_guess(
             initial_guess, cov, costs, target_cost)
+        print(initial_guess)
         assert optim_method == "SLSQP"
         opt = self._allocate_samples_opt_slsqp(
             costs, target_cost, initial_guess, optim_options, cons)
-        nsample_ratios = opt.x
+        nsample_ratios = torch.as_tensor(opt.x)
         if not opt.success:
             raise RuntimeError('SLSQP optimizer failed'+f'{opt}')
         else:
             val = self.get_variance(target_cost, nsample_ratios)
         return nsample_ratios, val
 
-    def _allocate_samples(self, target_cost, **kwargs):
+    def _allocate_samples_multistart(self, target_cost, **kwargs):
         cons = self.get_constraints(target_cost)
         opt = self._allocate_samples_opt(
-            self.cov_opt, self.costs, target_cost, cons,
+            self.cov, self.costs, target_cost, cons,
             initial_guess=self.initial_guess)
 
         if (check_mfmc_model_costs_and_correlations(
-                self.costs, get_correlation_from_covariance(self.cov)) and
-                len(self.cov_opt) == len(self.costs)):
+                self.costs,
+                get_correlation_from_covariance(self.cov.numpy())) and
+                len(self.cov) == len(self.costs)):
             # second condition above will not be true for multiple qoi
-            mfmc_initial_guess = allocate_samples_mfmc(
-                self.cov_opt, self.costs, target_cost)[0]
+            mfmc_initial_guess = torch.as_tensor(allocate_samples_mfmc(
+                self.cov, self.costs, target_cost)[0], dtype=torch.double)
             opt_mfmc = self._allocate_samples_opt(
-                self.cov_opt, self.costs, target_cost, cons,
+                self.cov, self.costs, target_cost, cons,
                 initial_guess=mfmc_initial_guess)
             if opt_mfmc[1] < opt[1]:
                 opt = opt_mfmc
-
         return opt
 
     @staticmethod
@@ -786,10 +789,12 @@ class MultiOutputACVEstimator(ABC):
         rounded_target_cost : float
             The cost of the new sample allocation
         """
-        nsample_ratios, obj_val = self._allocate_samples(target_cost)
+        nsample_ratios, obj_val = self._allocate_samples_multistart(
+            target_cost)
         nsample_ratios = nsample_ratios.detach().numpy()
         nsample_ratios, rounded_target_cost = round_nsample_ratios(
-            target_cost, self.costs, nsample_ratios)
+            target_cost, self.costs.numpy(), nsample_ratios)
+        nsample_ratios = torch.as_tensor(nsample_ratios, dtype=torch.double)
         variance = self.get_variance(rounded_target_cost, nsample_ratios)
         self.set_optimized_params(
             nsample_ratios, rounded_target_cost, variance)
@@ -812,7 +817,7 @@ class MultiOutputACVEstimator(ABC):
         else:
             raise ValueError("partition must one of ['mf', 'is']")
 
-    def _get_reordered_sample_allocation_matrix(self):
+    def _get_reordered_sample_allocation_matrix(self, nsamples_per_model):
         r"""
         Compute the reordered allocation matrix corresponding to
         self.nsamples_per_model set by set_optimized_params
@@ -826,9 +831,9 @@ class MultiOutputACVEstimator(ABC):
             flag specifiying if :math:`z_i\subseteq z_j`
         """
         if self.partition == "mf":
-            return reorder_allocation_matrix_acvgmf(
-                self.allocation_mat, self.nsamples_per_model,
-                self.recursion_index)
+            return torch.as_tensor(reorder_allocation_matrix_acvgmf(
+                self.allocation_mat, nsamples_per_model,
+                self.recursion_index), dtype=torch.double)
         # TODO create reordering for acvis
         raise ValueError("partition must one of ['mf']")
 
@@ -845,7 +850,7 @@ class MultiOutputACVEstimator(ABC):
         raise NotImplementedError
 
     def _get_variance(self, nsamples_per_model):
-        CF, cf = self._get_discpreancy_covariances()
+        CF, cf = self._get_discrepancy_covariances(nsamples_per_model)
         weights = self._weights(CF, cf)
         return (self.high_fidelity_estimator_covariance(
             nsamples_per_model) + torch.linalg.multi_dot((weights, cf.T)))
@@ -887,7 +892,8 @@ class MultiOutputACVEstimator(ABC):
         """
         npartition_samples = self._get_npartition_samples(
             self.nsamples_per_model)
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix()
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
+            self.nsamples_per_model)
         samples_per_model, partition_indices_per_model = generate_samples_acv(
             reorder_allocation_mat, self.nsamples_per_model,
             npartition_samples, self.generate_samples)
@@ -935,7 +941,8 @@ class MultiOutputACVEstimator(ABC):
         if type(functions) == list:
             functions = ModelEnsemble(functions)
         values_per_model = functions.evaluate_models(samples_per_model)
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix()
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
+            self.nsamples_per_model)
         acv_values = separate_model_values_acv(
             reorder_allocation_mat, values_per_model,
             partition_indices_per_model)
@@ -946,7 +953,8 @@ class MultiOutputACVEstimator(ABC):
 
     def estimate_from_values_per_model(self, values_per_model,
                                        partition_indices_per_model):
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix()
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
+            self.nsamples_per_model)
         acv_values = separate_model_values_acv(
             reorder_allocation_mat, values_per_model,
             partition_indices_per_model)
@@ -957,16 +965,17 @@ class MultiOutputACVEstimator(ABC):
         return bootstrap_acv_estimator(
             values_per_model, partition_indices_per_model,
             self._get_npartition_samples(self.nsamples_per_model),
-            self._get_reordered_sample_allocation_matrix(),
+            self._get_reordered_sample_allocation_matrix(
+                self.nsamples_per_model),
             self._get_approximate_control_variate_weights(), nbootstraps)
 
 
 class MultiOutputACVMeanEstimator(MultiOutputACVEstimator):
-    def _get_discpreancy_covariances(self):
+    def _get_discrepancy_covariances(self, nsamples_per_model):
         reorder_allocation_mat = (
-            self._get_reordered_sample_allocation_matrix())
+            self._get_reordered_sample_allocation_matrix(nsamples_per_model))
         Gmat, gvec = get_acv_mean_discrepancy_covariances_multipliers(
-            reorder_allocation_mat, self.nsamples_per_model,
+            reorder_allocation_mat, nsamples_per_model,
             self._get_npartition_samples)
         return get_multioutput_acv_mean_discrepancy_covariances(
             self.cov, Gmat, gvec)
@@ -990,11 +999,11 @@ class MultiOutputACVVarianceEstimator(MultiOutputACVEstimator):
             raise ValueError(msg)
         self.W = W
 
-    def _get_discpreancy_covariances(self):
+    def _get_discrepancy_covariances(self, nsamples_per_model):
         reorder_allocation_mat = (
-            self._get_reordered_sample_allocation_matrix())
+            self._get_reordered_sample_allocation_matrix(nsamples_per_model))
         Gmat, gvec = get_acv_mean_discrepancy_covariances_multipliers(
-            reorder_allocation_mat, self.nsamples_per_model,
+            reorder_allocation_mat, nsamples_per_model,
             self._get_npartition_samples)
         Hmat, hvec = (
             get_acv_variance_discrepancy_covariances_multipliers(
@@ -1026,11 +1035,11 @@ class MultiOutputACVMeanAndVarianceEstimator(MultiOutputACVVarianceEstimator):
             raise ValueError(msg)
         self.B = B
 
-    def _get_discpreancy_covariances(self):
+    def _get_discrepancy_covariances(self, nsamples_per_model):
         reorder_allocation_mat = (
-            self._get_reordered_sample_allocation_matrix())
+            self._get_reordered_sample_allocation_matrix(nsamples_per_model))
         Gmat, gvec = get_acv_mean_discrepancy_covariances_multipliers(
-            reorder_allocation_mat, self.nsamples_per_model,
+            reorder_allocation_mat, nsamples_per_model,
             self._get_npartition_samples)
         Hmat, hvec = (
             get_acv_variance_discrepancy_covariances_multipliers(

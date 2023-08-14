@@ -1,7 +1,6 @@
 import unittest
 import torch
 import numpy as np
-import sympy as sp
 from scipy import stats
 from functools import partial
 
@@ -11,6 +10,8 @@ from pyapprox.multifidelity.multioutput_monte_carlo import (
     get_V_from_covariance, covariance_of_variance_estimator, get_W_from_pilot,
     get_B_from_pilot, MultiOutputACVMeanEstimator,
     MultiOutputACVVarianceEstimator, MultiOutputACVMeanAndVarianceEstimator)
+from pyapprox.multifidelity.control_variate_monte_carlo import (
+    allocate_samples_mfmc)
 
 
 class MultioutputModelEnsemble():
@@ -598,7 +599,7 @@ class TestMOMC(unittest.TestCase):
         # print(hf_var.numpy())
         assert np.allclose(hf_var_mc, hf_var, atol=atol, rtol=rtol)
 
-        CF, cf = est._get_discpreancy_covariances()
+        CF, cf = est._get_discrepancy_covariances(est.nsamples_per_model)
         CF, cf = CF.numpy(), cf.numpy()
         # print(np.linalg.det(CF), 'determinant')
         # print(np.linalg.matrix_rank(CF), 'rank', CF.shape)
@@ -630,22 +631,30 @@ class TestMOMC(unittest.TestCase):
             [[0, 1, 2], [0], [0, 0], "MOACVMV"],
         ]
         for test_case in test_cases:
-        # for test_case in test_cases[2:3]:
             np.random.seed(1)
-            print(test_case)
             self._check_estimator_variances(*test_case)
 
     def test_sample_optimization(self):
-        model_idx, qoi_idx = [0, 1], [0]
-        recursion_index = [0]
+        # check for scalar output case we require MFMC analytical solution
+        model_idx, qoi_idx = [0, 1, 2], [0]
+        recursion_index = [0, 1]
         target_cost = 10
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
-        nmodels, nqoi = len(model_idx), len(qoi_idx)
         est = MultiOutputACVMeanEstimator(
             cov, costs, model.variable,
             recursion_index=np.asarray(recursion_index))
-        est.allocate_samples(target_cost)
+        # get nsample ratios before rounding
+        # avoid using est._allocate_samples_multistart so we do not start
+        # from mfmc exact solution
+        nsample_ratios, obj_val = est._allocate_samples_opt(
+            est.cov, est.costs, target_cost, est.get_constraints(target_cost),
+            initial_guess=est.initial_guess)
+        mfmc_nsample_ratios, mfmc_log10_variance = allocate_samples_mfmc(
+            cov, costs, target_cost)
+        print(nsample_ratios)
+        assert np.allclose(nsample_ratios, mfmc_nsample_ratios)
+        assert np.allclose(obj_val, 10**mfmc_log10_variance)
 
 
 if __name__ == "__main__":
