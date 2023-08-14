@@ -24,15 +24,26 @@ class MultioutputModelEnsemble():
         self.nmodels = len(self.funs)  # number of models
         self.nqoi = 3  # nqoi per model
 
-        self._sp_funs = [
-            ["sqrt(11)*x**5", "x**4", "sin(2*pi*x)"],
-            ["sqrt(7)*x**3", "sqrt(7)*x**2", "cos(2*pi*x+pi/2)"],
-            ["sqrt(3)/2*x**2", "sqrt(3)/2*x", "cos(2*pi*x+pi/4)"]]
+        # self._sp_funs = [
+        #     ["sqrt(11)*x**5", "x**4", "sin(2*pi*x)"],
+        #     ["sqrt(7)*x**3", "sqrt(7)*x**2", "cos(2*pi*x+pi/2)"],
+        #     ["sqrt(3)/2*x**2", "sqrt(3)/2*x", "cos(2*pi*x+pi/4)"]]
+        self.flatten_funs()
 
-        sp_x = sp.Symbol("x")
-        self._flat_funs = [
-            np.vectorize(sp.lambdify((sp_x), sp.sympify(f), "numpy"))
-            for model_funs in self._sp_funs for f in model_funs]
+    def _flat_fun_wrapper(self, ii, jj, xx):
+        return self.funs[ii](xx[None, :])[:, jj]
+
+    def flatten_funs(self):
+        # If sp.lambdify is called then this class cannot be pickled
+        # sp_x = sp.Symbol("x")
+        # self._flat_funs = [
+        #     np.vectorize(sp.lambdify((sp_x), sp.sympify(f), "numpy"))
+        #     for model_funs in self._sp_funs for f in model_funs]
+        self._flat_funs = []
+        for ii in range(self.nmodels):
+            for jj in range(self.nqoi):
+                self._flat_funs.append(
+                    partial(self._flat_fun_wrapper, ii, jj))
 
     def costs(self) -> np.ndarray:
         """
@@ -295,6 +306,41 @@ class MultioutputModelEnsemble():
         return np.array(est_cov)
 
 
+def _estimate_components(est, funs, ii):
+    random_state = np.random.RandomState(ii)
+    est.set_random_state(random_state)
+    mc_est = est._sample_estimate
+    acv_values = est.generate_data(funs)[1]
+    est_val = est(acv_values)
+    Q = mc_est(acv_values[0][1])
+    delta = np.hstack([mc_est(acv_values[ii][0]) -
+                       mc_est(acv_values[ii][1])
+                       for ii in range(1, len(funs))])
+    return est_val, Q, delta
+
+
+def _single_qoi(qoi, fun, xx):
+    return fun(xx)[:, qoi:qoi+1]
+
+
+def _two_qoi(ii, jj, fun, xx):
+    return fun(xx)[:, [ii, jj]]
+
+
+def _setup_multioutput_model_subproblem(model_idx, qoi_idx):
+    model = MultioutputModelEnsemble()
+    cov = model.covariance()
+    funs = [model.funs[ii] for ii in model_idx]
+    if len(qoi_idx) == 1:
+        funs = [partial(_single_qoi, qoi_idx[0], f) for f in funs]
+    elif len(qoi_idx) == 2:
+        funs = [partial(_two_qoi, *qoi_idx, f) for f in funs]
+    idx = np.arange(9).reshape(3, 3)[np.ix_(model_idx, qoi_idx)].flatten()
+    cov = cov[np.ix_(idx, idx)]
+    costs = model.costs()[model_idx]
+    return funs, cov, costs, model
+
+
 class TestMOMC(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
@@ -330,25 +376,6 @@ class TestMOMC(unittest.TestCase):
         variance1 = ((samples - samples.mean(axis=1))**2).sum(axis=1)/(NN-1)
         assert np.allclose(variance, variance1)
         assert np.allclose(variance, samples.var(axis=1, ddof=1))
-
-    def _single_qoi(self, qoi, fun, xx):
-        return fun(xx)[:, qoi:qoi+1]
-
-    def _two_qoi(self, ii, jj, fun, xx):
-        return fun(xx)[:, [ii, jj]]
-
-    def _setup_multioutput_model_subproblem(self, model_idx, qoi_idx):
-        model = MultioutputModelEnsemble()
-        cov = model.covariance()
-        funs = [model.funs[ii] for ii in model_idx]
-        if len(qoi_idx) == 1:
-            funs = [partial(self._single_qoi, qoi_idx[0], f) for f in funs]
-        elif len(qoi_idx) == 2:
-            funs = [partial(self._two_qoi, *qoi_idx, f) for f in funs]
-        idx = np.arange(9).reshape(3, 3)[np.ix_(model_idx, qoi_idx)].flatten()
-        cov = cov[np.ix_(idx, idx)]
-        costs = model.costs()[model_idx]
-        return funs, cov, costs, model
 
     def _mean_variance_realizations(self, funs, variable, nsamples, ntrials):
         nmodels = len(funs)
@@ -405,7 +432,7 @@ class TestMOMC(unittest.TestCase):
 
     def _check_estimator_covariances(self, model_idx, qoi_idx):
         nsamples, ntrials = 20, int(1e5)
-        funs, cov, costs, model = self._setup_multioutput_model_subproblem(
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         means, covariances = self._mean_variance_realizations(
             funs, model.variable, nsamples, ntrials)
@@ -434,7 +461,7 @@ class TestMOMC(unittest.TestCase):
            atol=atol, rtol=rtol)
 
     def _check_pilot_covariances(self, model_idx, qoi_idx):
-        funs, cov, costs, model = self._setup_multioutput_model_subproblem(
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         nmodels = len(funs)
         # atol is needed for terms close to zero
@@ -494,7 +521,7 @@ class TestMOMC(unittest.TestCase):
     def _check_estimator_variances(self, model_idx, qoi_idx, recursion_index,
                                    est_type):
         rtol, atol = 4.6e-2, 1e-3
-        funs, cov, costs, model = self._setup_multioutput_model_subproblem(
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         nmodels, nqoi = len(model_idx), len(qoi_idx)
         if est_type == "MOACVM":
@@ -530,72 +557,80 @@ class TestMOMC(unittest.TestCase):
         # set nsamples per model tso generate data can be called
         # without optimizing the sample allocaiton
         est.nsamples_per_model = torch.tensor([10, 20, 30][:len(funs)])
-        mc_est = est._sample_estimate
 
-        ntrials = int(1e3)
-        Q = []
-        delta = []
-        estimator_vals = []
-        # TODO check when weights are set to predefined value
-        for ii in range(ntrials):
-            acv_values = est.generate_data(funs)[1]
-            # estimator_vals.append(est(acv_values))
-            Q.append(mc_est(acv_values[0][1]))
-            delta.append(
-                np.hstack([mc_est(acv_values[ii][0]) -
-                           mc_est(acv_values[ii][1])
-                           for ii in range(1, nmodels)]))
+        ntrials = int(1e4)
+        # Q = []
+        # delta = []
+        # estimator_vals = []
+        # mc_est = est._sample_estimate
+        # for ii in range(ntrials):
+        #     est_val, Q_val, delta_val = _estimate_components(est, funs, ii)
+        #     estimator_vals.append(est_val)
+        #     Q.append(Q_val)
+        #     delta.append(delta_val)
+        # delta = np.array(delta)
+        # Q = np.array(Q)
+        # estimator_vals = np.array(estimator_vals)
 
-        delta = np.array(delta)
-        Q = np.array(Q)
+        max_eval_concurrency = 4
+        from multiprocessing import Pool
+        # set flat funs to none so funs can be pickled
+        pool = Pool(max_eval_concurrency)
+        func = partial(_estimate_components, est, funs)
+        result = pool.map(func, list(range(ntrials)))
+        pool.close()
+        estimator_vals = np.asarray([r[0] for r in result])
+        Q = np.asarray([r[1] for r in result])
+        delta = np.asarray([r[2] for r in result])
 
-         # TODO check when weights are set to predefined value
-        for ii in range(ntrials):
-            acv_values = est.generate_data(funs)[1]
-            weights = 
-        
-        estimator_vals = np.array(estimator_vals)
-
-        print(estimator_vals.mean(axis=0))
+        CF_mc = torch.as_tensor(
+            np.cov(delta.T, ddof=1), dtype=torch.double)
+        cf_mc = torch.as_tensor(
+            np.cov(Q.T, delta.T, ddof=1)[:idx, idx:], dtype=torch.double)
 
         np.set_printoptions(linewidth=1000)
-        print(np.cov(Q.T, ddof=1))
-        print(est.high_fidelity_estimator_covariance(est.nsamples_per_model))
-        # assert np.allclose(
-        #     np.cov(Q.T, ddof=1),
-        #     est.high_fidelity_estimator_covariance(est.nsamples_per_model),
-        #     atol=atol, rtol=rtol)
+        # print(estimator_vals.mean(axis=0).reshape(nqoi, nqoi))
+        # print(model.covariance()[:nqoi:, :nqoi])
+
+        hf_var_mc = np.cov(Q.T, ddof=1)
+        hf_var = est.high_fidelity_estimator_covariance(est.nsamples_per_model)
+        # print(hf_var_mc)
+        # print(hf_var.numpy())
+        assert np.allclose(hf_var_mc, hf_var, atol=atol, rtol=rtol)
 
         CF, cf = est._get_discpreancy_covariances()
         CF, cf = CF.numpy(), cf.numpy()
-        print(CF, "CF")
-        print(np.cov(delta.T, ddof=1), "MC CF")
-        np.linalg.inv(np.cov(delta.T, ddof=1))
-        # print((CF-np.cov(delta.T))/CF, "MC CF")
-        # assert np.allclose(np.cov(delta.T, ddof=1), CF, atol=atol, rtol=rtol)
+        # print(np.linalg.det(CF), 'determinant')
+        # print(np.linalg.matrix_rank(CF), 'rank', CF.shape)
+        # print(CF, "CF")
+        # print(CF_mc, "MC CF")
+        assert np.allclose(CF_mc, CF, atol=atol, rtol=rtol)
 
-        print(cf, "cf")
-        print(np.cov(Q.T, delta.T, ddof=1)[:idx, idx:], "MC cf")
-        # print(np.cov(Q.T, delta.T, ddof=1).shape, cf.shape, idx)
-        assert np.allclose(np.cov(Q.T, delta.T, ddof=1)[:idx, idx:], cf,
-                           atol=atol, rtol=rtol)
+        # print(cf, "cf")
+        # print(cf_mc, "MC cf")
+        # print(cf_mc.shape, cf.shape, idx)
+        assert np.allclose(cf_mc, cf, atol=atol, rtol=rtol)
 
         var_mc = np.cov(estimator_vals.T, ddof=1)
-        variance = est._get_variance(est.nsamples_per_model)
-        print(var_mc, 'v_mc')
-        print(variance, 'v')
+        variance = est._get_variance(est.nsamples_per_model).numpy()
+        # print(var_mc, 'v_mc')
+        # print(variance, 'v')
+        # print((var_mc-variance)/variance)
         assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
 
     def test_estimator_variances(self):
         test_cases = [
             [[0, 1, 2], [0, 1, 2], [0, 0], "MOACVM"],
             [[0, 1, 2], [0, 1, 2], [0, 1], "MOACVM"],
+            [[0, 1], [0, 2], [0], "MOACVM"],
             [[0, 1], [0], [0], "MOACVV"],
-            [[0, 1, 2], [0, 1], [0, 0], "MOACVV"],
-            # [[0, 1], [0], [0], "MOACVMV"],
-            # [[0, 1, 2], [0], [0, 0], "MOACVMV"],
+            [[0, 1], [0, 2], [0], "MOACVV"],
+            [[0, 1, 2], [0, 1, 2], [0, 0], "MOACVV"],
+            [[0, 1], [0], [0], "MOACVMV"],
+            [[0, 1, 2], [0], [0, 0], "MOACVMV"],
         ]
-        for test_case in test_cases[-1:]:
+        for test_case in test_cases:
+        # for test_case in test_cases[2:3]:
             np.random.seed(1)
             print(test_case)
             self._check_estimator_variances(*test_case)
@@ -604,7 +639,7 @@ class TestMOMC(unittest.TestCase):
         model_idx, qoi_idx = [0, 1], [0]
         recursion_index = [0]
         target_cost = 10
-        funs, cov, costs, model = self._setup_multioutput_model_subproblem(
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         nmodels, nqoi = len(model_idx), len(qoi_idx)
         est = MultiOutputACVMeanEstimator(

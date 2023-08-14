@@ -307,73 +307,14 @@ def get_multioutput_acv_variance_discrepancy_covariances(
         W_0i = W[0:nqsq, (ii+1)*nqsq:(ii+2)*nqsq]
         discp_cov[ii*nqsq:(ii+1)*nqsq, ii*nqsq:(ii+1)*nqsq] = (
             Gmat[ii, ii]*W_ii + Hmat[ii, ii]*V_ii)
+        # print(np.linalg.det(discp_cov[ii*nqsq:(ii+1)*nqsq, ii*nqsq:(ii+1)*nqsq]), ii, ii)
         discp_vec[:, ii*nqsq:(ii+1)*nqsq] = gvec[ii]*W_0i+hvec[ii]*V_0i
         for jj in range(ii+1, nmodels-1):
             V_ij = V[(ii+1)*nqsq:(ii+2)*nqsq, (jj+1)*nqsq:(jj+2)*nqsq]
             W_ij = W[(ii+1)*nqsq:(ii+2)*nqsq, (jj+1)*nqsq:(jj+2)*nqsq]
             discp_cov[ii*nqsq:(ii+1)*nqsq, jj*nqsq:(jj+1)*nqsq] = (
                 Gmat[ii, jj]*W_ij+Hmat[ii, jj]*V_ij)
-            discp_cov[jj*nqsq:(jj+1)*nqsq, ii*nqsq:(ii+1)*nqsq] = (
-                discp_cov[ii*nqsq:(ii+1)*nqsq, jj*nqsq:(jj+1)*nqsq].T)
-    return discp_cov, discp_vec
-
-
-def get_multioutput_acv_variance_discrepancy_covariances_new(
-        V, W, Gmat, gvec, Hmat, hvec):
-    r"""
-    Compute the ACV discrepancies for estimating variance
-
-    Parameters
-    ----------
-    V : np.ndarray (nmodels*nqoi**2, nmodels**nqoi**2)
-        Kroneker product of flattened covariance with itself
-
-    W : np.ndarray (nmodels*nqoi**2, nmodels**nqoi**2)
-        Covariance of Kroneker product of mean-centered values
-
-    Gmat : np.ndarray (nmodels, nmodels)
-        Encodes sample partition into mean-based delta covariances
-
-    gvec : np.ndarray (nmodels, nmodels)
-        Encodes sample partition into covariances between high-fidelity mean
-        and deltas
-
-    Hmat : np.ndarray (nmodels, nmodels)
-        Encodes sample partition into variance-based delta covariances
-
-    hvec : np.ndarray (nmodels, nmodels)
-        Encodes sample partition into covariances between
-        high-fidelity variance and deltas
-
-    Returns
-    -------
-    discp_cov : array (nqoi*(nmodels-1), nqoi*(nmodels-1))
-        The covariance of the estimator covariances
-        :math:`\mathrm{Cov}[\Delta, \Delta]`
-
-    discp_vec : array (nqoi, nqoi*(nmodels-1))
-        The covariance between the highest fidelity estimators
-        and the discrepancies :math:`\mathrm{Cov}[Q_0, \Delta]`
-    """
-    nmodels = len(gvec)+1
-    N = V.shape[0]//nmodels
-    nqsq = N*(N+1)//2   #  number of entries in upper triangular matrix
-    discp_cov = torch.empty(
-        (nqsq*(nmodels-1), nqsq*(nmodels-1)), dtype=torch.double)
-    discp_vec = torch.empty((nqsq, nqsq*(nmodels-1)), dtype=torch.double)
-    for ii in range(nmodels-1):
-        V_ii = V[(ii+1)*nqsq:(ii+2)*nqsq, (ii+1)*nqsq:(ii+2)*nqsq]
-        W_ii = W[(ii+1)*nqsq:(ii+2)*nqsq, (ii+1)*nqsq:(ii+2)*nqsq]
-        V_0i = V[0:nqsq, (ii+1)*nqsq:(ii+2)*nqsq]
-        W_0i = W[0:nqsq, (ii+1)*nqsq:(ii+2)*nqsq]
-        discp_cov[ii*nqsq:(ii+1)*nqsq, ii*nqsq:(ii+1)*nqsq] = (
-            Gmat[ii, ii]*W_ii + Hmat[ii, ii]*V_ii)
-        discp_vec[:, ii*nqsq:(ii+1)*nqsq] = gvec[ii]*W_0i+hvec[ii]*V_0i
-        for jj in range(ii+1, nmodels-1):
-            V_ij = V[(ii+1)*nqsq:(ii+2)*nqsq, (jj+1)*nqsq:(jj+2)*nqsq]
-            W_ij = W[(ii+1)*nqsq:(ii+2)*nqsq, (jj+1)*nqsq:(jj+2)*nqsq]
-            discp_cov[ii*nqsq:(ii+1)*nqsq, jj*nqsq:(jj+1)*nqsq] = (
-                Gmat[ii, jj]*W_ij+Hmat[ii, jj]*V_ij)
+            # print(np.linalg.det(discp_cov[ii*nqsq:(ii+1)*nqsq, jj*nqsq:(jj+1)*nqsq]), ii, jj)
             discp_cov[jj*nqsq:(jj+1)*nqsq, ii*nqsq:(ii+1)*nqsq] = (
                 discp_cov[ii*nqsq:(ii+1)*nqsq, jj*nqsq:(jj+1)*nqsq].T)
     return discp_cov, discp_vec
@@ -542,6 +483,7 @@ class MultiOutputACVEstimator(ABC):
         self.rounded_target_cost = None
         self.model_labels = None
         self.set_initial_guess(None)
+        self.set_random_state(None)
 
     def _check_cov(self, cov, costs):
         nmodels = len(costs)
@@ -557,15 +499,46 @@ class MultiOutputACVEstimator(ABC):
             opt_criteria = log_determinant_variance
         return opt_criteria
 
+    def set_random_state(self, random_state):
+        """
+        Set the state of the numpy random generator. This effects
+        self.generate_samples
+
+        Parameters
+        ----------
+        random_state : :class:`numpy.random.RandmState`
+            Set the random state of the numpy random generator
+
+        Notes
+        -----
+        To create reproducible results when running numpy.random in parallel
+        must use RandomState. If not the results will be non-deterministic.
+        This is happens because of a race condition. numpy.random.* uses only
+        one global PRNG that is shared across all the threads without
+        synchronization. Since the threads are running in parallel, at the same
+        time, and their access to this global PRNG is not synchronized between
+        them, they are all racing to access the PRNG state (so that the PRNG's
+        state might change behind other threads' backs). Giving each thread its
+        own PRNG (RandomState) solves this problem because there is no longer
+        any state that's shared by multiple threads without synchronization.
+        Also see new features
+        https://docs.scipy.org/doc/numpy/reference/random/parallel.html
+        https://docs.scipy.org/doc/numpy/reference/random/multithreading.html
+        """
+        self.generate_samples = partial(
+                self.variable.rvs, random_state=random_state)
+
     def _weights(self, CF, cf):
-        weights = -torch.linalg.solve(CF, cf.T)
-        try:
-            if CF.shape == (1, 1):
-                weights = -cf.T/CF[0, 0]
-            else:
-                weights = -torch.linalg.solve(CF, cf.T)
-        except (np.linalg.LinAlgError, RuntimeError):
-            weights = torch.ones(cf.shape, dtype=torch.double)*1e16
+        #  weights = -torch.linalg.solve(CF, cf.T)
+        weights = -torch.linalg.multi_dot(
+            (torch.linalg.pinv(CF), cf.T))
+        # try:
+        #     if CF.shape == (1, 1):
+        #         weights = -cf.T/CF[0, 0]
+        #     else:
+        #         weights = -torch.linalg.solve(CF, cf.T)
+        # except (np.linalg.LinAlgError, RuntimeError):
+        #     weights = torch.ones(cf.shape, dtype=torch.double)*1e16
         return weights.T
 
     @abstractmethod
@@ -611,10 +584,7 @@ class MultiOutputACVEstimator(ABC):
             each high-fidelity model QoI
         """
         CF, cf = self._get_discpreancy_covariances()
-        # print(np.linalg.eig(CF.numpy()))
-        weights = cf*0-1 # hack
-        # weights = self._weights(CF, cf)
-        # item returns value as scalar
+        weights = self._weights(CF, cf)
         return self._estimate(values, weights)
 
     def __repr__(self):
@@ -920,7 +890,7 @@ class MultiOutputACVEstimator(ABC):
         reorder_allocation_mat = self._get_reordered_sample_allocation_matrix()
         samples_per_model, partition_indices_per_model = generate_samples_acv(
             reorder_allocation_mat, self.nsamples_per_model,
-            npartition_samples, self.variable.rvs)
+            npartition_samples, self.generate_samples)
         return samples_per_model, partition_indices_per_model
 
     def generate_data(self, functions):
@@ -1034,9 +1004,9 @@ class MultiOutputACVVarianceEstimator(MultiOutputACVEstimator):
             self.V, self.W, Gmat, gvec, Hmat, hvec)
 
     def _sample_estimate(self, values):
-        # return np.cov(values.T, ddof=1).flatten()
-        return np.cov(values.T, ddof=1)[
-            torch.triu_indices(values.shape[1], values.shape[1]).unbind()]
+        return np.cov(values.T, ddof=1).flatten()
+        # return np.cov(values.T, ddof=1)[
+        #    torch.triu_indices(values.shape[1], values.shape[1]).unbind()]
 
     def high_fidelity_estimator_covariance(self, nsamples_per_model):
         return covariance_of_variance_estimator(
