@@ -539,7 +539,7 @@ class TestMOMC(unittest.TestCase):
         # TODO check when weights are set to predefined value
         for ii in range(ntrials):
             acv_values = est.generate_data(funs)[1]
-            estimator_vals.append(est(acv_values))
+            # estimator_vals.append(est(acv_values))
             Q.append(mc_est(acv_values[0][1]))
             delta.append(
                 np.hstack([mc_est(acv_values[ii][0]) -
@@ -548,6 +548,12 @@ class TestMOMC(unittest.TestCase):
 
         delta = np.array(delta)
         Q = np.array(Q)
+
+         # TODO check when weights are set to predefined value
+        for ii in range(ntrials):
+            acv_values = est.generate_data(funs)[1]
+            weights = 
+        
         estimator_vals = np.array(estimator_vals)
 
         print(estimator_vals.mean(axis=0))
@@ -564,6 +570,7 @@ class TestMOMC(unittest.TestCase):
         CF, cf = CF.numpy(), cf.numpy()
         print(CF, "CF")
         print(np.cov(delta.T, ddof=1), "MC CF")
+        np.linalg.inv(np.cov(delta.T, ddof=1))
         # print((CF-np.cov(delta.T))/CF, "MC CF")
         # assert np.allclose(np.cov(delta.T, ddof=1), CF, atol=atol, rtol=rtol)
 

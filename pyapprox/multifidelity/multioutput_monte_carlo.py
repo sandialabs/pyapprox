@@ -318,6 +318,67 @@ def get_multioutput_acv_variance_discrepancy_covariances(
     return discp_cov, discp_vec
 
 
+def get_multioutput_acv_variance_discrepancy_covariances_new(
+        V, W, Gmat, gvec, Hmat, hvec):
+    r"""
+    Compute the ACV discrepancies for estimating variance
+
+    Parameters
+    ----------
+    V : np.ndarray (nmodels*nqoi**2, nmodels**nqoi**2)
+        Kroneker product of flattened covariance with itself
+
+    W : np.ndarray (nmodels*nqoi**2, nmodels**nqoi**2)
+        Covariance of Kroneker product of mean-centered values
+
+    Gmat : np.ndarray (nmodels, nmodels)
+        Encodes sample partition into mean-based delta covariances
+
+    gvec : np.ndarray (nmodels, nmodels)
+        Encodes sample partition into covariances between high-fidelity mean
+        and deltas
+
+    Hmat : np.ndarray (nmodels, nmodels)
+        Encodes sample partition into variance-based delta covariances
+
+    hvec : np.ndarray (nmodels, nmodels)
+        Encodes sample partition into covariances between
+        high-fidelity variance and deltas
+
+    Returns
+    -------
+    discp_cov : array (nqoi*(nmodels-1), nqoi*(nmodels-1))
+        The covariance of the estimator covariances
+        :math:`\mathrm{Cov}[\Delta, \Delta]`
+
+    discp_vec : array (nqoi, nqoi*(nmodels-1))
+        The covariance between the highest fidelity estimators
+        and the discrepancies :math:`\mathrm{Cov}[Q_0, \Delta]`
+    """
+    nmodels = len(gvec)+1
+    N = V.shape[0]//nmodels
+    nqsq = N*(N+1)//2   #  number of entries in upper triangular matrix
+    discp_cov = torch.empty(
+        (nqsq*(nmodels-1), nqsq*(nmodels-1)), dtype=torch.double)
+    discp_vec = torch.empty((nqsq, nqsq*(nmodels-1)), dtype=torch.double)
+    for ii in range(nmodels-1):
+        V_ii = V[(ii+1)*nqsq:(ii+2)*nqsq, (ii+1)*nqsq:(ii+2)*nqsq]
+        W_ii = W[(ii+1)*nqsq:(ii+2)*nqsq, (ii+1)*nqsq:(ii+2)*nqsq]
+        V_0i = V[0:nqsq, (ii+1)*nqsq:(ii+2)*nqsq]
+        W_0i = W[0:nqsq, (ii+1)*nqsq:(ii+2)*nqsq]
+        discp_cov[ii*nqsq:(ii+1)*nqsq, ii*nqsq:(ii+1)*nqsq] = (
+            Gmat[ii, ii]*W_ii + Hmat[ii, ii]*V_ii)
+        discp_vec[:, ii*nqsq:(ii+1)*nqsq] = gvec[ii]*W_0i+hvec[ii]*V_0i
+        for jj in range(ii+1, nmodels-1):
+            V_ij = V[(ii+1)*nqsq:(ii+2)*nqsq, (jj+1)*nqsq:(jj+2)*nqsq]
+            W_ij = W[(ii+1)*nqsq:(ii+2)*nqsq, (jj+1)*nqsq:(jj+2)*nqsq]
+            discp_cov[ii*nqsq:(ii+1)*nqsq, jj*nqsq:(jj+1)*nqsq] = (
+                Gmat[ii, jj]*W_ij+Hmat[ii, jj]*V_ij)
+            discp_cov[jj*nqsq:(jj+1)*nqsq, ii*nqsq:(ii+1)*nqsq] = (
+                discp_cov[ii*nqsq:(ii+1)*nqsq, jj*nqsq:(jj+1)*nqsq].T)
+    return discp_cov, discp_vec
+
+
 def torch_2x2_block(blocks):
     return torch.vstack(
         [torch.hstack(blocks[0]),
@@ -973,7 +1034,9 @@ class MultiOutputACVVarianceEstimator(MultiOutputACVEstimator):
             self.V, self.W, Gmat, gvec, Hmat, hvec)
 
     def _sample_estimate(self, values):
-        return np.cov(values.T, ddof=1).flatten()
+        # return np.cov(values.T, ddof=1).flatten()
+        return np.cov(values.T, ddof=1)[
+            torch.triu_indices(values.shape[1], values.shape[1]).unbind()]
 
     def high_fidelity_estimator_covariance(self, nsamples_per_model):
         return covariance_of_variance_estimator(
