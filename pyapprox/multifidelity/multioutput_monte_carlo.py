@@ -1,8 +1,10 @@
 import torch
+import copy
 import numpy as np
 from abc import ABC, abstractmethod
 from functools import partial
 from scipy.optimize import minimize
+from itertools import combinations
 
 from pyapprox.interface.wrappers import ModelEnsemble
 from pyapprox.util.utilities import get_correlation_from_covariance
@@ -484,7 +486,7 @@ class ACVEstimator():
         self.optimization_criteria = self._set_optimization_criteria(
             opt_criteria)
 
-        self.nsamples_per_model, self.optimized_variance = None, None
+        self.nsamples_per_model, self.optimized_criteria = None, None
         self.rounded_target_cost = None
         self.model_labels = None
         self.set_initial_guess(None)
@@ -587,14 +589,15 @@ class ACVEstimator():
         return self._estimate(values, weights)
 
     def __repr__(self):
-        if self.optimized_variance is None:
-            return "{0}(stat={1})".format(self.__class__.__name__, self.stat)
-        return "{0}(stat={1}, variance={2:.3g}, target_cost={3:.3g})".format(
-            self.__class__.__name__, self.stat, self.optimized_variance,
-            self.rounded_target_cost)
+        if self.optimized_criteria is None:
+            return "{0}(stat={1}, recursion_index={2})".format(
+                self.__class__.__name__, self.stat, self.recursion_index)
+        return "{0}(stat={1}, , recursion_index={2}, criteria={3:.3g}, target_cost={4:.3g})".format(
+            self.__class__.__name__, self.stat, self.recursion_index,
+            self.optimized_criteria, self.rounded_target_cost)
 
     def set_optimized_params(self, nsample_ratios, rounded_target_cost,
-                             optimized_variance):
+                             optimized_criteria):
         """
         Set the parameters needed to generate samples for evaluating the
         estimator
@@ -609,15 +612,16 @@ class ACVEstimator():
         rounded_target_cost : float
             The cost of the new sample allocation
 
-        optimized_variance : float
+        optimized_criteria : float
             The variance of the estimator using the integer sample allocations
         """
         self.nsample_ratios = nsample_ratios
         self.rounded_target_cost = rounded_target_cost
-        self.nsamples_per_model = get_nsamples_per_model(
-            self.rounded_target_cost, self.costs, self.nsample_ratios,
-            True).astype(int)
-        self.optimized_variance = optimized_variance
+        self.nsamples_per_model = torch.as_tensor(
+            get_nsamples_per_model(
+                self.rounded_target_cost, self.costs, self.nsample_ratios,
+                False), dtype=torch.int)
+        self.optimized_criteria = optimized_criteria
 
     def _objective(self, target_cost, x, return_grad=True):
         # return_grad argument used for testing with finte difference
@@ -768,7 +772,7 @@ class ACVEstimator():
         """
         Determine the samples (integers) that must be allocated to
         each model to compute the Monte Carlo like estimator
-    
+
         Parameters
         ----------
         target_cost : float
@@ -796,8 +800,9 @@ class ACVEstimator():
             target_cost, self.costs.numpy(), nsample_ratios)
         nsample_ratios = torch.as_tensor(nsample_ratios, dtype=torch.double)
         variance = self.get_variance(rounded_target_cost, nsample_ratios)
+        val = self.optimization_criteria(variance)
         self.set_optimized_params(
-            nsample_ratios, rounded_target_cost, variance)
+            nsample_ratios, rounded_target_cost, val)
         return nsample_ratios, variance, rounded_target_cost
 
     def _get_npartition_samples(self, nsamples_per_model):
@@ -972,10 +977,17 @@ class MultiOutputStatistic(ABC):
     def get_discrepancy_covariances(self, estimator, nsamples_per_model):
         raise NotImplementedError
 
+    @abstractmethod
     def sample_estimate(self, values):
         raise NotImplementedError
 
+    @abstractmethod
     def high_fidelity_estimator_covariance(self, nsamples_per_model):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def args_model_subset(nmodels, nqoi, model_idx, *args):
         raise NotImplementedError
 
     def __repr__(self):
@@ -1002,6 +1014,10 @@ class MultiOutputMean(MultiOutputStatistic):
 
     def high_fidelity_estimator_covariance(self, nsamples_per_model):
         return self.cov[:self.nqoi, :self.nqoi]/nsamples_per_model[0]
+
+    @staticmethod
+    def args_model_subset(nmodels, nqoi, model_idx, *args):
+        return []
 
 
 class MultiOutputVariance(MultiOutputStatistic):
@@ -1038,6 +1054,14 @@ class MultiOutputVariance(MultiOutputStatistic):
         return covariance_of_variance_estimator(
             self.W[:self.nqoi**2, :self.nqoi**2],
             self.V[:self.nqoi**2, :self.nqoi**2], nsamples_per_model[0])
+
+    @staticmethod
+    def args_model_subset(nmodels, nqoi, model_idx, *args):
+        W = args[0]
+        qoi_idx = np.arange(nqoi)
+        W_sub = _nqoisq_nqoisq_subproblem(
+            W, nmodels, nqoi, model_idx, qoi_idx)
+        return W_sub
 
 
 class MultiOutputMeanAndVariance(MultiOutputStatistic):
@@ -1084,6 +1108,16 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         return torch_2x2_block(
             [[block_11, block_12],
              [block_12.T, block_22]])
+
+    @staticmethod
+    def args_model_subset(nmodels, nqoi, model_idx, *args):
+        W, B = args
+        qoi_idx = np.arange(nqoi)
+        W_sub = _nqoisq_nqoisq_subproblem(
+            W, nmodels, nqoi, model_idx, qoi_idx)
+        B_sub = _nqoi_nqoisq_subproblem(
+            B, nmodels, nqoi, model_idx, qoi_idx)
+        return W_sub, B_sub
 
 
 class MFMCEstimator(ACVEstimator):
@@ -1164,21 +1198,216 @@ class BestACVEstimator(ACVEstimator):
                 # typically solver fails because trying to use
                 # uniformative model as a recursive control variate
                 print("Optimizer failed")
-                self.optimized_variance = np.inf
+                self.optimized_criteria = np.inf
             if verbosity > 0:
                 msg = "{0} Objective: best {1}, current {2}".format(
                     index, best_variance.item(),
-                    self.optimized_variance.item())
+                    self.optimized_criteria.item())
                 print(msg)
-            if self.optimized_variance < best_variance:
+            if self.optimized_criteria < best_variance:
                 best_result = [self.nsample_ratios, self.rounded_target_cost,
-                               self.optimized_variance, index]
-                best_variance = self.optimized_variance
+                               self.optimized_criteria, index]
+                best_variance = self.optimized_criteria
         if best_result is None:
             raise RuntimeError("No solutions were found")
         self.set_recursion_index(best_result[3])
-        self.set_optimized_params(*best_result[:3])
+        self.set_optimized_params(
+            torch.as_tensor(best_result[0], dtype=torch.double),
+            *best_result[1:3])
         return best_result[:3]
+
+
+def _nqoi_nqoi_subproblem(C, nmodels, nqoi, model_idx, qoi_idx):
+    nsub_models, nsub_qoi = len(model_idx), len(qoi_idx)
+    C_new = np.empty(
+        (nsub_models*nsub_qoi, nsub_models*nsub_qoi))
+    cnt1 = 0
+    for jj1 in model_idx:
+        for kk1 in qoi_idx:
+            cnt2 = 0
+            idx1 = jj1*nqoi + kk1
+            for jj2 in model_idx:
+                for kk2 in qoi_idx:
+                    idx2 = jj2*nqoi + kk2
+                    C_new[cnt1, cnt2] = C[idx1, idx2]
+                    cnt2 += 1
+            cnt1 += 1
+    return C_new
+
+
+def _nqoisq_nqoisq_subproblem(V, nmodels, nqoi, model_idx, qoi_idx):
+    nsub_models, nsub_qoi = len(model_idx), len(qoi_idx)
+    V_new = np.empty(
+        (nsub_models*nsub_qoi**2, nsub_models*nsub_qoi**2))
+    cnt1 = 0
+    for jj1 in model_idx:
+        for kk1 in qoi_idx:
+            for ll1 in qoi_idx:
+                cnt2 = 0
+                idx1 = jj1*nqoi**2 + kk1*nqoi + ll1
+                for jj2 in model_idx:
+                    for kk2 in qoi_idx:
+                        for ll2 in qoi_idx:
+                            idx2 = jj2*nqoi**2 + kk2*nqoi + ll2
+                            V_new[cnt1, cnt2] = V[idx1, idx2]
+                            cnt2 += 1
+                cnt1 += 1
+    return V_new
+
+
+def _nqoi_nqoisq_subproblem(B, nmodels, nqoi, model_idx, qoi_idx):
+    nsub_models, nsub_qoi = len(model_idx), len(qoi_idx)
+    B_new = np.empty(
+        (nsub_models*nsub_qoi, nsub_models*nsub_qoi**2))
+    cnt1 = 0
+    for jj1 in model_idx:
+        for kk1 in qoi_idx:
+            cnt2 = 0
+            idx1 = jj1*nqoi + kk1
+            for jj2 in model_idx:
+                for kk2 in qoi_idx:
+                    for ll2 in qoi_idx:
+                        idx2 = jj2*nqoi**2 + kk2*nqoi + ll2
+                        B_new[cnt1, cnt2] = B[idx1, idx2]
+                        cnt2 += 1
+            cnt1 += 1
+    return B_new
+
+
+class BestModelSubsetEstimator():
+    def __init__(self, estimator_type, stat_type, variable, costs, cov,
+                 max_nmodels, *args, **kwargs):
+        self.estimator_type = estimator_type
+        self.stat_type = stat_type
+        self._candidate_cov, self._candidate_costs = cov, costs
+        self.variable = variable
+        # self._ncandidate_nmodels is the number of total models
+        # self.nmodels returns number of models in best subset
+        self._ncandidate_models = len(self._candidate_costs)
+        self._nqoi = self._candidate_cov.shape[0]//self._ncandidate_models
+        self.max_nmodels = max_nmodels
+        self.args = args
+        self.kwargs = kwargs
+
+        self.optimized_criteria = None
+        self.rounded_target_cost = None
+        self.best_est = None
+        self.best_model_indices = None
+        self._all_model_labels = None
+
+    @property
+    def nmodels(self):
+        return self.best_est.nmodels
+
+    @property
+    def nsamples_per_model(self):
+        return self.best_est.nsamples_per_model
+
+    @property
+    def cov(self):
+        return self.best_est.cov
+
+    @property
+    def costs(self):
+        return self.best_est.costs
+
+    @property
+    def model_labels(self):
+        return [self._all_model_labels[idx] for idx in self.best_model_indices]
+
+    def get_variance(self, *args):
+        return self.best_est.get_variance(*args)
+
+    @model_labels.setter
+    def model_labels(self, labels):
+        self._all_model_labels = labels
+
+    def _get_best_models_for_acv_estimator(
+            self, target_cost, **allocate_kwargs):
+        if self.max_nmodels is None:
+            max_nmodels = self._ncandidate_nmodels
+        else:
+            max_nmodels = self.max_nmodels
+        lf_model_indices = np.arange(1, self._ncandidate_models)
+        best_criteria = np.inf
+        best_est, best_model_indices = None, None
+        qoi_idx = np.arange(self._nqoi)
+        for nsubset_lfmodels in range(1, max_nmodels):
+            for lf_model_subset_indices in combinations(
+                    lf_model_indices, nsubset_lfmodels):
+                idx = np.hstack(([0], lf_model_subset_indices)).astype(int)
+                subset_cov = _nqoi_nqoi_subproblem(
+                    self._candidate_cov, self._ncandidate_models, self._nqoi,
+                    idx, qoi_idx)
+                subset_costs = self._candidate_costs[idx]
+                sub_args = multioutput_stats[self.stat_type].args_model_subset(
+                    self._ncandidate_models, self._nqoi, idx, *self.args)
+                sub_kwargs = copy.deepcopy(self.kwargs)
+                if "tree_depth" in sub_kwargs:
+                    sub_kwargs["tree_depth"] = min(
+                        sub_kwargs["tree_depth"], nsubset_lfmodels)
+                try:
+                    est = get_estimator(
+                        self.estimator_type, self.stat_type, self.variable,
+                        subset_costs, subset_cov, *sub_args, **sub_kwargs)
+                except ValueError:
+                    # Some estiamtors, e.g. MFMC, fail when certain criteria
+                    # are not satisfied
+                    continue
+                try:
+                    est.allocate_samples(target_cost, **allocate_kwargs)
+                    if est.optimized_criteria < best_criteria:
+                        best_est = est
+                        best_model_indices = idx
+                        best_criteria = est.optimized_criteria
+                except (RuntimeError, ValueError):
+                    # print(e)
+                    continue
+                # print(idx, est.optimized_criteria)
+        return best_est, best_model_indices
+
+    def allocate_samples(self, target_cost, **allocate_kwargs):
+        if self.estimator_type == "mc":
+            best_model_indices = np.array([0])
+            best_est = get_estimator(
+                self.estimator_type, self._cov[:1, :1],
+                self._costs[:1], self.variable, **self.kwargs)
+            best_est.allocate_samples(target_cost)
+
+        else:
+            best_est, best_model_indices = (
+                self._get_best_models_for_acv_estimator(
+                    target_cost, **allocate_kwargs))
+        self.optimized_criteria = best_est.optimized_criteria
+        self.rounded_target_cost = best_est.rounded_target_cost
+        self.best_est = best_est
+        self.best_model_indices = best_model_indices
+
+    def set_random_state(self, random_state):
+        self.best_est.set_random_state(random_state)
+
+    @property
+    def stat(self):
+        return self.best_est.stat
+
+    @property
+    def nsample_ratios(self):
+        return self.best_est.nsample_ratios
+
+    def generate_data(self, functions):
+        return self.best_est.generate_data(
+            [functions[idx] for idx in self.best_model_indices])
+
+    def __call__(self, values):
+        return self.best_est(values)
+
+    def __repr__(self):
+        if self.optimized_criteria is None:
+            return "{0}".format(self.__class__.__name__)
+        return "{0}(type={1}, variance={2:.3g}, target_cost={3:.3g}, subset={4})".format(
+            self.__class__.__name__, self.best_est.__class__.__name__,
+            self.optimized_criteria, self.rounded_target_cost,
+            self.best_model_indices)
 
 
 multioutput_estimators = {
@@ -1196,7 +1425,7 @@ multioutput_stats = {
 
 
 def get_estimator(estimator_type, stat_type, variable, costs, cov, *args,
-                  **kwargs):
+                  max_nmodels=None, **kwargs):
     if estimator_type not in multioutput_estimators:
         msg = f"Estimator {estimator_type} not supported"
         msg += f"Must be one of {multioutput_estimators.keys()}"
@@ -1207,8 +1436,12 @@ def get_estimator(estimator_type, stat_type, variable, costs, cov, *args,
         msg += f"Must be one of {multioutput_stats.keys()}"
         raise ValueError(msg)
 
-    nmodels = len(costs)
-    stat = multioutput_stats[stat_type](nmodels, cov, *args)
+    if max_nmodels is None:
+        nmodels = len(costs)
+        stat = multioutput_stats[stat_type](nmodels, cov, *args)
+        return multioutput_estimators[estimator_type](
+            stat, costs, variable, cov, **kwargs)
 
-    return multioutput_estimators[estimator_type](
-        stat, costs, variable, cov, **kwargs)
+    return BestModelSubsetEstimator(
+        estimator_type, stat_type, variable, costs, cov,
+        *args, max_nmodels=max_nmodels, **kwargs)

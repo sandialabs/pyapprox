@@ -1657,6 +1657,7 @@ def get_nsamples_per_model(target_cost, costs, nsample_ratios, isinteger=True):
     nhf_samples = get_nhf_samples(target_cost, costs, nsample_ratios)
     nsamples_per_model = pkg_hstack(
         [nhf_samples, nsample_ratios*nhf_samples])
+    print(nsamples_per_model)
     if isinteger:
         return cast_to_integers(nsamples_per_model)
     return nsamples_per_model

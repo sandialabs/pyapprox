@@ -8,7 +8,8 @@ from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.multifidelity.multioutput_monte_carlo import (
     get_V_from_covariance, covariance_of_variance_estimator, get_W_from_pilot,
-    get_B_from_pilot, get_estimator)
+    get_B_from_pilot, get_estimator, _nqoisq_nqoisq_subproblem,
+    _nqoi_nqoisq_subproblem)
 from pyapprox.multifidelity.control_variate_monte_carlo import (
     allocate_samples_mfmc)
 
@@ -315,7 +316,7 @@ def _estimate_components(est, funs, ii):
     Q = mc_est(acv_values[0][1])
     delta = np.hstack([mc_est(acv_values[ii][0]) -
                        mc_est(acv_values[ii][1])
-                       for ii in range(1, len(funs))])
+                       for ii in range(1, est.nmodels)])
     return est_val, Q, delta
 
 
@@ -393,73 +394,6 @@ class TestMOMC(unittest.TestCase):
         covariances = np.array(covariances)
         return means, covariances
 
-    def _nqoisq_nqoisq_subproblem(self, V, nmodels, nqoi, model_idx, qoi_idx):
-        nsub_models, nsub_qoi = len(model_idx), len(qoi_idx)
-        V_new = np.empty(
-            (nsub_models*nsub_qoi**2, nsub_models*nsub_qoi**2))
-        cnt1 = 0
-        for jj1 in model_idx:
-            for kk1 in qoi_idx:
-                for ll1 in qoi_idx:
-                    cnt2 = 0
-                    idx1 = jj1*nqoi**2 + kk1*nqoi + ll1
-                    for jj2 in model_idx:
-                        for kk2 in qoi_idx:
-                            for ll2 in qoi_idx:
-                                idx2 = jj2*nqoi**2 + kk2*nqoi + ll2
-                                V_new[cnt1, cnt2] = V[idx1, idx2]
-                                cnt2 += 1
-                    cnt1 += 1
-        return V_new
-
-    def _nqoi_nqoisq_subproblem(self, B, nmodels, nqoi, model_idx, qoi_idx):
-        nsub_models, nsub_qoi = len(model_idx), len(qoi_idx)
-        B_new = np.empty(
-            (nsub_models*nsub_qoi, nsub_models*nsub_qoi**2))
-        cnt1 = 0
-        for jj1 in model_idx:
-            for kk1 in qoi_idx:
-                cnt2 = 0
-                idx1 = jj1*nqoi + kk1
-                for jj2 in model_idx:
-                    for kk2 in qoi_idx:
-                        for ll2 in qoi_idx:
-                            idx2 = jj2*nqoi**2 + kk2*nqoi + ll2
-                            B_new[cnt1, cnt2] = B[idx1, idx2]
-                            cnt2 += 1
-                cnt1 += 1
-        return B_new
-
-    def _check_estimator_covariances(self, model_idx, qoi_idx):
-        nsamples, ntrials = 20, int(1e5)
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
-            model_idx, qoi_idx)
-        means, covariances = self._mean_variance_realizations(
-            funs, model.variable, nsamples, ntrials)
-        nmodels = len(funs)
-        nqoi = cov.shape[0]//nmodels
-
-        # atol is needed for terms close to zero
-        rtol, atol = 1e-2, 1e-4
-        B_exact = model.covariance_of_mean_and_variance_estimators()
-        B_exact = self._nqoi_nqoisq_subproblem(
-            B_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
-        mc_mean_cov_var = np.cov(means.T, covariances.T, ddof=1)
-        B_mc = mc_mean_cov_var[:nqoi*nmodels, nqoi*nmodels:]
-        assert np.allclose(B_mc, B_exact/nsamples, atol=atol, rtol=rtol)
-
-        # no need to extract subproblem for V_exact as cov has already
-        # been downselected
-        V_exact = get_V_from_covariance(cov, nmodels)
-        W_exact = model.covariance_of_centered_values_kronker_product()
-        W_exact = self._nqoisq_nqoisq_subproblem(
-            W_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
-        cov_var_exact = covariance_of_variance_estimator(
-            W_exact, V_exact, nsamples)
-        assert np.allclose(
-           cov_var_exact, mc_mean_cov_var[nqoi*nmodels:, nqoi*nmodels:],
-           atol=atol, rtol=rtol)
-
     def _check_pilot_covariances(self, model_idx, qoi_idx):
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
@@ -471,33 +405,14 @@ class TestMOMC(unittest.TestCase):
         pilot_values = np.hstack([f(pilot_samples) for f in funs])
         W = get_W_from_pilot(pilot_values, nmodels)
         W_exact = model.covariance_of_centered_values_kronker_product()
-        W_exact = self._nqoisq_nqoisq_subproblem(
+        W_exact = _nqoisq_nqoisq_subproblem(
             W_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
         assert np.allclose(W, W_exact, atol=atol, rtol=rtol)
         B = get_B_from_pilot(pilot_values, nmodels)
         B_exact = model.covariance_of_mean_and_variance_estimators()
-        B_exact = self._nqoi_nqoisq_subproblem(
+        B_exact = _nqoi_nqoisq_subproblem(
             B_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
         assert np.allclose(B, B_exact, atol=atol, rtol=rtol)
-
-    def test_estimator_covariances(self):
-        fast_test = True
-        test_cases = [
-            [[0], [0]],
-            [[1], [0, 1]],
-            [[1], [0, 2]],
-            [[1, 2], [0]],
-            [[0, 1], [0, 2]],
-            [[0, 1], [0, 1, 2]],
-            [[0, 1, 2], [0]],
-            [[0, 1, 2], [0, 2]],
-            [[0, 1, 2], [0, 1, 2]],
-        ]
-        if fast_test:
-            test_cases = [test_cases[1], test_cases[-1]]
-        for test_case in test_cases:
-            np.random.seed(123)
-            self._check_estimator_covariances(*test_case)
 
     def test_pilot_covariances(self):
         fast_test = True
@@ -517,6 +432,55 @@ class TestMOMC(unittest.TestCase):
         for test_case in test_cases:
             np.random.seed(123)
             self._check_pilot_covariances(*test_case)
+
+    def _check_estimator_covariances(self, model_idx, qoi_idx):
+        nsamples, ntrials = 20, int(1e5)
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+            model_idx, qoi_idx)
+        means, covariances = self._mean_variance_realizations(
+            funs, model.variable, nsamples, ntrials)
+        nmodels = len(funs)
+        nqoi = cov.shape[0]//nmodels
+
+        # atol is needed for terms close to zero
+        rtol, atol = 1e-2, 1e-4
+        B_exact = model.covariance_of_mean_and_variance_estimators()
+        B_exact = _nqoi_nqoisq_subproblem(
+            B_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
+        mc_mean_cov_var = np.cov(means.T, covariances.T, ddof=1)
+        B_mc = mc_mean_cov_var[:nqoi*nmodels, nqoi*nmodels:]
+        assert np.allclose(B_mc, B_exact/nsamples, atol=atol, rtol=rtol)
+
+        # no need to extract subproblem for V_exact as cov has already
+        # been downselected
+        V_exact = get_V_from_covariance(cov, nmodels)
+        W_exact = model.covariance_of_centered_values_kronker_product()
+        W_exact = _nqoisq_nqoisq_subproblem(
+            W_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
+        cov_var_exact = covariance_of_variance_estimator(
+            W_exact, V_exact, nsamples)
+        assert np.allclose(
+           cov_var_exact, mc_mean_cov_var[nqoi*nmodels:, nqoi*nmodels:],
+           atol=atol, rtol=rtol)
+
+    def test_estimator_covariances(self):
+        fast_test = True
+        test_cases = [
+            [[0], [0]],
+            [[1], [0, 1]],
+            [[1], [0, 2]],
+            [[1, 2], [0]],
+            [[0, 1], [0, 2]],
+            [[0, 1], [0, 1, 2]],
+            [[0, 1, 2], [0]],
+            [[0, 1, 2], [0, 2]],
+            [[0, 1, 2], [0, 1, 2]],
+        ]
+        if fast_test:
+            test_cases = [test_cases[1], test_cases[-1]]
+        for test_case in test_cases:
+            np.random.seed(123)
+            self._check_estimator_covariances(*test_case)
 
     def _estimate_components_loop(
             self, ntrials, est, funs, max_eval_concurrency):
@@ -668,6 +632,23 @@ class TestMOMC(unittest.TestCase):
         est = get_estimator("acvmfb", "mean", model.variable, costs, cov)
         est.allocate_samples(target_cost, verbosity=1)
         assert np.allclose(est.recursion_index, [0, 1])
+
+    def test_best_model_subset_estimator(self):
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+            [0, 1, 2], [0, 1, 2])
+        est = get_estimator("acvmf", "mean", model.variable, costs, cov,
+                            max_nmodels=3)
+        target_cost = 10
+        est.allocate_samples(target_cost)
+
+        ntrials, max_eval_concurrency = int(1e3), 1
+        estimator_vals, Q, delta = self._estimate_components_loop(
+            ntrials, est, funs, max_eval_concurrency)
+
+        var_mc = np.cov(estimator_vals.T, ddof=1)
+        variance = est.get_variance(target_cost, est.nsample_ratios).numpy()
+        rtol, atol = 2e-2, 1e-3
+        assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
 
 
 if __name__ == "__main__":
