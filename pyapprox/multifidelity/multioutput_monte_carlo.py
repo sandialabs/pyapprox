@@ -23,7 +23,7 @@ from pyapprox.multifidelity.control_variate_monte_carlo import (
     get_acv_initial_guess, get_npartition_samples_mlmc,
     get_sample_allocation_matrix_mlmc, allocate_samples_mlmc,
     get_sample_allocation_matrix_mfmc, get_npartition_samples_mfmc,
-    get_acv_recursion_indices)
+    get_acv_recursion_indices, generate_samples_and_values_mfmc)
 
 
 def _V_entry(cov):
@@ -480,7 +480,7 @@ class ACVEstimator():
             cov, costs)
         self.variable = variable
         self.partition = partition
-        self.recursion_index = self.set_recursion_index(recursion_index)
+        self.set_recursion_index(recursion_index)
         self.optimization_criteria = self._set_optimization_criteria(
             opt_criteria)
 
@@ -768,7 +768,7 @@ class ACVEstimator():
         """
         Determine the samples (integers) that must be allocated to
         each model to compute the Monte Carlo like estimator
-
+    
         Parameters
         ----------
         target_cost : float
@@ -843,7 +843,7 @@ class ACVEstimator():
         if index.shape[0] != self.nmodels-1:
             raise ValueError("index is the wrong shape")
         self._create_allocation_matrix()
-        return index
+        self.recursion_index = index
 
     def _get_variance(self, nsamples_per_model):
         CF, cf = self.stat.get_discrepancy_covariances(
@@ -1087,9 +1087,10 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
 
 
 class MFMCEstimator(ACVEstimator):
-    def __init__(self, cov, costs, variable, partition="mf",
-                 opt_criteria=None):
-        super().__init__(cov, costs, variable, partition,
+    def __init__(self, stat, costs, variable, cov, opt_criteria=None):
+        # Use the sample analytical sample allocation for estimating a scalar
+        # mean when estimating any statistic
+        super().__init__(stat, costs, variable, cov, partition='mf',
                          recursion_index=None, opt_criteria=None)
 
     def _allocate_samples(self, target_cost):
@@ -1098,29 +1099,33 @@ class MFMCEstimator(ACVEstimator):
         return allocate_samples_mfmc(
             self.cov.numpy(), self.costs.numpy(), target_cost)
 
-    def _get_reordered_sample_allocation_matrix(self):
+    def _get_reordered_sample_allocation_matrix(self, nsamples_per_model):
         return get_sample_allocation_matrix_mfmc(self.nmodels)
 
+    # No need for specialization because recusion index sets data correctly
     # def generate_data(self, functions):
-    #    return generate_samples_and_values_mfmc(
-    #        self.nsamples_per_model, functions, self.generate_samples,
-    #        acv_modification=False)
+    #     return generate_samples_and_values_mfmc(
+    #         self.nsamples_per_model, functions, self.generate_samples,
+    #         acv_modification=False)
 
     def _get_npartition_samples(self, nsamples_per_model):
         return get_npartition_samples_mfmc(nsamples_per_model)
 
 
 class MLMCEstimator(ACVEstimator):
-    def __init__(self, cov, costs, variable, partition="mf",
-                 opt_criteria=None):
-        super().__init__(cov, costs, variable, partition,
+    def __init__(self, stat, costs, variable, cov, opt_criteria=None):
+        """
+        Use the sample analytical sample allocation for estimating a scalar
+        mean when estimating any statistic
+        """
+        super().__init__(stat, costs, variable, cov, partition='mf',
                          recursion_index=None, opt_criteria=None)
 
     def _allocate_samples(self, target_cost):
         return allocate_samples_mlmc(
             self.cov.numpy(), self.costs.numpy(), target_cost)
 
-    def _get_reordered_sample_allocation_matrix(self):
+    def _get_reordered_sample_allocation_matrix(self, nsamples_per_model):
         return get_sample_allocation_matrix_mlmc(self.nmodels)
 
     def _get_npartition_samples(self, nsamples_per_model):
@@ -1129,15 +1134,27 @@ class MLMCEstimator(ACVEstimator):
     def _weights(self, CF, cf):
         return -torch.ones(cf.shape, dtype=torch.double)
 
+    def _get_variance(self, nsamples_per_model):
+        CF, cf = self.stat.get_discrepancy_covariances(
+            self, nsamples_per_model)
+        weights = self._weights(CF, cf)
+        return (
+            self.stat.high_fidelity_estimator_covariance(nsamples_per_model)
+            + torch.linalg.multi_dot((weights, CF, weights.T))
+            + torch.linalg.multi_dot((cf, weights.T))
+            + torch.linalg.multi_dot((weights, cf.T))
+        )
+
 
 class BestACVEstimator(ACVEstimator):
-    def __init__(self, cov, costs, variable,  partition="mf",
+    def __init__(self, stat, costs, variable,  cov, partition="mf",
                  opt_criteria=None, tree_depth=None):
-        super().__init__(cov, costs, variable, partition, None)
+        super().__init__(stat, costs, variable, cov, partition, None,
+                         opt_criteria)
         self._depth = tree_depth
 
-    def allocate_samples(self, target_cost):
-        best_variance = np.inf
+    def allocate_samples(self, target_cost, verbosity=0):
+        best_variance = torch.as_tensor(np.inf, dtype=torch.double)
         best_result = None
         for index in get_acv_recursion_indices(self.nmodels, self._depth):
             self.set_recursion_index(index)
@@ -1146,7 +1163,13 @@ class BestACVEstimator(ACVEstimator):
             except RuntimeError:
                 # typically solver fails because trying to use
                 # uniformative model as a recursive control variate
+                print("Optimizer failed")
                 self.optimized_variance = np.inf
+            if verbosity > 0:
+                msg = "{0} Objective: best {1}, current {2}".format(
+                    index, best_variance.item(),
+                    self.optimized_variance.item())
+                print(msg)
             if self.optimized_variance < best_variance:
                 best_result = [self.nsample_ratios, self.rounded_target_cost,
                                self.optimized_variance, index]
@@ -1162,7 +1185,7 @@ multioutput_estimators = {
     "acvmf": ACVEstimator,
     "mfmc": MFMCEstimator,
     "mlmc": MLMCEstimator,
-    "bacvmf": BestACVEstimator}
+    "acvmfb": BestACVEstimator}
 
 
 multioutput_stats = {

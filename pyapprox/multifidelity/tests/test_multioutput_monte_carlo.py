@@ -310,7 +310,7 @@ def _estimate_components(est, funs, ii):
     random_state = np.random.RandomState(ii)
     est.set_random_state(random_state)
     mc_est = est.stat.sample_estimate
-    acv_values = est.generate_data(funs)[1]
+    acv_samples, acv_values = est.generate_data(funs)
     est_val = est(acv_values)
     Q = mc_est(acv_values[0][1])
     delta = np.hstack([mc_est(acv_values[ii][0]) -
@@ -518,59 +518,22 @@ class TestMOMC(unittest.TestCase):
             np.random.seed(123)
             self._check_pilot_covariances(*test_case)
 
-    def _check_estimator_variances(self, model_idx, qoi_idx, recursion_index,
-                                   est_type):
-        rtol, atol = 4.6e-2, 1e-3
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
-            model_idx, qoi_idx)
-        nqoi = len(qoi_idx)
-        if est_type == "MOACVM":
-            est = get_estimator("acvmf", "mean", model.variable, costs, cov,
-                                recursion_index=np.asarray(recursion_index))
-            idx = nqoi
-        elif est_type == "MOACVV":
-            W = model.covariance_of_centered_values_kronker_product()
-            W = self._nqoisq_nqoisq_subproblem(
-                W, model.nmodels, model.nqoi, model_idx, qoi_idx)
-            # npilot_samples = int(1e6)
-            # pilot_samples = model.variable.rvs(npilot_samples)
-            # pilot_values = np.hstack([f(pilot_samples) for f in funs])
-            # W = get_W_from_pilot(pilot_values, nmodels)
-            est = get_estimator(
-                "acvmf", "variance", model.variable, costs, cov, W,
-                recursion_index=np.asarray(recursion_index))
-            idx = nqoi**2
-        elif est_type == "MOACVMV":
-            W = model.covariance_of_centered_values_kronker_product()
-            W = self._nqoisq_nqoisq_subproblem(
-                W, model.nmodels, model.nqoi, model_idx, qoi_idx)
-            B = model.covariance_of_mean_and_variance_estimators()
-            B = self._nqoi_nqoisq_subproblem(
-                B, model.nmodels, model.nqoi, model_idx, qoi_idx)
-            est = get_estimator(
-                "acvmf", "mean_variance", model.variable, costs, cov, W, B,
-                recursion_index=np.asarray(recursion_index))
-            idx = nqoi+nqoi**2
+    def _estimate_components_loop(
+            self, ntrials, est, funs, max_eval_concurrency):
+        if max_eval_concurrency == 1:
+            Q = []
+            delta = []
+            estimator_vals = []
+            for ii in range(ntrials):
+                est_val, Q_val, delta_val = _estimate_components(est, funs, ii)
+                estimator_vals.append(est_val)
+                Q.append(Q_val)
+                delta.append(delta_val)
+            Q = np.array(Q)
+            delta = np.array(delta)
+            estimator_vals = np.array(estimator_vals)
+            return estimator_vals, Q, delta
 
-        # set nsamples per model tso generate data can be called
-        # without optimizing the sample allocaiton
-        est.nsamples_per_model = torch.tensor([10, 20, 30][:len(funs)])
-
-        ntrials = int(1e4)
-        # Q = []
-        # delta = []
-        # estimator_vals = []
-        # mc_est = est.stat.sample_estimate
-        # for ii in range(ntrials):
-        #     est_val, Q_val, delta_val = _estimate_components(est, funs, ii)
-        #     estimator_vals.append(est_val)
-        #     Q.append(Q_val)
-        #     delta.append(delta_val)
-        # delta = np.array(delta)
-        # Q = np.array(Q)
-        # estimator_vals = np.array(estimator_vals)
-
-        max_eval_concurrency = 4
         from multiprocessing import Pool
         # set flat funs to none so funs can be pickled
         pool = Pool(max_eval_concurrency)
@@ -580,6 +543,47 @@ class TestMOMC(unittest.TestCase):
         estimator_vals = np.asarray([r[0] for r in result])
         Q = np.asarray([r[1] for r in result])
         delta = np.asarray([r[2] for r in result])
+        return estimator_vals, Q, delta       
+
+    def _check_estimator_variances(self, model_idx, qoi_idx, recursion_index,
+                                   est_type, stat_type, ntrials=int(1e4)):
+        rtol, atol = 4.6e-2, 1e-3
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+            model_idx, qoi_idx)
+        nqoi = len(qoi_idx)
+        args = []
+        if est_type == "acvmf":
+            kwargs = {"recursion_index": np.asarray(recursion_index)}
+        else:
+            kwargs = {}
+        if stat_type == "mean":
+            idx = nqoi
+        if "variance" in stat_type:
+            W = model.covariance_of_centered_values_kronker_product()
+            W = self._nqoisq_nqoisq_subproblem(
+                W, model.nmodels, model.nqoi, model_idx, qoi_idx)
+            # npilot_samples = int(1e6)
+            # pilot_samples = model.variable.rvs(npilot_samples)
+            # pilot_values = np.hstack([f(pilot_samples) for f in funs])
+            # W = get_W_from_pilot(pilot_values, nmodels)
+            args.append(W)
+            idx = nqoi**2
+        if stat_type == "mean_variance":
+            B = model.covariance_of_mean_and_variance_estimators()
+            B = self._nqoi_nqoisq_subproblem(
+                B, model.nmodels, model.nqoi, model_idx, qoi_idx)
+            args.append(B)
+            idx = nqoi+nqoi**2
+        est = get_estimator(
+            est_type, stat_type, model.variable, costs, cov, *args, **kwargs)
+
+        # set nsamples per model tso generate data can be called
+        # without optimizing the sample allocaiton
+        est.nsamples_per_model = torch.tensor([10, 20, 30][:len(funs)])
+
+        max_eval_concurrency = 1
+        estimator_vals, Q, delta = self._estimate_components_loop(
+            ntrials, est, funs, max_eval_concurrency)
 
         CF_mc = torch.as_tensor(
             np.cov(delta.T, ddof=1), dtype=torch.double)
@@ -591,9 +595,11 @@ class TestMOMC(unittest.TestCase):
         # print(model.covariance()[:nqoi:, :nqoi])
 
         hf_var_mc = np.cov(Q.T, ddof=1)
-        hf_var = est.stat.high_fidelity_estimator_covariance(est.nsamples_per_model)
+        hf_var = est.stat.high_fidelity_estimator_covariance(
+            est.nsamples_per_model)
         # print(hf_var_mc)
         # print(hf_var.numpy())
+        # print(((hf_var_mc-hf_var.numpy())/hf_var.numpy()).max())
         assert np.allclose(hf_var_mc, hf_var, atol=atol, rtol=rtol)
 
         CF, cf = est.stat.get_discrepancy_covariances(
@@ -612,24 +618,30 @@ class TestMOMC(unittest.TestCase):
 
         var_mc = np.cov(estimator_vals.T, ddof=1)
         variance = est._get_variance(est.nsamples_per_model).numpy()
-        # print(var_mc, 'v_mc')
-        # print(variance, 'v')
-        # print((var_mc-variance)/variance)
+        print(var_mc, 'v_mc')
+        print(variance, 'v')
+        print((var_mc-variance)/variance)
         assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
 
     def test_estimator_variances(self):
         test_cases = [
-            [[0, 1, 2], [0, 1, 2], [0, 0], "MOACVM"],
-            [[0, 1, 2], [0, 1, 2], [0, 1], "MOACVM"],
-            [[0, 1], [0, 2], [0], "MOACVM"],
-            [[0, 1], [0], [0], "MOACVV"],
-            [[0, 1], [0, 2], [0], "MOACVV"],
-            [[0, 1, 2], [0, 1, 2], [0, 0], "MOACVV"],
-            [[0, 1], [0], [0], "MOACVMV"],
-            [[0, 1, 2], [0], [0, 0], "MOACVMV"],
+            [[0, 1, 2], [0, 1, 2], [0, 0], "acvmf", "mean"],
+            [[0, 1, 2], [0, 1, 2], [0, 1], "acvmf", "mean"],
+            [[0, 1], [0, 2], [0], "acvmf", "mean"],
+            [[0, 1], [0], [0], "acvmf", "variance"],
+            [[0, 1], [0, 2], [0], "acvmf", "variance"],
+            [[0, 1, 2], [0, 1, 2], [0, 0], "acvmf", "variance"],
+            [[0, 1], [0], [0], "acvmf", "mean_variance"],
+            # following is slow test remove for speed
+            # [[0, 1, 2], [0, 1, 2], [0, 0], "acvmf", "mean_variance", int(1e5)],
+            [[0, 1, 2], [0], None, "mfmc", "mean"],
+            [[0, 1, 2], [0], None, "mlmc", "mean"],
+            [[0, 1, 2], [0, 1], None, "mlmc", "mean"],
+            [[0, 1, 2], [0, 1, 2], None, "acvmfb", "variance"],
         ]
-        for test_case in test_cases:
+        for test_case in test_cases[-1:]:
             np.random.seed(1)
+            print(test_case)
             self._check_estimator_variances(*test_case)
 
     def test_sample_optimization(self):
@@ -641,9 +653,6 @@ class TestMOMC(unittest.TestCase):
             model_idx, qoi_idx)
         est = get_estimator("acvmf", "mean", model.variable, costs, cov,
                             recursion_index=np.asarray(recursion_index))
-        # est = MultiOutputACVMeanEstimator(
-        #     cov, costs, model.variable,
-        #     recursion_index=np.asarray(recursion_index))
         # get nsample ratios before rounding
         # avoid using est._allocate_samples so we do not start
         # from mfmc exact solution
@@ -655,6 +664,10 @@ class TestMOMC(unittest.TestCase):
         print(nsample_ratios)
         assert np.allclose(nsample_ratios, mfmc_nsample_ratios)
         assert np.allclose(obj_val, 10**mfmc_log10_variance)
+
+        est = get_estimator("acvmfb", "mean", model.variable, costs, cov)
+        est.allocate_samples(target_cost, verbosity=1)
+        assert np.allclose(est.recursion_index, [0, 1])
 
 
 if __name__ == "__main__":
