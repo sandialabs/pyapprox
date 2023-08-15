@@ -427,6 +427,10 @@ def log_determinant_variance(variance):
     return torch.logdet(variance)
 
 
+def determinant_variance(variance):
+    return torch.det(variance)
+
+
 def log_trace_variance(variance):
     return torch.log(torch.trace(variance))
 
@@ -526,11 +530,34 @@ class MCEstimator():
         return self.stat.high_fidelity_estimator_covariance(
             nsamples_per_model)
 
+    def get_variance(self, target_cost, nsample_ratios):
+        """
+        Get the variance of the Monte Carlo estimator from costs and cov.
+
+        Parameters
+        ----------
+        target_cost : float
+            The total cost budget
+
+        nsample_ratios : np.ndarray or torch.tensor (nmodels-1)
+            The sample ratios r used to specify the number of samples of the
+            lower fidelity models, e.g. N_i = r_i*nhf_samples,
+            i=1,...,nmodels-1
+
+        Returns
+        -------
+        variance : float
+            The variance of the estimator
+            """
+        nsamples_per_model = get_nsamples_per_model(
+            target_cost, self.costs, nsample_ratios, False)
+        return self._get_variance(nsamples_per_model)
+
     def allocate_samples(self, target_cost):
         self.nsamples_per_model = np.asarray(
             [int(np.floor(target_cost/self.costs[0]))])
         nsample_ratios = np.zeros(0)
-        variance = self.get_variance(self.nsamples_per_model)
+        variance = self._get_variance(self.nsamples_per_model)
         optimized_criteria = self.optimization_criteria(variance)
         self.rounded_target_cost = self.costs[0]*self.nsamples_per_model[0]
         self.optimized_criteria = optimized_criteria
@@ -601,15 +628,11 @@ class ACVEstimator(MCEstimator):
 
     def _weights(self, CF, cf):
         #  weights = -torch.linalg.solve(CF, cf.T)
-        weights = -torch.linalg.multi_dot(
-            (torch.linalg.pinv(CF), cf.T))
-        # try:
-        #     if CF.shape == (1, 1):
-        #         weights = -cf.T/CF[0, 0]
-        #     else:
-        #         weights = -torch.linalg.solve(CF, cf.T)
-        # except (np.linalg.LinAlgError, RuntimeError):
-        #     weights = torch.ones(cf.shape, dtype=torch.double)*1e16
+        try:
+            weights = -torch.linalg.multi_dot(
+                (torch.linalg.pinv(CF), cf.T))
+        except (np.linalg.LinAlgError, RuntimeError):
+            weights = torch.ones(cf.T.shape, dtype=torch.double)*1e16
         return weights.T
 
     def _estimate(self, values, weights):
@@ -721,8 +744,6 @@ class ACVEstimator(MCEstimator):
 
         nmodels = len(costs)
         nunknowns = len(initial_guess)
-        # bounds = [(1.0, 1e10)]*nunknowns
-        # bounds = [(1.0, np.ceil(target_cost/cost)) for cost in costs[1:]]
         max_nhf = target_cost/costs[0]
         bounds = [(1+1/(max_nhf),
                    np.ceil(target_cost/cost)) for cost in costs[1:]]
@@ -737,12 +758,6 @@ class ACVEstimator(MCEstimator):
 
         return_grad = True
         method = "SLSQP"
-        # method = "trust-constr"
-        # print(optim_options)
-        # del optim_options['ftol']
-        # del optim_options['iprint']
-        # optim_options["maxiter"] = 10000
-        # optim_options["gtol"] = 1e-6
         opt = minimize(
             partial(self._objective, target_cost, return_grad=return_grad),
             initial_guess, method=method, jac=return_grad,
@@ -867,6 +882,7 @@ class ACVEstimator(MCEstimator):
         val = self.optimization_criteria(variance)
         self.set_optimized_params(
             nsample_ratios, rounded_target_cost, val)
+        print(val)
         return nsample_ratios, variance, rounded_target_cost
 
     def _get_npartition_samples(self, nsamples_per_model):
@@ -920,29 +936,6 @@ class ACVEstimator(MCEstimator):
         weights = self._weights(CF, cf)
         return (self.stat.high_fidelity_estimator_covariance(
             nsamples_per_model) + torch.linalg.multi_dot((weights, cf.T)))
-
-    def get_variance(self, target_cost, nsample_ratios):
-        """
-        Get the variance of the Monte Carlo estimator from costs and cov.
-
-        Parameters
-        ----------
-        target_cost : float
-            The total cost budget
-
-        nsample_ratios : np.ndarray or torch.tensor (nmodels-1)
-            The sample ratios r used to specify the number of samples of the
-            lower fidelity models, e.g. N_i = r_i*nhf_samples,
-            i=1,...,nmodels-1
-
-        Returns
-        -------
-        variance : float
-            The variance of the estimator
-            """
-        nsamples_per_model = get_nsamples_per_model(
-            target_cost, self.costs, nsample_ratios, False)
-        return self._get_variance(nsamples_per_model)
 
     def generate_sample_allocations(self):
         """
@@ -1088,12 +1081,13 @@ class MultiOutputVariance(MultiOutputStatistic):
     def __init__(self, nmodels, cov, W):
         self.cov = torch.as_tensor(cov)
         self.nqoi = self.cov.shape[0]//nmodels
-        self.V = get_V_from_covariance(self.cov, nmodels)
+        self.V = torch.as_tensor(
+            get_V_from_covariance(self.cov, nmodels), dtype=torch.double)
         if W.shape != self.V.shape:
             msg = "W has the wrong shape {0}. Should be {1}".format(
                 W.shape, self.V.shape)
             raise ValueError(msg)
-        self.W = W
+        self.W = torch.as_tensor(W, dtype=torch.double)
 
     def get_discrepancy_covariances(self, estimator, nsamples_per_model):
         reorder_allocation_mat = (
@@ -1132,18 +1126,19 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
     def __init__(self, nmodels, cov, W, B):
         self.cov = torch.as_tensor(cov)
         self.nqoi = self.cov.shape[0]//nmodels
-        self.V = get_V_from_covariance(self.cov, nmodels)
+        self.V = torch.as_tensor(
+            get_V_from_covariance(self.cov, nmodels), dtype=torch.double)
         if W.shape != self.V.shape:
             msg = "W has the wrong shape {0}. Should be {1}".format(
                 W.shape, self.V.shape)
             raise ValueError(msg)
-        self.W = W
+        self.W = torch.as_tensor(W, dtype=torch.double)
         B_shape = cov.shape[0], self.V.shape[1]
         if B.shape != B_shape:
             msg = "B has the wrong shape {0}. Should be {1}".format(
                 B.shape, B_shape)
             raise ValueError(msg)
-        self.B = B
+        self.B = torch.as_tensor(B, dtype=torch.double)
 
     def get_discrepancy_covariances(self, estimator, nsamples_per_model):
         reorder_allocation_mat = (
@@ -1510,3 +1505,44 @@ def get_estimator(estimator_type, stat_type, variable, costs, cov, *args,
     return BestModelSubsetEstimator(
         estimator_type, stat_type, variable, costs, cov,
         *args, max_nmodels=max_nmodels, **kwargs)
+
+
+def plot_estimator_variances(optimized_estimators,
+                             est_labels, ax, ylabel=None,
+                             relative_id=0, cost_normalization=1,
+                             criteria=determinant_variance):
+    """
+    Plot variance as a function of the total cost for a set of estimators.
+
+    Parameters
+    ----------
+    optimized_estimators : list
+         Each entry is a list of optimized estimators for a set of target costs
+
+    est_labels : list (nestimators)
+        String used to label each estimator
+
+    relative_id the model id used to normalize variance
+    """
+    from pyapprox.util.configure_plots import mathrm_label
+    linestyles = ['-', '--', ':', '-.', (0, (5, 10)), '-']
+    nestimators = len(est_labels)
+    est_criteria = []
+    for ii in range(nestimators):
+        est_total_costs = np.array(
+            [est.rounded_target_cost for est in optimized_estimators[ii]])
+        est_criteria.append(np.array(
+            [criteria(est._get_variance(est.nsamples_per_model), est)
+             for est in optimized_estimators[ii]]))
+    print(est_criteria[-1])
+    est_total_costs *= cost_normalization
+    for ii in range(nestimators):
+        # print(est_labels[ii], nestimators)
+        ax.loglog(est_total_costs,
+                  est_criteria[ii]/est_criteria[relative_id][0],
+                  label=est_labels[ii], ls=linestyles[ii], marker='o')
+    if ylabel is None:
+        ylabel = mathrm_label("Estimator variance")
+    ax.set_xlabel(mathrm_label("Target cost"))
+    ax.set_ylabel(ylabel)
+    ax.legend()

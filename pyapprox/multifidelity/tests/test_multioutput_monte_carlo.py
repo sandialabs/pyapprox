@@ -510,7 +510,7 @@ class TestMOMC(unittest.TestCase):
         estimator_vals = np.asarray([r[0] for r in result])
         Q = np.asarray([r[1] for r in result])
         delta = np.asarray([r[2] for r in result])
-        return estimator_vals, Q, delta       
+        return estimator_vals, Q, delta
 
     def _check_estimator_variances(self, model_idx, qoi_idx, recursion_index,
                                    est_type, stat_type, ntrials=int(1e4)):
@@ -633,7 +633,7 @@ class TestMOMC(unittest.TestCase):
         print(nsample_ratios)
         assert np.allclose(nsample_ratios, mfmc_nsample_ratios)
         assert np.allclose(obj_val, 10**mfmc_log10_variance)
-
+        
         est = get_estimator("acvmfb", "mean", model.variable, costs, cov)
         est.allocate_samples(target_cost, verbosity=1)
         assert np.allclose(est.recursion_index, [0, 1])
@@ -654,6 +654,67 @@ class TestMOMC(unittest.TestCase):
         variance = est.get_variance(target_cost, est.nsample_ratios).numpy()
         rtol, atol = 2e-2, 1e-3
         assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
+
+    def test_compare_estimator_variances(self):
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+            [0, 1, 2], [0, 1, 2])
+
+        def single_criteria(variance):
+            return torch.log(variance[1, 1])
+
+        from pyapprox.multifidelity.multioutput_monte_carlo import (
+            log_determinant_variance)
+        single_criteria = log_determinant_variance
+
+        estimator_types = ["mc", "acvmf", "acvmf", "acvmf"]
+        from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
+        est_labels = mathrm_labels(["MC", "ACVMF-MO", "ACVMF", "ACVMF-MO"])
+        kwargs_list = [{}, {"recursion_index": np.asarray([0, 1])},
+                       {"recursion_index": np.asarray([0, 1])},
+                       {"recursion_index": np.asarray([0, 1]),
+                        "opt_criteria": single_criteria}]
+        qoi_idx = [0]
+        from pyapprox.multifidelity.multioutput_monte_carlo import (
+            _nqoi_nqoi_subproblem)
+        #cov_sub = _nqoi_nqoi_subproblem(
+        #    cov, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
+        cov_sub = cov # hack
+        covs = [cov, cov, cov_sub, cov]
+
+        # stat_type = "mean"
+        # args_list = [[], [], [], []]
+        W = model.covariance_of_centered_values_kronker_product()
+        #W_sub = _nqoisq_nqoisq_subproblem(
+        #    W, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
+        W_sub = W # hack
+        stat_type = "variance"
+        args_list = [[W], [W], [W_sub], [W]]
+        estimators = [
+            get_estimator(et, stat_type, model.variable, costs, cv,
+                          *args, **kwargs)
+            for et, cv, args, kwargs in zip(
+                    estimator_types, covs, args_list, kwargs_list)]
+
+        target_costs = np.array([1e1, 1e2, 1e3, 1e4, 1e5], dtype=int)
+        from pyapprox import multifidelity
+        optimized_estimators = multifidelity.compare_estimator_variances(
+            target_costs, estimators)
+
+        def criteria(variance, est):
+            # if isinstance(est, ACVEstimator):
+            if est.nqoi > 1:
+                return torch.exp(single_criteria(variance))
+            return variance[0, 0]
+
+        import matplotlib.pyplot as plt
+        from pyapprox.multifidelity.multioutput_monte_carlo import (
+            plot_estimator_variances)
+        fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
+        plot_estimator_variances(
+            optimized_estimators, est_labels, axs,
+            ylabel=mathrm_label("Relative Estimator Variance"), relative_id=0,
+            criteria=criteria)
+        plt.show()
 
 
 if __name__ == "__main__":
