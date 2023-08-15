@@ -20,7 +20,10 @@ from pyapprox.multifidelity.control_variate_monte_carlo import (
     acv_sample_allocation_gmf_ratio_constraint_jac,
     acv_sample_allocation_nlf_gt_nhf_ratio_constraint,
     acv_sample_allocation_nlf_gt_nhf_ratio_constraint_jac,
-    get_acv_initial_guess)
+    get_acv_initial_guess, get_npartition_samples_mlmc,
+    get_sample_allocation_matrix_mlmc, allocate_samples_mlmc,
+    get_sample_allocation_matrix_mfmc, get_npartition_samples_mfmc,
+    get_acv_recursion_indices)
 
 
 def _V_entry(cov):
@@ -432,24 +435,27 @@ def log_linear_combination_diag_variance(weights, variance):
     return torch.log(torch.trace(variance))
 
 
-class MultiOutputACVEstimator(ABC):
-    def __init__(self, cov, costs, variable, partition="mf",
+class ACVEstimator():
+    def __init__(self, stat, costs, variable, cov, partition="mf",
                  recursion_index=None, opt_criteria=None):
         """
         Constructor.
 
         Parameters
         ----------
-        cov : np.ndarray (nmodels*nqoi, nmodels)
-            The covariance C between each of the models. The highest fidelity
-            model is the first model, i.e. covariance between its QoI
-            is cov[:nqoi, :nqoi]
+        stat : :class:`~pyapprox.multifidelity.multioutput_monte_carlo.MultiOutputStatistic`
+            Object defining what statistic will be calculated
 
         costs : np.ndarray (nmodels)
             The relative costs of evaluating each model
 
         variable : :class:`~pyapprox.variables.IndependentMarginalsVariable`
             The uncertain model parameters
+
+        cov : np.ndarray (nmodels*nqoi, nmodels)
+            The covariance C between each of the models. The highest fidelity
+            model is the first model, i.e. covariance between its QoI
+            is cov[:nqoi, :nqoi]
 
         partition : string
             What sample partition scheme to use. Must be 'mf'
@@ -469,6 +475,7 @@ class MultiOutputACVEstimator(ABC):
             then variance shape is (nqoi**2, nqoi**2), when estimating mean
             and variance then shape (nqoi+nqoi**2, nqoi+nqoi**2)
         """
+        self.stat = stat
         self.cov, self.costs, self.nmodels, self.nqoi = self._check_cov(
             cov, costs)
         self.variable = variable
@@ -539,23 +546,16 @@ class MultiOutputACVEstimator(ABC):
         #     weights = torch.ones(cf.shape, dtype=torch.double)*1e16
         return weights.T
 
-    @abstractmethod
-    def _get_discrepancy_covariances(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def _sample_estimate(self, values):
-        raise NotImplementedError
-
     def _estimate(self, values, weights):
         nmodels = len(values)
         assert len(values) == nmodels
         # high fidelity monte carlo estimate of mean
         deltas = np.hstack(
-            [self._sample_estimate(values[ii][0]) -
-             self._sample_estimate(values[ii][1])
+            [self.stat.sample_estimate(values[ii][0]) -
+             self.stat.sample_estimate(values[ii][1])
              for ii in range(1, nmodels)])
-        est = self._sample_estimate(values[0][1]) + weights.numpy().dot(deltas)
+        est = (self.stat.sample_estimate(values[0][1]) +
+               weights.numpy().dot(deltas))
         return est
 
     def __call__(self, values):
@@ -581,15 +581,16 @@ class MultiOutputACVEstimator(ABC):
             The covariance of the estimator values for
             each high-fidelity model QoI
         """
-        CF, cf = self._get_discrepancy_covariances(self.nsamples_per_model)
+        CF, cf = self.stat.get_discrepancy_covariances(
+            self, self.nsamples_per_model)
         weights = self._weights(CF, cf)
         return self._estimate(values, weights)
 
     def __repr__(self):
         if self.optimized_variance is None:
-            return "{0}".format(self.__class__.__name__)
-        return "{0}(variance={1:.3g}, target_cost={2:.3g})".format(
-            self.__class__.__name__, self.optimized_variance,
+            return "{0}(stat={1})".format(self.__class__.__name__, self.stat)
+        return "{0}(stat={1}, variance={2:.3g}, target_cost={3:.3g})".format(
+            self.__class__.__name__, self.stat, self.optimized_variance,
             self.rounded_target_cost)
 
     def set_optimized_params(self, nsample_ratios, rounded_target_cost,
@@ -680,13 +681,12 @@ class MultiOutputACVEstimator(ABC):
             bounds=bounds, constraints=cons, options=optim_options)
         return opt
 
-    def _allocate_samples_opt(self, cov, costs, target_cost, 
+    def _allocate_samples_opt(self, cov, costs, target_cost,
                               cons=[],
                               initial_guess=None,
                               optim_options=None, optim_method='SLSQP'):
         initial_guess = get_acv_initial_guess(
             initial_guess, cov, costs, target_cost)
-        print(initial_guess)
         assert optim_method == "SLSQP"
         opt = self._allocate_samples_opt_slsqp(
             costs, target_cost, initial_guess, optim_options, cons)
@@ -697,7 +697,7 @@ class MultiOutputACVEstimator(ABC):
             val = self.get_variance(target_cost, nsample_ratios)
         return nsample_ratios, val
 
-    def _allocate_samples_multistart(self, target_cost, **kwargs):
+    def _allocate_samples(self, target_cost, **kwargs):
         cons = self.get_constraints(target_cost)
         opt = self._allocate_samples_opt(
             self.cov, self.costs, target_cost, cons,
@@ -789,7 +789,7 @@ class MultiOutputACVEstimator(ABC):
         rounded_target_cost : float
             The cost of the new sample allocation
         """
-        nsample_ratios, obj_val = self._allocate_samples_multistart(
+        nsample_ratios, obj_val = self._allocate_samples(
             target_cost)
         nsample_ratios = nsample_ratios.detach().numpy()
         nsample_ratios, rounded_target_cost = round_nsample_ratios(
@@ -845,14 +845,11 @@ class MultiOutputACVEstimator(ABC):
         self._create_allocation_matrix()
         return index
 
-    @abstractmethod
-    def high_fidelity_estimator_covariance(self):
-        raise NotImplementedError
-
     def _get_variance(self, nsamples_per_model):
-        CF, cf = self._get_discrepancy_covariances(nsamples_per_model)
+        CF, cf = self.stat.get_discrepancy_covariances(
+            self, nsamples_per_model)
         weights = self._weights(CF, cf)
-        return (self.high_fidelity_estimator_covariance(
+        return (self.stat.high_fidelity_estimator_covariance(
             nsamples_per_model) + torch.linalg.multi_dot((weights, cf.T)))
 
     def get_variance(self, target_cost, nsample_ratios):
@@ -970,49 +967,69 @@ class MultiOutputACVEstimator(ABC):
             self._get_approximate_control_variate_weights(), nbootstraps)
 
 
-class MultiOutputACVMeanEstimator(MultiOutputACVEstimator):
-    def _get_discrepancy_covariances(self, nsamples_per_model):
+class MultiOutputStatistic(ABC):
+    @abstractmethod
+    def get_discrepancy_covariances(self, estimator, nsamples_per_model):
+        raise NotImplementedError
+
+    def sample_estimate(self, values):
+        raise NotImplementedError
+
+    def high_fidelity_estimator_covariance(self, nsamples_per_model):
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
+
+
+class MultiOutputMean(MultiOutputStatistic):
+    def __init__(self, nmodels, cov):
+        self.cov = torch.as_tensor(cov)
+        self.nqoi = self.cov.shape[0]//nmodels
+
+    def get_discrepancy_covariances(self, estimator, nsamples_per_model):
         reorder_allocation_mat = (
-            self._get_reordered_sample_allocation_matrix(nsamples_per_model))
+            estimator._get_reordered_sample_allocation_matrix(
+                nsamples_per_model))
         Gmat, gvec = get_acv_mean_discrepancy_covariances_multipliers(
             reorder_allocation_mat, nsamples_per_model,
-            self._get_npartition_samples)
+            estimator._get_npartition_samples)
         return get_multioutput_acv_mean_discrepancy_covariances(
             self.cov, Gmat, gvec)
 
-    def _sample_estimate(self, values):
+    def sample_estimate(self, values):
         return np.mean(values, axis=0)
 
     def high_fidelity_estimator_covariance(self, nsamples_per_model):
         return self.cov[:self.nqoi, :self.nqoi]/nsamples_per_model[0]
 
 
-class MultiOutputACVVarianceEstimator(MultiOutputACVEstimator):
-    def __init__(self, cov, costs, variable, W, partition="mf",
-                 recursion_index=None):
-        super().__init__(cov, costs, variable, partition="mf",
-                         recursion_index=None)
-        self.V = get_V_from_covariance(self.cov, self.nmodels)
+class MultiOutputVariance(MultiOutputStatistic):
+    def __init__(self, nmodels, cov, W):
+        self.cov = torch.as_tensor(cov)
+        self.nqoi = self.cov.shape[0]//nmodels
+        self.V = get_V_from_covariance(self.cov, nmodels)
         if W.shape != self.V.shape:
             msg = "W has the wrong shape {0}. Should be {1}".format(
                 W.shape, self.V.shape)
             raise ValueError(msg)
         self.W = W
 
-    def _get_discrepancy_covariances(self, nsamples_per_model):
+    def get_discrepancy_covariances(self, estimator, nsamples_per_model):
         reorder_allocation_mat = (
-            self._get_reordered_sample_allocation_matrix(nsamples_per_model))
+            estimator._get_reordered_sample_allocation_matrix(
+                nsamples_per_model))
         Gmat, gvec = get_acv_mean_discrepancy_covariances_multipliers(
             reorder_allocation_mat, nsamples_per_model,
-            self._get_npartition_samples)
+            estimator._get_npartition_samples)
         Hmat, hvec = (
             get_acv_variance_discrepancy_covariances_multipliers(
-                reorder_allocation_mat, self.nsamples_per_model,
-                self._get_npartition_samples))
+                reorder_allocation_mat, nsamples_per_model,
+                estimator._get_npartition_samples))
         return get_multioutput_acv_variance_discrepancy_covariances(
             self.V, self.W, Gmat, gvec, Hmat, hvec)
 
-    def _sample_estimate(self, values):
+    def sample_estimate(self, values):
         return np.cov(values.T, ddof=1).flatten()
         # return np.cov(values.T, ddof=1)[
         #    torch.triu_indices(values.shape[1], values.shape[1]).unbind()]
@@ -1023,11 +1040,16 @@ class MultiOutputACVVarianceEstimator(MultiOutputACVEstimator):
             self.V[:self.nqoi**2, :self.nqoi**2], nsamples_per_model[0])
 
 
-class MultiOutputACVMeanAndVarianceEstimator(MultiOutputACVVarianceEstimator):
-    def __init__(self, cov, costs, variable, W, B, partition="mf",
-                 recursion_index=None):
-        super().__init__(cov, costs, variable, W, partition="mf",
-                         recursion_index=None)
+class MultiOutputMeanAndVariance(MultiOutputStatistic):
+    def __init__(self, nmodels, cov, W, B):
+        self.cov = torch.as_tensor(cov)
+        self.nqoi = self.cov.shape[0]//nmodels
+        self.V = get_V_from_covariance(self.cov, nmodels)
+        if W.shape != self.V.shape:
+            msg = "W has the wrong shape {0}. Should be {1}".format(
+                W.shape, self.V.shape)
+            raise ValueError(msg)
+        self.W = W
         B_shape = cov.shape[0], self.V.shape[1]
         if B.shape != B_shape:
             msg = "B has the wrong shape {0}. Should be {1}".format(
@@ -1035,20 +1057,21 @@ class MultiOutputACVMeanAndVarianceEstimator(MultiOutputACVVarianceEstimator):
             raise ValueError(msg)
         self.B = B
 
-    def _get_discrepancy_covariances(self, nsamples_per_model):
+    def get_discrepancy_covariances(self, estimator, nsamples_per_model):
         reorder_allocation_mat = (
-            self._get_reordered_sample_allocation_matrix(nsamples_per_model))
+            estimator._get_reordered_sample_allocation_matrix(
+                nsamples_per_model))
         Gmat, gvec = get_acv_mean_discrepancy_covariances_multipliers(
             reorder_allocation_mat, nsamples_per_model,
-            self._get_npartition_samples)
+            estimator._get_npartition_samples)
         Hmat, hvec = (
             get_acv_variance_discrepancy_covariances_multipliers(
-                reorder_allocation_mat, self.nsamples_per_model,
-                self._get_npartition_samples))
+                reorder_allocation_mat, nsamples_per_model,
+                estimator._get_npartition_samples))
         return get_multioutput_acv_mean_and_variance_discrepancy_covariances(
             self.cov, self.V, self.W, self.B, Gmat, gvec, Hmat, hvec)
 
-    def _sample_estimate(self, values):
+    def sample_estimate(self, values):
         return np.hstack([np.mean(values, axis=0),
                           np.cov(values.T, ddof=1).flatten()])
 
@@ -1061,3 +1084,108 @@ class MultiOutputACVMeanAndVarianceEstimator(MultiOutputACVVarianceEstimator):
         return torch_2x2_block(
             [[block_11, block_12],
              [block_12.T, block_22]])
+
+
+class MFMCEstimator(ACVEstimator):
+    def __init__(self, cov, costs, variable, partition="mf",
+                 opt_criteria=None):
+        super().__init__(cov, costs, variable, partition,
+                         recursion_index=None, opt_criteria=None)
+
+    def _allocate_samples(self, target_cost):
+        # nsample_ratios returned will be listed in according to
+        # self.model_order which is what self.get_rsquared requires
+        return allocate_samples_mfmc(
+            self.cov.numpy(), self.costs.numpy(), target_cost)
+
+    def _get_reordered_sample_allocation_matrix(self):
+        return get_sample_allocation_matrix_mfmc(self.nmodels)
+
+    # def generate_data(self, functions):
+    #    return generate_samples_and_values_mfmc(
+    #        self.nsamples_per_model, functions, self.generate_samples,
+    #        acv_modification=False)
+
+    def _get_npartition_samples(self, nsamples_per_model):
+        return get_npartition_samples_mfmc(nsamples_per_model)
+
+
+class MLMCEstimator(ACVEstimator):
+    def __init__(self, cov, costs, variable, partition="mf",
+                 opt_criteria=None):
+        super().__init__(cov, costs, variable, partition,
+                         recursion_index=None, opt_criteria=None)
+
+    def _allocate_samples(self, target_cost):
+        return allocate_samples_mlmc(
+            self.cov.numpy(), self.costs.numpy(), target_cost)
+
+    def _get_reordered_sample_allocation_matrix(self):
+        return get_sample_allocation_matrix_mlmc(self.nmodels)
+
+    def _get_npartition_samples(self, nsamples_per_model):
+        return get_npartition_samples_mlmc(nsamples_per_model)
+
+    def _weights(self, CF, cf):
+        return -torch.ones(cf.shape, dtype=torch.double)
+
+
+class BestACVEstimator(ACVEstimator):
+    def __init__(self, cov, costs, variable,  partition="mf",
+                 opt_criteria=None, tree_depth=None):
+        super().__init__(cov, costs, variable, partition, None)
+        self._depth = tree_depth
+
+    def allocate_samples(self, target_cost):
+        best_variance = np.inf
+        best_result = None
+        for index in get_acv_recursion_indices(self.nmodels, self._depth):
+            self.set_recursion_index(index)
+            try:
+                super().allocate_samples(target_cost)
+            except RuntimeError:
+                # typically solver fails because trying to use
+                # uniformative model as a recursive control variate
+                self.optimized_variance = np.inf
+            if self.optimized_variance < best_variance:
+                best_result = [self.nsample_ratios, self.rounded_target_cost,
+                               self.optimized_variance, index]
+                best_variance = self.optimized_variance
+        if best_result is None:
+            raise RuntimeError("No solutions were found")
+        self.set_recursion_index(best_result[3])
+        self.set_optimized_params(*best_result[:3])
+        return best_result[:3]
+
+
+multioutput_estimators = {
+    "acvmf": ACVEstimator,
+    "mfmc": MFMCEstimator,
+    "mlmc": MLMCEstimator,
+    "bacvmf": BestACVEstimator}
+
+
+multioutput_stats = {
+    "mean": MultiOutputMean,
+    "variance": MultiOutputVariance,
+    "mean_variance": MultiOutputMeanAndVariance,
+}
+
+
+def get_estimator(estimator_type, stat_type, variable, costs, cov, *args,
+                  **kwargs):
+    if estimator_type not in multioutput_estimators:
+        msg = f"Estimator {estimator_type} not supported"
+        msg += f"Must be one of {multioutput_estimators.keys()}"
+        raise ValueError(msg)
+
+    if stat_type not in multioutput_stats:
+        msg = f"Statistic {stat_type} not supported"
+        msg += f"Must be one of {multioutput_stats.keys()}"
+        raise ValueError(msg)
+
+    nmodels = len(costs)
+    stat = multioutput_stats[stat_type](nmodels, cov, *args)
+
+    return multioutput_estimators[estimator_type](
+        stat, costs, variable, cov, **kwargs)

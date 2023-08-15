@@ -8,8 +8,7 @@ from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.multifidelity.multioutput_monte_carlo import (
     get_V_from_covariance, covariance_of_variance_estimator, get_W_from_pilot,
-    get_B_from_pilot, MultiOutputACVMeanEstimator,
-    MultiOutputACVVarianceEstimator, MultiOutputACVMeanAndVarianceEstimator)
+    get_B_from_pilot, get_estimator)
 from pyapprox.multifidelity.control_variate_monte_carlo import (
     allocate_samples_mfmc)
 
@@ -310,7 +309,7 @@ class MultioutputModelEnsemble():
 def _estimate_components(est, funs, ii):
     random_state = np.random.RandomState(ii)
     est.set_random_state(random_state)
-    mc_est = est._sample_estimate
+    mc_est = est.stat.sample_estimate
     acv_values = est.generate_data(funs)[1]
     est_val = est(acv_values)
     Q = mc_est(acv_values[0][1])
@@ -524,11 +523,10 @@ class TestMOMC(unittest.TestCase):
         rtol, atol = 4.6e-2, 1e-3
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
-        nmodels, nqoi = len(model_idx), len(qoi_idx)
+        nqoi = len(qoi_idx)
         if est_type == "MOACVM":
-            est = MultiOutputACVMeanEstimator(
-                cov, costs, model.variable,
-                recursion_index=np.asarray(recursion_index))
+            est = get_estimator("acvmf", "mean", model.variable, costs, cov,
+                                recursion_index=np.asarray(recursion_index))
             idx = nqoi
         elif est_type == "MOACVV":
             W = model.covariance_of_centered_values_kronker_product()
@@ -538,20 +536,19 @@ class TestMOMC(unittest.TestCase):
             # pilot_samples = model.variable.rvs(npilot_samples)
             # pilot_values = np.hstack([f(pilot_samples) for f in funs])
             # W = get_W_from_pilot(pilot_values, nmodels)
-            est = MultiOutputACVVarianceEstimator(
-                cov, costs, model.variable, W,
+            est = get_estimator(
+                "acvmf", "variance", model.variable, costs, cov, W,
                 recursion_index=np.asarray(recursion_index))
             idx = nqoi**2
         elif est_type == "MOACVMV":
             W = model.covariance_of_centered_values_kronker_product()
             W = self._nqoisq_nqoisq_subproblem(
                 W, model.nmodels, model.nqoi, model_idx, qoi_idx)
-            print(W.shape)
             B = model.covariance_of_mean_and_variance_estimators()
             B = self._nqoi_nqoisq_subproblem(
                 B, model.nmodels, model.nqoi, model_idx, qoi_idx)
-            est = MultiOutputACVMeanAndVarianceEstimator(
-                cov, costs, model.variable, W, B,
+            est = get_estimator(
+                "acvmf", "mean_variance", model.variable, costs, cov, W, B,
                 recursion_index=np.asarray(recursion_index))
             idx = nqoi+nqoi**2
 
@@ -563,7 +560,7 @@ class TestMOMC(unittest.TestCase):
         # Q = []
         # delta = []
         # estimator_vals = []
-        # mc_est = est._sample_estimate
+        # mc_est = est.stat.sample_estimate
         # for ii in range(ntrials):
         #     est_val, Q_val, delta_val = _estimate_components(est, funs, ii)
         #     estimator_vals.append(est_val)
@@ -594,12 +591,13 @@ class TestMOMC(unittest.TestCase):
         # print(model.covariance()[:nqoi:, :nqoi])
 
         hf_var_mc = np.cov(Q.T, ddof=1)
-        hf_var = est.high_fidelity_estimator_covariance(est.nsamples_per_model)
+        hf_var = est.stat.high_fidelity_estimator_covariance(est.nsamples_per_model)
         # print(hf_var_mc)
         # print(hf_var.numpy())
         assert np.allclose(hf_var_mc, hf_var, atol=atol, rtol=rtol)
 
-        CF, cf = est._get_discrepancy_covariances(est.nsamples_per_model)
+        CF, cf = est.stat.get_discrepancy_covariances(
+            est, est.nsamples_per_model)
         CF, cf = CF.numpy(), cf.numpy()
         # print(np.linalg.det(CF), 'determinant')
         # print(np.linalg.matrix_rank(CF), 'rank', CF.shape)
@@ -641,11 +639,13 @@ class TestMOMC(unittest.TestCase):
         target_cost = 10
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
-        est = MultiOutputACVMeanEstimator(
-            cov, costs, model.variable,
-            recursion_index=np.asarray(recursion_index))
+        est = get_estimator("acvmf", "mean", model.variable, costs, cov,
+                            recursion_index=np.asarray(recursion_index))
+        # est = MultiOutputACVMeanEstimator(
+        #     cov, costs, model.variable,
+        #     recursion_index=np.asarray(recursion_index))
         # get nsample ratios before rounding
-        # avoid using est._allocate_samples_multistart so we do not start
+        # avoid using est._allocate_samples so we do not start
         # from mfmc exact solution
         nsample_ratios, obj_val = est._allocate_samples_opt(
             est.cov, est.costs, target_cost, est.get_constraints(target_cost),
