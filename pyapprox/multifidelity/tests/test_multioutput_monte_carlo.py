@@ -9,7 +9,7 @@ from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.multifidelity.multioutput_monte_carlo import (
     get_V_from_covariance, covariance_of_variance_estimator, get_W_from_pilot,
     get_B_from_pilot, get_estimator, _nqoisq_nqoisq_subproblem,
-    _nqoi_nqoisq_subproblem)
+    _nqoi_nqoisq_subproblem, ACVEstimator)
 from pyapprox.multifidelity.control_variate_monte_carlo import (
     allocate_samples_mfmc)
 
@@ -314,9 +314,12 @@ def _estimate_components(est, funs, ii):
     acv_samples, acv_values = est.generate_data(funs)
     est_val = est(acv_values)
     Q = mc_est(acv_values[0][1])
-    delta = np.hstack([mc_est(acv_values[ii][0]) -
-                       mc_est(acv_values[ii][1])
-                       for ii in range(1, est.nmodels)])
+    if isinstance(est, ACVEstimator):
+        delta = np.hstack([mc_est(acv_values[ii][0]) -
+                           mc_est(acv_values[ii][1])
+                           for ii in range(1, est.nmodels)])
+    else:
+        delta = Q*0
     return est_val, Q, delta
 
 
@@ -524,7 +527,7 @@ class TestMOMC(unittest.TestCase):
             idx = nqoi
         if "variance" in stat_type:
             W = model.covariance_of_centered_values_kronker_product()
-            W = self._nqoisq_nqoisq_subproblem(
+            W = _nqoisq_nqoisq_subproblem(
                 W, model.nmodels, model.nqoi, model_idx, qoi_idx)
             # npilot_samples = int(1e6)
             # pilot_samples = model.variable.rvs(npilot_samples)
@@ -534,7 +537,7 @@ class TestMOMC(unittest.TestCase):
             idx = nqoi**2
         if stat_type == "mean_variance":
             B = model.covariance_of_mean_and_variance_estimators()
-            B = self._nqoi_nqoisq_subproblem(
+            B = _nqoi_nqoisq_subproblem(
                 B, model.nmodels, model.nqoi, model_idx, qoi_idx)
             args.append(B)
             idx = nqoi+nqoi**2
@@ -566,25 +569,26 @@ class TestMOMC(unittest.TestCase):
         # print(((hf_var_mc-hf_var.numpy())/hf_var.numpy()).max())
         assert np.allclose(hf_var_mc, hf_var, atol=atol, rtol=rtol)
 
-        CF, cf = est.stat.get_discrepancy_covariances(
-            est, est.nsamples_per_model)
-        CF, cf = CF.numpy(), cf.numpy()
-        # print(np.linalg.det(CF), 'determinant')
-        # print(np.linalg.matrix_rank(CF), 'rank', CF.shape)
-        # print(CF, "CF")
-        # print(CF_mc, "MC CF")
-        assert np.allclose(CF_mc, CF, atol=atol, rtol=rtol)
+        if est_type != "mc":
+            CF, cf = est.stat.get_discrepancy_covariances(
+                est, est.nsamples_per_model)
+            CF, cf = CF.numpy(), cf.numpy()
+            # print(np.linalg.det(CF), 'determinant')
+            # print(np.linalg.matrix_rank(CF), 'rank', CF.shape)
+            # print(CF, "CF")
+            # print(CF_mc, "MC CF")
+            assert np.allclose(CF_mc, CF, atol=atol, rtol=rtol)
 
-        # print(cf, "cf")
-        # print(cf_mc, "MC cf")
-        # print(cf_mc.shape, cf.shape, idx)
-        assert np.allclose(cf_mc, cf, atol=atol, rtol=rtol)
+            # print(cf, "cf")
+            # print(cf_mc, "MC cf")
+            # print(cf_mc.shape, cf.shape, idx)
+            assert np.allclose(cf_mc, cf, atol=atol, rtol=rtol)
 
         var_mc = np.cov(estimator_vals.T, ddof=1)
         variance = est._get_variance(est.nsamples_per_model).numpy()
-        print(var_mc, 'v_mc')
-        print(variance, 'v')
-        print((var_mc-variance)/variance)
+        # print(var_mc, 'v_mc')
+        # print(variance, 'v')
+        # print((var_mc-variance)/variance)
         assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
 
     def test_estimator_variances(self):
@@ -602,8 +606,9 @@ class TestMOMC(unittest.TestCase):
             [[0, 1, 2], [0], None, "mlmc", "mean"],
             [[0, 1, 2], [0, 1], None, "mlmc", "mean"],
             [[0, 1, 2], [0, 1, 2], None, "acvmfb", "variance"],
+            [[0], [0, 1, 2], None, "mc", "variance"],
         ]
-        for test_case in test_cases[-1:]:
+        for test_case in test_cases:
             np.random.seed(1)
             print(test_case)
             self._check_estimator_variances(*test_case)

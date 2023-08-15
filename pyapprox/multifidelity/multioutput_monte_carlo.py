@@ -437,12 +437,9 @@ def log_linear_combination_diag_variance(weights, variance):
     return torch.log(torch.trace(variance))
 
 
-class ACVEstimator():
-    def __init__(self, stat, costs, variable, cov, partition="mf",
-                 recursion_index=None, opt_criteria=None):
-        """
-        Constructor.
-
+class MCEstimator():
+    def __init__(self, stat, costs, variable, cov, opt_criteria=None):
+        r"""
         Parameters
         ----------
         stat : :class:`~pyapprox.multifidelity.multioutput_monte_carlo.MultiOutputStatistic`
@@ -458,12 +455,6 @@ class ACVEstimator():
             The covariance C between each of the models. The highest fidelity
             model is the first model, i.e. covariance between its QoI
             is cov[:nqoi, :nqoi]
-
-        partition : string
-            What sample partition scheme to use. Must be 'mf'
-
-        recursion_index : np.ndarray (nmodels-1)
-            The recusion index that specifies which ACV estimator is used
 
         opt_criteria : callable
             Function of the the covariance between the high-fidelity
@@ -481,16 +472,12 @@ class ACVEstimator():
         self.cov, self.costs, self.nmodels, self.nqoi = self._check_cov(
             cov, costs)
         self.variable = variable
-        self.partition = partition
-        self.set_recursion_index(recursion_index)
         self.optimization_criteria = self._set_optimization_criteria(
             opt_criteria)
-
+        self.set_random_state(None)
         self.nsamples_per_model, self.optimized_criteria = None, None
         self.rounded_target_cost = None
         self.model_labels = None
-        self.set_initial_guess(None)
-        self.set_random_state(None)
 
     def _check_cov(self, cov, costs):
         nmodels = len(costs)
@@ -534,6 +521,83 @@ class ACVEstimator():
         """
         self.generate_samples = partial(
                 self.variable.rvs, random_state=random_state)
+
+    def _get_variance(self, nsamples_per_model):
+        return self.stat.high_fidelity_estimator_covariance(
+            nsamples_per_model)
+
+    def allocate_samples(self, target_cost):
+        self.nsamples_per_model = np.asarray(
+            [int(np.floor(target_cost/self.costs[0]))])
+        nsample_ratios = np.zeros(0)
+        variance = self.get_variance(self.nsamples_per_model)
+        optimized_criteria = self.optimization_criteria(variance)
+        self.rounded_target_cost = self.costs[0]*self.nsamples_per_model[0]
+        self.optimized_criteria = optimized_criteria
+        return nsample_ratios, variance, self.rounded_target_cost
+
+    def generate_data(self, functions):
+        samples = self.generate_samples(self.nsamples_per_model[0])
+        if not callable(functions):
+            values = functions[0](samples)
+        else:
+            if len(functions) != 1:
+                msg = "Too many function provided"
+                raise ValueError(msg)
+            samples_with_id = np.vstack(
+                [samples,
+                 np.zeros((1, self.nhf_samples), dtype=np.double)])
+            values = functions(samples_with_id)
+        return [[None, samples]], [[None, values]]
+
+    def __call__(self, values):
+        return self.stat.sample_estimate(values[0][1])
+
+
+class ACVEstimator(MCEstimator):
+    def __init__(self, stat, costs, variable, cov, partition="mf",
+                 recursion_index=None, opt_criteria=None):
+        """
+        Constructor.
+
+        Parameters
+        ----------
+        stat : :class:`~pyapprox.multifidelity.multioutput_monte_carlo.MultiOutputStatistic`
+            Object defining what statistic will be calculated
+
+        costs : np.ndarray (nmodels)
+            The relative costs of evaluating each model
+
+        variable : :class:`~pyapprox.variables.IndependentMarginalsVariable`
+            The uncertain model parameters
+
+        cov : np.ndarray (nmodels*nqoi, nmodels)
+            The covariance C between each of the models. The highest fidelity
+            model is the first model, i.e. covariance between its QoI
+            is cov[:nqoi, :nqoi]
+
+        partition : string
+            What sample partition scheme to use. Must be 'mf'
+
+        recursion_index : np.ndarray (nmodels-1)
+            The recusion index that specifies which ACV estimator is used
+
+        opt_criteria : callable
+            Function of the the covariance between the high-fidelity
+            QoI estimators with signature
+
+            ``opt_criteria(variance) -> float
+
+            where variance is np.ndarray with size that depends on
+            what statistics are being estimated. E.g. when estimating means
+            then variance shape is (nqoi, nqoi), when estimating variances
+            then variance shape is (nqoi**2, nqoi**2), when estimating mean
+            and variance then shape (nqoi+nqoi**2, nqoi+nqoi**2)
+        """
+        super().__init__(stat, costs, variable, cov, opt_criteria=opt_criteria)
+        self.partition = partition
+        self.set_recursion_index(recursion_index)
+        self.set_initial_guess(None)
 
     def _weights(self, CF, cf):
         #  weights = -torch.linalg.solve(CF, cf.T)
@@ -1414,7 +1478,8 @@ multioutput_estimators = {
     "acvmf": ACVEstimator,
     "mfmc": MFMCEstimator,
     "mlmc": MLMCEstimator,
-    "acvmfb": BestACVEstimator}
+    "acvmfb": BestACVEstimator,
+    "mc": MCEstimator}
 
 
 multioutput_stats = {
