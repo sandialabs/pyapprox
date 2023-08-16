@@ -57,7 +57,7 @@ class MultioutputModelEnsemble():
         values : np.ndarray (nmodels)
             Model costs
         """
-        return np.array([1., 0.1, 0.01])
+        return np.array([1., 0.01, 0.001])
 
     def f0(self, samples: np.ndarray) -> np.ndarray:
         """
@@ -692,63 +692,135 @@ class TestMOMC(unittest.TestCase):
             [0, 1, 2], [0, 1, 2])
 
         qoi_idx = [1]
-        def log_single_criteria(variance):
-            return torch.log(variance[qoi_idx[0], qoi_idx[0]])
 
-        estimator_types = ["mc", "acvmf", "acvmf", "acvmf"]
+        def log_single_qoi_criteria(stat_type, criteria_type, variance):
+            # use if stat == Variance and target is variance
+            # return torch.log(variance[qoi_idx[0], qoi_idx[0]])
+            # use if stat == MeanAndVariance and target is variance
+            if stat_type == "mean_var" and criteria_type == "var":
+                return torch.log(variance[3+qoi_idx[0], 3+qoi_idx[0]])
+            if stat_type == "mean_var" and criteria_type == "mean":
+                return torch.log(variance[qoi_idx[0], qoi_idx[0]])
+            raise ValueError
+
+        estimator_types = ["mc", "acvmf", "acvmf", "acvmf", "acvmf", "acvmf",
+                           "acvmf", "acvmf", "acvmf"]
         from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
-        est_labels = mathrm_labels(["MC", "ACVMF-MO", "ACVMF", "ACVMF-MO-G"])
-        kwargs_list = [{}, {"recursion_index": np.asarray([0, 1])},
-                       {"recursion_index": np.asarray([0, 1])},
-                       {"recursion_index": np.asarray([0, 1]),
-                        "opt_criteria": log_single_criteria}]
+        est_labels = mathrm_labels(
+            ["MC-MV",
+             "ACVMF-M",  # Single QoI, optimize mean
+             "ACVMF-V",  # Single QoI, optimize var
+             "ACVMF-MV",  # Single QoI, optimize var
+             "ACVMF-MOMV-GM",  # Multiple QoI, optimize single QoI mean
+             "ACVMF-MOMV-GV",  # Multiple QoI, optimize single QoI var
+             "ACVMF-MOM",  # Multiple QoI, optimize all means
+             "ACVMF-MOV",  # Multiple QoI, optimize all vars
+             "ACVMF-MOMV",])  # Multiple QoI, optimize all mean and vars
+        kwargs_list = [
+            {},
+            {},
+            {},
+            {},
+            {"opt_criteria": partial(
+                 log_single_qoi_criteria, "mean_var", "mean")},
+            {"opt_criteria": partial(
+                log_single_qoi_criteria, "mean_var", "var")},
+            {},
+            {},
+            {}]
+        # estimators that can compute mean
+        mean_indices = [0, 1, 3, 4, 5, 6, 8]
+        # estimators that can compute variance
+        var_indices = [0, 2, 3, 4, 5, 7, 8]
+
+        for ii in range(1, len(kwargs_list)):
+            kwargs_list[ii]["recursion_index"] = np.asarray([0, 1])
 
         from pyapprox.multifidelity.multioutput_monte_carlo import (
             _nqoi_nqoi_subproblem)
         cov_sub = _nqoi_nqoi_subproblem(
            cov, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
-        covs = [cov, cov, cov_sub, cov]
 
-        # stat_type = "mean"
-        # args_list = [[], [], [], []]
         W = model.covariance_of_centered_values_kronker_product()
         W_sub = _nqoisq_nqoisq_subproblem(
            W, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
         B = model.covariance_of_mean_and_variance_estimators()
         B_sub = _nqoi_nqoisq_subproblem(
             B, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
-        stat_type = "variance"
-        args_list = [[W], [W], [W_sub], [W]]
-        # stat_type = "mean_variance"
-        # args_list = [[W, B], [W, B], [W_sub, B_sub], [W, B]]
+        stat_types = ["mean_variance", "mean", "variance", "mean_variance",
+                      "mean_variance", "mean_variance", "mean",
+                      "variance", "mean_variance"]
+        covs = [cov, cov_sub, cov_sub, cov_sub, cov, cov, cov, cov, cov]
+        args_list = [
+            [W, B],
+            [],
+            [W_sub],
+            [W_sub, B_sub],
+            [W, B],
+            [W, B],
+            [],
+            [W],
+            [W, B]
+        ]
         estimators = [
-            get_estimator(et, stat_type, model.variable, costs, cv,
-                          *args, **kwargs)
-            for et, cv, args, kwargs in zip(
-                    estimator_types, covs, args_list, kwargs_list)]
+            get_estimator(et, st, model.variable, costs, cv, *args, **kwargs)
+            for et, st, cv, args, kwargs in zip(
+                    estimator_types, stat_types, covs, args_list, kwargs_list)]
+        for et, label in zip(estimators, est_labels):
+            print(et, label, et.optimization_criteria)
 
-        for est in estimators[1:]:
-            est.set_initial_guess([6, 77])
-
-        target_costs = np.array([1e1, 1e2, 1e3, 1e4, 1e5], dtype=int)
+        target_costs = np.array([1e1, 1e2, 1e3, 1e4, 1e5], dtype=int)[1:-1]
+        target_costs = np.array([1e1], dtype=int)
         from pyapprox import multifidelity
         optimized_estimators = multifidelity.compare_estimator_variances(
             target_costs, estimators)
 
-        def criteria(variance, est):
-            # if isinstance(est, ACVEstimator):
+        from pyapprox.multifidelity.multioutput_monte_carlo import (
+            MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance)
+
+        def criteria(stat_type, variance, est):
             if est.nqoi > 1:
-                return torch.exp(log_single_criteria(variance))
+                if stat_type != "mean" and isinstance(
+                        est.stat, MultiOutputMeanAndVariance):
+                    val = torch.log(variance[3+qoi_idx[0], 3+qoi_idx[0]])
+                elif (isinstance(
+                        est.stat, (MultiOutputVariance, MultiOutputMean)) or
+                      stat_type == "mean"):
+                    val = torch.log(variance[qoi_idx[0], qoi_idx[0]])
+                else:
+                    print(est, est.stat)
+                    raise ValueError
+                return torch.exp(val)
             return variance[0, 0]
 
         import matplotlib.pyplot as plt
         from pyapprox.multifidelity.multioutput_monte_carlo import (
-            plot_estimator_variances)
-        fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
-        plot_estimator_variances(
-            optimized_estimators, est_labels, axs,
-            ylabel=mathrm_label("Relative Estimator Variance"), relative_id=0,
-            criteria=criteria)
+            plot_estimator_variances, plot_estimator_variance_reductions)
+        fig, axs = plt.subplots(1, 2, figsize=(2*8, 6), sharey=True)
+        mean_optimized_estimators = [
+            optimized_estimators[ii] for ii in mean_indices]
+        mean_est_labels = [
+            est_labels[ii] for ii in mean_indices]
+        plot_estimator_variance_reductions(
+            mean_optimized_estimators, mean_est_labels, axs[0], ylabel=None,
+            relative_id=0, criteria=partial(criteria, "mean"))
+        var_optimized_estimators = [
+            optimized_estimators[ii] for ii in var_indices]
+        var_est_labels = [
+            est_labels[ii] for ii in var_indices]
+        plot_estimator_variance_reductions(
+                var_optimized_estimators, var_est_labels, axs[1], ylabel=None,
+                relative_id=0, criteria=partial(criteria, "variance"))
+        axs[0].set_xticklabels(
+            axs[0].get_xticklabels(), rotation=30, ha='right')
+        axs[1].set_xticklabels(
+            axs[1].get_xticklabels(), rotation=30, ha='right')
+
+        # fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
+        # plot_estimator_variances(
+        #     optimized_estimators, est_labels, axs,
+        #     ylabel=mathrm_label("Relative Estimator Variance"), relative_id=0,
+        #     criteria=criteria)
         plt.show()
 
 

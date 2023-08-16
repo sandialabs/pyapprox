@@ -550,6 +550,9 @@ class MCEstimator():
     def __call__(self, values):
         return self.stat.sample_estimate(values[0][1])
 
+    def __repr__(self):
+        return "{0}(stat={1})".format(self.__class__.__name__, self.stat)
+
 
 def acv_variance_sample_allocation_nhf_samples_constraint(ratios, *args):
     target_cost, costs = args
@@ -1539,3 +1542,38 @@ def plot_estimator_variances(optimized_estimators,
     ax.set_xlabel(mathrm_label("Target cost"))
     ax.set_ylabel(ylabel)
     ax.legend()
+
+
+def plot_estimator_variance_reductions(optimized_estimators,
+                                       est_labels, ax, ylabel=None,
+                                       relative_id=0,
+                                       criteria=determinant_variance):
+    """
+    Plot variance as a function of the total cost for a set of estimators.
+
+    Parameters
+    ----------
+    optimized_estimators : list
+         Each entry is a list of optimized estimators for a set of target costs
+
+    est_labels : list (nestimators)
+        String used to label each estimator
+
+    relative_id the model id used to normalize variance
+    """
+    from pyapprox.util.configure_plots import mathrm_label
+    nestimators = len(est_labels)
+    est_criteria = []
+    for ii in range(nestimators):
+        assert len(optimized_estimators[ii]) == 1
+        est = optimized_estimators[ii][0]
+        est_criteria.append(
+            criteria(est._get_variance(est.nsamples_per_model), est))
+    est_criteria = np.asarray(est_criteria)
+    print(est_criteria[relative_id]/est_criteria)
+    del est_labels[relative_id]
+    ax.bar(est_labels,
+           est_criteria[relative_id]/np.delete(est_criteria, relative_id))
+    if ylabel is None:
+        ylabel = mathrm_label("Estimator variance reduction")
+    ax.set_ylabel(ylabel)
