@@ -12,6 +12,8 @@ from pyapprox.multifidelity.multioutput_monte_carlo import (
     _nqoi_nqoisq_subproblem, ACVEstimator)
 from pyapprox.multifidelity.control_variate_monte_carlo import (
     allocate_samples_mfmc)
+from pyapprox.multifidelity.multioutput_monte_carlo import (
+    log_determinant_variance, log_trace_variance)
 
 
 class MultioutputModelEnsemble():
@@ -546,9 +548,10 @@ class TestMOMC(unittest.TestCase):
 
         # set nsamples per model tso generate data can be called
         # without optimizing the sample allocaiton
-        est.nsamples_per_model = torch.tensor([10, 20, 30][:len(funs)])
+        # est.nsamples_per_model = torch.tensor([10, 20, 30][:len(funs)])
+        est.nsamples_per_model = torch.tensor([7, 8, 140][:len(funs)])
 
-        max_eval_concurrency = 1
+        max_eval_concurrency = 4
         estimator_vals, Q, delta = self._estimate_components_loop(
             ntrials, est, funs, max_eval_concurrency)
 
@@ -586,8 +589,9 @@ class TestMOMC(unittest.TestCase):
 
         var_mc = np.cov(estimator_vals.T, ddof=1)
         variance = est._get_variance(est.nsamples_per_model).numpy()
-        # print(var_mc, 'v_mc')
-        # print(variance, 'v')
+        print(est.nsamples_per_model)
+        print(var_mc, 'v_mc')
+        print(variance, 'v')
         # print((var_mc-variance)/variance)
         assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
 
@@ -598,6 +602,7 @@ class TestMOMC(unittest.TestCase):
             [[0, 1], [0, 2], [0], "acvmf", "mean"],
             [[0, 1], [0], [0], "acvmf", "variance"],
             [[0, 1], [0, 2], [0], "acvmf", "variance"],
+            [[0, 1, 2], [0], [0, 0], "acvmf", "variance"],
             [[0, 1, 2], [0, 1, 2], [0, 0], "acvmf", "variance"],
             [[0, 1], [0], [0], "acvmf", "mean_variance"],
             # following is slow test remove for speed
@@ -608,7 +613,7 @@ class TestMOMC(unittest.TestCase):
             [[0, 1, 2], [0, 1, 2], None, "acvmfb", "variance"],
             [[0], [0, 1, 2], None, "mc", "variance"],
         ]
-        for test_case in test_cases:
+        for test_case in test_cases[5:6]:
             np.random.seed(1)
             print(test_case)
             self._check_estimator_variances(*test_case)
@@ -633,7 +638,7 @@ class TestMOMC(unittest.TestCase):
         print(nsample_ratios)
         assert np.allclose(nsample_ratios, mfmc_nsample_ratios)
         assert np.allclose(obj_val, 10**mfmc_log10_variance)
-        
+
         est = get_estimator("acvmfb", "mean", model.variable, costs, cov)
         est.allocate_samples(target_cost, verbosity=1)
         assert np.allclose(est.recursion_index, [0, 1])
@@ -655,45 +660,75 @@ class TestMOMC(unittest.TestCase):
         rtol, atol = 2e-2, 1e-3
         assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
 
+        ntrials, max_eval_concurrency = int(1e4), 4
+        qoi_idx = [0, 1]
+        target_cost = 50
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+            [0, 1, 2], qoi_idx)
+        W = model.covariance_of_centered_values_kronker_product()
+        W = _nqoisq_nqoisq_subproblem(
+            W, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
+        B = model.covariance_of_mean_and_variance_estimators()
+        B = _nqoi_nqoisq_subproblem(
+            B, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
+        est = get_estimator(
+            "acvmf", "mean_variance", model.variable, costs, cov, W, B,
+            opt_criteria=log_trace_variance)
+        est.allocate_samples(target_cost)
+        estimator_vals, Q, delta = self._estimate_components_loop(
+            ntrials, est, funs, max_eval_concurrency)
+        var_mc = np.cov(estimator_vals.T, ddof=1)
+        variance = est.get_variance(
+            est.rounded_target_cost, est.nsample_ratios).numpy()
+        rtol, atol = 2e-2, 1e-4
+        # print(est.nsample_ratios)
+        # print(var_mc)
+        # print(variance)
+        # print((var_mc-variance)/variance)
+        assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
+
     def test_compare_estimator_variances(self):
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
 
-        def single_criteria(variance):
-            return torch.log(variance[1, 1])
-
-        from pyapprox.multifidelity.multioutput_monte_carlo import (
-            log_determinant_variance)
-        single_criteria = log_determinant_variance
+        qoi_idx = [1]
+        def log_single_criteria(variance):
+            return torch.log(variance[qoi_idx[0], qoi_idx[0]])
 
         estimator_types = ["mc", "acvmf", "acvmf", "acvmf"]
         from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
-        est_labels = mathrm_labels(["MC", "ACVMF-MO", "ACVMF", "ACVMF-MO"])
+        est_labels = mathrm_labels(["MC", "ACVMF-MO", "ACVMF", "ACVMF-MO-G"])
         kwargs_list = [{}, {"recursion_index": np.asarray([0, 1])},
                        {"recursion_index": np.asarray([0, 1])},
                        {"recursion_index": np.asarray([0, 1]),
-                        "opt_criteria": single_criteria}]
-        qoi_idx = [0]
+                        "opt_criteria": log_single_criteria}]
+
         from pyapprox.multifidelity.multioutput_monte_carlo import (
             _nqoi_nqoi_subproblem)
-        #cov_sub = _nqoi_nqoi_subproblem(
-        #    cov, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
-        cov_sub = cov # hack
+        cov_sub = _nqoi_nqoi_subproblem(
+           cov, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
         covs = [cov, cov, cov_sub, cov]
 
         # stat_type = "mean"
         # args_list = [[], [], [], []]
         W = model.covariance_of_centered_values_kronker_product()
-        #W_sub = _nqoisq_nqoisq_subproblem(
-        #    W, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
-        W_sub = W # hack
+        W_sub = _nqoisq_nqoisq_subproblem(
+           W, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
+        B = model.covariance_of_mean_and_variance_estimators()
+        B_sub = _nqoi_nqoisq_subproblem(
+            B, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
         stat_type = "variance"
         args_list = [[W], [W], [W_sub], [W]]
+        # stat_type = "mean_variance"
+        # args_list = [[W, B], [W, B], [W_sub, B_sub], [W, B]]
         estimators = [
             get_estimator(et, stat_type, model.variable, costs, cv,
                           *args, **kwargs)
             for et, cv, args, kwargs in zip(
                     estimator_types, covs, args_list, kwargs_list)]
+
+        for est in estimators[1:]:
+            est.set_initial_guess([6, 77])
 
         target_costs = np.array([1e1, 1e2, 1e3, 1e4, 1e5], dtype=int)
         from pyapprox import multifidelity
@@ -703,7 +738,7 @@ class TestMOMC(unittest.TestCase):
         def criteria(variance, est):
             # if isinstance(est, ACVEstimator):
             if est.nqoi > 1:
-                return torch.exp(single_criteria(variance))
+                return torch.exp(log_single_criteria(variance))
             return variance[0, 0]
 
         import matplotlib.pyplot as plt

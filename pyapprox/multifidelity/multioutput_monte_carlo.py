@@ -329,37 +329,6 @@ def torch_2x2_block(blocks):
          torch.hstack(blocks[1])])
 
 
-# def get_multioutput_acv_mean_and_variance_discrepancy_covariances(
-#         cov, V, W, B, Gmat, gvec, Hmat, hvec):
-#     CF_mean, cf_mean = get_multioutput_acv_mean_discrepancy_covariances(
-#         cov, Gmat, gvec)
-#     CF_var, cf_var = get_multioutput_acv_variance_discrepancy_covariances(
-#         V, W, Gmat, gvec, Hmat, hvec)
-#     nmodels = len(gvec)+1
-#     nqoi = cov.shape[0]//nmodels
-#     nqsq = V.shape[0]//nmodels
-#     CF_mean_var = torch.empty(
-#         (nqoi*(nmodels-1), nqsq*(nmodels-1)), dtype=torch.double)
-#     cf_mean_var = torch.empty((nqoi, nqsq*(nmodels-1)), dtype=torch.double)
-#     cf_mean_var_T = torch.empty((nqsq, nqoi*(nmodels-1)), dtype=torch.double)
-#     for ii in range(nmodels-1):
-#         B_0i = B[0:nqoi, (ii+1)*nqsq:(ii+2)*nqsq]
-#         B_0i_T = B.T[0:nqsq, (ii+1)*nqoi:(ii+2)*nqoi]
-#         cf_mean_var[ii*nqoi:(ii+1)*nqoi, ii*nqsq:(ii+1)*nqsq] = gvec[ii]*B_0i
-#         cf_mean_var_T[ii*nqsq:(ii+1)*nqsq, ii*nqoi:(ii+1)*nqoi] = (
-#             gvec[ii]*B_0i_T)
-#         for jj in range(nmodels-1):
-#             B_ij = B[(ii+1)*nqoi:(ii+2)*nqoi, (jj+1)*nqsq:(jj+2)*nqsq]
-#             CF_mean_var[ii*nqoi:(ii+1)*nqsq, jj*nqsq:(jj+1)*nqsq] = (
-#                 Gmat[ii, jj]*B_ij)
-#     CF = torch_2x2_block(
-#         [[CF_mean, CF_mean_var],
-#          [CF_mean_var.T, CF_var]])
-#     cf = torch_2x2_block([[cf_mean, cf_mean_var],
-#                           [cf_mean_var_T, cf_var]])
-#     return CF, cf
-
-
 def get_multioutput_acv_mean_and_variance_discrepancy_covariances(
         cov, V, W, B, Gmat, gvec, Hmat, hvec):
     CF_mean, cf_mean = get_multioutput_acv_mean_discrepancy_covariances(
@@ -424,7 +393,8 @@ def get_npartition_samples_acvis(nsamples_per_model):
 
 
 def log_determinant_variance(variance):
-    return torch.logdet(variance)
+    val = torch.logdet(variance)
+    return val
 
 
 def determinant_variance(variance):
@@ -438,7 +408,7 @@ def log_trace_variance(variance):
 def log_linear_combination_diag_variance(weights, variance):
     # must be used with partial, e.g.
     # opt_criteria = partial(log_linear_combination_diag_variance, weights)
-    return torch.log(torch.trace(variance))
+    return torch.log(torch.multi_dot(weights, torch.diag(variance)))
 
 
 class MCEstimator():
@@ -494,7 +464,7 @@ class MCEstimator():
 
     def _set_optimization_criteria(self, opt_criteria):
         if opt_criteria is None:
-            opt_criteria = log_determinant_variance
+            opt_criteria = log_trace_variance
         return opt_criteria
 
     def set_random_state(self, random_state):
@@ -581,6 +551,15 @@ class MCEstimator():
         return self.stat.sample_estimate(values[0][1])
 
 
+def acv_variance_sample_allocation_nhf_samples_constraint(ratios, *args):
+    target_cost, costs = args
+    # add to ensure that when constraint is violated by small numerical value
+    # nhf samples generated from ratios will be greater than 1
+    nhf_samples = get_nhf_samples(target_cost, costs, ratios)
+    eps = 0
+    return nhf_samples-(2+eps)
+
+
 class ACVEstimator(MCEstimator):
     def __init__(self, stat, costs, variable, cov, partition="mf",
                  recursion_index=None, opt_criteria=None):
@@ -628,12 +607,14 @@ class ACVEstimator(MCEstimator):
 
     def _weights(self, CF, cf):
         #  weights = -torch.linalg.solve(CF, cf.T)
-        try:
-            weights = -torch.linalg.multi_dot(
-                (torch.linalg.pinv(CF), cf.T))
-        except (np.linalg.LinAlgError, RuntimeError):
-            weights = torch.ones(cf.T.shape, dtype=torch.double)*1e16
-        return weights.T
+        return -torch.linalg.multi_dot(
+            (torch.linalg.pinv(CF), cf.T)).T
+        # try:
+        #     weights = -torch.linalg.multi_dot(
+        #         (torch.linalg.pinv(CF), cf.T))
+        # except (np.linalg.LinAlgError, RuntimeError):
+        #     weights = torch.ones(cf.T.shape, dtype=torch.double)*1e16
+        # return weights.T
 
     def _estimate(self, values, weights):
         nmodels = len(values)
@@ -708,6 +689,7 @@ class ACVEstimator(MCEstimator):
             get_nsamples_per_model(
                 self.rounded_target_cost, self.costs, self.nsample_ratios,
                 False), dtype=torch.int)
+        print(self.nsamples_per_model)
         self.optimized_criteria = optimized_criteria
 
     def _objective(self, target_cost, x, return_grad=True):
@@ -773,11 +755,12 @@ class ACVEstimator(MCEstimator):
         assert optim_method == "SLSQP"
         opt = self._allocate_samples_opt_slsqp(
             costs, target_cost, initial_guess, optim_options, cons)
-        nsample_ratios = torch.as_tensor(opt.x)
+        nsample_ratios = torch.as_tensor(opt.x, dtype=torch.double)
         if not opt.success:
             raise RuntimeError('SLSQP optimizer failed'+f'{opt}')
+            # return nsample_ratios, np.nan
         else:
-            val = self.get_variance(target_cost, nsample_ratios)
+            val = opt.fun #self.get_variance(target_cost, nsample_ratios)
         return nsample_ratios, val
 
     def _allocate_samples(self, target_cost, **kwargs):
@@ -836,14 +819,25 @@ class ACVEstimator(MCEstimator):
         return cons
 
     def get_constraints(self, target_cost):
-        cons = [{'type': 'ineq',
-                 'fun': partial(
-                     self._scipy_wrapper,
-                     acv_sample_allocation_nhf_samples_constraint),
-                 'jac': partial(
-                     self._scipy_wrapper,
-                     acv_sample_allocation_nhf_samples_constraint_jac),
-                 'args': (target_cost, self.costs)}]
+        if isinstance(
+                self.stat, (MultiOutputVariance, MultiOutputMeanAndVariance)):
+            cons = [{'type': 'ineq',
+                     'fun': partial(
+                         self._scipy_wrapper,
+                         acv_variance_sample_allocation_nhf_samples_constraint),
+                     'jac': partial(
+                         self._scipy_wrapper,
+                         acv_sample_allocation_nhf_samples_constraint_jac),
+                     'args': (target_cost, self.costs)}]
+        else:
+            cons = [{'type': 'ineq',
+                     'fun': partial(
+                         self._scipy_wrapper,
+                         acv_sample_allocation_nhf_samples_constraint),
+                     'jac': partial(
+                         self._scipy_wrapper,
+                         acv_sample_allocation_nhf_samples_constraint_jac),
+                     'args': (target_cost, self.costs)}]
         cons += self._get_constraints(target_cost)
         return cons
 
@@ -882,7 +876,6 @@ class ACVEstimator(MCEstimator):
         val = self.optimization_criteria(variance)
         self.set_optimized_params(
             nsample_ratios, rounded_target_cost, val)
-        print(val)
         return nsample_ratios, variance, rounded_target_cost
 
     def _get_npartition_samples(self, nsamples_per_model):
@@ -1053,7 +1046,7 @@ class MultiOutputStatistic(ABC):
 
 class MultiOutputMean(MultiOutputStatistic):
     def __init__(self, nmodels, cov):
-        self.cov = torch.as_tensor(cov)
+        self.cov = torch.as_tensor(cov, dtype=torch.double)
         self.nqoi = self.cov.shape[0]//nmodels
 
     def get_discrepancy_covariances(self, estimator, nsamples_per_model):
@@ -1079,7 +1072,7 @@ class MultiOutputMean(MultiOutputStatistic):
 
 class MultiOutputVariance(MultiOutputStatistic):
     def __init__(self, nmodels, cov, W):
-        self.cov = torch.as_tensor(cov)
+        self.cov = torch.as_tensor(cov, dtype=torch.double)
         self.nqoi = self.cov.shape[0]//nmodels
         self.V = torch.as_tensor(
             get_V_from_covariance(self.cov, nmodels), dtype=torch.double)
@@ -1124,7 +1117,7 @@ class MultiOutputVariance(MultiOutputStatistic):
 
 class MultiOutputMeanAndVariance(MultiOutputStatistic):
     def __init__(self, nmodels, cov, W, B):
-        self.cov = torch.as_tensor(cov)
+        self.cov = torch.as_tensor(cov, dtype=torch.double)
         self.nqoi = self.cov.shape[0]//nmodels
         self.V = torch.as_tensor(
             get_V_from_covariance(self.cov, nmodels), dtype=torch.double)
