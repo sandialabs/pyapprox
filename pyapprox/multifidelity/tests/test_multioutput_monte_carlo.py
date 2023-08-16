@@ -560,7 +560,7 @@ class TestMOMC(unittest.TestCase):
         cf_mc = torch.as_tensor(
             np.cov(Q.T, delta.T, ddof=1)[:idx, idx:], dtype=torch.double)
 
-        np.set_printoptions(linewidth=1000)
+        # np.set_printoptions(linewidth=1000)
         # print(estimator_vals.mean(axis=0).reshape(nqoi, nqoi))
         # print(model.covariance()[:nqoi:, :nqoi])
 
@@ -589,9 +589,9 @@ class TestMOMC(unittest.TestCase):
 
         var_mc = np.cov(estimator_vals.T, ddof=1)
         variance = est._get_variance(est.nsamples_per_model).numpy()
-        print(est.nsamples_per_model)
-        print(var_mc, 'v_mc')
-        print(variance, 'v')
+        # print(est.nsamples_per_model)
+        # print(var_mc, 'v_mc')
+        # print(variance, 'v')
         # print((var_mc-variance)/variance)
         assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
 
@@ -635,7 +635,6 @@ class TestMOMC(unittest.TestCase):
             initial_guess=est.initial_guess)
         mfmc_nsample_ratios, mfmc_log10_variance = allocate_samples_mfmc(
             cov, costs, target_cost)
-        print(nsample_ratios)
         assert np.allclose(nsample_ratios, mfmc_nsample_ratios)
         assert np.allclose(obj_val, 10**mfmc_log10_variance)
 
@@ -703,8 +702,11 @@ class TestMOMC(unittest.TestCase):
                 return torch.log(variance[qoi_idx[0], qoi_idx[0]])
             raise ValueError
 
-        estimator_types = ["mc", "acvmf", "acvmf", "acvmf", "acvmf", "acvmf",
-                           "acvmf", "acvmf", "acvmf"]
+        # estimator_types = ["mc", "acvmf", "acvmf", "acvmf", "acvmf", "acvmf",
+        #                   "acvmf", "acvmf", "acvmf"]
+        estimator_types = [
+            "mc", "acvmfb", "acvmfb", "acvmfb", "acvmfb", "acvmfb",
+            "acvmfb", "acvmfb", "acvmfb"]
         from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
         est_labels = mathrm_labels(
             ["MC-MV",
@@ -733,9 +735,6 @@ class TestMOMC(unittest.TestCase):
         # estimators that can compute variance
         var_indices = [0, 2, 3, 4, 5, 7, 8]
 
-        for ii in range(1, len(kwargs_list)):
-            kwargs_list[ii]["recursion_index"] = np.asarray([0, 1])
-
         from pyapprox.multifidelity.multioutput_monte_carlo import (
             _nqoi_nqoi_subproblem)
         cov_sub = _nqoi_nqoi_subproblem(
@@ -762,14 +761,29 @@ class TestMOMC(unittest.TestCase):
             [W],
             [W, B]
         ]
+
+        estimator_types[1:] = ["acvmf" for ii in range(len(estimator_types)-1)]
+        for ii in range(1, len(kwargs_list)):
+            kwargs_list[ii]["recursion_index"] = np.asarray([0, 0])
+
+        # estimator_types = [estimator_types[0], estimator_types[4]]
+        # est_labels = [est_labels[0], est_labels[4]]
+        # stat_types = [stat_types[0], stat_types[4]]
+        # args_list = [args_list[0], args_l[4]]
+        # kwargs_list = [kwargs_list[0], kwargs_list[4]]
+        # covs = [covs[0], covs[4]]
+        # mean_indices = [0, 1]
+        # var_indices = [0, 1]
+        
         estimators = [
             get_estimator(et, st, model.variable, costs, cv, *args, **kwargs)
             for et, st, cv, args, kwargs in zip(
                     estimator_types, stat_types, covs, args_list, kwargs_list)]
-        for et, label in zip(estimators, est_labels):
-            print(et, label, et.optimization_criteria)
+        # for et, label in zip(estimators, est_labels):
+        #    print(et, label, et.optimization_criteria)
 
-        target_costs = np.array([1e1, 1e2, 1e3, 1e4, 1e5], dtype=int)[1:-1]
+
+        # target_costs = np.array([1e1, 1e2, 1e3, 1e4, 1e5], dtype=int)[1:-1]
         target_costs = np.array([1e1], dtype=int)
         from pyapprox import multifidelity
         optimized_estimators = multifidelity.compare_estimator_variances(
@@ -801,9 +815,11 @@ class TestMOMC(unittest.TestCase):
             optimized_estimators[ii] for ii in mean_indices]
         mean_est_labels = [
             est_labels[ii] for ii in mean_indices]
+
         plot_estimator_variance_reductions(
             mean_optimized_estimators, mean_est_labels, axs[0], ylabel=None,
             relative_id=0, criteria=partial(criteria, "mean"))
+        
         var_optimized_estimators = [
             optimized_estimators[ii] for ii in var_indices]
         var_est_labels = [
@@ -816,11 +832,34 @@ class TestMOMC(unittest.TestCase):
         axs[1].set_xticklabels(
             axs[1].get_xticklabels(), rotation=30, ha='right')
 
+        estimator_types[1:] = ["acvmf" for ii in range(len(estimator_types)-1)]
+        for ii in range(1, len(kwargs_list)):
+            kwargs_list[ii]["recursion_index"] = np.asarray([0, 1])
+        estimators = [
+            get_estimator(et, st, model.variable, costs, cv, *args, **kwargs)
+            for et, st, cv, args, kwargs in zip(
+                    estimator_types, stat_types, covs, args_list, kwargs_list)]
+        optimized_estimators = multifidelity.compare_estimator_variances(
+            target_costs, estimators)
+
+        mean_optimized_estimators = [
+            optimized_estimators[ii] for ii in mean_indices]
+        print("##")
+        plot_estimator_variance_reductions(
+            mean_optimized_estimators, mean_est_labels, axs[0], ylabel=None,
+            relative_id=0, criteria=partial(criteria, "mean"), alpha=0.5)
+        print("#")
+        var_optimized_estimators = [
+            optimized_estimators[ii] for ii in var_indices]
+        plot_estimator_variance_reductions(
+                var_optimized_estimators, var_est_labels, axs[1], ylabel=None,
+                relative_id=0, criteria=partial(criteria, "variance"), alpha=0.5)
+
         # fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
         # plot_estimator_variances(
         #     optimized_estimators, est_labels, axs,
         #     ylabel=mathrm_label("Relative Estimator Variance"), relative_id=0,
-        #     criteria=criteria)
+        #     criteria=partial(criteria, "mean"))
         plt.show()
 
 

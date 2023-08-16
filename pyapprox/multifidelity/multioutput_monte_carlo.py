@@ -663,7 +663,7 @@ class ACVEstimator(MCEstimator):
         if self.optimized_criteria is None:
             return "{0}(stat={1}, recursion_index={2})".format(
                 self.__class__.__name__, self.stat, self.recursion_index)
-        return "{0}(stat={1}, , recursion_index={2}, criteria={3:.3g}, target_cost={4:.3g})".format(
+        return "{0}(stat={1}, recursion_index={2}, criteria={3:.3g}, target_cost={4:.3g})".format(
             self.__class__.__name__, self.stat, self.recursion_index,
             self.optimized_criteria, self.rounded_target_cost)
 
@@ -689,10 +689,9 @@ class ACVEstimator(MCEstimator):
         self.nsample_ratios = nsample_ratios
         self.rounded_target_cost = rounded_target_cost
         self.nsamples_per_model = torch.as_tensor(
-            get_nsamples_per_model(
+            np.round(get_nsamples_per_model(
                 self.rounded_target_cost, self.costs, self.nsample_ratios,
-                False), dtype=torch.int)
-        print(self.nsamples_per_model)
+                False)), dtype=torch.int)
         self.optimized_criteria = optimized_criteria
 
     def _objective(self, target_cost, x, return_grad=True):
@@ -1483,12 +1482,12 @@ multioutput_stats = {
 def get_estimator(estimator_type, stat_type, variable, costs, cov, *args,
                   max_nmodels=None, **kwargs):
     if estimator_type not in multioutput_estimators:
-        msg = f"Estimator {estimator_type} not supported"
+        msg = f"Estimator {estimator_type} not supported. "
         msg += f"Must be one of {multioutput_estimators.keys()}"
         raise ValueError(msg)
 
     if stat_type not in multioutput_stats:
-        msg = f"Statistic {stat_type} not supported"
+        msg = f"Statistic {stat_type} not supported. "
         msg += f"Must be one of {multioutput_stats.keys()}"
         raise ValueError(msg)
 
@@ -1530,7 +1529,7 @@ def plot_estimator_variances(optimized_estimators,
         est_criteria.append(np.array(
             [criteria(est._get_variance(est.nsamples_per_model), est)
              for est in optimized_estimators[ii]]))
-    print(est_criteria[-1])
+        print(est_criteria[-1])
     est_total_costs *= cost_normalization
     for ii in range(nestimators):
         # print(est_labels[ii], nestimators)
@@ -1547,7 +1546,8 @@ def plot_estimator_variances(optimized_estimators,
 def plot_estimator_variance_reductions(optimized_estimators,
                                        est_labels, ax, ylabel=None,
                                        relative_id=0,
-                                       criteria=determinant_variance):
+                                       criteria=determinant_variance,
+                                       **bar_kawrgs):
     """
     Plot variance as a function of the total cost for a set of estimators.
 
@@ -1567,13 +1567,16 @@ def plot_estimator_variance_reductions(optimized_estimators,
     for ii in range(nestimators):
         assert len(optimized_estimators[ii]) == 1
         est = optimized_estimators[ii][0]
+        print(est)
         est_criteria.append(
             criteria(est._get_variance(est.nsamples_per_model), est))
     est_criteria = np.asarray(est_criteria)
-    print(est_criteria[relative_id]/est_criteria)
+    # print(est_criteria[relative_id]/est_criteria)
+    est_labels = est_labels.copy()
     del est_labels[relative_id]
     ax.bar(est_labels,
-           est_criteria[relative_id]/np.delete(est_criteria, relative_id))
+           est_criteria[relative_id]/np.delete(est_criteria, relative_id),
+           **bar_kawrgs)
     if ylabel is None:
         ylabel = mathrm_label("Estimator variance reduction")
     ax.set_ylabel(ylabel)
