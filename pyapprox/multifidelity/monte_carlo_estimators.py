@@ -861,7 +861,6 @@ class ACVGMFBEstimator(ACVGMFEstimator):
                 # typically solver failes because trying to use
                 # uniformative model as a recursive control variate
                 self.optimized_variance = np.inf
-            print(best_variance, self.optimized_variance, index)
             if self.optimized_variance < best_variance:
                 best_result = [self.nsample_ratios, self.rounded_target_cost,
                                self.optimized_variance, index]
@@ -979,6 +978,7 @@ def get_best_models_for_acv_estimator(
                 continue
             try:
                 est.allocate_samples(target_cost, **allocate_kwargs)
+                print(idx, est.recursion_index, est.optimized_variance)
                 if est.optimized_variance < best_variance:
                     best_est = est
                     best_model_indices = idx

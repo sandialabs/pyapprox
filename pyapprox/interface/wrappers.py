@@ -1116,7 +1116,9 @@ class ModelEnsemble(object):
         for ii in range(1, active_model_ids.shape[0]):
             active_model_id = active_model_ids[ii]
             II = np.where(model_ids == active_model_id)[0]
-            values[II] = self.functions[active_model_id](samples[:-1, II])
+            values_II = self.functions[active_model_id](samples[:-1, II])
+            assert values_II.ndim == 2
+            values[II] = values_II
         return values
 
     def __repr__(self):

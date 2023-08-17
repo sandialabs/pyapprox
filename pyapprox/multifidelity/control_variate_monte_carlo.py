@@ -764,8 +764,10 @@ def acv_sample_allocation_gmf_ratio_constraint(ratios, *args):
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
     # ratios are only for low-fidelity models so use index-1
     # return nhf_samples*(ratios[model_idx-1]-ratios[parent_idx-1])-(1+eps)
-    return (nhf_samples*ratios[model_idx-1]-nhf_samples*ratios[parent_idx-1] -
-            (1+eps))
+    val = (nhf_samples*ratios[model_idx-1]-nhf_samples*ratios[parent_idx-1] -
+           (1+eps))
+    # print(val, 'c_gmf_ratio')
+    return val
 
 
 def acv_sample_allocation_gmf_ratio_constraint_jac(ratios, *args):
@@ -789,7 +791,8 @@ def acv_sample_allocation_nlf_gt_nhf_ratio_constraint(ratios, *args):
     # print(model_idx, nhf_samples)
     # ratios are only for low-fidelity models so use index-1
     val = nhf_samples*ratios[model_idx-1]-nhf_samples-(1+eps)
-    # print(val)
+    # assert val > 0
+    # print(ratios, val, 'c_nlf_gt_nhf')
     return val
 
 
@@ -810,6 +813,7 @@ def acv_sample_allocation_nhf_samples_constraint(ratios, *args):
     # nhf samples generated from ratios will be greater than 1
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
     eps = 0
+    # print(ratios, val, 'c_nhf_samples')
     return nhf_samples-(1+eps)
 
 
@@ -1574,7 +1578,7 @@ def compute_covariance_from_control_variate_samples(values):
 
 
 def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
-                            format_string='{:1.3f}', cmap="jet"):
+                            format_string='{:1.3f}', cmap="jet", nqoi=1):
     """
     Plot a correlation matrix
 
@@ -1588,14 +1592,15 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     im = ax.matshow(corr_matrix, cmap=cmap, aspect="auto")
     for (i, j), z in np.ndenumerate(corr_matrix):
-        ax.text(j, i, format_string.format(z), ha='center', va='center',
-                fontsize=12, color='w')
+        if format_string is not None:
+            ax.text(j, i, format_string.format(z), ha='center', va='center',
+                    fontsize=12, color='w')
     plt.colorbar(im, ax=ax)
     if model_names is None:
         nmodels = corr_matrix.shape[0]
         model_names = [r"$f_{%d}$" % ii for ii in range(nmodels)]
-    ax.set_xticks(np.arange(len(model_names)))
-    ax.set_yticks(np.arange(len(model_names)))
+    ax.set_xticks(np.arange(len(model_names))*nqoi)
+    ax.set_yticks(np.arange(len(model_names))*nqoi)
     ax.set_yticklabels(model_names)
     ax.set_xticklabels(model_names, rotation=60)
     return ax

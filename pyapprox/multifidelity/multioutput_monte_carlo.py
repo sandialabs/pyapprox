@@ -402,7 +402,11 @@ def determinant_variance(variance):
 
 
 def log_trace_variance(variance):
-    return torch.log(torch.trace(variance))
+    val = torch.log(torch.trace(variance))
+    if not torch.isfinite(val):
+        # print(variance)
+        raise RuntimeError("trace is negative")
+    return val
 
 
 def log_linear_combination_diag_variance(weights, variance):
@@ -560,7 +564,10 @@ def acv_variance_sample_allocation_nhf_samples_constraint(ratios, *args):
     # nhf samples generated from ratios will be greater than 1
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
     eps = 0
-    return nhf_samples-(2+eps)
+    val = nhf_samples-(2+eps)
+    # print(ratios, val, 'c_var_nhf_samples')
+    # assert val > 0
+    return val
 
 
 class ACVEstimator(MCEstimator):
@@ -609,9 +616,16 @@ class ACVEstimator(MCEstimator):
         self.set_initial_guess(None)
 
     def _weights(self, CF, cf):
-        #  weights = -torch.linalg.solve(CF, cf.T)
         return -torch.linalg.multi_dot(
             (torch.linalg.pinv(CF), cf.T)).T
+        # try:
+        #     direct solve is usually not a good idea because of ill
+        #     conditioning which can be larges especsially for meanvariance
+        #
+        #     return -torch.linalg.solve(CF, cf.T).T
+        # except (torch._C._LinAlgError):
+        #     return -torch.linalg.multi_dot(
+        #         (torch.linalg.pinv(CF), cf.T)).T
         # try:
         #     weights = -torch.linalg.multi_dot(
         #         (torch.linalg.pinv(CF), cf.T))
@@ -738,7 +752,7 @@ class ACVEstimator(MCEstimator):
         # nhf*(r-1) >= 1
         # r-1 >= 1/nhf
         # r >= 1+1/nhf
-        # smallest lower bound whenn nhf = max_nhf
+        # smallest lower bound when nhf = max_nhf
 
         return_grad = True
         method = "SLSQP"
@@ -758,11 +772,15 @@ class ACVEstimator(MCEstimator):
         opt = self._allocate_samples_opt_slsqp(
             costs, target_cost, initial_guess, optim_options, cons)
         nsample_ratios = torch.as_tensor(opt.x, dtype=torch.double)
-        if not opt.success:
-            raise RuntimeError('SLSQP optimizer failed'+f'{opt}')
-            # return nsample_ratios, np.nan
+        # print([c["fun"](opt.x, *c["args"]) for c in cons], opt.x)
+        if not opt.success and (opt.status != 8 or not np.isfinite(opt.fun)):
+            if opt.status == 4:
+                print([c["fun"](opt.x, *c["args"]) for c in cons])
+            # raise RuntimeError('SLSQP optimizer failed'+f'{opt}')
+            return nsample_ratios, np.nan
         else:
-            val = opt.fun #self.get_variance(target_cost, nsample_ratios)
+            # print(opt.fun)
+            val = opt.fun  # self.get_variance(target_cost, nsample_ratios)
         return nsample_ratios, val
 
     def _allocate_samples(self, target_cost, **kwargs):
@@ -929,6 +947,10 @@ class ACVEstimator(MCEstimator):
         CF, cf = self.stat.get_discrepancy_covariances(
             self, nsamples_per_model)
         weights = self._weights(CF, cf)
+        # print(np.linalg.cond(CF.detach().numpy()), "COND", nsamples_per_model.detach().numpy())
+        # print(self.stat.high_fidelity_estimator_covariance(
+        #     nsamples_per_model).numpy())
+        # print(torch.linalg.multi_dot((weights, cf.T)).numpy())
         return (self.stat.high_fidelity_estimator_covariance(
             nsamples_per_model) + torch.linalg.multi_dot((weights, cf.T)))
 
@@ -1114,7 +1136,7 @@ class MultiOutputVariance(MultiOutputStatistic):
         qoi_idx = np.arange(nqoi)
         W_sub = _nqoisq_nqoisq_subproblem(
             W, nmodels, nqoi, model_idx, qoi_idx)
-        return W_sub
+        return (W_sub, )
 
 
 class MultiOutputMeanAndVariance(MultiOutputStatistic):
@@ -1248,13 +1270,15 @@ class BestACVEstimator(ACVEstimator):
             self.set_recursion_index(index)
             try:
                 super().allocate_samples(target_cost)
-            except RuntimeError:
+            except RuntimeError as e:
                 # typically solver fails because trying to use
                 # uniformative model as a recursive control variate
+                print(e)
                 print("Optimizer failed")
-                self.optimized_criteria = np.inf
+                # self.optimized_criteria = torch.as_tensor([np.inf])
+                # raise e
             if verbosity > 0:
-                msg = "{0} Objective: best {1}, current {2}".format(
+                msg = "Recursion: {0} Objective: best {1}, current {2}".format(
                     index, best_variance.item(),
                     self.optimized_criteria.item())
                 print(msg)
@@ -1404,18 +1428,26 @@ class BestModelSubsetEstimator():
                     est = get_estimator(
                         self.estimator_type, self.stat_type, self.variable,
                         subset_costs, subset_cov, *sub_args, **sub_kwargs)
-                except ValueError:
+                except ValueError as e:
+                    print(e)
                     # Some estiamtors, e.g. MFMC, fail when certain criteria
                     # are not satisfied
                     continue
                 try:
                     est.allocate_samples(target_cost, **allocate_kwargs)
+                    if allocate_kwargs.get("verbosity", 0) > 0:
+                        msg = "Model: {0} Objective: best {1}, current {2}".format(
+                            idx, best_criteria,
+                            est.optimized_criteria.item())
+                        print(msg)
                     if est.optimized_criteria < best_criteria:
                         best_est = est
                         best_model_indices = idx
                         best_criteria = est.optimized_criteria
-                except (RuntimeError, ValueError):
-                    # print(e)
+                except (RuntimeError, ValueError) as e:
+                    raise e
+                    # print(idx)
+                    # assert False
                     continue
                 # print(idx, est.optimized_criteria)
         return best_est, best_model_indices
@@ -1499,7 +1531,7 @@ def get_estimator(estimator_type, stat_type, variable, costs, cov, *args,
 
     return BestModelSubsetEstimator(
         estimator_type, stat_type, variable, costs, cov,
-        *args, max_nmodels=max_nmodels, **kwargs)
+        max_nmodels, *args, **kwargs)
 
 
 def plot_estimator_variances(optimized_estimators,
@@ -1543,7 +1575,7 @@ def plot_estimator_variances(optimized_estimators,
     ax.legend()
 
 
-def plot_estimator_variance_reductions(optimized_estimators,
+def plot_estimator_variance_reductions_deprecated(optimized_estimators,
                                        est_labels, ax, ylabel=None,
                                        relative_id=0,
                                        criteria=determinant_variance,
@@ -1559,7 +1591,8 @@ def plot_estimator_variance_reductions(optimized_estimators,
     est_labels : list (nestimators)
         String used to label each estimator
 
-    relative_id the model id used to normalize variance
+    relative_id : integer
+        the estimator id of the Monte Carlo estimator
     """
     from pyapprox.util.configure_plots import mathrm_label
     nestimators = len(est_labels)
@@ -1577,6 +1610,44 @@ def plot_estimator_variance_reductions(optimized_estimators,
     ax.bar(est_labels,
            est_criteria[relative_id]/np.delete(est_criteria, relative_id),
            **bar_kawrgs)
+
+
+def plot_estimator_variance_reductions(optimized_estimators,
+                                       est_labels, ax, ylabel=None,
+                                       relative_id=0,
+                                       criteria=determinant_variance,
+                                       **bar_kawrgs):
+    """
+    Plot variance as a function of the total cost for a set of estimators.
+
+    Parameters
+    ----------
+    optimized_estimators : list
+         Each entry is a list of optimized estimators for a set of target costs
+
+    est_labels : list (nestimators)
+        String used to label each estimator
+
+    relative_id : integer
+        the estimator id of the Monte Carlo estimator
+    """
+    from pyapprox.util.configure_plots import mathrm_label
+    var_red = []
+    mc_est = optimized_estimators[relative_id][0]
+    optimized_estimators = optimized_estimators.copy()
+    del optimized_estimators[relative_id]
+    est_labels = est_labels.copy()
+    del est_labels[relative_id]
+    nestimators = len(est_labels)
+    for ii in range(nestimators):
+        assert len(optimized_estimators[ii]) == 1
+        est = optimized_estimators[ii][0]
+        est_criteria = criteria(est._get_variance(est.nsamples_per_model), est)
+        nhf_samples = int(est.rounded_target_cost/est.costs[0])
+        var_red.append(criteria(
+            est.stat.high_fidelity_estimator_covariance(
+                [nhf_samples]), est)/est_criteria)
+    ax.bar(est_labels, var_red, **bar_kawrgs)
     if ylabel is None:
         ylabel = mathrm_label("Estimator variance reduction")
     ax.set_ylabel(ylabel)
