@@ -660,7 +660,8 @@ class TestMOMC(unittest.TestCase):
         est = get_estimator("acvmf", "mean", model.variable, costs, cov,
                             max_nmodels=3)
         target_cost = 10
-        est.allocate_samples(target_cost)
+        est.allocate_samples(target_cost, verbosity=1, nprocs=1)
+        print(est, est.nmodels, est.best_est.nmodels, est.best_est.costs)
 
         ntrials, max_eval_concurrency = int(1e3), 1
         estimator_vals, Q, delta = self._estimate_components_loop(
@@ -895,7 +896,7 @@ class TestMOMC(unittest.TestCase):
         #     optimized_estimators, est_labels, axs,
         #     ylabel=mathrm_label("Relative Estimator Variance"), relative_id=0,
         #     criteria=partial(criteria, "mean"))
-        plt.show()
+        # plt.show()
 
 
 if __name__ == "__main__":
