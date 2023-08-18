@@ -813,7 +813,7 @@ def acv_sample_allocation_nhf_samples_constraint(ratios, *args):
     # nhf samples generated from ratios will be greater than 1
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
     eps = 0
-    # print(ratios, val, 'c_nhf_samples')
+    # print(nhf_samples-(1+eps), "nhf_s_cons")
     return nhf_samples-(1+eps)
 
 
@@ -1354,7 +1354,7 @@ def get_acv_initial_guess(initial_guess, cov, costs, target_cost):
         return initial_guess
 
     nmodels = len(costs)
-    return np.arange(2, nmodels+1)
+    return np.arange(2, nmodels+1).astype(float)
 
     # # nmodels = cov.shape[0]
     # # nratios = np.empty(nmodels-1)

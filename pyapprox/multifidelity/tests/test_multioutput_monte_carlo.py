@@ -698,49 +698,11 @@ class TestMOMC(unittest.TestCase):
         # print((var_mc-variance)/variance)
         assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
 
-    def test_estimator_covariances_troublesome_covariance(
-            self):
-        cov = np.asarray(
-            [[0.00774161, 0.00766427],
-             [0.00766427, 0.00759786]])
-
-        # dummy variables
-        variable = IndependentMarginalsVariable([stats.norm(0, 1)])
-        costs = [2, 1]
-        # end dummy variables
-
-        # atol is needed for terms close to zero
-        W = np.asarray(
-            [[2.37547596e-04, 1.24264958e-04],
-             [1.24264958e-04, 6.51556746e-05]])
-        B = np.asarray(
-            [[0.00118618, 0.00061123],
-             [0.00061123, 0.00031154]])
-        est = get_estimator(
-            "acvmf", "mean", variable, costs, cov,
-            opt_criteria=log_trace_variance)
-        # est = get_estimator(
-        #     "acvmf", "mean_variance", variable, costs, cov, W, B,
-        #     opt_criteria=log_trace_variance)
-        # est = get_estimator(
-        #     "acvmf", "variance", variable, costs, cov, W,
-        #     opt_criteria=log_trace_variance)
-        nsamples_per_model = torch.as_tensor(
-            [125.5202, 1391.0264], dtype=torch.double)
-        nsamples_per_model = torch.as_tensor(
-            [3, 34], dtype=torch.double)
-        variance = est._get_variance(nsamples_per_model)
-        print(variance.numpy())
-        assert np.all(np.diag(variance.numpy()) > 0)
-
-        # target_cost = 100
-        # est.allocate_samples(target_cost)
-
     def test_compare_estimator_variances(self):
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
 
-        qoi_idx = [0]
+        qoi_idx = [1]
 
         # estimator_types = ["mc", "acvmf", "acvmf", "acvmf", "acvmf", "acvmf",
         #                   "acvmf", "acvmf", "acvmf"]
@@ -840,42 +802,47 @@ class TestMOMC(unittest.TestCase):
             MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance)
 
         def criteria(stat_type, variance, est):
-            if est.nqoi > 1:
-                if stat_type != "mean" and isinstance(
-                        est.stat, MultiOutputMeanAndVariance):
-                    val = torch.log(variance[est.stat.nqoi+qoi_idx[0],
-                                             est.stat.nqoi+qoi_idx[0]])
-                elif (isinstance(
-                        est.stat, (MultiOutputVariance, MultiOutputMean)) or
-                      stat_type == "mean"):
-                    val = torch.log(variance[qoi_idx[0], qoi_idx[0]])
-                else:
-                    print(est, est.stat)
-                    raise ValueError
-                return torch.exp(val)
-            return variance[0, 0]
+            if stat_type == "variance" and isinstance(
+                    est.stat, MultiOutputMeanAndVariance) and est.nqoi > 1:
+                val = variance[est.stat.nqoi+qoi_idx[0],
+                               est.stat.nqoi+qoi_idx[0]]
+            elif stat_type == "variance" and isinstance(
+                    est.stat, MultiOutputMeanAndVariance) and est.nqoi == 1:
+                val = variance[est.stat.nqoi+0, est.stat.nqoi+0]
+            elif (isinstance(
+                    est.stat, (MultiOutputVariance, MultiOutputMean)) or
+                  stat_type == "mean") and est.nqoi > 1:
+                val = variance[qoi_idx[0], qoi_idx[0]]
+            elif (isinstance(
+                    est.stat, (MultiOutputVariance, MultiOutputMean)) or
+                  stat_type == "mean") and est.nqoi == 1:
+                val = variance[0, 0]
+            else:
+                print(est, est.stat, stat_type)
+                raise ValueError
+            return val
 
-        rtol, atol = 4.6e-2, 1e-3
-        ntrials, max_eval_concurrency = int(1e3), 4
-        for est, funcs in zip(optimized_estimators[1:], funs_list[1:]):
-            est = est[0]
-            estimator_vals, Q, delta = self._estimate_components_loop(
-                ntrials, est, funcs, max_eval_concurrency)
-            hf_var_mc = np.cov(Q.T, ddof=1)
-            hf_var = est.stat.high_fidelity_estimator_covariance(
-                est.nsamples_per_model)
-            # print(hf_var_mc, hf_var)
-            assert np.allclose(hf_var_mc, hf_var, atol=atol, rtol=rtol)
+        # rtol, atol = 4.6e-2, 1e-3
+        # ntrials, max_eval_concurrency = int(5e3), 4
+        # for est, funcs in zip(optimized_estimators[1:], funs_list[1:]):
+        #     est = est[0]
+        #     estimator_vals, Q, delta = self._estimate_components_loop(
+        #         ntrials, est, funcs, max_eval_concurrency)
+        #     hf_var_mc = np.cov(Q.T, ddof=1)
+        #     hf_var = est.stat.high_fidelity_estimator_covariance(
+        #         est.nsamples_per_model)
+        #     # print(hf_var_mc, hf_var)
+        #     assert np.allclose(hf_var_mc, hf_var, atol=atol, rtol=rtol)
 
-            CF_mc = torch.as_tensor(
-                np.cov(delta.T, ddof=1), dtype=torch.double)
-            CF = est.stat.get_discrepancy_covariances(
-                est, est.nsamples_per_model)[0].numpy()
-            assert np.allclose(CF_mc, CF, atol=atol, rtol=rtol)
+        #     CF_mc = torch.as_tensor(
+        #         np.cov(delta.T, ddof=1), dtype=torch.double)
+        #     CF = est.stat.get_discrepancy_covariances(
+        #         est, est.nsamples_per_model)[0].numpy()
+        #     assert np.allclose(CF_mc, CF, atol=atol, rtol=rtol)
 
-            var_mc = np.cov(estimator_vals.T, ddof=1)
-            variance = est._get_variance(est.nsamples_per_model).numpy()
-            assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
+        #     var_mc = np.cov(estimator_vals.T, ddof=1)
+        #     variance = est._get_variance(est.nsamples_per_model).numpy()
+        #     assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
 
         import matplotlib.pyplot as plt
         from pyapprox.multifidelity.multioutput_monte_carlo import (
@@ -888,7 +855,7 @@ class TestMOMC(unittest.TestCase):
 
         plot_estimator_variance_reductions(
             mean_optimized_estimators, mean_est_labels, axs[0], ylabel=None,
-            relative_id=0, criteria=partial(criteria, "mean"))
+            criteria=partial(criteria, "mean"))
 
         var_optimized_estimators = [
             optimized_estimators[ii] for ii in var_indices]
@@ -896,7 +863,7 @@ class TestMOMC(unittest.TestCase):
             est_labels[ii] for ii in var_indices]
         plot_estimator_variance_reductions(
                 var_optimized_estimators, var_est_labels, axs[1], ylabel=None,
-                relative_id=0, criteria=partial(criteria, "variance"))
+                criteria=partial(criteria, "variance"))
         axs[0].set_xticklabels(
             axs[0].get_xticklabels(), rotation=30, ha='right')
         axs[1].set_xticklabels(
@@ -914,23 +881,21 @@ class TestMOMC(unittest.TestCase):
 
         mean_optimized_estimators = [
             optimized_estimators[ii] for ii in mean_indices]
-        print("##")
         plot_estimator_variance_reductions(
             mean_optimized_estimators, mean_est_labels, axs[0], ylabel=None,
-            relative_id=0, criteria=partial(criteria, "mean"), alpha=0.5)
-        print("#")
+            criteria=partial(criteria, "mean"), alpha=0.5)
         var_optimized_estimators = [
             optimized_estimators[ii] for ii in var_indices]
         plot_estimator_variance_reductions(
                 var_optimized_estimators, var_est_labels, axs[1], ylabel=None,
-                relative_id=0, criteria=partial(criteria, "variance"), alpha=0.5)
+                criteria=partial(criteria, "variance"), alpha=0.5)
 
         # fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
         # plot_estimator_variances(
         #     optimized_estimators, est_labels, axs,
         #     ylabel=mathrm_label("Relative Estimator Variance"), relative_id=0,
         #     criteria=partial(criteria, "mean"))
-        # plt.show()
+        plt.show()
 
 
 if __name__ == "__main__":

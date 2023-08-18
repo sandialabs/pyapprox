@@ -555,7 +555,8 @@ class MCEstimator():
         return self.stat.sample_estimate(values[0][1])
 
     def __repr__(self):
-        return "{0}(stat={1})".format(self.__class__.__name__, self.stat)
+        return "{0}(stat={1}, nqoi={2})".format(
+            self.__class__.__name__, self.stat, self.nqoi)
 
 
 def acv_variance_sample_allocation_nhf_samples_constraint(ratios, *args):
@@ -565,8 +566,6 @@ def acv_variance_sample_allocation_nhf_samples_constraint(ratios, *args):
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
     eps = 0
     val = nhf_samples-(2+eps)
-    # print(ratios, val, 'c_var_nhf_samples')
-    # assert val > 0
     return val
 
 
@@ -677,9 +676,9 @@ class ACVEstimator(MCEstimator):
         if self.optimized_criteria is None:
             return "{0}(stat={1}, recursion_index={2})".format(
                 self.__class__.__name__, self.stat, self.recursion_index)
-        return "{0}(stat={1}, recursion_index={2}, criteria={3:.3g}, target_cost={4:.3g})".format(
+        return "{0}(stat={1}, recursion_index={2}, criteria={3:.3g}, target_cost={4:.5g}, ratios={5})".format(
             self.__class__.__name__, self.stat, self.recursion_index,
-            self.optimized_criteria, self.rounded_target_cost)
+            self.optimized_criteria, self.rounded_target_cost, self.nsample_ratios.numpy())
 
     def set_optimized_params(self, nsample_ratios, rounded_target_cost,
                              optimized_criteria):
@@ -710,6 +709,7 @@ class ACVEstimator(MCEstimator):
 
     def _objective(self, target_cost, x, return_grad=True):
         # return_grad argument used for testing with finte difference
+        # print([c["fun"](x, *c["args"]) for c in self.cons], 'cons', x)
         ratios = torch.tensor(x, dtype=torch.double)
         if return_grad:
             ratios.requires_grad = True
@@ -729,11 +729,17 @@ class ACVEstimator(MCEstimator):
         else:
             self.initial_guess = None
 
-    def _allocate_samples_opt_slsqp(
-            self, costs, target_cost, initial_guess, optim_options, cons):
+    def _allocate_samples_opt_minimize(
+            self, costs, target_cost, initial_guess, optim_method,
+            optim_options, cons):
         if optim_options is None:
-            optim_options = {'disp': True, 'ftol': 1e-10,
-                             'maxiter': 10000, 'iprint': 0}
+            if optim_method == "SLSQP":
+                optim_options = {'disp': True, 'ftol': 1e-10,
+                                 'maxiter': 10000, "iprint": 0}
+            elif optim_method == "trust-contr":
+                optim_options = {'disp': True, 'gtol': 1e-10,
+                                 'maxiter': 10000}
+                raise ValueError(f"{optim_method} not supported")
 
         if target_cost < costs.sum():
             msg = "Target cost does not allow at least one sample from "
@@ -755,53 +761,85 @@ class ACVEstimator(MCEstimator):
         # smallest lower bound when nhf = max_nhf
 
         return_grad = True
-        method = "SLSQP"
         opt = minimize(
             partial(self._objective, target_cost, return_grad=return_grad),
-            initial_guess, method=method, jac=return_grad,
+            initial_guess, method=optim_method, jac=return_grad,
             bounds=bounds, constraints=cons, options=optim_options)
         return opt
 
     def _allocate_samples_opt(self, cov, costs, target_cost,
                               cons=[],
                               initial_guess=None,
-                              optim_options=None, optim_method='SLSQP'):
+                              optim_options=None, optim_method='trust-constr'):
         initial_guess = get_acv_initial_guess(
             initial_guess, cov, costs, target_cost)
-        assert optim_method == "SLSQP"
-        opt = self._allocate_samples_opt_slsqp(
-            costs, target_cost, initial_guess, optim_options, cons)
+        assert optim_method == "SLSQP" or optim_method == "trust-constr"
+        opt = self._allocate_samples_opt_minimize(
+            costs, target_cost, initial_guess, optim_method, optim_options,
+            cons)
         nsample_ratios = torch.as_tensor(opt.x, dtype=torch.double)
-        # print([c["fun"](opt.x, *c["args"]) for c in cons], opt.x)
-        if not opt.success and (opt.status != 8 or not np.isfinite(opt.fun)):
-            if opt.status == 4:
-                print([c["fun"](opt.x, *c["args"]) for c in cons])
-            # raise RuntimeError('SLSQP optimizer failed'+f'{opt}')
-            return nsample_ratios, np.nan
+        if not opt.success:  # and (opt.status != 8 or not np.isfinite(opt.fun)):
+            raise RuntimeError('optimizer failed'+f'{opt}')
         else:
-            # print(opt.fun)
             val = opt.fun  # self.get_variance(target_cost, nsample_ratios)
         return nsample_ratios, val
 
+    def _allocate_samples_user_init_guess(self, cons, target_cost, **kwargs):
+        # opt = self._allocate_samples_opt(
+        #         self.cov, self.costs, target_cost, cons,
+        #         initial_guess=self.initial_guess, **kwargs)
+        try:
+            opt = self._allocate_samples_opt(
+                self.cov, self.costs, target_cost, cons,
+                initial_guess=self.initial_guess, **kwargs)
+            return opt
+        except RuntimeError:
+            return None, np.inf
+
+    def _allocate_samples_mfmc(self, cons, target_cost, **kwargs):
+        if (not (check_mfmc_model_costs_and_correlations(
+                self.costs,
+                get_correlation_from_covariance(self.cov.numpy()))) or
+                len(self.cov) != len(self.costs)):
+            # second condition above will not be true for multiple qoi
+            return None, np.inf
+        mfmc_initial_guess = torch.as_tensor(allocate_samples_mfmc(
+            self.cov, self.costs, target_cost)[0], dtype=torch.double)
+        try:
+            opt = self._allocate_samples_opt(
+                self.cov, self.costs, target_cost, cons,
+                initial_guess=mfmc_initial_guess, **kwargs)
+            return opt
+        except RuntimeError:
+            return None, np.inf
+
     def _allocate_samples(self, target_cost, **kwargs):
         cons = self.get_constraints(target_cost)
-        opt = self._allocate_samples_opt(
-            self.cov, self.costs, target_cost, cons,
-            initial_guess=self.initial_guess)
-
-        if (check_mfmc_model_costs_and_correlations(
-                self.costs,
-                get_correlation_from_covariance(self.cov.numpy())) and
-                len(self.cov) == len(self.costs)):
-            # second condition above will not be true for multiple qoi
-            mfmc_initial_guess = torch.as_tensor(allocate_samples_mfmc(
-                self.cov, self.costs, target_cost)[0], dtype=torch.double)
-            opt_mfmc = self._allocate_samples_opt(
-                self.cov, self.costs, target_cost, cons,
-                initial_guess=mfmc_initial_guess)
-            if opt_mfmc[1] < opt[1]:
-                opt = opt_mfmc
-        return opt
+        # self.cons = cons # hack
+        opts = []
+        kwargs["optim_method"] = "trust-constr"
+        opt_user_tr = self._allocate_samples_user_init_guess(
+            cons, target_cost, **kwargs)
+        opts.append(opt_user_tr)
+        if opt_user_tr[0] is None:
+            kwargs["optim_method"] = "SLSQP"
+            opt_user_sq = self._allocate_samples_user_init_guess(
+                cons, target_cost, **kwargs)
+            opts.append(opt_user_sq)
+        kwargs["optim_method"] = "trust-constr"
+        opt_mfmc_tr = self._allocate_samples_mfmc(cons, target_cost, **kwargs)
+        opts.append(opt_mfmc_tr)
+        if opt_mfmc_tr[0] is None:
+            kwargs["optim_method"] = "SLSQP"
+            opt_mfmc_sq = self._allocate_samples_mfmc(
+                cons, target_cost, **kwargs)
+            opts.append(opt_mfmc_sq)
+        obj_vals = np.array([o[1] for o in opts])
+        if not np.any(np.isfinite(obj_vals)):
+            raise RuntimeError(
+                "no solution found from multiple initial guesses")
+        II = np.argmin(obj_vals)
+        return opts[II]
 
     @staticmethod
     def _scipy_wrapper(fun, xx, *args):
@@ -947,10 +985,6 @@ class ACVEstimator(MCEstimator):
         CF, cf = self.stat.get_discrepancy_covariances(
             self, nsamples_per_model)
         weights = self._weights(CF, cf)
-        # print(np.linalg.cond(CF.detach().numpy()), "COND", nsamples_per_model.detach().numpy())
-        # print(self.stat.high_fidelity_estimator_covariance(
-        #     nsamples_per_model).numpy())
-        # print(torch.linalg.multi_dot((weights, cf.T)).numpy())
         return (self.stat.high_fidelity_estimator_covariance(
             nsamples_per_model) + torch.linalg.multi_dot((weights, cf.T)))
 
@@ -1258,10 +1292,11 @@ class MLMCEstimator(ACVEstimator):
 
 class BestACVEstimator(ACVEstimator):
     def __init__(self, stat, costs, variable,  cov, partition="mf",
-                 opt_criteria=None, tree_depth=None):
+                 opt_criteria=None, tree_depth=None, allow_failures=False):
         super().__init__(stat, costs, variable, cov, partition, None,
                          opt_criteria)
         self._depth = tree_depth
+        self._allow_failures = allow_failures
 
     def allocate_samples(self, target_cost, verbosity=0):
         best_variance = torch.as_tensor(np.inf, dtype=torch.double)
@@ -1273,10 +1308,10 @@ class BestACVEstimator(ACVEstimator):
             except RuntimeError as e:
                 # typically solver fails because trying to use
                 # uniformative model as a recursive control variate
-                print(e)
+                if not self._allow_failures:
+                    raise e
+                self.optimized_criteria = torch.as_tensor([np.inf])
                 print("Optimizer failed")
-                # self.optimized_criteria = torch.as_tensor([np.inf])
-                # raise e
             if verbosity > 0:
                 msg = "Recursion: {0} Objective: best {1}, current {2}".format(
                     index, best_variance.item(),
@@ -1365,6 +1400,9 @@ class BestModelSubsetEstimator():
         self._nqoi = self._candidate_cov.shape[0]//self._ncandidate_models
         self.max_nmodels = max_nmodels
         self.args = args
+        self._allow_failures = kwargs.get("allow_failures", False)
+        if "allow_failures" in kwargs:
+            del kwargs["allow_failures"]
         self.kwargs = kwargs
 
         self.optimized_criteria = None
@@ -1445,11 +1483,11 @@ class BestModelSubsetEstimator():
                         best_model_indices = idx
                         best_criteria = est.optimized_criteria
                 except (RuntimeError, ValueError) as e:
+                    if self._allow_failures:
+                        continue
                     raise e
-                    # print(idx)
-                    # assert False
-                    continue
-                # print(idx, est.optimized_criteria)
+        if best_est is None:
+            raise RuntimeError("No solutions found for any model subset")
         return best_est, best_model_indices
 
     def allocate_samples(self, target_cost, **allocate_kwargs):
@@ -1614,7 +1652,6 @@ def plot_estimator_variance_reductions_deprecated(optimized_estimators,
 
 def plot_estimator_variance_reductions(optimized_estimators,
                                        est_labels, ax, ylabel=None,
-                                       relative_id=0,
                                        criteria=determinant_variance,
                                        **bar_kawrgs):
     """
@@ -1628,16 +1665,11 @@ def plot_estimator_variance_reductions(optimized_estimators,
     est_labels : list (nestimators)
         String used to label each estimator
 
-    relative_id : integer
-        the estimator id of the Monte Carlo estimator
     """
     from pyapprox.util.configure_plots import mathrm_label
     var_red = []
-    mc_est = optimized_estimators[relative_id][0]
     optimized_estimators = optimized_estimators.copy()
-    del optimized_estimators[relative_id]
     est_labels = est_labels.copy()
-    del est_labels[relative_id]
     nestimators = len(est_labels)
     for ii in range(nestimators):
         assert len(optimized_estimators[ii]) == 1
@@ -1647,6 +1679,7 @@ def plot_estimator_variance_reductions(optimized_estimators,
         var_red.append(criteria(
             est.stat.high_fidelity_estimator_covariance(
                 [nhf_samples]), est)/est_criteria)
+    print(var_red)
     ax.bar(est_labels, var_red, **bar_kawrgs)
     if ylabel is None:
         ylabel = mathrm_label("Estimator variance reduction")
