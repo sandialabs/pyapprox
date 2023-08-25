@@ -1146,7 +1146,6 @@ def estimate_variance(model_ensemble, estimator, target_cost,
         rounded_target_cost = target_cost
         estimator.set_optimized_params(
             nsample_ratios, rounded_target_cost, None)
-    assert False
 
     ntrials = int(ntrials)
     from multiprocessing import Pool

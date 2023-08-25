@@ -160,14 +160,15 @@ textstr = '\n'.join(
      r'$\mathbb{V}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].var(),
      r'$\mathbb{E}[Q_{0,10}]=\mathrm{%.2e}$' % m0_means[:, 0].mean(),
      r'$\mathbb{V}[Q_{0,10}]=\mathrm{%.2e}$' % m0_means[:, 0].var()])
-ax.hist(means[:, 0], bins=ntrials//100, density=True)
-ax.hist(m0_means[:, 0], bins=ntrials//100, density=True, alpha=0.5)
+ax.hist(means[:, 0], bins=ntrials//100, density=True, label=r'$Q_{1, 100}$')
+ax.hist(m0_means[:, 0], bins=ntrials//100, density=True, alpha=0.5,
+        label=r'$Q_{0, 10}$')
 ax.axvline(x=shifts[0], c='r', label=r'$\mathbb{E}[Q_1]$')
 ax.axvline(x=0, c='k', label=r'$\mathbb{E}[Q_0]$')
 props = {'boxstyle': 'round', 'facecolor': 'white', 'alpha': 1}
 ax.text(0.65, 0.8, textstr, transform=ax.transAxes, bbox=props)
-ax.set_xlabel(r'$\mathbb{E}[Q_N]$')
-ax.set_ylabel(r'$\mathbb{P}(\mathbb{E}[Q_N])$')
+ax.set_xlabel(r'$Q_{\alpha,N}$')
+ax.set_ylabel(r'$\mathbb{P}(Q_{\alpha,N})$')
 _ = ax.legend(loc='upper left')
 
 #%%
