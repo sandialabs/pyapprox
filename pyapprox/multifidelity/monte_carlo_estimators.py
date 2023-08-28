@@ -1276,6 +1276,21 @@ def plot_estimator_variances(optimized_estimators,
     ax.legend()
 
 
+def _autolabel(ax, rects, model_labels):
+    # Attach a text label in each bar in *rects*
+    for rect, label in zip(rects, model_labels):
+        try:
+            rect = rect[0]
+        except TypeError:
+            pass
+        ax.annotate(label,
+                    xy=(rect.get_x() + rect.get_width()/2,
+                        rect.get_y() + rect.get_height()/2),
+                    xytext=(0, -10),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='center', va='bottom')
+
+
 def plot_acv_sample_allocation_comparison(
         estimators, model_labels, ax, legendloc=[0.925, 0.25]):
     """
@@ -1289,16 +1304,6 @@ def plot_acv_sample_allocation_comparison(
     model_labels : list (nestimators)
         String used to label each estimator
     """
-    def autolabel(ax, rects, model_labels):
-        # Attach a text label in each bar in *rects*
-        for rect, label in zip(rects, model_labels):
-            rect = rect[0]
-            ax.annotate(label,
-                        xy=(rect.get_x() + rect.get_width()/2,
-                            rect.get_y() + rect.get_height()/2),
-                        xytext=(0, -10),  # 3 points vertical offset
-                        textcoords="offset points",
-                        ha='center', va='bottom')
 
     nestimators = len(estimators)
     xlocs = np.arange(nestimators)
@@ -1324,8 +1329,8 @@ def plot_acv_sample_allocation_comparison(
             rects.append(rect)
             cnt += cost_ratio
             # print(est.nsamples_per_model[ii], label)
-        autolabel(ax, rects, ['$%d$' % int(est.nsamples_per_model[ii])
-                              for ii in range(est.nmodels)])
+        _autolabel(ax, rects, ['$%d$' % int(est.nsamples_per_model[ii])
+                               for ii in range(est.nmodels)])
     ax.set_xticks(xlocs)
     # number of samples are rounded cost est_rounded cost,
     # but target cost is not rounded

@@ -1704,7 +1704,7 @@ def plot_estimator_variance_reductions(optimized_estimators,
 
     """
     from pyapprox.util.configure_plots import mathrm_label
-    var_red = []
+    var_red, est_criterias, sf_criterias = [], [], []
     optimized_estimators = optimized_estimators.copy()
     est_labels = est_labels.copy()
     nestimators = len(est_labels)
@@ -1713,11 +1713,17 @@ def plot_estimator_variance_reductions(optimized_estimators,
         est = optimized_estimators[ii][0]
         est_criteria = criteria(est._get_variance(est.nsamples_per_model), est)
         nhf_samples = int(est.rounded_target_cost/est.costs[0])
-        var_red.append(criteria(
+        sf_criteria = criteria(
             est.stat.high_fidelity_estimator_covariance(
-                [nhf_samples]), est)/est_criteria)
-    print(var_red)
-    ax.bar(est_labels, var_red, **bar_kawrgs)
+                [nhf_samples]), est)
+        var_red.append(sf_criteria/est_criteria)
+        sf_criterias.append(sf_criteria)
+        est_criterias.append(est_criteria)
+    rects = ax.bar(est_labels, var_red, **bar_kawrgs)
+    rects = [r for r in rects]  # convert to list
+    from pyapprox.multifidelity.monte_carlo_estimators import _autolabel
+    _autolabel(ax, rects, ['$%1.2f$' % (v) for v in var_red])
     if ylabel is None:
         ylabel = mathrm_label("Estimator variance reduction")
     ax.set_ylabel(ylabel)
+    return var_red, est_criterias, sf_criterias
