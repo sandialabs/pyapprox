@@ -1759,16 +1759,21 @@ def generate_samples_acv(reorder_allocation_mat, nsamples_per_model,
     npartition_samples = cast_to_integers(npartition_samples)
     assert np.all(npartition_samples >= 0)
     nmodels = reorder_allocation_mat.shape[0]
+    # generate unique samples which will be split into partitions
     nsamples = npartition_samples.sum()
     samples = generate_samples(nsamples)
+
     nvars = samples.shape[0]
     ubs = np.cumsum([ss for ss in npartition_samples]).astype(int)
     lbs = np.hstack((0, ubs[:-1]))
     samples_per_model, partition_indices_per_model = [], []
     for ii in range(nmodels):
+        # which partitions are active for either of the sets associated
+        # with model ii
         active_partitions = np.where(
             (reorder_allocation_mat[:, 2*ii] == 1) |
             (reorder_allocation_mat[:, 2*ii+1] == 1))[0]
+        # the number of samples allocated to model ii
         nsamples_ii = npartition_samples[active_partitions].sum()
         samples_per_model_ii = np.empty((nvars, nsamples_ii))
         partition_indices_per_model_ii = np.empty((nsamples_ii))
@@ -1813,11 +1818,11 @@ def separate_model_values_acv(reorder_allocation_mat,
         necessary for control variate estimators.
         Each entry of the list contains
 
-        values0 : np.ndarray (num_samples_i0,num_qoi)
+        values0 : np.ndarray (num_samples_i0, num_qoi)
            Evaluations  of each model
            used to compute the estimator :math:`Q_{i,N}` of
 
-        values1: np.ndarray (num_samples_i1,num_qoi)
+        values1: np.ndarray (num_samples_i1, num_qoi)
             Evaluations used compute the approximate
             mean :math:`\mu_{i,r_iN}` of the low fidelity models.
     """

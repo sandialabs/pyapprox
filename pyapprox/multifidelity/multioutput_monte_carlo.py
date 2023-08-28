@@ -418,6 +418,63 @@ def log_linear_combination_diag_variance(weights, variance):
     return torch.log(torch.multi_dot(weights, torch.diag(variance)))
 
 
+def _remove_pilot_samples(samples_per_model, reorder_allocation_mat,
+                          npartition_samples, pilot_samples):
+    if pilot_samples is None:
+        return samples_per_model
+    nmodels = len(samples_per_model)
+    npilot_samples = pilot_samples.shape[1]
+    for ii in range(nmodels):
+        # which partitions are active for either of the sets associated
+        # with model ii
+        active_partitions = np.where(
+            (reorder_allocation_mat[:, 2*ii] == 1) |
+            (reorder_allocation_mat[:, 2*ii+1] == 1))[0]
+        if active_partitions.min() == 0:
+            if npilot_samples > npartition_samples[0]:
+                raise ValueError("Too many pilot samples")
+            samples_per_model[ii] = samples_per_model[ii][:, npilot_samples:]
+    # samples_per_model no longer contain the pilot samples
+    return samples_per_model
+
+
+def _insert_pilot_samples(samples_per_model_wo_pilot,
+                          values_per_model_wo_pilot, reorder_allocation_mat,
+                          npartition_samples, pilot_samples, pilot_values):
+    """
+    Use pilot samples only for first partition. That is for the
+    sample set used to evaluate the high-fidelity model.
+    In some situations the pilot samples may be used for other partitions
+    but this function does not do that and therefore does not make
+    maximum reuse of samples
+
+    Parameters
+    ----------
+    values_per_model_wo_pilot : list (np.ndarray)
+         The values for each model. It is assumed that the amount computed
+         for the first partition is less the number of pilot samples
+    """
+    if pilot_samples is None:
+        return samples_per_model_wo_pilot, values_per_model_wo_pilot
+    nmodels = len(values_per_model_wo_pilot)
+    npilot_samples = pilot_samples.shape[1]
+    for ii in range(nmodels):
+        # which partitions are active for either of the sets associated
+        # with model ii
+        active_partitions = np.where(
+            (reorder_allocation_mat[:, 2*ii] == 1) |
+            (reorder_allocation_mat[:, 2*ii+1] == 1))[0]
+        if active_partitions.min() == 0:
+            if npilot_samples > npartition_samples[0]:
+                raise ValueError("Too many pilot samples")
+            samples_per_model_wo_pilot[ii] = np.hstack(
+                (pilot_samples, samples_per_model_wo_pilot[ii]))
+            values_per_model_wo_pilot[ii] = np.vstack(
+                (pilot_values[ii], values_per_model_wo_pilot[ii]))
+    # samples_per_model_wo_pilot (and values) now contain pilot
+    return samples_per_model_wo_pilot, values_per_model_wo_pilot
+
+
 class MCEstimator():
     def __init__(self, stat, costs, variable, cov, opt_criteria=None):
         r"""
@@ -1013,7 +1070,52 @@ class ACVEstimator(MCEstimator):
             npartition_samples, self.generate_samples)
         return samples_per_model, partition_indices_per_model
 
-    def generate_data(self, functions):
+    def _generate_estimator_samples(self, pilot_samples):
+        samples_per_model, partition_indices_per_model = \
+            self.generate_sample_allocations()
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
+            self.nsamples_per_model)
+        npartition_samples = self._get_npartition_samples(
+            self.nsamples_per_model)
+        if self.partition != "mf":
+            msg = "remove and insert pilot data only works with partition='mf'"
+            raise ValueError(msg)
+        samples_per_model_wo_pilot = _remove_pilot_samples(
+            samples_per_model, reorder_allocation_mat,
+            npartition_samples, pilot_samples)
+        return samples_per_model_wo_pilot, partition_indices_per_model
+
+    def _generate_estimator_values(self, functions,
+                                   samples_per_model_wo_pilot):
+
+        if self.partition != "mf":
+            msg = "remove and insert pilot data only works with partition='mf'"
+        if type(functions) == list:
+            functions = ModelEnsemble(functions)
+        # evaluate models only at points that have not been computed
+        values_per_model_wo_pilot = functions.evaluate_models(
+            samples_per_model_wo_pilot)
+        return values_per_model_wo_pilot
+
+    def _generate_data(self, samples_per_model_wo_pilot,
+                       values_per_model_wo_pilot, pilot_data,
+                       partition_indices_per_model):
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
+            self.nsamples_per_model)
+        npartition_samples = self._get_npartition_samples(
+            self.nsamples_per_model)
+        samples_per_model, values_per_model = _insert_pilot_samples(
+            samples_per_model_wo_pilot, values_per_model_wo_pilot,
+            reorder_allocation_mat, npartition_samples, *pilot_data)
+        acv_values = separate_model_values_acv(
+            reorder_allocation_mat, values_per_model,
+            partition_indices_per_model)
+        acv_samples = separate_samples_per_model_acv(
+            reorder_allocation_mat, samples_per_model,
+            partition_indices_per_model)
+        return acv_samples, acv_values
+
+    def generate_data(self, functions, pilot_data=[None, None]):
         r"""
         Generate the samples and values needed to compute the Monte Carlo like
         estimator.
@@ -1050,20 +1152,14 @@ class ACVEstimator(MCEstimator):
             Evaluations used compute the approximate
             mean :math:`\mu_{i,r_iN}` of the low fidelity models.
         """
-        samples_per_model, partition_indices_per_model = \
-            self.generate_sample_allocations()
-        if type(functions) == list:
-            functions = ModelEnsemble(functions)
-        values_per_model = functions.evaluate_models(samples_per_model)
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
-            self.nsamples_per_model)
-        acv_values = separate_model_values_acv(
-            reorder_allocation_mat, values_per_model,
+        pilot_samples, pilot_values = pilot_data
+        samples_per_model_wo_pilot, partition_indices_per_model = (
+            self._generate_estimator_samples(pilot_samples))
+        values_per_model_wo_pilot = self._generate_estimator_values(
+            functions, samples_per_model_wo_pilot)
+        return self._generate_data(
+            samples_per_model_wo_pilot, values_per_model_wo_pilot, pilot_data,
             partition_indices_per_model)
-        acv_samples = separate_samples_per_model_acv(
-            reorder_allocation_mat, samples_per_model,
-            partition_indices_per_model)
-        return acv_samples, acv_values
 
     def estimate_from_values_per_model(self, values_per_model,
                                        partition_indices_per_model):
@@ -1557,9 +1653,17 @@ class BestModelSubsetEstimator():
     def nsample_ratios(self):
         return self.best_est.nsample_ratios
 
-    def generate_data(self, functions):
+    def generate_data(self, functions, pilot_data=[None, None]):
+        if pilot_data[0] is not None:
+            # downselect pilot data to just contain data from selected models
+            pilot_data_subset = [
+                pilot_data[0],
+                [pilot_data[1][idx] for idx in self.best_model_indices]]
+        else:
+            pilot_data_subset = [None, None]
         return self.best_est.generate_data(
-            [functions[idx] for idx in self.best_model_indices])
+            [functions[idx] for idx in self.best_model_indices],
+            pilot_data_subset)
 
     def __call__(self, values):
         return self.best_est(values)

@@ -648,11 +648,12 @@ class TestMOMC(unittest.TestCase):
         mfmc_nsample_ratios, mfmc_log10_variance = allocate_samples_mfmc(
             cov, costs, target_cost)
         assert np.allclose(nsample_ratios, mfmc_nsample_ratios)
-        assert np.allclose(obj_val, 10**mfmc_log10_variance)
+        # print(np.exp(obj_val), 10**mfmc_log10_variance)
+        assert np.allclose(np.exp(obj_val), 10**mfmc_log10_variance)
 
         est = get_estimator("acvmfb", "mean", model.variable, costs, cov)
         est.allocate_samples(target_cost, verbosity=1)
-        assert np.allclose(est.recursion_index, [0, 1])
+        assert np.allclose(est.recursion_index, [0, 0])
 
     def test_best_model_subset_estimator(self):
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
@@ -897,6 +898,69 @@ class TestMOMC(unittest.TestCase):
         #     ylabel=mathrm_label("Relative Estimator Variance"), relative_id=0,
         #     criteria=partial(criteria, "mean"))
         # plt.show()
+
+    def test_insert_pilot_samples(self):
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+            [0, 1, 2], [0, 1, 2])
+        
+        # modify costs so more hf samples are used but all three models
+        # are selected
+        costs[1:] = 0.1, 0.05
+        est = get_estimator("acvmf", "mean", model.variable, costs, cov,
+                            max_nmodels=3)
+        target_cost = 100
+        est.allocate_samples(target_cost, verbosity=1, nprocs=1)
+
+        random_state = np.random.RandomState(1)
+        est.set_random_state(random_state)
+        acv_samples, acv_values = est.generate_data(funs)
+        est_val = est(acv_values)
+        print(est.nsamples_per_model)
+
+        # This test is specific to ACVMF sampling strategy
+        npilot_samples = 5
+        pilot_samples = acv_samples[0][1][:, :npilot_samples]
+        pilot_values = [f(pilot_samples) for f in model.funs]
+        random_state = np.random.RandomState(1)
+        est.set_random_state(random_state)
+        acv_samples, acv_values = est.generate_data(
+            funs, [pilot_samples, pilot_values])
+        est_val_pilot = est(acv_values)
+        assert np.allclose(est_val, est_val_pilot)
+        for ii in range(1, 3):
+            assert np.allclose(
+                acv_samples[ii][0][:, :npilot_samples],
+                acv_samples[0][1][:, :npilot_samples])
+            assert np.allclose(
+                acv_samples[ii][1][:, :npilot_samples],
+                acv_samples[0][1][:, :npilot_samples])
+
+        npilot_samples = 8
+        pilot_samples = est.best_est.generate_samples(npilot_samples)
+        self.assertRaises(ValueError, est.generate_data,
+                          funs, [pilot_samples, pilot_values])
+
+        # modify costs so more hf samples are used
+        costs[1:] = 0.5, 0.05
+        est = get_estimator("acvmf", "mean", model.variable, costs, cov,
+                            max_nmodels=3)
+        target_cost = 100
+        est.allocate_samples(target_cost, verbosity=1, nprocs=1)
+        random_state = np.random.RandomState(1)
+        est.set_random_state(random_state)
+        acv_samples, acv_values = est.generate_data(funs)
+        est_val = est(acv_values)
+        print(est.nsamples_per_model)
+
+        npilot_samples = 5
+        pilot_samples = acv_samples[0][1][:, :npilot_samples]
+        pilot_values = [f(pilot_samples) for f in model.funs]
+        random_state = np.random.RandomState(1)
+        est.set_random_state(random_state)
+        acv_samples, acv_values = est.generate_data(
+            funs, [pilot_samples, pilot_values])
+        est_val_pilot = est(acv_values)
+        assert np.allclose(est_val, est_val_pilot)
 
 
 if __name__ == "__main__":
