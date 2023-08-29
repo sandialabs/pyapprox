@@ -1366,8 +1366,9 @@ class MLMCEstimator(ACVEstimator):
                          recursion_index=None, opt_criteria=None)
 
     def _allocate_samples(self, target_cost):
-        return allocate_samples_mlmc(
+        nsample_ratios, val = allocate_samples_mlmc(
             self.cov.numpy(), self.costs.numpy(), target_cost)
+        return torch.as_tensor(nsample_ratios, dtype=torch.double), val
 
     def _get_reordered_sample_allocation_matrix(self, nsamples_per_model):
         return get_sample_allocation_matrix_mlmc(self.nmodels)
@@ -1616,7 +1617,7 @@ class BestModelSubsetEstimator():
                 est = self._get_model_subset_estimator(
                     qoi_idx, nsubset_lfmodels, allocate_kwargs,
                     target_cost, lf_model_subset_indices)
-                if est.optimized_criteria < best_criteria:
+                if est is not None and est.optimized_criteria < best_criteria:
                     best_est = est
                     best_model_indices = np.hstack(
                         ([0], lf_model_subset_indices)).astype(int)
@@ -1673,6 +1674,9 @@ class BestModelSubsetEstimator():
             return "{0}".format(self.__class__.__name__)
         return "{0}(est={1}, subset={2})".format(
             self.__class__.__name__, self.best_est, self.best_model_indices)
+
+    def _get_variance(self, nsamples_per_model):
+        return self.best_est._get_variance(nsamples_per_model)
 
 
 multioutput_estimators = {
@@ -1815,6 +1819,7 @@ def plot_estimator_variance_reductions(optimized_estimators,
     for ii in range(nestimators):
         assert len(optimized_estimators[ii]) == 1
         est = optimized_estimators[ii][0]
+        print(est)
         est_criteria = criteria(est._get_variance(est.nsamples_per_model), est)
         nhf_samples = int(est.rounded_target_cost/est.costs[0])
         sf_criteria = criteria(

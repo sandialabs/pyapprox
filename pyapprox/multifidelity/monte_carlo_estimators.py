@@ -978,12 +978,13 @@ def get_best_models_for_acv_estimator(
                 continue
             try:
                 est.allocate_samples(target_cost, **allocate_kwargs)
-                print(idx, est.recursion_index, est.optimized_variance)
+                # print(idx, est.recursion_index, est.optimized_variance)
                 if est.optimized_variance < best_variance:
                     best_est = est
                     best_model_indices = idx
                     best_variance = est.optimized_variance
-            except (RuntimeError, ValueError):
+            except (RuntimeError, ValueError) as e:
+                # raise e
                 # print(e)
                 continue
             # print(idx, est.optimized_variance)
@@ -1380,14 +1381,16 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
             {'type': 'eq',
              'fun': BLUE_cost_constraint,
              'jac': BLUE_cost_constraint_jac}]
-        res = minimize(obj, init_guess, jac=True, method="SLSQP",
+        # res = minimize(obj, init_guess, jac=True, method="SLSQP",
+        #                constraints=constraints)
+        res = minimize(obj, init_guess, jac=True, method="trust-constr",
                        constraints=constraints)
         if not res.success:
             print(partial(BLUE_bound_constraint, constraint_reg)(init_guess))
             print(BLUE_cost_constraint(init_guess))
             msg = f"optimization not successful {res}"
             print(msg)
-            # raise RuntimeError(msg)
+            raise RuntimeError(msg)
         variance = res["fun"]
         nsamples_per_subset_frac = np.maximum(
             np.zeros_like(res["x"]), res["x"])
@@ -1727,6 +1730,14 @@ class AETCBLUE():
         # package up result
         result = self._explore_result_to_dict(result)
         return mean, values, result
+
+    def __repr__(self):
+        if self.optimized_criteria is None:
+            return "{0}".format(self.__class__.__name__)
+        return "{0}(stat={1}, MSE={2:.3g}, target_cost={3:.5g}, ratios={4})".format(
+            self.__class__.__name__, 
+            self.optimized_varuabce, self.rounded_target_cost,
+            self.nsample_ratios.numpy())
 
 
 monte_carlo_estimators = {"acvmf": ACVMFEstimator,
