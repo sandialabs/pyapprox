@@ -1819,7 +1819,6 @@ def plot_estimator_variance_reductions(optimized_estimators,
     for ii in range(nestimators):
         assert len(optimized_estimators[ii]) == 1
         est = optimized_estimators[ii][0]
-        print(est)
         est_criteria = criteria(est._get_variance(est.nsamples_per_model), est)
         nhf_samples = int(est.rounded_target_cost/est.costs[0])
         sf_criteria = criteria(
