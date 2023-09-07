@@ -941,6 +941,7 @@ def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps)):
 
 def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
     function_val, directional_derivative = fun(zz, direction)
+    print("A")
     if isinstance(function_val, np.ndarray):
         function_val = function_val.squeeze()
 
@@ -967,9 +968,10 @@ def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
         if isinstance(perturbed_function_val, np.ndarray):
             perturbed_function_val = perturbed_function_val.squeeze()
         # print(inspect.getfullargspec(fun).args)
-        # print(perturbed_function_val.shape, function_val.shape, fd_eps[ii])
+        # print(perturbed_function_val, function_val, fd_eps[ii])
         fd_directional_derivative = (
             perturbed_function_val-function_val)/fd_eps[ii]
+        # print(fd_directional_derivative)
         errors.append(np.linalg.norm(
             fd_directional_derivative.reshape(directional_derivative.shape) -
             directional_derivative))

@@ -50,8 +50,8 @@ class HyperParameter():
         if self.bounds.shape[0] == 2:
             self.bounds = repeat(self.bounds, self.nvars)
         if self.bounds.shape[0] != 2*self.nvars:
-            msg = "bounds shape {0} inconsistent with 2*nvars".format(
-                self.bounds.shape)
+            msg = "bounds shape {0} inconsistent with 2*nvars={1}".format(
+                self.bounds.shape, 2*self.nvars)
             raise ValueError(msg)
         self.bounds = self.bounds.reshape((self.bounds.shape[0]//2, 2))
         self.transform = transform
@@ -138,7 +138,7 @@ class HyperParameterList():
         return (
             ", ".join(
                 map("{0}".format,
-                    [hyp._short_repr() for hyp in self.hyper_params]))+")")
+                    [hyp._short_repr() for hyp in self.hyper_params])))
 
     def __repr__(self):
         return ("{0}(".format(self.__class__.__name__) +

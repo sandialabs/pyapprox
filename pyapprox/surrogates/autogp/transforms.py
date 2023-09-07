@@ -1,37 +1,49 @@
 import numpy as np
+from abc import ABC, abstractmethod
 
 from pyapprox.surrogates.autogp._torch_wrappers import (
     sqrt, full, copy, arccos, sin, cos, empty, log, exp)
 
 
-class IdentityTransform(object):
-    def __init__(self, num_vars):
-        self.nvars = num_vars
+class ValuesTransform(ABC):
+    @abstractmethod
+    def map_from_canonical(self, values):
+        raise NotImplementedError
 
-    def map_from_canonical(self, samples):
-        return samples
+    @abstractmethod
+    def map_to_canonical(self, values):
+        raise NotImplementedError
 
-    def map_to_canonical(self, samples):
-        return samples
+    @abstractmethod
+    def map_stdev_from_canonical(self, canonical_stdevs):
+        raise NotImplementedError
+
+
+class IdentityValuesTransform(ValuesTransform):
+    def map_from_canonical(self, values):
+        return values
+
+    def map_to_canonical(self, values):
+        return values
 
     def map_stdev_from_canonical(self, canonical_stdevs):
         return canonical_stdevs
 
 
-class StandardDeviationTransform():
+class StandardDeviationValuesTransform(ValuesTransform):
     def __init__(self):
         self._means = None
         self._stdevs = None
 
-    def map_to_canonical(self, samples):
-        self._means = samples.mean(axis=1)[:, None]
-        self._stdevs = samples.std(axis=1, ddof=1)[:, None]
-        canonical_samples = (samples-self._means)/self._stdevs
-        return canonical_samples
+    def map_to_canonical(self, values):
+        self._means = values.mean(axis=0)[:, None]
+        self._stdevs = values.std(axis=0, ddof=1)[:, None]
+        canonical_values = (values-self._means)/self._stdevs
+        return canonical_values
 
-    def map_from_canonical(self, canonical_samples):
-        samples = canonical_samples*self._stdevs + self._means
-        return samples
+    def map_from_canonical(self, canonical_values):
+        values = canonical_values*self._stdevs + self._means
+        return values
 
     def map_stdev_from_canonical(self, canonical_stdevs):
         return canonical_stdevs*self._stdevs

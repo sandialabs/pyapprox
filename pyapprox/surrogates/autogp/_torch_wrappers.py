@@ -130,5 +130,11 @@ def inv(matrix):
     return torch.linalg.inv(matrix)
 
 
-def eye(nn):
-    return torch.eye(nn)
+def eye(nn, dtype=None):
+    if dtype is None:
+        dtype = torch.double
+    return torch.eye(nn, dtype=dtype)
+
+
+def trace(matrix):
+    return torch.trace(matrix)

@@ -6,10 +6,10 @@ import scipy
 from pyapprox.variables.transforms import IdentityTransformation
 from pyapprox.surrogates.autogp._torch_wrappers import (
     diag, full, cholesky, cholesky_solve, log, solve_triangular, einsum,
-    multidot, array, asarray, sqrt)
+    multidot, array, asarray, sqrt, eye)
 from pyapprox.surrogates.autogp.kernels import Kernel, Monomial
 from pyapprox.surrogates.autogp.transforms import (
-    StandardDeviationTransform)
+    StandardDeviationValuesTransform)
 
 
 class ExactGaussianProcess():
@@ -30,12 +30,14 @@ class ExactGaussianProcess():
         if self.var_trans.num_vars() != nvars:
             raise ValueError("var_trans and nvars are inconsistent")
         if values_trans is None:
-            self.values_trans = StandardDeviationTransform()
+            self.values_trans = StandardDeviationValuesTransform()
         else:
             self.values_trans = values_trans
 
         self._coef = None
         self._coef_args = None
+        self.train_samples = None
+        self.train_values = None
         self.canonical_train_samples = None
         self.canonical_train_values = None
 
@@ -50,7 +52,7 @@ class ExactGaussianProcess():
         # kmat[np.diag_indices_from(kmat)] += self.kernel_reg
         # This also does not work
         # kmat += diag(full((kmat.shape[0], 1), float(self.kernel_reg)))
-        kmat = kmat + diag(full((kmat.shape[0], 1), float(self.kernel_reg)))
+        kmat = kmat + eye(kmat.shape[0])*float(self.kernel_reg)
         return kmat
 
     def _factor_training_kernel_matrix(self):
@@ -66,7 +68,7 @@ class ExactGaussianProcess():
     def _log_determinant(self, coef_res: Tuple) -> float:
         # can be specialized when _factor_training_kernel_matrix is specialized
         chol_factor = coef_res
-        return log(diag(chol_factor)).sum()
+        return 2*log(diag(chol_factor)).sum()
 
     def _canonical_posterior_pointwise_variance(
             self, canonical_samples, kmat_pred):
@@ -80,8 +82,9 @@ class ExactGaussianProcess():
             return full((canonical_samples.shape[1], 1), 0.)
         return self.mean(canonical_samples)
 
-    def _neg_log_likelihood(self, active_opt_params: array) -> float:
-        self.hyp_list.set_active_opt_params(active_opt_params)
+    def _neg_log_likelihood_with_hyperparameter_mean(self) -> float:
+        # this can also be used if treating the mean as hyper_params
+        # but cannot be used if assuming a prior on the coefficients
         coef_args = self._factor_training_kernel_matrix()
         coef = self._solve_coefficients(*coef_args)
         nsamples = self.canonical_train_values.shape[0]
@@ -92,6 +95,27 @@ class ExactGaussianProcess():
             self._log_determinant(*coef_args) +
             nsamples*np.log(2*np.pi)
         ).sum(axis=1)
+
+    def _neg_log_likelihood_with_uncertain_mean(self) -> float:
+        # See Equation 2.45 in Rasmussen's Book
+        # mean cannot be passed as a HyperParameter but is estimated
+        # probabilitically.
+        raise NotImplementedError
+
+    def _posterior_variance_with_uncertain_mean(self) -> float:
+        # See Equation 2.42 in Rasmussen's Book
+        # Because the coeficients of the mean are uncertain the posterior
+        # mean and variance formulas change
+        # These formulas are derived in the limit of uniformative prior
+        # variance on the mean coefficients. Thus the prior mean variance
+        # cannot be calculated exactly. So just pretend prior mean is fixed
+        # i.e. the prior uncertainty does not add to prior variance
+        raise NotImplementedError
+
+    def _neg_log_likelihood(self, active_opt_params):
+        self.hyp_list.set_active_opt_params(active_opt_params)
+        return self._neg_log_likelihood_with_hyperparameter_mean()
+        # return self._neg_log_likelihood_with_uncertain_mean()
 
     def _fit_objective(self, active_opt_params_np):
         # this is only pplace where torch should be called explicitly
@@ -121,15 +145,21 @@ class ExactGaussianProcess():
             jac=True, bounds=bounds)
         return res
 
+    def _get_random_optimizer_initial_guess(self, bounds):
+        return np.random.uniform(bounds[:, 0], bounds[:, 1])
+
     def _global_optimize(self, max_nglobal_opt_iters=1):
         bounds = self.hyp_list.get_active_opt_bounds().numpy()
         results = []
-        best_idx, best_obj = None, np.inf
-        for ii in range(max_nglobal_opt_iters):
+        # Start first optimizer with values set in hyperparams
+        init_active_opt_params_np = self.hyp_list.get_active_opt_params()
+        results = [self._local_optimize(init_active_opt_params_np, bounds)]
+        best_idx, best_obj = 0, results[-1].fun
+        for ii in range(1, max_nglobal_opt_iters):
             # active bounds are in the transfomed space so just sample
             # uniformly
-            init_active_opt_params_np = np.random.uniform(
-                bounds[:, 0], bounds[:, 1])
+            init_active_opt_params_np = (
+                self._get_random_optimizer_initial_guess(bounds))
             results.append(
                 self._local_optimize(init_active_opt_params_np, bounds))
             if results[-1].fun < best_obj:
@@ -139,10 +169,12 @@ class ExactGaussianProcess():
             asarray(results[best_idx].x))
 
     def set_training_data(self, train_samples: array, train_values: array):
+        self.train_samples = train_samples
+        self.train_values = train_values
         self.canonical_train_samples = asarray(
             self.var_trans.map_to_canonical(train_samples))
         self.canonical_train_values = asarray(
-            self.values_trans.map_to_canonical(train_values.T).T)
+            self.values_trans.map_to_canonical(train_values))
 
     def fit(self, train_samples: array, train_values: array, **kwargs):
         self.set_training_data(train_samples, train_values)
@@ -154,7 +186,7 @@ class ExactGaussianProcess():
         if not return_std:
             return mean
         return mean, self.values_trans.map_stdev_from_canonical(
-            sqrt(self.kernel.diag(samples)).T).T
+            sqrt(self.kernel.diag(samples)))
 
     def _evaluate_posterior(self, samples, return_std):
         if self._coef is None:
@@ -166,8 +198,7 @@ class ExactGaussianProcess():
             canonical_samples, self.canonical_train_samples)
         canonical_mean = self._canonical_mean(canonical_samples) + multidot((
             kmat_pred, self._coef))
-        mean = self.values_trans.map_from_canonical(canonical_mean.T).T
-
+        mean = self.values_trans.map_from_canonical(canonical_mean)
         if not return_std:
             return mean
 
@@ -176,7 +207,7 @@ class ExactGaussianProcess():
                 canonical_samples, kmat_pred))
         pointwise_stdev = np.sqrt(self.values_trans.map_stdev_from_canonical(
             canonical_pointwise_variance))
-        return mean, pointwise_stdev
+        return mean, pointwise_stdev[:, 0]
 
     def __call__(self, samples, return_std=False, return_grad=False):
         if return_grad and return_std:

@@ -187,9 +187,11 @@ class Monomial():
             name, self.nterms, coefs, coef_bounds, transform)
         self.hyp_list = HyperParameterList([self._coef])
 
+    def basis_matrix(self, samples):
+        return monomial_basis_matrix(self.indices, asarray(samples))
+
     def __call__(self, samples):
-        basis_mat = monomial_basis_matrix(
-            self.indices, asarray(samples))
+        basis_mat = self.basis_matrix(samples)
         vals = basis_mat @ self._coef.get_values()
         return asarray(vals[:, None])
 
