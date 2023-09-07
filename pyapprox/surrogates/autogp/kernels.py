@@ -2,12 +2,12 @@ from typing import Union
 from abc import ABC, abstractmethod
 
 from pyapprox.surrogates.autogp._torch_wrappers import (
-    full, asarray, sqrt, exp, inf, cdist, array, to_numpy, cholesky)
+    full, asarray, sqrt, exp, inf, cdist, array, to_numpy, cholesky, empty,
+    arange)
 from pyapprox.surrogates.autogp.hyperparameter import (
     HyperParameter, HyperParameterList, IdentityHyperParameterTransform,
     LogHyperParameterTransform)
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
-from pyapprox.surrogates.interp.monomial import monomial_basis_matrix
 
 
 class Kernel(ABC):
@@ -86,7 +86,11 @@ class ConstantKernel(Kernel):
             Y = X
         else:
             Y = asarray(Y)
-        return full((X.shape[1], Y.shape[1]), self._const.get_values()[0])
+        # full does not work when const value requires grad
+        # return full((X.shape[1], Y.shape[1]), self._const.get_values()[0])
+        const = empty((X.shape[1], Y.shape[1]))
+        const[:] = self._const.get_values()[0]
+        return const
 
 
 class ProductKernel(Kernel):
@@ -131,6 +135,46 @@ class SumKernel(Kernel):
         return self.kernel1(X, Y) + self.kernel2(X, Y)
 
 
+def univariate_monomial_basis_matrix(max_level, samples):
+    assert samples.ndim == 1
+    basis_matrix = samples[:, None]**arange(max_level+1)[None, :]
+    return basis_matrix
+
+
+def monomial_basis_matrix(indices, samples):
+    """
+    Evaluate a multivariate monomial basis at a set of samples.
+
+    Parameters
+    ----------
+    indices : np.ndarray (num_vars, num_indices)
+        The exponents of each monomial term
+
+    samples : np.ndarray (num_vars, num_samples)
+        Samples at which to evaluate the monomial
+
+    Return
+    ------
+    basis_matrix : np.ndarray (num_samples, num_indices)
+        The values of the monomial basis at the samples
+    """
+    num_vars, num_indices = indices.shape
+    assert samples.shape[0] == num_vars
+    num_samples = samples.shape[1]
+
+    deriv_order = 0
+    basis_matrix = empty(
+        ((1+deriv_order*num_vars)*num_samples, num_indices))
+    basis_vals_1d = [univariate_monomial_basis_matrix(
+        indices[0, :].max(), samples[0, :])]
+    basis_matrix[:num_samples, :] = basis_vals_1d[0][:, indices[0, :]]
+    for dd in range(1, num_vars):
+        basis_vals_1d.append(univariate_monomial_basis_matrix(
+            indices[dd, :].max(), samples[dd, :]))
+        basis_matrix[:num_samples, :] *= basis_vals_1d[dd][:, indices[dd, :]]
+    return basis_matrix
+
+
 class Monomial():
     def __init__(self, nvars, degree, coefs, coef_bounds,
                  transform=IdentityHyperParameterTransform(),
@@ -145,11 +189,11 @@ class Monomial():
 
     def __call__(self, samples):
         basis_mat = monomial_basis_matrix(
-            self.indices, to_numpy(samples), deriv_order=0)
-        vals = basis_mat.dot(self._coef.get_values())
+            self.indices, asarray(samples))
+        vals = basis_mat @ self._coef.get_values()
         return asarray(vals[:, None])
 
     def __repr__(self):
         return "{0}(name={1}, nvars={2}, degree={3}, nterms={4})".format(
             self.__class__.__name__, self._coef.name, self.nvars,
-            self.self.degree, self.nterms)
+            self.degree, self.nterms)

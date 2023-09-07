@@ -3,7 +3,7 @@ import numpy as np
 import torch
 
 from pyapprox.surrogates.autogp.transforms import (
-    NSphereCoordinateTransform, SphericalCorrelationTransformation)
+    NSphereCoordinateTransform, SphericalCorrelationTransform)
 
 
 class TestTransforms(unittest.TestCase):
@@ -28,12 +28,12 @@ class TestTransforms(unittest.TestCase):
         for test_case in test_cases:
             self.check_nsphere_coordinate_transform(*test_case)
 
-    def check_spherical_correlation_transformation(self, noutputs):
+    def check_spherical_correlation_transform(self, noutputs):
         # constrained formulation
-        trans = SphericalCorrelationTransformation(noutputs)
+        trans = SphericalCorrelationTransform(noutputs)
 
         # if radius is made to small it can create errors in
-        # transformation to/from spherical coordinates
+        # transform to/from spherical coordinates
         theta = np.hstack((
             np.random.uniform(0, 10, (trans.noutputs)),
             np.random.uniform(0, np.pi, (trans.ntheta-trans.noutputs)),
@@ -50,10 +50,10 @@ class TestTransforms(unittest.TestCase):
             torch.as_tensor(L, dtype=torch.double))
         assert np.allclose(theta, theta_recovered, rtol=1e-12)
 
-    def test_spherical_correlation_transformation(self):
+    def test_spherical_correlation_transform(self):
         # Use test case from PINHEIRO 1 and BATES
         noutputs = 3
-        trans = SphericalCorrelationTransformation(noutputs)
+        trans = SphericalCorrelationTransform(noutputs)
         trans._unconstrained = True
         L = np.array([[1, 0, 0], [1, 2, 0], [1, 2, 3]])
         theta_recovered = trans.map_from_cholesky(
@@ -68,7 +68,7 @@ class TestTransforms(unittest.TestCase):
         ]
         for test_case in test_cases:
             np.random.seed(1)
-            self.check_spherical_correlation_transformation(*test_case)
+            self.check_spherical_correlation_transform(*test_case)
 
 
 if __name__ == "__main__":

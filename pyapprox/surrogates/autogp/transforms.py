@@ -4,7 +4,21 @@ from pyapprox.surrogates.autogp._torch_wrappers import (
     sqrt, full, copy, arccos, sin, cos, empty, log, exp)
 
 
-class StandardDeviationTransformation():
+class IdentityTransform(object):
+    def __init__(self, num_vars):
+        self.nvars = num_vars
+
+    def map_from_canonical(self, samples):
+        return samples
+
+    def map_to_canonical(self, samples):
+        return samples
+
+    def map_stdev_from_canonical(self, canonical_stdevs):
+        return canonical_stdevs
+
+
+class StandardDeviationTransform():
     def __init__(self):
         self._means = None
         self._stdevs = None

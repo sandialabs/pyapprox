@@ -7,9 +7,9 @@ from pyapprox.variables.transforms import IdentityTransformation
 from pyapprox.surrogates.autogp._torch_wrappers import (
     diag, full, cholesky, cholesky_solve, log, solve_triangular, einsum,
     multidot, array, asarray, sqrt)
-from pyapprox.surrogates.autogp.kernels import Kernel
+from pyapprox.surrogates.autogp.kernels import Kernel, Monomial
 from pyapprox.surrogates.autogp.transforms import (
-    StandardDeviationTransformation)
+    StandardDeviationTransform)
 
 
 class ExactGaussianProcess():
@@ -18,8 +18,10 @@ class ExactGaussianProcess():
                  kernel: Kernel,
                  kernel_reg: float = 0,
                  var_trans=None,
-                 values_trans=None):
+                 values_trans=None,
+                 mean: Monomial = None):
         self.kernel = kernel
+        self.mean = mean
         self.kernel_reg = kernel_reg
         if var_trans is None:
             self.var_trans = IdentityTransformation(nvars)
@@ -28,7 +30,7 @@ class ExactGaussianProcess():
         if self.var_trans.num_vars() != nvars:
             raise ValueError("var_trans and nvars are inconsistent")
         if values_trans is None:
-            self.values_trans = StandardDeviationTransformation()
+            self.values_trans = StandardDeviationTransform()
         else:
             self.values_trans = values_trans
 
@@ -36,6 +38,10 @@ class ExactGaussianProcess():
         self._coef_args = None
         self.canonical_train_samples = None
         self.canonical_train_values = None
+
+        self.hyp_list = self.kernel.hyp_list
+        if mean is not None:
+            self.hyp_list += self.mean.hyp_list
 
     def _training_kernel_matrix(self) -> Tuple:
         kmat = self.kernel(
@@ -70,11 +76,12 @@ class ExactGaussianProcess():
         return self.kernel.diag(canonical_samples) - update
 
     def _canonical_mean(self, canonical_samples):
-        # todo allow for polynomial mean functions
-        return full((canonical_samples.shape[1], 1), 0.)
+        if self.mean is None:
+            return full((canonical_samples.shape[1], 1), 0.)
+        return self.mean(canonical_samples)
 
     def _neg_log_likelihood(self, active_opt_params: array) -> float:
-        self.kernel.hyp_list.set_active_opt_params(active_opt_params)
+        self.hyp_list.set_active_opt_params(active_opt_params)
         coef_args = self._factor_training_kernel_matrix()
         coef = self._solve_coefficients(*coef_args)
         nsamples = self.canonical_train_values.shape[0]
@@ -104,7 +111,7 @@ class ExactGaussianProcess():
         # still think the hyper_params require grad. Extra copies coould be
         # avoided by doing this after fit is complete. However then fit
         # needs to know when torch is being used
-        for hyp in self.kernel.hyp_list.hyper_params:
+        for hyp in self.hyp_list.hyper_params:
             hyp._values = hyp._values.clone().detach()
         return val, nll_grad
 
@@ -115,7 +122,7 @@ class ExactGaussianProcess():
         return res
 
     def _global_optimize(self, max_nglobal_opt_iters=1):
-        bounds = self.kernel.hyp_list.get_active_opt_bounds().numpy()
+        bounds = self.hyp_list.get_active_opt_bounds().numpy()
         results = []
         best_idx, best_obj = None, np.inf
         for ii in range(max_nglobal_opt_iters):
@@ -128,7 +135,7 @@ class ExactGaussianProcess():
             if results[-1].fun < best_obj:
                 best_idx = ii
                 best_obj = results[-1].fun
-        self.kernel.hyp_list.set_active_opt_params(
+        self.hyp_list.set_active_opt_params(
             asarray(results[best_idx].x))
 
     def set_training_data(self, train_samples: array, train_values: array):
@@ -141,7 +148,7 @@ class ExactGaussianProcess():
         self.set_training_data(train_samples, train_values)
         self._global_optimize(**kwargs)
 
-    def _evalaute_prior(self, samples, return_std):
+    def _evaluate_prior(self, samples, return_std):
         mean = self.values_trans.map_from_canonical(
             self._canonical_mean(self.var_trans.map_to_canonical(samples)))
         if not return_std:

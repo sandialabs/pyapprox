@@ -124,3 +124,11 @@ def to_numpy(array):
 
 def copy(array):
     return array.clone()
+
+
+def inv(matrix):
+    return torch.linalg.inv(matrix)
+
+
+def eye(nn):
+    return torch.eye(nn)

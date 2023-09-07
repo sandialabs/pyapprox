@@ -8,7 +8,7 @@ from pyapprox.surrogates.autogp._torch_wrappers import (
 from pyapprox.surrogates.autogp.hyperparameter import (
     HyperParameter, HyperParameterList, IdentityHyperParameterTransform)
 from pyapprox.surrogates.autogp.transforms import (
-    SphericalCorrelationTransformation)
+    SphericalCorrelationTransform)
 
 
 class MultiOutputKernel(Kernel):
@@ -329,7 +329,7 @@ class SphericalCovariance():
                  radii_transform=IdentityHyperParameterTransform(),
                  angle_transform=IdentityHyperParameterTransform()):
         self.noutputs = noutputs
-        self._trans = SphericalCorrelationTransformation(self.noutputs)
+        self._trans = SphericalCorrelationTransform(self.noutputs)
         self._validate_bounds(radii_bounds, angle_bounds)
         self._radii = HyperParameter(
             "radii", self.noutputs, radii, radii_bounds, radii_transform)
