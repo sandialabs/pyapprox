@@ -7,7 +7,8 @@ from pyapprox.expdesign.low_discrepancy_sequences import halton_sequence
 from pyapprox.variables.transforms import IndependentMarginalsVariable
 
 from pyapprox.surrogates.autogp._torch_wrappers import (
-    inv, eye, multidot, trace)
+    inv, eye, multidot, trace, sqrt, cholesky, solve_triangular, asarray,
+    log, repeat)
 from pyapprox.surrogates.autogp.hyperparameter import (
     HyperParameter, HyperParameterList, IdentityHyperParameterTransform,
     LogHyperParameterTransform)
@@ -17,14 +18,49 @@ from pyapprox.surrogates.autogp._torch_wrappers import (
 from pyapprox.surrogates.autogp.kernels import Kernel, SumKernel
 
 
+# Weinstein–Aronszajn identity
+# If A.shape = [M, N] and B.shape = [N, M] then
+# det(I_M+AB) = det(I_N+BA) this is a special case sof the matrix determinant
+# lemma
+
+def _invert_noisy_low_rank_nystrom_approximation(const, mat):
+    # use matrix inversion lemma to invert const*I_N+ V@V.T
+    # where V.shape = [N, M] with M <= N
+    # and comes from the sqrt of the nystrom approximation of a kernel
+    # i.e. K \approx K_NM KMM^{-1} K_MN
+    mat = asarray(mat)
+    N, M = mat.shape
+    const_inv = 1/const
+    tmp = eye(M) + mat.T@mat*const_inv
+    L = cholesky(tmp)
+    L_matT = solve_triangular(L, mat.T)
+    log_cov_det = 2*log(L.diag()).sum()+N*log(const)
+    return const_inv*eye(N) - const_inv**2*L_matT.T@L_matT, log_cov_det, L
+
+
+def _log_prob_gaussian_with_noisy_nystrom_covariance(
+        noise, L_UU, K_XU, values):
+    N = K_XU.shape[0]
+    mat = solve_triangular(L_UU, K_XU.T)
+    cov_inv, log_det, L = _invert_noisy_low_rank_nystrom_approximation(
+        noise**2, mat.T)
+    tmp = solve_triangular(L, mat@values)
+    log_pdf = -0.5*(N*np.log(2*np.pi)+log_det+values.T@values/noise**2 -
+                    tmp.T@tmp/noise**4)
+    return log_pdf
+
+
 class InducingSamples():
     def __init__(self, nvars, ninducing_samples, inducing_variable=None,
-                 inducing_samples=None, noise=None):
+                 inducing_samples=None, inducing_sample_bounds=None,
+                 noise=None):
+        # inducing bounds and inducing samples must be in the canonical gp
+        # space e.g. the one defined by gp.var_trans
         self.nvars = nvars
         self.ninducing_samples = ninducing_samples
         (self.inducing_variable, self.init_inducing_samples,
          inducing_sample_bounds) = self._init_inducing_samples(
-             inducing_variable, inducing_samples)
+             inducing_variable, inducing_samples, inducing_sample_bounds)
         self._inducing_samples = HyperParameter(
             "inducing_samples", self.nvars*self.ninducing_samples,
             self.init_inducing_samples.flatten(),
@@ -37,7 +73,8 @@ class InducingSamples():
         self.hyp_list = HyperParameterList(
             [self._noise, self._inducing_samples])
 
-    def _init_inducing_samples(self, inducing_variable, inducing_samples):
+    def _init_inducing_samples(self, inducing_variable, inducing_samples,
+                               inducing_sample_bounds):
         if inducing_variable is None:
             inducing_variable = IndependentMarginalsVariable(
                 [stats.uniform(-1, 2)]*(self.nvars*self.ninducing_samples))
@@ -48,8 +85,22 @@ class InducingSamples():
                 self.nvars, self.ninducing_samples)
         if inducing_samples.shape != (self.nvars, self.ninducing_samples):
             raise ValueError("inducing_samples shape is incorrect")
-        inducing_sample_bounds = inducing_variable.get_statistics(
-            "interval", 1.)
+
+        msg = "inducing_sample_bounds has the wrong shape"
+        if inducing_sample_bounds is None:
+            inducing_sample_bounds = inducing_variable.get_statistics(
+                "interval", 1.)
+        else:
+            inducing_sample_bounds = asarray(inducing_sample_bounds)
+            if inducing_sample_bounds.ndim == 1:
+                if inducing_sample_bounds.shape[0] != 2:
+                    raise ValueError(msg)
+                inducing_sample_bounds = repeat(
+                    inducing_sample_bounds, self.ninducing_samples).reshape(
+                        self.ninducing_samples, 2)
+        if (inducing_sample_bounds.shape !=
+                (self.nvars*self.ninducing_samples, 2)):
+            raise ValueError(msg)
         return inducing_variable, inducing_samples, inducing_sample_bounds
 
     def get_samples(self):
@@ -95,31 +146,6 @@ class InducingGaussianProcess(ExactGaussianProcess):
         self.inducing_samples = inducing_samples
         self.hyp_list += self.inducing_samples.hyp_list
 
-    def _evaluate_posterior(self, Z, return_std):
-        noise = self.inducing_samples.get_noise()
-        K_XU = self._K_XU()
-        K_UU = self._K_UU()
-
-        K_UU_inv = inv(K_UU)
-        Lambda = K_UU_inv + multidot((
-            K_UU_inv, K_XU.T, K_XU, K_UU_inv/noise**2))
-        Lambda_inv = inv(Lambda)
-        m = multidot((Lambda_inv, K_UU_inv, K_XU.T,
-                      self.canonical_train_values.squeeze()/noise**2))
-
-        K_ZU = self.kernel(
-            Z, self.inducing_samples.get_samples())
-        K_ZZ = self.kernel(Z, Z)
-
-        mu = multidot((K_ZU, K_UU_inv, m))
-
-        if not return_std:
-            return mu
-
-        sigma = (K_ZZ - multidot((K_ZU, K_UU_inv, K_ZU.T)) +
-                 multidot((K_ZU, K_UU_inv, Lambda_inv, K_UU_inv, K_ZU.T)))
-        return mu[:, None],  diag(sigma)[:, None]
-
     def _K_XU(self) -> Tuple:
         kmat = self.kernel(
             self.canonical_train_samples, self.inducing_samples.get_samples())
@@ -134,7 +160,10 @@ class InducingGaussianProcess(ExactGaussianProcess):
     def _training_kernel_matrix(self):
         # there is no need for K_XX to be regularized because it is not
         # inverted. K_UU must be regularized
-        return self.kernel(self.canonical_train_samples)
+        # return self.kernel(self.canonical_train_samples)
+        msg = "This function should never be called because we only need "
+        msg += "the diagonal of the training matrix"
+        raise RuntimeError(msg)
 
     def _get_random_optimizer_initial_guess(self, bounds):
         # do not randomize guess for inducing samples as they need to be well
@@ -156,22 +185,51 @@ class InducingGaussianProcess(ExactGaussianProcess):
     def _neg_log_likelihood(self, active_opt_params):
         self.hyp_list.set_active_opt_params(active_opt_params)
         noise = self.inducing_samples.get_noise()
-        K_XX = self._training_kernel_matrix()
         K_XU = self._K_XU()
         K_UU = self._K_UU()
-        K_UU_inv = inv(K_UU)
-        Sigma = multidot((K_XU, K_UU_inv, K_XU.T)) + noise**2*eye(
-            K_XU.shape[0])
-        zeros = full((self.canonical_train_values.shape[0],), 0.)
         # if the following line throws a ValueError it is likely
         # because self.noise is to small. If so adjust noise bounds
-        p_y = MultivariateNormal(zeros, covariance_matrix=Sigma)
-        mll = p_y.log_prob(self.canonical_train_values[:, 0])
-        # add a regularization term to regularize variance
-        Q_XX = K_XX - multidot((K_XU, K_UU_inv, K_XU.T))
-        mll -= 1/(2*noise**2) * trace(Q_XX)
+        L_UU = cholesky(K_UU)
+        mll = _log_prob_gaussian_with_noisy_nystrom_covariance(
+            noise, L_UU, K_XU, self.canonical_train_values)
+        # add a regularization term to regularize variance noting that
+        # trace of matrix sum is sum of traces
+        K_XX_diag = self.kernel.diag(self.canonical_train_samples)
+        tmp = solve_triangular(L_UU, K_XU.T)
+        K_tilde_trace = K_XX_diag.sum() - trace(multidot((tmp.T, tmp)))
+        mll -= 1/(2*noise**2) * K_tilde_trace
         return -mll
 
-    def __repr__(self):
-        return "{0}({1})".format(
-            self.__class__.__name__, self.hyp_list._short_repr())
+    def _evaluate_posterior(self, Z, return_std):
+        noise = self.inducing_samples.get_noise()
+        K_XU = self._K_XU()
+        K_UU = self._K_UU()
+
+        K_UU_inv = inv(K_UU)
+        # Titsias 2009 Equation (6) B = Kuu_inv*A(Kuu_inv)
+        # A is s Equation (11) in Vanderwilk 2020
+        # which depends on \Sigma defined below Equation (10) Titsias
+        # which we call Lambda below
+        Lambda = K_UU_inv + multidot((
+            K_UU_inv, K_XU.T, K_XU, K_UU_inv/noise**2))
+        Lambda_inv = inv(Lambda)
+        m = multidot((Lambda_inv, K_UU_inv, K_XU.T,
+                      self.canonical_train_values.squeeze()/noise**2))
+
+        K_ZU = self.kernel(
+            Z, self.inducing_samples.get_samples())
+        K_ZZ = self.kernel(Z, Z)
+
+        # Equation (6) in Titsias 2009 or
+        # Equation (11) in Vanderwilk 2020
+        mu = multidot((K_ZU, K_UU_inv, m))
+
+        if not return_std:
+            return mu
+
+        # The following is from Equation (6) in Titsias 2009 and
+        # Equation (11) in Vanderwilk 2020 where Lambda^{-1} = S
+        sigma = (K_ZZ - multidot((K_ZU, K_UU_inv, K_ZU.T)) +
+                 multidot((K_ZU, K_UU_inv, Lambda_inv, K_UU_inv, K_ZU.T)))
+        return mu[:, None],  sqrt(diag(sigma))[:, None]
+        # return mu[:, None],  (diag(sigma))[:, None]

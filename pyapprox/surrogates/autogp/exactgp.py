@@ -189,6 +189,8 @@ class ExactGaussianProcess():
             sqrt(self.kernel.diag(samples)))
 
     def _evaluate_posterior(self, samples, return_std):
+        import warnings
+        warnings.filterwarnings("error")
         if self._coef is None:
             self._coef_args = self._factor_training_kernel_matrix()
             self._coef = self._solve_coefficients(*self._coef_args)
@@ -196,6 +198,7 @@ class ExactGaussianProcess():
         canonical_samples = self.var_trans.map_to_canonical(samples)
         kmat_pred = self.kernel(
             canonical_samples, self.canonical_train_samples)
+        print(self._canonical_mean(canonical_samples).shape, kmat_pred.shape, self._coef.shape)
         canonical_mean = self._canonical_mean(canonical_samples) + multidot((
             kmat_pred, self._coef))
         mean = self.values_trans.map_from_canonical(canonical_mean)
@@ -206,8 +209,10 @@ class ExactGaussianProcess():
             self._canonical_posterior_pointwise_variance(
                 canonical_samples, kmat_pred))
         pointwise_stdev = np.sqrt(self.values_trans.map_stdev_from_canonical(
-            canonical_pointwise_variance))
-        return mean, pointwise_stdev[:, 0]
+            canonical_pointwise_variance))[:, None]
+        assert pointwise_stdev.shape[1] == mean.shape[1]
+        return mean, pointwise_stdev
+        # return mean, canonical_pointwise_variance[:, None]
 
     def __call__(self, samples, return_std=False, return_grad=False):
         if return_grad and return_std:
@@ -221,3 +226,52 @@ class ExactGaussianProcess():
             return self._evaluate_prior(samples, return_std)
 
         return self._evaluate_posterior(samples, return_std)
+
+    def __repr__(self):
+        return "{0}({1})".format(
+            self.__class__.__name__, self.hyp_list._short_repr())
+
+    def _plot_1d(self, ax, test_samples, gp_mean, gp_std, nstdevs,
+                 fill_kwargs, plt_kwargs):
+        im0 = ax.fill_between(
+            test_samples[0, :], gp_mean-nstdevs*gp_std,
+            gp_mean+nstdevs*gp_std, **fill_kwargs)
+        im1 = ax.plot(test_samples[0, :], gp_mean, **plt_kwargs)
+        return [im0, im1]
+
+    def plot_1d(self, ax, bounds, npts_1d=101, nstdevs=2, plt_kwargs={},
+                fill_kwargs={}, prior_kwargs=None):
+        test_samples = np.linspace(
+            bounds[0], bounds[1], npts_1d)[None, :]
+        gp_mean, gp_std = self(
+            test_samples, return_std=True)
+        ims = self._plot_1d(
+            ax, test_samples, gp_mean, gp_std, nstdevs, fill_kwargs,
+            plt_kwargs)
+        if prior_kwargs is None:
+            return ims
+        ims += self._plot_1d(
+            ax, test_samples, gp_mean, gp_std, nstdevs, **prior_kwargs)
+        return ims
+
+    def plot(self, ax, bounds, **kwargs):
+        if len(bounds) % 2 != 0:
+            raise ValueError(
+                "Lower and upper bounds must be provied for each dimension")
+        nvars = len(bounds)//2
+        if nvars > 1:
+            raise ValueError("plot was called but gp is not 1D")
+            return
+        if self.canonical_train_samples.shape[0] != nvars:
+            raise ValueError("nvars is inconsistent with training data")
+        return self.plot_1d(ax, bounds, **kwargs)
+
+
+class MOExactGaussianProcess(ExactGaussianProcess):
+    def set_training_data(self, samples_per_output: list,
+                          values_per_output: list):
+        self.kernel.set_nsamples_per_output(
+            [s.shape[1] for s in samples_per_output])
+        # potentially apply different scaling to each output
+        super().set_training_data(np.hstack(samples_per_output),
+                                  np.vstack(values_per_output))

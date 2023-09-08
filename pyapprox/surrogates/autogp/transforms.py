@@ -78,7 +78,7 @@ class NSphereCoordinateTransform():
         return samples
 
 
-class SphericalCorrelationTransformation():
+class SphericalCorrelationTransform():
     def __init__(self, noutputs):
         self.noutputs = noutputs
         self.ntheta = (self.noutputs*(self.noutputs+1))//2

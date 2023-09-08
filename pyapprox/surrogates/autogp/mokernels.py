@@ -125,6 +125,13 @@ class MultiOutputKernel(Kernel):
             diags.append(diag_ii)
         return hstack(diags)
 
+    def __repr__(self):
+        if self.nsamples_per_output is None:
+            return super().__repr__()
+        return "{0}({1}, nsamples_per_otuput={2})".format(
+            self.__class__.__name__, self.hyp_list._short_repr(),
+            self.nsamples_per_output)
+
 
 class SpatiallyScaledMultiOutputKernel(MultiOutputKernel):
     def __init__(self, kernels, scalings):
