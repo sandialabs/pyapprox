@@ -198,7 +198,6 @@ class ExactGaussianProcess():
         canonical_samples = self.var_trans.map_to_canonical(samples)
         kmat_pred = self.kernel(
             canonical_samples, self.canonical_train_samples)
-        print(self._canonical_mean(canonical_samples).shape, kmat_pred.shape, self._coef.shape)
         canonical_mean = self._canonical_mean(canonical_samples) + multidot((
             kmat_pred, self._coef))
         mean = self.values_trans.map_from_canonical(canonical_mean)

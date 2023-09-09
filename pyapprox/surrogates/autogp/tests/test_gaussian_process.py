@@ -256,8 +256,6 @@ class TestGaussianProcess(unittest.TestCase):
         plt.show()
 
 
-
-
 if __name__ == "__main__":
     gaussian_process_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestGaussianProcess)
