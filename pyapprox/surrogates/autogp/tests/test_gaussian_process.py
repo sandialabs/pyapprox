@@ -229,15 +229,16 @@ class TestGaussianProcess(unittest.TestCase):
 
         funs = [fun0, fun1]
 
-        radii, radii_bounds = np.arange(1, noutputs+1), [0.1, 10]
+        radii, radii_bounds = np.arange(1, noutputs+1), [1, 10]
         angles = np.pi/4
-        latent_kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars)
+        latent_kernel = MaternKernel(np.inf, 0.5, [1e-1, 2], nvars)
         output_kernel = SphericalCovariance(
-            noutputs, radii, radii_bounds, angles=angles)
+            noutputs, radii, radii_bounds, angles=angles,
+            angle_bounds=[0, np.pi])
 
         kernel = ICMKernel(latent_kernel, output_kernel, noutputs)
 
-        nsamples_per_output = [5, 3]
+        nsamples_per_output = [12, 12]
         samples_per_output = [
             np.random.uniform(-1, 1, (nvars, nsamples))
             for nsamples in nsamples_per_output]
@@ -247,12 +248,31 @@ class TestGaussianProcess(unittest.TestCase):
 
         gp = MOExactGaussianProcess(
             nvars, kernel, mean=None, values_trans=IdentityValuesTransform(),
-            kernel_reg=0)
-        gp.fit(samples_per_output, values_per_output)
+            kernel_reg=1e-8)
+        gp.fit(samples_per_output, values_per_output, max_nglobal_opt_iters=3)
+
+        # check correlation between models is estimated correctly. SphericalCovariance
+        # is not guaranteed to recover the statistical correlation, but for this case
+        # it can
+        from pyapprox.util.utilities import get_correlation_from_covariance
+        cov_matrix = output_kernel.get_covariance_matrix()
+        corr_matrix = get_correlation_from_covariance(cov_matrix.numpy())
+        samples = np.random.uniform(-1, 1, (1, 101))
+        values = np.hstack([fun(samples) for fun in funs])
+        assert np.allclose(
+            corr_matrix,
+            get_correlation_from_covariance(np.cov(values.T, ddof=1)), atol=1e-2)
 
         import matplotlib.pyplot as plt
         ax = plt.subplots(1, 1)[1]
-        gp.plot(ax, [-1, 1])
+        # gp.plot(ax, [-1, 1])
+        gp.plot(ax, [-1, 1], output_id=0, plt_kwargs={"c": "r", "ls": "-"})
+        gp.plot(ax, [-1, 1], output_id=1)
+        xx = np.linspace(-1, 1, 101)[None, :]
+        ax.plot(xx[0], funs[0](xx), '--')
+        ax.plot(xx[0], funs[1](xx), ':')
+        ax.plot(gp.train_samples[0][0], gp.train_values[0], 'o')
+        ax.plot(gp.train_samples[1][0], gp.train_values[1], 's')
         plt.show()
 
 

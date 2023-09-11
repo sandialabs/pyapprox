@@ -50,11 +50,24 @@ class TestMultiOutputKernels(unittest.TestCase):
 
         # test evaluation when two sample sets are provided
         from copy import deepcopy
+        noutputs = len(samples_per_output)
         samples_per_output_test = deepcopy(samples_per_output)
-        samples_per_output_test[2:] = np.array([])
+        samples_per_output_test[2:] = [np.array([[]])]*(noutputs-2)
         kmat_XY = kernel(samples_per_output_test, samples_per_output)
         cnt = sum([s.shape[1] for s in samples_per_output_test])
         assert np.allclose(kmat[:cnt, :], kmat_XY)
+        kmat_diag = kernel.diag(samples_per_output_test)
+        assert np.allclose(kmat_diag, np.diag(kmat[:cnt, :cnt]))
+
+        samples_per_output_test = deepcopy(samples_per_output)
+        samples_per_output_test[:1] = [np.array([[]])]
+        kmat_XY = kernel(samples_per_output_test, samples_per_output)
+        assert np.allclose(kmat[samples_per_output[0].shape[1]:, :], kmat_XY)
+
+        kmat_diag = kernel.diag(samples_per_output_test)
+        assert np.allclose(
+            kmat_diag, np.diag(kmat[samples_per_output[0].shape[1]:,
+                                    samples_per_output[0].shape[1]:]))
 
         nsamples = int(5e6)
         DD_list_0 = [

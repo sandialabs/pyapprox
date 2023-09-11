@@ -63,14 +63,18 @@ class MultiOutputKernel(Kernel):
             samples_1 = samples_0
         nsamples_0 = np.asarray([s.shape[1] for s in samples_0])
         nsamples_1 = np.asarray([s.shape[1] for s in samples_1])
-        noutputs_0 = np.where(nsamples_0 > 0)[0].shape[0]
-        noutputs_1 = np.where(nsamples_1 > 0)[0].shape[0]
+        active_outputs_0 = np.where(nsamples_0 > 0)[0]
+        active_outputs_1 = np.where(nsamples_1 > 0)[0]
+        noutputs_0 = active_outputs_0.shape[0]
+        noutputs_1 = active_outputs_1.shape[0]
         matrix_blocks = [[None for jj in range(noutputs_1)]
                          for ii in range(noutputs_0)]
         for ii in range(noutputs_0):
+            idx0 = active_outputs_0[ii]
             for jj in range(noutputs_1):
+                idx1 = active_outputs_1[jj]
                 matrix_blocks[ii][jj] = self._evaluate_block(
-                    samples_0[ii], ii, samples_1[jj], jj,
+                    samples_0[idx0], idx0, samples_1[idx1], idx1,
                     block_format)
         if not block_format:
             rows = [hstack(matrix_blocks[ii]) for ii in range(noutputs_0)]
@@ -80,12 +84,14 @@ class MultiOutputKernel(Kernel):
     def diag(self, samples_0):
         samples_0 = [asarray(s) for s in samples_0]
         nsamples_0 = np.asarray([s.shape[1] for s in samples_0])
-        noutputs_0 = np.where(nsamples_0 > 0)[0].shape[0]
+        active_outputs_0 = np.where(nsamples_0 > 0)[0]
+        noutputs_0 = active_outputs_0.shape[0]
         diags = []
         for ii in range(noutputs_0):
             diag_ii = 0
+            idx = active_outputs_0[ii]
             for kk in range(self.nkernels):
-                diag_iikk = self._scale_diag(samples_0[ii], ii, kk)
+                diag_iikk = self._scale_diag(samples_0[idx], idx, kk)
                 if diag_iikk is not None:
                     diag_ii += diag_iikk
             diags.append(diag_ii)
@@ -116,7 +122,7 @@ class SpatiallyScaledMultiOutputKernel(MultiOutputKernel):
         raise NotImplementedError
 
     def _scale_block(self, samples_per_output_ii, ii,
-                              samples_per_output_jj, jj, kk):
+                     samples_per_output_jj, jj, kk):
         wmat_iikk = self._get_kernel_combination_matrix_entry(
             samples_per_output_ii, ii, kk)
         wmat_jjkk = self._get_kernel_combination_matrix_entry(
@@ -293,6 +299,8 @@ class SphericalCovariance():
                  angles=np.pi/2, angle_bounds=[0, np.pi],
                  radii_transform=IdentityHyperParameterTransform(),
                  angle_transform=IdentityHyperParameterTransform()):
+        # Angle bounds close to zero can create zero on the digaonal
+        # E.g. for speherical coordinates sin(0) = 0
         self.noutputs = noutputs
         self._trans = SphericalCorrelationTransform(self.noutputs)
         self._validate_bounds(radii_bounds, angle_bounds)
@@ -302,8 +310,6 @@ class SphericalCovariance():
             "angles", self._trans.ntheta-self.noutputs, angles, angle_bounds,
             angle_transform)
         self.hyp_list = HyperParameterList([self._radii, self._angles])
-        self._cov_matrix = None
-        self._previous_hyp_values = None
 
     def _validate_bounds(self, radii_bounds, angle_bounds):
         bounds = asarray(self._trans.get_spherical_bounds())
@@ -325,19 +331,18 @@ class SphericalCovariance():
         if (np.any(to_numpy(angle_bounds[:, 0] < bounds[self.noutputs:, 0])) or
                 np.any(to_numpy(
                     angle_bounds[:, 1] > bounds[self.noutputs:, 1]))):
-            # print(angle_bounds)
-            # print(bounds[self.noutputs:])
             raise ValueError("angle bounds are inconsistent")
 
-    def __call__(self, ii, jj):
+    def get_covariance_matrix(self):
         hyp_values = self.hyp_list.get_values()
-        if (self._previous_hyp_values is None or
-            not np.allclose(self._previous_hyp_values,
-                            hyp_values.detach(), atol=1e-14)):
-            chol_factor = self._trans.map_to_cholesky(hyp_values)
-            self._cov_matrix = multidot((chol_factor, chol_factor.T))
-            self._previous_hyp_values = hyp_values.detach().numpy().copy()
-        return self._cov_matrix[ii, jj]
+        chol_factor = self._trans.map_to_cholesky(hyp_values)
+        return multidot((chol_factor, chol_factor.T))
+
+    def __call__(self, ii, jj):
+        # chol factor must be recomputed each time even if hyp_values have not
+        # changed otherwise gradient graph becomes inconsistent
+        cov_matrix = self.get_covariance_matrix()
+        return cov_matrix[ii, jj]
 
     def __repr__(self):
         return "{0}(name={1}, nvars={2}, degree={3}, nterms={4})".format(

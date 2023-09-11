@@ -63,7 +63,11 @@ class ExactGaussianProcess():
         # can be specialized when _factor_training_kernel_matrix is specialized
         diff = (self.canonical_train_values -
                 self._canonical_mean(self.canonical_train_samples))
-        return cholesky_solve(args[0], diff)
+        try:
+            return cholesky_solve(args[0], diff)
+        except:
+            # cholesky failed
+            return None
 
     def _log_determinant(self, coef_res: Tuple) -> float:
         # can be specialized when _factor_training_kernel_matrix is specialized
@@ -87,6 +91,8 @@ class ExactGaussianProcess():
         # but cannot be used if assuming a prior on the coefficients
         coef_args = self._factor_training_kernel_matrix()
         coef = self._solve_coefficients(*coef_args)
+        if coef is None:
+            return np.inf
         nsamples = self.canonical_train_values.shape[0]
         diff = (self.canonical_train_values -
                 self._canonical_mean(self.canonical_train_samples))
@@ -200,7 +206,7 @@ class ExactGaussianProcess():
             canonical_samples, self.canonical_train_samples)
         canonical_mean = self._canonical_mean(canonical_samples) + multidot((
             kmat_pred, self._coef))
-        mean = self.values_trans.map_from_canonical(canonical_mean).detach()
+        mean = self.values_trans.map_from_canonical(canonical_mean)
         if not return_std:
             return mean
 
@@ -208,7 +214,7 @@ class ExactGaussianProcess():
             self._canonical_posterior_pointwise_variance(
                 canonical_samples, kmat_pred))
         pointwise_stdev = np.sqrt(self.values_trans.map_stdev_from_canonical(
-            canonical_pointwise_variance.detach()))[:, None]
+            canonical_pointwise_variance))[:, None]
         assert pointwise_stdev.shape[1] == mean.shape[1]
         return mean, pointwise_stdev
         # return mean, canonical_pointwise_variance[:, None]
@@ -272,7 +278,6 @@ class MOExactGaussianProcess(ExactGaussianProcess):
         self.train_values = train_values
         self.canonical_train_samples = [
             asarray(self.var_trans.map_to_canonical(s)) for s in train_samples]
-        print(train_values, 'v')
         self.canonical_train_values = vstack(
             [asarray(self.values_trans.map_to_canonical(v))
              for v in train_values])
@@ -284,7 +289,7 @@ class MOExactGaussianProcess(ExactGaussianProcess):
 
     def plot_1d(self, ax, bounds, output_id, npts_1d=101, nstdevs=2,
                 plt_kwargs={},
-                fill_kwargs={}, prior_kwargs=None):
+                fill_kwargs={'alpha': 0.3}, prior_kwargs=None):
         test_samples_base = np.linspace(
             bounds[0], bounds[1], npts_1d)[None, :]
         noutputs = len(self.canonical_train_samples)
