@@ -21,37 +21,9 @@ class MultiOutputKernel(Kernel):
         self.nsamples_per_output_0 = None
         self.nsamples_per_output_1 = None
 
-    def _validate_nsamples_per_output(self, nsamples_per_output, ii):
-        if len(nsamples_per_output) != self.noutputs:
-            msg = "length of nsamples_per_output_{0} {1} ".format(
-                ii, nsamples_per_output)
-            msg += "does not match self.noutputs {0}".format(
-                self.noutputs)
-            raise ValueError(msg)
-
-    def set_nsamples_per_output_0(self, nsamples_per_output_0):
-        self._validate_nsamples_per_output(nsamples_per_output_0, 0)
-        self.nsamples_per_output_0 = np.asarray(
-            nsamples_per_output_0, dtype=int)
-
-    def set_nsamples_per_output_1(self, nsamples_per_output_1):
-        self._validate_nsamples_per_output(nsamples_per_output_1, 1)
-        self.nsamples_per_output_1 = np.asarray(
-            nsamples_per_output_1, dtype=int)
-
-    @staticmethod
-    def _unpack_samples(samples, nsamples_per_output):
-        samples_per_output = []
-        lb, ub = 0, 0
-        for nn in nsamples_per_output:
-            lb = ub
-            ub += nn
-            samples_per_output.append(samples[:, lb:ub])
-        return samples_per_output
-
     @abstractmethod
     def _scale_block(self, samples_per_output_ii, ii,
-                              samples_per_output_jj, jj, kk):
+                     samples_per_output_jj, jj, kk):
         raise NotImplementedError
 
     @abstractmethod
@@ -86,47 +58,34 @@ class MultiOutputKernel(Kernel):
             only return upper-traingular blocks, and set lower-triangular
             blocks to None
         """
-        if self.nsamples_per_output_0 is None:
-            raise ValueError("Must call self.set_nsamples_per_output_0")
-        X = asarray(samples_0)
-        #samples_0 = [asarray(s) for s in samples_0]
+        samples_0 = [asarray(s) for s in samples_0]
         if samples_1 is None:
-            Y = X
-            # samples_1 = samples_0
-            self.nsamples_per_output_1 = self.nsamples_per_output_0
-        else:
-            if self.nsamples_per_output_1 is None:
-                raise ValueError("Must call self.set_nsamples_per_output_1")
-            Y = asarray(samples_1)
-        X_samples_per_output = self._unpack_samples(
-            X, self.nsamples_per_output_0)
-        Y_samples_per_output = self._unpack_samples(
-            Y, self.nsamples_per_output_1)
-        noutputs_0 = np.where(self.nsamples_per_output_0 > 0)[0].shape[0]
-        noutputs_1 = np.where(self.nsamples_per_output_1 > 0)[0].shape[0]
+            samples_1 = samples_0
+        nsamples_0 = np.asarray([s.shape[1] for s in samples_0])
+        nsamples_1 = np.asarray([s.shape[1] for s in samples_1])
+        noutputs_0 = np.where(nsamples_0 > 0)[0].shape[0]
+        noutputs_1 = np.where(nsamples_1 > 0)[0].shape[0]
         matrix_blocks = [[None for jj in range(noutputs_1)]
                          for ii in range(noutputs_0)]
         for ii in range(noutputs_0):
             for jj in range(noutputs_1):
                 matrix_blocks[ii][jj] = self._evaluate_block(
-                    X_samples_per_output[ii], ii, Y_samples_per_output[jj], jj,
+                    samples_0[ii], ii, samples_1[jj], jj,
                     block_format)
         if not block_format:
             rows = [hstack(matrix_blocks[ii]) for ii in range(noutputs_0)]
             return vstack(rows)
         return matrix_blocks
 
-    def diag(self, X):
-        if self.nsamples_per_output_0 is None:
-            raise ValueError("Must call self.set_nsamples_per_output_0")
-        X = asarray(X)
-        samples_per_output = self._unpack_samples(
-            X, self.nsamples_per_output_0)
+    def diag(self, samples_0):
+        samples_0 = [asarray(s) for s in samples_0]
+        nsamples_0 = np.asarray([s.shape[1] for s in samples_0])
+        noutputs_0 = np.where(nsamples_0 > 0)[0].shape[0]
         diags = []
-        for ii in range(self.noutputs):
+        for ii in range(noutputs_0):
             diag_ii = 0
             for kk in range(self.nkernels):
-                diag_iikk = self._scale_diag(samples_per_output[ii], ii, kk)
+                diag_iikk = self._scale_diag(samples_0[ii], ii, kk)
                 if diag_iikk is not None:
                     diag_ii += diag_iikk
             diags.append(diag_ii)
@@ -294,7 +253,7 @@ class LMCKernel(MultiOutputKernel):
                     f"The {ii}-th output kernel is not a SphericalCovariance")
 
     def _scale_block(self, samples_per_output_ii, ii,
-                              samples_per_output_jj, jj, kk):
+                     samples_per_output_jj, jj, kk):
         kmat = self.kernels[kk](
             samples_per_output_ii, samples_per_output_jj)
         return self.output_kernels[kk](ii, jj)*kmat

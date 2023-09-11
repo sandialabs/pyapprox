@@ -24,7 +24,6 @@ class TestMultiOutputKernels(unittest.TestCase):
                      name=f'scaling{ii}')
             for ii, scaling in enumerate(scaling_vals)]
         kernel = MultiLevelKernel(kernels, scalings)
-        kernel.set_nsamples_per_output_0(nsamples_per_output_0)
 
         W = np.zeros((kernel.noutputs, kernel.nkernels))
         sample = np.zeros((nvars, 1))
@@ -43,34 +42,28 @@ class TestMultiOutputKernels(unittest.TestCase):
         self._check_multilevel_kernel_scaling_matrix(4)
 
     def _check_spatially_scaled_multioutput_kernel_covariance(
-            self, kernel, samples_per_output, nsamples_per_output_0):
-        samples = np.hstack(samples_per_output)
-        kmat = kernel(samples)
+            self, kernel, samples_per_output):
+        nsamples_per_output = [s.shape[1] for s in samples_per_output]
+        kmat = kernel(samples_per_output)
         assert np.allclose(kmat, kmat.T)
-        assert np.allclose(np.diag(kmat), kernel.diag(samples))
+        assert np.allclose(np.diag(kmat), kernel.diag(samples_per_output))
 
         # test evaluation when two sample sets are provided
-        nsamples_per_output_1 = nsamples_per_output_0
-        nsamples_per_output_0 = np.array(nsamples_per_output_1) # deep copy
-        nsamples_per_output_0[2:] = 0
-        kernel.set_nsamples_per_output_0(nsamples_per_output_0)
-        kernel.set_nsamples_per_output_1(nsamples_per_output_1)
-        kmat_XY = kernel(np.hstack(samples_per_output[:2]), samples)
-        cnt = nsamples_per_output_0.sum()
+        from copy import deepcopy
+        samples_per_output_test = deepcopy(samples_per_output)
+        samples_per_output_test[2:] = np.array([])
+        kmat_XY = kernel(samples_per_output_test, samples_per_output)
+        cnt = sum([s.shape[1] for s in samples_per_output_test])
         assert np.allclose(kmat[:cnt, :], kmat_XY)
-
-        # reset kernel to have correct shape for nsamples_0
-        nsamples_per_output_0 = nsamples_per_output_1
-        kernel.set_nsamples_per_output_0(nsamples_per_output_0)
 
         nsamples = int(5e6)
         DD_list_0 = [
             np.linalg.cholesky(kernel.kernels[kk](samples_per_output[0])).dot(
                 np.random.normal(
-                    0, 1, (nsamples_per_output_0[0], nsamples)))
+                    0, 1, (nsamples_per_output[0], nsamples)))
             for kk in range(kernel.nkernels)]
         # samples must be nested for tests to work
-        DD_lists = [[DD[:nsamples_per_output_0[ii], :] for DD in DD_list_0]
+        DD_lists = [[DD[:nsamples_per_output[ii], :] for DD in DD_list_0]
                     for ii in range(kernel.noutputs)]
 
         for ii in range(kernel.noutputs):
@@ -88,8 +81,8 @@ class TestMultiOutputKernels(unittest.TestCase):
                     False),
                 rtol=1e-2)
             for jj in range(ii+1, kernel.noutputs):
-                vals_ii = np.full((nsamples_per_output_0[ii], nsamples), 0.)
-                vals_jj = np.full((nsamples_per_output_0[jj], nsamples), 0.)
+                vals_ii = np.full((nsamples_per_output[ii], nsamples), 0.)
+                vals_jj = np.full((nsamples_per_output[jj], nsamples), 0.)
                 for kk in range(kernel.nkernels):
                     wmat_iikk = kernel._get_kernel_combination_matrix_entry(
                         samples_per_output[ii], ii, kk)
@@ -104,15 +97,15 @@ class TestMultiOutputKernels(unittest.TestCase):
                     samples_per_output[ii], ii, samples_per_output[jj], jj,
                     False)
                 kmat_iijj_mc = np.cov(vals_ii, vals_jj, ddof=1)[
-                    :nsamples_per_output_0[ii],
-                    nsamples_per_output_0[ii]:]
+                    :nsamples_per_output[ii],
+                    nsamples_per_output[ii]:]
                 if np.abs(kmat_iijj).sum() > 0:
                     assert np.allclose(kmat_iijj, kmat_iijj_mc,  rtol=1e-2)
                 else:
                     assert np.allclose(kmat_iijj, kmat_iijj_mc,  atol=2e-3)
 
     def _check_multioutput_kernel_3_outputs(self, nvars, degree, MOKernel):
-        nsamples_per_output_0 = [4, 3, 2]
+        nsamples_per_output = [4, 3, 2]
         kernels = [MaternKernel(np.inf, 1.0, [1e-1, 1], nvars),
                    MaternKernel(np.inf, 2.0, [1e-2, 10], nvars),
                    MaternKernel(np.inf, .05, [1e-3, 0.1], nvars)]
@@ -121,14 +114,13 @@ class TestMultiOutputKernels(unittest.TestCase):
             Monomial(nvars, degree, -3, [-3, 3], name='scaling2')]
         kernel = MOKernel(kernels, scalings)
         base_training_samples = np.random.uniform(
-            -1, 1, (nvars, nsamples_per_output_0[0]))
+            -1, 1, (nvars, nsamples_per_output[0]))
         # samples must be nested for tests to work
         samples_per_output = [
             base_training_samples[:, :nsamples]
-            for nsamples in nsamples_per_output_0]
-        kernel.set_nsamples_per_output_0(nsamples_per_output_0)
+            for nsamples in nsamples_per_output]
         self._check_spatially_scaled_multioutput_kernel_covariance(
-           kernel, samples_per_output, nsamples_per_output_0)
+           kernel, samples_per_output)
 
     def test_multioutput_kernels_3_outputs(self):
         test_cases = [
@@ -137,7 +129,7 @@ class TestMultiOutputKernels(unittest.TestCase):
             [2, 1, MultiPeerKernel],
             [1, 0, MultiLevelKernel],
         ]
-        for test_case in test_cases[:1]:
+        for test_case in test_cases:
             np.random.seed(1)
             self._check_multioutput_kernel_3_outputs(*test_case)
 
@@ -156,9 +148,8 @@ class TestMultiOutputKernels(unittest.TestCase):
         samples_per_output = [
             base_training_samples[:, :nsamples]
             for nsamples in nsamples_per_output_0]
-        kernel.set_nsamples_per_output_0(nsamples_per_output_0)
-        kmat_diag = kernel.diag(np.hstack(samples_per_output))
-        kmat = kernel(np.hstack(samples_per_output))
+        kmat_diag = kernel.diag(samples_per_output)
+        kmat = kernel(samples_per_output)
         assert np.allclose(np.diag(kmat), kmat_diag)
 
         cnt = 0
@@ -180,9 +171,8 @@ class TestMultiOutputKernels(unittest.TestCase):
         samples_per_output = [
             base_training_samples.copy()
             for nsamples in nsamples_per_output_0]
-        kernel = ICMKernel(kernel, output_kernel, noutputs)
-        kernel.set_nsamples_per_output_0(nsamples_per_output_0)
-        kmat = kernel(np.hstack(samples_per_output))
+        kernel = ICMKernel(latent_kernel, output_kernel, noutputs)
+        kmat = kernel(samples_per_output)
         cmat = kernel.output_kernels[0]._cov_matrix
         assert np.allclose(
             kmat.numpy(), np.kron(cmat, latent_kernel(base_training_samples)),
@@ -217,9 +207,8 @@ class TestMultiOutputKernels(unittest.TestCase):
         samples_per_output = [
             base_training_samples[:, :nsamples]
             for nsamples in nsamples_per_output_0]
-        kernel.set_nsamples_per_output_0(nsamples_per_output_0)
-        kmat_diag = kernel.diag(np.hstack(samples_per_output))
-        kmat = kernel(np.hstack(samples_per_output))
+        kmat_diag = kernel.diag(samples_per_output)
+        kmat = kernel(samples_per_output)
         assert np.allclose(np.diag(kmat), kmat_diag)
 
     def test_collaborative_kernel(self):
@@ -247,8 +236,7 @@ class TestMultiOutputKernels(unittest.TestCase):
         samples_per_output = [
             base_training_samples[:, :nsamples]
             for nsamples in nsamples_per_output_0]
-        peer_kernel.set_nsamples_per_output_0(nsamples_per_output_0)
-        peer_kmat = peer_kernel(np.hstack(samples_per_output))
+        peer_kmat = peer_kernel(samples_per_output)
 
         class HackKernel(SphericalCovariance):
             def __init__(self, noutputs, cov_mat):
@@ -276,8 +264,7 @@ class TestMultiOutputKernels(unittest.TestCase):
                     MaternKernel(np.inf, 1.0, [1e-1, 1], nvars)]
         co_kernel = CollaborativeKernel(
             latent_kernels, output_kernels, discrepancy_kernels, noutputs)
-        co_kernel.set_nsamples_per_output_0(nsamples_per_output_0)
-        co_kmat = co_kernel(np.hstack(samples_per_output))
+        co_kmat = co_kernel(samples_per_output)
         assert np.allclose(peer_kmat, co_kmat)
 
 

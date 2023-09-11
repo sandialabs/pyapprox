@@ -6,6 +6,8 @@ array = torch.tensor
 array_type = torch.Tensor
 inf = torch.inf
 
+torch.set_default_dtype(torch.double)
+
 
 def empty(*args, dtype=None):
     if dtype is None:

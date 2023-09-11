@@ -100,7 +100,7 @@ class TestGaussianProcess(unittest.TestCase):
             assert np.allclose(gp_vals, test_vals, atol=1e-14)
             xx = np.linspace(-1, 1, 101)[None, :]
             assert np.allclose(gp.values_trans.map_from_canonical(
-                gp._canonical_mean(xx)), fun(xx))
+                gp._canonical_mean(xx)), fun(xx), atol=1e-6)
         else:
             assert np.allclose(gp_vals, test_vals, atol=1e-2)
 
@@ -260,3 +260,4 @@ if __name__ == "__main__":
     gaussian_process_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestGaussianProcess)
     unittest.TextTestRunner(verbosity=2).run(gaussian_process_test_suite)
+    

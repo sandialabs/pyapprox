@@ -6,7 +6,7 @@ import scipy
 from pyapprox.variables.transforms import IdentityTransformation
 from pyapprox.surrogates.autogp._torch_wrappers import (
     diag, full, cholesky, cholesky_solve, log, solve_triangular, einsum,
-    multidot, array, asarray, sqrt, eye)
+    multidot, array, asarray, sqrt, eye, vstack)
 from pyapprox.surrogates.autogp.kernels import Kernel, Monomial
 from pyapprox.surrogates.autogp.transforms import (
     StandardDeviationValuesTransform)
@@ -200,7 +200,7 @@ class ExactGaussianProcess():
             canonical_samples, self.canonical_train_samples)
         canonical_mean = self._canonical_mean(canonical_samples) + multidot((
             kmat_pred, self._coef))
-        mean = self.values_trans.map_from_canonical(canonical_mean)
+        mean = self.values_trans.map_from_canonical(canonical_mean).detach()
         if not return_std:
             return mean
 
@@ -208,7 +208,7 @@ class ExactGaussianProcess():
             self._canonical_posterior_pointwise_variance(
                 canonical_samples, kmat_pred))
         pointwise_stdev = np.sqrt(self.values_trans.map_stdev_from_canonical(
-            canonical_pointwise_variance))[:, None]
+            canonical_pointwise_variance.detach()))[:, None]
         assert pointwise_stdev.shape[1] == mean.shape[1]
         return mean, pointwise_stdev
         # return mean, canonical_pointwise_variance[:, None]
@@ -267,10 +267,48 @@ class ExactGaussianProcess():
 
 
 class MOExactGaussianProcess(ExactGaussianProcess):
-    def set_training_data(self, samples_per_output: list,
-                          values_per_output: list):
-        self.kernel.set_nsamples_per_output(
-            [s.shape[1] for s in samples_per_output])
-        # potentially apply different scaling to each output
-        super().set_training_data(np.hstack(samples_per_output),
-                                  np.vstack(values_per_output))
+    def set_training_data(self, train_samples: list, train_values: list):
+        self.train_samples = train_samples
+        self.train_values = train_values
+        self.canonical_train_samples = [
+            asarray(self.var_trans.map_to_canonical(s)) for s in train_samples]
+        print(train_values, 'v')
+        self.canonical_train_values = vstack(
+            [asarray(self.values_trans.map_to_canonical(v))
+             for v in train_values])
+
+    def _canonical_mean(self, canonical_samples):
+        if self.mean is not None:
+            raise ValueError("Non-zero mean not supported for mulitoutput")
+        return full((sum([s.shape[1] for s in canonical_samples]), 1), 0.)
+
+    def plot_1d(self, ax, bounds, output_id, npts_1d=101, nstdevs=2,
+                plt_kwargs={},
+                fill_kwargs={}, prior_kwargs=None):
+        test_samples_base = np.linspace(
+            bounds[0], bounds[1], npts_1d)[None, :]
+        noutputs = len(self.canonical_train_samples)
+        test_samples = [np.array([[]]) for ii in range(noutputs)]
+        test_samples[output_id] = test_samples_base
+        gp_mean, gp_std = self(
+            test_samples, return_std=True)
+        ims = self._plot_1d(
+            ax, test_samples[output_id], gp_mean[:, 0], gp_std[:, 0],
+            nstdevs, fill_kwargs, plt_kwargs)
+        if prior_kwargs is None:
+            return ims
+        ims += self._plot_1d(
+            ax, test_samples, gp_mean, gp_std, nstdevs, **prior_kwargs)
+        return ims
+
+    def plot(self, ax, bounds, output_id=0, **kwargs):
+        if len(bounds) % 2 != 0:
+            raise ValueError(
+                "Lower and upper bounds must be provied for each dimension")
+        nvars = len(bounds)//2
+        if nvars > 1:
+            raise ValueError("plot was called but gp is not 1D")
+            return
+        if self.canonical_train_samples[0].shape[0] != nvars:
+            raise ValueError("nvars is inconsistent with training data")
+        return self.plot_1d(ax, bounds, output_id, **kwargs)
