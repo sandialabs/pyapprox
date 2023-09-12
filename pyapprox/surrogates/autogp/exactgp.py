@@ -2,6 +2,7 @@ from typing import Tuple
 import numpy as np
 import torch
 import scipy
+import warnings
 
 from pyapprox.variables.transforms import IdentityTransformation
 from pyapprox.surrogates.autogp._torch_wrappers import (
@@ -46,8 +47,9 @@ class ExactGaussianProcess():
             self.hyp_list += self.mean.hyp_list
 
     def _training_kernel_matrix(self) -> Tuple:
-        kmat = self.kernel(
-            self.canonical_train_samples, self.canonical_train_samples)
+        # must only pass in X and not Y to kernel otherwise if noise kernel
+        # is present it will not be evaluted correctly.
+        kmat = self.kernel(self.canonical_train_samples)
         # Below is an inplace operation that will not work with autograd
         # kmat[np.diag_indices_from(kmat)] += self.kernel_reg
         # This also does not work
@@ -79,7 +81,7 @@ class ExactGaussianProcess():
         # can be specialized when _factor_training_kernel_matrix is specialized
         tmp = solve_triangular(self._coef_args[0], kmat_pred.T)
         update = einsum("ji,ji->i", tmp, tmp)
-        return self.kernel.diag(canonical_samples) - update
+        return (self.kernel.diag(canonical_samples) - update)[:, None]
 
     def _canonical_mean(self, canonical_samples):
         if self.mean is None:
@@ -119,6 +121,7 @@ class ExactGaussianProcess():
         raise NotImplementedError
 
     def _neg_log_likelihood(self, active_opt_params):
+        print("A", active_opt_params)
         self.hyp_list.set_active_opt_params(active_opt_params)
         return self._neg_log_likelihood_with_hyperparameter_mean()
         # return self._neg_log_likelihood_with_uncertain_mean()
@@ -142,7 +145,7 @@ class ExactGaussianProcess():
         # avoided by doing this after fit is complete. However then fit
         # needs to know when torch is being used
         for hyp in self.hyp_list.hyper_params:
-            hyp._values = hyp._values.clone().detach()
+            hyp.set_values(hyp.get_values().clone().detach())
         return val, nll_grad
 
     def _local_optimize(self, init_active_opt_params_np, bounds):
@@ -156,6 +159,8 @@ class ExactGaussianProcess():
 
     def _global_optimize(self, max_nglobal_opt_iters=1):
         bounds = self.hyp_list.get_active_opt_bounds().numpy()
+        if len(bounds) == 0:
+            return 
         results = []
         # Start first optimizer with values set in hyperparams
         init_active_opt_params_np = self.hyp_list.get_active_opt_params()
@@ -178,7 +183,7 @@ class ExactGaussianProcess():
         self.train_samples = train_samples
         self.train_values = train_values
         self.canonical_train_samples = asarray(
-            self.var_trans.map_to_canonical(train_samples))
+            self._map_samples_to_canonical(train_samples))
         self.canonical_train_values = asarray(
             self.values_trans.map_to_canonical(train_values))
 
@@ -194,14 +199,17 @@ class ExactGaussianProcess():
         return mean, self.values_trans.map_stdev_from_canonical(
             sqrt(self.kernel.diag(samples)))
 
+    def _map_samples_to_canonical(self, samples):
+        return self.var_trans.map_to_canonical(samples)
+
     def _evaluate_posterior(self, samples, return_std):
-        import warnings
-        warnings.filterwarnings("error")
+        # import warnings
+        # warnings.filterwarnings("error")
         if self._coef is None:
             self._coef_args = self._factor_training_kernel_matrix()
             self._coef = self._solve_coefficients(*self._coef_args)
 
-        canonical_samples = self.var_trans.map_to_canonical(samples)
+        canonical_samples = self._map_samples_to_canonical(samples)
         kmat_pred = self.kernel(
             canonical_samples, self.canonical_train_samples)
         canonical_mean = self._canonical_mean(canonical_samples) + multidot((
@@ -213,9 +221,15 @@ class ExactGaussianProcess():
         canonical_pointwise_variance = (
             self._canonical_posterior_pointwise_variance(
                 canonical_samples, kmat_pred))
-        pointwise_stdev = np.sqrt(self.values_trans.map_stdev_from_canonical(
-            canonical_pointwise_variance))[:, None]
-        assert pointwise_stdev.shape[1] == mean.shape[1]
+        if canonical_pointwise_variance.min() < 0:
+            msg = "Some pointwise variances were negative. The largest magnitude "
+            msg += "of the negative values was {0}".format(
+                canonical_pointwise_variance.min())
+            warnings.warn(msg, UserWarning)
+        canonical_pointwise_variance[canonical_pointwise_variance < 0] = 0
+        pointwise_stdev = self.values_trans.map_stdev_from_canonical(
+            np.sqrt(canonical_pointwise_variance))
+        assert pointwise_stdev.shape == mean.shape
         return mean, pointwise_stdev
         # return mean, canonical_pointwise_variance[:, None]
 
@@ -237,22 +251,23 @@ class ExactGaussianProcess():
             self.__class__.__name__, self.hyp_list._short_repr())
 
     def _plot_1d(self, ax, test_samples, gp_mean, gp_std, nstdevs,
-                 fill_kwargs, plt_kwargs):
+                 fill_kwargs, plt_kwargs, plot_samples):
+        if plot_samples is None:
+            plot_samples = test_samples[0, :]
         im0 = ax.fill_between(
-            test_samples[0, :], gp_mean-nstdevs*gp_std,
+            plot_samples, gp_mean-nstdevs*gp_std,
             gp_mean+nstdevs*gp_std, **fill_kwargs)
-        im1 = ax.plot(test_samples[0, :], gp_mean, **plt_kwargs)
+        im1 = ax.plot(plot_samples, gp_mean, **plt_kwargs)
         return [im0, im1]
 
     def plot_1d(self, ax, bounds, npts_1d=101, nstdevs=2, plt_kwargs={},
-                fill_kwargs={}, prior_kwargs=None):
+                fill_kwargs={}, prior_kwargs=None, plot_samples=None):
         test_samples = np.linspace(
             bounds[0], bounds[1], npts_1d)[None, :]
-        gp_mean, gp_std = self(
-            test_samples, return_std=True)
+        gp_mean, gp_std = self(test_samples, return_std=True)
         ims = self._plot_1d(
-            ax, test_samples, gp_mean, gp_std, nstdevs, fill_kwargs,
-            plt_kwargs)
+            ax, test_samples, gp_mean[:, 0], gp_std[:, 0], nstdevs,
+            fill_kwargs, plt_kwargs, plot_samples)
         if prior_kwargs is None:
             return ims
         ims += self._plot_1d(
@@ -277,10 +292,13 @@ class MOExactGaussianProcess(ExactGaussianProcess):
         self.train_samples = train_samples
         self.train_values = train_values
         self.canonical_train_samples = [
-            asarray(self.var_trans.map_to_canonical(s)) for s in train_samples]
+            asarray(s) for s in self._map_samples_to_canonical(train_samples)]
         self.canonical_train_values = vstack(
             [asarray(self.values_trans.map_to_canonical(v))
              for v in train_values])
+
+    def _map_samples_to_canonical(self, samples):
+        return [self.var_trans.map_to_canonical(s) for s in samples]
 
     def _canonical_mean(self, canonical_samples):
         if self.mean is not None:
@@ -288,18 +306,17 @@ class MOExactGaussianProcess(ExactGaussianProcess):
         return full((sum([s.shape[1] for s in canonical_samples]), 1), 0.)
 
     def plot_1d(self, ax, bounds, output_id, npts_1d=101, nstdevs=2,
-                plt_kwargs={},
-                fill_kwargs={'alpha': 0.3}, prior_kwargs=None):
+                plt_kwargs={}, fill_kwargs={'alpha': 0.3}, prior_kwargs=None,
+                plot_samples=None):
         test_samples_base = np.linspace(
             bounds[0], bounds[1], npts_1d)[None, :]
         noutputs = len(self.canonical_train_samples)
         test_samples = [np.array([[]]) for ii in range(noutputs)]
         test_samples[output_id] = test_samples_base
-        gp_mean, gp_std = self(
-            test_samples, return_std=True)
+        gp_mean, gp_std = self(test_samples, return_std=True)
         ims = self._plot_1d(
             ax, test_samples[output_id], gp_mean[:, 0], gp_std[:, 0],
-            nstdevs, fill_kwargs, plt_kwargs)
+            nstdevs, fill_kwargs, plt_kwargs, plot_samples)
         if prior_kwargs is None:
             return ims
         ims += self._plot_1d(

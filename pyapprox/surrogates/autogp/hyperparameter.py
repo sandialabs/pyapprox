@@ -37,21 +37,21 @@ class HyperParameter():
     def __init__(self, name: str, nvars: int, values: np.ndarray,
                  bounds: np.ndarray, transform: HyperParameterTransform):
         self.name = name
-        self.nvars = nvars
+        self._nvars = nvars
         self._values = atleast1d(values)
         if self._values.shape[0] == 1:
-            self._values = repeat(self._values, self.nvars)
+            self._values = repeat(self._values, self.nvars())
         if self._values.ndim == 2:
             raise ValueError("values is not a 1D array")
-        if self._values.shape[0] != self.nvars:
+        if self._values.shape[0] != self.nvars():
             raise ValueError("values shape {0} inconsistent with nvars".format(
                 self._values.shape))
         self.bounds = atleast1d(bounds)
         if self.bounds.shape[0] == 2:
-            self.bounds = repeat(self.bounds, self.nvars)
-        if self.bounds.shape[0] != 2*self.nvars:
+            self.bounds = repeat(self.bounds, self.nvars())
+        if self.bounds.shape[0] != 2*self.nvars():
             msg = "bounds shape {0} inconsistent with 2*nvars={1}".format(
-                self.bounds.shape, 2*self.nvars)
+                self.bounds.shape, 2*self.nvars())
             raise ValueError(msg)
         self.bounds = self.bounds.reshape((self.bounds.shape[0]//2, 2))
         self.transform = transform
@@ -60,10 +60,10 @@ class HyperParameter():
                 (self._values > self.bounds[:, 1]))[0].shape[0] > 0:
             raise ValueError("values outside bounds")
         self._active_indices = np.atleast_1d(
-            arange(self.nvars)[~isnan(self.bounds[:, 0])])
+            arange(self.nvars())[~isnan(self.bounds[:, 0])])
 
     def nvars(self):
-        return self.bounds.shape[0]
+        return self._nvars
 
     def nactive_vars(self):
         return self._active_indices.shape[0]
@@ -82,22 +82,25 @@ class HyperParameter():
     def get_values(self):
         return self._values
 
+    def set_values(self, values):
+        self._values = values
+
     def _short_repr(self):
-        if self.nvars > 5:
-            return "{0}:nvars={1}".format(self.name, self.nvars)
+        if self.nvars() > 5:
+            return "{0}:nvars={1}".format(self.name, self.nvars())
 
         return "{0}={1}".format(
             self.name,
             "["+", ".join(map("{0:.2g}".format, self._values))+"]")
 
     def __repr__(self):
-        if self.nvars > 5:
+        if self.nvars() > 5:
             return "{0}(name={1}, nvars={2}, transform={3}, nactive={4})".format(
-                self.__class__.__name__, self.name, self.nvars, self.transform,
+                self.__class__.__name__, self.name, self.nvars(), self.transform,
                 self.nactive_vars())
         return "{0}(name={1}, values={2}, transform={3}, active={4})".format(
             self.__class__.__name__, self.name,
-            "["+", ".join(map("{0:.2g}".format, self._values))+"]",
+            "["+", ".join(map("{0:.2g}".format, self.get_values()))+"]",
             self.transform,
             "["+", ".join(map("{0}".format, self._active_indices))+"]")
 
@@ -107,6 +110,7 @@ class HyperParameterList():
         self.hyper_params = hyper_params
 
     def set_active_opt_params(self, active_params):
+        print("T", self)
         cnt = 0
         for hyp in self.hyper_params:
             hyp.set_active_opt_params(

@@ -4,7 +4,7 @@ import numpy as np
 from pyapprox.surrogates.autogp.kernels import Kernel
 from pyapprox.surrogates.autogp._torch_wrappers import (
     full, asarray, hstack, vstack, cholesky, solve_triangular, multidot,
-    cos, to_numpy, atleast1d, repeat)
+    cos, to_numpy, atleast1d, repeat, empty)
 from pyapprox.surrogates.autogp.hyperparameter import (
     HyperParameter, HyperParameterList, IdentityHyperParameterTransform)
 from pyapprox.surrogates.autogp.transforms import (
@@ -23,7 +23,7 @@ class MultiOutputKernel(Kernel):
 
     @abstractmethod
     def _scale_block(self, samples_per_output_ii, ii,
-                     samples_per_output_jj, jj, kk):
+                     samples_per_output_jj, jj, kk, symmetric):
         raise NotImplementedError
 
     @abstractmethod
@@ -32,12 +32,13 @@ class MultiOutputKernel(Kernel):
 
     def _evaluate_block(self, samples_per_output_ii, ii,
                         samples_per_output_jj, jj,
-                        block_format):
+                        block_format, symmetric):
         block = 0
         nonzero = False
         for kk in range(self.nkernels):
             block_kk = self._scale_block(
-                samples_per_output_ii, ii, samples_per_output_jj, jj, kk)
+                samples_per_output_ii, ii, samples_per_output_jj, jj, kk,
+                symmetric)
             if block_kk is not None:
                 block += block_kk
                 nonzero = True
@@ -61,6 +62,9 @@ class MultiOutputKernel(Kernel):
         samples_0 = [asarray(s) for s in samples_0]
         if samples_1 is None:
             samples_1 = samples_0
+            symmetric = True
+        else:
+            symmetric = False
         nsamples_0 = np.asarray([s.shape[1] for s in samples_0])
         nsamples_1 = np.asarray([s.shape[1] for s in samples_1])
         active_outputs_0 = np.where(nsamples_0 > 0)[0]
@@ -75,7 +79,7 @@ class MultiOutputKernel(Kernel):
                 idx1 = active_outputs_1[jj]
                 matrix_blocks[ii][jj] = self._evaluate_block(
                     samples_0[idx0], idx0, samples_1[idx1], idx1,
-                    block_format)
+                    block_format, symmetric)
         if not block_format:
             rows = [hstack(matrix_blocks[ii]) for ii in range(noutputs_0)]
             return vstack(rows)
@@ -122,14 +126,17 @@ class SpatiallyScaledMultiOutputKernel(MultiOutputKernel):
         raise NotImplementedError
 
     def _scale_block(self, samples_per_output_ii, ii,
-                     samples_per_output_jj, jj, kk):
+                     samples_per_output_jj, jj, kk, symmetric):
         wmat_iikk = self._get_kernel_combination_matrix_entry(
             samples_per_output_ii, ii, kk)
         wmat_jjkk = self._get_kernel_combination_matrix_entry(
             samples_per_output_jj, jj, kk)
         if wmat_iikk is not None and wmat_jjkk is not None:
-            kmat = self.kernels[kk](
-                samples_per_output_ii, samples_per_output_jj)
+            if ii != jj or not symmetric:
+                kmat = self.kernels[kk](
+                    samples_per_output_ii, samples_per_output_jj)
+            else:
+                kmat = self.kernels[kk](samples_per_output_ii)
             return wmat_iikk*kmat*wmat_jjkk.T
         return None
 
@@ -259,14 +266,13 @@ class LMCKernel(MultiOutputKernel):
                     f"The {ii}-th output kernel is not a SphericalCovariance")
 
     def _scale_block(self, samples_per_output_ii, ii,
-                     samples_per_output_jj, jj, kk):
-        kmat = self.kernels[kk](
-            samples_per_output_ii, samples_per_output_jj)
+                     samples_per_output_jj, jj, kk, symmetric):
+        if ii != jj or not symmetric:
+            kmat = self.kernels[kk](
+                samples_per_output_ii, samples_per_output_jj)
+        else:
+            kmat = self.kernels[kk](samples_per_output_ii)
         return self.output_kernels[kk](ii, jj)*kmat
-
-    def _scale_diag_block(self, samples_per_output_ii, ii, kk):
-        return self._scale_block(
-            samples_per_output_ii, ii, samples_per_output_ii, ii, kk)
 
     def _scale_diag(self, samples_per_output_ii, ii, kk):
         return self.output_kernels[kk](ii, ii)*self.kernels[kk].diag(
@@ -294,6 +300,86 @@ class ICMKernel(LMCKernel):
         super().__init__([latent_kernel], [output_kernel], noutputs)
 
 
+class SphericalCovarianceHyperParameterList(HyperParameterList):
+    def __init__(self, radii, angles):
+        super().__init__([radii, angles])
+        self.noutputs = radii.nvars
+        self._trans = SphericalCorrelationTransform(self.noutputs)
+        self.cov_matrix = None
+        self._set_covariance_matrix()
+
+    def _set_covariance_matrix(self):
+        print(self.get_values(), "V")
+        L = self._trans.map_to_cholesky(self.get_values())
+        self.cov_matrix = L@L.T
+
+    def set_active_opt_params(self, active_params):
+        print(active_params, "P")
+        super().set_active_opt_params(active_params)
+        self._set_covariance_matrix()
+
+
+class CombinedHyperParameter(HyperParameter):
+    def __init__(self, hyper_params: list):
+        self.hyper_params = hyper_params
+        self.bounds = vstack([hyp.bounds for hyp in self.hyper_params])
+
+    def nvars(self):
+        return sum([hyp.nvars() for hyp in self.hyper_params])
+
+    def nactive_vars(self):
+        return sum([hyp.nactive_vars() for hyp in self.hyper_params])
+
+    def set_active_opt_params(self, active_params):
+        cnt = 0
+        for hyp in self.hyper_params:
+            hyp.set_active_opt_params(
+                active_params[cnt:cnt+hyp.nactive_vars()])
+            cnt += hyp.nactive_vars()
+
+    def get_active_opt_params(self):
+        return hstack(
+            [hyp.get_active_opt_params() for hyp in self.hyper_params])
+
+    def get_active_opt_bounds(self):
+        return vstack(
+            [hyp.get_active_opt_bounds() for hyp in self.hyper_params])
+
+    def get_values(self):
+        return hstack([hyp.get_values() for hyp in self.hyper_params])
+
+    def set_values(self, values):
+        cnt = 0
+        for hyp in self.hyper_params:
+            hyp.set_values(values[cnt:cnt+hyp.nvars()])
+            cnt += hyp.nvars()
+
+
+class SphericalCovarianceHyperParameter(CombinedHyperParameter):
+    def __init__(self, hyper_params: list):
+        super().__init__(hyper_params)
+        self.cov_matrix = None
+        self.name = "spherical_covariance"
+        self.transform = IdentityHyperParameterTransform()
+        noutputs = hyper_params[0].nvars()
+        self._trans = SphericalCorrelationTransform(noutputs)
+
+    def _set_covariance_matrix(self):
+        print(self.get_values(), "V")
+        L = self._trans.map_to_cholesky(self.get_values())
+        self.cov_matrix = L@L.T
+
+    def set_active_opt_params(self, active_params):
+        print(active_params, "P")
+        super().set_active_opt_params(active_params)
+        self._set_covariance_matrix()
+
+    def __repr__(self):
+        return "{0}(name={1}, nvars={2}, transform={3}, nactive={4})".format(
+            self.__class__.__name__, self.name, self.nvars(), self.transform,
+            self.nactive_vars())
+
+  
 class SphericalCovariance():
     def __init__(self, noutputs, radii=1, radii_bounds=[1e-1, 1],
                  angles=np.pi/2, angle_bounds=[0, np.pi],
@@ -309,7 +395,12 @@ class SphericalCovariance():
         self._angles = HyperParameter(
             "angles", self._trans.ntheta-self.noutputs, angles, angle_bounds,
             angle_transform)
-        self.hyp_list = HyperParameterList([self._radii, self._angles])
+        #self.hyp_list = HyperParameterList([self._radii, self._angles])
+        #self.hyp_list = SphericalCovarianceHyperParameterList(
+        #    self._radii, self._angles)
+        #print(self.hyp_list)
+        self.hyp_list = HyperParameterList([SphericalCovarianceHyperParameter(
+            [self._radii, self._angles])])
 
     def _validate_bounds(self, radii_bounds, angle_bounds):
         bounds = asarray(self._trans.get_spherical_bounds())
@@ -342,7 +433,14 @@ class SphericalCovariance():
         # chol factor must be recomputed each time even if hyp_values have not
         # changed otherwise gradient graph becomes inconsistent
         cov_matrix = self.get_covariance_matrix()
+        print(self.hyp_list.get_active_opt_params(), 's')
+        # self.hyp_list._set_covariance_matrix()
+        print(self.hyp_list.hyper_params[0].cov_matrix)
+        print(cov_matrix)
+        assert np.allclose(
+            self.hyp_list.hyper_params[0].cov_matrix.detach(), cov_matrix.detach())
         return cov_matrix[ii, jj]
+        #return self.hyp_list.cov_matrix[ii, jj]
 
     def __repr__(self):
         return "{0}(name={1}, nvars={2}, degree={3}, nterms={4})".format(
@@ -368,15 +466,18 @@ class CollaborativeKernel(LMCKernel):
                     f"The {ii}-th output kernel is not a SphericalCovariance")
 
     def _scale_block(self, samples_per_output_ii, ii,
-                     samples_per_output_jj, jj, kk):
+                     samples_per_output_jj, jj, kk, symmetric):
         if kk < self.nkernels-self.noutputs:
             # Evaluate latent kernel
             return super()._scale_block(
-                samples_per_output_ii, ii, samples_per_output_jj, jj, kk)
+                samples_per_output_ii, ii, samples_per_output_jj, jj, kk,
+                symmetric)
         if kk-self.nkernels+self.noutputs == min(ii, jj):
             # evaluate discrepancy kernel
-            return self.kernels[kk](
-                samples_per_output_ii, samples_per_output_jj)
+            if ii != jj or not symmetric:
+                return self.kernels[kk](
+                    samples_per_output_ii, samples_per_output_jj)
+            return self.kernels[kk](samples_per_output_ii)
         return None
 
     def _scale_diag(self, samples_per_output_ii, ii, kk):

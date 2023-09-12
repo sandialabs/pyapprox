@@ -3,7 +3,7 @@ import numpy as np
 
 from pyapprox.util.utilities import check_gradients
 from pyapprox.surrogates.autogp.kernels import (
-    MaternKernel, Monomial, ConstantKernel)
+    MaternKernel, Monomial, ConstantKernel, GaussianNoiseKernel)
 from pyapprox.surrogates.autogp.mokernels import (
     SphericalCovariance, ICMKernel)
 from pyapprox.surrogates.autogp.hyperparameter import (
@@ -62,9 +62,11 @@ class TestGaussianProcess(unittest.TestCase):
     def _check_exact_gp_training(self, mean, values_trans, constant):
         nvars = 1
         if mean is not None:
-            assert mean.nvars == nvars
+            assert mean.nvars() == nvars
 
-        kernel = MaternKernel(np.inf, 1, [1e-1, 1], nvars)
+        kernel = MaternKernel(np.inf, 1., [1e-1, 1], nvars)
+
+        kernel = kernel
         if constant is not None:
             constant_kernel = ConstantKernel(
                 0.1, (1e-3, 1e1), transform=LogHyperParameterTransform())
@@ -113,8 +115,69 @@ class TestGaussianProcess(unittest.TestCase):
             [Monomial(1, 2, 1.0, (-1e3, 1e3), name='mean'),
              StandardDeviationValuesTransform(), None],
         ]
-        for test_case in test_cases[-1:]:
+        for test_case in test_cases:
             self._check_exact_gp_training(*test_case)
+
+    def test_compare_with_deprecated_gp(self):
+        nvars = 1
+        noise = 0.0#1
+        sigma = 1
+        lenscale = 0.5
+        kernel = (ConstantKernel(sigma, [np.nan, np.nan]) *
+                  MaternKernel(np.inf, lenscale, [np.nan, np.nan], nvars) +
+                  GaussianNoiseKernel(noise, [np.nan, np.nan]))
+
+        gp = ExactGaussianProcess(
+            nvars, kernel, mean=None, values_trans=IdentityValuesTransform())
+
+        # def fun(xx):
+        #     return (xx**2).sum(axis=0)[:, None]
+
+        def fun(xx, noisy=True):
+            vals = np.cos(2*np.pi*xx.T)
+            if not noisy:
+                return vals
+            return vals + np.random.normal(0, np.sqrt(noise), xx.T.shape)
+
+        ntrain_samples = 6
+        train_samples = np.linspace(-1, 1, ntrain_samples)[None, :]
+        train_values = fun(train_samples)
+
+        from pyapprox.surrogates.gaussianprocess.gaussian_process import (
+            GaussianProcess, Matern,  ConstantKernel as CKernel, WhiteKernel)
+        pyakernel = (CKernel(sigma, 'fixed') *
+                     Matern(lenscale, length_scale_bounds='fixed', nu=np.inf) +
+                     WhiteKernel(noise, 'fixed'))
+
+        np.set_printoptions(linewidth=1000)
+        assert np.allclose(kernel(train_samples), pyakernel(train_samples.T))
+
+        gp.fit(train_samples, train_values)
+
+        pyagp = GaussianProcess(pyakernel, alpha=0.)
+        pyagp.fit(train_samples, train_values)
+        print(gp)
+        print(pyagp)
+
+        ntest_samples = 5
+        test_samples = np.random.uniform(-1, 1, (nvars, ntest_samples))
+        test_samples = np.linspace(-1, 1, 5)[None, :]
+
+        pyagp_vals, pyagp_std = pyagp(test_samples, return_std=True)
+        gp_vals, gp_std = gp(test_samples, return_std=True)
+        print(pyagp_std)
+        print(gp_std)
+        print(gp_std[:, 0]-pyagp_std)
+        assert np.allclose(gp_std[:, 0], pyagp_std, atol=1e-6)
+
+        # import matplotlib.pyplot as plt
+        # ax = plt.subplots(1, 1)[1]
+        # gp.plot(ax, [-1, 1], plt_kwargs={"c": "r", "ls": "-"}, npts_1d=101)
+        # pyagp.plot_1d(101, [-1, 1], ax=ax)
+        # xx = np.linspace(-1, 1, 101)[None, :]
+        # plt.plot(xx[0], fun(xx, False))
+        # plt.plot(gp.train_samples[0], gp.train_values, 'o')
+        # plt.show()
 
     def test_variational_gp_training(self):
         ntrain_samples = 10
@@ -259,6 +322,9 @@ class TestGaussianProcess(unittest.TestCase):
         corr_matrix = get_correlation_from_covariance(cov_matrix.numpy())
         samples = np.random.uniform(-1, 1, (1, 101))
         values = np.hstack([fun(samples) for fun in funs])
+        print(
+            corr_matrix,
+            get_correlation_from_covariance(np.cov(values.T, ddof=1)))
         assert np.allclose(
             corr_matrix,
             get_correlation_from_covariance(np.cov(values.T, ddof=1)), atol=1e-2)
@@ -280,4 +346,3 @@ if __name__ == "__main__":
     gaussian_process_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestGaussianProcess)
     unittest.TextTestRunner(verbosity=2).run(gaussian_process_test_suite)
-    

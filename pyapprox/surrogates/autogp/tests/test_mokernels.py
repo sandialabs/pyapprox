@@ -14,7 +14,6 @@ class TestMultiOutputKernels(unittest.TestCase):
 
     def _check_multilevel_kernel_scaling_matrix(self, noutputs):
         nvars, degree = 1, 0
-        nsamples_per_output_0 = np.arange(2, 2+noutputs)[::-1]
         kernels = [
             MaternKernel(np.inf, 1.0, [1e-1, 1], nvars)
             for ii in range(noutputs)]
@@ -91,7 +90,7 @@ class TestMultiOutputKernels(unittest.TestCase):
                 diag_block,
                 kernel._evaluate_block(
                     samples_per_output[ii], ii, samples_per_output[ii], ii,
-                    False),
+                    False, True),
                 rtol=1e-2)
             for jj in range(ii+1, kernel.noutputs):
                 vals_ii = np.full((nsamples_per_output[ii], nsamples), 0.)
@@ -108,7 +107,7 @@ class TestMultiOutputKernels(unittest.TestCase):
                         vals_jj += wmat_jjkk.numpy()*DD_lists[jj][kk]
                 kmat_iijj = kernel._evaluate_block(
                     samples_per_output[ii], ii, samples_per_output[jj], jj,
-                    False)
+                    False, True)
                 kmat_iijj_mc = np.cov(vals_ii, vals_jj, ddof=1)[
                     :nsamples_per_output[ii],
                     nsamples_per_output[ii]:]

@@ -3,7 +3,8 @@ import numpy as np
 import torch
 
 from pyapprox.surrogates.autogp._torch_wrappers import log
-from pyapprox.surrogates.autogp.kernels import ConstantKernel, MaternKernel
+from pyapprox.surrogates.autogp.kernels import (
+    ConstantKernel, MaternKernel, PeriodicMaternKernel)
 
 
 def approx_jacobian_3D(f, x0, epsilon=np.sqrt(np.finfo(float).eps)):
@@ -45,8 +46,16 @@ class TestKernels(unittest.TestCase):
         assert np.allclose(kernel_sum.diag(X), np.diag(kernel_sum(X, X)))
         assert np.allclose(kernel_sum(X, Y), const0*kernel_inf(X, Y)+const1)
 
+        kernel_periodic = PeriodicMaternKernel(
+            0.5, 1.0, [1e-1, 1], 1, [1e-1, 1])
+        values = torch.as_tensor([0.5, 0.5], dtype=torch.double)
+        kernel_periodic.hyp_list.set_active_opt_params(log(values))
+        assert np.allclose(kernel_periodic.hyp_list.get_values(), values)
+        assert np.allclose(
+            kernel_periodic.diag(X), np.diag(kernel_periodic(X, X)))
+
     def check_kernel_jacobian(self, kernel, nsamples):
-        X = np.random.uniform(-1, 1, (kernel.nvars, nsamples))
+        X = np.random.uniform(-1, 1, (kernel.nvars(), nsamples))
 
         def fun(active_params_opt):
             if not isinstance(active_params_opt, np.ndarray):
