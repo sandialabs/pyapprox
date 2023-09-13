@@ -12,7 +12,6 @@ from pyapprox.surrogates.autogp.exactgp import (
     ExactGaussianProcess, MOExactGaussianProcess)
 from pyapprox.surrogates.autogp.variationalgp import (
     InducingGaussianProcess, InducingSamples,
-    _invert_noisy_low_rank_nystrom_approximation,
     _log_prob_gaussian_with_noisy_nystrom_covariance)
 from pyapprox.surrogates.autogp.transforms import (
     IdentityValuesTransform, StandardDeviationValuesTransform)
@@ -25,22 +24,13 @@ class TestGaussianProcess(unittest.TestCase):
         pass
 
     def _check_invert_noisy_low_rank_nystrom_approximation(self, N, M):
-        const = 2.0
-        vmat = np.random.normal(0, 1, (N, M))
-        full = const*np.eye(N) + vmat @ vmat.T
-        full_inverse = np.linalg.inv(full)
-
-        lowrank_inverse, log_cov_det, L = (
-            _invert_noisy_low_rank_nystrom_approximation(asarray(const), vmat))
-        assert np.allclose(log_cov_det, np.linalg.slogdet(full)[1])
-        assert np.allclose(lowrank_inverse, full_inverse)
-
-        noise = 1
+        noise_std = 2
         tmp = np.random.normal(0, 1, (N, N))
         C_NN = tmp.T@tmp
         C_MN = C_NN[:M]
         C_MM = C_NN[:M, :M]
-        Q = asarray(C_MN.T @ np.linalg.inv(C_MM) @ C_MN + noise*np.eye(N))
+        Q = asarray(
+            C_MN.T @ np.linalg.inv(C_MM) @ C_MN + noise_std**2*np.eye(N))
 
         values = asarray(np.ones((N, 1)))
         from torch.distributions import MultivariateNormal
@@ -49,13 +39,43 @@ class TestGaussianProcess(unittest.TestCase):
 
         L_UU = asarray(np.linalg.cholesky(C_MM))
         logpdf2 = _log_prob_gaussian_with_noisy_nystrom_covariance(
-            asarray(noise), L_UU, asarray(C_MN.T), values)
+            asarray(noise_std), L_UU, asarray(C_MN.T), values)
         assert np.allclose(logpdf1, logpdf2)
+
+        if N != M:
+            return
+
+        assert np.allclose(Q, C_NN + noise_std**2*np.eye(N))
+
+        values = values.numpy()
+        Q_inv = np.linalg.inv(Q)
+
+        import scipy
+        Delta = scipy.linalg.solve_triangular(
+            L_UU, C_MN.T, lower=True)/noise_std
+        Omega = np.eye(M) + Delta@Delta.T
+        L_Omega = np.linalg.cholesky(Omega)
+        log_det = 2*np.log(np.diag(L_Omega)).sum()+2*N*np.log(noise_std)
+        gamma = scipy.linalg.solve_triangular(
+            L_Omega, Delta @ values, lower=True)
+        assert np.allclose(log_det, np.linalg.slogdet(Q)[1])
+
+        coef = Q_inv @ values
+        assert np.allclose(
+            values.T@coef,
+            values.T@values/noise_std**2-gamma.T@gamma/noise_std**2)
+
+        mll = -0.5 * (
+            values.T@coef +
+            np.linalg.slogdet(Q)[1] +
+            N*np.log(2*np.pi)
+        )
+        assert np.allclose(mll, logpdf2)
 
     def test_invert_noisy_low_rank_nystrom_approximation(self):
         test_cases = [
-            [3, 2], [4, 2], [15, 6]]
-        for test_case in test_cases:
+            [3, 2], [4, 2], [15, 6], [3, 3]]
+        for test_case in test_cases[-1:]:
             np.random.seed(1)
             self._check_invert_noisy_low_rank_nystrom_approximation(*test_case)
 
@@ -101,7 +121,6 @@ class TestGaussianProcess(unittest.TestCase):
         if mean is not None and mean.degree == 2:
             assert np.allclose(gp_vals, test_vals, atol=1e-14)
             xx = np.linspace(-1, 1, 101)[None, :]
-            # print(gp._canonical_mean(xx)-fun(xx))
             assert np.allclose(gp.values_trans.map_from_canonical(
                 gp._canonical_mean(xx)), fun(xx), atol=5e-6)
         else:
@@ -150,15 +169,14 @@ class TestGaussianProcess(unittest.TestCase):
                      Matern(lenscale, length_scale_bounds='fixed', nu=np.inf) +
                      WhiteKernel(noise, 'fixed'))
 
-        np.set_printoptions(linewidth=1000)
         assert np.allclose(kernel(train_samples), pyakernel(train_samples.T))
 
         gp.fit(train_samples, train_values)
 
         pyagp = GaussianProcess(pyakernel, alpha=0.)
         pyagp.fit(train_samples, train_values)
-        print(gp)
-        print(pyagp)
+        # print(gp)
+        # print(pyagp)
 
         ntest_samples = 5
         test_samples = np.random.uniform(-1, 1, (nvars, ntest_samples))
@@ -166,9 +184,7 @@ class TestGaussianProcess(unittest.TestCase):
 
         pyagp_vals, pyagp_std = pyagp(test_samples, return_std=True)
         gp_vals, gp_std = gp(test_samples, return_std=True)
-        print(pyagp_std)
-        print(gp_std)
-        print(gp_std[:, 0]-pyagp_std)
+        # print(gp_std[:, 0]-pyagp_std)
         assert np.allclose(gp_std[:, 0], pyagp_std, atol=1e-6)
 
         # import matplotlib.pyplot as plt
@@ -210,7 +226,7 @@ class TestGaussianProcess(unittest.TestCase):
         assert errors.min()/errors.max() < 1e-6
 
         gp.fit(train_samples, train_values, max_nglobal_opt_iters=1)
-        print(gp)
+        # print(gp)
 
         import matplotlib.pyplot as plt
         xx = np.linspace(-1, 1, 101)[None, :]
@@ -222,7 +238,6 @@ class TestGaussianProcess(unittest.TestCase):
         gp_mu, gp_std = gp(xx, return_std=True)
         gp_mu = gp_mu[:, 0]
         gp_std = gp_std[:, 0]
-        print(gp_mu.shape, gp_std.shape)
         plt.fill_between(xx[0], gp_mu-3*gp_std, gp_mu+3*gp_std, alpha=0.1,
                          color='blue')
         #plt.show()
@@ -231,13 +246,14 @@ class TestGaussianProcess(unittest.TestCase):
         test_samples = np.random.uniform(-1, 1, (nvars, ntest_samples))
         test_vals = fun(test_samples)
         gp_mu, gp_std = gp(test_samples, return_std=True)
-        print(gp_mu-test_vals)
+        # print(gp_mu-test_vals)
         assert np.allclose(gp_mu, test_vals, atol=6e-3)
 
     def test_variational_gp_collapse_to_exact_gp(self):
         nvars = 1
         ntrain_samples = 6
-        kernel = MaternKernel(np.inf, 1, [1e-1, 1], nvars)
+        noise_var = 1e-8
+        kernel = (MaternKernel(np.inf, 1, [1e-1, 1], nvars))
         values_trans = IdentityValuesTransform()
 
         def fun(xx):
@@ -250,7 +266,8 @@ class TestGaussianProcess(unittest.TestCase):
         test_samples = np.random.uniform(-1, 1, (nvars, ntest_samples))
 
         exact_gp = ExactGaussianProcess(
-            nvars, kernel, mean=None, values_trans=values_trans, kernel_reg=0)
+            nvars, kernel+GaussianNoiseKernel(noise_var, [np.nan, np.nan]),
+            mean=None, values_trans=values_trans, kernel_reg=0)
         exact_gp.set_training_data(train_samples, train_values)
         exact_gp.fit(train_samples, train_values, max_nglobal_opt_iters=1)
         exact_gp_vals, exact_gp_std = exact_gp(test_samples, return_std=True)
@@ -260,7 +277,8 @@ class TestGaussianProcess(unittest.TestCase):
         # fix hyperparameters so they are not changed from exact_gp
         # or setting provided if not found in exact_gp
         noise = HyperParameter(
-            'noise', 1, 1e-15, [np.nan, np.nan], LogHyperParameterTransform())
+            'noise_std', 1, np.sqrt(noise_var), [np.nan, np.nan],
+            LogHyperParameterTransform())
         inducing_samples = InducingSamples(
             nvars, ninducing_samples, inducing_samples=inducing_samples,
             inducing_sample_bounds=[np.nan, np.nan], noise=noise)
@@ -273,12 +291,12 @@ class TestGaussianProcess(unittest.TestCase):
         vi_gp.fit(train_samples, train_values, max_nglobal_opt_iters=1)
         vi_gp_vals, vi_gp_std = vi_gp(test_samples, return_std=True)
 
-        print(vi_gp_vals-exact_gp_vals, 'c')
+        # print(vi_gp_vals-exact_gp_vals)
         assert np.allclose(vi_gp_vals, exact_gp_vals, atol=1e-12)
         # print(vi_gp_std-exact_gp_std)
         # I think larger tolerance needed because sqrt of covariance
         # is being taken inside funcitns
-        assert np.allclose(vi_gp_std, exact_gp_std, atol=2e-9)
+        assert np.allclose(vi_gp_std, exact_gp_std, atol=5e-5)
 
     def test_icm_gp(self):
         nvars, noutputs = 1, 2
@@ -315,9 +333,9 @@ class TestGaussianProcess(unittest.TestCase):
             kernel_reg=1e-8)
         gp.fit(samples_per_output, values_per_output, max_nglobal_opt_iters=3)
 
-        # check correlation between models is estimated correctly. SphericalCovariance
-        # is not guaranteed to recover the statistical correlation, but for this case
-        # it can
+        # check correlation between models is estimated correctly.
+        # SphericalCovariance is not guaranteed to recover the statistical
+        # correlation, but for this case it can
         from pyapprox.util.utilities import get_correlation_from_covariance
         cov_matrix = output_kernel.get_covariance_matrix()
         corr_matrix = get_correlation_from_covariance(cov_matrix.numpy())

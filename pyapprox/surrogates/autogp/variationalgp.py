@@ -18,35 +18,16 @@ from pyapprox.surrogates.autogp._torch_wrappers import (
 from pyapprox.surrogates.autogp.kernels import Kernel, SumKernel
 
 
-# Weinstein–Aronszajn identity
-# If A.shape = [M, N] and B.shape = [N, M] then
-# det(I_M+AB) = det(I_N+BA) this is a special case sof the matrix determinant
-# lemma
-
-def _invert_noisy_low_rank_nystrom_approximation(const, mat):
-    # use matrix inversion lemma to invert const*I_N+ V@V.T
-    # where V.shape = [N, M] with M <= N
-    # and comes from the sqrt of the nystrom approximation of a kernel
-    # i.e. K \approx K_NM KMM^{-1} K_MN
-    mat = asarray(mat)
-    N, M = mat.shape
-    const_inv = 1/const
-    tmp = eye(M) + mat.T@mat*const_inv
-    L = cholesky(tmp)
-    L_matT = solve_triangular(L, mat.T)
-    log_cov_det = 2*log(L.diag()).sum()+N*log(const)
-    return const_inv*eye(N) - const_inv**2*L_matT.T@L_matT, log_cov_det, L
-
-
 def _log_prob_gaussian_with_noisy_nystrom_covariance(
-        noise, L_UU, K_XU, values):
-    N = K_XU.shape[0]
-    mat = solve_triangular(L_UU, K_XU.T)
-    cov_inv, log_det, L = _invert_noisy_low_rank_nystrom_approximation(
-        noise**2, mat.T)
-    tmp = solve_triangular(L, mat@values)
-    log_pdf = -0.5*(N*np.log(2*np.pi)+log_det+values.T@values/noise**2 -
-                    tmp.T@tmp/noise**4)
+        noise_std, L_UU, K_XU, values):
+    N, M = K_XU.shape
+    Delta = solve_triangular(L_UU, K_XU.T)/noise_std
+    Omega = eye(M) + Delta@Delta.T
+    L_Omega = cholesky(Omega)
+    log_det = 2*log(L_Omega.diag()).sum()+2*N*log(noise_std)
+    gamma = solve_triangular(L_Omega, Delta @ values)
+    log_pdf = -0.5*(N*np.log(2*np.pi)+log_det+(values.T@values -
+                    gamma.T@gamma)/noise_std**2)
     return log_pdf
 
 
@@ -184,24 +165,24 @@ class InducingGaussianProcess(ExactGaussianProcess):
 
     def _neg_log_likelihood(self, active_opt_params):
         self.hyp_list.set_active_opt_params(active_opt_params)
-        noise = self.inducing_samples.get_noise()
+        noise_std = self.inducing_samples.get_noise()
         K_XU = self._K_XU()
         K_UU = self._K_UU()
         # if the following line throws a ValueError it is likely
         # because self.noise is to small. If so adjust noise bounds
         L_UU = cholesky(K_UU)
         mll = _log_prob_gaussian_with_noisy_nystrom_covariance(
-            noise, L_UU, K_XU, self.canonical_train_values)
+            noise_std, L_UU, K_XU, self.canonical_train_values)
         # add a regularization term to regularize variance noting that
         # trace of matrix sum is sum of traces
         K_XX_diag = self.kernel.diag(self.canonical_train_samples)
         tmp = solve_triangular(L_UU, K_XU.T)
         K_tilde_trace = K_XX_diag.sum() - trace(multidot((tmp.T, tmp)))
-        mll -= 1/(2*noise**2) * K_tilde_trace
+        mll -= 1/(2*noise_std**2) * K_tilde_trace
         return -mll
 
     def _evaluate_posterior(self, Z, return_std):
-        noise = self.inducing_samples.get_noise()
+        noise_std = self.inducing_samples.get_noise()
         K_XU = self._K_XU()
         K_UU = self._K_UU()
 
@@ -211,10 +192,12 @@ class InducingGaussianProcess(ExactGaussianProcess):
         # which depends on \Sigma defined below Equation (10) Titsias
         # which we call Lambda below
         Lambda = K_UU_inv + multidot((
-            K_UU_inv, K_XU.T, K_XU, K_UU_inv/noise**2))
+            K_UU_inv, K_XU.T, K_XU, K_UU_inv/noise_std**2))
         Lambda_inv = inv(Lambda)
         m = multidot((Lambda_inv, K_UU_inv, K_XU.T,
-                      self.canonical_train_values.squeeze()/noise**2))
+                      self.canonical_train_values.squeeze()/noise_std**2))
+
+        #TODO replace lamnda inv with use of cholesky factors
 
         K_ZU = self.kernel(
             Z, self.inducing_samples.get_samples())
