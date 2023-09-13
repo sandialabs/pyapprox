@@ -300,26 +300,13 @@ class ICMKernel(LMCKernel):
         super().__init__([latent_kernel], [output_kernel], noutputs)
 
 
-class SphericalCovarianceHyperParameterList(HyperParameterList):
-    def __init__(self, radii, angles):
-        super().__init__([radii, angles])
-        self.noutputs = radii.nvars
-        self._trans = SphericalCorrelationTransform(self.noutputs)
-        self.cov_matrix = None
-        self._set_covariance_matrix()
-
-    def _set_covariance_matrix(self):
-        print(self.get_values(), "V")
-        L = self._trans.map_to_cholesky(self.get_values())
-        self.cov_matrix = L@L.T
-
-    def set_active_opt_params(self, active_params):
-        print(active_params, "P")
-        super().set_active_opt_params(active_params)
-        self._set_covariance_matrix()
-
-
 class CombinedHyperParameter(HyperParameter):
+    # Some times it is more intuitive for the user to pass to seperate
+    # hyperparameters but the code requires them to be treated
+    # as a single hyperparameter, e.g. when set_active_opt_params
+    # that requires both user hyperparameters must trigger an action
+    # like updating of an internal variable not common to all hyperparameter
+    # classes
     def __init__(self, hyper_params: list):
         self.hyper_params = hyper_params
         self.bounds = vstack([hyp.bounds for hyp in self.hyper_params])
@@ -365,12 +352,10 @@ class SphericalCovarianceHyperParameter(CombinedHyperParameter):
         self._trans = SphericalCorrelationTransform(noutputs)
 
     def _set_covariance_matrix(self):
-        print(self.get_values(), "V")
         L = self._trans.map_to_cholesky(self.get_values())
         self.cov_matrix = L@L.T
 
     def set_active_opt_params(self, active_params):
-        print(active_params, "P")
         super().set_active_opt_params(active_params)
         self._set_covariance_matrix()
 
@@ -379,7 +364,7 @@ class SphericalCovarianceHyperParameter(CombinedHyperParameter):
             self.__class__.__name__, self.name, self.nvars(), self.transform,
             self.nactive_vars())
 
-  
+
 class SphericalCovariance():
     def __init__(self, noutputs, radii=1, radii_bounds=[1e-1, 1],
                  angles=np.pi/2, angle_bounds=[0, np.pi],
@@ -395,10 +380,6 @@ class SphericalCovariance():
         self._angles = HyperParameter(
             "angles", self._trans.ntheta-self.noutputs, angles, angle_bounds,
             angle_transform)
-        #self.hyp_list = HyperParameterList([self._radii, self._angles])
-        #self.hyp_list = SphericalCovarianceHyperParameterList(
-        #    self._radii, self._angles)
-        #print(self.hyp_list)
         self.hyp_list = HyperParameterList([SphericalCovarianceHyperParameter(
             [self._radii, self._angles])])
 
@@ -425,22 +406,12 @@ class SphericalCovariance():
             raise ValueError("angle bounds are inconsistent")
 
     def get_covariance_matrix(self):
-        hyp_values = self.hyp_list.get_values()
-        chol_factor = self._trans.map_to_cholesky(hyp_values)
-        return multidot((chol_factor, chol_factor.T))
+        return self.hyp_list.hyper_params[0].cov_matrix
 
     def __call__(self, ii, jj):
         # chol factor must be recomputed each time even if hyp_values have not
         # changed otherwise gradient graph becomes inconsistent
-        cov_matrix = self.get_covariance_matrix()
-        print(self.hyp_list.get_active_opt_params(), 's')
-        # self.hyp_list._set_covariance_matrix()
-        print(self.hyp_list.hyper_params[0].cov_matrix)
-        print(cov_matrix)
-        assert np.allclose(
-            self.hyp_list.hyper_params[0].cov_matrix.detach(), cov_matrix.detach())
-        return cov_matrix[ii, jj]
-        #return self.hyp_list.cov_matrix[ii, jj]
+        return self.hyp_list.hyper_params[0].cov_matrix[ii, jj]
 
     def __repr__(self):
         return "{0}(name={1}, nvars={2}, degree={3}, nterms={4})".format(

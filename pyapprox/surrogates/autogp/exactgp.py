@@ -121,7 +121,6 @@ class ExactGaussianProcess():
         raise NotImplementedError
 
     def _neg_log_likelihood(self, active_opt_params):
-        print("A", active_opt_params)
         self.hyp_list.set_active_opt_params(active_opt_params)
         return self._neg_log_likelihood_with_hyperparameter_mean()
         # return self._neg_log_likelihood_with_uncertain_mean()
@@ -141,11 +140,11 @@ class ExactGaussianProcess():
         active_opt_params.grad.zero_()
         # must set requires grad to False after gradient is computed
         # otherwise when evaluate_posterior will fail because it will
-        # still think the hyper_params require grad. Extra copies coould be
+        # still think the hyper_params require grad. Extra copies could be
         # avoided by doing this after fit is complete. However then fit
         # needs to know when torch is being used
         for hyp in self.hyp_list.hyper_params:
-            hyp.set_values(hyp.get_values().clone().detach())
+            hyp.detach()
         return val, nll_grad
 
     def _local_optimize(self, init_active_opt_params_np, bounds):
@@ -160,7 +159,7 @@ class ExactGaussianProcess():
     def _global_optimize(self, max_nglobal_opt_iters=1):
         bounds = self.hyp_list.get_active_opt_bounds().numpy()
         if len(bounds) == 0:
-            return 
+            return
         results = []
         # Start first optimizer with values set in hyperparams
         init_active_opt_params_np = self.hyp_list.get_active_opt_params()
@@ -222,8 +221,8 @@ class ExactGaussianProcess():
             self._canonical_posterior_pointwise_variance(
                 canonical_samples, kmat_pred))
         if canonical_pointwise_variance.min() < 0:
-            msg = "Some pointwise variances were negative. The largest magnitude "
-            msg += "of the negative values was {0}".format(
+            msg = "Some pointwise variances were negative. The largest "
+            msg += "magnitude of the negative values was {0}".format(
                 canonical_pointwise_variance.min())
             warnings.warn(msg, UserWarning)
         canonical_pointwise_variance[canonical_pointwise_variance < 0] = 0

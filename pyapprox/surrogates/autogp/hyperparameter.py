@@ -1,7 +1,7 @@
 import numpy as np
 from abc import ABC, abstractmethod
 from pyapprox.surrogates.autogp._torch_wrappers import (
-    log, exp, atleast1d, repeat, arange, isnan, vstack, hstack)
+    log, exp, atleast1d, repeat, arange, isnan, vstack, hstack, copy)
 
 
 class HyperParameterTransform(ABC):
@@ -69,6 +69,10 @@ class HyperParameter():
         return self._active_indices.shape[0]
 
     def set_active_opt_params(self, active_params):
+        # The copy ensures that the error
+        # "a leaf Variable that requires grad is being used in an in-place operation.
+        # is not thrown
+        self._values = copy(self._values)
         self._values[self._active_indices] = self.transform.from_opt_space(
             active_params)
 
@@ -96,13 +100,16 @@ class HyperParameter():
     def __repr__(self):
         if self.nvars() > 5:
             return "{0}(name={1}, nvars={2}, transform={3}, nactive={4})".format(
-                self.__class__.__name__, self.name, self.nvars(), self.transform,
-                self.nactive_vars())
+                self.__class__.__name__, self.name, self.nvars(),
+                self.transform, self.nactive_vars())
         return "{0}(name={1}, values={2}, transform={3}, active={4})".format(
             self.__class__.__name__, self.name,
             "["+", ".join(map("{0:.2g}".format, self.get_values()))+"]",
             self.transform,
             "["+", ".join(map("{0}".format, self._active_indices))+"]")
+
+    def detach(self):
+        self.set_values(self.get_values().detach())
 
 
 class HyperParameterList():
@@ -110,7 +117,6 @@ class HyperParameterList():
         self.hyper_params = hyper_params
 
     def set_active_opt_params(self, active_params):
-        print("T", self)
         cnt = 0
         for hyp in self.hyper_params:
             hyp.set_active_opt_params(
