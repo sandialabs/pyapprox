@@ -39,7 +39,7 @@ class MaternKernel(Kernel):
                  lenscale: Union[float, array],
                  lenscale_bounds: array,
                  nvars: int):
-        self.nvars = nvars
+        self._nvars = nvars
         self.nu = nu
         self._lenscale = HyperParameter(
             "lenscale", nvars, lenscale, lenscale_bounds,
@@ -72,6 +72,9 @@ class MaternKernel(Kernel):
             Y = asarray(Y)
         distances = cdist(X.T/lenscale, Y.T/lenscale)
         return self._eval_distance_form(distances)
+
+    def nvars(self):
+        return self._nvars
 
 
 class ConstantKernel(Kernel):

@@ -941,7 +941,6 @@ def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps)):
 
 def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
     function_val, directional_derivative = fun(zz, direction)
-    print("A")
     if isinstance(function_val, np.ndarray):
         function_val = function_val.squeeze()
 

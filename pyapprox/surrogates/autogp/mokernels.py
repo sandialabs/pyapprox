@@ -4,7 +4,7 @@ import numpy as np
 from pyapprox.surrogates.autogp.kernels import Kernel
 from pyapprox.surrogates.autogp._torch_wrappers import (
     full, asarray, hstack, vstack, cholesky, solve_triangular, multidot,
-    cos, to_numpy, atleast1d, repeat, empty)
+    cos, to_numpy, atleast1d, repeat, empty, log)
 from pyapprox.surrogates.autogp.hyperparameter import (
     HyperParameter, HyperParameterList, IdentityHyperParameterTransform)
 from pyapprox.surrogates.autogp.transforms import (
@@ -185,21 +185,22 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
             return full((samples.shape[1], 1), 1.)
         return None
 
-    def _cholesky(self, blocks, block_format=False):
+    @staticmethod
+    def _cholesky(noutputs, blocks, block_format=False):
         chol_blocks = []
         L_A_inv_B_list = []
-        for ii in range(self.noutputs-1):
-            row = [None for ii in range(self.noutputs)]
-            for jj in range(self.noutputs):
+        for ii in range(noutputs-1):
+            row = [None for ii in range(noutputs)]
+            for jj in range(noutputs):
                 if jj == ii:
                     row[ii] = cholesky(blocks[ii][ii])
                 elif not block_format:
                     row[jj] = full(
                         (blocks[ii][ii].shape[0],
-                         blocks[jj][self.noutputs-1].shape[0]), 0.)
+                         blocks[jj][noutputs-1].shape[0]), 0.)
             chol_blocks.append(row)
             L_A_inv_B_list.append(solve_triangular(row[ii], blocks[ii][-1]))
-        B = np.vstack([blocks[jj][-1] for jj in range(self.noutputs-1)]).T
+        B = vstack([blocks[jj][-1] for jj in range(noutputs-1)]).T
         D = blocks[-1][-1]
         L_A_inv_B = vstack(L_A_inv_B_list)
         if not block_format:
@@ -221,6 +222,55 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         L[cnt:, :cnt] = C
         L[cnt:, cnt:] = D
         return L
+
+    @staticmethod
+    def _logdet(A, C, D):
+        log_det = 0
+        for ii, row in enumerate(A):
+            log_det += 2*log(row[ii].diag()).sum()
+        log_det += 2*log(D.diag()).sum()
+        return log_det
+
+    @staticmethod
+    def _lower_solve_triangular(A, C, D, values):
+        # Solve Lx=y when L is the cholesky factor
+        # of a peer kernel
+        coefs = []
+        cnt = 0
+        for ii, row in enumerate(A):
+            coefs.append(
+                solve_triangular(
+                    row[ii], values[cnt:cnt+row[ii].shape[0]], upper=False))
+            cnt += row[ii].shape[0]
+        coefs = vstack(coefs)
+        coefs = vstack(
+            (coefs, solve_triangular(D,  values[cnt:]-C@coefs, upper=False)))
+        return coefs
+
+    @staticmethod
+    def _upper_solve_triangular(A, C, D, values):
+        # Solve L^Tx=y when L is the cholesky factor
+        # of a peer kernel.
+        # A, C, D all are from lower-triangular factor L (not L^T)
+        # so must take transpose of all blocks
+        idx1 = values.shape[0]
+        idx0 = idx1 - D.shape[1]
+        coefs = [solve_triangular(D.T, values[idx0:idx1], upper=True)]
+        for ii, row in reversed(list(enumerate(A))):
+            idx1 = idx0
+            idx0 -= row[ii].shape[1]
+            C_sub = C[:, idx0:idx1]
+            coefs = (
+                [solve_triangular(
+                    row[ii].T, values[idx0:idx1]-C_sub.T @ coefs[-1],
+                    upper=True)] + coefs)
+        coefs = vstack(coefs)
+        return coefs
+
+    @staticmethod
+    def _cholesky_solve(A, C, D, values):
+        gamma = MultiPeerKernel._lower_solve_triangular(A, C, D, values)
+        return MultiPeerKernel._upper_solve_triangular(A, C, D, gamma)
 
 
 class MultiLevelKernel(SpatiallyScaledMultiOutputKernel):
@@ -350,6 +400,7 @@ class SphericalCovarianceHyperParameter(CombinedHyperParameter):
         self.transform = IdentityHyperParameterTransform()
         noutputs = hyper_params[0].nvars()
         self._trans = SphericalCorrelationTransform(noutputs)
+        self._set_covariance_matrix()
 
     def _set_covariance_matrix(self):
         L = self._trans.map_to_cholesky(self.get_values())

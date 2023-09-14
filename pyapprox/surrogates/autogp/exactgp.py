@@ -11,6 +11,7 @@ from pyapprox.surrogates.autogp._torch_wrappers import (
 from pyapprox.surrogates.autogp.kernels import Kernel, Monomial
 from pyapprox.surrogates.autogp.transforms import (
     StandardDeviationValuesTransform)
+from pyapprox.surrogates.autogp.mokernels import MultiPeerKernel
 
 
 class ExactGaussianProcess():
@@ -65,15 +66,16 @@ class ExactGaussianProcess():
         # can be specialized when _factor_training_kernel_matrix is specialized
         diff = (self.canonical_train_values -
                 self._canonical_mean(self.canonical_train_samples))
-        try:
-            return cholesky_solve(args[0], diff)
-        except:
-            # cholesky failed
-            return None
+        return cholesky_solve(args[0], diff)
+
+    def _Linv_y(self, *args):
+        diff = (self.canonical_train_values -
+                self._canonical_mean(self.canonical_train_samples))
+        return solve_triangular(args[0], diff)
 
     def _log_determinant(self, coef_res: Tuple) -> float:
         # can be specialized when _factor_training_kernel_matrix is specialized
-        chol_factor = coef_res
+        chol_factor = coef_res[0]
         return 2*log(diag(chol_factor)).sum()
 
     def _canonical_posterior_pointwise_variance(
@@ -92,15 +94,11 @@ class ExactGaussianProcess():
         # this can also be used if treating the mean as hyper_params
         # but cannot be used if assuming a prior on the coefficients
         coef_args = self._factor_training_kernel_matrix()
-        coef = self._solve_coefficients(*coef_args)
-        if coef is None:
-            return np.inf
+        Linv_y = self._Linv_y(*coef_args)
         nsamples = self.canonical_train_values.shape[0]
-        diff = (self.canonical_train_values -
-                self._canonical_mean(self.canonical_train_samples))
         return 0.5 * (
-            multidot((diff.T, coef)) +
-            self._log_determinant(*coef_args) +
+            multidot((Linv_y.T, Linv_y)) +
+            self._log_determinant(coef_args) +
             nsamples*np.log(2*np.pi)
         ).sum(axis=1)
 
@@ -333,3 +331,44 @@ class MOExactGaussianProcess(ExactGaussianProcess):
         if self.canonical_train_samples[0].shape[0] != nvars:
             raise ValueError("nvars is inconsistent with training data")
         return self.plot_1d(ax, bounds, output_id, **kwargs)
+
+
+class MOPeerExactGaussianProcess(MOExactGaussianProcess):
+    def _solve_coefficients(self, *args) -> Tuple:
+        # can be specialized when _factor_training_kernel_matrix is specialized
+        diff = (self.canonical_train_values -
+                self._canonical_mean(self.canonical_train_samples))
+        return MultiPeerKernel._cholesky_solve(*args, diff)
+
+    def _log_determinant(self, coef_res: Tuple) -> float:
+        # can be specialized when _factor_training_kernel_matrix is specialized
+        return MultiPeerKernel._logdet(*coef_res)
+
+    def _training_kernel_matrix(self) -> Tuple:
+        # must only pass in X and not Y to kernel otherwise if noise kernel
+        # is present it will not be evaluted correctly.
+        blocks = self.kernel(self.canonical_train_samples, block_format=True)
+        for ii in range(len(blocks)):
+            blocks[ii][ii] = (
+                blocks[ii][ii] +
+                eye(blocks[ii][ii].shape[0])*float(self.kernel_reg))
+        return blocks
+
+    def _factor_training_kernel_matrix(self):
+        # can be specialized
+        blocks = self._training_kernel_matrix()
+        return MultiPeerKernel._cholesky(
+            len(blocks[0]), blocks, block_format=True)
+
+    def _Linv_y(self, *args):
+        diff = (self.canonical_train_values -
+                self._canonical_mean(self.canonical_train_samples))
+        return MultiPeerKernel._lower_solve_triangular(*args, diff)
+
+    def _canonical_posterior_pointwise_variance(
+            self, canonical_samples, kmat_pred):
+        # can be specialized when _factor_training_kernel_matrix is specialized
+        tmp = MultiPeerKernel._lower_solve_triangular(
+            *self._coef_args, kmat_pred.T)
+        update = einsum("ji,ji->i", tmp, tmp)
+        return (self.kernel.diag(canonical_samples) - update)[:, None]

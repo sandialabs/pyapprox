@@ -106,8 +106,8 @@ def cholesky_solve(chol_factor, rhs):
     return torch.cholesky_solve(rhs, chol_factor)
 
 
-def solve_triangular(mat, rhs):
-    return torch.linalg.solve_triangular(mat, rhs, upper=False)
+def solve_triangular(mat, rhs, upper=False):
+    return torch.linalg.solve_triangular(mat, rhs, upper=upper)
 
 
 def diag(mat):

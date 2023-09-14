@@ -1,11 +1,13 @@
 import unittest
 import numpy as np
+import scipy
 
 from pyapprox.surrogates.autogp.kernels import (
     Monomial, MaternKernel, ConstantKernel)
 from pyapprox.surrogates.autogp.mokernels import (
     MultiLevelKernel, MultiPeerKernel, _get_recursive_scaling_matrix,
     SphericalCovariance, ICMKernel, CollaborativeKernel)
+from pyapprox.surrogates.autogp._torch_wrappers import asarray
 
 
 class TestMultiOutputKernels(unittest.TestCase):
@@ -168,8 +170,7 @@ class TestMultiOutputKernels(unittest.TestCase):
         for nsamples, r in zip(nsamples_per_output_0, radii):
             assert np.allclose(kmat_diag[cnt:cnt+nsamples], r**2)
             cnt += nsamples
-        np.set_printoptions(linewidth=1000)
-        cmat = kernel.output_kernels[0]._cov_matrix
+        cmat = kernel.output_kernels[0].get_covariance_matrix()
         from pyapprox.util.utilities import get_correlation_from_covariance
         assert np.allclose(
             kernel.get_output_kernel_correlations_from_psi(0),
@@ -185,7 +186,7 @@ class TestMultiOutputKernels(unittest.TestCase):
             for nsamples in nsamples_per_output_0]
         kernel = ICMKernel(latent_kernel, output_kernel, noutputs)
         kmat = kernel(samples_per_output)
-        cmat = kernel.output_kernels[0]._cov_matrix
+        cmat = kernel.output_kernels[0].get_covariance_matrix()
         assert np.allclose(
             kmat.numpy(), np.kron(cmat, latent_kernel(base_training_samples)),
             atol=1e-12)
@@ -278,6 +279,45 @@ class TestMultiOutputKernels(unittest.TestCase):
             latent_kernels, output_kernels, discrepancy_kernels, noutputs)
         co_kmat = co_kernel(samples_per_output)
         assert np.allclose(peer_kmat, co_kmat)
+
+    def test_block_cholesky(self):
+        noutputs, nvars, degree = 4, 1, 0
+        nsamples_per_output = np.arange(2, 2+noutputs)[::-1]
+        kernels = [MaternKernel(np.inf, 1.0, [1e-1, 1], nvars)
+                   for ii in range(noutputs)]
+        scalings = [
+            Monomial(nvars, degree, 2, [-1, 2], name=f'scaling{ii}')
+            for ii in range(noutputs-1)]
+        kernel = MultiPeerKernel(kernels, scalings)
+        base_training_samples = np.random.uniform(
+            -1, 1, (nvars, nsamples_per_output[0]))
+        # samples must be nested for tests to work
+        samples_per_output = [
+            base_training_samples[:, :nsamples]
+            for nsamples in nsamples_per_output]
+
+        kmat = kernel(samples_per_output, block_format=False)
+        L_true = np.linalg.cholesky(kmat)
+
+        blocks = kernel(samples_per_output, block_format=True)
+        L = kernel._cholesky(noutputs, blocks, block_format=False)
+        assert np.allclose(L, L_true)
+
+        L_blocks = kernel._cholesky(noutputs, blocks, block_format=True)
+        L = kernel._cholesky_blocks_to_dense(*L_blocks)
+        assert np.allclose(L, L_true)
+        assert np.allclose(
+            kernel._logdet(*L_blocks), np.linalg.slogdet(kmat)[1])
+        values = np.random.normal(0, 1, (L.shape[1], 1))
+        assert np.allclose(
+            kernel._lower_solve_triangular(*L_blocks, asarray(values)),
+            scipy.linalg.solve_triangular(L, values, lower=True))
+        assert np.allclose(
+            kernel._upper_solve_triangular(*L_blocks, asarray(values)),
+            scipy.linalg.solve_triangular(L.T, values, lower=False))
+        assert np.allclose(
+            kernel._cholesky_solve(*L_blocks, asarray(values)),
+            np.linalg.inv(kmat) @ values)
 
 
 if __name__ == "__main__":

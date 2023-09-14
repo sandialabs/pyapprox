@@ -1,15 +1,16 @@
 import unittest
 import numpy as np
+from functools import partial
 
 from pyapprox.util.utilities import check_gradients
 from pyapprox.surrogates.autogp.kernels import (
     MaternKernel, Monomial, ConstantKernel, GaussianNoiseKernel)
 from pyapprox.surrogates.autogp.mokernels import (
-    SphericalCovariance, ICMKernel)
+    SphericalCovariance, ICMKernel, MultiPeerKernel)
 from pyapprox.surrogates.autogp.hyperparameter import (
     LogHyperParameterTransform, HyperParameter)
 from pyapprox.surrogates.autogp.exactgp import (
-    ExactGaussianProcess, MOExactGaussianProcess)
+    ExactGaussianProcess, MOExactGaussianProcess, MOPeerExactGaussianProcess)
 from pyapprox.surrogates.autogp.variationalgp import (
     InducingGaussianProcess, InducingSamples,
     _log_prob_gaussian_with_noisy_nystrom_covariance)
@@ -107,7 +108,8 @@ class TestGaussianProcess(unittest.TestCase):
         x0 = np.random.uniform(
             bounds[:, 0], bounds[:, 1])
         errors = check_gradients(
-            lambda x: gp._fit_objective(x[:, 0]), True, x0[:, None])
+            lambda x: gp._fit_objective(x[:, 0]), True, x0[:, None],
+            disp=False)
         assert errors.min()/errors.max() < 1e-6
 
         gp.fit(train_samples, train_values)
@@ -222,7 +224,8 @@ class TestGaussianProcess(unittest.TestCase):
         # x0 = gp._get_random_optimizer_initial_guess(bounds)
         x0 = gp.hyp_list.get_active_opt_params().numpy()
         errors = check_gradients(
-            lambda x: gp._fit_objective(x[:, 0]), True, x0[:, None])
+            lambda x: gp._fit_objective(x[:, 0]), True, x0[:, None],
+            disp=False)
         assert errors.min()/errors.max() < 1e-6
 
         gp.fit(train_samples, train_values, max_nglobal_opt_iters=1)
@@ -357,6 +360,65 @@ class TestGaussianProcess(unittest.TestCase):
         # ax.plot(gp.train_samples[0][0], gp.train_values[0], 'o')
         # ax.plot(gp.train_samples[1][0], gp.train_values[1], 's')
         # plt.show()
+
+    def test_peer_gaussian_process(self):
+        nvars, noutputs = 1, 2
+        degree = 0
+        kernels = [MaternKernel(np.inf, 1.0, [1e-1, 1], nvars)
+                   for ii in range(noutputs)]
+        scalings = [
+            Monomial(nvars, degree, 1, [-1, 2], name=f'scaling{ii}')
+            for ii in range(noutputs-1)]
+        kernel = MultiPeerKernel(kernels, scalings)
+
+        def peer_fun(delta, xx):
+            return np.cos(2*np.pi*xx.T+delta)
+
+        def target_fun(peer_funs, xx):
+            return (
+                np.hstack([f(xx) for f in peer_funs]).sum(axis=1)[:, None] +
+                np.exp(-xx.T**2*2))
+
+        peer_deltas = np.linspace(0, 1, noutputs-1)
+        peer_funs = [partial(peer_fun, delta) for delta in peer_deltas]
+        funs = peer_funs + [partial(target_fun, peer_funs)]
+
+        nsamples_per_output = np.array([5 for ii in range(noutputs-1)]+[4])*2
+        samples_per_output = [
+            np.random.uniform(-1, 1, (nvars, nsamples))
+            for nsamples in nsamples_per_output]
+
+        values_per_output = [
+            fun(samples) for fun, samples in zip(funs, samples_per_output)]
+
+        gp = MOExactGaussianProcess(
+            nvars, kernel, mean=None, values_trans=IdentityValuesTransform(),
+            kernel_reg=0)
+        gp.fit(samples_per_output, values_per_output, max_nglobal_opt_iters=3)
+
+        # import matplotlib.pyplot as plt
+        # axs = plt.subplots(1, noutputs, figsize=(noutputs*8, 6))[1]
+        # xx = np.linspace(-1, 1, 101)[None, :]
+        # for ii in range(noutputs):
+        #     gp.plot(axs[ii], [-1, 1], output_id=ii)
+        #     axs[ii].plot(xx[0], funs[ii](xx), '--')
+        #     axs[ii].plot(gp.train_samples[ii][0], gp.train_values[ii], 'o')
+        # plt.show()
+
+        # check that when using hyperparameters found by dense GP the PeerGP
+        # return the same likelihood value and prediction mean and std. dev.
+        peer_gp = MOPeerExactGaussianProcess(
+            nvars, kernel, mean=None, values_trans=IdentityValuesTransform(),
+            kernel_reg=0)
+        peer_gp.set_training_data(samples_per_output, values_per_output)
+        assert np.allclose(
+            gp._neg_log_likelihood_with_hyperparameter_mean(),
+            peer_gp._neg_log_likelihood_with_hyperparameter_mean())
+        xx = np.linspace(-1, 1, 31)[None, :]
+        gp_mean, gp_std = gp([xx]*noutputs, return_std=True)
+        peer_gp_mean, peer_gp_std = peer_gp([xx]*noutputs, return_std=True)
+        assert np.allclose(peer_gp_mean, gp_mean)
+        assert np.allclose(peer_gp_std, gp_std)
 
 
 if __name__ == "__main__":
