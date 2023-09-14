@@ -251,14 +251,22 @@ class ExactGaussianProcess():
                  fill_kwargs, plt_kwargs, plot_samples):
         if plot_samples is None:
             plot_samples = test_samples[0, :]
-        im0 = ax.fill_between(
+        im0 = ax.plot(plot_samples, gp_mean, **plt_kwargs)
+        color = im0[-1].get_color()
+        if "color" not in fill_kwargs:
+            fill_kwargs["color"] = color
+            added_fill_color = True
+        else:
+            added_fill_color = False
+        im1 = ax.fill_between(
             plot_samples, gp_mean-nstdevs*gp_std,
             gp_mean+nstdevs*gp_std, **fill_kwargs)
-        im1 = ax.plot(plot_samples, gp_mean, **plt_kwargs)
+        if added_fill_color:
+            del fill_kwargs["color"]
         return [im0, im1]
 
     def plot_1d(self, ax, bounds, npts_1d=101, nstdevs=2, plt_kwargs={},
-                fill_kwargs={}, prior_kwargs=None, plot_samples=None):
+                fill_kwargs={'alpha': 0.3}, prior_kwargs=None, plot_samples=None):
         test_samples = np.linspace(
             bounds[0], bounds[1], npts_1d)[None, :]
         gp_mean, gp_std = self(test_samples, return_std=True)
@@ -320,7 +328,7 @@ class MOExactGaussianProcess(ExactGaussianProcess):
             ax, test_samples, gp_mean, gp_std, nstdevs, **prior_kwargs)
         return ims
 
-    def plot(self, ax, bounds, output_id=0, **kwargs):
+    def plot(self, ax, bounds, output_id=-1, **kwargs):
         if len(bounds) % 2 != 0:
             raise ValueError(
                 "Lower and upper bounds must be provied for each dimension")

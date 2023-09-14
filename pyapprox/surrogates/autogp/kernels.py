@@ -211,6 +211,10 @@ class Monomial():
         return monomial_basis_matrix(self.indices, asarray(samples))
 
     def __call__(self, samples):
+        if self.degree == 0:
+            vals = empty((samples.shape[1], 1))
+            vals[:] = self._coef.get_values()
+            return vals
         basis_mat = self.basis_matrix(samples)
         vals = basis_mat @ self._coef.get_values()
         return asarray(vals[:, None])
