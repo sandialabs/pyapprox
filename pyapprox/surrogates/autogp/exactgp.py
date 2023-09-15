@@ -99,7 +99,7 @@ class ExactGaussianProcess():
         # but cannot be used if assuming a prior on the coefficients
         coef_args = self._factor_training_kernel_matrix()
         if coef_args[0] is None:
-            return coef_args[1][0, 0]*0
+            return coef_args[1][0, 0]*0+np.inf
         Linv_y = self._Linv_y(*coef_args)
         nsamples = self.canonical_train_values.shape[0]
         return 0.5 * (
@@ -152,22 +152,12 @@ class ExactGaussianProcess():
         return val, nll_grad
 
     def _local_optimize(self, init_active_opt_params_np, bounds):
-        if not hasattr(self, "_constraints"):
-            method = "L-BFGS-B"
-            res = scipy.optimize.minimize(
-                self._fit_objective, init_active_opt_params_np, method=method,
-                jac=True, bounds=bounds)
-            return res
-        optim_options = {'disp': True, 'gtol': 1e-10,
-                         'maxiter': 1000, "verbose": 0}
-        method = "trust-constr"
-        # optim_options = {'disp': True, 'ftol': 1e-10,
-        #                  'maxiter': 1000, "iprint": 0}
-        # method = "slsqp"
+        method = "L-BFGS-B"
         res = scipy.optimize.minimize(
             self._fit_objective, init_active_opt_params_np, method=method,
-            jac=True, bounds=bounds, constraints=self._constraints,
-            options=optim_options)
+            jac=True, bounds=bounds, options={"iprint": -1})
+        print(res.x, 'x')
+        print(res.jac)
         return res
 
     def _get_random_optimizer_initial_guess(self, bounds):
@@ -285,7 +275,8 @@ class ExactGaussianProcess():
         return [im0, im1]
 
     def plot_1d(self, ax, bounds, npts_1d=101, nstdevs=2, plt_kwargs={},
-                fill_kwargs={'alpha': 0.3}, prior_kwargs=None, plot_samples=None):
+                fill_kwargs={'alpha': 0.3}, prior_kwargs=None,
+                plot_samples=None):
         test_samples = np.linspace(
             bounds[0], bounds[1], npts_1d)[None, :]
         gp_mean, gp_std = self(test_samples, return_std=True)
@@ -401,3 +392,68 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
             *self._coef_args, kmat_pred.T)
         update = einsum("ji,ji->i", tmp, tmp)
         return (self.kernel.diag(canonical_samples) - update)[:, None]
+
+
+class MOICMPeerExactGaussianProcess(MOExactGaussianProcess):
+    def __init__(self,
+                 nvars: int,
+                 kernel: Kernel,
+                 output_kernel,
+                 kernel_reg: float = 0,
+                 var_trans=None,
+                 values_trans=None):
+        super().__init__(
+            nvars, kernel, kernel_reg, var_trans, values_trans, None)
+        self.output_kernel = output_kernel
+
+    @staticmethod
+    def _constraint_fun(active_opt_params_np, *args):
+        ii, jj, gp, okernel = args
+        active_opt_params = torch.tensor(
+            active_opt_params_np, dtype=torch.double, requires_grad=False)
+        gp.hyp_list.set_active_opt_params(active_opt_params)
+        val = okernel(ii, jj).item()
+        # val = log(okernel(ii, jj)).item()-np.log(1e-16)
+        return val
+
+    @staticmethod
+    def _constraint_jac(active_opt_params_np, *args):
+        ii, jj, gp, okernel = args
+        active_opt_params = torch.tensor(
+            active_opt_params_np, dtype=torch.double, requires_grad=True)
+        gp.hyp_list.set_active_opt_params(active_opt_params)
+        val = okernel(ii, jj)
+        # val = log(okernel(ii, jj))-np.log(1e-16)
+        val.backward()
+        grad = active_opt_params.grad.detach().numpy().copy()
+        active_opt_params.grad.zero_()
+        for hyp in gp.hyp_list.hyper_params:
+            hyp.detach()
+        return grad
+
+    def _get_constraints(self, noutputs):
+        icm_cons = []
+        for ii in range(2, noutputs):
+            for jj in range(1, ii):
+                con = {'type': 'eq',
+                       'fun': self._constraint_fun,
+                       'jac': self._constraint_jac,
+                       'args': (ii, jj, self, self.output_kernel)}
+                icm_cons.append(con)
+        return icm_cons
+
+    def _local_optimize(self, init_active_opt_params_np, bounds):
+        method = "trust-constr"
+        # method = "slsqp"
+        if method == "trust-constr":
+            optim_options = {'disp': True, 'gtol': 1e-8,
+                             'maxiter': 1000, "verbose": 0}
+        if method == "slsqp":
+            optim_options = {'disp': True, 'ftol': 1e-10,
+                             'maxiter': 1000, "iprint": 0}
+        res = scipy.optimize.minimize(
+            self._fit_objective, init_active_opt_params_np, method=method,
+            jac=True, bounds=bounds,
+            constraints=self._get_constraints(len(self.train_values)),
+            options=optim_options)
+        return res

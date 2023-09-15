@@ -465,9 +465,9 @@ class SphericalCovariance():
         return self.hyp_list.hyper_params[0].cov_matrix[ii, jj]
 
     def __repr__(self):
-        return "{0}(name={1}, nvars={2}, degree={3}, nterms={4})".format(
-            self.__class__.__name__, self._coef.name, self.nvars,
-            self.self.degree, self.nterms)
+        return "{0}(radii={1}, angles={2} cov={3})".format(
+            self.__class__.__name__, self._radii, self._angles,
+            self.get_covariance_matrix().detach().numpy())
 
 
 class CollaborativeKernel(LMCKernel):

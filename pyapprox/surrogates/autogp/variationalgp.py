@@ -30,6 +30,8 @@ def _log_prob_gaussian_with_noisy_nystrom_covariance(
                     gamma.T@gamma)/noise_std**2)
     return log_pdf
 
+# see Alvarez Efficient Multioutput Gaussian Processes through Variational Inducing Kernels for details how to generaize from noise covariance sigma^2I to \Sigma
+
 
 class InducingSamples():
     def __init__(self, nvars, ninducing_samples, inducing_variable=None,
