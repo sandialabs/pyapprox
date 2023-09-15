@@ -60,7 +60,11 @@ class ExactGaussianProcess():
 
     def _factor_training_kernel_matrix(self):
         # can be specialized
-        return (cholesky(self._training_kernel_matrix()), )
+        kmat = self._training_kernel_matrix()
+        try:
+            return (cholesky(kmat), )
+        except:
+            return None, kmat
 
     def _solve_coefficients(self, *args) -> Tuple:
         # can be specialized when _factor_training_kernel_matrix is specialized
@@ -94,6 +98,8 @@ class ExactGaussianProcess():
         # this can also be used if treating the mean as hyper_params
         # but cannot be used if assuming a prior on the coefficients
         coef_args = self._factor_training_kernel_matrix()
+        if coef_args[0] is None:
+            return coef_args[1][0, 0]*0
         Linv_y = self._Linv_y(*coef_args)
         nsamples = self.canonical_train_values.shape[0]
         return 0.5 * (
@@ -146,9 +152,22 @@ class ExactGaussianProcess():
         return val, nll_grad
 
     def _local_optimize(self, init_active_opt_params_np, bounds):
+        if not hasattr(self, "_constraints"):
+            method = "L-BFGS-B"
+            res = scipy.optimize.minimize(
+                self._fit_objective, init_active_opt_params_np, method=method,
+                jac=True, bounds=bounds)
+            return res
+        optim_options = {'disp': True, 'gtol': 1e-10,
+                         'maxiter': 1000, "verbose": 0}
+        method = "trust-constr"
+        # optim_options = {'disp': True, 'ftol': 1e-10,
+        #                  'maxiter': 1000, "iprint": 0}
+        # method = "slsqp"
         res = scipy.optimize.minimize(
-            self._fit_objective, init_active_opt_params_np, method="L-BFGS-B",
-            jac=True, bounds=bounds)
+            self._fit_objective, init_active_opt_params_np, method=method,
+            jac=True, bounds=bounds, constraints=self._constraints,
+            options=optim_options)
         return res
 
     def _get_random_optimizer_initial_guess(self, bounds):
@@ -363,10 +382,12 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
         return blocks
 
     def _factor_training_kernel_matrix(self):
-        # can be specialized
         blocks = self._training_kernel_matrix()
-        return MultiPeerKernel._cholesky(
-            len(blocks[0]), blocks, block_format=True)
+        try:
+            return MultiPeerKernel._cholesky(
+                len(blocks[0]), blocks, block_format=True)
+        except:
+            return None, blocks[0][0][0]
 
     def _Linv_y(self, *args):
         diff = (self.canonical_train_values -

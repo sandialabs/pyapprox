@@ -796,7 +796,7 @@ class ACVEstimator(MCEstimator):
             if optim_method == "SLSQP":
                 optim_options = {'disp': True, 'ftol': 1e-10,
                                  'maxiter': 10000, "iprint": 0}
-            elif optim_method == "trust-contr":
+            elif optim_method == "trust-constr":
                 optim_options = {'disp': True, 'gtol': 1e-10,
                                  'maxiter': 10000}
                 raise ValueError(f"{optim_method} not supported")
