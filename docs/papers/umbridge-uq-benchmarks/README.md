@@ -77,7 +77,10 @@ $$ f(z) = \exp\left( -\sum_{d=1}^D c_d\lvert z_d-w_d\rvert\right)$$
 
 Discontinuous ('discontinuous')
 
-$$ f(z) = \begin{cases}0 & z_1>w_1 \;\mathrm{or}\; z_2>w_2\\\exp\left(\sum_{d=1}^D c_dz_d\right) & \mathrm{otherwise}\end{cases}$$
+$$ f(z) = \begin{cases}
+0 & z_1>w_1 \;\mathrm{or}\; z_2>w_2\\
+\exp\left(\sum_{d=1}^D c_dz_d\right) & \mathrm{otherwise}
+\end{cases}$$
 
 Increasing $\lVert c \rVert$ will in general make
 the integrands more difficult.
