@@ -55,67 +55,65 @@ None |
 ## Description
 The six Genz test function are:
 
-    Oscillatory ('oscillatory')
+Oscillatory ('oscillatory')
 
-    $$ f(z) = \cos\left(2\pi w_1 + \sum_{d=1}^D c_dz_d\right)$$
+$$ f(z) = \cos\left(2\pi w_1 + \sum_{d=1}^D c_dz_d\right)$$
 
-    Product Peak ('product_peak')
+Product Peak ('product_peak')
 
-    $$ f(z) = \prod_{d=1}^D \left(c_d^{-2}+(z_d-w_d)^2\right)^{-1}$$
+$$ f(z) = \prod_{d=1}^D \left(c_d^{-2}+(z_d-w_d)^2\right)^{-1}$$
 
-    Corner Peak ('corner_peak')
+Corner Peak ('corner_peak')
 
-    $$ f(z)=\left( 1+\sum_{d=1}^D c_dz_d\right)^{-(D+1)}$$
+$$ f(z)=\left( 1+\sum_{d=1}^D c_dz_d\right)^{-(D+1)}$$
 
-    Gaussian Peak ('gaussian')
+Gaussian Peak ('gaussian')
 
-    $$ f(z) = \exp\left( -\sum_{d=1}^D c_d^2(z_d-w_d)^2\right)$$
+$$ f(z) = \exp\left( -\sum_{d=1}^D c_d^2(z_d-w_d)^2\right)$$
 
-    C0 Continuous ('c0continuous')
+C0 Continuous ('c0continuous')
 
-    $$ f(z) = \exp\left( -\sum_{d=1}^D c_d\lvert z_d-w_d\rvert\right)$$
+$$ f(z) = \exp\left( -\sum_{d=1}^D c_d\lvert z_d-w_d\rvert\right)$$
 
-    Discontinuous ('discontinuous')
+Discontinuous ('discontinuous')
 
-    $$ f(z) = \begin{cases}0 & z_1>w_1 \;\mathrm{or}\; z_2>w_2\\\exp\left(\sum_{d=1
-}^D c_dz_d\right) & \mathrm{otherwise}\end{cases}$$
+$$ f(z) = \begin{cases}0 & z_1>w_1 \;\mathrm{or}\; z_2>w_2\\\exp\left(\sum_{d=1}^D c_dz_d\right) & \mathrm{otherwise}\end{cases}$$
 
-    Increasing $\lVert c \rVert$ will in general make
-    the integrands more difficult.
+Increasing $\lVert c \rVert$ will in general make
+the integrands more difficult.
 
-    The $0\le w_d \le 1$ parameters do not affect the difficulty
-    of the integration problem. We set $w_1=w_2=\ldots=W_D$.
+The $0\le w_d \le 1$ parameters do not affect the difficulty
+of the integration problem. We set $w_1=w_2=\ldots=W_D$.
 
-    The coefficient types implement different decay rates for $c_d$.
-    This allows testing of methods that can identify and exploit anisotropy.
-    They are as follows:
+The coefficient types implement different decay rates for $c_d$.
+This allows testing of methods that can identify and exploit anisotropy.
+They are as follows:
 
-    No decay (none)
+No decay (none)
 
-    $$ \hat{c}_d=\frac{d+0.5}{D}$$
+$$ \hat{c}_d=\frac{d+0.5}{D}$$
 
-    Quadratic decay (qudratic)
+Quadratic decay (qudratic)
 
-    $$ \hat{c}_d = \frac{1}{(D + 1)^2}$$
+$$ \hat{c}_d = \frac{1}{(D + 1)^2}$$
 
-    Quartic decay (quartic)
+Quartic decay (quartic)
 
-    $$ \hat{c}_d = \frac{1}{(D + 1)^4}$$
+$$ \hat{c}_d = \frac{1}{(D + 1)^4}$$
 
-    Exponential decay (exp)
+Exponential decay (exp)
 
-    $$ \hat{c}_d=\exp\left(\log(c_\mathrm{min})\frac{d+1}{D}\right)$$
+$$ \hat{c}_d=\exp\left(\log(c_\mathrm{min})\frac{d+1}{D}\right)$$
 
-    Squared-exponential decay (sqexp)
+Squared-exponential decay (sqexp)
 
-    $$ \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D}\right)}$$
+$$ \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D}\right)}$$
 
-    Here $c_\mathrm{min}$ is argument that sets the minimum value of $c_D$.
+Here $c_\mathrm{min}$ is argument that sets the minimum value of $c_D$.
 
-    Once the formula are used the coefficients are normalized such that
+Once the formula are used the coefficients are normalized such that
 
-    $$ c_d = c_\text{factor}\frac{\hat{c}_d}{\sum_{d=1}^D \hat{c}_d}.$$
-    """
+$$ c_d = c_\text{factor}\frac{\hat{c}_d}{\sum_{d=1}^D \hat{c}_d}.$$
 
 ## References
 This benchmark was first proposed [here.](https://doi.org/10.1007/978-94-009-3889-2_33)
