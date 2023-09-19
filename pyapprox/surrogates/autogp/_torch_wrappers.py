@@ -140,3 +140,11 @@ def eye(nn, dtype=None):
 
 def trace(matrix):
     return torch.trace(matrix)
+
+
+def solve(matrix, vec):
+    return torch.linalg.solve(matrix, vec)
+
+
+def pinv(matrix):
+    return torch.linalg.pinv(matrix)
