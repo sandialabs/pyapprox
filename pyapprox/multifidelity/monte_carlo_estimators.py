@@ -1354,44 +1354,56 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         self.rounded_target_cost = None
         self.nsamples_per_model = None
 
-    def _get_nsamples_per_model(self):
+    def _get_nsamples_per_model(self, subsets, nsamples_per_subset):
         nsamples_per_model = np.zeros(self.nmodels)
-        for jj, subset in enumerate(self.subsets):
-            nsamples_per_model[subset] += self.nsamples_per_subset[jj]
+        for jj, subset in enumerate(subsets):
+            nsamples_per_model[subset] += nsamples_per_subset[jj]
         return nsamples_per_model
 
-    def allocate_samples(self, target_cost, asketch=None,
-                         constraint_reg=1e-12, round_nsamples=True):
-        """
-        Parameters
-        ----------
-        """
-        nmodels = len(self.costs)
-        if asketch is None:
-            asketch = np.zeros((nmodels, 1))
-            asketch[0] = 1.0
-        assert asketch.shape[0] == self.costs.shape[0]
-        init_guess = np.full(2**nmodels-1, (1/(2**nmodels-1)))
-        obj = partial(BLUE_variance, asketch, self.cov,
-                      self.costs, self._reg_blue, return_grad=True)
-        constraints = [
+    def _objective(self, asketch, nsamples_per_subset):
+        return BLUE_variance(
+            asketch, self.cov, self.costs, self._reg_blue,
+            nsamples_per_subset, return_grad=True)
+
+    @staticmethod
+    def _get_constraints(target_cost, constraint_reg):
+        return [
+            # TODO replace ineq constraint with bounds
             {'type': 'ineq',
              'fun': partial(BLUE_bound_constraint, constraint_reg),
              'jac': BLUE_bound_constraint_jac},
             {'type': 'eq',
              'fun': BLUE_cost_constraint,
              'jac': BLUE_cost_constraint_jac}]
-        # res = minimize(obj, init_guess, jac=True, method="SLSQP",
-        #                constraints=constraints)
-        res = minimize(obj, init_guess, jac=True, method="trust-constr",
-                       constraints=constraints)
-        if not res.success:
-            print(partial(BLUE_bound_constraint, constraint_reg)(init_guess))
-            print(BLUE_cost_constraint(init_guess))
-            msg = f"optimization not successful {res}"
-            print(msg)
-            raise RuntimeError(msg)
+
+    def _get_bounds(self, target_cost):
+        return None
+
+    def _set_optimization_result(
+            self, nsamples_per_subset, subsets, round_nsamples,
+            asketch):
+        if round_nsamples:
+            nsamples_per_subset = np.asarray(nsamples_per_subset).astype(int)
+        rounded_target_cost = self._get_nsamples_per_model(
+            subsets, nsamples_per_subset) @ self.costs
+
+        # set attributes needed for self._estimate
+        self.nsamples_per_subset = nsamples_per_subset
+        # self.optimized_variance = BLUE_variance(
+        #     asketch, self.cov, None, self._reg_blue,
+        #     self.nsamples_per_subset)
+        self.optimized_variance = self.get_variance(
+            nsamples_per_subset, asketch)
+        self.rounded_target_cost = rounded_target_cost
+        self.subsets = subsets
+        self.nsamples_per_model = self._get_nsamples_per_model(
+            self.subsets, self.nsamples_per_subset)
+        return self.optimized_variance, self.rounded_target_cost
+
+    def _extract_optimization_result(self, res, target_cost):
         variance = res["fun"]
+        # This is normalized variance true variance is obtained by
+        # variance/target_cost
         nsamples_per_subset_frac = np.maximum(
             np.zeros_like(res["x"]), res["x"])
         nsamples_per_subset_frac /= nsamples_per_subset_frac.sum()
@@ -1401,21 +1413,44 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         # correct for normalization of nsamples by cost
         subset_costs, subsets = self._get_model_subset_costs(self.costs)
         nsamples_per_subset /= subset_costs
-        if round_nsamples:
-            nsamples_per_subset = np.asarray(nsamples_per_subset).astype(int)
-        rounded_target_cost = np.sum(nsamples_per_subset*subset_costs)
+        return variance, nsamples_per_subset, subsets
 
-        # set attributes needed for self._estimate
-        self.nsamples_per_subset = nsamples_per_subset
-        # variance for unrounded nsamples_per_subset
-        # self.optimized_variance = variance/target_cost
-        # variance for rounded nsamples_per_subset
-        self.optimized_variance = BLUE_variance(
-            asketch, self.cov, None, self._reg_blue,
-            self.nsamples_per_subset)
-        self.rounded_target_cost = rounded_target_cost
-        self.subsets = subsets
-        self.nsamples_per_model = self._get_nsamples_per_model()
+    def _init_guess(self, target_cost):
+        return np.full(2**self.nmodels-1, (1/(2**self.nmodels-1)))
+
+    def allocate_samples(self, target_cost, asketch=None,
+                         constraint_reg=1e-12, round_nsamples=True,
+                         options={}, init_guess=None):
+        """
+        Parameters
+        ----------
+        """
+        nmodels = len(self.costs)
+        if asketch is None:
+            asketch = np.zeros((nmodels, 1))
+            asketch[0] = 1.0
+        assert asketch.shape[0] == self.costs.shape[0]
+
+        obj = partial(self._objective, asketch)
+        constraints = self._get_constraints(target_cost, constraint_reg)
+        if init_guess is None:
+            init_guess = self._init_guess(target_cost)
+        jac = True
+        method = "trust-constr"
+        res = minimize(
+            obj, init_guess, jac=jac,
+            method=method, constraints=constraints, options=options,
+            bounds=self._get_bounds(target_cost))
+        if not res.success:
+            msg = f"optimization not successful {res}"
+            print(msg)
+            raise RuntimeError(msg)
+
+        variance, nsamples_per_subset, subsets = (
+            self._extract_optimization_result(res, target_cost))
+        variance, rounded_target_cost = self._set_optimization_result(
+            nsamples_per_subset, subsets, round_nsamples,
+            asketch)
         return nsamples_per_subset, variance, rounded_target_cost
 
     @staticmethod
