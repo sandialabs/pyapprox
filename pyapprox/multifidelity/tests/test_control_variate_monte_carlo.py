@@ -882,39 +882,18 @@ class TestCVMC(unittest.TestCase):
         # plt.savefig("graph.png")
         # plt.show()
 
-    def test_MLBLUE(self):
-        # from pyapprox.multifidelity.multilevelblue import (
-        #     BLUE_cost_constraint, BLUE_cost_constraint_jac)
-        # nsubsets = 3
-        # nsamples_per_subset = np.ones(nsubsets)[:, None]
-        # errors = check_gradients(
-        #     BLUE_cost_constraint,
-        #     lambda x: BLUE_cost_constraint_jac(x).T,
-        #     nsamples_per_subset)
-
-        target_cost = 1e3
+    def test_MLBLUE_estimator_variance(self):
         shifts = np.array([1, 2])
         model, cov, costs, variable = setup_model_ensemble_tunable(shifts)
-        estimator = get_estimator(
-            "mlblue", cov, costs, variable)
+        estimator = get_estimator("mlblue", cov, costs, variable)
         asketch = np.zeros((costs.shape[0], 1))
         asketch[0] = 1.0
-        result = estimator.allocate_samples(
-            target_cost, asketch, round_nsamples=False)
-        assert np.allclose(result[2], target_cost)
-
-        subset_costs, subsets = estimator._get_model_subset_costs(
-            costs)
-
-        # round nsamples because it was not done before to allow testing of
-        # cost constraint
-        estimator.nsamples_per_subset = np.asarray(
-            estimator.nsamples_per_subset).astype(int)
-        # rounded_target_cost = np.sum(
-        #     estimator.nsamples_per_subset*subset_costs)
+        estimator.nsamples_per_subset = estimator._init_guess(100).astype(int)
 
         # test equivalent formulations for variance
-        betas = BLUE_betas(cov, asketch, 1e-10, estimator.nsamples_per_subset)
+        betas = BLUE_betas(
+            cov, asketch, 1e-10, estimator.subsets,
+            estimator.nsamples_per_subset)
         tmp = np.array(
             [np.linalg.multi_dot((betas[kk].T, cov, betas[kk]))
              for kk in range(betas.shape[0])])
@@ -923,12 +902,8 @@ class TestCVMC(unittest.TestCase):
         variance = tmp.sum()
         assert np.allclose(
             variance,
-            BLUE_variance(asketch, cov, None, 1e-10,
+            BLUE_variance(asketch, cov, None, 1e-10, estimator.subsets,
                           estimator.nsamples_per_subset))
-
-        assert np.allclose(
-            (estimator.nsamples_per_model*estimator.costs).sum(),
-            estimator.rounded_target_cost)
 
         values = estimator.generate_data(model.functions, variable)
         for ii in range(model.nmodels):
@@ -956,6 +931,58 @@ class TestCVMC(unittest.TestCase):
             # bootstrapped_means = estimator.bootstrap_estimator(
             #     values, asketch, ntrials)
             # print("Bootstrapped Var", bootstrapped_means.var())
+
+    def test_MLBLUE_optimization(self):
+        from pyapprox.multifidelity.multilevelblue import (
+            BLUE_cost_constraint, BLUE_cost_constraint_jac,
+            BLUE_hf_nsamples_constraint, BLUE_hf_nsamples_constraint_jac,
+            get_model_subsets)
+        nsubsets = 3
+        target_cost = 1e3
+        nsamples_per_subset = np.ones(nsubsets)
+        subset_costs = np.arange(nsubsets)
+        errors = check_gradients(
+            lambda x: BLUE_cost_constraint(target_cost, subset_costs, x[:, 0]),
+            lambda x: BLUE_cost_constraint_jac(
+                target_cost, subset_costs, x[:, 0]).T,
+            nsamples_per_subset[:, None], disp=False)
+        assert errors.max() > 1e-3 and errors.min()/errors.max() < 1e-6
+
+        subsets = get_model_subsets(3)
+        nsamples_per_subset = np.ones(len(subsets))
+        errors = check_gradients(
+            lambda x: BLUE_hf_nsamples_constraint(subsets, x[:, 0]),
+            lambda x: BLUE_hf_nsamples_constraint_jac(subsets, x[:, 0]).T,
+            nsamples_per_subset[:, None], disp=True)
+        assert errors.max() > 1e-4 and errors.min()/errors.max() < 1e-6
+
+        shifts = np.array([1, 2])
+        model, cov, costs, variable = setup_model_ensemble_tunable(shifts)
+        estimator = get_estimator("mlblue", cov, costs, variable)
+        asketch = np.zeros((costs.shape[0], 1))
+        asketch[0] = 1.0
+
+        errors = check_gradients(
+            lambda x: estimator._objective(asketch, x[:, 0]),
+            True, nsamples_per_subset[:, None], disp=True)
+        assert errors.max() > 1e-4 and errors.min()/errors.max() < 1e-6
+
+        result = estimator.allocate_samples(
+            target_cost, asketch, round_nsamples=False,
+            options={"maxiter": 1000, "gtol": 1e-6})
+        print(result[2], target_cost)
+
+        assert np.allclose(result[2], target_cost)
+        # round nsamples because it was not done before to allow testing of
+        # cost constraint
+        estimator.nsamples_per_subset = np.asarray(
+            estimator.nsamples_per_subset).astype(int)
+        # rounded_target_cost = np.sum(
+        #     estimator.nsamples_per_subset*subset_costs)
+
+        assert np.allclose(
+            (estimator.nsamples_per_model*estimator.costs).sum(),
+            estimator.rounded_target_cost)
 
     def test_AETC_optimal_loss(self):
         alpha = 1000

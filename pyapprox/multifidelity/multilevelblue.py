@@ -38,9 +38,9 @@ def get_model_subsets(nmodels, max_subset_nmodels=None):
     return subsets
 
 
-def BLUE_evaluate_models(rvs, models, nsamples_per_subset, pilot_values=None):
+def BLUE_evaluate_models(
+        rvs, models, subsets, nsamples_per_subset, pilot_values=None):
     nmodels = len(models)
-    subsets = get_model_subsets(nmodels)
     values = []
     if pilot_values is not None:
         npilot_samples = pilot_values.shape[0]
@@ -77,35 +77,29 @@ def BLUE_evaluate_models(rvs, models, nsamples_per_subset, pilot_values=None):
     return values
 
 
-def BLUE_Psi(Sigma, costs, reg_blue, nsamples_per_subset):
+def BLUE_Psi(Sigma, costs, reg_blue, subsets, nsamples_per_subset):
     nmodels = Sigma.shape[0]
     # get all model subsets
-    subsets = get_model_subsets(nmodels)
-    if costs is not None:
-        subset_costs = [costs[subset].sum() for subset in subsets]
-    else:
-        subset_costs = np.ones(len(subsets))
     mat = np.identity(nmodels)*reg_blue
     submats = []
     for ii, subset in enumerate(subsets):
         R = _restriction_matrix(nmodels, subset)
         submat = np.linalg.multi_dot((
             R.T,
-            np.linalg.inv(Sigma[np.ix_(subset, subset)]),
-            R))/subset_costs[ii]
+            np.linalg.pinv(Sigma[np.ix_(subset, subset)]),
+            R))
         submats.append(submat)
-        mat += nsamples_per_subset[ii]*submat
+        mat += submat*nsamples_per_subset[ii]
     return mat, submats
 
 
-def BLUE_betas(Sigma, asketch, reg_blue, nsamples_per_subset):
+def BLUE_betas(Sigma, asketch, reg_blue, subsets, nsamples_per_subset):
     nmodels = Sigma.shape[0]
-    subsets = get_model_subsets(nmodels)
-    Psi = BLUE_Psi(Sigma, None, reg_blue, nsamples_per_subset)[0]
-    Psi_inv = np.linalg.inv(Psi)
+    Psi = BLUE_Psi(Sigma, None, reg_blue, subsets, nsamples_per_subset)[0]
+    Psi_inv = np.linalg.pinv(Psi)
     betas = np.empty((len(subsets), nmodels))
     for ii, subset in enumerate(subsets):
-        Sigma_inv = np.linalg.inv(Sigma[np.ix_(subset, subset)])
+        Sigma_inv = np.linalg.pinv(Sigma[np.ix_(subset, subset)])
         R = _restriction_matrix(nmodels, subset)
         betas[ii] = np.linalg.multi_dot(
             (R.T, Sigma_inv, R, Psi_inv,
@@ -113,7 +107,7 @@ def BLUE_betas(Sigma, asketch, reg_blue, nsamples_per_subset):
     return betas
 
 
-def BLUE_RHS(Sigma, values):
+def BLUE_RHS(subsets, Sigma, values):
     """
     Parameters
     ----------
@@ -125,7 +119,6 @@ def BLUE_RHS(Sigma, values):
         a subset its values must be set to np.nan
     """
     nmodels = Sigma.shape[0]
-    subsets = get_model_subsets(nmodels)
     rhs = np.zeros((nmodels))
     for ii, subset in enumerate(subsets):
         R = _restriction_matrix(nmodels, subset)
@@ -135,39 +128,52 @@ def BLUE_RHS(Sigma, values):
                 np.delete(values[ii], subset, axis=1))):
             raise ValueError("Values not in subset must be set to np.nan")
         rhs += np.linalg.multi_dot((
-            R.T, np.linalg.inv(Sigma[np.ix_(subset, subset)]),
+            R.T, np.linalg.pinv(Sigma[np.ix_(subset, subset)]),
             (values[ii][:, subset].sum(axis=0)).T))
     return rhs[:, None]
 
 
-def BLUE_bound_constraint(tol, nsamples_per_subset):
-    return nsamples_per_subset-tol
+def BLUE_hf_nsamples_constraint(subsets, nsamples_per_subset):
+    nhf_samples = 0
+    for ii, subset in enumerate(subsets):
+        if 0 in subset:
+            nhf_samples += nsamples_per_subset[ii]
+    # this is usually only violated for small target costs
+    return nhf_samples-(1)
 
 
-def BLUE_bound_constraint_jac(nsamples_per_subset):
-    return np.eye(nsamples_per_subset.shape[0])
+def BLUE_hf_nsamples_constraint_jac(subsets, nsamples_per_subset):
+    nsubsets = nsamples_per_subset.shape[0]
+    grad = np.zeros(nsubsets)
+    for ii, subset in enumerate(subsets):
+        if 0 in subset:
+            grad[ii] = 1.
+    return grad
 
 
-def BLUE_cost_constraint(nsamples_per_subset):
-    return 1-nsamples_per_subset.sum()
+def BLUE_cost_constraint(target_cost, subset_costs, nsamples_per_subset):
+    assert nsamples_per_subset.ndim == 1 and subset_costs.ndim == 1
+    return target_cost-nsamples_per_subset @ subset_costs
 
 
-def BLUE_cost_constraint_jac(nsamples_per_subset):
-    return -np.ones(nsamples_per_subset.shape[0])
+def BLUE_cost_constraint_jac(target_cost, subset_costs, nsamples_per_subset):
+    return -subset_costs
 
 
-def BLUE_variance(asketch, Sigma, costs, reg_blue, nsamples_per_subset,
+def BLUE_variance(asketch, Sigma, costs, reg_blue, subsets,
+                  nsamples_per_subset,
                   return_grad=False, return_hess=False):
     """Compute variance of BLUE estimator using Equation 4.13 paper.
     We normalize costs so that the variance is for budget B_ept=1 with respect
-    to nsamples_per_subset. This is done because ???
+    to nsamples_per_subset. I no longer do this
     """
     if return_hess and not return_grad:
         raise ValueError("return_grad must be True if return_hess is True")
 
-    mat, submats = BLUE_Psi(Sigma, costs, reg_blue, nsamples_per_subset)
+    mat, submats = BLUE_Psi(
+        Sigma, costs, reg_blue, subsets, nsamples_per_subset)
     assert asketch.ndim == 2 and asketch.shape[1] == 1
-    mat_inv = np.linalg.inv(mat)
+    mat_inv = np.linalg.pinv(mat)
     variance = asketch.T.dot(mat_inv).dot(asketch)[0, 0]
 
     if not return_grad:
@@ -190,6 +196,13 @@ def BLUE_variance(asketch, Sigma, costs, reg_blue, nsamples_per_subset,
     # return variance, grad, hess
 
 
+def _get_MLBLUE_bounds(self, subset_costs, target_cost):
+    nsubsets = len(subset_costs)
+    bounds = [(0, target_cost/subset_costs[ii]) for ii in range(
+        nsubsets)]
+    return bounds
+
+
 def AETC_BLUE_allocate_samples(
         beta_Sp, Sigma_S, sigma_S_sq, x_Sp, Lambda_Sp, costs_S,
         reg_blue, constraint_reg):
@@ -210,19 +223,21 @@ def AETC_BLUE_allocate_samples(
         return k1, k2, np.ones(1)
 
     asketch = beta_Sp[1:]  # remove high-fidelity coefficient
+    # USE ML BLUES initital guess, this one is wrong should depend on target cost
     init_guess = np.full(2**nmodels-1, (1/(2**nmodels-1)))
 
+    # need to port this implementation to use new MLBLUE implementation
+    # that does not scale target cost to 1 and passes subsets to different
+    # BLUE functions
     obj = partial(
         BLUE_variance, asketch, Sigma_S, costs_S, reg_blue, return_grad=True)
     constraints = [
-        {'type': 'ineq',
-         'fun': partial(BLUE_bound_constraint, constraint_reg),
-         'jac': BLUE_bound_constraint_jac},
         {'type': 'eq',
          'fun': BLUE_cost_constraint,
          'jac': BLUE_cost_constraint_jac}]
     res = minimize(obj, init_guess, jac=True, method="SLSQP",
-                   constraints=constraints)
+                   constraints=constraints,
+                   bounds=_get_MLBLUE_bounds(target_cost, costs_S))
 
     k2 = res["fun"]
 

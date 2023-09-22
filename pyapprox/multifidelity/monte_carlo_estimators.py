@@ -34,14 +34,13 @@ from pyapprox.multifidelity.control_variate_monte_carlo import (
     get_npartition_samples_mfmc,
     separate_samples_per_model_acv, get_sample_allocation_matrix_mfmc,
     get_npartition_samples_acvis, get_sample_allocation_matrix_acvis,
-    bootstrap_acv_estimator, get_acv_recursion_indices
+    bootstrap_acv_estimator, get_acv_recursion_indices,
 )
 from pyapprox.interface.wrappers import ModelEnsemble
 from pyapprox.multifidelity.multilevelblue import (
-    BLUE_bound_constraint, BLUE_bound_constraint_jac,
     BLUE_variance, BLUE_Psi, BLUE_RHS, BLUE_evaluate_models,
-    get_model_subsets, BLUE_cost_constraint,
-    BLUE_cost_constraint_jac, AETC_optimal_loss)
+    get_model_subsets, BLUE_cost_constraint, BLUE_hf_nsamples_constraint,
+    BLUE_cost_constraint_jac, AETC_optimal_loss, BLUE_hf_nsamples_constraint_jac)
 from scipy.optimize import minimize
 
 
@@ -983,7 +982,7 @@ def get_best_models_for_acv_estimator(
                     best_est = est
                     best_model_indices = idx
                     best_variance = est.optimized_variance
-            except (RuntimeError, ValueError) as e:
+            except (RuntimeError, ValueError):
                 # raise e
                 # print(e)
                 continue
@@ -1353,6 +1352,9 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         self.nsamples_per_subset, self.optimized_variance = None, None
         self.rounded_target_cost = None
         self.nsamples_per_model = None
+        self.subsets = get_model_subsets(self.nmodels)
+        self.subset_costs = self._get_model_subset_costs(
+            self.subsets, self.costs)
 
     def _get_nsamples_per_model(self, subsets, nsamples_per_subset):
         nsamples_per_model = np.zeros(self.nmodels)
@@ -1361,29 +1363,52 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         return nsamples_per_model
 
     def _objective(self, asketch, nsamples_per_subset):
-        return BLUE_variance(
-            asketch, self.cov, self.costs, self._reg_blue,
+        obj, grad = BLUE_variance(
+            asketch, self.cov, self.costs, self._reg_blue, self.subsets,
             nsamples_per_subset, return_grad=True)
-
-    @staticmethod
-    def _get_constraints(target_cost, constraint_reg):
-        return [
-            # TODO replace ineq constraint with bounds
-            {'type': 'ineq',
-             'fun': partial(BLUE_bound_constraint, constraint_reg),
-             'jac': BLUE_bound_constraint_jac},
-            {'type': 'eq',
-             'fun': BLUE_cost_constraint,
-             'jac': BLUE_cost_constraint_jac}]
+        grad = 1/obj*grad
+        obj = np.log(obj)
+        return obj, grad
 
     def _get_bounds(self, target_cost):
-        return None
+        nsubsets = len(self.subsets)
+        bounds = [(0, target_cost/self.subset_costs[ii]) for ii in range(
+            nsubsets)]
+        return bounds
+
+    @staticmethod
+    def _get_constraints(subsets, subset_costs, target_cost, constraint_reg):
+        return [
+            {'type': 'ineq',
+             'fun': partial(BLUE_hf_nsamples_constraint, subsets),
+             # use of anlytical gradient messes up minimize
+             'jac': partial(BLUE_hf_nsamples_constraint_jac, subsets)
+             },
+            {'type': 'eq',
+             'fun': partial(BLUE_cost_constraint, target_cost, subset_costs),
+             # 'jac': partial(
+             #     BLUE_cost_constraint_jac, target_cost, subset_costs)
+             }
+        ]
 
     def _set_optimization_result(
             self, nsamples_per_subset, subsets, round_nsamples,
             asketch):
         if round_nsamples:
+            unrounded_nsamples_per_subset = nsamples_per_subset.copy()
             nsamples_per_subset = np.asarray(nsamples_per_subset).astype(int)
+            maxn = 0
+            for subset, ns in zip(subsets, nsamples_per_subset):
+                if 0 in subset:
+                    maxn = max(maxn, ns)
+            if maxn == 0:
+                msg = "No high-fidelity samples were used after rounding. "
+                msg += "Likely the relaxed sum of samples of sets involving "
+                msg += "the high-fidelity model sumed to >1 but no individual "
+                msg += "sample size was >1. nsamples_per_subset was "
+                msg += "\n{0}.\n".format(unrounded_nsamples_per_subset)
+                msg += 'Increasing target_cost will fix this'
+                raise RuntimeError(msg)
         rounded_target_cost = self._get_nsamples_per_model(
             subsets, nsamples_per_subset) @ self.costs
 
@@ -1395,7 +1420,6 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         self.optimized_variance = self.get_variance(
             nsamples_per_subset, asketch)
         self.rounded_target_cost = rounded_target_cost
-        self.subsets = subsets
         self.nsamples_per_model = self._get_nsamples_per_model(
             self.subsets, self.nsamples_per_subset)
         return self.optimized_variance, self.rounded_target_cost
@@ -1404,19 +1428,23 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         variance = res["fun"]
         # This is normalized variance true variance is obtained by
         # variance/target_cost
-        nsamples_per_subset_frac = np.maximum(
-            np.zeros_like(res["x"]), res["x"])
-        nsamples_per_subset_frac /= nsamples_per_subset_frac.sum()
-        # transform nsamples as fraction of unit budget to fraction of
-        # target_cost
-        nsamples_per_subset = target_cost*nsamples_per_subset_frac
-        # correct for normalization of nsamples by cost
-        subset_costs, subsets = self._get_model_subset_costs(self.costs)
-        nsamples_per_subset /= subset_costs
-        return variance, nsamples_per_subset, subsets
+        # nsamples_per_subset_frac = np.maximum(
+        #     np.zeros_like(res["x"]), res["x"])
+        # nsamples_per_subset_frac /= nsamples_per_subset_frac.sum()
+        # # transform nsamples as fraction of unit budget to fraction of
+        # # target_cost
+        # nsamples_per_subset = target_cost*nsamples_per_subset_frac
+        # # correct for normalization of nsamples by cost
+        # nsamples_per_subset /= self.subset_costs
+        nsamples_per_subset = res["x"]
+        return variance, nsamples_per_subset, self.subsets
 
     def _init_guess(self, target_cost):
-        return np.full(2**self.nmodels-1, (1/(2**self.nmodels-1)))
+        nsubsets = len(self.subsets)
+        # x0 = (target_cost/nsubsets)/self.subset_costs
+        x0 = np.zeros(nsubsets)
+        x0[-1] = target_cost/self.subset_costs[-1]
+        return x0
 
     def allocate_samples(self, target_cost, asketch=None,
                          constraint_reg=1e-12, round_nsamples=True,
@@ -1432,11 +1460,12 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         assert asketch.shape[0] == self.costs.shape[0]
 
         obj = partial(self._objective, asketch)
-        constraints = self._get_constraints(target_cost, constraint_reg)
+        constraints = self._get_constraints(
+            self.subsets, self.subset_costs, target_cost, constraint_reg)
         if init_guess is None:
             init_guess = self._init_guess(target_cost)
         jac = True
-        method = "trust-constr"
+        method = options.pop("method", "trust-constr")
         res = minimize(
             obj, init_guess, jac=jac,
             method=method, constraints=constraints, options=options,
@@ -1454,31 +1483,32 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         return nsamples_per_subset, variance, rounded_target_cost
 
     @staticmethod
-    def _get_model_subset_costs(costs):
-        nmodels = len(costs)
-        subsets = get_model_subsets(nmodels)
+    def _get_model_subset_costs(subsets, costs):
         subset_costs = np.array(
             [costs[subset].sum() for subset in subsets])
-        return subset_costs, subsets
+        return subset_costs
 
     def generate_data(self, models, variable, pilot_values=None):
         # todo consider removing self.variable from baseclass
         return BLUE_evaluate_models(
-            variable.rvs, models, self.nsamples_per_subset, pilot_values)
+            variable.rvs, models, self.subsets, self.nsamples_per_subset,
+            pilot_values)
 
     def _estimate(self, values, asketch=None):
         if asketch is None:
             asketch = np.zeros((self.nmodels, 1))
             asketch[0] = 1.0
         Psi, _ = BLUE_Psi(
-            self.cov, None, self._reg_blue, self.nsamples_per_subset)
-        rhs = BLUE_RHS(self.cov, values)
+            self.cov, None, self._reg_blue, self.subsets,
+            self.nsamples_per_subset)
+        rhs = BLUE_RHS(self.subsets, self.cov, values)
         return np.linalg.multi_dot(
             (asketch.T, np.linalg.lstsq(Psi, rhs, rcond=None)[0]))
 
     def get_variance(self, nsamples_per_subset, asketch):
         return BLUE_variance(
-            asketch, self.cov, None, self._reg_blue, nsamples_per_subset)
+            asketch, self.cov, None, self._reg_blue, self.subsets,
+            nsamples_per_subset)
 
     def bootstrap_estimator(self, values, asketch, nbootstraps=1000):
         means = np.empty(nbootstraps)
@@ -1505,17 +1535,16 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         # compute active subsets of fully coupled BLUEs
         active_subsets = [
             np.arange(nmodels)[ii:] for ii in range(nmodels)]
-        subsets = get_model_subsets(nmodels)
         active_subset_indices = []
         for subset in active_subsets:
-            for ii, s in enumerate(subsets):
+            for ii, s in enumerate(self.subsets):
                 if s.shape[0] == len(subset) and np.allclose(s, subset):
                     active_subset_indices.append(ii)
                     break
         active_subset_indices = np.asarray(active_subset_indices)
 
         # convert nsample_ratios into nsamples_per_subset
-        nsamples_per_subset = np.zeros(len(subsets))
+        nsamples_per_subset = np.zeros(len(self.subsets))
         nlf_model_samples = nsample_ratios*nhf_samples
         nsamples_per_subset[active_subset_indices] = np.hstack(
             (nhf_samples, nlf_model_samples[0]-nhf_samples,
@@ -1528,7 +1557,8 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
 
         # estimate the variance reduction relative to single-fidelity MC
         mlblue_variance = BLUE_variance(
-            asketch, cov, None, self._reg_blue, nsamples_per_subset)
+            asketch, cov, None, self._reg_blue, self.subsets,
+            nsamples_per_subset)
         mc_variance = cov[0, 0]/nhf_samples
         gamma = mlblue_variance/mc_variance
         return 1-gamma
@@ -1737,12 +1767,13 @@ class AETCBLUE():
         best_subset = result[1]
         beta_Sp, Sigma_best_S, nsamples_per_subset = result[3:6]
         Psi, _ = BLUE_Psi(
-            Sigma_best_S, None, self._reg_blue, nsamples_per_subset)
+            Sigma_best_S, None, self._reg_blue, self.subsets,
+            nsamples_per_subset)
         # use +1 to accound for subset indexing only lf models
         values = BLUE_evaluate_models(
             self.rvs, [self.models[s+1] for s in best_subset],
-            nsamples_per_subset)
-        rhs = BLUE_RHS(Sigma_best_S, values)
+            self.subsets, nsamples_per_subset)
+        rhs = BLUE_RHS(self.subsets, Sigma_best_S, values)
         beta_S = beta_Sp[1:]
         return np.linalg.multi_dot(
             (beta_S.T, np.linalg.lstsq(Psi, rhs, rcond=None)[0])) + beta_Sp[0]
