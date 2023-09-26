@@ -739,8 +739,71 @@ class TestCVMC(unittest.TestCase):
         # print(abs(est_variance-bootstrap_variance)/est_variance)
         assert abs((est_variance-bootstrap_variance)/est_variance) < 1e-2
 
-    def test_bootstrap_approximate_control_variate_estimator(self):
+    def test_get_discrepancy_covariances_is(self):
         example = TunableModelEnsemble(np.pi/3)
+        model_ensemble = ModelEnsemble(example.models)
+        cov = example.get_covariance_matrix()
+
+        nhf_samples = 10
+        nsample_ratios = [2, 4]
+        nmodels = 3
+
+        new = False
+
+        ntrials = int(1e4)
+        deltas = []
+        means = []
+        for kk in range(ntrials):
+            common_samples = example.variable.rvs(nhf_samples)
+            common_vals = [f(common_samples) for f in model_ensemble.functions]
+            ind_samples = [None]+[
+                example.variable.rvs(int((r-1)*nhf_samples))
+                for r in nsample_ratios]
+            ind_vals = [None] + [
+                f(s) for f, s in zip(
+                    model_ensemble.functions[1:], ind_samples[1:])]
+            if new:
+                deltas.append([common_vals[ii].mean()-ind_vals[ii].mean()
+                               for ii in range(1, nmodels)])
+            else:
+                deltas.append([common_vals[ii].mean()-np.vstack((
+                    common_vals[ii], ind_vals[ii])).mean()
+                               for ii in range(1, nmodels)])
+            means.append(np.mean(common_vals, axis=1)[:, 0])
+        deltas = np.array(deltas)
+        # Q, mu = np.array(Q), np.array(mu)
+        CF_mc = np.cov(deltas, rowvar=False, ddof=1)
+
+        import torch
+        if new:
+            from pyapprox.multifidelity.control_variate_monte_carlo import (
+                get_discrepancy_covariances_IS_new)
+            CF = get_discrepancy_covariances_IS_new(
+                torch.as_tensor(cov, dtype=torch.double),
+                torch.as_tensor(nsample_ratios, dtype=torch.double))[0]
+        else:
+            CF = get_discrepancy_covariances_IS(
+                torch.as_tensor(cov, dtype=torch.double),
+                torch.as_tensor(nsample_ratios, dtype=torch.double))[0]
+
+        print(CF)
+        print(CF_mc)
+        assert np.allclose(
+            CF_mc, CF/nhf_samples, rtol=2e-2)
+
+        # from pyapprox.multifidelity.control_variate_monte_carlo import (
+        #     get_rsquared_acv)
+        # print(get_rsquared_acv(
+        #     torch.as_tensor(cov, dtype=torch.double),
+        #     torch.as_tensor(nsample_ratios, dtype=torch.double),
+        #     get_discrepancy_covariances_IS))
+        # print(get_rsquared_acv(
+        #     torch.as_tensor(cov, dtype=torch.double),
+        #     torch.as_tensor(nsample_ratios, dtype=torch.double),
+        #     get_discrepancy_covariances_IS_new))
+
+    def test_bootstrap_approximate_control_variate_estimator(self):
+
         model_costs = [1, 0.5, 0.4]
         target_cost = 1000
         # example = PolynomialModelEnsemble()

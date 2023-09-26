@@ -563,6 +563,26 @@ def get_discrepancy_covariances_IS(cov, nsample_ratios):
     return CF, cf
 
 
+def get_discrepancy_covariances_IS_new(cov, nsample_ratios):
+    r"""
+    When common set used to estimate mu of Q-mu is removed
+    """
+    nmodels = cov.shape[0]
+    F = pkg_zeros(
+        (nmodels-1, nmodels-1), type(nsample_ratios), dtype=pkg.double)
+    f = pkg_zeros((nmodels-1), type(nsample_ratios), dtype=pkg.double)
+    for ii in range(nmodels-1):
+        F[ii, ii] = nsample_ratios[ii]/(nsample_ratios[ii]-1.0)
+        for jj in range(ii+1, nmodels-1):
+            F[ii, jj] = 1.0
+            F[jj, ii] = F[ii, jj]
+        f[ii] = F[ii, ii]
+
+    CF = cov[1:, 1:] * F
+    cf = f * cov[1:, 0]
+    return CF, cf
+
+
 def get_discrepancy_covariances_MF(cov, nsample_ratios):
     r"""
     Get the covariances of the discrepancies :math:`\delta`
