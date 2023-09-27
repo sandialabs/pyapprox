@@ -1033,7 +1033,9 @@ class TestCVMC(unittest.TestCase):
         result = estimator.allocate_samples(
             target_cost, asketch, round_nsamples=False,
             options={"maxiter": 1000, "gtol": 1e-6})
+            # options={"method": "cvxpy"})
         print(result[2], target_cost)
+        print(result[1])
 
         assert np.allclose(result[2], target_cost)
         # round nsamples because it was not done before to allow testing of

@@ -1355,8 +1355,17 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         self.rounded_target_cost = None
         self.nsamples_per_model = None
         self.subsets = get_model_subsets(self.nmodels)
+        self.nsubsets = len(self.subsets)
         self.subset_costs = self._get_model_subset_costs(
             self.subsets, self.costs)
+        self.hf_subset_vec = self._get_nhf_subset_vec()
+
+    def _get_nhf_subset_vec(self):
+        hf_subset_vec = np.zeros(self.nsubsets)
+        for ii, subset in enumerate(self.subsets):
+            if 0 in subset:
+                hf_subset_vec[ii] = 1
+        return hf_subset_vec
 
     def _get_nsamples_per_model(self, subsets, nsamples_per_subset):
         nsamples_per_model = np.zeros(self.nmodels)
@@ -1448,6 +1457,37 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         x0[-1] = target_cost/self.subset_costs[-1]
         return x0
 
+    def _cvxpy_psi(self, nsps_cvxpy):
+        import cvxpy
+        Psi_blocks = BLUE_Psi(
+            self.cov, self.costs, 0, self.subsets, np.ones(self.nsubsets))[1]
+        Psi = (
+            np.hstack([b.flatten()[:, None] for b in Psi_blocks])@nsps_cvxpy)
+        Psi = cvxpy.reshape(Psi, (self.nmodels, self.nmodels))
+        return Psi
+
+    def _cvxpy_spd_constraint(self, asketch, nsps_cvxpy, t_cvxpy):
+        import cvxpy
+        Psi = self._cvxpy_psi(nsps_cvxpy)
+        mat = cvxpy.bmat(
+            [[Psi, asketch], [asketch.T, cvxpy.reshape(t_cvxpy, (1, 1))]])
+        return mat
+
+    def _minimize_cvxpy(self, target_cost, asketch):
+        # use notation from https://www.cvxpy.org/examples/basic/sdp.html
+        import cvxpy
+        t_cvxpy = cvxpy.Variable(nonneg=True)
+        nsps_cvxpy = cvxpy.Variable(self.nsubsets, nonneg=True)
+        obj = cvxpy.Minimize(t_cvxpy)
+        constraints = [self.subset_costs@nsps_cvxpy <= target_cost]
+        constraints += [self.hf_subset_vec@nsps_cvxpy >= 1]
+        constraints += [self._cvxpy_spd_constraint(
+            asketch, nsps_cvxpy, t_cvxpy) >> 0]
+        prob = cvxpy.Problem(obj, constraints)
+        prob.solve(verbose=0, solver="CVXOPT")
+        res = dict([("x",  nsps_cvxpy.value), ("fun", t_cvxpy.value)])
+        return res
+
     def allocate_samples(self, target_cost, asketch=None,
                          constraint_reg=1e-12, round_nsamples=True,
                          options={}, init_guess=None):
@@ -1468,14 +1508,17 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
             init_guess = self._init_guess(target_cost)
         jac = True
         method = options.pop("method", "trust-constr")
-        res = minimize(
-            obj, init_guess, jac=jac,
-            method=method, constraints=constraints, options=options,
-            bounds=self._get_bounds(target_cost))
-        if not res.success:
-            msg = f"optimization not successful {res}"
-            print(msg)
-            raise RuntimeError(msg)
+        if method == "cvxpy":
+            res = self._minimize_cvxpy(target_cost, asketch)
+        else:
+            res = minimize(
+                obj, init_guess, jac=jac,
+                method=method, constraints=constraints, options=options,
+                bounds=self._get_bounds(target_cost))
+            if not res.success:
+                msg = f"optimization not successful {res}"
+                print(msg)
+                raise RuntimeError(msg)
 
         variance, nsamples_per_subset, subsets = (
             self._extract_optimization_result(res, target_cost))
