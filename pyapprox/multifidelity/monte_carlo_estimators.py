@@ -914,13 +914,13 @@ class ACVMFEstimator(AbstractNumericalACVEstimator):
 
 
 class ACVISEstimator(AbstractNumericalACVEstimator):
-    # recusion not currently supported
+    # recursion not currently supported
 
     def _get_rsquared(self, cov, nsample_ratios):
-        from pyapprox.multifidelity.control_variate_monte_carlo import (
-            get_discrepancy_covariances_IS_new)
+        # from pyapprox.multifidelity.control_variate_monte_carlo import (
+        #     get_discrepancy_covariances_IS_new)
         return get_rsquared_acv(
-            cov, nsample_ratios, get_discrepancy_covariances_IS_new)
+            cov, nsample_ratios, get_discrepancy_covariances_IS)
 
     # def generate_data(self, functions):
     #     return generate_samples_and_values_acv_IS(
