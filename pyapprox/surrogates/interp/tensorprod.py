@@ -1,5 +1,6 @@
 import numpy as np
 from functools import partial
+from abc import ABC, abstractmethod
 
 from pyapprox.util.pya_numba import njit
 from pyapprox.util.utilities import (
@@ -10,6 +11,8 @@ from pyapprox.surrogates.orthopoly.quadrature import (
     clenshaw_curtis_rule_growth)
 from pyapprox.surrogates.orthopoly.leja_quadrature import (
     get_univariate_leja_quadrature_rule)
+from pyapprox.surrogates.interp.barycentric_interpolation import (
+    univariate_lagrange_polynomial)
 
 
 def piecewise_quadratic_interpolation(samples, mesh, mesh_vals, ranges):
@@ -203,6 +206,141 @@ def piecewise_quadratic_basis(level, xx):
         xx_JJ = xx[JJ]
         vals[JJ, ii] = (xx_JJ**2-h*xx_JJ*(2*ii+3)+h*h*(ii+1)*(ii+2))/(2.*h*h)
     return vals
+
+
+@njit(cache=True)
+def irregular_piecewise_linear_basis(nodes, xx):
+    # abscissa are not equidistant
+    assert xx.ndim == 1
+    assert nodes.ndim == 1
+    nnodes = nodes.shape[0]
+    vals = np.zeros((xx.shape[0], nnodes))
+    for ii in range(nnodes):
+        xm = nodes[ii]
+        if ii > 0:
+            xl = nodes[ii-1]
+            II = np.where((xx >= xl) & (xx <= xm))[0]
+            vals[II, ii] = (xx[II]-xl)/(xm-xl)
+        if ii < nnodes-1:
+            xr = nodes[ii+1]
+            JJ = np.where((xx >= xm) & (xx <= xr))[0]
+            vals[JJ, ii] = (xr-xx[JJ])/(xr-xm)
+    return vals
+
+
+@njit(cache=True)
+def irregular_piecewise_quadratic_basis(nodes, xx):
+    # abscissa are not equidistant
+    assert xx.ndim == 1
+    nnodes = nodes.shape[0]
+    assert nodes.ndim == 1 and nnodes % 2 == 1
+    vals = np.zeros((xx.shape[0], nnodes))
+    for ii in range(nnodes):
+        if ii % 2 == 1:
+            xl, xm, xr = nodes[ii-1:ii+2]
+            II = np.where((xx >= xl) & (xx <= xr))[0]
+            vals[II, ii] = (xx[II]-xl)/(xm-xl)*(xx[II]-xr)/(xm-xr)
+            continue
+        if ii < nnodes-2:
+            xl, xm, xr = nodes[ii:ii+3]
+            II = np.where((xx >= xl) & (xx <= xr))[0]
+            vals[II, ii] = (xx[II]-xm)/(xl-xm)*(xx[II]-xr)/(xl-xr)
+        if ii > 1:
+            xl, xm, xr = nodes[ii-2:ii+1]
+            II = np.where((xx >= xl) & (xx <= xr))[0]
+            vals[II, ii] = (xx[II]-xl)/(xr-xl)*(xx[II]-xm)/(xr-xm)
+    return vals
+
+
+class UnivariateInterpolatingBasis(ABC):
+    @abstractmethod
+    def __call__(self, nodes, samples):
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
+
+
+class UnivariatePiecewiseLinearBasis(UnivariateInterpolatingBasis):
+    def __call__(self, nodes, samples):
+        return irregular_piecewise_linear_basis(nodes, samples)
+
+
+class UnivariatePiecewiseQuadraticBasis(UnivariateInterpolatingBasis):
+    def __call__(self, nodes, samples):
+        return irregular_piecewise_quadratic_basis(nodes, samples)
+
+
+class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
+    def __call__(self, nodes, samples):
+        return univariate_lagrange_polynomial(nodes, samples)
+
+
+def get_univariate_interpolation_basis(basis_type):
+    basis_dict = {"linear": UnivariatePiecewiseLinearBasis,
+                  "quadratic": UnivariatePiecewiseQuadraticBasis,
+                  "lagrange": UnivariateLagrangeBasis}
+    if basis_type not in basis_dict:
+        raise ValueError("basis_type {0} not supported must be in {1}".format(
+            basis_type, basis_type.keys()))
+    return basis_dict[basis_type]()
+
+
+class TensorProductInterpolant():
+    def __init__(self, bases_1d):
+        self._bases_1d = bases_1d
+
+        self._nodes_1d = None
+        self._nnodes_1d = None
+        self._values = None
+
+    def basis(self, nodes_1d, samples):
+        # assumes each array in nodes_1d is in ascending order
+        nvars = len(nodes_1d)
+        nnodes_1d = np.array([n.shape[0] for n in nodes_1d])
+        active_vars = np.arange(nvars)[nnodes_1d > 1]
+        nactive_vars = active_vars.shape[0]
+        if nactive_vars == 0:
+            return np.ones((samples.shape[1], 1))
+        nsamples = samples.shape[1]
+        nnodes_1d_active = nnodes_1d[active_vars]
+        nnodes_1d_max = np.max(nnodes_1d_active)
+        basis_vals_1d = np.empty(
+            (nactive_vars, nnodes_1d_max, nsamples), dtype=np.float64)
+        for dd in range(nactive_vars):
+            idx = active_vars[dd]
+            basis_vals_1d[dd, :nnodes_1d_active[dd], :] = self._bases_1d[idx](
+                nodes_1d[idx], samples[idx, :]).T
+
+        temp1 = basis_vals_1d.reshape(
+            (nactive_vars*basis_vals_1d.shape[1], nsamples))
+        indices = cartesian_product([np.arange(N) for N in nnodes_1d_active])
+        nindices = indices.shape[1]
+        temp2 = temp1[indices.ravel()+np.repeat(
+            np.arange(nactive_vars)*basis_vals_1d.shape[1], nindices), :].reshape(
+                nactive_vars, nindices, nsamples)
+        basis_vals = np.prod(temp2, axis=0).T
+        return basis_vals
+
+    def tensor_product_grid(self, nodes_1d):
+        return cartesian_product(nodes_1d)
+
+    def fit(self, nodes_1d, values):
+        self._nodes_1d = nodes_1d
+        self._nnodes = np.prod([n.shape[0] for n in nodes_1d])
+        if values.shape[0] != self._nnodes:
+            raise ValueError("nodes_1d and values are inconsistent")
+        self._values = values
+
+    def __call__(self, samples):
+        basis_mat = self.basis(self._nodes_1d, samples)
+        print(basis_mat.shape, self._values.shape)
+        return basis_mat @ self._values
+
+    def __repr__(self):
+        return "{0}(bases={1})".format(
+            self.__class__.__name__,
+            "["+", ".join(map("{}".format, self._bases_1d)) + "]")
 
 
 def piecewise_linear_basis(level, xx):

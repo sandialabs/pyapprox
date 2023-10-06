@@ -9,13 +9,113 @@ from pyapprox.surrogates.interp.tensorprod import (
     get_tensor_product_piecewise_polynomial_quadrature_rule,
     tensor_product_piecewise_polynomial_interpolation,
     piecewise_univariate_linear_quad_rule,
-    piecewise_univariate_quadratic_quad_rule
+    piecewise_univariate_quadratic_quad_rule, irregular_piecewise_linear_basis,
+    irregular_piecewise_quadratic_basis,
+    get_univariate_interpolation_basis, TensorProductInterpolant
 )
 
 
 class TestTensorProd(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
+
+    def test_irregular_piecewise_linear_basis(self):
+        def fun(xx):
+            return np.sum(xx**2, axis=0)[:, None]
+        nnodes = 11
+        lb, ub = 0, 1
+        # creat nodes with random spacing
+        nodes = np.linspace(lb, ub, nnodes*2)
+        nodes = np.sort(np.hstack((nodes[[0, -1]], nodes[
+            1+np.random.permutation(2*nnodes-2)[:nnodes]])))
+
+        # check basis interpolates values at nodes
+        samples = nodes
+        values = fun(nodes[None, :])
+        basis = irregular_piecewise_linear_basis(nodes, samples)
+        assert np.allclose(basis @ values, fun(samples[None, :]))
+
+        # check basis accuracy is high with large nnodes
+        nsamples = 31
+        nnodes = 41
+        nodes = np.linspace(lb, ub, nnodes)
+        samples = np.random.uniform(lb, ub, (nsamples))
+        values = fun(nodes[None, :])
+        basis = irregular_piecewise_linear_basis(nodes, samples)
+        # print(np.abs((basis @ values-fun(samples[None, :]))).max())
+        # check basis interpolates values at nodes
+        assert np.allclose(basis @ values, fun(samples[None, :]), atol=2e-4)
+
+        def fun(xx):
+            return np.sum(xx**3, axis=0)[:, None]
+        nnodes = 3
+        lb, ub = 0, 1
+        # create nodes with random spacing
+        nodes = np.linspace(lb, ub, nnodes*2)
+        nodes = np.sort(np.hstack((nodes[[0, -1]], nodes[
+           1+np.random.permutation(2*nnodes-2)[:nnodes]])))
+        # nodes = np.linspace(lb, ub, nnodes)
+
+        # check basis interpolates values at nodes
+        samples = nodes
+        values = fun(nodes[None, :])
+        basis = irregular_piecewise_quadratic_basis(nodes, samples)
+
+        # import matplotlib.pyplot as plt
+        # plt.plot(samples, basis)
+        # plt.plot(samples, fun(samples[None, :]))
+        # plt.plot(samples, basis @ values, '--')
+        # plt.plot(nodes, values, 'ko', ms=20)
+        # plt.show()
+        # assert np.allclose(basis @ values, fun(samples[None, :]))
+
+        # check basis accuracy is high with large nnodes
+        nsamples = 31
+        nnodes = 41
+        nodes = np.linspace(lb, ub, nnodes)
+        samples = np.random.uniform(lb, ub, (nsamples))
+        values = fun(nodes[None, :])
+        basis = irregular_piecewise_quadratic_basis(nodes, samples)
+        # print(np.abs((basis @ values-fun(samples[None, :]))).max())
+        # check basis interpolates values at nodes
+        assert np.allclose(basis @ values, fun(samples[None, :]), atol=1e-5)
+
+    def _check_tensor_product_interpolation(self, basis_types, nnodes_1d, atol):
+        nvars = len(basis_types)
+        nnodes_1d = np.array(nnodes_1d)
+        bases_1d = [
+            get_univariate_interpolation_basis(bt) for bt in basis_types]
+        interp = TensorProductInterpolant(bases_1d)
+        nodes_1d = [np.linspace(0, 1, N) for N in nnodes_1d]
+
+        def fun(samples):
+            # when nnodes_1d is zero to test interpolation make sure
+            # function is constant in that direction
+            return np.sum(samples[nnodes_1d > 1]**3, axis=0)[:, None]
+
+        train_samples = interp.tensor_product_grid(nodes_1d)
+        train_values = fun(train_samples)
+        print(interp)
+        interp.fit(nodes_1d, train_values)
+
+        test_samples = np.random.uniform(0, 1, (nvars, 21))
+        approx_values = interp(test_samples)
+        test_values = fun(test_samples)
+        print(test_values-approx_values)
+        assert np.allclose(test_values, approx_values, atol=atol)
+
+    def test_tensor_product_interpolation(self):
+        test_cases = [
+            [["linear", "linear"], [41, 43], 1e-3],
+            [["quadratic", "quadratic"], [41, 43], 1e-5],
+            [["lagrange", "lagrange"], [4, 5], 1e-15],
+            [["linear", "quadratic"], [41, 43], 1e-3],
+            [["linear", "quadratic", "lagrange"], [41, 23, 4], 1e-3],
+            # Following tests use of active vars when nnodes_1dii] = 0
+            [["linear", "quadratic", "lagrange"], [1, 23, 4], 1e-4],
+        ]
+        for test_case in test_cases[-1:]:
+            self._check_tensor_product_interpolation(*test_case)
 
     def test_get_tensor_product_piecewise_linear_quadrature_rule(self):
         nsamples_1d = 101
