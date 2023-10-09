@@ -69,7 +69,17 @@ def _piecewise_poly_tensorprod_integration(
         alpha = 1
     else:
         alpha = 1-1e-6
-    new_ranges = variable.get_statistics("interval", alpha).flatten()
+    # new_ranges = variable.get_statistics("interval", alpha).flatten()
+    new_ranges = []
+    from pyapprox.variables.marginals import is_bounded_continuous_variable
+    for rv in variable.marginals():
+        if is_bounded_continuous_variable(rv):
+            alpha = 1
+        else:
+            alpha = 1-1e-6
+        new_ranges.append(rv.interval(alpha))
+    new_ranges = np.hstack(new_ranges)
+    print(new_ranges)
     x_quad, w_quad = \
         get_tensor_product_piecewise_polynomial_quadrature_rule(
             nsamples, new_ranges, degree)

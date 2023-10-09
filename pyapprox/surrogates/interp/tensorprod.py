@@ -248,7 +248,7 @@ def irregular_piecewise_quadratic_basis(nodes, xx):
     # nodes are not equidistant
     assert xx.ndim == 1
     nnodes = nodes.shape[0]
-    if nodes.ndim != 1 and nnodes % 2 != 1:
+    if nodes.ndim != 1 or nnodes % 2 != 1:
         raise ValueError("nodes has the wrong shape")
     vals = np.zeros((xx.shape[0], nnodes))
     for ii in range(nnodes):
@@ -272,7 +272,7 @@ def irregular_piecewise_quadratic_basis(nodes, xx):
 def irregular_piecewise_quadratic_quadrature_weights(nodes):
     # nodes are not equidistant
     nnodes = nodes.shape[0]
-    if nodes.ndim != 1 and nnodes % 2 != 1:
+    if nodes.ndim != 1 or nnodes % 2 != 1:
         raise ValueError("nodes has the wrong shape")
     weights = np.zeros((nnodes,))
     for ii in range(nnodes):
@@ -295,7 +295,7 @@ def irregular_piecewise_cubic_basis(nodes, xx):
     assert xx.ndim == 1
     nnodes = nodes.shape[0]
     if (nodes.ndim != 1 or nnodes < 4 or (nnodes-4) % 3 != 0):
-        raise ValueError(f"nodes has the wrong shape {nnodes}")
+        raise ValueError("nodes has the wrong shape")
     vals = np.zeros((xx.shape[0], nnodes))
     for ii in range(nnodes):
         if ii % 3 == 1:
@@ -448,6 +448,8 @@ class TensorProductInterpolant():
         self._nnodes = np.prod([n.shape[0] for n in nodes_1d])
         if values.shape[0] != self._nnodes:
             raise ValueError("nodes_1d and values are inconsistent")
+        if values.ndim == 1:
+            values = values[:, None]
         self._values = values
 
     def __call__(self, samples):

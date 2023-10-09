@@ -67,6 +67,8 @@ example_filenames_in_order = [
     'plot_bayesian_inference.py',
     'plot_bayesian_networks.py',
     'plot_push_forward_based_inference.py',
+    # ExpDesign
+    'plot_bayesian_oed.py',
     # Surrogates
     'plot_tensor_product_interpolation.py',
     'plot_sparse_grids.py',
@@ -128,6 +130,7 @@ sphinx_gallery_conf = {
     'subsection_order': ExplicitOrder([
         '../../tutorials/analysis',
         '../../tutorials/inference',
+        '../../tutorials/expdesign',
         '../../tutorials/surrogates',
         '../../tutorials/multi_fidelity',
         '../../examples']),
