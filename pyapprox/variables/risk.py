@@ -271,7 +271,7 @@ def conditional_value_at_risk(samples, alpha, weights=None,
         weights = np.ones(num_samples)/num_samples
     if prob:
         assert np.allclose(weights.sum(), 1), (weights.sum())
-    assert weights.ndim == 1 or weights.shape[1] == 1
+    assert weights.ndim == 1
     if not samples_sorted:
         II = np.argsort(samples)
         xx, ww = samples[II], weights[II]
