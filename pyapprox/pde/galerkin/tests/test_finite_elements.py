@@ -214,12 +214,25 @@ class TestFiniteElements(unittest.TestCase):
 
     def check_advection_diffusion_reaction(
             self, domain_bounds, order, nrefine, sol_string, diff_string,
-            vel_strings, react_funs, bndry_types, nl_diff_funs=[None, None]):
+            vel_strings, react_funs, bndry_types, mms_nl_diff_funs=[None, None]):
 
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_funs[0], False,
-                nl_diff_funs[0]))
+                mms_nl_diff_funs[0]))
+
+        # manufactured solutions assumes nl_diff_fun takes linear diffusion
+        # and solution as arguments. Now convert to format required by
+        # fem which takes x and solution as arguments
+        nl_diff_funs = [None, None]
+        if mms_nl_diff_funs[0] is not None:
+            nl_diff_funs[0] = lambda x, sol: mms_nl_diff_funs[0](
+                diff_fun(x), sol)
+            nl_diff_funs[1] = lambda x, sol: mms_nl_diff_funs[1](
+                diff_fun(x), sol)
+        else:
+            nl_diff_funs[0] = lambda x, sol: diff_fun(x)
+            nl_diff_funs[1] = lambda x, sol: x[0]*0
 
         diff_fun = Function(diff_fun)
         forc_fun = Function(forc_fun)
@@ -257,7 +270,7 @@ class TestFiniteElements(unittest.TestCase):
         jac = -bilinear_mat
         # print(jac.toarray()[:K.blocks[0], :K.blocks[0]], 'jac', jac.shape)
         II = np.setdiff1d(np.arange(jac.shape[0]), D_dofs)
-        # print(res[II], 'res')
+        print(res[II], 'res')
         # assert False
         assert np.all(np.abs(res[II]) < 5e-7)
 
@@ -311,14 +324,17 @@ class TestFiniteElements(unittest.TestCase):
             #   lambda linear_diff, sol: (power*sol**(power-1))*linear_diff
             #   if power > 0 else 0*sol]],
             [[0, 1], 2, 1, "x*(1-x)", "4+x", ["0"],
-             [lambda sol: 2*sol, lambda sol: 0*sol+2], ["D", "D"]],
+             [lambda x, sol: 2*sol, lambda x, sol: 0*sol+2], ["D", "D"]],
             [[0, 1], 2, 1, "(1-x)", "4+x", ["0"],
-             [lambda sol: sol**2, lambda sol: 2*sol], ["D", "D"]],
+             [lambda x, sol: sol**2, lambda x, sol: 2*sol], ["D", "D"]],
         ]
         # currently robin and neumann conditions do not work when
         # nonlinear diffusion present, so skip test
+        cnt = 0
         for test_case in test_cases:
+            print(cnt)
             self.check_advection_diffusion_reaction(*test_case)
+            cnt += 1
 
     def check_stokes(self, domain_bounds, nrefine, vel_strings, pres_string,
                      bndry_types, navier_stokes):

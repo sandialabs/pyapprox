@@ -49,58 +49,92 @@ mpl.rcParams['text.latex.preamble'] = (
 
 #%%
 #Setup prior and noise variables
-# prior_rv = stats.beta(2, 2, loc=-1, scale=2)
-prior_rv = stats.norm(0, 0.25)
-prior_variable = IndependentMarginalsVariable([prior_rv])
-noise_std = 0.5
+
+# # prior_rvs = [stats.beta(2, 2, loc=-1, scale=2)]
+# prior_rvs = [stats.norm(0.0, 0.25)]
+# prior_variable = IndependentMarginalsVariable(prior_rvs)
+# noise_std = 0.5
+# noise_rv = stats.norm(0, noise_std)
+
+# def obs_fun(design, params):
+#     assert design.ndim == 2 and params.ndim == 2
+#     assert design.shape[0] == 1 and params.shape[0] == 1
+#     power = 2
+#     # when lb, ub = 0, 1
+#     # vals = (((params[0]*2-1)+design[0])**power)[:, None]
+#     # when lb, ub = -1, 1
+#     vals = ((params[0]+0.5*design[0])**power)[:, None]
+#     # vals = ((1 + params[0]*design[0])**power)[:, None]
+#     return vals
+
+
+# def qoi_fun(pred, params):
+#     assert pred.ndim == 2 and params.ndim == 2
+#     assert pred.shape[0] == 1 and params.shape[0] == 1
+#     # keep values in [0, 1] so can keep qq the sa
+#     # power = 2
+#     # vals = np.exp(((1+params.T*(pred[0]+1.1))**power))
+#     # vals = np.exp(3-30/8*params.T*(1.01+pred[0])+pred[0]**4*35/8)
+#     factor = (2+np.cos(2*np.pi*pred[0]))
+#     vals = np.exp(params.T)*factor
+#     return vals
+
+
+#prior_rvs = [stats.norm(0.0, 0.25) for ii in range(2)]
+prior_rvs = [stats.beta(2, 2, loc=-1, scale=2) for ii in range(2)]
+prior_variable = IndependentMarginalsVariable(prior_rvs)
+noise_std = 0.25
 noise_rv = stats.norm(0, noise_std)
-joint_prior_noise_variable = IndependentMarginalsVariable(
-    [prior_rv, noise_rv])
+
+
+def obs_fun(design, params):
+    assert design.ndim == 2 and params.ndim == 2
+    assert design.shape[0] == 1
+    nparams = params.shape[0]
+    # vals = params[0][:, None]+(
+    #     (design.T**np.arange(1, nparams+1)[None, :]) @ params).T
+    vals = ((((design.T**np.arange(nparams)[None, :]) @ params).T)+0.5*design)**2
+    return vals
+
+
+def qoi_fun(pred, params):
+    vals = np.exp(obs_fun(pred, params))
+    return vals
 
 
 #%%
 #Plot prior
-lb, ub = get_truncated_range(prior_rv)
-prior_xx = np.linspace(lb, ub, 101)
-plt.plot(prior_xx, prior_rv.pdf(prior_xx))
-plt.fill_between(
-    prior_xx, 0, prior_rv.pdf(prior_xx), alpha=0.4, label=r"$\pi(\theta)$")
-plt.legend()
-if savefigs:
-    plt.savefig("oed-workflow-prior.pdf")
+if prior_variable.num_vars() == 1:
+    lb, ub = get_truncated_range(prior_rvs[0])
+    prior_xx = np.linspace(lb, ub, 101)
+    plt.plot(prior_xx, prior_rvs[0].pdf(prior_xx))
+    plt.fill_between(
+        prior_xx, 0, prior_rvs[0].pdf(prior_xx), alpha=0.4, label=r"$\pi(\theta)$")
+    plt.legend()
+    if savefigs:
+        plt.savefig("oed-workflow-prior.pdf")
 
 
 #%%
 #Define observation operator
-def splitfun(design, params):
-    assert design.ndim == 2 and params.ndim == 2
-    assert design.shape[0] == 1 and params.shape[0] == 1
-    power = 2
-    # when lb, ub = 0, 1
-    # vals = (((params[0]*2-1)+design[0])**power)[:, None]
-    # when lb, ub = -1, 1
-    vals = ((params[0]+0.5*design[0])**power)[:, None]
-    # vals = ((1 + params[0]*design[0])**power)[:, None]
-    return vals
-
 
 def get_noisy_data(design_pt, samples):
     true_samples = samples[:1, :]
     noises = samples[1, :]
-    noiseless_data = splitfun(design_pt, true_samples)[:, 0]
+    noiseless_data = obs_fun(design_pt, true_samples)[:, 0]
     data = noiseless_data + noises
     return data
 
 
 #%%
-#Plot observations as a function of the random variable for each design
+#Plot observations as a function of the ra variable for each design
 def plot_data_surface_ribbons(design_pts, design_symbs, ax):
     normalized_y = np.linspace(0, 1, len(design_pts))
     ribbon_width = 1/(len(design_pts))
     plot_data = []
     for ii, design_pt in enumerate(design_pts):
         X, Y, Z = get_meshgrid_function_data(
-            lambda x: splitfun(x[:1], x[1:2]),
+            lambda x: obs_fun(x[:1], x[1:2]),
             [-1, 1, design_pt[0, 0], design_pt[0, 0]], [50, 1])
         X = np.vstack([X, X])
         # Y = np.vstack([Y, Y+ribbon_width])
@@ -128,12 +162,15 @@ def plot_data_surface_ribbons(design_pts, design_symbs, ax):
     ax.set_xlabel(mathrm_label("Parameter")+r" $\theta$")
 
 
-design_pts = [np.array([[-1]]), np.array([[0.5]]), np.array([[1]])]
+# design_pts = [np.array([[-1]]), np.array([[0.5]]), np.array([[1]])]
+design_pts = [np.array([[0.25]]), np.array([[0.5]]), np.array([[1]])]
 design_symbs = [r"\xi", r"\xi^\prime", r"\xi^\dagger"]
-ax_ribbon = create_3d_axis()
-plot_data_surface_ribbons(design_pts, design_symbs, ax_ribbon)
-if savefigs:
-    plt.savefig("oed-workflow-data-ribbons.pdf")
+
+if prior_variable.num_vars() == 1:
+    ax_ribbon = create_3d_axis()
+    plot_data_surface_ribbons(design_pts, design_symbs, ax_ribbon)
+    if savefigs:
+        plt.savefig("oed-workflow-data-ribbons.pdf")
 
 
 #%%
@@ -177,15 +214,16 @@ def plot_data_surfaces(
     axs_data[0].set_ylabel(mathrm_label("Noise")+r" $\eta$")
 
 
-unbounded_alpha = 1-1e-3  # controls how wide plot range is
-noise_plot_bounds = get_truncated_range(
-    noise_rv, bounded_alpha=unbounded_alpha)
-fig_data, axs_data = subplots(len(design_pts))
-plot_data_surfaces(
-    design_pts, lb, ub, noise_plot_bounds, design_symbs, axs_data,
-    horizontal=horizontal)
-if savefigs:
-    fig_data.savefig("oed-workflow-data-surfaces.pdf")
+if prior_variable.num_vars() == 1:
+    unbounded_alpha = 1-1e-3  # controls how wide plot range is
+    noise_plot_bounds = get_truncated_range(
+        noise_rv, bounded_alpha=unbounded_alpha)
+    fig_data, axs_data = subplots(len(design_pts))
+    plot_data_surfaces(
+        design_pts, lb, ub, noise_plot_bounds, design_symbs, axs_data,
+        horizontal=horizontal)
+    if savefigs:
+        fig_data.savefig("oed-workflow-data-surfaces.pdf")
 
 
 #%%
@@ -197,7 +235,7 @@ def get_loglike(samples, design_pt, noise_std, ii):
     samples = samples[:, ii:ii+1]
     data = get_noisy_data(design_pt, samples)
     loglike = GaussianLogLike(
-        partial(splitfun, design_pt), data, noise_std**2)
+        partial(obs_fun, design_pt), data, noise_std**2)
     return loglike
 
 
@@ -256,40 +294,34 @@ def plot_posteriors(
     return prior_noise_samples
 
 
-def qoi_fun(yy, xx):
-    # yy is space, xx is uncertain param
-    assert xx.ndim == 2 and xx.shape[0] == 1
-    yy = np.atleast_1d(yy)
-    assert yy.ndim == 1 and yy.shape[0] == 1, (yy.shape)
-    # keep values in [0, 1] so can keep qq the sa
-    # power = 2
-    # vals = np.exp(((1+xx.T*(yy[0]+1.1))**power))
-    # vals = np.exp(3-30/8*xx.T*(1.01+yy[0])+yy[0]**4*35/8)
-    factor = (2+np.cos(2*np.pi*yy[0]))
-    vals = np.exp(xx.T)*factor
-    return vals
-
-
 cvar_p1 = 0.9
 cvar_p2 = 0.2
 data_markers = ["X", "s", "o"]
 data_latex_markers = [r"\times", r"\square", r"\circ"]
+joint_prior_noise_variable = IndependentMarginalsVariable(
+    prior_rvs + [noise_rv])
+if prior_variable.num_vars() == 1:
+    prior_quad_xx, prior_quad_ww = integrate(
+        "tensorproduct", prior_variable, rule="quadratic", levels=100)
+else:
+    prior_quad_xx, prior_quad_ww = integrate(
+        "quasimontecarlo", prior_variable, rule="halton", nsamples=1000)
+
 # plot data surfaces again now with random observations on it
-fig_data, axs_data = subplots(len(design_pts))
-plot_data_surfaces(
-    design_pts, lb, ub, noise_plot_bounds, design_symbs, axs_data,
-    horizontal=horizontal)
-fig_pdf, axs_pdf = subplots(len(design_pts))
-prior_quad_xx, prior_quad_ww = integrate(
-    "tensorproduct", prior_variable, rule="quadratic", levels=300)
-plot_posteriors(
-    prior_quad_xx, prior_quad_ww, prior_rv, lb, ub, design_pts,
-    cvar_p1, joint_prior_noise_variable, noise_std,
-    data_markers, data_latex_markers, design_symbs,
-    axs_pdf, axs_data, horizontal=horizontal)
-if savefigs:
-    fig_pdf.savefig("oed-workflow-pdfs.pdf")
-    fig_data.savefig("oed-workflow-data-surfaces-update.pdf")
+if prior_variable.num_vars() == 1:
+    fig_data, axs_data = subplots(len(design_pts))
+    plot_data_surfaces(
+        design_pts, lb, ub, noise_plot_bounds, design_symbs, axs_data,
+        horizontal=horizontal)
+    fig_pdf, axs_pdf = subplots(len(design_pts))
+    plot_posteriors(
+        prior_quad_xx, prior_quad_ww, prior_rvs[0], lb, ub, design_pts,
+        cvar_p1, joint_prior_noise_variable, noise_std,
+        data_markers, data_latex_markers, design_symbs,
+        axs_pdf, axs_data, horizontal=horizontal)
+    if savefigs:
+        fig_pdf.savefig("oed-workflow-pdfs.pdf")
+        fig_data.savefig("oed-workflow-data-surfaces-update.pdf")
 
 
 #%%
@@ -341,8 +373,11 @@ def get_posterior_and_pushforward_functions(
     ww_post, evidence, loglike, zz, like_vals = get_posterior_weights(
         design_pt, prior_noise_quad_xx, noise_std, prior_quad_xx,
         prior_quad_ww, qoi_fun, ii)
-
-    prior_pdf = get_pdf(prior_rv)
+    print(prior_density_quad_xx.shape)
+    if prior_variable.num_vars() == 1:
+        prior_pdf = get_pdf(prior_rv[0])
+    else:
+        prior_pdf = prior_variable._pdf
     post_pdf = partial(posterior_pdf, loglike, prior_pdf, evidence)
 
     post_density_quad_xx = prior_density_quad_xx
@@ -358,17 +393,24 @@ def get_posterior_and_pushforward_functions(
     return post_pdf, post_push_pdf, zz, ww_post, evidence, like_vals
 
 
-def plot_pushforwards(prior_variable, qq, qoi_fun, design_pts, lb, ub, cvar_p,
+def plot_pushforwards(prior_variable, qq, qoi_fun, design_pts, cvar_p,
                       joint_prior_noise_variable, prior_quad_xx, prior_quad_ww,
                       noise_std, prior_rv, qbounds,
                       data_markers, data_latex_markers,
                       design_symbs, axs_pdf, axs_cdf, horizontal=False):
-    ndensity_quad_samples = int(1e4)+1
-    prior_density_quad_xx, prior_density_quad_ww = integrate(
-        "tensorproduct", prior_variable, levels=ndensity_quad_samples,
-        rule="quadratic")
+    if prior_variable.num_vars() == 1:
+        ndensity_quad_samples = int(1e4)+1
+        prior_density_quad_xx, prior_density_quad_ww = integrate(
+            "tensorproduct", prior_variable, levels=ndensity_quad_samples,
+            rule="quadratic")
+        tol = 8e-4
+    else:
+        tol = 8e-3
+        ndensity_quad_samples = int(1e4)+1# int(1e6)+1
+        prior_density_quad_xx, prior_density_quad_ww = integrate(
+            "quasimontecarlo", prior_variable, nsamples=ndensity_quad_samples)
     # tol = 1/(ndensity_quad_samples/100)
-    tol = 8e-4
+
     prior_push_pdf = partial(
         pushforward_pdf, qoi_fun, prior_density_quad_xx,
         prior_density_quad_ww, tol)
@@ -379,8 +421,9 @@ def plot_pushforwards(prior_variable, qq, qoi_fun, design_pts, lb, ub, cvar_p,
         axs_pdf[ii].fill_between(
             qq, 0, prior_pdf_vals, alpha=0.4, label=r"$\pi(q(\theta))$")
         color = im.get_color()
-        plot_push_cdf(prior_push_pdf, qbounds, cvar_p, qq, color,
-                      r"$\mathbb{P}(q(\theta))$", axs_cdf[ii], "-")
+        # CDFS are expensive so turn off for now
+        # plot_push_cdf(prior_push_pdf, qbounds, cvar_p, qq, color,
+        #               r"$\mathbb{P}(q(\theta))$", axs_cdf[ii], "-")
 
         for jj in range(len(data_markers)):
             ls = linestyles[jj]
@@ -398,8 +441,8 @@ def plot_pushforwards(prior_variable, qq, qoi_fun, design_pts, lb, ub, cvar_p,
             color = im.get_color()
             label = r"$\mathbb{P}(q(\theta)\mid y^{%s},%s)$" % (
                 data_latex_markers[jj], design_symbs[ii])
-            plot_push_cdf(post_push_pdf, qbounds, cvar_p, qq, color,
-                          label, axs_cdf[ii], ls)
+            # plot_push_cdf(post_push_pdf, qbounds, cvar_p, qq, color,
+            #               label, axs_cdf[ii], ls)
         axs_pdf[ii].legend()
         axs_cdf[ii].legend()
         if horizontal:
@@ -419,8 +462,10 @@ pred_idx = npred_pts//4*3
 assert pred_pts[0, pred_idx] == 0.5
 
 # assumes monotonic increasing function in uncertain parameter
-qbounds = np.stack(
-    [qoi_fun(x, np.array([[lb, ub]]))[:, 0] for x in pred_pts.T])
+# qbounds = np.stack(
+#     [qoi_fun(x[None, :], np.array([[lb, ub]]))[:, 0] for x in pred_pts.T])
+qoi_vals = qoi_fun(pred_pts, prior_variable.rvs(10000))
+qbounds = np.stack([[q.min(), q.max()] for q in qoi_vals.T])
 
 # turn off temporarily because it is expensive
 fig_push_pdf_horz, axs_push_pdf_horz = plt.subplots(
@@ -429,22 +474,21 @@ fig_push_cdf_horz, axs_push_cdf_horz = plt.subplots(
     1, len(design_pts), figsize=(len(design_pts)*8, 1*6), sharey=True)
 qq = np.linspace(*qbounds[pred_idx], 51)
 plot_pushforwards(
-    prior_variable, qq, partial(qoi_fun, pred_pts[:, pred_idx]),
-    design_pts, lb, ub, cvar_p1,
-    joint_prior_noise_variable, prior_quad_xx, prior_quad_ww,
-    noise_std, prior_rv, qbounds[pred_idx], data_markers, data_latex_markers,
+    prior_variable, qq, partial(qoi_fun, pred_pts[:, pred_idx:pred_idx+1]),
+    design_pts, cvar_p1, joint_prior_noise_variable,
+    prior_quad_xx, prior_quad_ww,
+    noise_std, prior_rvs, qbounds[pred_idx], data_markers, data_latex_markers,
     design_symbs, axs_push_pdf_horz, axs_push_cdf_horz, horizontal=horizontal)
 if savefigs:
     fig_push_pdf_horz.savefig("oed-workflow-push-pdfs.pdf")
     fig_push_cdf_horz.savefig("oed-workflow-push-cdfs.pdf")
 
 
-
 #%%
 #Compute deviations for each design and prediction point
 def _compute_deviations(design_pt, prior_noise_quad_xx, noise_std,
                         prior_quad_xx, prior_quad_ww,
-                        cvar_p1, cvar_p2, prior_rv, qoi_fun, prior_variable,
+                        cvar_p1, cvar_p2, qoi_fun, prior_variable,
                         nonlinear_qoi, ii):
     assert prior_quad_ww.shape[1] == 1
     prior_quad_ww = prior_quad_ww[:, 0]
@@ -452,12 +496,6 @@ def _compute_deviations(design_pt, prior_noise_quad_xx, noise_std,
     ww_post, evidence, loglike, zz, like_vals = get_posterior_weights(
         design_pt, prior_noise_quad_xx, noise_std, prior_quad_xx,
         prior_quad_ww, qoi_fun, ii)
-
-    # print((prior_quad_xx[0]**2) @ prior_quad_ww)
-    # print((prior_quad_xx[0]**2) @ ww_post)
-    # print('e', evidence)
-    # print(prior_quad_xx.shape)
-    # assert False
 
     mean = zz.dot(ww_post)
     # The following is numerically unstable
@@ -487,7 +525,7 @@ def _compute_deviations(design_pt, prior_noise_quad_xx, noise_std,
 
 
 def compute_deviations(design_pt, prior_noise_quad_data, noise_std, xx, ww,
-                       cvar_p1, cvar_p2, prior_rv, qoi_fun, prior_variable,
+                       cvar_p1, cvar_p2, qoi_fun, prior_variable,
                        nonlinear_qoi):
     nsamples = prior_noise_quad_data[0].shape[1]
 
@@ -496,7 +534,7 @@ def compute_deviations(design_pt, prior_noise_quad_data, noise_std, xx, ww,
         deviations = pool.map(
             partial(_compute_deviations,
                     design_pt, prior_noise_quad_data[0], noise_std, xx, ww,
-                    cvar_p1, cvar_p2, prior_rv, qoi_fun, prior_variable,
+                    cvar_p1, cvar_p2, qoi_fun, prior_variable,
                     nonlinear_qoi),
             list(range(nsamples)))
         pool.close()
@@ -506,17 +544,21 @@ def compute_deviations(design_pt, prior_noise_quad_data, noise_std, xx, ww,
     for ii in range(nsamples):
         devs = _compute_deviations(
             design_pt, prior_noise_quad_data[0], noise_std, xx, ww,
-            cvar_p1, cvar_p2, prior_rv, qoi_fun, prior_variable,
+            cvar_p1, cvar_p2, qoi_fun, prior_variable,
             nonlinear_qoi, ii)
         deviations.append(devs)
     return deviations
 
 
-levels = np.array([20, 20])
-nsamples_1d = levels+1
 nonlinear_qoi = True
-basis_type = "quadratic"
-# basis_type = "linear"
+
+if prior_variable.num_vars() == 2:
+    levels = np.array([10 for ii in range(prior_variable.num_vars()+1)])
+else:
+    levels = np.array([20 for ii in range(prior_variable.num_vars()+1)])
+nsamples_1d = levels+1
+# basis_type = "quadratic"
+basis_type = "linear"
 prior_noise_quad_data = integrate(
     "tensorproduct", joint_prior_noise_variable,
     rule=basis_type, levels=levels)
@@ -533,7 +575,7 @@ if not os.path.exists(deviations_filename):
             deviations_ii.append(compute_deviations(
                 design_pt, prior_noise_quad_data, noise_std,
                 prior_quad_xx, prior_quad_ww,
-                cvar_p1, cvar_p2, prior_rv, partial(qoi_fun, pred_pt),
+                cvar_p1, cvar_p2, partial(qoi_fun, pred_pt[None, :]),
                 prior_variable, nonlinear_qoi))
         deviations.append(deviations_ii)
     deviations = np.array(deviations)
@@ -608,25 +650,27 @@ def plot_deviation_surfaces(
         axs[0].set_ylabel(mathrm_label("Noise")+r" $\eta$")
 
 
-fig_kl_surf, axs_kl_surf = subplots(len(design_pts))
-plot_deviation_surfaces(
-    deviations[:, pred_idx, ..., dev_idx], prior_noise_quad_data, lb, ub,
-    noise_plot_bounds, design_symbs, deviation_symbs[dev_idx], axs_kl_surf,
-    basis_type, nsamples_1d, True, False)
-if savefigs:
-    fig_kl_surf.savefig("oed-workflow-kl-div-surfaces.pdf")
+if prior_variable.num_vars() == 1:
+    fig_kl_surf, axs_kl_surf = subplots(len(design_pts))
+    plot_deviation_surfaces(
+        deviations[:, pred_idx, ..., dev_idx], prior_noise_quad_data, lb, ub,
+        noise_plot_bounds, design_symbs, deviation_symbs[dev_idx], axs_kl_surf,
+        basis_type, nsamples_1d, True, False)
+    if savefigs:
+        fig_kl_surf.savefig("oed-workflow-kl-div-surfaces.pdf")
 
 
 #%%
 #Plot CVaR deviation surfaces
-fig_dev_surf, axs_dev_surf = subplots(len(design_pts))
-dev_idx = 1  # 1 corresponds to cvar_p1
-plot_deviation_surfaces(
-    deviations[:, pred_idx, ..., dev_idx], prior_noise_quad_data, lb, ub,
-    noise_plot_bounds, design_symbs, deviation_symbs[dev_idx], axs_dev_surf,
-    basis_type, nsamples_1d, True)
-if savefigs:
-    fig_dev_surf.savefig("oed-workflow-avar-dev-surfaces.pdf")
+if prior_variable.num_vars() == 1:
+    fig_dev_surf, axs_dev_surf = subplots(len(design_pts))
+    dev_idx = 1  # 1 corresponds to cvar_p1
+    plot_deviation_surfaces(
+        deviations[:, pred_idx, ..., dev_idx], prior_noise_quad_data, lb, ub,
+        noise_plot_bounds, design_symbs, deviation_symbs[dev_idx], axs_dev_surf,
+        basis_type, nsamples_1d, True)
+    if savefigs:
+        fig_dev_surf.savefig("oed-workflow-avar-dev-surfaces.pdf")
 
 #%%
 #Plot the PDF of the KL divergence as a function of the noise
@@ -659,7 +703,7 @@ def plot_deviation_pdf(prior_noise_quad_data, deviations, joint_xx,
         ax.plot(qq, density_vals, label=r"$\pi(%s[\theta \mid y,%s])$" % (
             deviation_symb, design_symb), **kwargs)
     ax.fill_between(qq, 0, density_vals[:, 0], alpha=0.3)
-    ub = max(ax.get_xlim()[0],
+    ub = max(ax.get_xlim()[1],
              qq[density_vals[:, 0] > 1e-2*density_vals[:, 0].max()][-1])
     ax.set_xlim(0, ub)
 
@@ -763,7 +807,6 @@ def plot_prediction_deviation_surface(deviations, axs, indices, pred_pts):
             Z_list_ii.append(Z)
         Z_list.append(Z_list_ii)
 
-    print(Zmin, Zmax)
     stride = 4/(len(indices)-1)  # be on [0, 4] on z-axis
     for ii in range(deviations.shape[0]):
         cnt = 0
@@ -776,11 +819,12 @@ def plot_prediction_deviation_surface(deviations, axs, indices, pred_pts):
         _turn_off_3d_axes(axs[ii])
 
 
-indices = np.hstack((np.arange(npred_pts)[::3], npred_pts-1))
-axs = plt.subplots(1, 3, figsize=(3*8, 6), subplot_kw={"projection": "3d"})[1]
-dev_idx = 1
-plot_prediction_deviation_surface(
-    deviations[..., dev_idx], axs, indices, pred_pts)
+if prior_variable.num_vars() == 1:
+    indices = np.hstack((np.arange(npred_pts)[::3], npred_pts-1))
+    axs = plt.subplots(1, 3, figsize=(3*8, 6), subplot_kw={"projection": "3d"})[1]
+    dev_idx = 1
+    plot_prediction_deviation_surface(
+        deviations[..., dev_idx], axs, indices, pred_pts)
 
 #%%
 #Plot expected deviation over prediction space
@@ -796,6 +840,7 @@ def plot_risk_prediction_deviation_surface(
     vals = interp(xx)
     ax.plot(xx[0], vals)
 
+
 dev_idx = 1
 fig, axs = subplots(3)
 for ii, design_pt in enumerate(design_pts):
@@ -804,6 +849,7 @@ for ii, design_pt in enumerate(design_pts):
         joint_qmc_xx, joint_qmc_ww, deviation_symbs[dev_idx], design_symbs[ii],
         axs[ii], basis_type, nsamples_1d, pred_wts, pred_pts)
 plt.show()
+assert False
 
 
 #%%
@@ -814,7 +860,6 @@ def plot_risk_prediction_deviation_pdf(
         basis_type, nsamples_1d, pred_wts, **kwargs):
 
     risk_deviations = (deviations.T @ pred_wts)[:, 0]
-    print(risk_deviations[:5], risk_deviations.shape, 'a')
 
     risk_deviations = []
     cvar_p3 = 0.5
@@ -825,8 +870,6 @@ def plot_risk_prediction_deviation_pdf(
         risk_deviations.append(cvar)
     risk_deviations = np.array(risk_deviations)
 
-    print(risk_deviations[:5], risk_deviations.shape, 'b')
-    print(deviations.shape)
     interp = partial(
         interpolate_deviation, nsamples_1d, basis_type, prior_noise_quad_data,
         risk_deviations)
