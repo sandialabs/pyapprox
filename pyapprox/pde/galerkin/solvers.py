@@ -21,7 +21,6 @@ def newton_solve(assemble, u_init,
         # This is done by condense so mimic here
         # order of concatenation will be different to in jac and res
         # but this does not matter when computing norm
-        print(II.shape, res[II].shape, D_vals.shape, D_dofs)
         if res.ndim != 1:
             msg = "residual the wrong shape"
             raise RuntimeError(msg)
@@ -122,7 +121,6 @@ class TransientPDE():
         srhs, jac = self._rhs(active_stage_sol, active_stage_time)
         temp = asm(LinearForm(_forcing), self.physics.basis, forc=sol)
         new_active_stage_unknowns = (temp+srhs*deltat)
-        print(new_active_stage_unknowns.shape, 's')
         return new_active_stage_unknowns, srhs, jac
 
     def _diag_residual_fun(self, stage_unknowns):

@@ -216,10 +216,16 @@ class TestFiniteElements(unittest.TestCase):
             self, domain_bounds, order, nrefine, sol_string, diff_string,
             vel_strings, react_funs, bndry_types, mms_nl_diff_funs=[None, None]):
 
-        sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
+        sol_fun, diff_fun, mms_vel_fun, forc_fun, flux_funs = (
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_funs[0], False,
                 mms_nl_diff_funs[0]))
+
+        # put manufactured vels in format required by FEM
+        def vel_fun(x):
+            vals = mms_vel_fun(x)
+            vals = np.swapaxes(vals, 0, 1)
+            return vals
 
         # manufactured solutions assumes nl_diff_fun takes linear diffusion
         # and solution as arguments. Now convert to format required by
@@ -246,31 +252,24 @@ class TestFiniteElements(unittest.TestCase):
 
         # Solve linear diffusion problem to get initial guess
         # starting with just zeros can cause singular matrix if
-        # nl_diff = linear_diff*fun(sol)
-        bilinear_mat, linear_vec, D_vals, D_dofs = (
-            _assemble_advection_diffusion_reaction(
-                diff_fun, forc_fun, [None, None], [None, None],
-                bndry_conds, mesh, element, basis))
         physics = AdvectionDiffusionReaction(
             mesh, element, basis, bndry_conds, diff_fun, forc_fun,
-            None, nl_diff_funs, react_funs)
+            vel_fun, nl_diff_funs, react_funs)
         init_sol = physics.init_guess()
 
-        # init_sol = solve(
-        #     *condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
-
         exact_sol = basis.project(lambda x: sol_fun(x)[:, 0])
+        # print(np.abs(init_sol-exact_sol).max(), 'a')
 
         assemble = partial(
             _assemble_advection_diffusion_reaction, diff_fun,
-            forc_fun, nl_diff_funs, react_funs, bndry_conds, mesh,
+            forc_fun, nl_diff_funs, react_funs, vel_fun, bndry_conds, mesh,
             element, basis)
         bilinear_mat, res, D_vals, D_dofs = assemble(u_prev=exact_sol)
         # minus sign because res = -a(u_prev, v) + L(v)
         jac = -bilinear_mat
         # print(jac.toarray()[:K.blocks[0], :K.blocks[0]], 'jac', jac.shape)
         II = np.setdiff1d(np.arange(jac.shape[0]), D_dofs)
-        print(res[II], 'res')
+        # print(res[II], 'res')
         # assert False
         assert np.all(np.abs(res[II]) < 5e-7)
 
@@ -285,7 +284,7 @@ class TestFiniteElements(unittest.TestCase):
         def integrate(w):
             return w.y
         error = np.sqrt(integrate.assemble(basis, y=(exact_sol-fem_sol)**2))
-        print("error", error)
+        # print("error", error)
 
         mesh_pts = mesh.p
         fem_sol_on_mesh = basis.interpolator(fem_sol)(mesh_pts)
@@ -306,27 +305,31 @@ class TestFiniteElements(unittest.TestCase):
     def test_advection_diffusion_reaction(self):
         power = 1  # power of nonlinear diffusion
         test_cases = [
-            [[0, 1], 2, 1, "x*(1-x)", "4+x", ["0"], [None, None], ["D", "D"]],
-            [[0, 1], 2, 1, "x*x", "4+x", ["0"], [None, None], ["D", "D"]],
-            [[0, 1], 2, 1, "x*x", "4+x", ["0"], [None, None], ["D", "R"]],
+            [[0, 1], 2, 1, "x*(1-x)", "4+x", ["0+1e-16*x"], [None, None], ["D", "D"]],
+            [[0, 1], 2, 1, "x*x", "4+x", ["0+1e-16*x"], [None, None], ["D", "D"]],
+            [[0, 1], 2, 1, "x*x", "4+x", ["0+1e-16*x"], [None, None], ["D", "R"]],
+            [[0, 1], 2, 1, "x*x", "4+x", ["1+1e-16*x"], [None, None],
+             ["D", "R"]],
             # for nonlinear diffusion be careful to ensure that nl_diff > 0
-            [[0, 1], 2, 5, "1+x", "4+1e-16*x", ["0"], [None, None], ["D", "D"],
+            [[0, 1], 2, 5, "1+x", "4+1e-16*x", ["0+1e-16*x"], [None, None], ["D", "D"],
              [lambda linear_diff, sol: (sol**power+1)*linear_diff,
               lambda linear_diff, sol: (power*sol**(power-1))*linear_diff
               if power > 0 else 0*sol]],
-            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0", "0"],
+            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0+1e-16*x", "0+1e-16*x"],
              [None, None], ["D", "D", "D", "D"]],
-            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0", "0"],
+            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0+1e-16*x", "0+1e-16*x"],
              [None, None], ["D", "R", "N", "D"]],
             # [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0", "0"],
             #  [None, None], ["D", "D", "N", "D"],
             #  [lambda linear_diff, sol: (sol**power+1)*linear_diff,
             #   lambda linear_diff, sol: (power*sol**(power-1))*linear_diff
             #   if power > 0 else 0*sol]],
-            [[0, 1], 2, 1, "x*(1-x)", "4+x", ["0"],
+            [[0, 1], 2, 1, "x*(1-x)", "4+x", ["0+1e-16*x"],
              [lambda x, sol: 2*sol, lambda x, sol: 0*sol+2], ["D", "D"]],
-            [[0, 1], 2, 1, "(1-x)", "4+x", ["0"],
+            [[0, 1], 2, 1, "(1-x)", "4+x", ["0+1e-16*x"],
              [lambda x, sol: sol**2, lambda x, sol: 2*sol], ["D", "D"]],
+            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["1+1e-16*x", "2+1e-16*x"],
+             [None, None], ["D", "R", "N", "D"]],
         ]
         # currently robin and neumann conditions do not work when
         # nonlinear diffusion present, so skip test
@@ -477,8 +480,9 @@ class TestFiniteElements(unittest.TestCase):
         for test_case in test_cases:
             self._check_transient_advection_diffusion_reaction(*test_case)
 
-
+            
 if __name__ == "__main__":
+    
     fem_test_suite = \
         unittest.TestLoader().loadTestsFromTestCase(TestFiniteElements)
     unittest.TextTestRunner(verbosity=2).run(fem_test_suite)

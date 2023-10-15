@@ -112,7 +112,7 @@ def _diffusion_residual(v, w):
 
 
 class LinearDiffusionResidual():
-    def __init__(self, forc_fun, diff_fun, react_fun):
+    def __init__(self, forc_fun, diff_fun, react_fun, vel_fun):
         # for use with direct solvers, i.e. not in residual form,
         # typically used for computing initial guess for newton solve
         self._forc_fun = forc_fun
@@ -120,7 +120,9 @@ class LinearDiffusionResidual():
         if react_fun is None:
             react_fun = self._zero_fun
         self._react_fun = react_fun
-        self._vel_fun = self._zero_vel_fun
+        if vel_fun is None:
+            vel_fun = self._zero_vel_fun
+        self._vel_fun = vel_fun
         self.__name__ = self.__class__.__name__
 
     def _zero_fun(self, x, *args):
@@ -135,7 +137,7 @@ class LinearDiffusionResidual():
     def _advection_term(self, u, v, w):
         du = u.grad
         vel = self._vel_fun(w.x)
-        return sum([vel[ii]*v*du[ii] for ii in range(w.x.shape[0])])
+        return sum([v*vel[ii]*du[ii] for ii in range(w.x.shape[0])])
 
     def bilinear_form(self, u, v, w):
         diff = self._diff_fun(w.x)
@@ -146,14 +148,16 @@ class LinearDiffusionResidual():
 
 class NonLinearDiffusionResidual():
     def __init__(self, forc_fun, react_fun, react_prime, nl_diff_fun,
-                 nl_diff_prime):
+                 nl_diff_prime, vel_fun):
         self._forc_fun = forc_fun
         self._nl_diff_fun = nl_diff_fun
         self._nl_diff_prime = nl_diff_prime
         if react_fun is None:
             react_fun = self._zero_fun
             react_prime = self._zero_fun
-        self._vel_fun = self._zero_vel_fun
+        if vel_fun is None:
+            vel_fun = self._zero_vel_fun
+        self._vel_fun = vel_fun
         self._react_fun = react_fun
         self._react_prime = react_prime
         self.__name__ = self.__class__.__name__
@@ -169,20 +173,21 @@ class NonLinearDiffusionResidual():
         diff = self._nl_diff_fun(w.x, w.u_prev)
         react = self._react_fun(w.x, w.u_prev)
         return (forc * v - dot(diff*grad(w.u_prev), grad(v)) -
-                react * v)
+                react * v - self._advection_term(w.u_prev, v, w))
 
     def _advection_term(self, u, v, w):
         du = u.grad
         vel = self._vel_fun(w.x)
-        return sum([vel[ii]*v*du[ii] for ii in range(w.x.shape[0])])
+        return sum([v*vel[ii]*du[ii] for ii in range(w.x.shape[0])])
 
     def bilinear_form(self, u, v, w):
         diff = self._nl_diff_fun(w.x, w.u_prev)
         diff_prime = self._nl_diff_prime(w.x, w.u_prev)
         react_prime = self._react_prime(w.x, w.u_prev)
-        return (dot(diff * grad(u), grad(v)) +
-                dot(diff_prime*u*grad(w.u_prev), grad(v)) +
-                react_prime * u * v) + self._advection_term(u, v, w)
+        mat = (dot(diff * grad(u), grad(v)) +
+               dot(diff_prime*u*grad(w.u_prev), grad(v)) +
+               react_prime * u * v) + self._advection_term(u, v, w)
+        return mat
 
 
 # TODO allow anisotropic diffusion
@@ -195,7 +200,7 @@ class NonLinearDiffusionResidual():
 
 
 def _raw_assemble_advection_diffusion_reaction(
-        diff_fun, forc_fun, nl_diff_funs, react_funs,
+        diff_fun, forc_fun, nl_diff_funs, react_funs, vel_fun,
         bndry_conds, mesh, element, basis, u_prev=None):
 
     # Note, project only takes functions that return 1D arrays
@@ -214,14 +219,14 @@ def _raw_assemble_advection_diffusion_reaction(
         assert nl_diff_fun is None
         assert react_funs[0] is None
         residual = LinearDiffusionResidual(
-            forc_fun, diff_fun, react_funs[0])
+            forc_fun, diff_fun, react_funs[0], vel_fun)
         bilinear_mat = asm(
             BilinearForm(residual.bilinear_form), basis)
         linear_vec = asm(
             LinearForm(residual.linear_form), basis)
     else:
         residual = NonLinearDiffusionResidual(
-            forc_fun, *react_funs, *nl_diff_funs)
+            forc_fun, *react_funs, *nl_diff_funs, vel_fun)
         # use below if using newton solve
         u_prev_interp = basis.interpolate(u_prev)
         bilinear_mat = asm(
@@ -236,10 +241,10 @@ def _raw_assemble_advection_diffusion_reaction(
 
 
 def _assemble_advection_diffusion_reaction(
-        diff_fun, forc_fun, nl_diff_funs, react_funs,
+        diff_fun, forc_fun, nl_diff_funs, react_funs, vel_fun,
         bndry_conds, mesh, element, basis, u_prev=None):
     bilinear_mat, linear_vec = _raw_assemble_advection_diffusion_reaction(
-        diff_fun, forc_fun, nl_diff_funs, react_funs,
+        diff_fun, forc_fun, nl_diff_funs, react_funs, vel_fun,
         bndry_conds, mesh, element, basis, u_prev)
     D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
         mesh, element, basis, bilinear_mat, linear_vec,
@@ -483,10 +488,6 @@ class AdvectionDiffusionReaction(Physics):
 
         super().__init__(mesh, element, basis, bndry_conds)
 
-        if self.vel_fun is not None:
-            # TODO add these terms
-            raise NotImplementedError("Options currently not supported")
-
     def _set_funs(self) -> List:
         return [self.diff_fun, self.vel_fun, self.forc_fun, self.nl_diff_funs,
                 self.react_funs]
@@ -495,6 +496,7 @@ class AdvectionDiffusionReaction(Physics):
         bilinear_mat, linear_vec, D_vals, D_dofs = (
             _assemble_advection_diffusion_reaction(
                 self.diff_fun, self.forc_fun, [None, None], [None, None],
+                self.vel_fun,
                 self.bndry_conds, self.mesh, self.element, self.basis))
         return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
 
@@ -503,7 +505,8 @@ class AdvectionDiffusionReaction(Physics):
             Union[np.ndarray, spmatrix]]:
         return _raw_assemble_advection_diffusion_reaction(
             self.diff_fun, self.forc_fun, self.nl_diff_funs, self.react_funs,
-            self.bndry_conds, self.mesh, self.element, self.basis, sol)
+            self.vel_fun, self.bndry_conds, self.mesh, self.element,
+            self.basis, sol)
 
     def apply_dirichlet_boundary_conditions(
             self,
@@ -602,7 +605,6 @@ class BiLaplacianPrior():
         self.gamma = gamma
         self.delta = delta
         self.beta = np.sqrt(self.gamma*self.delta)*1.42
-        print(mesh.p.shape[0])
         if anisotropic_tensor is None:
             anisotropic_tensor = np.eye(mesh.p.shape[0])*gamma
         else:
