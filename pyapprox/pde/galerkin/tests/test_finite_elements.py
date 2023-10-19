@@ -9,10 +9,12 @@ from pyapprox.pde.galerkin.physics import (
     _assemble_advection_diffusion_reaction, _assemble_stokes)
 from pyapprox.pde.galerkin.solvers import (
     newton_solve, SteadyStatePDE, TransientPDE, TransientFunction)
-from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction, Stokes
+from pyapprox.pde.galerkin.physics import (
+    AdvectionDiffusionReaction, Helmholtz, Stokes)
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
-    setup_steady_stokes_manufactured_solution)
+    setup_steady_stokes_manufactured_solution,
+    setup_helmholtz_manufactured_solution)
 from pyapprox.pde.autopde.tests.test_autopde import _vel_component_fun
 
 
@@ -284,7 +286,7 @@ class TestFiniteElements(unittest.TestCase):
         def integrate(w):
             return w.y
         error = np.sqrt(integrate.assemble(basis, y=(exact_sol-fem_sol)**2))
-        # print("error", error)
+        print("error", error)
 
         mesh_pts = mesh.p
         fem_sol_on_mesh = basis.interpolator(fem_sol)(mesh_pts)
@@ -305,19 +307,25 @@ class TestFiniteElements(unittest.TestCase):
     def test_advection_diffusion_reaction(self):
         power = 1  # power of nonlinear diffusion
         test_cases = [
-            [[0, 1], 2, 1, "x*(1-x)", "4+x", ["0+1e-16*x"], [None, None], ["D", "D"]],
-            [[0, 1], 2, 1, "x*x", "4+x", ["0+1e-16*x"], [None, None], ["D", "D"]],
-            [[0, 1], 2, 1, "x*x", "4+x", ["0+1e-16*x"], [None, None], ["D", "R"]],
+            [[0, 1], 2, 1, "x*(1-x)", "4+x", ["0+1e-16*x"], [None, None],
+             ["D", "D"]],
+            [[0, 1], 2, 1, "x*x", "4+x", ["0+1e-16*x"], [None, None],
+             ["D", "D"]],
+            [[0, 1], 2, 1, "x*x", "4+x", ["0+1e-16*x"], [None, None],
+             ["D", "R"]],
             [[0, 1], 2, 1, "x*x", "4+x", ["1+1e-16*x"], [None, None],
              ["D", "R"]],
             # for nonlinear diffusion be careful to ensure that nl_diff > 0
-            [[0, 1], 2, 5, "1+x", "4+1e-16*x", ["0+1e-16*x"], [None, None], ["D", "D"],
+            [[0, 1], 2, 5, "1+x", "4+1e-16*x", ["0+1e-16*x"], [None, None],
+             ["D", "D"],
              [lambda linear_diff, sol: (sol**power+1)*linear_diff,
               lambda linear_diff, sol: (power*sol**(power-1))*linear_diff
               if power > 0 else 0*sol]],
-            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0+1e-16*x", "0+1e-16*x"],
+            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x",
+             ["0+1e-16*x", "0+1e-16*x"],
              [None, None], ["D", "D", "D", "D"]],
-            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0+1e-16*x", "0+1e-16*x"],
+            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x",
+             ["0+1e-16*x", "0+1e-16*x"],
              [None, None], ["D", "R", "N", "D"]],
             # [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0", "0"],
             #  [None, None], ["D", "D", "N", "D"],
@@ -328,8 +336,8 @@ class TestFiniteElements(unittest.TestCase):
              [lambda x, sol: 2*sol, lambda x, sol: 0*sol+2], ["D", "D"]],
             [[0, 1], 2, 1, "(1-x)", "4+x", ["0+1e-16*x"],
              [lambda x, sol: sol**2, lambda x, sol: 2*sol], ["D", "D"]],
-            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["1+1e-16*x", "2+1e-16*x"],
-             [None, None], ["D", "R", "N", "D"]],
+            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x",
+             ["1+x", "2+1e-16*x"], [None, None], ["D", "R", "N", "D"]],
         ]
         # currently robin and neumann conditions do not work when
         # nonlinear diffusion present, so skip test
@@ -338,6 +346,41 @@ class TestFiniteElements(unittest.TestCase):
             print(cnt)
             self.check_advection_diffusion_reaction(*test_case)
             cnt += 1
+
+    def _check_helmholtz(self, domain_bounds, order, nrefine, sol_string,
+                         wnum_string, bndry_types):
+        sol_fun, wnum_fun, forc_fun, flux_funs = (
+            setup_helmholtz_manufactured_solution(
+                sol_string, wnum_string, len(domain_bounds)//2))
+
+        wnum_fun = Function(wnum_fun)
+        forc_fun = Function(forc_fun)
+
+        mesh = _get_mesh(domain_bounds, nrefine)
+        element = _get_element(mesh, order)
+        basis = Basis(mesh, element)
+
+        bndry_conds = _get_advection_diffusion_reaction_bndry_conds(
+            mesh, bndry_types, domain_bounds, sol_fun, flux_funs)
+
+        physics = Helmholtz(
+            mesh, element, basis, bndry_conds, wnum_fun, forc_fun)
+        init_sol = physics.init_guess()
+
+        exact_sol = basis.project(lambda x: sol_fun(x)[:, 0])
+        #print(exact_sol)
+        #print(init_sol)
+        #print(np.abs(init_sol-exact_sol).max(), 'a')
+        assert np.allclose(exact_sol, init_sol)
+
+    def test_helmholtz(self):
+        test_cases = [
+            [[0, 1], 2, 1, "x**2", "1*x", ["D", "D"]],
+            [[0, .5, 0, 1], 2, 1, "y**2*x**2", "1+1e-16*x",
+             ["N", "D", "D", "D"]]
+        ]
+        for test_case in test_cases:
+            self._check_helmholtz(*test_case)
 
     def check_stokes(self, domain_bounds, nrefine, vel_strings, pres_string,
                      bndry_types, navier_stokes):
@@ -480,9 +523,9 @@ class TestFiniteElements(unittest.TestCase):
         for test_case in test_cases:
             self._check_transient_advection_diffusion_reaction(*test_case)
 
-            
+
 if __name__ == "__main__":
-    
+
     fem_test_suite = \
         unittest.TestLoader().loadTestsFromTestCase(TestFiniteElements)
     unittest.TextTestRunner(verbosity=2).run(fem_test_suite)

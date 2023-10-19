@@ -220,6 +220,9 @@ def setup_helmholtz_manufactured_solution(sol_string, wnum_string, nphys_vars):
         sp.lambdify(symbs, flux_expr, "numpy") for flux_expr in flux_exprs]
     flux_funs = partial(_evaluate_list_of_sp_lambda, flux_lambdas)
 
+    # print(sol_expr)
+    # print(wnum_expr)
+    # print(forc_expr)
     return sol_fun, wnum_fun, forc_fun, flux_funs
 
 
