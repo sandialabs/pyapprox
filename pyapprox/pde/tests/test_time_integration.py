@@ -53,6 +53,8 @@ class TestTimeIntegration(unittest.TestCase):
         sols, times = integrator.solve(init_sol, init_time, final_time, deltat)
         assert np.allclose(sols, exact_sol(init_sol, a, power, times))
 
+        qoi = StateTimeIntegrator._update()
+
     def test_decoupled_linear_ode(self):
         test_cases = [["imeuler1", 1], ["imtrap2", 2]]
         for test_case in test_cases:

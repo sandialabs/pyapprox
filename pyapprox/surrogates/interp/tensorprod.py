@@ -209,6 +209,54 @@ def piecewise_quadratic_basis(level, xx):
 
 
 @njit(cache=True)
+def irregular_piecewise_left_constant_basis(nodes, xx):
+    # abscissa are not equidistant
+    assert xx.ndim == 1
+    assert nodes.ndim == 1
+    nnodes = nodes.shape[0]
+    vals = np.zeros((xx.shape[0], nnodes-1))
+    for ii in range(nnodes-1):
+        xl = nodes[ii]
+        xr = nodes[ii+1]
+        II = np.where((xx >= xl) & (xx < xr))[0]
+        vals[II, ii] = np.ones(II.shape[0], dtype=float)
+    return vals
+
+
+@njit(cache=True)
+def irregular_piecewise_right_constant_basis(nodes, xx):
+    # abscissa are not equidistant
+    assert xx.ndim == 1
+    assert nodes.ndim == 1
+    nnodes = nodes.shape[0]
+    vals = np.zeros((xx.shape[0], nnodes-1))
+    for ii in range(1, nnodes):
+        xr = nodes[ii]
+        xl = nodes[ii-1]
+        II = np.where((xx > xl) & (xx <= xr))[0]
+        vals[II, ii] = np.ones(II.shape[0], dtype=float)
+    return vals
+
+
+@njit(cache=True)
+def irregular_piecewise_midpoint_constant_basis(nodes, xx):
+    # abscissa are not equidistant
+    assert xx.ndim == 1
+    assert nodes.ndim == 1
+    nnodes = nodes.shape[0]
+    vals = np.zeros((xx.shape[0], nnodes-1))
+    for ii in range(nnodes-1):
+        xl = nodes[ii]
+        xr = nodes[ii+1]
+        if ii < nnodes-1:
+            II = np.where((xx >= xl) & (xx < xr))[0]
+        else:
+            II = np.where((xx >= xl) & (xx <= xr))[0]
+        vals[II, ii] = np.ones(II.shape[0], dtype=float)
+    return vals
+
+
+@njit(cache=True)
 def irregular_piecewise_linear_basis(nodes, xx):
     # abscissa are not equidistant
     assert xx.ndim == 1
@@ -364,32 +412,83 @@ class UnivariateInterpolatingBasis(ABC):
         return "{0}".format(self.__class__.__name__)
 
 
+class UnivariatePiecewiseLeftConstantBasis(UnivariateInterpolatingBasis):
+    @staticmethod
+    def __call__(nodes, samples):
+        return irregular_piecewise_left_constant_basis(nodes, samples)
+
+    @staticmethod
+    def quadrature_weights(nodes):
+        # unlike other higherorder methods weights.shape[0] != nodes.shape[0]
+        return np.diff(nodes)
+
+
+class UnivariatePiecewiseRightConstantBasis(UnivariateInterpolatingBasis):
+    @staticmethod
+    def __call__(nodes, samples):
+        return irregular_piecewise_right_constant_basis(nodes, samples)
+
+    @staticmethod
+    def quadrature_weights(nodes):
+        # unlike other higherorder methods weights.shape[0] != nodes.shape[0]
+        return np.diff(nodes)
+
+
+class UnivariatePiecewiseMidPointConstantBasis(UnivariateInterpolatingBasis):
+    @staticmethod
+    def __call__(nodes, samples):
+        return irregular_piecewise_midpoint_constant_basis(nodes, samples)
+
+    @staticmethod
+    def quadrature_weights(nodes):
+        # unlike other higherorder methods weights.shape[0] != nodes.shape[0]
+        return np.diff(nodes)
+
+
+class UnivariatePiecewiseRightConstantBasis(UnivariateInterpolatingBasis):
+    @staticmethod
+    def __call__(nodes, samples):
+        return irregular_piecewise_right_constant_basis(nodes, samples)
+
+    @staticmethod
+    def quadrature_weights(nodes):
+        # unlike other higherorder methods weights.shape[0] != nodes.shape[0]
+        return np.diff(nodes)
+
+
 class UnivariatePiecewiseLinearBasis(UnivariateInterpolatingBasis):
-    def __call__(self, nodes, samples):
+    @staticmethod
+    def __call__(nodes, samples):
         return irregular_piecewise_linear_basis(nodes, samples)
 
-    def quadrature_weights(self, nodes):
+    @staticmethod
+    def quadrature_weights(nodes):
         return irregular_piecewise_linear_quadrature_weights(nodes)
 
 
 class UnivariatePiecewiseQuadraticBasis(UnivariateInterpolatingBasis):
-    def __call__(self, nodes, samples):
+    @staticmethod
+    def __call__(nodes, samples):
         return irregular_piecewise_quadratic_basis(nodes, samples)
 
-    def quadrature_weights(self, nodes):
+    @staticmethod
+    def quadrature_weights(nodes):
         return irregular_piecewise_quadratic_quadrature_weights(nodes)
 
 
 class UnivariatePiecewiseCubicBasis(UnivariateInterpolatingBasis):
-    def __call__(self, nodes, samples):
+    @staticmethod
+    def __call__(nodes, samples):
         return irregular_piecewise_cubic_basis(nodes, samples)
 
-    def quadrature_weights(self, nodes):
+    @staticmethod
+    def quadrature_weights(nodes):
         return irregular_piecewise_cubic_quadrature_weights(nodes)
 
 
 class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
-    def __call__(self, nodes, samples):
+    @staticmethod
+    def __call__(nodes, samples):
         return univariate_lagrange_polynomial(nodes, samples)
 
 

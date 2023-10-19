@@ -3,6 +3,13 @@ from abc import ABC, abstractmethod
 import torch
 
 
+from pyapprox.surrogates.tensorprod import (
+    UnivariatePiecewiseLeftConstantBasis,
+    UnivariatePiecewiseRightConstantBasis,
+    UnivariatePiecewiseMidPointConstantBasis,
+    UnivariatePiecewiseLinearBasis)
+
+
 class TorchArrayMethods():
     @staticmethod
     def copy(array: torch.tensor) -> torch.tensor:
@@ -201,10 +208,19 @@ class StateTimeIntegrator(ABC):
 class TimeIntegratorUpdate(ABC):
     def __init__(self, residual: TimeIntegratorResidual):
         self._residual = residual
+        self._basis = self._get_basis()
+
+    @abstractmethod
+    def _get_basis(self):
+        raise NotImplementedError
 
     @abstractmethod
     def __call__(self, prev_sol, prev_time, deltat):
         raise NotImplementedError
+
+    def integrate_time_series(self, times, sols):
+        weights = self._basis.get_quadrature_weights(times)
+        return sols @ weights
 
 
 class ImplicitTimeIntegratorUpdate(TimeIntegratorUpdate):
@@ -248,12 +264,20 @@ class ForwardEulerUpdate(TimeIntegratorUpdate):
     def __call__(self, prev_sol, prev_time, deltat):
         return prev_sol + deltat * self._residual(prev_sol, prev_time)
 
+    @staticmethod
+    def _get_basis():
+        return UnivariatePiecewiseLeftConstantBasis
+
 
 class ExpicitMidpointUpdate(TimeIntegratorUpdate):
     def __call__(self, prev_sol, prev_time, deltat):
         stage_sol = prev_sol+deltat/2*self._residual(
             prev_sol, prev_time+deltat/2)[0]
         return prev_sol + deltat * self._residual(stage_sol, prev_time)[0]
+
+    @staticmethod
+    def _get_basis():
+        return UnivariatePiecewiseMidPointConstantBasis
 
 
 class BackwardEulerUpdate(ImplicitTimeIntegratorUpdate):
@@ -263,6 +287,10 @@ class BackwardEulerUpdate(ImplicitTimeIntegratorUpdate):
         res = (self._mass_matrix @ (sol_guess - self._prev_sol) -
                self._deltat * gres)
         return res, jac
+
+    @staticmethod
+    def _get_basis():
+        return UnivariatePiecewiseRightConstantBasis
 
 
 class TrapezoidUpdate(ImplicitTimeIntegratorUpdate):
@@ -298,3 +326,7 @@ class TrapezoidUpdate(ImplicitTimeIntegratorUpdate):
         # so store to save computation
         self._prev_gres = self._linalg.copy(res)
         self._prev_gres_time = time
+
+    @staticmethod
+    def _get_basis():
+        return UnivariatePiecewiseLinearBasis
