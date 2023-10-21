@@ -107,6 +107,24 @@ def butcher_tableau_implicit_sixth_order_gauss():
     return a_coef, b_coef, c_coef
 
 
+def butcher_tableau_implicit_third_order_crouzeix():
+    c_coef = np.array([1/2+np.sqrt(3)/6, 1/2-np.sqrt(3)/6])
+    b_coef = np.array([1/2, 1/2])
+    a_coef = np.array([[1/2+np.sqrt(3)/6, 0],
+                       [-np.sqrt(3)/3, 1/2+np.sqrt(3)/6]])
+    return a_coef, b_coef, c_coef
+
+
+def butcher_tableau_implicit_fourth_order_crouzeix():
+    t = 2/np.sqrt(3)*np.cos(np.pi/18)
+    c_coef = np.array([(1+t)/2, 1/2, (1-t)/2])
+    b_coef = np.array([1/(6*t**2), 1-1/(3*t**2), 1/(6*t**2)])
+    a_coef = np.array([[(1+t)/2, 0, 0],
+                       [-t/2, (1+t)/2, 0],
+                       [1+t, -(1+2*t), (1+t)/2]])
+    return a_coef, b_coef, c_coef
+
+
 def butcher_tableau_diag_implicit_order_2():
     # x = 1/4
     # c_coef = np.array([x, 1-x])
@@ -149,6 +167,8 @@ def create_butcher_tableau(name, return_tensors=True):
         "im_crank2": butcher_tableau_implicit_crank_nicolson,
         "im_gauss4": butcher_tableau_implicit_fourth_order_gauss,
         "im_gauss6": butcher_tableau_implicit_sixth_order_gauss,
+        "im_crouzeix3": butcher_tableau_implicit_third_order_crouzeix,
+        "im_crouzeix4": butcher_tableau_implicit_fourth_order_crouzeix,
         }
     if name not in butcher_tableaus:
         raise Exception(f'tableau {name} not implemented')

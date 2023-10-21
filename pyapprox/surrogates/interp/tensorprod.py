@@ -411,6 +411,10 @@ class UnivariateInterpolatingBasis(ABC):
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)
 
+    def integrate(self, nodes, vals):
+        weights = self.quadrature_weights(nodes)
+        return (weights[:, None]*vals).sum()
+
 
 class UnivariatePiecewiseLeftConstantBasis(UnivariateInterpolatingBasis):
     @staticmethod
@@ -422,6 +426,10 @@ class UnivariatePiecewiseLeftConstantBasis(UnivariateInterpolatingBasis):
         # unlike other higherorder methods weights.shape[0] != nodes.shape[0]
         return np.diff(nodes)
 
+    def integrate(self, nodes, vals):
+        weights = self.quadrature_weights(nodes)
+        return (weights[:, None]*vals[:-1]).sum()
+
 
 class UnivariatePiecewiseRightConstantBasis(UnivariateInterpolatingBasis):
     @staticmethod
@@ -432,23 +440,16 @@ class UnivariatePiecewiseRightConstantBasis(UnivariateInterpolatingBasis):
     def quadrature_weights(nodes):
         # unlike other higherorder methods weights.shape[0] != nodes.shape[0]
         return np.diff(nodes)
+
+    def integrate(self, nodes, vals):
+        weights = self.quadrature_weights(nodes)
+        return (weights[:, None]*vals[1:]).sum()
 
 
 class UnivariatePiecewiseMidPointConstantBasis(UnivariateInterpolatingBasis):
     @staticmethod
     def __call__(nodes, samples):
         return irregular_piecewise_midpoint_constant_basis(nodes, samples)
-
-    @staticmethod
-    def quadrature_weights(nodes):
-        # unlike other higherorder methods weights.shape[0] != nodes.shape[0]
-        return np.diff(nodes)
-
-
-class UnivariatePiecewiseRightConstantBasis(UnivariateInterpolatingBasis):
-    @staticmethod
-    def __call__(nodes, samples):
-        return irregular_piecewise_right_constant_basis(nodes, samples)
 
     @staticmethod
     def quadrature_weights(nodes):

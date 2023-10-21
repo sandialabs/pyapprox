@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import torch
 
 
-from pyapprox.surrogates.tensorprod import (
+from pyapprox.surrogates.interp.tensorprod import (
     UnivariatePiecewiseLeftConstantBasis,
     UnivariatePiecewiseRightConstantBasis,
     UnivariatePiecewiseMidPointConstantBasis,
@@ -120,13 +120,21 @@ class TimeIntegratorResidual(ABC):
     def __call__(self, sol, time):
         if sol.ndim != 1:
             raise ValueError("sol must be 1D array")
-        return self._value(sol, time), self._jacobian(sol, time)
+        return self._value(sol, time), self.state_jacobian(sol, time)
 
     @abstractmethod
-    def _jacobian(self, sol, time):
+    def state_jacobian(self, sol, time):
         raise NotImplementedError
 
     def apply_constraints(self, sol, time):
+        raise NotImplementedError
+
+    def parameter_jacobian(self, fwd_sol, params):
+        """
+        Jacobian of the residual with respect to the parameters
+
+        Necessary if computing adjoints
+        """
         raise NotImplementedError
 
 
@@ -138,71 +146,8 @@ class CustomTimeIntegratorResidual(TimeIntegratorResidual):
     def _value(self, sol, time):
         return self._fun(sol, time)
 
-    def _jacobian(self, sol, time):
+    def state_jacobian(self, sol, time):
         return self._jac(sol, time)
-
-
-class StateTimeIntegrator(ABC):
-    def __init__(self,
-                 residual: TimeIntegratorResidual,
-                 tableau_name: str,
-                 newton_kwargs: dict = {}):
-        self._tableau_name = tableau_name
-        self._newton_kwargs = newton_kwargs
-        self._update = self.get_update(
-            residual, tableau_name, newton_kwargs)
-        self._linalg = NumpyArrayMethods()
-
-    @staticmethod
-    def get_update(residual, tableau_name, newton_kwargs):
-        updates = {"imeuler1": BackwardEulerUpdate,
-                   "imtrap2": TrapezoidUpdate,
-                   "exeuler1": ForwardEulerUpdate,
-                   "exmid2": ExpicitMidpointUpdate}
-        if tableau_name not in updates:
-            msg = f"tableau_name {0} not found must be in {1}".format(
-                tableau_name, list(updates.keys()))
-            raise ValueError(msg)
-        return updates[tableau_name](residual, **newton_kwargs)
-
-    def update(self, sol, time, deltat):
-        return self._update(sol, time, deltat)
-
-    def solve(self, init_sol, init_time, final_time, deltat,
-              verbosity=0, init_deltat=None):
-        """
-        Parameters
-        ----------
-        init_deltat : float
-            The size of the first time step. If None then self.deltat will be
-            used. This is needed for solving adjoint equations
-        """
-        sols, times = [], []
-        time = init_time
-        times.append(time)
-        sol = self._linalg.copy(init_sol)
-        if sol.ndim == 2:
-            sol = sol[:, 0]
-        sols.append(self._linalg.copy(sol))
-        while time < final_time-1e-12:
-            if verbosity >= 1:
-                print("Time", time)
-            if init_deltat is not None:
-                if init_time+init_deltat > final_time:
-                    raise ValueError("init_deltat is to large")
-                _deltat = init_deltat
-                init_deltat = None
-            else:
-                _deltat = min(deltat, final_time-time)
-            sol = self._update(sol, time, _deltat)
-            sols.append(self._linalg.copy(sol))
-            time += _deltat
-            times.append(time)
-        if verbosity >= 1:
-            print("Time", time)
-        sols = self._linalg.stack(sols, axis=1)
-        times = self._linalg.stack(times)
-        return sols, times
 
 
 class TimeIntegratorUpdate(ABC):
@@ -218,9 +163,8 @@ class TimeIntegratorUpdate(ABC):
     def __call__(self, prev_sol, prev_time, deltat):
         raise NotImplementedError
 
-    def integrate_time_series(self, times, sols):
-        weights = self._basis.get_quadrature_weights(times)
-        return sols @ weights
+    def integrate(self, times, sols):
+        return self._basis.integrate(times, sols)
 
 
 class ImplicitTimeIntegratorUpdate(TimeIntegratorUpdate):
@@ -266,7 +210,7 @@ class ForwardEulerUpdate(TimeIntegratorUpdate):
 
     @staticmethod
     def _get_basis():
-        return UnivariatePiecewiseLeftConstantBasis
+        return UnivariatePiecewiseLeftConstantBasis()
 
 
 class ExpicitMidpointUpdate(TimeIntegratorUpdate):
@@ -277,7 +221,7 @@ class ExpicitMidpointUpdate(TimeIntegratorUpdate):
 
     @staticmethod
     def _get_basis():
-        return UnivariatePiecewiseMidPointConstantBasis
+        return UnivariatePiecewiseMidPointConstantBasis()
 
 
 class BackwardEulerUpdate(ImplicitTimeIntegratorUpdate):
@@ -290,7 +234,7 @@ class BackwardEulerUpdate(ImplicitTimeIntegratorUpdate):
 
     @staticmethod
     def _get_basis():
-        return UnivariatePiecewiseRightConstantBasis
+        return UnivariatePiecewiseRightConstantBasis()
 
 
 class TrapezoidUpdate(ImplicitTimeIntegratorUpdate):
@@ -329,4 +273,112 @@ class TrapezoidUpdate(ImplicitTimeIntegratorUpdate):
 
     @staticmethod
     def _get_basis():
-        return UnivariatePiecewiseLinearBasis
+        return UnivariatePiecewiseLinearBasis()
+
+
+class TimeIntegrator(ABC):
+    def __init__(self,
+                 residual: TimeIntegratorResidual,
+                 tableau_name: str,
+                 **newton_kwargs):
+        self._tableau_name = tableau_name
+        self._newton_kwargs = newton_kwargs
+        self._update = self.init_update(
+            residual, tableau_name, newton_kwargs)
+        self._linalg = NumpyArrayMethods()
+
+    @staticmethod
+    def init_update(residual, tableau_name, newton_kwargs):
+        updates = {"imeuler1": BackwardEulerUpdate,
+                   "imtrap2": TrapezoidUpdate,
+                   "exeuler1": ForwardEulerUpdate,
+                   "exmid2": ExpicitMidpointUpdate}
+        if tableau_name not in updates:
+            msg = f"tableau_name {0} not found must be in {1}".format(
+                tableau_name, list(updates.keys()))
+            raise ValueError(msg)
+        return updates[tableau_name](residual, **newton_kwargs)
+
+    def get_update(self):
+        return self._update
+
+    def update(self, sol, time, deltat):
+        return self._update(sol, time, deltat)
+
+    @abstractmethod
+    def solve(selfinit_sol, init_time, final_time, deltat, **kwargs):
+        raise NotImplementedError
+
+
+class StateTimeIntegrator(TimeIntegrator):
+    def solve(self, init_sol, init_time, final_time, deltat,
+              verbosity=0, init_deltat=None):
+        """
+        Parameters
+        ----------
+        init_deltat : float
+            The size of the first time step. If None then self.deltat will be
+            used. This is needed for solving adjoint equations
+        """
+        sols, times = [], []
+        time = init_time
+        times.append(time)
+        sol = self._linalg.copy(init_sol)
+        if sol.ndim == 2:
+            sol = sol[:, 0]
+        sols.append(self._linalg.copy(sol))
+        while time < final_time-1e-12:
+            if verbosity >= 1:
+                print("Time", time)
+            if init_deltat is not None:
+                if init_time+init_deltat > final_time:
+                    raise ValueError("init_deltat is to large")
+                _deltat = init_deltat
+                init_deltat = None
+            else:
+                _deltat = min(deltat, final_time-time)
+            sol = self._update(sol, time, _deltat)
+            sols.append(self._linalg.copy(sol))
+            time += _deltat
+            times.append(time)
+        if verbosity >= 1:
+            print("Time", time)
+        sols = self._linalg.stack(sols, axis=1).T
+        times = self._linalg.stack(times)
+        return sols, times
+
+
+class QuantityOfInterest(ABC):
+    @abstractmethod
+    def __call__(self):
+        raise NotImplementedError
+
+    def parameter_jacobian(self, fwd_sols, params):
+        """
+        Jacobian of QoI with respect to the parameters
+
+        Necessary if computing adjoint solutions
+        """
+        raise NotImplementedError
+
+    def state_jacobian(self, fwd_sol, params):
+        """
+        Jacobian of QoI with respect to the states
+
+        Necessary if computing adjoint solutions
+        """
+        raise NotImplementedError
+
+
+class AdjointTimeIntegrator(TimeIntegrator):
+    def __init__(self,
+                 tableau_name: str,
+                 **newton_kwargs):
+        residual = self._init_residual()
+        super().__init__(residual, tableau_name, **newton_kwargs)
+
+    def _init_residual(self):
+        pass
+
+    def solve(self):
+        return super().solve(init_time, final_time, deltat)

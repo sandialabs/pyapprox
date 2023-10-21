@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from functools import partial
 
-from pyapprox.pde.galerkin.time_integration import (
+from pyapprox.pde.time_integration import (
     CustomTimeIntegratorResidual, StateTimeIntegrator)
 
 
@@ -42,7 +42,7 @@ class TestTimeIntegration(unittest.TestCase):
         def exact_sol(init_sol, a, power, t):
             nstates = init_sol.shape[0]
             return np.array([a*(t+1+ii)**(power)+(init_sol[ii]-a*(1+ii)**power)
-                             for ii in range(nstates)])
+                             for ii in range(nstates)]).T
 
         a = 2.0
         residual = CustomTimeIntegratorResidual(
@@ -53,7 +53,8 @@ class TestTimeIntegration(unittest.TestCase):
         sols, times = integrator.solve(init_sol, init_time, final_time, deltat)
         assert np.allclose(sols, exact_sol(init_sol, a, power, times))
 
-        qoi = StateTimeIntegrator._update()
+        qoi = integrator.get_update().integrate(times, sols)
+        print(qoi)
 
     def test_decoupled_linear_ode(self):
         test_cases = [["imeuler1", 1], ["imtrap2", 2]]
