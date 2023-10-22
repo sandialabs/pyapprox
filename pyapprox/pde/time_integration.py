@@ -204,20 +204,58 @@ class ImplicitTimeIntegratorUpdate(TimeIntegratorUpdate):
         return self._newton_solver.solve(self.residual, init_guess)
 
 
-class ForwardEulerUpdate(TimeIntegratorUpdate):
+class ExplicitTimeIntegratorUpdate(TimeIntegratorUpdate):
+    def __init__(self, residual: TimeIntegratorResidual):
+        super().__init__(residual)
+        self._linalg = NumpyArrayMethods()
+        self._mass_matrix_inv = self._get_mass_matrix_inv()
+
+    def _get_mass_matrix_inv(self):
+        return self._linalg.eye(self._nstates)
+
+    def apply_full_mass_matrix_inv(self, vec):
+        return self._mass_matrix_inv @ vec
+
+    def apply_lumped_mass_matrix_inv(self, vec):
+        return self._lumped_mass_matrix_inv[:, None] @ vec
+
+    def apply_mass_matrix_inv(self, vec):
+        if self._mass_matrix_inv.ndim == 2:
+            return self.apply_full_mass_matrix_inv(vec)
+        return self.apply_lumped_mass_matrix_inv(vec)
+
+
+class ForwardEulerUpdate(ExplicitTimeIntegratorUpdate):
     def __call__(self, prev_sol, prev_time, deltat):
-        return prev_sol + deltat * self._residual(prev_sol, prev_time)
+        # TODO must apply constrants (e.g. boundary conditions)
+        # to residual before applying mass matrix
+        return prev_sol + deltat * self.apply_mass_matrix_inv(self._residual(
+            prev_sol, prev_time)[0])
+
+    def update_adjoint(self, future_sol, future_time, rdeltat):
+        """
+        Parameters
+        ----------
+        rdeltat : float < 0
+            A timestep backwards in time
+        """
+        state_jac = self._residual(future_sol, future_time)[1]
+        # TODO must apply constrants (e.g. boundary conditions)
+        # to state_jac before next line
+        return future_sol + rdeltat * self.apply_mass_matrix_inv(
+            state_jac.T @ future_sol)
 
     @staticmethod
     def _get_basis():
         return UnivariatePiecewiseLeftConstantBasis()
 
 
-class ExpicitMidpointUpdate(TimeIntegratorUpdate):
+class ExpicitMidpointUpdate(ExplicitTimeIntegratorUpdate):
     def __call__(self, prev_sol, prev_time, deltat):
-        stage_sol = prev_sol+deltat/2*self._residual(
-            prev_sol, prev_time+deltat/2)[0]
-        return prev_sol + deltat * self._residual(stage_sol, prev_time)[0]
+        stage_sol = prev_sol+deltat/2*self.apply_mass_matrix_inv(
+            self._residual(prev_sol, prev_time)[0])
+        return prev_sol + deltat * self.apply_mass_matrix_inv(
+            self._residual(stage_sol, prev_time+deltat/2)[0])
 
     @staticmethod
     def _get_basis():
@@ -230,6 +268,8 @@ class BackwardEulerUpdate(ImplicitTimeIntegratorUpdate):
         jac = self._mass_matrix - self._deltat*gres_jac
         res = (self._mass_matrix @ (sol_guess - self._prev_sol) -
                self._deltat * gres)
+        # TODO must apply constrants (e.g. boundary conditions)
+        # to jac and res before next line
         return res, jac
 
     @staticmethod
