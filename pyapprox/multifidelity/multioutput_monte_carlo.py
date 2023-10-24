@@ -799,6 +799,7 @@ class ACVEstimator(MCEstimator):
             elif optim_method == "trust-constr":
                 optim_options = {'disp': True, 'gtol': 1e-10,
                                  'maxiter': 10000}
+            else:
                 raise ValueError(f"{optim_method} not supported")
 
         if target_cost < costs.sum():
@@ -1498,7 +1499,7 @@ class BestModelSubsetEstimator():
         # self._ncandidate_nmodels is the number of total models
         # self.nmodels returns number of models in best subset
         self._ncandidate_models = len(self._candidate_costs)
-        self._nqoi = self._candidate_cov.shape[0]//self._ncandidate_models
+        self.nqoi = self._candidate_cov.shape[0]//self._ncandidate_models
         self.max_nmodels = max_nmodels
         self.args = args
         self._allow_failures = kwargs.get("allow_failures", False)
@@ -1544,11 +1545,11 @@ class BestModelSubsetEstimator():
                                     target_cost, lf_model_subset_indices):
         idx = np.hstack(([0], lf_model_subset_indices)).astype(int)
         subset_cov = _nqoi_nqoi_subproblem(
-            self._candidate_cov, self._ncandidate_models, self._nqoi,
+            self._candidate_cov, self._ncandidate_models, self.nqoi,
             idx, qoi_idx)
         subset_costs = self._candidate_costs[idx]
         sub_args = multioutput_stats[self.stat_type].args_model_subset(
-            self._ncandidate_models, self._nqoi, idx, *self.args)
+            self._ncandidate_models, self.nqoi, idx, *self.args)
         sub_kwargs = copy.deepcopy(self.kwargs)
         if "tree_depth" in sub_kwargs:
             sub_kwargs["tree_depth"] = min(
@@ -1583,7 +1584,7 @@ class BestModelSubsetEstimator():
             lf_model_indices = np.arange(1, self._ncandidate_models)
         best_criteria = np.inf
         best_est, best_model_indices = None, None
-        qoi_idx = np.arange(self._nqoi)
+        qoi_idx = np.arange(self.nqoi)
         nprocs = allocate_kwargs.get("nprocs", 1)
         if allocate_kwargs.get("verbosity", 0) > 0:
             print(f"Finding best model using {nprocs} processors")
@@ -1629,9 +1630,13 @@ class BestModelSubsetEstimator():
     def allocate_samples(self, target_cost, **allocate_kwargs):
         if self.estimator_type == "mc":
             best_model_indices = np.array([0])
+            args = multioutput_stats[self.stat_type].args_model_subset(
+                self._ncandidate_models, self.nqoi, best_model_indices,
+                *self.args)
             best_est = get_estimator(
-                self.estimator_type, self._cov[:1, :1],
-                self._costs[:1], self.variable, **self.kwargs)
+                self.estimator_type, self.stat_type, self.variable,
+                self._candidate_costs[:1], self._candidate_cov[:1, :1],
+                *args, **self.kwargs)
             best_est.allocate_samples(target_cost)
 
         else:
@@ -1793,6 +1798,39 @@ def plot_estimator_variance_reductions_deprecated(optimized_estimators,
     ax.bar(est_labels,
            est_criteria[relative_id]/np.delete(est_criteria, relative_id),
            **bar_kawrgs)
+
+
+class SingleQoiAndStatComparisonCriteria():
+    def __init__(self, stat_type, qoi_idx):
+        """
+        Compare estimators based on the variance of a single statistic
+        for a single QoI even though mutiple QoI may have been used to compute
+        multiple statistics
+
+        Parameters
+        ----------
+        stat_type: str
+            The stat type. Must be one of ["mean", "variance", "mean_variance"]
+
+        qoi_idx: integer
+            The index of the QoI as it appears in the covariance matrix
+        """
+        self.stat_type = stat_type
+        self.qoi_idx = qoi_idx
+
+    def __call__(self, est_covariance, est):
+        if self.stat_type != "mean" and isinstance(
+                est.stat, MultiOutputMeanAndVariance):
+            return est_covariance[est.nqoi+self.qoi_idx, est.nqoi+self.qoi_idx]
+        elif (isinstance(
+                est.stat, (MultiOutputVariance, MultiOutputMean)) or
+              self.stat_type == "mean"):
+            return est_covariance[self.qoi_idx, self.qoi_idx]
+        raise ValueError("{0} not supported".format(est.stat))
+
+    def __repr__(self):
+        return "{0}(stat={1}, qoi={2})".format(
+            self.__class__.__name__, self.stat_type, self.qoi_idx)
 
 
 def plot_estimator_variance_reductions(optimized_estimators,
