@@ -157,19 +157,13 @@ class TestMetropolis(unittest.TestCase):
         self._check_logpost_gradients(
             IndependentMarginalsVariable([stats.beta(2, 3, 0, 1)]*3))
 
-    def test_dram(self):
+    def _check_mcmc_variable(self, nvars, algorithm, method_opts):
         np.random.seed(3)
         nsamples = 20000
         burn_fraction = 0.2
         nsamples_per_tuning = 20
-        algorithm = "DRAM"
-        nugget = 1e-8
-        cov_scaling = 1
-        nvars = 4
         nobs = 3  # number of observations
         noise_stdev = 2  # standard deviation of noise
-        # algorithm = "hmc"
-        # method_opts = {"L": 10, "eps": 0.01}
         # init_proposal_cov = np.eye(nvars)
         init_proposal_cov = None
         prior_mean, prior_std = 0, 1
@@ -179,32 +173,51 @@ class TestMetropolis(unittest.TestCase):
              _setup_gaussian_linear_inverse_problem(
                  nobs, nvars, noise_stdev, prior_mean, prior_std))
 
-        method_opts = {"cov_scaling": cov_scaling, "nugget": nugget,
-                       "sd": 2.4**2/nvars*2}
         mcmc_variable = MetropolisMCMCVariable(
             prior_variable, loglike_fun,
             nsamples_per_tuning=nsamples_per_tuning,
             algorithm=algorithm, burn_fraction=burn_fraction,
             method_opts=method_opts, init_proposal_cov=init_proposal_cov)
-
         map_sample = mcmc_variable.maximum_aposteriori_point(
             prior_variable.get_statistics("mean"))
         assert np.allclose(map_sample, exact_post_mean)
-
+        
         mcmc_samples = mcmc_variable.rvs(nsamples, map_sample)
+        print(mcmc_samples.shape)
         acceptance_ratio = mcmc_variable._acceptance_rate
         print('acceptance ratio', acceptance_ratio)
         # assert acceptance_ratio >= 0.2 and acceptance_ratio < 0.41
-        # print(exact_mean[:, 0])
-        # print(exact_covariance, "EXACT COV")
-        # print(mcmc_samples.mean(axis=1))
-        # # print(np.cov(mcmc_samples))
-        # print("mean error", exact_mean[:, 0] - mcmc_samples.mean(axis=1))
-        # print("cov_error", exact_covariance-np.cov(mcmc_samples))
+        print(exact_post_mean[:, 0])
+        print(exact_post_covariance, "EXACT COV")
+        print(mcmc_samples.mean(axis=1))
+        print(np.cov(mcmc_samples, ddof=1))
+        print("mean error", exact_post_mean[:, 0] - mcmc_samples.mean(axis=1))
+        print("cov_error", exact_post_covariance-np.cov(mcmc_samples))
+        import matplotlib.pyplot as plt
+        from pyapprox.variables.density import NormalDensity
+        ax = plt.subplots(1, 1)[1]
+        pdf = NormalDensity(exact_post_mean, exact_post_covariance)
+        pdf.plot_contours(ax=ax)
+        ax.plot(*mcmc_samples, 'o')
+        plt.show()
         assert np.allclose(
             exact_post_mean[:, 0], mcmc_samples.mean(axis=1), atol=2.5e-2)
         assert np.allclose(
             exact_post_covariance, np.cov(mcmc_samples), atol=4.5e-2)
+
+    def test_mcmc_variable(self):
+        def dram_opts(nvars):
+            cov_scaling = 1
+            nugget = 1e-8
+            return  {"cov_scaling": cov_scaling, "nugget": nugget,
+                     "sd": 2.4**2/nvars*2}
+        hmc_opts = {"num_steps": 10, "epsilon": 5e-2}
+        test_cases = [
+            [2, "DRAM", dram_opts(2)],
+            [2, "hmc", hmc_opts]
+        ]
+        for test_case in test_cases:
+            self._check_mcmc_variable(*test_case)
 
 
 if __name__ == '__main__':
