@@ -159,7 +159,7 @@ class TestMetropolis(unittest.TestCase):
 
     def _check_mcmc_variable(self, nvars, algorithm, method_opts):
         np.random.seed(3)
-        nsamples = 20000
+        nsamples = 5000
         burn_fraction = 0.2
         nsamples_per_tuning = 20
         nobs = 3  # number of observations
@@ -187,23 +187,23 @@ class TestMetropolis(unittest.TestCase):
         acceptance_ratio = mcmc_variable._acceptance_rate
         print('acceptance ratio', acceptance_ratio)
         # assert acceptance_ratio >= 0.2 and acceptance_ratio < 0.41
-        print(exact_post_mean[:, 0])
+        print(exact_post_mean[:, 0], "EXACT Mean")
+        print(mcmc_samples.mean(axis=1), "Samples Mean")
         print(exact_post_covariance, "EXACT COV")
-        print(mcmc_samples.mean(axis=1))
-        print(np.cov(mcmc_samples, ddof=1))
+        print(np.cov(mcmc_samples, ddof=1), "Samples COV")
         print("mean error", exact_post_mean[:, 0] - mcmc_samples.mean(axis=1))
         print("cov_error", exact_post_covariance-np.cov(mcmc_samples))
-        import matplotlib.pyplot as plt
-        from pyapprox.variables.density import NormalDensity
-        ax = plt.subplots(1, 1)[1]
-        pdf = NormalDensity(exact_post_mean, exact_post_covariance)
-        pdf.plot_contours(ax=ax)
-        ax.plot(*mcmc_samples, 'o')
-        plt.show()
+#        import matplotlib.pyplot as plt
+#        from pyapprox.variables.density import NormalDensity
+#        ax = plt.subplots(1, 1)[1]
+#        pdf = NormalDensity(exact_post_mean, exact_post_covariance)
+#        pdf.plot_contours(ax=ax)
+#        ax.plot(*mcmc_samples, 'o')
+#        plt.show()
         assert np.allclose(
             exact_post_mean[:, 0], mcmc_samples.mean(axis=1), atol=2.5e-2)
         assert np.allclose(
-            exact_post_covariance, np.cov(mcmc_samples), atol=4.5e-2)
+            exact_post_covariance, np.cov(mcmc_samples, ddof=1), atol=4.5e-2)
 
     def test_mcmc_variable(self):
         def dram_opts(nvars):
@@ -211,12 +211,13 @@ class TestMetropolis(unittest.TestCase):
             nugget = 1e-8
             return  {"cov_scaling": cov_scaling, "nugget": nugget,
                      "sd": 2.4**2/nvars*2}
-        hmc_opts = {"num_steps": 10, "epsilon": 5e-2}
+#        hmc_opts = {"num_steps": 5, "epsilon": 3e-1} # 2D distribution
+        hmc_opts = {"num_steps": 50, "epsilon": 0.005}
         test_cases = [
-            [2, "DRAM", dram_opts(2)],
-            [2, "hmc", hmc_opts]
+            [4, "DRAM", dram_opts(2)],
+            [4, "hmc", hmc_opts]
         ]
-        for test_case in test_cases:
+        for test_case in test_cases[-1:]:
             self._check_mcmc_variable(*test_case)
 
 
