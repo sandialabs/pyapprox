@@ -849,7 +849,6 @@ for ii, design_pt in enumerate(design_pts):
         joint_qmc_xx, joint_qmc_ww, deviation_symbs[dev_idx], design_symbs[ii],
         axs[ii], basis_type, nsamples_1d, pred_wts, pred_pts)
 plt.show()
-assert False
 
 
 #%%
