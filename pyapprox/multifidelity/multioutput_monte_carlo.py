@@ -1091,6 +1091,7 @@ class ACVEstimator(MCEstimator):
 
         if self.partition != "mf":
             msg = "remove and insert pilot data only works with partition='mf'"
+            raise ValueError(msg)
         if type(functions) == list:
             functions = ModelEnsemble(functions)
         # evaluate models only at points that have not been computed
@@ -1098,16 +1099,57 @@ class ACVEstimator(MCEstimator):
             samples_per_model_wo_pilot)
         return values_per_model_wo_pilot
 
-    def _generate_data(self, samples_per_model_wo_pilot,
-                       values_per_model_wo_pilot, pilot_data,
-                       partition_indices_per_model):
+    def insert_pilot_samples(self, samples_per_model_wo_pilot,
+                             values_per_model_wo_pilot, pilot_data):
         reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
             self.nsamples_per_model)
         npartition_samples = self._get_npartition_samples(
             self.nsamples_per_model)
-        samples_per_model, values_per_model = _insert_pilot_samples(
+        return _insert_pilot_samples(
             samples_per_model_wo_pilot, values_per_model_wo_pilot,
             reorder_allocation_mat, npartition_samples, *pilot_data)
+
+    def combine_pilot_data(
+            self, samples_per_model_wo_pilot, values_per_model_wo_pilot,
+            pilot_data):
+        samples_per_model, values_per_model = self.insert_pilot_samples(
+            samples_per_model_wo_pilot, values_per_model_wo_pilot,
+            pilot_data)
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
+            self.nsamples_per_model)
+        partition_indices_per_model = self.generate_sample_allocations()[1]
+        acv_values = separate_model_values_acv(
+            reorder_allocation_mat, values_per_model,
+            partition_indices_per_model,
+            pilot_data)
+        return acv_values
+
+    def separate_model_values(self, values_per_model):
+        partition_indices_per_model = self.generate_sample_allocations()[1]
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
+            self.nsamples_per_model)
+        acv_values = separate_model_values_acv(
+            reorder_allocation_mat, values_per_model,
+            partition_indices_per_model)
+        return acv_values
+
+    def separate_model_samples(self, samples_per_model):
+        partition_indices_per_model = self.generate_sample_allocations()[1]
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
+            self.nsamples_per_model)
+        acv_samples = separate_samples_per_model_acv(
+            reorder_allocation_mat, samples_per_model,
+            partition_indices_per_model)
+        return acv_samples
+
+    def _generate_data(self, samples_per_model_wo_pilot,
+                       values_per_model_wo_pilot, pilot_data,
+                       partition_indices_per_model):
+        samples_per_model, values_per_model = self.insert_pilot_samples(
+            samples_per_model_wo_pilot, values_per_model_wo_pilot,
+            pilot_data)
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
+            self.nsamples_per_model)
         acv_values = separate_model_values_acv(
             reorder_allocation_mat, values_per_model,
             partition_indices_per_model)
@@ -1341,8 +1383,9 @@ class MFMCEstimator(ACVEstimator):
     def _allocate_samples(self, target_cost):
         # nsample_ratios returned will be listed in according to
         # self.model_order which is what self.get_rsquared requires
-        return allocate_samples_mfmc(
+        nsample_ratios, val = allocate_samples_mfmc(
             self.cov.numpy(), self.costs.numpy(), target_cost)
+        return torch.as_tensor(nsample_ratios, dtype=torch.double), val
 
     def _get_reordered_sample_allocation_matrix(self, nsamples_per_model):
         return get_sample_allocation_matrix_mfmc(self.nmodels)
@@ -1357,11 +1400,14 @@ class MFMCEstimator(ACVEstimator):
         return get_npartition_samples_mfmc(nsamples_per_model)
 
 
-class MLMCEstimator(ACVEstimator):
+class ACVMLMCEstimator(ACVEstimator):
     def __init__(self, stat, costs, variable, cov, opt_criteria=None):
         """
         Use the sample analytical sample allocation for estimating a scalar
         mean when estimating any statistic
+
+        Use optimal ACV weights instead of all weights=-1 used by
+        classical MLMC.
         """
         super().__init__(stat, costs, variable, cov, partition='mf',
                          recursion_index=None, opt_criteria=None)
@@ -1377,9 +1423,6 @@ class MLMCEstimator(ACVEstimator):
     def _get_npartition_samples(self, nsamples_per_model):
         return get_npartition_samples_mlmc(nsamples_per_model)
 
-    def _weights(self, CF, cf):
-        return -torch.ones(cf.shape, dtype=torch.double)
-
     def _get_variance(self, nsamples_per_model):
         CF, cf = self.stat.get_discrepancy_covariances(
             self, nsamples_per_model)
@@ -1390,6 +1433,14 @@ class MLMCEstimator(ACVEstimator):
             + torch.linalg.multi_dot((cf, weights.T))
             + torch.linalg.multi_dot((weights, cf.T))
         )
+
+
+class MLMCEstimator(ACVMLMCEstimator):
+    """
+    The classical MLMC estimator that weits all control variate weights to -1
+    """
+    def _weights(self, CF, cf):
+        return -torch.ones(cf.shape, dtype=torch.double)
 
 
 class BestACVEstimator(ACVEstimator):
@@ -1688,6 +1739,7 @@ multioutput_estimators = {
     "acvmf": ACVEstimator,
     "mfmc": MFMCEstimator,
     "mlmc": MLMCEstimator,
+    "acvmlmc": ACVMLMCEstimator,
     "acvmfb": BestACVEstimator,
     "mc": MCEstimator}
 

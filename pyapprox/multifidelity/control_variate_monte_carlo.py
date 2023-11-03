@@ -390,7 +390,7 @@ def allocate_samples_mfmc(cov, costs, target_cost):
     if not np.allclose(II, np.arange(nmodels-1)):
         msg = 'Models must be ordered with decreasing correlation with '
         msg += 'high-fidelity model'
-        raise Exception(msg)
+        raise RuntimeError(msg)
 
     r = []
     for ii in range(nmodels-1):
@@ -498,7 +498,7 @@ def allocate_samples_mlmc(cov, costs, target_cost):
     assert np.allclose(variance, 10**(log10_variance))
     # print(log10_variance)
     if np.isnan(log10_variance):
-        raise Exception('MLMC variance is NAN')
+        raise RuntimeError('MLMC variance is NAN')
     return np.atleast_1d(nsample_ratios), log10_variance
 
 
@@ -1852,6 +1852,7 @@ def separate_model_values_acv(reorder_allocation_mat,
         active_partitions_ii_1 = np.where(
             reorder_allocation_mat[:, 2*ii] == 1)[0]
         values_ii_1_list = []
+        print(active_partitions_ii_1)
         for idx in active_partitions_ii_1:
             values_ii_1_list.append(
                 values_per_model[ii][partition_indices_per_model[ii] == idx])
@@ -1861,6 +1862,7 @@ def separate_model_values_acv(reorder_allocation_mat,
             values_ii_1 = None
         active_partitions_ii_2 = np.where(
             reorder_allocation_mat[:, 2*ii+1] == 1)[0]
+        print(active_partitions_ii_2, 's')
         values_ii_2_list = []
         for idx in active_partitions_ii_2:
             values_ii_2_list.append(
@@ -1868,6 +1870,24 @@ def separate_model_values_acv(reorder_allocation_mat,
         values_ii_2 = np.vstack(values_ii_2_list)
         acv_values.append([values_ii_1, values_ii_2])
     return acv_values
+
+
+def combine_acv_values(acv_values):
+    nmodels = len(acv_values)
+    values_per_model = [None for ii in range(nmodels)]
+    values_per_model[0] = acv_values[0][1]
+    for ii in range(1, nmodels):
+        values_per_model[ii] = np.vstack(acv_values[ii])
+    return values_per_model
+
+
+def combine_acv_samples(acv_samples):
+    nmodels = len(acv_samples)
+    samples_per_model = [None for ii in range(nmodels)]
+    samples_per_model[0] = acv_samples[0][1]
+    for ii in range(1, nmodels):
+        samples_per_model[ii] = np.hstack(acv_samples[ii])
+    return samples_per_model
 
 
 def separate_samples_per_model_acv(reorder_allocation_mat, samples_per_model,

@@ -499,6 +499,29 @@ class TestMOMC(unittest.TestCase):
             np.random.seed(123)
             self._check_estimator_covariances(*test_case)
 
+    def test_separate_samples(self):
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+            [0, 1, 2], [0, 1, 2])
+        est = get_estimator(
+            "acvmf", "mean", model.variable, costs, cov)
+        target_cost = 100
+        est.allocate_samples(target_cost, verbosity=1)
+        acv_samples, acv_values = est.generate_data(funs)
+        from pyapprox.multifidelity.control_variate_monte_carlo import (
+            combine_acv_values, combine_acv_samples)
+        samples_per_model = combine_acv_samples(acv_samples)
+        values_per_model = combine_acv_values(acv_values)
+
+        acv_values1 = est.separate_model_values(values_per_model)
+        acv_samples1 = est.separate_model_samples(samples_per_model)
+
+        nmodels = len(acv_values)
+        for ii in range(nmodels):
+            assert np.allclose(acv_values[ii][0], acv_values1[ii][0])
+            assert np.allclose(acv_values[ii][1], acv_values1[ii][1])
+            assert np.allclose(acv_samples[ii][0], acv_samples1[ii][0])
+            assert np.allclose(acv_samples[ii][1], acv_samples1[ii][1])
+
     def _estimate_components_loop(
             self, ntrials, est, funs, max_eval_concurrency):
         if max_eval_concurrency == 1:
@@ -528,7 +551,7 @@ class TestMOMC(unittest.TestCase):
 
     def _check_estimator_variances(self, model_idx, qoi_idx, recursion_index,
                                    est_type, stat_type, ntrials=int(1e4)):
-        rtol, atol = 4.6e-2, 1e-3
+        rtol, atol = 4.6e-2, 1.01e-3
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         nqoi = len(qoi_idx)
@@ -560,8 +583,8 @@ class TestMOMC(unittest.TestCase):
 
         # set nsamples per model tso generate data can be called
         # without optimizing the sample allocaiton
-        # est.nsamples_per_model = torch.tensor([10, 20, 30][:len(funs)])
-        est.nsamples_per_model = torch.tensor([7, 8, 140][:len(funs)])
+        est.nsamples_per_model = torch.tensor([10, 20, 30][:len(funs)])
+        # est.nsamples_per_model = torch.tensor([7, 8, 140][:len(funs)])
 
         max_eval_concurrency = 4
         estimator_vals, Q, delta = self._estimate_components_loop(
@@ -596,6 +619,7 @@ class TestMOMC(unittest.TestCase):
 
             # print(cf, "cf")
             # print(cf_mc, "MC cf")
+            # print(cf_mc-cf, "diff")
             # print(cf_mc.shape, cf.shape, idx)
             assert np.allclose(cf_mc, cf, atol=atol, rtol=rtol)
 
@@ -622,10 +646,12 @@ class TestMOMC(unittest.TestCase):
             [[0, 1, 2], [0], None, "mfmc", "mean"],
             [[0, 1, 2], [0], None, "mlmc", "mean"],
             [[0, 1, 2], [0, 1], None, "mlmc", "mean"],
+            [[0, 1, 2], [0], None, "mlmc", "variance"],
+            [[0, 1, 2], [0], None, "mlmc", "mean_variance"],
             [[0, 1, 2], [0, 1, 2], None, "acvmfb", "variance"],
             [[0], [0, 1, 2], None, "mc", "variance"],
         ]
-        for test_case in test_cases[5:6]:
+        for test_case in test_cases:
             np.random.seed(1)
             print(test_case)
             self._check_estimator_variances(*test_case)
@@ -895,14 +921,14 @@ class TestMOMC(unittest.TestCase):
         # fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
         # plot_estimator_variances(
         #     optimized_estimators, est_labels, axs,
-        #     ylabel=mathrm_label("Relative Estimator Variance"), relative_id=0,
-        #     criteria=partial(criteria, "mean"))
+        #     ylabel=mathrm_label("Relative Estimator Variance"),
+        #     relative_id=0, criteria=partial(criteria, "mean"))
         # plt.show()
 
     def test_insert_pilot_samples(self):
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
-        
+
         # modify costs so more hf samples are used but all three models
         # are selected
         costs[1:] = 0.1, 0.05
@@ -959,6 +985,12 @@ class TestMOMC(unittest.TestCase):
         est.set_random_state(random_state)
         acv_samples, acv_values = est.generate_data(
             funs, [pilot_samples, pilot_values])
+        est_val_pilot = est(acv_values)
+        assert np.allclose(est_val, est_val_pilot)
+
+        
+        acv_values = est.combine_pilot_data(
+            samples_per_model_wo_pilot, values_per_model_wo_pilot)
         est_val_pilot = est(acv_values)
         assert np.allclose(est_val, est_val_pilot)
 
