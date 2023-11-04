@@ -1103,6 +1103,7 @@ def get_nsamples_intersect(reorder_allocation_mat, npartition_samples):
     """
     nmodels = reorder_allocation_mat.shape[0]
     nsubset_samples = npartition_samples[:, None] * reorder_allocation_mat
+    print(nsubset_samples)
     nsamples_intersect = pkg_zeros(
         (2*nmodels, 2*nmodels), type(npartition_samples), dtype=pkg.double)
     for ii in range(2*nmodels):
