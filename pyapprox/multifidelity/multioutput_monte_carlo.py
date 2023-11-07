@@ -26,7 +26,8 @@ from pyapprox.multifidelity.control_variate_monte_carlo import (
     get_acv_initial_guess, get_npartition_samples_mlmc,
     get_sample_allocation_matrix_mlmc, allocate_samples_mlmc,
     get_sample_allocation_matrix_mfmc, get_npartition_samples_mfmc,
-    get_acv_recursion_indices, generate_samples_and_values_mfmc)
+    get_acv_recursion_indices, generate_samples_and_values_mfmc,
+    combine_acv_values, combine_acv_samples)
 
 
 def _V_entry(cov):
@@ -794,10 +795,10 @@ class ACVEstimator(MCEstimator):
             optim_options, cons):
         if optim_options is None:
             if optim_method == "SLSQP":
-                optim_options = {'disp': True, 'ftol': 1e-10,
+                optim_options = {'disp': False, 'ftol': 1e-10,
                                  'maxiter': 10000, "iprint": 0}
             elif optim_method == "trust-constr":
-                optim_options = {'disp': True, 'gtol': 1e-10,
+                optim_options = {'disp': False, 'gtol': 1e-10,
                                  'maxiter': 10000}
             else:
                 raise ValueError(f"{optim_method} not supported")
@@ -1070,6 +1071,22 @@ class ACVEstimator(MCEstimator):
             reorder_allocation_mat, self.nsamples_per_model,
             npartition_samples, self.generate_samples)
         return samples_per_model, partition_indices_per_model
+
+    def combine_acv_samples(self, acv_samples):
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
+            self.nsamples_per_model)
+        npartition_samples = self._get_npartition_samples(
+            self.nsamples_per_model)
+        return combine_acv_samples(
+            reorder_allocation_mat, npartition_samples, acv_samples)
+
+    def combine_acv_values(self, acv_values):
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
+            self.nsamples_per_model)
+        npartition_samples = self._get_npartition_samples(
+            self.nsamples_per_model)
+        return combine_acv_values(
+            reorder_allocation_mat, npartition_samples, acv_values)
 
     def _generate_estimator_samples(self, pilot_samples):
         samples_per_model, partition_indices_per_model = \
@@ -1374,17 +1391,22 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
 
 
 class MFMCEstimator(ACVEstimator):
-    def __init__(self, stat, costs, variable, cov, opt_criteria=None):
+    def __init__(self, stat, costs, variable, cov, opt_criteria=None,
+                 opt_qoi=0):
         # Use the sample analytical sample allocation for estimating a scalar
         # mean when estimating any statistic
         super().__init__(stat, costs, variable, cov, partition='mf',
                          recursion_index=None, opt_criteria=None)
+        # The qoi index used to generate the sample allocation
+        self._opt_qoi = opt_qoi
 
     def _allocate_samples(self, target_cost):
         # nsample_ratios returned will be listed in according to
         # self.model_order which is what self.get_rsquared requires
+        nqoi = self.cov.shape[0]//len(self.costs)
         nsample_ratios, val = allocate_samples_mfmc(
-            self.cov.numpy(), self.costs.numpy(), target_cost)
+            self.cov.numpy()[self._opt_qoi::nqoi, self._opt_qoi::nqoi],
+            self.costs.numpy(), target_cost)
         return torch.as_tensor(nsample_ratios, dtype=torch.double), val
 
     def _get_reordered_sample_allocation_matrix(self, nsamples_per_model):
@@ -1401,7 +1423,8 @@ class MFMCEstimator(ACVEstimator):
 
 
 class ACVMLMCEstimator(ACVEstimator):
-    def __init__(self, stat, costs, variable, cov, opt_criteria=None):
+    def __init__(self, stat, costs, variable, cov, opt_criteria=None,
+                 opt_qoi=0):
         """
         Use the sample analytical sample allocation for estimating a scalar
         mean when estimating any statistic
@@ -1411,10 +1434,14 @@ class ACVMLMCEstimator(ACVEstimator):
         """
         super().__init__(stat, costs, variable, cov, partition='mf',
                          recursion_index=None, opt_criteria=None)
+        # The qoi index used to generate the sample allocation
+        self._opt_qoi = opt_qoi
 
     def _allocate_samples(self, target_cost):
+        nqoi = self.cov.shape[0]//len(self.costs)
         nsample_ratios, val = allocate_samples_mlmc(
-            self.cov.numpy(), self.costs.numpy(), target_cost)
+            self.cov.numpy()[self._opt_qoi::nqoi, self._opt_qoi::nqoi],
+            self.costs.numpy(), target_cost)
         return torch.as_tensor(nsample_ratios, dtype=torch.double), val
 
     def _get_reordered_sample_allocation_matrix(self, nsamples_per_model):
@@ -1801,7 +1828,7 @@ def plot_estimator_variances(optimized_estimators,
         est_criteria.append(np.array(
             [criteria(est._get_variance(est.nsamples_per_model), est)
              for est in optimized_estimators[ii]]))
-        print(est_criteria[-1])
+        # print(est_criteria[-1])
     est_total_costs *= cost_normalization
     for ii in range(nestimators):
         # print(est_labels[ii], nestimators)
@@ -1840,7 +1867,7 @@ def plot_estimator_variance_reductions_deprecated(optimized_estimators,
     for ii in range(nestimators):
         assert len(optimized_estimators[ii]) == 1
         est = optimized_estimators[ii][0]
-        print(est)
+        # print(est)
         est_criteria.append(
             criteria(est._get_variance(est.nsamples_per_model), est))
     est_criteria = np.asarray(est_criteria)

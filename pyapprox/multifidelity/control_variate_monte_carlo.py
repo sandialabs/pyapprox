@@ -387,6 +387,11 @@ def allocate_samples_mfmc(cov, costs, target_cost):
     nmodels = len(costs)
     corr = compute_correlations_from_covariance(cov)
     II = np.argsort(np.absolute(corr[0, 1:]))[::-1]
+    print(II, nmodels)
+    if (II.shape[0] != nmodels-1):
+        msg = "Correlation shape {0} is inconsistent with len(costs) {1}.".format(
+            corr.shape, len(costs))
+        raise RuntimeError(msg)
     if not np.allclose(II, np.arange(nmodels-1)):
         msg = 'Models must be ordered with decreasing correlation with '
         msg += 'high-fidelity model'
@@ -1103,7 +1108,6 @@ def get_nsamples_intersect(reorder_allocation_mat, npartition_samples):
     """
     nmodels = reorder_allocation_mat.shape[0]
     nsubset_samples = npartition_samples[:, None] * reorder_allocation_mat
-    print(nsubset_samples)
     nsamples_intersect = pkg_zeros(
         (2*nmodels, 2*nmodels), type(npartition_samples), dtype=pkg.double)
     for ii in range(2*nmodels):
@@ -1853,7 +1857,6 @@ def separate_model_values_acv(reorder_allocation_mat,
         active_partitions_ii_1 = np.where(
             reorder_allocation_mat[:, 2*ii] == 1)[0]
         values_ii_1_list = []
-        print(active_partitions_ii_1)
         for idx in active_partitions_ii_1:
             values_ii_1_list.append(
                 values_per_model[ii][partition_indices_per_model[ii] == idx])
@@ -1863,7 +1866,6 @@ def separate_model_values_acv(reorder_allocation_mat,
             values_ii_1 = None
         active_partitions_ii_2 = np.where(
             reorder_allocation_mat[:, 2*ii+1] == 1)[0]
-        print(active_partitions_ii_2, 's')
         values_ii_2_list = []
         for idx in active_partitions_ii_2:
             values_ii_2_list.append(
@@ -1873,21 +1875,61 @@ def separate_model_values_acv(reorder_allocation_mat,
     return acv_values
 
 
-def combine_acv_values(acv_values):
+def combine_acv_values(reorder_allocation_mat, npartition_samples, acv_values):
+    """
+    Extract the unique values from the sets :math:`f_\alpha(\mathcal{Z}_\alpha), `f_\alpha(\mathcal{Z}_\alpha^*)` for each model :math:`\alpha=0,\ldots,M`
+    """
     nmodels = len(acv_values)
     values_per_model = [None for ii in range(nmodels)]
     values_per_model[0] = acv_values[0][1]
     for ii in range(1, nmodels):
-        values_per_model[ii] = np.vstack(acv_values[ii])
+        lb, ub = 0, 0
+        lb2, ub2 = 0, 0
+        values_per_model[ii] = []
+        for jj in range(nmodels):
+            found = False
+            if reorder_allocation_mat[jj, 2*ii] == 1:
+                ub = lb + int(npartition_samples[jj])
+                values_per_model[ii] += [acv_values[ii][0][lb:ub]]
+                lb = ub
+                found = True
+            if reorder_allocation_mat[jj, 2*ii+1] == 1:
+                # there is no need to enter here is samle set has already
+                # been added by acv_values[ii][0], hence the use of elseif here
+                ub2 = lb2 + int(npartition_samples[jj])
+                if not found:
+                    values_per_model[ii] += [acv_values[ii][1][lb2:ub2]]
+                lb2 = ub2
+        values_per_model[ii] = np.vstack(values_per_model[ii])
     return values_per_model
 
 
-def combine_acv_samples(acv_samples):
+def combine_acv_samples(reorder_allocation_mat, npartition_samples, acv_samples):
+    """
+    Extract the unique amples from the sets :math:`\mathcal{Z}_\alpha, `\mathcal{Z}_\alpha^*` for each model :math:`\alpha=0,\ldots,M`
+    """
     nmodels = len(acv_samples)
     samples_per_model = [None for ii in range(nmodels)]
     samples_per_model[0] = acv_samples[0][1]
     for ii in range(1, nmodels):
-        samples_per_model[ii] = np.hstack(acv_samples[ii])
+        lb, ub = 0, 0
+        lb2, ub2 = 0, 0
+        samples_per_model[ii] = []
+        for jj in range(nmodels):
+            found = False
+            if reorder_allocation_mat[jj, 2*ii] == 1:
+                ub = lb + int(npartition_samples[jj])
+                samples_per_model[ii] += [acv_samples[ii][0][:, lb:ub]]
+                lb = ub
+                found= True
+            if reorder_allocation_mat[jj, 2*ii+1] == 1:
+                ub2 = lb2 + int(npartition_samples[jj])
+                if not found:
+                    # Only add samples if they were not in Z_m^*
+                    samples_per_model[ii] += [acv_samples[ii][1][:, lb2:ub2]]
+                lb2 = ub2
+        samples_per_model[ii] = np.hstack(samples_per_model[ii])
+        print(samples_per_model[ii].shape)
     return samples_per_model
 
 

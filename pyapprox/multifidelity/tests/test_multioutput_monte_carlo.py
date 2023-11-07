@@ -499,28 +499,43 @@ class TestMOMC(unittest.TestCase):
             np.random.seed(123)
             self._check_estimator_covariances(*test_case)
 
-    def test_separate_samples(self):
+    def _check_separate_samples(self, est_type):
+        print(est_type)
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
+        costs = [3, 2, 1]
         est = get_estimator(
-            "acvmf", "mean", model.variable, costs, cov)
-        target_cost = 100
+            est_type, "mean", model.variable, costs, cov)
+        target_cost = 30
         est.allocate_samples(target_cost, verbosity=1)
         acv_samples, acv_values = est.generate_data(funs)
-        from pyapprox.multifidelity.control_variate_monte_carlo import (
-            combine_acv_values, combine_acv_samples)
-        samples_per_model = combine_acv_samples(acv_samples)
-        values_per_model = combine_acv_values(acv_values)
+        samples_per_model = est.combine_acv_samples(acv_samples)
+        values_per_model = est.combine_acv_values(acv_values)
+
+        nmodels = len(acv_values)
+        for ii in range(nmodels):
+            assert np.allclose(est.nsamples_per_model[ii],
+                               samples_per_model[ii].shape[1])
+            assert np.allclose(est.nsamples_per_model[ii],
+                               values_per_model[ii].shape[0])
 
         acv_values1 = est.separate_model_values(values_per_model)
         acv_samples1 = est.separate_model_samples(samples_per_model)
 
-        nmodels = len(acv_values)
-        for ii in range(nmodels):
+        assert np.allclose(acv_values[0][1], acv_values1[0][1])
+        assert np.allclose(acv_samples[0][1], acv_samples1[0][1])
+        for ii in range(1, nmodels):
             assert np.allclose(acv_values[ii][0], acv_values1[ii][0])
             assert np.allclose(acv_values[ii][1], acv_values1[ii][1])
             assert np.allclose(acv_samples[ii][0], acv_samples1[ii][0])
             assert np.allclose(acv_samples[ii][1], acv_samples1[ii][1])
+
+    def test_separate_samples(self):
+        test_cases = [
+            ["acvmf"], ["mfmc"], ["mlmc"]
+        ]
+        for test_case in test_cases:
+            self._check_separate_samples(*test_case)
 
     def _estimate_components_loop(
             self, ntrials, est, funs, max_eval_concurrency):

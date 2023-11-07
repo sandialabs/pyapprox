@@ -198,7 +198,7 @@ class TestCVMC(unittest.TestCase):
         assert np.allclose(npartition_samples, np.array([2, 2, 2, 2]))
 
         nsamples_per_model = np.array([2, 4, 8, 6])
-        nsamples_per_model = np.array([2, 5, 14, 9])
+        # nsamples_per_model = np.array([2, 5, 14, 9])
         reorder_mat = reorder_allocation_matrix_acvgmf(
             mat, nsamples_per_model, recursion_index)
         assert np.allclose(reorder_mat,
@@ -210,7 +210,6 @@ class TestCVMC(unittest.TestCase):
         npartition_samples = get_npartition_samples_acvmf(nsamples_per_model)
         nsamples_intersect = get_nsamples_intersect(
             reorder_mat, npartition_samples)
-        print(nsamples_intersect)
         nsamples_z_subsets = nsamples_per_model
         nsamples_intersect_true = \
             get_nsamples_interesect_from_z_subsets_acvgmf(
