@@ -387,7 +387,6 @@ def allocate_samples_mfmc(cov, costs, target_cost):
     nmodels = len(costs)
     corr = compute_correlations_from_covariance(cov)
     II = np.argsort(np.absolute(corr[0, 1:]))[::-1]
-    print(II, nmodels)
     if (II.shape[0] != nmodels-1):
         msg = "Correlation shape {0} is inconsistent with len(costs) {1}.".format(
             corr.shape, len(costs))

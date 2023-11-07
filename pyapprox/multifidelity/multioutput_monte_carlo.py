@@ -27,7 +27,7 @@ from pyapprox.multifidelity.control_variate_monte_carlo import (
     get_sample_allocation_matrix_mlmc, allocate_samples_mlmc,
     get_sample_allocation_matrix_mfmc, get_npartition_samples_mfmc,
     get_acv_recursion_indices, generate_samples_and_values_mfmc,
-    combine_acv_values, combine_acv_samples)
+    combine_acv_values, combine_acv_samples, cast_to_integers)
 
 
 def _V_entry(cov):
@@ -454,6 +454,10 @@ def _insert_pilot_samples(samples_per_model_wo_pilot,
     values_per_model_wo_pilot : list (np.ndarray)
          The values for each model. It is assumed that the amount computed
          for the first partition is less the number of pilot samples
+
+    pilot_values : list(np.ndarray)
+        A list of the pilot values for each model. The pilot values may
+        have multiple qoi, i.e. pilot_values.shape[1] > 1
     """
     if pilot_samples is None:
         return samples_per_model_wo_pilot, values_per_model_wo_pilot
@@ -1137,11 +1141,25 @@ class ACVEstimator(MCEstimator):
         partition_indices_per_model = self.generate_sample_allocations()[1]
         acv_values = separate_model_values_acv(
             reorder_allocation_mat, values_per_model,
-            partition_indices_per_model,
-            pilot_data)
+            partition_indices_per_model)
         return acv_values
 
     def separate_model_values(self, values_per_model):
+        nmodels = len(self.nsamples_per_model)
+        if len(values_per_model) != nmodels:
+            msg = "len(values_per_model) {0} != nmodels {1}".format(
+                len(values_per_model), nmodels)
+            raise ValueError(msg)
+        for ii in range(nmodels):
+            print(values_per_model[ii].shape[0],  self.nsamples_per_model[ii])
+            if values_per_model[ii].shape[0] != self.nsamples_per_model[ii]:
+                msg = "{0} != {1}".format(
+                    "len(values_per_model[{0}]): {1}".format(
+                        ii, values_per_model[ii].shape[0]),
+                    "nsamples_per_model[ii]: {0}".format(
+                        self.nsamples_per_model[ii]))
+                raise ValueError(msg)
+
         partition_indices_per_model = self.generate_sample_allocations()[1]
         reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
             self.nsamples_per_model)
@@ -1151,6 +1169,19 @@ class ACVEstimator(MCEstimator):
         return acv_values
 
     def separate_model_samples(self, samples_per_model):
+        nmodels = len(self.nsamples_per_model)
+        if len(samples_per_model) != nmodels:
+            msg = "len(samples_per_model) {0} != nmodels {1}".format(
+                len(samples_per_model), nmodels)
+            raise ValueError(msg)
+        for ii in range(nmodels):
+            if samples_per_model[ii].shape[0] != self.nsamples_per_model[ii]:
+                msg = "{0} != {1}".format(
+                    "samples_per_model[{0}].shape[1]: {1}".format(
+                        ii, samples_per_model[ii].shape[0]),
+                    "nsamples_per_model[ii]: {0}".format(
+                        self.nsamples_per_model[ii]))
+
         partition_indices_per_model = self.generate_sample_allocations()[1]
         reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
             self.nsamples_per_model)
@@ -1230,14 +1261,70 @@ class ACVEstimator(MCEstimator):
             partition_indices_per_model)
         return self(acv_values)
 
-    def bootstrap(self, values_per_model, partition_indices_per_model,
-                  nbootstraps=1000):
+    def bootstrap(self, values_per_model, nbootstraps=1000):
+        partition_indices_per_model = (
+            self._generate_estimator_samples(None))[1]
         return bootstrap_acv_estimator(
             values_per_model, partition_indices_per_model,
             self._get_npartition_samples(self.nsamples_per_model),
             self._get_reordered_sample_allocation_matrix(
-                self.nsamples_per_model),
-            self._get_approximate_control_variate_weights(), nbootstraps)
+                self.nsamples_per_model), nbootstraps)
+
+    def _bootstrap_acv_estimator(
+            self, values_per_model, partition_indices_per_model,
+            npartition_samples, reorder_allocation_mat,
+            nbootstraps):
+        r"""
+        Approximate the variance of the Monte Carlo estimate of the mean using
+        bootstraping
+
+        Parameters
+        ----------
+
+        nbootstraps : integer
+            The number of boostraps used to compute estimator variance
+
+        Returns
+        -------
+        bootstrap_mean : float
+            The bootstrap estimate of the estimator mean
+
+        bootstrap_var : float
+            The bootstrap estimate of the estimator variance
+        """
+        nmodels = len(values_per_model)
+        npartitions = len(npartition_samples)
+        npartition_samples = cast_to_integers(npartition_samples)
+        # preallocate memory so do not have to do it repeatedly
+        permuted_partition_indices = [
+            np.empty(npartition_samples[jj], dtype=int)
+            for jj in range(npartitions)]
+        permuted_values_per_model = [v.copy() for v in values_per_model]
+        active_partitions = []
+        for ii in range(nmodels):
+            active_partitions.append(np.where(
+                (reorder_allocation_mat[:, 2*ii] == 1) |
+                (reorder_allocation_mat[:, 2*ii+1] == 1))[0])
+
+        estimator_vals = np.empty((nbootstraps, self.stat.nqoi))
+        for kk in range(nbootstraps):
+            for jj in range(npartitions):
+                n_jj = npartition_samples[jj]
+                permuted_partition_indices[jj][:] = (
+                    np.random.choice(np.arange(n_jj, dtype=int), size=(n_jj),
+                                     replace=True))
+            for ii in range(nmodels):
+                for idx in active_partitions[ii]:
+                    II = np.where(partition_indices_per_model[ii] == idx)[0]
+                    permuted_values_per_model[ii][II] = values_per_model[ii][
+                        II[permuted_partition_indices[idx]]]
+            permuted_acv_values = separate_model_values_acv(
+                reorder_allocation_mat, permuted_values_per_model,
+                partition_indices_per_model)
+            estimator_vals[kk] = self(permuted_acv_values)
+        bootstrap_mean = estimator_vals.mean()
+        bootstrap_var = estimator_vals.var()
+        return bootstrap_mean, bootstrap_var
 
 
 class MultiOutputStatistic(ABC):
@@ -1760,6 +1847,38 @@ class BestModelSubsetEstimator():
 
     def _get_variance(self, nsamples_per_model):
         return self.best_est._get_variance(nsamples_per_model)
+
+    def combine_acv_values(self, acv_values):
+        return self.best_est.combine_acv_values(acv_values)
+
+    def combine_acv_samples(self, acv_samples):
+        return self.best_est.combine_acv_samples(acv_samples)
+
+    def separate_model_values(self, acv_values):
+        return self.best_est.separate_model_values(acv_values)
+
+    def separate_model_samples(self, acv_samples):
+        return self.best_est.separate_model_samples(acv_samples)
+
+    def combine_pilot_data(
+            self, samples_per_model_wo_pilot, values_per_model_wo_pilot,
+            pilot_data):
+        """
+        pilot data contains the data from all models. Internally we downselect
+        the correct data
+        """
+        pilot_samples, pilot_values = pilot_data
+        pilot_data = [pilot_samples,
+                      [pilot_values[idx] for idx in self.best_model_indices]]
+        return self.best_est.combine_pilot_data(
+            samples_per_model_wo_pilot, values_per_model_wo_pilot,
+            pilot_data)
+
+    def _generate_estimator_samples(self, pilot_samples):
+        return self.best_est._generate_estimator_samples(pilot_samples)
+
+    def bootstrap(self, values_per_model, nbootstraps=1000):
+        return self.best_est.bootstrap(values_per_model, nbootstraps)
 
 
 multioutput_estimators = {

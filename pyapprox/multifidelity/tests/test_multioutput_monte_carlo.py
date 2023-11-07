@@ -950,7 +950,7 @@ class TestMOMC(unittest.TestCase):
         est = get_estimator("acvmf", "mean", model.variable, costs, cov,
                             max_nmodels=3)
         target_cost = 100
-        est.allocate_samples(target_cost, verbosity=1, nprocs=1)
+        est.allocate_samples(target_cost, verbosity=0, nprocs=1)
 
         random_state = np.random.RandomState(1)
         est.set_random_state(random_state)
@@ -962,6 +962,18 @@ class TestMOMC(unittest.TestCase):
         npilot_samples = 5
         pilot_samples = acv_samples[0][1][:, :npilot_samples]
         pilot_values = [f(pilot_samples) for f in model.funs]
+        assert np.allclose(pilot_values[0], acv_values[0][1][:npilot_samples])
+
+        values_per_model = est.combine_acv_values(acv_values)
+        values_per_model_wo_pilot = [
+            vals[npilot_samples:] for vals in values_per_model]
+        values_per_model = [
+            np.vstack((pilot_values[ii], vals))
+            for ii, vals in enumerate(values_per_model_wo_pilot)]
+        acv_values = est.separate_model_values(values_per_model)
+        est_stats = est(acv_values)
+        assert np.allclose(est_stats, est_val)
+
         random_state = np.random.RandomState(1)
         est.set_random_state(random_state)
         acv_samples, acv_values = est.generate_data(
@@ -986,31 +998,63 @@ class TestMOMC(unittest.TestCase):
         est = get_estimator("acvmf", "mean", model.variable, costs, cov,
                             max_nmodels=3)
         target_cost = 100
-        est.allocate_samples(target_cost, verbosity=1, nprocs=1)
+        est.allocate_samples(target_cost, verbosity=0, nprocs=1)
         random_state = np.random.RandomState(1)
         est.set_random_state(random_state)
         acv_samples, acv_values = est.generate_data(funs)
         est_val = est(acv_values)
-        print(est.nsamples_per_model)
+        print(est)
 
         npilot_samples = 5
+        samples_per_model = est.combine_acv_samples(acv_samples)
+        samples_per_model_wo_pilot = [
+            s[:, npilot_samples:] for s in samples_per_model]
+        values_per_model = est.combine_acv_values(acv_values)
+        values_per_model_wo_pilot = [
+            vals[npilot_samples:] for vals in values_per_model]
+
         pilot_samples = acv_samples[0][1][:, :npilot_samples]
         pilot_values = [f(pilot_samples) for f in model.funs]
         random_state = np.random.RandomState(1)
         est.set_random_state(random_state)
-        acv_samples, acv_values = est.generate_data(
+        acv_samples1, acv_values1 = est.generate_data(
             funs, [pilot_samples, pilot_values])
-        est_val_pilot = est(acv_values)
+        est_val_pilot = est(acv_values1)
         assert np.allclose(est_val, est_val_pilot)
 
-        
-        acv_values = est.combine_pilot_data(
-            samples_per_model_wo_pilot, values_per_model_wo_pilot)
-        est_val_pilot = est(acv_values)
+        pilot_data = pilot_samples, pilot_values
+        acv_values2 = est.combine_pilot_data(
+            samples_per_model_wo_pilot, values_per_model_wo_pilot, pilot_data)
+        assert np.allclose(acv_values1[0][1], acv_values[0][1])
+        for ii in range(1, len(acv_values2)):
+            assert np.allclose(acv_values2[ii][0], acv_values[ii][0])
+            assert np.allclose(acv_values2[ii][1], acv_values[ii][1])
+        est_val_pilot = est(acv_values2)
         assert np.allclose(est_val, est_val_pilot)
+
+    def test_bootstrap_estimator(self):
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+            [0, 1, 2], [0, 1, 2])
+
+        # modify costs so more hf samples are used but all three models
+        # are selected
+        costs[1:] = 0.1, 0.05
+        est = get_estimator("acvmf", "mean", model.variable, costs, cov,
+                            max_nmodels=3)
+        target_cost = 100
+        est.allocate_samples(target_cost, verbosity=0, nprocs=1)
+
+        samples_per_model = est._generate_estimator_samples(None)[0]
+        print(samples_per_model)
+        values_per_model = [
+            f(samples) for f, samples in zip(funs, samples_per_model)]
+
+        bootstrap_mean, bootstrap_variance = est.bootstrap(
+            values_per_model, 100) # 10000
 
 
 if __name__ == "__main__":
     momc_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestMOMC)
     unittest.TextTestRunner(verbosity=2).run(momc_test_suite)
+    
