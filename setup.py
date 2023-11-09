@@ -145,3 +145,6 @@ setuptools.setup(
 #     original_print("FN:",caller.filename,"Line:", caller.lineno,"Func:", caller.function,":::", *args, **kwargs)
 
 # builtins.print = print_wrap
+
+# run pytest coverage on a single test
+# coverage run -m pytest -v tests/test_stats.py && coverage html && open htmlcov/index.html

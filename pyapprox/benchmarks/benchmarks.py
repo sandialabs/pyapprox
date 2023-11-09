@@ -24,7 +24,8 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     ParameterizedNonlinearModel)
 from pyapprox.benchmarks.genz import GenzFunction
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    PolynomialModelEnsemble, TunableModelEnsemble, ShortColumnModelEnsemble)
+    PolynomialModelEnsemble, TunableModelEnsemble, ShortColumnModelEnsemble,
+    MultioutputModelEnsemble)
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.interface.wrappers import (
     TimerModel, PoolModel, WorkTrackingModel)
@@ -723,6 +724,13 @@ def setup_short_column_ensemble():
          "model_covariance": model.get_covariance_matrix()})
 
 
+def setup_multioutput_model_ensemble():
+    model = MultioutputModelEnsemble()
+    return Benchmark(
+        {'fun': model, 'variable': model.variable, "means": model.get_means(),
+         "model_covariance": model.get_covariance_matrix()})
+
+
 def setup_parameterized_nonlinear_model():
     model = ParameterizedNonlinearModel()
     model.qoi = np.array([1])
@@ -1098,6 +1106,7 @@ _benchmarks = {
     setup_advection_diffusion_kle_inversion_benchmark,
     'polynomial_ensemble': setup_polynomial_ensemble,
     'tunable_model_ensemble': setup_tunable_model_ensemble,
+    'multioutput_model_ensemble': setup_multioutput_model_ensemble,
     'short_column_ensemble': setup_short_column_ensemble,
     "parameterized_nonlinear_model": setup_parameterized_nonlinear_model}
 
