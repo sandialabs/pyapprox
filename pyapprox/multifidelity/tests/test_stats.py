@@ -4,8 +4,8 @@ from functools import partial
 import numpy as np
 
 from pyapprox.multifidelity.stats import (
-    get_W_from_pilot, get_B_from_pilot, _nqoisq_nqoisq_subproblem,
-    _nqoi_nqoisq_subproblem)
+    _nqoisq_nqoisq_subproblem,
+    _nqoi_nqoisq_subproblem, MultiOutputMeanAndVariance)
 from pyapprox.benchmarks.multifidelity_benchmarks import (
     MultioutputModelEnsemble)
 
@@ -69,7 +69,7 @@ class TestMOSTATS(unittest.TestCase):
         assert np.allclose(variance, samples.var(axis=1, ddof=1))
 
     def _check_pilot_covariances(self, model_idx, qoi_idx):
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+        funs, cov_exact, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         nmodels = len(funs)
         # atol is needed for terms close to zero
@@ -77,12 +77,13 @@ class TestMOSTATS(unittest.TestCase):
         npilot_samples = int(1e6)
         pilot_samples = model.variable.rvs(npilot_samples)
         pilot_values = np.hstack([f(pilot_samples) for f in funs])
-        W = get_W_from_pilot(pilot_values, nmodels)
+        cov, W, B = MultiOutputMeanAndVariance.compute_pilot_quantities(
+            pilot_values, nmodels)
+        assert np.allclose(cov, cov_exact, atol=atol, rtol=rtol)
         W_exact = model.covariance_of_centered_values_kronker_product()
         W_exact = _nqoisq_nqoisq_subproblem(
             W_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
         assert np.allclose(W, W_exact, atol=atol, rtol=rtol)
-        B = get_B_from_pilot(pilot_values, nmodels)
         B_exact = model.covariance_of_mean_and_variance_estimators()
         B_exact = _nqoi_nqoisq_subproblem(
             B_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)

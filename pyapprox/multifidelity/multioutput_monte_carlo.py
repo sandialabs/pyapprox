@@ -14,7 +14,6 @@ from pyapprox.multifidelity.control_variate_monte_carlo import (
     get_nsamples_per_model,
     separate_model_values_acv, separate_samples_per_model_acv,
     generate_samples_acv, round_nsample_ratios, bootstrap_acv_estimator,
-    get_sample_allocation_matrix_acvmf,
     get_nhf_samples, allocate_samples_mfmc,
     check_mfmc_model_costs_and_correlations,
     acv_sample_allocation_nhf_samples_constraint,
@@ -26,101 +25,90 @@ from pyapprox.multifidelity.control_variate_monte_carlo import (
     get_acv_initial_guess, get_npartition_samples_mlmc,
     get_sample_allocation_matrix_mlmc, allocate_samples_mlmc,
     get_sample_allocation_matrix_mfmc, get_npartition_samples_mfmc,
-    get_acv_recursion_indices, get_sample_allocation_matrix_acvis,
+    get_acv_recursion_indices,
     combine_acv_values, combine_acv_samples, cast_to_integers)
 from pyapprox.multifidelity.stats import (
     MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance,
     _nqoi_nqoi_subproblem)
 
 
-def reorder_allocation_matrix_acvgmf(allocation_mat, nsamples_per_model,
-                                     recursion_index):
+def _round_nsample_ratios(target_cost, costs, nsample_ratios):
     """
-    Allocation matrix is the reference sample allocation
+    Return sample ratios that produce integer sample allocations.
+    The cost of the returned allocation will not usually equal target cost
 
-    Must make sure that allocation matrix used for sample allocation and
-    computing estimated variances has the largest sample sizes containing
-    the largest subset
+    Parameters
+    ----------
+    target_cost : float
+        The total cost budget
 
+    costs : np.ndarray (nmodels)
+        The relative costs of evaluating each model
+
+    nsample_ratios : np.ndarray (nmodels-1)
+        The sample ratios r used to specify the number of samples of the
+        lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
+
+    Returns
+    -------
+    nsample_ratios_floor : float
+         ratios r used to specify INTEGER number of samples of the lower
+         fidelity models. These ratios will also force nhf_samples to
+         be an integer
+
+    rounded_target_cost : float
+         The cost of the new sample allocation
     """
-    II = np.unique(nsamples_per_model[1:],
-                   return_inverse=True)[1]+1
-    tmp = allocation_mat.copy()
-    tmp[:, 3::2] = allocation_mat[:, 2*II+1]
-    tmp[:, 2::2] = tmp[:, 2*recursion_index+1]
-    return tmp
+    nsamples_float = get_nsamples_per_model(
+        target_cost, costs, nsample_ratios, False)
+    nsamples_floor = nsamples_float.astype(int)
+    # ensure all low-fidelity samples > nhf_samples after rounding
+    if nsamples_floor[0] < 1 and nsamples_float[0] < 1-1e-8:
+        raise RuntimeError("Rounding likely caused nhf samples to be zero")
+    elif nsamples_floor[0] < 1:
+        nsamples_floor[0] = 1
+    II = np.where(nsamples_floor[1:] == nsamples_floor[0])[0]+1
+    nsamples_floor[II] = 2
+    nsample_ratios_floor = nsamples_floor[1:]/nsamples_floor[0]
+    rounded_target_cost = nsamples_floor[0]*(costs[0]+np.dot(
+        nsample_ratios_floor, costs[1:]))
+    return nsample_ratios_floor, rounded_target_cost
 
 
-def get_npartition_samples_acvmf(nsamples_per_model):
-    nmodels = len(nsamples_per_model)
-    II = np.unique(nsamples_per_model.detach().numpy(), return_index=True)[1]
-    sort_array = nsamples_per_model[II]
-    if sort_array.shape[0] < nmodels:
-        pad = sort_array[-1]*torch.ones(
-            (nmodels-sort_array.shape[0]), dtype=torch.double)
-        sort_array = torch.hstack((sort_array, pad))
-    npartition_samples = torch.hstack(
-        (nsamples_per_model[0], torch.diff(sort_array)))
-    return npartition_samples
-
-
-def get_npartition_samples_acvis(nsamples_per_model, recursion_index):
-    r"""
-    Get the size of the subsets :math:`z_i\setminus z_i^\star, i=0\ldots, M-1`.
-    """
-    npartition_samples = torch.hstack(
-        (nsamples_per_model[0],
-         nsamples_per_model[1:]-nsamples_per_model[recursion_index]))
-    return npartition_samples
-
-
-def _get_npartition_samples_acvrd(nsamples_per_model, recursion_index,
-                                  npartition_samples, model_id):
-    if npartition_samples[model_id] >= 0:
-        return
-    if npartition_samples[recursion_index[model_id-1]] >= 0:
-        npartition_samples[model_id] = (
-            nsamples_per_model[model_id] -
-            npartition_samples[recursion_index[model_id-1]])
-        print(npartition_samples, nsamples_per_model)
-        return
-    _get_npartition_samples_acvis(
-        nsamples_per_model, recursion_index, npartition_samples,
-        recursion_index[model_id-1])
-    npartition_samples[model_id] = (
-            nsamples_per_model[model_id] -
-            npartition_samples[recursion_index[model_id-1]])
-    return
-
-
-def get_npartition_samples_acvrd(nsamples_per_model, recursion_index):
-    r"""
-    Get the size of the subsets :math:`z_i\setminus z_i^\star, i=0\ldots, M-1`.
-    """
-    nmodels = nsamples_per_model.shape[0]
-    npartition_samples = torch.full((nmodels,), -np.inf, dtype=torch.double)
-    npartition_samples[0] = nsamples_per_model[0]
+def _get_allocation_matrix_gmf(recursion_index):
+    nmodels = len(recursion_index)+1
+    mat = np.zeros((nmodels, 2*nmodels))
+    for ii in range(nmodels):
+        mat[ii, 2*ii+1] = 1.0
     for ii in range(1, nmodels):
-        print("$")
-        _get_npartition_samples_acvfd(nsamples_per_model, recursion_index,
-                                      npartition_samples, ii)
-    print(npartition_samples)
-    return npartition_samples
+        mat[:, 2*ii] = mat[:, recursion_index[ii-1]*2+1]
+    for ii in range(2, 2*nmodels):
+        II = np.where(mat[:, ii] == 1)[0][-1]
+        mat[:II, ii] = 1.0
+    return mat
 
 
-def reorder_allocation_matrix_acvgis(allocation_mat, nsamples_per_model,
-                                     recursion_index):
-    """
-    Allocation matrix is the reference sample allocation
+def _get_allocation_matrix_acvis(recursion_index):
+    nmodels = len(recursion_index)+1
+    mat = np.zeros((nmodels, 2*nmodels))
+    for ii in range(nmodels):
+        mat[ii, 2*ii+1] = 1
+    for ii in range(1, nmodels):
+        mat[:, 2*ii] = mat[:, recursion_index[ii-1]*2+1]
+    for ii in range(1, nmodels):
+        mat[:, 2*ii+1] = np.maximum(mat[:, 2*ii], mat[:, 2*ii+1])
+    return mat
 
-    Must make sure that allocation matrix used for sample allocation and
-    computing estimated variances has the largest sample sizes containing
-    the largest subset
 
-    """
-    tmp = allocation_mat.copy()
-    tmp[:, 2::2] = tmp[:, 2*recursion_index+1]
-    return tmp
+def _get_allocation_matrix_acvrd(recursion_index):
+    nmodels = len(recursion_index)+1
+    allocation_mat = np.zeros((nmodels, 2*nmodels))
+    for ii in range(nmodels):
+        allocation_mat[ii, 2*ii+1] = 1
+    for ii in range(1, nmodels):
+        allocation_mat[:, 2*ii] = (
+            allocation_mat[:, recursion_index[ii-1]*2+1])
+    return allocation_mat
 
 
 def log_determinant_variance(variance):
@@ -145,69 +133,8 @@ def log_linear_combination_diag_variance(weights, variance):
     return torch.log(torch.multi_dot(weights, torch.diag(variance)))
 
 
-def _remove_pilot_samples(samples_per_model, reorder_allocation_mat,
-                          npartition_samples, pilot_samples):
-    if pilot_samples is None:
-        return samples_per_model
-    nmodels = len(samples_per_model)
-    npilot_samples = pilot_samples.shape[1]
-    for ii in range(nmodels):
-        # which partitions are active for either of the sets associated
-        # with model ii
-        active_partitions = np.where(
-            (reorder_allocation_mat[:, 2*ii] == 1) |
-            (reorder_allocation_mat[:, 2*ii+1] == 1))[0]
-        if active_partitions.min() == 0:
-            if npilot_samples > npartition_samples[0]:
-                raise ValueError("Too many pilot samples")
-            samples_per_model[ii] = samples_per_model[ii][:, npilot_samples:]
-    # samples_per_model no longer contain the pilot samples
-    return samples_per_model
-
-
-def _insert_pilot_samples(samples_per_model_wo_pilot,
-                          values_per_model_wo_pilot, reorder_allocation_mat,
-                          npartition_samples, pilot_samples, pilot_values):
-    """
-    Use pilot samples only for first partition. That is for the
-    sample set used to evaluate the high-fidelity model.
-    In some situations the pilot samples may be used for other partitions
-    but this function does not do that and therefore does not make
-    maximum reuse of samples
-
-    Parameters
-    ----------
-    values_per_model_wo_pilot : list (np.ndarray)
-         The values for each model. It is assumed that the amount computed
-         for the first partition is less the number of pilot samples
-
-    pilot_values : list(np.ndarray)
-        A list of the pilot values for each model. The pilot values may
-        have multiple qoi, i.e. pilot_values.shape[1] > 1
-    """
-    if pilot_samples is None:
-        return samples_per_model_wo_pilot, values_per_model_wo_pilot
-    nmodels = len(values_per_model_wo_pilot)
-    npilot_samples = pilot_samples.shape[1]
-    for ii in range(nmodels):
-        # which partitions are active for either of the sets associated
-        # with model ii
-        active_partitions = np.where(
-            (reorder_allocation_mat[:, 2*ii] == 1) |
-            (reorder_allocation_mat[:, 2*ii+1] == 1))[0]
-        if active_partitions.min() == 0:
-            if npilot_samples > npartition_samples[0]:
-                raise ValueError("Too many pilot samples")
-            samples_per_model_wo_pilot[ii] = np.hstack(
-                (pilot_samples, samples_per_model_wo_pilot[ii]))
-            values_per_model_wo_pilot[ii] = np.vstack(
-                (pilot_values[ii], values_per_model_wo_pilot[ii]))
-    # samples_per_model_wo_pilot (and values) now contain pilot
-    return samples_per_model_wo_pilot, values_per_model_wo_pilot
-
-
 class MCEstimator():
-    def __init__(self, stat, costs, variable, cov, opt_criteria=None):
+    def __init__(self, stat, costs, cov, opt_criteria=None):
         r"""
         Parameters
         ----------
@@ -216,9 +143,6 @@ class MCEstimator():
 
         costs : np.ndarray (nmodels)
             The relative costs of evaluating each model
-
-        variable : :class:`~pyapprox.variables.IndependentMarginalsVariable`
-            The uncertain model parameters
 
         cov : np.ndarray (nmodels*nqoi, nmodels)
             The covariance C between each of the models. The highest fidelity
@@ -237,16 +161,20 @@ class MCEstimator():
             then variance shape is (nqoi**2, nqoi**2), when estimating mean
             and variance then shape (nqoi+nqoi**2, nqoi+nqoi**2)
         """
+        # public variables (will be backwards compatible)
         self.stat = stat
-        self.cov, self.costs, self.nmodels, self.nqoi = self._check_cov(
+
+        # private variables (no guarantee that these variables
+        #                    will exist in the future)
+        self._cov, self._costs, self._nmodels, self._nqoi = self._check_cov(
             cov, costs)
-        self.variable = variable
-        self.optimization_criteria = self._set_optimization_criteria(
+        self._optimization_criteria = self._set_optimization_criteria(
             opt_criteria)
-        self.set_random_state(None)
-        self.nsamples_per_model, self.optimized_criteria = None, None
-        self.rounded_target_cost = None
-        self.model_labels = None
+
+        self._nsamples_per_model = None
+        self._rounded_target_cost = None
+        self._optimized_criteria = None
+        self._model_labels = None
 
     def _check_cov(self, cov, costs):
         nmodels = len(costs)
@@ -263,42 +191,22 @@ class MCEstimator():
             opt_criteria = log_trace_variance
         return opt_criteria
 
-    def set_random_state(self, random_state):
+    def _get_number_of_high_fidelity_samples_from_ratios(
+            self, target_cost, nsample_ratios):
+        return target_cost/(
+            self._costs[0]+(nsample_ratios*self._costs[1:]).sum())
+
+    def _npartition_samples_from_ratios(self, target_cost, nsample_ratios):
+        nhf_samples = self._get_number_of_high_fidelity_samples_from_ratios(
+            target_cost, nsample_ratios)
+        return torch.hstack(
+            [torch.as_tensor([nhf_samples], dtype=torch.double),
+             nsample_ratios*nhf_samples])
+
+    def _covariance_from_ratios(self, target_cost, nsample_ratios):
         """
-        Set the state of the numpy random generator. This effects
-        self.generate_samples
-
-        Parameters
-        ----------
-        random_state : :class:`numpy.random.RandmState`
-            Set the random state of the numpy random generator
-
-        Notes
-        -----
-        To create reproducible results when running numpy.random in parallel
-        must use RandomState. If not the results will be non-deterministic.
-        This is happens because of a race condition. numpy.random.* uses only
-        one global PRNG that is shared across all the threads without
-        synchronization. Since the threads are running in parallel, at the same
-        time, and their access to this global PRNG is not synchronized between
-        them, they are all racing to access the PRNG state (so that the PRNG's
-        state might change behind other threads' backs). Giving each thread its
-        own PRNG (RandomState) solves this problem because there is no longer
-        any state that's shared by multiple threads without synchronization.
-        Also see new features
-        https://docs.scipy.org/doc/numpy/reference/random/parallel.html
-        https://docs.scipy.org/doc/numpy/reference/random/multithreading.html
-        """
-        self.generate_samples = partial(
-                self.variable.rvs, random_state=random_state)
-
-    def _get_variance(self, nsamples_per_model):
-        return self.stat.high_fidelity_estimator_covariance(
-            nsamples_per_model)
-
-    def get_variance(self, target_cost, nsample_ratios):
-        """
-        Get the variance of the Monte Carlo estimator from costs and cov.
+        Get the variance of the Monte Carlo estimator from costs and cov
+        and nsamples ratios. Needed for optimization.
 
         Parameters
         ----------
@@ -315,36 +223,59 @@ class MCEstimator():
         variance : float
             The variance of the estimator
             """
-        nsamples_per_model = get_nsamples_per_model(
-            target_cost, self.costs, nsample_ratios, False)
-        return self._get_variance(nsamples_per_model)
+        npartition_samples = self._npartition_samples_from_ratios(
+            target_cost, nsample_ratios)
+        return self._covariance_from_npartition_samples(npartition_samples)
+
+    def _covariance_from_npartition_samples(self, npartition_samples):
+        """
+        Get the variance of the Monte Carlo estimator from costs and cov
+        and npartition_samples
+        """
+        return self.stat.high_fidelity_estimator_covariance(
+            npartition_samples[0])
 
     def allocate_samples(self, target_cost, verbosity=0):
-        self.nsamples_per_model = np.asarray(
-            [int(np.floor(target_cost/self.costs[0]))])
+        self._nsamples_per_model = np.asarray(
+            [int(np.floor(target_cost/self._costs[0]))])
         nsample_ratios = np.zeros(0)
-        variance = self._get_variance(self.nsamples_per_model)
-        optimized_criteria = self.optimization_criteria(variance)
-        self.rounded_target_cost = self.costs[0]*self.nsamples_per_model[0]
-        self.optimized_criteria = optimized_criteria
-        return nsample_ratios, variance, self.rounded_target_cost
+        # Fot single fidelity MC
+        # self._npartition_samples = self._nsamples_per_model
+        est_covariance = self._covariance_from_npartition_samples(
+            self._nsamples_per_model)
+        optimized_criteria = self._optimization_criteria(est_covariance)
+        self._rounded_target_cost = self._costs[0]*self._nsamples_per_model[0]
+        self._optimized_criteria = optimized_criteria
+        return nsample_ratios, est_covariance, self._rounded_target_cost
 
-    def generate_data(self, functions):
-        samples = self.generate_samples(self.nsamples_per_model[0])
-        if not callable(functions):
-            values = functions[0](samples)
-        else:
-            if len(functions) != 1:
-                msg = "Too many function provided"
-                raise ValueError(msg)
-            samples_with_id = np.vstack(
-                [samples,
-                 np.zeros((1, self.nhf_samples), dtype=np.double)])
-            values = functions(samples_with_id)
-        return [[None, samples]], [[None, values]]
+    def generate_samples_per_model(self, rvs):
+        """
+        Returns the samples needed to the model
+
+        Parameters
+        ----------
+        rvs : callable
+            Function with signature
+
+            `rvs(nsamples)->np.ndarray(nvars, nsamples)`
+
+        Returns
+        -------
+        samples_per_model : list[np.ndarray] (1)
+            List with one entry np.ndarray (nvars, nsamples_per_model[0])
+        """
+        return [rvs(self._nsamples_per_model)]
 
     def __call__(self, values):
-        return self.stat.sample_estimate(values[0][1])
+        if not isinstance(values, np.ndarray):
+            raise ValueError("values must be an np.ndarray type={0}".format(
+                type(values)))
+        if values.ndim != 2 or values.shape[0] != self._nsamples_per_model:
+            msg = "values has the incorrect shape {0}".format(
+                values.shape)
+            print(self._nsamples_per_model)
+            raise ValueError(msg)
+        return self.stat.sample_estimate(values)
 
     def __repr__(self):
         return "{0}(stat={1}, nqoi={2})".format(
@@ -362,7 +293,7 @@ def acv_variance_sample_allocation_nhf_samples_constraint(ratios, *args):
 
 
 class ACVEstimator(MCEstimator):
-    def __init__(self, stat, costs, variable, cov,
+    def __init__(self, stat, costs, cov,
                  recursion_index=None, opt_criteria=None,
                  tree_depth=None, allow_failures=False):
         """
@@ -375,9 +306,6 @@ class ACVEstimator(MCEstimator):
 
         costs : np.ndarray (nmodels)
             The relative costs of evaluating each model
-
-        variable : :class:`~pyapprox.variables.IndependentMarginalsVariable`
-            The uncertain model parameters
 
         cov : np.ndarray (nmodels*nqoi, nmodels)
             The covariance C between each of the models. The highest fidelity
@@ -409,16 +337,19 @@ class ACVEstimator(MCEstimator):
             that have optimization that enforce constraints on the structure
             of the model ensemble
         """
-        super().__init__(stat, costs, variable, cov, opt_criteria=opt_criteria)
-        self.set_initial_guess(None)
+        super().__init__(stat, costs, cov, opt_criteria=opt_criteria)
+        self._set_initial_guess(None)
 
         if tree_depth is not None and recursion_index is not None:
             msg = "Only tree_depth or recurusion_index must be specified"
             raise ValueError(msg)
         if tree_depth is None:
-            self.set_recursion_index(recursion_index)
+            self._set_recursion_index(recursion_index)
         self._tree_depth = tree_depth
         self._allow_failures = allow_failures
+
+        self._rounded_nsample_ratios = None
+        self._npartition_samples = None
 
     def _weights(self, CF, cf):
         return -torch.linalg.multi_dot(
@@ -438,34 +369,121 @@ class ACVEstimator(MCEstimator):
         #     weights = torch.ones(cf.T.shape, dtype=torch.double)*1e16
         # return weights.T
 
-    def _estimate(self, values, weights):
-        nmodels = len(values)
-        assert len(values) == nmodels
-        # high fidelity monte carlo estimate of mean
+    def _get_partition_indices(self):
+        """
+        Get the indices, into the flattened array of all samples/values,
+        of each indpendent sample partition
+        """
+        ntotal_independent_samples = self._npartition_samples.sum()
+        total_indices = torch.arange(ntotal_independent_samples)
+        indices = np.split(
+            total_indices,
+            np.cumsum(self._npartition_samples.numpy()).astype(int))
+        return [torch.as_tensor(idx, dtype=int) for idx in indices]
+
+    def _get_partition_indices_per_acv_subset(self):
+        r"""
+        Get the indices, into the flattened array of all samples/values,
+        of each acv subset :math:`\mathcal{Z}_\alpha,\mathcal{Z}_\alpha^*`
+        """
+        partition_indices = self._get_partition_indices()
+        partition_indices_per_model = [np.array([], dtype=int)]
+        for ii in range(1, 2*self._nmodels):
+            active_partitions = np.where(
+                (self._allocation_mat[:, ii] == 1))[0]
+            indices = np.hstack(
+                [partition_indices[idx] for idx in active_partitions])
+            partition_indices_per_model.append(indices)
+        return partition_indices_per_model
+
+    def _separate_values_per_model(self, values_per_model):
+        r"""
+        Seperate values per model into the acv subsets associated with
+        :math:`\mathcal{Z}_\alpha,\mathcal{Z}_\alpha^*`
+        """
+        if len(values_per_model) != self._nmodels:
+            msg = "len(values_per_model) {0} != nmodels {1}".format(
+                len(values_per_model), self._nmodels)
+            raise ValueError(msg)
+        for ii in range(self._nmodels):
+            if values_per_model[ii].shape[0] != self._nsamples_per_model[ii]:
+                msg = "{0} != {1}".format(
+                    "len(values_per_model[{0}]): {1}".format(
+                        ii, values_per_model[ii].shape[0]),
+                    "nsamples_per_model[ii]: {0}".format(
+                        self._nsamples_per_model[ii]))
+                raise ValueError(msg)
+
+        acv_partition_indices = self._get_partition_indices_per_acv_subset()
+        nacv_subsets = len(acv_partition_indices)
+        acv_values = [
+            values_per_model[ii//2][acv_partition_indices[ii]]
+            for ii in range(nacv_subsets)]
+        return acv_values
+
+    def _separate_samples_per_model(self, samples):
+        return self._separate_values_per_model(samples, True)
+
+    def generate_samples_per_model(self, rvs):
+        """
+        Returns the unique samples needed to evaluate each model.
+
+        Parameters
+        ----------
+        rvs : callable
+            Function with signature
+
+            `rvs(nsamples)->np.ndarray(nvars, nsamples)`
+
+        Returns
+        -------
+        samples_per_model : list[np.ndarray] (nmodels)
+            List of np.ndarray (nvars, nsamples_per_model[ii])
+        """
+        ntotal_independent_samples = self._npartition_samples.sum()
+        independent_samples = rvs(ntotal_independent_samples)
+        samples_per_model = []
+        partition_indices = self._get_partition_indices()
+        for ii in range(self._nmodels):
+            active_partitions = np.where(
+                (self._allocation_mat[:, 2*ii] == 1) |
+                (self._allocation_mat[:, 2*ii+1] == 1))[0]
+            indices = np.hstack(
+                [partition_indices[idx] for idx in active_partitions])
+            samples_per_model.append(independent_samples[:, indices])
+        return samples_per_model
+
+    def _compute_nsamples_per_model(self):
+        partition_indices = self._get_partition_indices()
+        nsamples_per_model = np.empty(self._nmodels, dtype=int)
+        for ii in range(self._nmodels):
+            active_partitions = np.where(
+                (self._allocation_mat[:, 2*ii] == 1) |
+                (self._allocation_mat[:, 2*ii+1] == 1))[0]
+            indices = np.hstack(
+                [partition_indices[idx] for idx in active_partitions])
+            nsamples_per_model[ii] = indices.shape[0]
+        return nsamples_per_model
+
+    def _estimate(self, values_per_model, weights):
+        nmodels = len(values_per_model)
+        acv_values = self._separate_values_per_model(values_per_model)
         deltas = np.hstack(
-            [self.stat.sample_estimate(values[ii][0]) -
-             self.stat.sample_estimate(values[ii][1])
+            [self.stat.sample_estimate(acv_values[2*ii]) -
+             self.stat.sample_estimate(acv_values[2*ii+1])
              for ii in range(1, nmodels)])
-        est = (self.stat.sample_estimate(values[0][1]) +
+        est = (self.stat.sample_estimate(acv_values[1]) +
                weights.numpy().dot(deltas))
         return est
 
-    def __call__(self, values):
+    def __call__(self, values_per_model):
         r"""
         Return the value of the Monte Carlo like estimator
 
         Parameters
         ----------
-        values : list (nmodels)
-        Each entry of the list contains
-
-        values0 : np.ndarray (num_samples_i0,num_qoi)
-           Evaluations  of each model
-           used to compute the estimator :math:`Q_{i,N}` of
-
-        values1: np.ndarray (num_samples_i1,num_qoi)
-            Evaluations used compute the approximate
-            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
+        values_per_model : list (nmodels)
+            The unique values of each model
 
         Returns
         -------
@@ -474,432 +492,79 @@ class ACVEstimator(MCEstimator):
             each high-fidelity model QoI
         """
         CF, cf = self.stat.get_discrepancy_covariances(
-            self, self.nsamples_per_model)
+            self, self._npartition_samples)
         weights = self._weights(CF, cf)
-        return self._estimate(values, weights)
+        return self._estimate(values_per_model, weights)
 
     def __repr__(self):
-        if self.optimized_criteria is None:
+        if self._optimized_criteria is None:
             return "{0}(stat={1}, recursion_index={2})".format(
-                self.__class__.__name__, self.stat, self.recursion_index)
-        return "{0}(stat={1}, recursion_index={2}, criteria={3:.3g}, target_cost={4:.5g}, ratios={5})".format(
-            self.__class__.__name__, self.stat, self.recursion_index,
-            self.optimized_criteria, self.rounded_target_cost,
-            self.nsample_ratios.numpy())
-
-    def set_optimized_params(self, nsample_ratios, rounded_target_cost,
-                             optimized_criteria):
-        """
-        Set the parameters needed to generate samples for evaluating the
-        estimator
-
-        nsample_ratios : np.ndarray (nmodels-1, dtype=int)
-            The sample ratios r used to specify the number of samples of the
-            lower fidelity models, e.g. N_i = r_i*nhf_samples,
-            i=1,...,nmodels-1. For model i>0 nsample_ratio*nhf_samples equals
-            the number of samples in the two different discrepancies involving
-            the ith model.
-
-        rounded_target_cost : float
-            The cost of the new sample allocation
-
-        optimized_criteria : float
-            The variance of the estimator using the integer sample allocations
-        """
-        self.nsample_ratios = nsample_ratios
-        self.rounded_target_cost = rounded_target_cost
-        self.nsamples_per_model = torch.as_tensor(
-            np.round(get_nsamples_per_model(
-                self.rounded_target_cost, self.costs, self.nsample_ratios,
-                False)), dtype=torch.int)
-        self.optimized_criteria = optimized_criteria
-
-    def _objective(self, target_cost, x, return_grad=True):
-        ratios = torch.tensor(x, dtype=torch.double)
-        if return_grad:
-            ratios.requires_grad = True
-        variance = self.get_variance(target_cost, ratios)
-        val = self.optimization_criteria(variance)
-        if not return_grad:
-            return val.item()
-        val.backward()
-        grad = ratios.grad.detach().numpy().copy()
-        ratios.grad.zero_()
-        return val.item(), grad
-
-    def set_initial_guess(self, initial_guess):
-        if initial_guess is not None:
-            self.initial_guess = torch.as_tensor(
-                initial_guess, dtype=torch.double)
-        else:
-            self.initial_guess = None
-
-    def _allocate_samples_opt_minimize(
-            self, costs, target_cost, initial_guess, optim_method,
-            optim_options, cons):
-        if optim_options is None:
-            if optim_method == "SLSQP":
-                optim_options = {'disp': False, 'ftol': 1e-10,
-                                 'maxiter': 10000, "iprint": 0}
-            elif optim_method == "trust-constr":
-                optim_options = {'disp': False, 'gtol': 1e-10,
-                                 'maxiter': 10000}
-            else:
-                raise ValueError(f"{optim_method} not supported")
-
-        if target_cost < costs.sum():
-            msg = "Target cost does not allow at least one sample from "
-            msg += "each model"
-            raise ValueError(msg)
-
-        nmodels = len(costs)
-        nunknowns = len(initial_guess)
-        max_nhf = target_cost/costs[0]
-        bounds = [(1+1/(max_nhf),
-                   np.ceil(target_cost/cost)) for cost in costs[1:]]
-        assert nunknowns == nmodels-1
-
-        # constraint
-        # nhf*r-nhf >= 1
-        # nhf*(r-1) >= 1
-        # r-1 >= 1/nhf
-        # r >= 1+1/nhf
-        # smallest lower bound when nhf = max_nhf
-
-        return_grad = True
-        opt = minimize(
-            partial(self._objective, target_cost, return_grad=return_grad),
-            initial_guess, method=optim_method, jac=return_grad,
-            bounds=bounds, constraints=cons, options=optim_options)
-        return opt
-
-    def _allocate_samples_opt(self, cov, costs, target_cost,
-                              cons=[],
-                              initial_guess=None,
-                              optim_options=None, optim_method='trust-constr'):
-        initial_guess = get_acv_initial_guess(
-            initial_guess, cov, costs, target_cost)
-        assert optim_method == "SLSQP" or optim_method == "trust-constr"
-        opt = self._allocate_samples_opt_minimize(
-            costs, target_cost, initial_guess, optim_method, optim_options,
-            cons)
-        nsample_ratios = torch.as_tensor(opt.x, dtype=torch.double)
-        if not opt.success:  # and (opt.status != 8 or not np.isfinite(opt.fun)):
-            raise RuntimeError('optimizer failed'+f'{opt}')
-        else:
-            val = opt.fun  # self.get_variance(target_cost, nsample_ratios)
-        return nsample_ratios, val
-
-    def _allocate_samples_user_init_guess(self, cons, target_cost, **kwargs):
-        opt = self._allocate_samples_opt(
-                self.cov, self.costs, target_cost, cons,
-                initial_guess=self.initial_guess, **kwargs)
-        try:
-            opt = self._allocate_samples_opt(
-                self.cov, self.costs, target_cost, cons,
-                initial_guess=self.initial_guess, **kwargs)
-            return opt
-        except RuntimeError:
-            return None, np.inf
-
-    def _allocate_samples_mfmc(self, cons, target_cost, **kwargs):
-        if (not (check_mfmc_model_costs_and_correlations(
-                self.costs,
-                get_correlation_from_covariance(self.cov.numpy()))) or
-                len(self.cov) != len(self.costs)):
-            # second condition above will not be true for multiple qoi
-            return None, np.inf
-        mfmc_initial_guess = torch.as_tensor(allocate_samples_mfmc(
-            self.cov, self.costs, target_cost)[0], dtype=torch.double)
-        try:
-            opt = self._allocate_samples_opt(
-                self.cov, self.costs, target_cost, cons,
-                initial_guess=mfmc_initial_guess, **kwargs)
-            return opt
-        except RuntimeError:
-            return None, np.inf
-
-    def _allocate_samples(self, target_cost, **kwargs):
-        cons = self.get_constraints(target_cost)
-        # self.cons = cons # hack
-        opts = []
-        kwargs["optim_method"] = "trust-constr"
-        opt_user_tr = self._allocate_samples_user_init_guess(
-            cons, target_cost, **kwargs)
-        opts.append(opt_user_tr)
-        if opt_user_tr[0] is None:
-            kwargs["optim_method"] = "SLSQP"
-            opt_user_sq = self._allocate_samples_user_init_guess(
-                cons, target_cost, **kwargs)
-            opts.append(opt_user_sq)
-        # kwargs["optim_method"] = "trust-constr"
-        # opt_mfmc_tr = self._allocate_samples_mfmc(cons, target_cost, **kwargs)
-        # opts.append(opt_mfmc_tr)
-        # if opt_mfmc_tr[0] is None:
-        #     kwargs["optim_method"] = "SLSQP"
-        #     opt_mfmc_sq = self._allocate_samples_mfmc(
-        #         cons, target_cost, **kwargs)
-        #     opts.append(opt_mfmc_sq)
-        obj_vals = np.array([o[1] for o in opts])
-        if not np.any(np.isfinite(obj_vals)):
-            raise RuntimeError(
-                "no solution found from multiple initial guesses {0}")
-        II = np.argmin(obj_vals)
-        return opts[II]
-
-    @staticmethod
-    def _scipy_wrapper(fun, xx, *args):
-        # convert argument to fun to tensor before passing to fun
-        return fun(torch.as_tensor(xx, dtype=torch.double), *args)
+                self.__class__.__name__, self.stat, self._recursion_index)
+        rep = "{0}(stat={1}, recursion_index={2}, criteria={3:.3g}".format(
+            self.__class__.__name__, self.stat, self._recursion_index,
+            self._optimized_criteria)
+        rep += " target_cost={0:.5g}, ratios={1}, nsamples={2})".format(
+            self._rounded_target_cost,
+            self._rounded_nsample_ratios,
+            self._nsamples_per_model)
+        return rep
 
     @abstractmethod
-    def _get_constraints(self, target_cost):
-        raise NotImplementedError()
+    def _create_allocation_matrix(self, recursion_index):
+        r"""
+        Return the allocation matrix corresponding to
+        self._nsamples_per_model set by _set_optimized_params
 
-    def get_constraints(self, target_cost):
-        if isinstance(
-                self.stat, (MultiOutputVariance, MultiOutputMeanAndVariance)):
-            cons = [
-                {'type': 'ineq',
-                 'fun': partial(
-                     self._scipy_wrapper,
-                     acv_variance_sample_allocation_nhf_samples_constraint),
-                 'jac': partial(
-                     self._scipy_wrapper,
-                     acv_sample_allocation_nhf_samples_constraint_jac),
-                 'args': (target_cost, self.costs)}]
-        else:
-            cons = [
-                {'type': 'ineq',
-                 'fun': partial(
-                     self._scipy_wrapper,
-                     acv_sample_allocation_nhf_samples_constraint),
-                 'jac': partial(
-                     self._scipy_wrapper,
-                     acv_sample_allocation_nhf_samples_constraint_jac),
-                 'args': (target_cost, self.costs)}]
-        cons += self._get_constraints(target_cost)
-
-        # Ensure that all low-fidelity models have at least one more sample
-        # than high-fidelity model. Otherwise Fmat will not be invertable after
-        # rounding to integers
-        cons += [
-            {'type': 'ineq',
-             'fun': partial(
-                 self._scipy_wrapper,
-                 acv_sample_allocation_nlf_gt_nhf_ratio_constraint),
-             'jac': partial(
-                 self._scipy_wrapper,
-                 acv_sample_allocation_nlf_gt_nhf_ratio_constraint_jac),
-             'args': (ii, target_cost, self.costs)}
-            for ii in range(1, self.nmodels)]
-        return cons
-
-    def allocate_samples(self, target_cost, verbosity=0):
-        if self._tree_depth is not None:
-            return self._allocate_samples_for_all_recursion_indices(
-                target_cost, verbosity)
-        return self._allocate_samples_for_single_recursion(
-            target_cost, verbosity)
-
-    def _allocate_samples_for_single_recursion(self, target_cost, verbosity=0):
+        Returns
+        -------
+        mat : np.ndarray (nmodels, 2*nmodels)
+            For columns :math:`2j, j=0,\ldots,M-1` the ith row contains a
+            flag specifiying if :math:`z_i^\star\subseteq z_j^\star`
+            For columns :math:`2j+1, j=0,\ldots,M-1` the ith row contains a
+            flag specifiying if :math:`z_i\subseteq z_j`
         """
-        Determine the samples (integers) that must be allocated to
-        each model to compute the Monte Carlo like estimator
+        raise NotImplementedError
+
+    def _get_allocation_matrix(self):
+        """return allocation matrix as torch tensor"""
+        return torch.as_tensor(self._allocation_mat, dtype=torch.double)
+
+    def _set_recursion_index(self, index):
+        """Set the recursion index of the parameterically defined ACV
+        Estimator.
+
+        This function intializes the allocation matrix.
 
         Parameters
         ----------
-        target_cost : float
-            The total cost budget
-
-        Returns
-        -------
-        nsample_ratios : np.ndarray (nmodels-1, dtype=int)
-            The sample ratios r used to specify the number of samples of the
-            lower fidelity models, e.g. N_i = r_i*nhf_samples,
-            i=1,...,nmodels-1. For model i>0 nsample_ratio*nhf_samples equals
-            the number of samples in the two different discrepancies involving
-            the ith model.
-
-        variance : float
-            The variance of the estimator using the integer sample allocations
-
-        rounded_target_cost : float
-            The cost of the new sample allocation
+        index : np.ndarray (nmodels-1)
+            The recusion index
         """
-        nsample_ratios, obj_val = self._allocate_samples(
-            target_cost)
-        nsample_ratios = nsample_ratios.detach().numpy()
-        nsample_ratios, rounded_target_cost = round_nsample_ratios(
-            target_cost, self.costs.numpy(), nsample_ratios)
-        nsample_ratios = torch.as_tensor(nsample_ratios, dtype=torch.double)
-        variance = self.get_variance(rounded_target_cost, nsample_ratios)
-        val = self.optimization_criteria(variance)
-        self.set_optimized_params(
-            nsample_ratios, rounded_target_cost, val)
-        return nsample_ratios, variance, rounded_target_cost
-
-    @abstractmethod
-    def _get_npartition_samples(self, nsamples_per_model):
-        raise NotImplementedError
-
-    @abstractmethod
-    def _create_allocation_matrix(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def _get_reordered_sample_allocation_matrix(self, nsamples_per_model):
-        raise NotImplementedError
-
-    def set_recursion_index(self, index):
         if index is None:
-            index = np.zeros(self.nmodels-1, dtype=int)
+            index = np.zeros(self._nmodels-1, dtype=int)
         else:
             index = np.asarray(index)
-        if index.shape[0] != self.nmodels-1:
+        if index.shape[0] != self._nmodels-1:
             msg = "index {0} is the wrong shape. Should be {1}".format(
-                index, self.nmodels-1)
+                index, self._nmodels-1)
             raise ValueError(msg)
-        self._create_allocation_matrix()
-        self.recursion_index = index
+        self._create_allocation_matrix(index)
+        self._recursion_index = index
 
-    def _get_variance(self, nsamples_per_model):
+    def _covariance_from_npartition_samples(self, npartition_samples):
         CF, cf = self.stat.get_discrepancy_covariances(
-            self, nsamples_per_model)
+            self, npartition_samples)
         weights = self._weights(CF, cf)
         return (self.stat.high_fidelity_estimator_covariance(
-            nsamples_per_model) + torch.linalg.multi_dot((weights, cf.T)))
-
-    def generate_sample_allocations(self):
-        """
-        Returns
-        -------
-        samples_per_model : list (nmodels)
-                The ith entry contains the set of samples
-                np.narray(nvars, nsamples_ii) used to evaluate the ith model.
-
-        partition_indices_per_model : list (nmodels)
-                The ith entry contains the indices np.narray(nsamples_ii)
-                mapping each sample to a sample allocation partition
-        """
-        npartition_samples = self._get_npartition_samples(
-            self.nsamples_per_model)
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
-            self.nsamples_per_model)
-        samples_per_model, partition_indices_per_model = generate_samples_acv(
-            reorder_allocation_mat, self.nsamples_per_model,
-            npartition_samples, self.generate_samples)
-        return samples_per_model, partition_indices_per_model
+            npartition_samples[0]) + torch.linalg.multi_dot((weights, cf.T)))
 
     def combine_acv_samples(self, acv_samples):
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
-            self.nsamples_per_model)
-        npartition_samples = self._get_npartition_samples(
-            self.nsamples_per_model)
         return combine_acv_samples(
-            reorder_allocation_mat, npartition_samples, acv_samples)
+            self._allocation_mat, self._npartition_samples, acv_samples)
 
     def combine_acv_values(self, acv_values):
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
-            self.nsamples_per_model)
-        npartition_samples = self._get_npartition_samples(
-            self.nsamples_per_model)
-        print(self.recursion_index)
-        print(reorder_allocation_mat)
-        print(npartition_samples)
         return combine_acv_values(
-            reorder_allocation_mat, npartition_samples, acv_values)
-
-    def _generate_estimator_samples(self, pilot_samples):
-        samples_per_model, partition_indices_per_model = \
-            self.generate_sample_allocations()
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
-            self.nsamples_per_model)
-        npartition_samples = self._get_npartition_samples(
-            self.nsamples_per_model)
-        samples_per_model_wo_pilot = _remove_pilot_samples(
-            samples_per_model, reorder_allocation_mat,
-            npartition_samples, pilot_samples)
-        return samples_per_model_wo_pilot, partition_indices_per_model
-
-    def _generate_estimator_values(self, functions,
-                                   samples_per_model_wo_pilot):
-
-        if type(functions) == list:
-            functions = ModelEnsemble(functions)
-        # evaluate models only at points that have not been computed
-        values_per_model_wo_pilot = functions.evaluate_models(
-            samples_per_model_wo_pilot)
-        return values_per_model_wo_pilot
-
-    def insert_pilot_samples(self, samples_per_model_wo_pilot,
-                             values_per_model_wo_pilot, pilot_data):
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
-            self.nsamples_per_model)
-        npartition_samples = self._get_npartition_samples(
-            self.nsamples_per_model)
-        return _insert_pilot_samples(
-            samples_per_model_wo_pilot, values_per_model_wo_pilot,
-            reorder_allocation_mat, npartition_samples, *pilot_data)
-
-    def combine_pilot_data(
-            self, samples_per_model_wo_pilot, values_per_model_wo_pilot,
-            pilot_data):
-        samples_per_model, values_per_model = self.insert_pilot_samples(
-            samples_per_model_wo_pilot, values_per_model_wo_pilot,
-            pilot_data)
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
-            self.nsamples_per_model)
-        partition_indices_per_model = self.generate_sample_allocations()[1]
-        acv_values = separate_model_values_acv(
-            reorder_allocation_mat, values_per_model,
-            partition_indices_per_model)
-        return acv_values
-
-    def separate_model_values(self, values_per_model):
-        nmodels = len(self.nsamples_per_model)
-        if len(values_per_model) != nmodels:
-            msg = "len(values_per_model) {0} != nmodels {1}".format(
-                len(values_per_model), nmodels)
-            raise ValueError(msg)
-        for ii in range(nmodels):
-            if values_per_model[ii].shape[0] != self.nsamples_per_model[ii]:
-                msg = "{0} != {1}".format(
-                    "len(values_per_model[{0}]): {1}".format(
-                        ii, values_per_model[ii].shape[0]),
-                    "nsamples_per_model[ii]: {0}".format(
-                        self.nsamples_per_model[ii]))
-                raise ValueError(msg)
-
-        partition_indices_per_model = self.generate_sample_allocations()[1]
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
-            self.nsamples_per_model)
-        acv_values = separate_model_values_acv(
-            reorder_allocation_mat, values_per_model,
-            partition_indices_per_model)
-        return acv_values
-
-    def separate_model_samples(self, samples_per_model):
-        nmodels = len(self.nsamples_per_model)
-        if len(samples_per_model) != nmodels:
-            msg = "len(samples_per_model) {0} != nmodels {1}".format(
-                len(samples_per_model), nmodels)
-            raise ValueError(msg)
-        for ii in range(nmodels):
-            if samples_per_model[ii].shape[0] != self.nsamples_per_model[ii]:
-                msg = "{0} != {1}".format(
-                    "samples_per_model[{0}].shape[1]: {1}".format(
-                        ii, samples_per_model[ii].shape[0]),
-                    "nsamples_per_model[ii]: {0}".format(
-                        self.nsamples_per_model[ii]))
-
-        partition_indices_per_model = self.generate_sample_allocations()[1]
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
-            self.nsamples_per_model)
-        acv_samples = separate_samples_per_model_acv(
-            reorder_allocation_mat, samples_per_model,
-            partition_indices_per_model)
-        return acv_samples
+            self._allocation_mat, self._npartition_samples, acv_values)
 
     def _generate_data(self, samples_per_model_wo_pilot,
                        values_per_model_wo_pilot, pilot_data,
@@ -907,8 +572,8 @@ class ACVEstimator(MCEstimator):
         samples_per_model, values_per_model = self.insert_pilot_samples(
             samples_per_model_wo_pilot, values_per_model_wo_pilot,
             pilot_data)
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
-            self.nsamples_per_model)
+        reorder_allocation_mat = self._get_allocation_matrix(
+            self._nsamples_per_model)
         acv_values = separate_model_values_acv(
             reorder_allocation_mat, values_per_model,
             partition_indices_per_model)
@@ -917,69 +582,8 @@ class ACVEstimator(MCEstimator):
             partition_indices_per_model)
         return acv_samples, acv_values
 
-    def generate_data(self, functions, pilot_data=[None, None]):
-        r"""
-        Generate the samples and values needed to compute the Monte Carlo like
-        estimator.
-
-        Parameters
-        ----------
-        functions : list of callables
-            The functions used to evaluate each model with signature
-
-            `function(samples)->np.ndarray (nsamples, 1)`
-
-            whre samples : np.ndarray (nvars, nsamples)
-
-        generate_samples : callable
-            Function used to generate realizations of the random variables
-
-        Returns
-        -------
-        acv_samples : list (nmodels)
-            List containing the samples :math:`\mathcal{Z}_{i,1}` and
-            :math:`\mathcal{Z}_{i,2}` for each model :math:`i=0,\ldots,M-1`.
-            The list is [[:math:`\mathcal{Z}_{0,1}`,:math:`\mathcal{Z}_{0,2}`],
-            ...,[:math:`\mathcal{Z}_{M-1,1}`,:math:`\mathcal{Z}_{M-1,2}`]],
-            where :math:`M` is the number of models
-
-        acv_values : list (nmodels)
-            Each entry of the list contains
-
-        values0 : np.ndarray (num_samples_i0,num_qoi)
-           Evaluations  of each model
-           used to compute the estimator :math:`Q_{i,N}` of
-
-        values1: np.ndarray (num_samples_i1,num_qoi)
-            Evaluations used compute the approximate
-            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
-        """
-        pilot_samples, pilot_values = pilot_data
-        samples_per_model_wo_pilot, partition_indices_per_model = (
-            self._generate_estimator_samples(pilot_samples))
-        values_per_model_wo_pilot = self._generate_estimator_values(
-            functions, samples_per_model_wo_pilot)
-        return self._generate_data(
-            samples_per_model_wo_pilot, values_per_model_wo_pilot, pilot_data,
-            partition_indices_per_model)
-
-    def estimate_from_values_per_model(self, values_per_model,
-                                       partition_indices_per_model):
-        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix(
-            self.nsamples_per_model)
-        acv_values = separate_model_values_acv(
-            reorder_allocation_mat, values_per_model,
-            partition_indices_per_model)
-        return self(acv_values)
-
     def bootstrap(self, values_per_model, nbootstraps=1000):
-        partition_indices_per_model = (
-            self._generate_estimator_samples(None))[1]
-        return bootstrap_acv_estimator(
-            values_per_model, partition_indices_per_model,
-            self._get_npartition_samples(self.nsamples_per_model),
-            self._get_reordered_sample_allocation_matrix(
-                self.nsamples_per_model), nbootstraps)
+        raise NotImplementedError()
 
     def _bootstrap_acv_estimator(
             self, values_per_model, partition_indices_per_model,
@@ -1037,12 +641,262 @@ class ACVEstimator(MCEstimator):
         bootstrap_var = estimator_vals.var()
         return bootstrap_mean, bootstrap_var
 
+    def _objective(self, target_cost, x, return_grad=True):
+        ratios = torch.tensor(x, dtype=torch.double)
+        if return_grad:
+            ratios.requires_grad = True
+        variance = self._covariance_from_ratios(target_cost, ratios)
+        val = self._optimization_criteria(variance)
+        if not return_grad:
+            return val.item()
+        val.backward()
+        grad = ratios.grad.detach().numpy().copy()
+        ratios.grad.zero_()
+        return val.item(), grad
+
+    def _set_initial_guess(self, initial_guess):
+        if initial_guess is not None:
+            self.initial_guess = torch.as_tensor(
+                initial_guess, dtype=torch.double)
+        else:
+            self.initial_guess = None
+
+    def _allocate_samples_opt_minimize(
+            self, costs, target_cost, initial_guess, optim_method,
+            optim_options, cons):
+        if optim_options is None:
+            if optim_method == "SLSQP":
+                optim_options = {'disp': False, 'ftol': 1e-10,
+                                 'maxiter': 10000, "iprint": 0}
+            elif optim_method == "trust-constr":
+                optim_options = {'disp': False, 'gtol': 1e-10,
+                                 'maxiter': 10000}
+            else:
+                raise ValueError(f"{optim_method} not supported")
+
+        if target_cost < costs.sum():
+            msg = "Target cost does not allow at least one sample from "
+            msg += "each model"
+            raise ValueError(msg)
+
+        nmodels = len(costs)
+        nunknowns = len(initial_guess)
+        max_nhf = target_cost/costs[0]
+        bounds = [(1+1/(max_nhf),
+                   np.ceil(target_cost/cost)) for cost in costs[1:]]
+        assert nunknowns == nmodels-1
+
+        # constraint
+        # nhf*r-nhf >= 1
+        # nhf*(r-1) >= 1
+        # r-1 >= 1/nhf
+        # r >= 1+1/nhf
+        # smallest lower bound when nhf = max_nhf
+
+        return_grad = True
+        opt = minimize(
+            partial(self._objective, target_cost, return_grad=return_grad),
+            initial_guess, method=optim_method, jac=return_grad,
+            bounds=bounds, constraints=cons, options=optim_options)
+        return opt
+
+    def _allocate_samples_opt(self, cov, costs, target_cost,
+                              cons=[],
+                              initial_guess=None,
+                              optim_options=None, optim_method='trust-constr'):
+        initial_guess = get_acv_initial_guess(
+            initial_guess, cov, costs, target_cost)
+        assert optim_method == "SLSQP" or optim_method == "trust-constr"
+        opt = self._allocate_samples_opt_minimize(
+            costs, target_cost, initial_guess, optim_method, optim_options,
+            cons)
+        nsample_ratios = torch.as_tensor(opt.x, dtype=torch.double)
+        if not opt.success:  # and (opt.status!=8 or not np.isfinite(opt.fun)):
+            raise RuntimeError('optimizer failed'+f'{opt}')
+        else:
+            val = opt.fun  # self.get_variance(target_cost, nsample_ratios)
+        return nsample_ratios, val
+
+    def _allocate_samples_user_init_guess(self, cons, target_cost, **kwargs):
+        opt = self._allocate_samples_opt(
+                self._cov, self._costs, target_cost, cons,
+                initial_guess=self.initial_guess, **kwargs)
+        try:
+            opt = self._allocate_samples_opt(
+                self._cov, self._costs, target_cost, cons,
+                initial_guess=self.initial_guess, **kwargs)
+            return opt
+        except RuntimeError:
+            return None, np.inf
+
+    def _allocate_samples_mfmc(self, cons, target_cost, **kwargs):
+        # TODO convert MFMC allocation per model to npartition_samples
+        if (not (check_mfmc_model_costs_and_correlations(
+                self._costs,
+                get_correlation_from_covariance(self._cov.numpy()))) or
+                len(self._cov) != len(self._costs)):
+            # second condition above will not be true for multiple qoi
+            return None, np.inf
+        mfmc_initial_guess = torch.as_tensor(allocate_samples_mfmc(
+            self._cov, self._costs, target_cost)[0], dtype=torch.double)
+        try:
+            opt = self._allocate_samples_opt(
+                self._cov, self._costs, target_cost, cons,
+                initial_guess=mfmc_initial_guess, **kwargs)
+            return opt
+        except RuntimeError:
+            return None, np.inf
+
+    def _allocate_samples(self, target_cost, **kwargs):
+        cons = self.get_constraints(target_cost)
+        opts = []
+        kwargs["optim_method"] = "trust-constr"
+        opt_user_tr = self._allocate_samples_user_init_guess(
+            cons, target_cost, **kwargs)
+        opts.append(opt_user_tr)
+        if opt_user_tr[0] is None:
+            kwargs["optim_method"] = "SLSQP"
+            opt_user_sq = self._allocate_samples_user_init_guess(
+                cons, target_cost, **kwargs)
+            opts.append(opt_user_sq)
+        # kwargs["optim_method"] = "trust-constr"
+        # opt_mfmc_tr = self._allocate_samples_mfmc(cons, target_cost, **kwargs)
+        # opts.append(opt_mfmc_tr)
+        # if opt_mfmc_tr[0] is None:
+        #     kwargs["optim_method"] = "SLSQP"
+        #     opt_mfmc_sq = self._allocate_samples_mfmc(
+        #         cons, target_cost, **kwargs)
+        #     opts.append(opt_mfmc_sq)
+        obj_vals = np.array([o[1] for o in opts])
+        if not np.any(np.isfinite(obj_vals)):
+            raise RuntimeError(
+                "no solution found from multiple initial guesses {0}")
+        II = np.argmin(obj_vals)
+        return opts[II]
+
+    @staticmethod
+    def _scipy_wrapper(fun, xx, *args):
+        # convert argument to fun to tensor before passing to fun
+        return fun(torch.as_tensor(xx, dtype=torch.double), *args)
+
+    @abstractmethod
+    def _get_constraints(self, target_cost):
+        raise NotImplementedError()
+
+    def get_constraints(self, target_cost):
+        if isinstance(
+                self.stat, (MultiOutputVariance, MultiOutputMeanAndVariance)):
+            cons = [
+                {'type': 'ineq',
+                 'fun': partial(
+                     self._scipy_wrapper,
+                     acv_variance_sample_allocation_nhf_samples_constraint),
+                 'jac': partial(
+                     self._scipy_wrapper,
+                     acv_sample_allocation_nhf_samples_constraint_jac),
+                 'args': (target_cost, self._costs)}]
+        else:
+            cons = [
+                {'type': 'ineq',
+                 'fun': partial(
+                     self._scipy_wrapper,
+                     acv_sample_allocation_nhf_samples_constraint),
+                 'jac': partial(
+                     self._scipy_wrapper,
+                     acv_sample_allocation_nhf_samples_constraint_jac),
+                 'args': (target_cost, self._costs)}]
+        cons += self._get_constraints(target_cost)
+
+        # Ensure that all low-fidelity models have at least one more sample
+        # than high-fidelity model. Otherwise Fmat will not be invertable after
+        # rounding to integers
+        cons += [
+            {'type': 'ineq',
+             'fun': partial(
+                 self._scipy_wrapper,
+                 acv_sample_allocation_nlf_gt_nhf_ratio_constraint),
+             'jac': partial(
+                 self._scipy_wrapper,
+                 acv_sample_allocation_nlf_gt_nhf_ratio_constraint_jac),
+             'args': (ii, target_cost, self._costs)}
+            for ii in range(1, self._nmodels)]
+        return cons
+
+    def _set_optimized_params(self, rounded_nsample_ratios,
+                              rounded_target_cost,
+                              optimized_criteria):
+        """
+        Set the parameters needed to generate samples for evaluating the
+        estimator
+
+        rounded_nsample_ratios : np.ndarray (nmodels-1, dtype=int)
+            The sample ratios r used to specify the number of samples of the
+            lower fidelity models, e.g. N_i = r_i*nhf_samples,
+            i=1,...,nmodels-1. For model i>0 nsample_ratio*nhf_samples equals
+            the number of samples in the two different discrepancies involving
+            the ith model. They correspond to rounded_target_cost.
+
+        rounded_target_cost : float
+            The cost of the new sample allocation
+
+        optimized_criteria : float
+            A function ofthe estimator covariance
+            using the integer sample allocations, e.g. Trace(est_cov)
+        """
+        self._rounded_nsample_ratios = rounded_nsample_ratios.numpy()
+        self._rounded_target_cost = rounded_target_cost
+        self._npartition_samples = self._npartition_samples_from_ratios(
+            self._rounded_target_cost, rounded_nsample_ratios)
+        self._nsamples_per_model = torch.as_tensor(
+            self._compute_nsamples_per_model(), dtype=torch.int)
+        self._optimized_criteria = optimized_criteria
+
+    def _allocate_samples_for_single_recursion(self, target_cost, verbosity=0):
+        """
+        Determine the samples (integers) that must be allocated to
+        each model to compute the Monte Carlo like estimator
+
+        Parameters
+        ----------
+        target_cost : float
+            The total cost budget
+
+        Returns
+        -------
+        nsample_ratios : np.ndarray (nmodels-1, dtype=int)
+            The sample ratios r used to specify the number of samples of the
+            lower fidelity models, e.g. N_i = r_i*nhf_samples,
+            i=1,...,nmodels-1. For model i>0 nsample_ratio*nhf_samples equals
+            the number of samples in the two different discrepancies involving
+            the ith model.
+
+        variance : float
+            The variance of the estimator using the integer sample allocations
+
+        rounded_target_cost : float
+            The cost of the new sample allocation
+        """
+        nsample_ratios, obj_val = self._allocate_samples(
+            target_cost)
+        nsample_ratios = nsample_ratios.detach().numpy()
+        rounded_nsample_ratios, rounded_target_cost = _round_nsample_ratios(
+            target_cost, self._costs.numpy(), nsample_ratios)
+        rounded_nsample_ratios = torch.as_tensor(
+            rounded_nsample_ratios, dtype=torch.double)
+        covariance = self._covariance_from_ratios(
+            rounded_target_cost, rounded_nsample_ratios)
+        val = self._optimization_criteria(covariance)
+        self._set_optimized_params(
+            rounded_nsample_ratios, rounded_target_cost, val)
+        return rounded_nsample_ratios, covariance, rounded_target_cost
+
     def _allocate_samples_for_all_recursion_indices(
             self, target_cost, verbosity):
         best_variance = torch.as_tensor(np.inf, dtype=torch.double)
         best_result = None
-        for index in get_acv_recursion_indices(self.nmodels, self._tree_depth):
-            self.set_recursion_index(index)
+        for index in get_acv_recursion_indices(
+                self._nmodels, self._tree_depth):
+            self._set_recursion_index(index)
             try:
                 self._allocate_samples_for_single_recursion(
                     target_cost, verbosity)
@@ -1051,55 +905,39 @@ class ACVEstimator(MCEstimator):
                 # uniformative model as a recursive control variate
                 if not self._allow_failures:
                     raise e
-                self.optimized_criteria = torch.as_tensor([np.inf])
+                self._optimized_criteria = torch.as_tensor([np.inf])
                 if verbosity > 0:
                     print("Optimizer failed")
             if verbosity > 0:
                 msg = "Recursion: {0} Objective: best {1}, current {2}".format(
                     index, best_variance.item(),
-                    self.optimized_criteria.item())
+                    self._optimized_criteria.item())
                 print(msg)
-            if self.optimized_criteria < best_variance:
-                best_result = [self.nsample_ratios, self.rounded_target_cost,
-                               self.optimized_criteria, index]
-                best_variance = self.optimized_criteria
+            if self._optimized_criteria < best_variance:
+                best_result = [self._rounded_nsample_ratios,
+                               self._rounded_target_cost,
+                               self._optimized_criteria, index]
+                best_variance = self._optimized_criteria
         if best_result is None:
             raise RuntimeError("No solutions were found")
-        self.set_recursion_index(best_result[3])
-        self.set_optimized_params(
+        self._set_recursion_index(best_result[3])
+        self._set_optimized_params(
             torch.as_tensor(best_result[0], dtype=torch.double),
             *best_result[1:3])
         return best_result[:3]
 
+    def allocate_samples(self, target_cost, verbosity=0):
+        if self._tree_depth is not None:
+            return self._allocate_samples_for_all_recursion_indices(
+                target_cost, verbosity)
+        return self._allocate_samples_for_single_recursion(
+            target_cost, verbosity)
+
 
 class GMFEstimator(ACVEstimator):
-    def _get_npartition_samples(self, nsamples_per_model):
-        return get_npartition_samples_acvmf(nsamples_per_model)
-
-    def _create_allocation_matrix(self):
-        self.allocation_mat = get_sample_allocation_matrix_acvmf(
-            np.zeros(self.nmodels-1, dtype=int))
-
-    def _get_reordered_sample_allocation_matrix(self, nsamples_per_model):
-        r"""
-        Compute the reordered allocation matrix corresponding to
-        self.nsamples_per_model set by set_optimized_params
-
-        Returns
-        -------
-        mat : np.ndarray (nmodels, 2*nmodels)
-            For columns :math:`2j, j=0,\ldots,M-1` the ith row contains a
-            flag specifiying if :math:`z_i^\star\subseteq z_j^\star`
-            For columns :math:`2j+1, j=0,\ldots,M-1` the ith row contains a
-            flag specifiying if :math:`z_i\subseteq z_j`
-        """
-        return torch.as_tensor(reorder_allocation_matrix_acvgmf(
-            self.allocation_mat,
-            # currently nsamples per model is tensor during optimization
-            # but self.namples_per_model is stored as numpy array
-            # todo make consistent and remove hack in the line below
-            torch.as_tensor(nsamples_per_model).detach().numpy(),
-            self.recursion_index), dtype=torch.double)
+    def _create_allocation_matrix(self, recursion_index):
+        self._allocation_mat = _get_allocation_matrix_gmf(
+            recursion_index)
 
     def _get_constraints(self, target_cost):
         # Must ensure that the samples of any model acting as a recursive
@@ -1113,8 +951,8 @@ class GMFEstimator(ACVEstimator):
                             acv_sample_allocation_gmf_ratio_constraint),
              'jac': partial(self._scipy_wrapper,
                             acv_sample_allocation_gmf_ratio_constraint_jac),
-             'args': (ii, jj, target_cost, self.costs)}
-            for ii, jj in zip(range(1, self.nmodels), self.recursion_index)
+             'args': (ii, jj, target_cost, self._costs)}
+            for ii, jj in zip(range(1, self._nmodels), self._recursion_index)
             if jj > 0]
         return cons
 
@@ -1123,23 +961,9 @@ class GISEstimator(ACVEstimator):
     """
     The GIS estimator from Gorodetsky et al. and Bomorito et al
     """
-    def _get_npartition_samples(self, nsamples_per_model):
-        return get_npartition_samples_acvis(
-            nsamples_per_model, self.recursion_index)
-
-    def _create_allocation_matrix(self):
-        self.allocation_mat = get_sample_allocation_matrix_acvis(
-            np.zeros(self.nmodels-1, dtype=int))
-
-    def _get_reordered_sample_allocation_matrix(self, nsamples_per_model):
-        return torch.as_tensor(
-            reorder_allocation_matrix_acvgis(
-                self.allocation_mat,
-                # currently nsamples per model is tensor during optimization
-                # but self.namples_per_model is stored as numpy array
-                # todo make consistent and remove hack in the line below
-                torch.as_tensor(nsamples_per_model).detach().numpy(),
-                self.recursion_index), dtype=torch.double)
+    def _create_allocation_matrix(self, recursion_index):
+        self._allocation_mat = _get_allocation_matrix_acvis(
+            recursion_index)
 
     def _get_constraints(self, target_cost):
         return []
@@ -1147,16 +971,11 @@ class GISEstimator(ACVEstimator):
 
 class GRDEstimator(ACVEstimator):
     """
-    The GRD estimator
+    The GRD estimator.
     """
-    def _get_npartition_samples(self, nsamples_per_model):
-        return get_npartition_samples_acvrd(
-            nsamples_per_model, self.recursion_index)
-
-    def _create_allocation_matrix(self):
-        self.allocation_mat = get_sample_allocation_matrix_acvis(
-            np.zeros(self.nmodels-1, dtype=int))
-        self.allocation_mat[0, 3::2] = 0
+    def _create_allocation_matrix(self, recursion_index):
+        self._allocation_mat = _get_allocation_matrix_acvrd(
+            recursion_index)
 
     def _get_constraints(self, target_cost):
         # raise NotImplementedError
@@ -1176,14 +995,14 @@ class MFMCEstimator(GMFEstimator):
     def _allocate_samples(self, target_cost):
         # nsample_ratios returned will be listed in according to
         # self.model_order which is what self.get_rsquared requires
-        nqoi = self.cov.shape[0]//len(self.costs)
+        nqoi = self._cov.shape[0]//len(self._costs)
         nsample_ratios, val = allocate_samples_mfmc(
-            self.cov.numpy()[self._opt_qoi::nqoi, self._opt_qoi::nqoi],
-            self.costs.numpy(), target_cost)
+            self._cov.numpy()[self._opt_qoi::nqoi, self._opt_qoi::nqoi],
+            self._costs.numpy(), target_cost)
         return torch.as_tensor(nsample_ratios, dtype=torch.double), val
 
-    def _get_reordered_sample_allocation_matrix(self, nsamples_per_model):
-        return get_sample_allocation_matrix_mfmc(self.nmodels)
+    def _get_allocation_matrix(self):
+        return get_sample_allocation_matrix_mfmc(self._nmodels)
 
     def _get_npartition_samples(self, nsamples_per_model):
         return get_npartition_samples_mfmc(nsamples_per_model)
@@ -1205,27 +1024,27 @@ class ACVMLMCEstimator(ACVEstimator):
         self._opt_qoi = opt_qoi
 
     def _allocate_samples(self, target_cost):
-        nqoi = self.cov.shape[0]//len(self.costs)
+        nqoi = self._cov.shape[0]//len(self._costs)
         nsample_ratios, val = allocate_samples_mlmc(
-            self.cov.numpy()[self._opt_qoi::nqoi, self._opt_qoi::nqoi],
-            self.costs.numpy(), target_cost)
+            self._cov.numpy()[self._opt_qoi::nqoi, self._opt_qoi::nqoi],
+            self._costs.numpy(), target_cost)
         return torch.as_tensor(nsample_ratios, dtype=torch.double), val
 
     def _create_allocation_matrix(self):
-        return get_sample_allocation_matrix_mlmc(self.nmodels)
+        return get_sample_allocation_matrix_mlmc(self._nmodels)
 
-    def _get_reordered_sample_allocation_matrix(self, nsamples_per_model):
-        return get_sample_allocation_matrix_mlmc(self.nmodels)
+    def _get_allocation_matrix(self):
+        return get_sample_allocation_matrix_mlmc(self._nmodels)
 
     def _get_npartition_samples(self, nsamples_per_model):
         return get_npartition_samples_mlmc(nsamples_per_model)
 
-    def _get_variance(self, nsamples_per_model):
+    def _get_variance(self, npartition_samples):
         CF, cf = self.stat.get_discrepancy_covariances(
-            self, nsamples_per_model)
+            self, npartition_samples)
         weights = self._weights(CF, cf)
         return (
-            self.stat.high_fidelity_estimator_covariance(nsamples_per_model)
+            self.stat.high_fidelity_estimator_covariance(npartition_samples[0])
             + torch.linalg.multi_dot((weights, CF, weights.T))
             + torch.linalg.multi_dot((cf, weights.T))
             + torch.linalg.multi_dot((weights, cf.T))
@@ -1248,7 +1067,7 @@ class BestModelSubsetEstimator():
         self._candidate_cov, self._candidate_costs = cov, np.asarray(costs)
         self.variable = variable
         # self._ncandidate_nmodels is the number of total models
-        # self.nmodels returns number of models in best subset
+        # self._nmodels returns number of models in best subset
         self._ncandidate_models = len(self._candidate_costs)
         self.nqoi = self._candidate_cov.shape[0]//self._ncandidate_models
         self.max_nmodels = max_nmodels
@@ -1258,8 +1077,8 @@ class BestModelSubsetEstimator():
             del est_kwargs["allow_failures"]
         self.kwargs = est_kwargs
 
-        # self.optimized_criteria = None
-        # self.rounded_target_cost = None
+        # self._optimized_criteria = None
+        # self._rounded_target_cost = None
         self.best_est = None
         self.best_model_indices = None
         self._all_model_labels = None
@@ -1390,8 +1209,8 @@ class BestModelSubsetEstimator():
             best_est, best_model_indices = (
                 self._get_best_models_for_acv_estimator(
                     target_cost, **allocate_kwargs))
-        # self.optimized_criteria = best_est.optimized_criteria
-        # self.rounded_target_cost = best_est.rounded_target_cost
+        # self._optimized_criteria = best_est.optimized_criteria
+        # self._rounded_target_cost = best_est.rounded_target_cost
         self.best_est = best_est
         self.best_model_indices = best_model_indices
         self._set_best_est_attributes()
@@ -1402,11 +1221,11 @@ class BestModelSubsetEstimator():
         attr_list = ["separate_model_values", "separate_model_samples",
                      "_get_variance", "combine_acv_samples",
                      "combine_acv_values", "_generate_estimator_samples",
-                     "bootstrap", "nsample_ratios", "set_random_state", "stat",
+                     "bootstrap", "nsample_ratios", "stat",
                      "nmodels", "cov", "nsamples_per_model", "costs",
                      "get_variance", "optimized_criteria",
                      "rounded_target_cost",
-                     "_get_reordered_sample_allocation_matrix",
+                     "_get_allocation_matrix",
                      "_get_npartition_samples"]
         for attr in attr_list:
             setattr(self, attr, getattr(self.best_est, attr))
@@ -1424,7 +1243,7 @@ class BestModelSubsetEstimator():
             pilot_data_subset)
 
     def __repr__(self):
-        if self.optimized_criteria is None:
+        if self._optimized_criteria is None:
             return "{0}".format(self.__class__.__name__)
         return "{0}(est={1}, subset={2})".format(
             self.__class__.__name__, self.best_est, self.best_model_indices)
@@ -1464,7 +1283,7 @@ multioutput_stats = {
 }
 
 
-def get_estimator(estimator_type, stat_type, variable, costs, cov, *args,
+def get_estimator(estimator_type, stat_type, costs, cov, *args,
                   max_nmodels=None, **kwargs):
     if estimator_type not in multioutput_estimators:
         msg = f"Estimator {estimator_type} not supported. "
@@ -1480,10 +1299,10 @@ def get_estimator(estimator_type, stat_type, variable, costs, cov, *args,
         nmodels = len(costs)
         stat = multioutput_stats[stat_type](nmodels, cov, *args)
         return multioutput_estimators[estimator_type](
-            stat, costs, variable, cov, **kwargs)
+            stat, costs, cov, **kwargs)
 
     return BestModelSubsetEstimator(
-        estimator_type, stat_type, variable, costs, cov,
+        estimator_type, stat_type, costs, cov,
         max_nmodels, *args, **kwargs)
 
 
