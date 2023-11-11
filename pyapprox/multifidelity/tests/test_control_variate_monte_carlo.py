@@ -314,7 +314,7 @@ class TestCVMC(unittest.TestCase):
         npartition_samples = get_npartition_samples_mfmc(nsamples_per_model)
         nsamples_intersect = get_nsamples_intersect(
             allocation_matrix, npartition_samples)
-        print(nsamples_intersect)
+        # print(nsamples_intersect, npartition_samples)
         nsamples_interesect_true = np.array(
             [[0., 0., 0., 0., 0., 0., 0., 0.],
              [0., 2., 2., 2., 2., 2., 2., 2.],
@@ -334,7 +334,7 @@ class TestCVMC(unittest.TestCase):
         npartition_samples = get_npartition_samples_mlmc(nsamples_per_model)
         nsamples_intersect = get_nsamples_intersect(
             allocation_matrix, npartition_samples)
-        print(nsamples_intersect)
+        # print(nsamples_intersect, npartition_samples)
         nsamples_interesect_true = np.array(
             [[0., 0., 0., 0., 0., 0., 0., 0.],
              [0., 2., 2., 0., 0., 0., 0., 0.],

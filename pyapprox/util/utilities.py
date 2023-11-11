@@ -1116,8 +1116,8 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
         direction /= np.linalg.norm(direction)
     assert direction.ndim == 2 and direction.shape[1] == 1
 
-    return _check_gradients(fun_wrapper, zz, direction, plot, disp, rel, fd_eps)
-
+    return _check_gradients(
+        fun_wrapper, zz, direction, plot, disp, rel, fd_eps)
 
 
 def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True, rel=True,

@@ -5,7 +5,8 @@ import numpy as np
 
 from pyapprox.multifidelity.stats import (
     _nqoisq_nqoisq_subproblem,
-    _nqoi_nqoisq_subproblem, MultiOutputMeanAndVariance)
+    _nqoi_nqoisq_subproblem, MultiOutputMeanAndVariance,
+    _get_V_from_covariance, _covariance_of_variance_estimator)
 from pyapprox.benchmarks.multifidelity_benchmarks import (
     MultioutputModelEnsemble)
 
@@ -107,6 +108,71 @@ class TestMOSTATS(unittest.TestCase):
         for test_case in test_cases:
             np.random.seed(123)
             self._check_pilot_covariances(*test_case)
+
+    def _mean_variance_realizations(self, funs, variable, nsamples, ntrials):
+        nmodels = len(funs)
+        means, covariances = [], []
+        for ii in range(ntrials):
+            samples = variable.rvs(nsamples)
+            vals = np.hstack([f(samples) for f in funs])
+            nqoi = vals.shape[1]//nmodels
+            means.append(vals.mean(axis=0))
+            covariance = np.hstack(
+                [np.cov(vals[:, ii*nqoi:(ii+1)*nqoi].T, ddof=1).flatten()
+                 for ii in range(nmodels)])
+            covariances.append(covariance)
+        means = np.array(means)
+        covariances = np.array(covariances)
+        return means, covariances
+
+    def _check_mean_variance_covariances(self, model_idx, qoi_idx):
+        nsamples, ntrials = 20, int(1e5)
+        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+            model_idx, qoi_idx)
+        means, covariances = self._mean_variance_realizations(
+            funs, model.variable, nsamples, ntrials)
+        nmodels = len(funs)
+        nqoi = cov.shape[0]//nmodels
+
+        # atol is needed for terms close to zero
+        rtol, atol = 1e-2, 1e-4
+        B_exact = model.covariance_of_mean_and_variance_estimators()
+        B_exact = _nqoi_nqoisq_subproblem(
+            B_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
+        mc_mean_cov_var = np.cov(means.T, covariances.T, ddof=1)
+        B_mc = mc_mean_cov_var[:nqoi*nmodels, nqoi*nmodels:]
+        assert np.allclose(B_mc, B_exact/nsamples, atol=atol, rtol=rtol)
+
+        # no need to extract subproblem for V_exact as cov has already
+        # been downselected
+        V_exact = _get_V_from_covariance(cov, nmodels)
+        W_exact = model.covariance_of_centered_values_kronker_product()
+        W_exact = _nqoisq_nqoisq_subproblem(
+            W_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
+        cov_var_exact = _covariance_of_variance_estimator(
+            W_exact, V_exact, nsamples)
+        assert np.allclose(
+           cov_var_exact, mc_mean_cov_var[nqoi*nmodels:, nqoi*nmodels:],
+           atol=atol, rtol=rtol)
+
+    def test_mean_variance_covariances(self):
+        fast_test = True
+        test_cases = [
+            [[0], [0]],
+            [[1], [0, 1]],
+            [[1], [0, 2]],
+            [[1, 2], [0]],
+            [[0, 1], [0, 2]],
+            [[0, 1], [0, 1, 2]],
+            [[0, 1, 2], [0]],
+            [[0, 1, 2], [0, 2]],
+            [[0, 1, 2], [0, 1, 2]],
+        ]
+        if fast_test:
+            test_cases = [test_cases[1], test_cases[-1]]
+        for test_case in test_cases:
+            np.random.seed(123)
+            self._check_mean_variance_covariances(*test_case)
 
 
 if __name__ == "__main__":
