@@ -1,52 +1,25 @@
 r"""
 Monte Carlo Quadrature
 ======================
-This tutorial describes how to use Monte Carlo sampling to compute the expectations of the output of a model. Specifically, given a function :math:`f_\alpha(\rv):\reals^{d}\to\reals` parameterized by a set of variables :math:`\rv=[\rv_1,\ldots,\rv_d]^T` with joint density given by :math:`\rho(\rv):\reals^{d}\to\reals`, our goal is to approximate the integral
+This tutorial describes how to use Monte Carlo sampling to compute the expectations of the output of a model :math:`f(\rv):\reals^{D}\to\reals` parameterized by a set of variables :math:`\rv=[\rv_1,\ldots,\rv_D]^\top` with joint density given by :math:`\rho(\rv):\reals^{d}\to\reals`. Specifically,  our goal is to approximate the integral
 
-.. math:: Q_\alpha=\int_\rvdom f_\alpha(\rv)\pdf(\rv)\dx{\rv}
+.. math:: Q=\int_\rvdom f(\rv)\pdf(\rv)\dx{\rv}
 
-We can approximate the integral :math:`Q_\alpha` using Monte Carlo quadrature by drawing :math:`N` random samples of :math:`\rv` from :math:`\pdf` and evaluating the function at each of these samples to obtain the data pairs :math:`\{(\rv^{(n)},f^{(n)}_\alpha)\}_{n=1}^N`, where :math:`f^{(n)}_\alpha=f_\alpha(\rv^{(n)})` and computing
+using Monte Carlo quadrature applied to an approximation :math:`f_\alpha` of the function :math:`f`, e.g. a representing a finite element approximation to the solution of a set of governing equations, where :math:`\alpha` is contols the accuracy of the approximation.
 
-.. math::
+Monte Carlo quadrature approximates the integral
 
-   Q_{\alpha,N}=N^{-1}\sum_{n=1}^N f^{(n)}_\alpha
+.. math:: Q_\alpha=\int_\rvdom f_\alpha(\rv)\pdf(\rv)\dx{\rv}\approx Q
 
-The mean squared error (MSE) of this estimator can be expressed as
-
-.. math::
-
-   \mean{\left(Q_{\alpha,N}-\mean{Q}\right)^2}&=\mean{\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}+\mean{Q_{\alpha,N}}-\mean{Q}\right)^2}\\
-   &=\mean{\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)^2}+\mean{\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)^2}\\
-   &\qquad\qquad+\mean{2\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)}\\
-   &=\var{Q_{\alpha,N}}+\left(\mean{Q_{\alpha,N}}-\mean{Q}\right)^2\\
-   &=\var{Q_{\alpha,N}}+\left(\mean{Q_{\alpha,N}}-Q\right)^2
-
-Here we used that :math:`\mean{\left(Q_{\alpha,N}-\mean{Q_{\alpha,N}}\right)}=0` so the third term on the second line is zero and :math:`\mean{Q}=Q` since the exact value of Q is deterministic. Now using the well known result that for random variable :math:`X_n`
-
-.. math:: \var{\sum_{n=1}^N X_n} = \sum_{n=1}^N \var{X_n} + \sum_{n\neq p}\covar{X_n}{X_p}
-
-and the result for a scalar :math:`a`
-
-.. math:: \var{aX_n} =a^2\var{X_n}
-
-yields
+by drawing :math:`N` random samples :math:`\rvset_N` of :math:`\rv` from :math:`\pdf` and evaluating the function at each of these samples to obtain the data pairs :math:`\{(\rv^{(n)},f^{(n)}_\alpha)\}_{n=1}^N`, where :math:`f^{(n)}_\alpha=f_\alpha(\rv^{(n)})` and computing
 
 .. math::
 
-   \var{Q_{\alpha,N}}=\var{N^{-1}\sum_{n=1}^N f^{(n)}_\alpha}=N^{-2}\sum_{n=1}^N \var{f^{(n)}_\alpha}=N^{-1}\var{Q_\alpha}
+   Q_{\alpha}(\rvset_N)=N^{-1}\sum_{n=1}^N f^{(n)}_\alpha
 
-where :math:`\covar{f^{(n)}}{f^{(p)}}=0, n\neq p` because the samples are drawn independently.
+This estimate of the mean,is itself a random quantity, which we call an estimator, because its value depends on the :math:`\rvset_N` realizations of the inputs :math:`\rvset_N` used to compute :math:`Q_{\alpha}(\rvset_N)`. Specifically, using two different sets :math:`\rvset_N` will produce to different values.
 
-Finally, substituting :math:`\var{Q_{\alpha,N}}` into the expression for MSE yields
-
-.. math::
-
-   \mean{\left(Q_{\alpha, N}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{Q_\alpha}}_{I}+\underbrace{\left(\mean{Q_{\alpha}}-Q\right)^2}_{II}
-
-From this expression we can see that the MSE can be decomposed into two terms;
-a so called stochastic error (I) and a deterministic bias (II). The first term is the variance of the Monte Carlo estimator which comes from using a finite number of samples. The second term is due to using an approximation of :math:`f`. These two errors should be balanced, however in the vast majority of all MC analyses a single model :math:`f_\alpha` is used and the choice of :math:`\alpha`, e.g. mesh resolution, is made a priori without much concern for the balancing bias and variance.
-
-Given a fixed :math:`\alpha` the modelers only recourse to reducing the MSE is to reduce the variance of the estimator. In the following we plot the variance of the MC estimate of a simple algebraic function :math:`f_1` which belongs to an ensemble of models
+To demonstrate this phenomenon, we will estimate the mean of a simple algebraic function :math:`f_0` which belongs to an ensemble of models
 
 .. math::
 
@@ -59,7 +32,7 @@ where :math:`\rv_1,\rv_2\sim\mathcal{U}(-1,1)` and all :math:`A` and :math:`\the
 """
 
 #%%
-#Lets setup the problem
+# First setup the example
 import sympy as sp
 import numpy as np
 import matplotlib.pyplot as plt
@@ -76,100 +49,96 @@ benchmark = setup_benchmark(
 print(benchmark.variable)
 
 #%%
-#Now let us compute the mean of :math:`f_1` using Monte Carlo
-nsamples = int(1e3)
-samples = benchmark.variable.rvs(nsamples)
+#Now define a function that computes MC estimates of the mean using different sample sets :math:`\rvset_N` and plots the distribution the MC estimator :math:`Q_{\alpha}(\rvset_N)`, computed from 1000 different sets, and the exact value of the mean :math:`Q_{\alpha}`
 
-model = benchmark.fun
-values = model.m1(samples)
-variables.print_statistics(samples, values)
+def plot_estimator_histrogram(nsamples, model_id, ax):
+    ntrials = 1000
+    np.random.seed(1)
+    means = np.empty((ntrials))
+    model = benchmark.fun.models[model_id]
+    for ii in range(ntrials):
+        samples = benchmark.variable.rvs(nsamples)
+        values = model(samples)
+        means[ii] = values.mean()
+    im = ax.hist(means, bins=ntrials//100, density=True, alpha=0.3,
+                 label=r'$Q_{%d}(\mathcal{Z}_{%d})$' % (model_id, nsamples))[2]
+    ax.axvline(x=benchmark.fun.get_means()[model_id], alpha=1,
+               label=r'$Q_{%d}$' % model_id, c=im[0].get_facecolor())
+
 
 #%%
-#We can compute the exact mean using sympy and compute the MC MSE
-z1, z2 = sp.Symbol('z1'), sp.Symbol('z2')
-ranges = [-1, 1, -1, 1]
-exact_integral_f1 = benchmark.means[1]
-print('MC difference squared =', (values.mean()-exact_integral_f1)**2)
-
-#%%
+# Now lets plot the historgram of the MC estimator :math:`Q_{0}(\rvset_N)` using :math:`N=100` samples
+#
 #.. _estimator-histogram:
 #
-#Now let us compute the MSE for different sample sets of the same size for :math:`N=100,1000` and plot the distribution of the MC estimator :math:`Q_{\alpha,N}`
+nsamples = int(1e2)
+model_id = 0
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+plot_estimator_histrogram(nsamples, model_id, ax)
+_ = ax.legend()
+
+#%%
+#The variability of the MC estimator as we change :math:`\rvset_N` decreases as we increase :math:`N`. To see this, plot the estimator historgram using :math:`N=1000` samples
+
+model_id = 0
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+nsamples = int(1e2)
+plot_estimator_histrogram(nsamples, model_id, ax)
+nsamples = int(1e3)
+plot_estimator_histrogram(nsamples, model_id, ax)
+_ = ax.legend()
+
+#%%
+#Regardless of the value of :math:`N` the estimator :math:`Q_{0}(\rvset_N)` is an unbiased estimate of :math:`Q_{0}`, that is
 #
-
-ntrials = 1000
-means = np.empty((ntrials, 2))
-for ii in range(ntrials):
-    samples = benchmark.variable.rvs(nsamples)
-    values = model.m1(samples)
-    means[ii] = values[:100].mean(), values.mean()
-fig, ax = plt.subplots()
-textstr = '\n'.join(
-    [r'$\mathbb{E}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].mean(),
-     r'$\mathbb{V}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].var(),
-     r'$\mathbb{E}[Q_{1,1000}]=\mathrm{%.2e}$' % means[:, 1].mean(),
-     r'$\mathbb{V}[Q_{1,1000}]=\mathrm{%.2e}$' % means[:, 1].var()])
-ax.hist(means[:, 0], bins=ntrials//100, density=True)
-ax.hist(means[:, 1], bins=ntrials//100, density=True, alpha=0.5)
-ax.axvline(x=shifts[0], c='r', label=r'$\mathbb{E}[Q_1]$')
-ax.axvline(x=0, c='k', label=r'$\mathbb{E}[Q_0]$')
-props = {'boxstyle': 'round', 'facecolor': 'white', 'alpha': 1}
-ax.text(0.65, 0.8, textstr, transform=ax.transAxes, bbox=props)
-ax.set_xlabel(r'$\mathbb{E}[Q_N]$')
-ax.set_ylabel(r'$\mathbb{P}(\mathbb{E}[Q_N])$')
-_ = ax.legend(loc='upper left')
-
-#%%
-#The numerical results match our theory. Specifically the estimator is unbiased( i.e. mean zero, and the variance of the estimator is :math:`\var{Q_{0,N}}=\var{Q_{0}}/N=1/N`.
+#.. math:: \mean{Q_{0}(\rvset_N)}-Q_0 = 0
 #
-#The variance of the estimator can be driven to zero by increasing the number of samples :math:`N`. However when the variance becomes less than the bias, i.e. :math:`\left(\mean{Q_{\alpha}-Q}\right)^2>\var{Q_{\alpha}}/N`, then the MSE will not decrease and any further samples used to reduce the variance are wasted.
+#Unfortunately, if the computational cost of evaluating a model is high, then one may not be able to make :math:`N` large using that model. Consequently, one will not be able to trust the MC estimate of the mean much because any one realization of the estimator, computed using a single sample set, may obtain a value that is very far from the truth. So often a cheaper less accurate model is used so that :math:`N` can be increased to reduce the variability of the estimator. The following compares the histograms of :math:`Q_0(\rvset_{100})` and :math:`Q_1(\rvset_{1000})` which uses the model :math:`f_1` which we assume is a cheap approximation of :math:`f_0`
+
+model_id = 0
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+nsamples = int(1e2)
+plot_estimator_histrogram(nsamples, model_id, ax)
+model_id = 1
+nsamples = int(1e3)
+plot_estimator_histrogram(nsamples, model_id, ax)
+_ = ax.legend()
+
+#%%
+#However, using an approximate model means that the MC estimator is no longer unbiased. The mean of the histogram of :math:`Q_1(\rvset_{1000})` is no longer the mean of :math:`Q_0`
 #
-#Let our true model be :math:`f_0` above. The following code compues the bias induced by using :math:`f_\alpha=f_1` and also plots the contours of :math:`f_0(\rv)-f_1(\rv)`.
-
-integrand_f0 = model.A0*(sp.cos(model.theta0)*z1**5 +
-                         sp.sin(model.theta0)*z2**5)*0.25
-exact_integral_f0 = float(
-    sp.integrate(integrand_f0, (z1, ranges[0], ranges[1]), (z2, ranges[2], ranges[3])))
-bias = (exact_integral_f0-exact_integral_f1)**2
-print('MC f1 bias =', bias)
-print('MC f1 variance =', means.var())
-print('MC f1 MSE =', bias+means.var())
-
-fig, ax = plt.subplots()
-X, Y, Z = visualize.get_meshgrid_function_data_from_variable(
-    lambda z: model.m0(z)-model.m1(z), benchmark.variable, 50)
-cset = ax.contourf(X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 20))
-_ = plt.colorbar(cset, ax=ax)
-# plt.show()
-
-#%%
-#As :math:`N\to\infty` the MSE will only converge to the bias (:math:`s_1`). Try this by increasing :math:`\texttt{nsamples}`.
-
-#%%
-#We can produced unbiased estimators using the high fidelity model. However if this high-fidelity model is more expensive then this comes at the cost of the estimator having larger variance. To see this the following plots the distribution of the MC estimators using 100 samples of the :math:`f_1` and 10 samples of :math:`f_0`. The cost of constructing these estimators would be equivalent if the high-fidelity model is 10 times more expensive than the low-fidelity model.
-ntrials = 1000
-m0_means = np.empty((ntrials, 1))
-for ii in range(ntrials):
-    samples = benchmark.variable.rvs(nsamples)
-    values = model.m0(samples)
-    m0_means[ii] = values[:10].mean()
-
-fig, ax = plt.subplots()
-textstr = '\n'.join(
-    [r'$\mathbb{E}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].mean(),
-     r'$\mathbb{V}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].var(),
-     r'$\mathbb{E}[Q_{0,10}]=\mathrm{%.2e}$' % m0_means[:, 0].mean(),
-     r'$\mathbb{V}[Q_{0,10}]=\mathrm{%.2e}$' % m0_means[:, 0].var()])
-ax.hist(means[:, 0], bins=ntrials//100, density=True, label=r'$Q_{1, 100}$')
-ax.hist(m0_means[:, 0], bins=ntrials//100, density=True, alpha=0.5,
-        label=r'$Q_{0, 10}$')
-ax.axvline(x=shifts[0], c='r', label=r'$\mathbb{E}[Q_1]$')
-ax.axvline(x=0, c='k', label=r'$\mathbb{E}[Q_0]$')
-props = {'boxstyle': 'round', 'facecolor': 'white', 'alpha': 1}
-ax.text(0.65, 0.8, textstr, transform=ax.transAxes, bbox=props)
-ax.set_xlabel(r'$Q_{\alpha,N}$')
-ax.set_ylabel(r'$\mathbb{P}(Q_{\alpha,N})$')
-_ = ax.legend(loc='upper left')
-
-#%%
-#In a series of tutorials starting with :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` we show how to produce an unbiased estimator with small variance using both these models.
+#Letting :math:`Q` denote the true mean we want to estimate, e.g. :math:`Q=Q_0` in the example we have used so far, the mean squared error (MSE) is typically used to quantify the quality of a MC  estimator. The MSE can be expressed as
+#
+#.. math::
+#
+#   \mean{\left(Q_{\alpha}(\rvset_N)-Q\right)^2}&=\mean{\left(Q_{\alpha}(\rvset_N)-\mean{Q_{\alpha}(\rvset_N)}+\mean{Q_{\alpha}(\rvset_N)}-Q\right)^2}\\
+#   &=\mean{\left(Q_{\alpha}(\rvset_N)-\mean{Q_{\alpha}(\rvset_N)}\right)^2}+\mean{\left(\mean{Q_{\alpha}(\rvset_N)}-Q\right)^2}\\
+#   &\qquad\qquad+\mean{2\left(Q_{\alpha}(\rvset_N)-\mean{Q_{\alpha}(\rvset_N)}\right)\left(\mean{Q_{\alpha}(\rvset_N)}-Q\right)}\\
+#   &=\var{Q_{\alpha}(\rvset_N)}+\left(\mean{Q_{\alpha}(\rvset_N)}-Q\right)^2\\
+#   &=\var{Q_{\alpha}(\rvset_N)}+\left(\mean{Q_{\alpha}(\rvset_N)}-Q\right)^2
+#
+#where the expectation :math:`\mathbb{E}` and variance :math:`\mathbb{V}` are taken over different realization of the sample set :math:`\rvset_N`, and we used that :math:`\mean{\left(Q_{\alpha}(\rvset_N)-\mean{Q_{\alpha}(\rvset_N)}\right)}=0` so the third term on the second line is zero.
+#
+#Now using the well known result that for random variable :math:`X_n`
+#
+#.. math:: \var{\sum_{n=1}^N X_n} = \sum_{n=1}^N \var{X_n} + \sum_{n\neq p}\covar{X_n}{X_p}
+#
+#and the result for a scalar :math:`a`
+#
+#.. math:: \var{aX_n} =a^2\var{X_n}
+#
+#yields
+#
+#.. math::
+#
+#   \var{Q_{\alpha}(\rvset_N)}=\var{N^{-1}\sum_{n=1}^N f^{(n)}_\alpha}=N^{-2}\sum_{n=1}^N \var{f^{(n)}_\alpha}=N^{-1}\var{Q_\alpha}
+#
+#where :math:`\covar{f^{(n)}}{f^{(p)}}=0, n\neq p` because the samples are drawn independently.
+#
+#Finally, substituting :math:`\var{Q_{\alpha}(\rvset_N)}` into the expression for MSE yields
+#
+#.. math::
+#
+#   \mean{\left(Q_{\alpha, N}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{Q_\alpha}}_{I}+\underbrace{\left(\mean{Q_{\alpha}}-Q\right)^2}_{II}
+#
+#From this expression we can see that the MSE can be decomposed into two terms; a so called stochastic error (I) and a deterministic bias (II). The first term is the variance of the Monte Carlo estimator which comes from using a finite number of samples. The second term is due to using an approximation of :math:`f_0`. These two errors should be balanced, however in the vast majority of all MC analyses a single model :math:`f_\alpha` is used and the choice of :math:`\alpha`, e.g. mesh resolution, is made a priori without much concern for the balancing bias and variance.
