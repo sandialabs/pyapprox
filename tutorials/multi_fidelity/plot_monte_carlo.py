@@ -33,20 +33,15 @@ where :math:`\rv_1,\rv_2\sim\mathcal{U}(-1,1)` and all :math:`A` and :math:`\the
 
 #%%
 # First setup the example
-import sympy as sp
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy import stats
 
-from pyapprox import variables
-from pyapprox.analysis import visualize
 from pyapprox.benchmarks import setup_benchmark
 
 np.random.seed(1)
 shifts = [.1, .2]
 benchmark = setup_benchmark(
     "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=shifts)
-print(benchmark.variable)
 
 #%%
 #Now define a function that computes MC estimates of the mean using different sample sets :math:`\rvset_N` and plots the distribution the MC estimator :math:`Q_{\alpha}(\rvset_N)`, computed from 1000 different sets, and the exact value of the mean :math:`Q_{\alpha}`
@@ -110,6 +105,7 @@ _ = ax.legend()
 #Letting :math:`Q` denote the true mean we want to estimate, e.g. :math:`Q=Q_0` in the example we have used so far, the mean squared error (MSE) is typically used to quantify the quality of a MC  estimator. The MSE can be expressed as
 #
 #.. math::
+#    :label: eq_mse
 #
 #   \mean{\left(Q_{\alpha}(\rvset_N)-Q\right)^2}&=\mean{\left(Q_{\alpha}(\rvset_N)-\mean{Q_{\alpha}(\rvset_N)}+\mean{Q_{\alpha}(\rvset_N)}-Q\right)^2}\\
 #   &=\mean{\left(Q_{\alpha}(\rvset_N)-\mean{Q_{\alpha}(\rvset_N)}\right)^2}+\mean{\left(\mean{Q_{\alpha}(\rvset_N)}-Q\right)^2}\\
@@ -131,14 +127,14 @@ _ = ax.legend()
 #
 #.. math::
 #
-#   \var{Q_{\alpha}(\rvset_N)}=\var{N^{-1}\sum_{n=1}^N f^{(n)}_\alpha}=N^{-2}\sum_{n=1}^N \var{f^{(n)}_\alpha}=N^{-1}\var{Q_\alpha}
+#   \var{Q_{\alpha}(\rvset_N)}=\var{N^{-1}\sum_{n=1}^N f^{(n)}_\alpha}=N^{-2}\sum_{n=1}^N \var{f^{(n)}_\alpha}=N^{-1}\var{f_\alpha}
 #
 #where :math:`\covar{f^{(n)}}{f^{(p)}}=0, n\neq p` because the samples are drawn independently.
 #
-#Finally, substituting :math:`\var{Q_{\alpha}(\rvset_N)}` into the expression for MSE yields
+#Finally, substituting :math:`\var{Q_{\alpha}(\rvset_N)}` into the expression for MSE :eq:`eq_mse` yields
 #
 #.. math::
 #
-#   \mean{\left(Q_{\alpha, N}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{Q_\alpha}}_{I}+\underbrace{\left(\mean{Q_{\alpha}}-Q\right)^2}_{II}
+#   \mean{\left(Q_{\alpha, N}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{f_\alpha}}_{I}+\underbrace{\left(\mean{Q_{\alpha}}-Q\right)^2}_{II}
 #
 #From this expression we can see that the MSE can be decomposed into two terms; a so called stochastic error (I) and a deterministic bias (II). The first term is the variance of the Monte Carlo estimator which comes from using a finite number of samples. The second term is due to using an approximation of :math:`f_0`. These two errors should be balanced, however in the vast majority of all MC analyses a single model :math:`f_\alpha` is used and the choice of :math:`\alpha`, e.g. mesh resolution, is made a priori without much concern for the balancing bias and variance.

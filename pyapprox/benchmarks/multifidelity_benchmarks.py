@@ -307,6 +307,7 @@ class MultioutputModelEnsemble():
         #     ["sqrt(7)*x**3", "sqrt(7)*x**2", "cos(2*pi*x+pi/2)"],
         #     ["sqrt(3)/2*x**2", "sqrt(3)/2*x", "cos(2*pi*x+pi/4)"]]
         self.flatten_funs()
+        self.models = [self.f0, self.f1, self.f2]
 
     def _flat_fun_wrapper(self, ii, jj, xx):
         return self.funs[ii](xx[None, :])[:, jj]
@@ -398,7 +399,7 @@ class MultioutputModelEnsemble():
             [1/(2*np.sqrt(3)), np.sqrt(3)/4, 0.0],
         ])
 
-    def means(self) -> np.ndarray:
+    def get_means(self) -> np.ndarray:
         """
         Return the means of the QoI of each model
 
@@ -461,7 +462,7 @@ class MultioutputModelEnsemble():
         ])
         return cov11, cov22, cov33, cov12, cov13, cov23
 
-    def covariance(self) -> np.ndarray:
+    def get_covariance_matrix(self) -> np.ndarray:
         """
         The covariance between the qoi of each model
 

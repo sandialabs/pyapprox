@@ -21,7 +21,7 @@ def _two_qoi(ii, jj, fun, xx):
 
 def _setup_multioutput_model_subproblem(model_idx, qoi_idx):
     model = MultioutputModelEnsemble()
-    cov = model.covariance()
+    cov = model.get_covariance_matrix()
     funs = [model.funs[ii] for ii in model_idx]
     if len(qoi_idx) == 1:
         funs = [partial(_single_qoi, qoi_idx[0], f) for f in funs]
@@ -39,7 +39,8 @@ class TestMOSTATS(unittest.TestCase):
 
     def test_multioutput_model(self):
         model = MultioutputModelEnsemble()
-        assert np.allclose(model.covariance(), model._covariance_quadrature())
+        assert np.allclose(model.get_covariance_matrix(),
+                           model._covariance_quadrature())
 
     def test_covariance_einsum(self):
         model = MultioutputModelEnsemble()
@@ -54,7 +55,7 @@ class TestMOSTATS(unittest.TestCase):
         nqoi = pilot_values.shape[1]
         mc_cov = (centered_values_sq.sum(axis=0)/(npilot_samples-1)).reshape(
             nqoi, nqoi)
-        assert np.allclose(mc_cov, model.covariance(), rtol=1e-2)
+        assert np.allclose(mc_cov, model.get_covariance_matrix(), rtol=1e-2)
 
     def test_variance_double_loop(self):
         NN = 5
