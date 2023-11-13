@@ -447,9 +447,9 @@ class MultiOutputStatistic(ABC):
 
 
 class MultiOutputMean(MultiOutputStatistic):
-    def __init__(self, nmodels, cov):
+    def __init__(self, nqoi, cov):
         self._cov = torch.as_tensor(cov, dtype=torch.double)
-        self._nqoi = self._cov.shape[0]//nmodels
+        self._nqoi = nqoi
 
     def sample_estimate(self, values):
         return np.mean(values, axis=0)
@@ -475,9 +475,10 @@ class MultiOutputMean(MultiOutputStatistic):
 
 
 class MultiOutputVariance(MultiOutputStatistic):
-    def __init__(self, nmodels, cov, W):
+    def __init__(self, nqoi, cov, W):
         self._cov = torch.as_tensor(cov, dtype=torch.double)
-        self._nqoi = self._cov.shape[0]//nmodels
+        self._nqoi = nqoi
+        nmodels = self._cov.shape[0] // self._nqoi
         self._V = torch.as_tensor(
             _get_V_from_covariance(self._cov, nmodels), dtype=torch.double)
         if W.shape != self._V.shape:
@@ -522,9 +523,10 @@ class MultiOutputVariance(MultiOutputStatistic):
 
 
 class MultiOutputMeanAndVariance(MultiOutputStatistic):
-    def __init__(self, nmodels, cov, W, B):
+    def __init__(self, nqoi, cov, W, B):
         self._cov = torch.as_tensor(cov, dtype=torch.double)
-        self._nqoi = self._cov.shape[0]//nmodels
+        self._nqoi = nqoi
+        nmodels = self._cov.shape[0] // self._nqoi
         self._V = torch.as_tensor(
             _get_V_from_covariance(self._cov, nmodels), dtype=torch.double)
         if W.shape != self._V.shape:

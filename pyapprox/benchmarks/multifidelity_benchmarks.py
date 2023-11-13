@@ -514,7 +514,7 @@ class MultioutputModelEnsemble():
             self._V_fun_entry(jj, kk, ll, means, flat_covs, xx))
 
     def _flat_covs(self):
-        cov = self.covariance()
+        cov = self.get_covariance_matrix()
         # store covariance only between the QoI of a model with QoI of the same
         # model
         flat_covs = []
@@ -527,7 +527,7 @@ class MultioutputModelEnsemble():
 
     def covariance_of_centered_values_kronker_product(self) -> np.ndarray:
         r"""
-        The B matrix used to compute the covariance between the
+        The W matrix used to compute the covariance between the
         Kroneker product of centered (mean is subtracted off) values.
 
         Returns
@@ -535,7 +535,7 @@ class MultioutputModelEnsemble():
         np.ndarray (nmodels*nqoi**2, nmodels*nqoi**2)
             The covariance :math:`Cov[(f_i-\mathbb{E}[f_i])^{\otimes^2}, (f_j-\mathbb{E}[f_j])^{\otimes^2}]`
         """
-        means = self.means().flatten()
+        means = self.get_means().flatten()
         flat_covs = self._flat_covs()
 
         xx, ww = gauss_jacobi_pts_wts_1D(201, 0, 0)
@@ -568,7 +568,7 @@ class MultioutputModelEnsemble():
         np.ndarray (nmodels*nqoi, nmodels*nqoi**2)
             The covariance :math:`Cov[f_i, (f_j-\mathbb{E}[f_j])^{\otimes^2}]`
         """
-        means = self.means().flatten()
+        means = self.get_means().flatten()
         flat_covs = self._flat_covs()
         xx, ww = gauss_jacobi_pts_wts_1D(201, 0, 0)
         xx = (xx+1)/2

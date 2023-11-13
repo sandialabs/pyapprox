@@ -186,6 +186,9 @@ class MCEstimator():
         self._optimized_criteria = None
         self._model_labels = None
 
+    def set_nsamples_per_model(self, nsamples_per_model):
+        self._nsamples_per_model = nsamples_per_model
+
     def _check_cov(self, cov, costs):
         nmodels = len(costs)
         if cov.shape[0] % nmodels:
@@ -241,9 +244,9 @@ class MCEstimator():
         if not isinstance(values, np.ndarray):
             raise ValueError("values must be an np.ndarray type={0}".format(
                 type(values)))
-        if values.ndim != 2 or values.shape[0] != self._nsamples_per_model:
-            msg = "values has the incorrect shape {0}".format(
-                values.shape)
+        if values.ndim != 2 or values.shape[0] != self._nsamples_per_model[0]:
+            msg = "values has the incorrect shape {0} expected {1}".format(
+                values.shape, (self._nsamples_per_model[0], self._nqoi))
             raise ValueError(msg)
         return self._stat.sample_estimate(values)
 
@@ -1165,7 +1168,7 @@ class BestModelSubsetEstimator():
             self._candidate_cov, self._ncandidate_models, self._nqoi,
             idx, qoi_idx)
         subset_costs = self._candidate_costs[idx]
-        sub_args = multioutput_stats[self._stat_type].args_model_subset(
+        sub_args = multioutput_stats[self._stat_type]._args_model_subset(
             self._ncandidate_models, self._nqoi, idx, *self._args)
         sub_kwargs = copy.deepcopy(self._kwargs)
         if "recursion_index" in sub_kwargs:
@@ -1187,7 +1190,7 @@ class BestModelSubsetEstimator():
                 sub_kwargs["tree_depth"], nsubset_lfmodels)
         try:
             est = get_estimator(
-                self._estimator_type, self._stat_type,
+                self._estimator_type, self._stat_type, self._nqoi,
                 subset_costs, subset_cov, *sub_args, **sub_kwargs)
         except ValueError as e:
             if allocate_kwargs.get("verbosity", 0) > 0:
@@ -1262,11 +1265,11 @@ class BestModelSubsetEstimator():
     def allocate_samples(self, target_cost, **allocate_kwargs):
         if self._estimator_type == "mc":
             best_model_indices = np.array([0])
-            args = multioutput_stats[self._stat_type].args_model_subset(
+            args = multioutput_stats[self._stat_type]._args_model_subset(
                 self._ncandidate_models, self._nqoi, best_model_indices,
                 *self._args)
             best_est = get_estimator(
-                self._estimator_type, self._stat_type,
+                self._estimator_type, self._stat_type, self._nqoi,
                 self._candidate_costs[:1], self._candidate_cov[:1, :1],
                 *args, **self._kwargs)
             best_est.allocate_samples(target_cost)
@@ -1330,7 +1333,7 @@ multioutput_stats = {
 }
 
 
-def get_estimator(estimator_type, stat_type, costs, cov, *args,
+def get_estimator(estimator_type, stat_type, nqoi, costs, cov, *args,
                   max_nmodels=None, **kwargs):
     if estimator_type not in multioutput_estimators:
         msg = f"Estimator {estimator_type} not supported. "
@@ -1343,8 +1346,7 @@ def get_estimator(estimator_type, stat_type, costs, cov, *args,
         raise ValueError(msg)
 
     if max_nmodels is None:
-        nmodels = len(costs)
-        stat = multioutput_stats[stat_type](nmodels, cov, *args)
+        stat = multioutput_stats[stat_type](nqoi, cov, *args)
         return multioutput_estimators[estimator_type](
             stat, costs, cov, **kwargs)
 

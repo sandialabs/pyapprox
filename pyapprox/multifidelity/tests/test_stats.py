@@ -85,6 +85,7 @@ class TestMOSTATS(unittest.TestCase):
         W_exact = model.covariance_of_centered_values_kronker_product()
         W_exact = _nqoisq_nqoisq_subproblem(
             W_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
+        print(cov.shape, W.shape, B.shape)
         assert np.allclose(W, W_exact, atol=atol, rtol=rtol)
         B_exact = model.covariance_of_mean_and_variance_estimators()
         B_exact = _nqoi_nqoisq_subproblem(

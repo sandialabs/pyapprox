@@ -172,3 +172,32 @@ def plot_estimator_variance_reductions(optimized_estimators,
         ylabel = mathrm_label("Estimator variance reduction")
     ax.set_ylabel(ylabel)
     return var_red, est_criterias, sf_criterias
+
+
+def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
+                            format_string='{:1.3f}', cmap="jet", nqoi=1):
+    """
+    Plot a correlation matrix
+
+    Parameters
+    ----------
+    corr_matrix : np.ndarray (nvars, nvars)
+         The correlation between a set of random variabels
+    """
+    from pyapprox.util.configure_plots import plt
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+    im = ax.matshow(corr_matrix, cmap=cmap, aspect="auto")
+    for (i, j), z in np.ndenumerate(corr_matrix):
+        if format_string is not None:
+            ax.text(j, i, format_string.format(z), ha='center', va='center',
+                    fontsize=12, color='w')
+    plt.colorbar(im, ax=ax)
+    if model_names is None:
+        nmodels = corr_matrix.shape[0]
+        model_names = [r"$f_{%d}$" % ii for ii in range(nmodels)]
+    ax.set_xticks(np.arange(len(model_names))*nqoi)
+    ax.set_yticks(np.arange(len(model_names))*nqoi)
+    ax.set_yticklabels(model_names)
+    ax.set_xticklabels(model_names, rotation=60)
+    return ax

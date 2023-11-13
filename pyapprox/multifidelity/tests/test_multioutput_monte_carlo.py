@@ -80,7 +80,8 @@ class TestMOMC(unittest.TestCase):
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
 
-        est = get_estimator("grd", "mean", costs, cov, recursion_index=[2, 0])
+        est = get_estimator("grd", "mean", len(qoi_idx),
+                            costs, cov, recursion_index=[2, 0])
         assert np.allclose(
             est._allocation_mat,
             np.array([[0.,  1.,  0.,  0.,  1.,  0.],
@@ -88,7 +89,8 @@ class TestMOMC(unittest.TestCase):
                       [0.,  0.,  1.,  0.,  0.,  1.]])
         )
 
-        est = get_estimator("grd", "mean", costs, cov, recursion_index=[0, 1])
+        est = get_estimator("grd", "mean", len(qoi_idx),
+                            costs, cov, recursion_index=[0, 1])
         assert np.allclose(
             est._allocation_mat,
             np.array([[0.,  1.,  1.,  0.,  0.,  0.],
@@ -97,7 +99,7 @@ class TestMOMC(unittest.TestCase):
         )
 
         est = get_estimator(
-            "grd", "mean", costs, cov, recursion_index=[0, 0])
+            "grd", "mean", len(qoi_idx), costs, cov, recursion_index=[0, 0])
         assert np.allclose(
             est._allocation_mat,
             np.array([[0.,  1.,  1.,  0.,  1.,  0.],
@@ -108,7 +110,7 @@ class TestMOMC(unittest.TestCase):
         cov = np.random.normal(0, 1, (4, 4))
         costs = np.ones(4)
         est = get_estimator(
-            "grd", "mean", costs, cov, recursion_index=[0, 1, 2])
+            "grd", "mean", len(qoi_idx), costs, cov, recursion_index=[0, 1, 2])
         npartition_samples = torch.as_tensor([2, 2, 4, 4], dtype=torch.double)
         nsamples_intersect = _get_nsamples_intersect(
             est._allocation_mat, npartition_samples)
@@ -132,7 +134,8 @@ class TestMOMC(unittest.TestCase):
         qoi_idx = [0]
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
-        est = get_estimator("gmf", "mean", costs, cov, recursion_index=[2, 0])
+        est = get_estimator(
+            "gmf", "mean", len(qoi_idx), costs, cov, recursion_index=[2, 0])
 
         assert np.allclose(
             est._allocation_mat,
@@ -141,7 +144,8 @@ class TestMOMC(unittest.TestCase):
                       [0.,  0.,  1.,  0.,  0.,  1.]])
         )
 
-        est = get_estimator("gmf", "mean", costs, cov, recursion_index=[0, 1])
+        est = get_estimator(
+            "gmf", "mean", len(qoi_idx), costs, cov, recursion_index=[0, 1])
         assert np.allclose(
             est._allocation_mat,
             np.array([[0.,  1.,  1.,  1.,  1.,  1.],
@@ -149,7 +153,8 @@ class TestMOMC(unittest.TestCase):
                       [0.,  0.,  0.,  0.,  0.,  1.]])
         )
 
-        est = get_estimator("gmf", "mean", costs, cov, recursion_index=[0, 0])
+        est = get_estimator(
+            "gmf", "mean", len(qoi_idx), costs, cov, recursion_index=[0, 0])
         assert np.allclose(
             est._allocation_mat,
             np.array([[0.,  1.,  1.,  1.,  1.,  1.],
@@ -162,7 +167,8 @@ class TestMOMC(unittest.TestCase):
         qoi_idx = [0]
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
-        est = get_estimator("gis", "mean", costs, cov, recursion_index=[2, 0])
+        est = get_estimator(
+            "gis", "mean", len(qoi_idx), costs, cov, recursion_index=[2, 0])
         assert np.allclose(
             est._allocation_mat,
             np.array([[0.,  1.,  0.,  0.,  1.,  1.],
@@ -170,7 +176,8 @@ class TestMOMC(unittest.TestCase):
                       [0.,  0.,  1.,  1.,  0.,  1.]])
         )
 
-        est = get_estimator("gis", "mean", costs, cov, recursion_index=[0, 1])
+        est = get_estimator(
+            "gis", "mean", len(qoi_idx), costs, cov, recursion_index=[0, 1])
         assert np.allclose(
             est._allocation_mat,
             np.array([[0.,  1.,  1.,  1.,  0.,  0.],
@@ -178,7 +185,8 @@ class TestMOMC(unittest.TestCase):
                       [0.,  0.,  0.,  0.,  0.,  1.]])
         )
 
-        est = get_estimator("gis", "mean", costs, cov, recursion_index=[0, 0])
+        est = get_estimator(
+            "gis", "mean", len(qoi_idx), costs, cov, recursion_index=[0, 0])
         assert np.allclose(
             est._allocation_mat,
             np.array([[0.,  1.,  1.,  1.,  1.,  1.],
@@ -224,7 +232,7 @@ class TestMOMC(unittest.TestCase):
         # change costs so less samples are used in the estimator
         # to speed up test
         costs = [2, 1.5, 1][:len(costs)]
-        
+
         nqoi = len(qoi_idx)
         args = []
         if est_type != "mc":
@@ -253,7 +261,7 @@ class TestMOMC(unittest.TestCase):
             args.append(B)
             idx = nqoi+nqoi**2
         est = get_estimator(
-            est_type, stat_type, costs, cov, *args,
+            est_type, stat_type, nqoi, costs, cov, *args,
             max_nmodels=max_nmodels, **kwargs)
 
         # must call opt otherwise best_est will not be set for
@@ -351,7 +359,7 @@ class TestMOMC(unittest.TestCase):
         target_cost = 10
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
-        est = get_estimator("gmf", "mean", costs, cov,
+        est = get_estimator("gmf", "mean", len(qoi_idx), costs, cov,
                             recursion_index=np.asarray(recursion_index))
         mfmc_model_ratios, mfmc_log_variance = _allocate_samples_mfmc(
             cov, costs, target_cost)
@@ -418,7 +426,7 @@ class TestMOMC(unittest.TestCase):
         target_cost = 10
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
-        est = get_estimator("grd", "mean", costs, cov,
+        est = get_estimator("grd", "mean", len(qoi_idx), costs, cov,
                             recursion_index=np.asarray(recursion_index))
         mlmc_model_ratios, mlmc_log_variance = _allocate_samples_mlmc(
             cov, costs, target_cost)
@@ -443,7 +451,7 @@ class TestMOMC(unittest.TestCase):
                 target_cost, MLMCEstimator._mlmc_ratios_to_npartition_ratios(
                     mlmc_model_ratios))[0]),
               np.exp(mlmc_log_variance))
-        print("A")
+
         assert np.allclose(
             np.exp(est._objective(
                 target_cost, MLMCEstimator._mlmc_ratios_to_npartition_ratios(
@@ -486,7 +494,7 @@ class TestMOMC(unittest.TestCase):
     def test_best_model_subset_estimator(self):
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
-        est = get_estimator("gmf", "mean", costs, cov, max_nmodels=3)
+        est = get_estimator("gmf", "mean", 3, costs, cov, max_nmodels=3)
         target_cost = 10
         est.allocate_samples(target_cost, verbosity=1, nprocs=1)
 
@@ -512,7 +520,7 @@ class TestMOMC(unittest.TestCase):
         B = _nqoi_nqoisq_subproblem(
             B, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
         est = get_estimator(
-            "gmf", "mean_variance", costs, cov, W, B,
+            "gmf", "mean_variance", 3, costs, cov, W, B,
             opt_criteria=log_trace_variance)
         est.allocate_samples(target_cost)
         estimator_vals, Q, delta = self._estimate_components_loop(
@@ -590,6 +598,8 @@ class TestMOMC(unittest.TestCase):
             [W],
             [W, B]
         ]
+        nqoi_list = [
+            3, len(qoi_idx), len(qoi_idx), len(qoi_idx), 3, 3, 3, 3, 3]
 
         if len(qoi_idx) == 1:
             funs_sub = [partial(_single_qoi, qoi_idx[0], f) for f in funs]
@@ -602,9 +612,10 @@ class TestMOMC(unittest.TestCase):
             kwargs_list[ii]["recursion_index"] = np.asarray([0, 0])
 
         estimators = [
-            get_estimator(et, st, model.variable, costs, cv, *args, **kwargs)
-            for et, st, cv, args, kwargs in zip(
-                    estimator_types, stat_types, covs, args_list, kwargs_list)]
+            get_estimator(et, st, nqoi, costs, cv, *args, **kwargs)
+            for et, st, nqoi, cv, args, kwargs in zip(
+                    estimator_types, stat_types, nqoi_list, covs,
+                    args_list, kwargs_list)]
 
 
         # target_costs = np.array([1e1, 1e2, 1e3, 1e4, 1e5], dtype=int)[1:-1]
@@ -690,7 +701,7 @@ class TestMOMC(unittest.TestCase):
         for ii in range(1, len(kwargs_list)):
             kwargs_list[ii]["recursion_index"] = np.asarray([0, 1])
         estimators = [
-            get_estimator(et, st, model.variable, costs, cv, *args, **kwargs)
+            get_estimator(et, st, nqoi, costs, cv, *args, **kwargs)
             for et, st, cv, args, kwargs in zip(
                     estimator_types, stat_types, covs, args_list, kwargs_list)]
         optimized_estimators = multifidelity.compare_estimator_variances(
@@ -717,11 +728,13 @@ class TestMOMC(unittest.TestCase):
     def test_insert_pilot_samples(self):
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
+        nqoi = 3
 
         # modify costs so more hf samples are used but all three models
         # are selected
         costs[1:] = 0.1, 0.05
-        est = get_estimator("gmf", "mean", costs, cov, max_nmodels=3)
+        est = get_estimator(
+            "gmf", "mean", nqoi, costs, cov, max_nmodels=3)
         target_cost = 100
         est.allocate_samples(target_cost, verbosity=0, nprocs=1)
 
@@ -767,7 +780,7 @@ class TestMOMC(unittest.TestCase):
 
         # modify costs so more hf samples are used
         costs[1:] = 0.5, 0.05
-        est = get_estimator("gmf", "mean", costs, cov, max_nmodels=3)
+        est = get_estimator("gmf", "mean", nqoi, costs, cov, max_nmodels=3)
         target_cost = 100
         est.allocate_samples(target_cost, verbosity=0, nprocs=1)
         random_state = np.random.RandomState(1)
@@ -805,11 +818,12 @@ class TestMOMC(unittest.TestCase):
     def test_bootstrap_estimator(self):
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
+        nqoi = 3
 
         # modify costs so more hf samples are used but all three models
         # are selected
         costs[1:] = 0.1, 0.05
-        est = get_estimator("gmf", "mean", costs, cov, max_nmodels=3)
+        est = get_estimator("gmf", "mean", nqoi, costs, cov, max_nmodels=3)
         target_cost = 100
         est.allocate_samples(target_cost, verbosity=0, nprocs=1)
 
