@@ -55,7 +55,8 @@ def _combine_acv_values(reorder_allocation_mat, npartition_samples,
     return values_per_model
 
 
-def _combine_acv_samples(reorder_allocation_mat, npartition_samples, acv_samples):
+def _combine_acv_samples(reorder_allocation_mat, npartition_samples,
+                         acv_samples):
     r"""
     Extract the unique amples from the sets
 :math:`\mathcal{Z}_\alpha, `\mathcal{Z}_\alpha^*` for each model
@@ -182,12 +183,11 @@ class MCEstimator():
             opt_criteria)
 
         self._nsamples_per_model = None
+        self._rounded_npartition_samples = None
         self._rounded_target_cost = None
         self._optimized_criteria = None
+        self._optimized_covariance = None
         self._model_labels = None
-
-    def set_nsamples_per_model(self, nsamples_per_model):
-        self._nsamples_per_model = nsamples_per_model
 
     def _check_cov(self, cov, costs):
         nmodels = len(costs)
@@ -213,11 +213,20 @@ class MCEstimator():
         return self._stat.high_fidelity_estimator_covariance(
             npartition_samples[0])
 
+    def optimized_covariance(self):
+        """
+        Return the estimator covariance at the optimal sample allocation
+        computed using self.allocate_samples()
+        """
+        return self._optimized_covariance
+
     def allocate_samples(self, target_cost, verbosity=0):
         self._nsamples_per_model = np.asarray(
             [int(np.floor(target_cost/self._costs[0]))])
+        self._rounded_npartition_samples = self._nsamples_per_model
         est_covariance = self._covariance_from_npartition_samples(
-            self._nsamples_per_model)
+            self._rounded_npartition_samples)
+        self._optimized_covariance = est_covariance
         optimized_criteria = self._optimization_criteria(est_covariance)
         self._rounded_target_cost = self._costs[0]*self._nsamples_per_model[0]
         self._optimized_criteria = optimized_criteria
@@ -413,6 +422,21 @@ class ACVEstimator(MCEstimator):
         npartition_samples[0] = nhf_samples
         npartition_samples[1:] = partition_ratios*nhf_samples
         return npartition_samples
+
+    @staticmethod
+    def _covariance_non_optimal_weights(
+            hf_est_covar, weights, CF, cf):
+        # The expression below, e.g. Equation 8
+        # from Dixon 2024, can be used for non optimal control variate weights
+        # Warning: Even though this function is general,
+        # it should only ever be used for MLMC, because
+        # expression for optimal weights is more efficient
+        return (
+            hf_est_covar
+            + torch.linalg.multi_dot((weights, CF, weights.T))
+            + torch.linalg.multi_dot((cf, weights.T))
+            + torch.linalg.multi_dot((weights, cf.T))
+        )
 
     def _covariance_from_partition_ratios(self, target_cost, partition_ratios):
         """
@@ -614,7 +638,8 @@ class ACVEstimator(MCEstimator):
 
     def combine_acv_samples(self, acv_samples):
         return _combine_acv_samples(
-            self._allocation_mat, self._rounded_npartition_samples, acv_samples)
+            self._allocation_mat, self._rounded_npartition_samples,
+            acv_samples)
 
     def combine_acv_values(self, acv_values):
         return _combine_acv_values(
@@ -902,7 +927,8 @@ class ACVEstimator(MCEstimator):
             target_cost, partition_ratios)
         if ((npartition_samples[0] < 1.-1e-8)):
             raise RuntimeError("Rounding will cause nhf samples to be zero")
-        rounded_npartition_samples = npartition_samples.numpy().astype(int)
+        rounded_npartition_samples = np.round(
+            npartition_samples.numpy()).astype(int)
         rounded_target_cost = (
             self._compute_nsamples_per_model(rounded_npartition_samples) *
             self._costs.numpy()).sum()
@@ -949,10 +975,11 @@ class ACVEstimator(MCEstimator):
         """
         self._rounded_partition_ratios, self._rounded_target_cost = (
             self._round_partition_ratios(target_cost, partition_ratios))
-        covariance = self._covariance_from_partition_ratios(
+        self._optimized_covariance = self._covariance_from_partition_ratios(
             self._rounded_target_cost, torch.as_tensor(
                 self._rounded_partition_ratios, dtype=torch.double))
-        self._optimized_criteria = self._optimization_criteria(covariance)
+        self._optimized_criteria = self._optimization_criteria(
+            self._optimized_covariance)
         self._rounded_npartition_samples = torch.round(
             self._npartition_samples_from_partition_ratios(
                 self._rounded_target_cost,
@@ -1075,7 +1102,7 @@ class MFMCEstimator(GMFEstimator):
         return _get_sample_allocation_matrix_mfmc(self._nmodels)
 
 
-class ACVMLMCEstimator(ACVEstimator):
+class MLMCEstimator(ACVEstimator):
     def __init__(self, stat, costs, cov, opt_criteria=None,
                  opt_qoi=0):
         """
@@ -1090,6 +1117,22 @@ class ACVMLMCEstimator(ACVEstimator):
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
 
+    @staticmethod
+    def _weights(CF, cf):
+        # raise NotImplementedError("check weights size is correct")
+        return -torch.ones(cf.shape, dtype=torch.double)
+
+    def _covariance_from_npartition_samples(self, npartition_samples):
+        CF, cf = self._stat._get_discrepancy_covariances(
+            self, npartition_samples)
+        weights = self._weights(CF, cf)
+        # cannot use formulation of variance that uses optimal weights
+        # must use the more general expression below, e.g. Equation 8
+        # from Dixon 2024.
+        return self._covariance_non_optimal_weights(
+            self._stat.high_fidelity_estimator_covariance(
+                npartition_samples[0]), weights, CF, cf)
+
     def _allocate_samples(self, target_cost):
         nqoi = self._cov.shape[0]//len(self._costs)
         nsample_ratios, val = _allocate_samples_mlmc(
@@ -1100,34 +1143,12 @@ class ACVMLMCEstimator(ACVEstimator):
     def _create_allocation_matrix(self):
         return _get_sample_allocation_matrix_mlmc(self._nmodels)
 
-    def _covariance_from_npartition_samples(self, npartition_samples):
-        CF, cf = self._stat._get_discrepancy_covariances(
-            self, npartition_samples)
-        weights = self._weights(CF, cf)
-        raise NotImplementedError("check weird expresssion below")
-        return (
-            self._stat.high_fidelity_estimator_covariance(
-                npartition_samples[0])
-            + torch.linalg.multi_dot((weights, CF, weights.T))
-            + torch.linalg.multi_dot((cf, weights.T))
-            + torch.linalg.multi_dot((weights, cf.T))
-        )
-
     @staticmethod
     def _mlmc_ratios_to_npartition_ratios(ratios):
         partition_ratios = [ratios[0]-1]
         for ii in range(1, len(ratios)):
             partition_ratios.append(ratios[ii]-partition_ratios[ii-1])
         return np.hstack(partition_ratios)
-
-
-class MLMCEstimator(ACVMLMCEstimator):
-    """
-    The classical MLMC estimator that weits all control variate weights to -1
-    """
-    def _weights(self, CF, cf):
-        raise NotImplementedError("check weights size is correct")
-        return -torch.ones(cf.shape, dtype=torch.double)
 
 
 class BestModelSubsetEstimator():
@@ -1322,7 +1343,6 @@ multioutput_estimators = {
     "grd": GRDEstimator,
     "mfmc": MFMCEstimator,
     "mlmc": MLMCEstimator,
-    "acvmlmc": ACVMLMCEstimator,
     "mc": MCEstimator}
 
 

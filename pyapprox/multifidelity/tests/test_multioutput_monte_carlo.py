@@ -294,11 +294,9 @@ class TestMOMC(unittest.TestCase):
             CF, cf = est._stat._get_discrepancy_covariances(
                 est, est._rounded_npartition_samples)
             CF, cf = CF.numpy(), cf.numpy()
-            # print(np.linalg.det(CF), 'determinant')
-            # print(np.linalg.matrix_rank(CF), 'rank', CF.shape)
-            print(CF, "CF")
-            print(CF_mc, "MC CF")
-            print(est)
+            # print(CF, "CF")
+            # print(CF_mc, "MC CF")
+            # print(est)
             assert np.allclose(CF_mc, CF, atol=atol, rtol=rtol)
 
             # print(cf, "cf")
@@ -347,7 +345,7 @@ class TestMOMC(unittest.TestCase):
             [[0, 1, 2], [0, 1, 2], None, "gmf", "variance", 2],
             [[0], [0, 1, 2], None, "mc", "variance"],
         ]
-        for test_case in test_cases[8:9]:
+        for test_case in test_cases:
             np.random.seed(1)
             print(test_case)
             self._check_estimator_variances(*test_case)
@@ -426,10 +424,33 @@ class TestMOMC(unittest.TestCase):
         target_cost = 10
         funs, cov, costs, model = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
+
+        # The following will give mlmc with unit variance
+        # and level variances var[f_i-f_{i+1}] = [1, 4, 4]
+        target_cost = 81
+        costs = [6, 3, 1]
+        cov = np.asarray([[1.00, 0.50, 0.25],
+                          [0.50, 1.00, 0.50],
+                          [0.25, 0.50, 4.00]])
+
         est = get_estimator("grd", "mean", len(qoi_idx), costs, cov,
                             recursion_index=np.asarray(recursion_index))
         mlmc_model_ratios, mlmc_log_variance = _allocate_samples_mlmc(
             cov, costs, target_cost)
+
+        # We are trying to test numerical GRD optimization, but to recover
+        # MLMC solution we need to use suboptimal weights of MLMC so adjust
+        # the necessary functions here
+        est._weights = MLMCEstimator._weights
+
+        def mlmc_cov(npartition_samples):
+            CF, cf = est._stat._get_discrepancy_covariances(
+                est, npartition_samples)
+            weights = est._weights(CF, cf)
+            return est._covariance_non_optimal_weights(
+                est._stat.high_fidelity_estimator_covariance(
+                    npartition_samples[0]), weights, CF, cf)
+        est._covariance_from_npartition_samples = mlmc_cov
 
         # test mapping from partition ratios to model ratios
         partition_ratios = torch.as_tensor(
@@ -446,11 +467,6 @@ class TestMOMC(unittest.TestCase):
                 (nsamples_per_model[0], model_ratios*npartition_samples[0])))
         assert np.allclose(model_ratios, mlmc_model_ratios)
         assert np.allclose(target_cost, est_cost)
-
-        print(np.exp(est._objective(
-                target_cost, MLMCEstimator._mlmc_ratios_to_npartition_ratios(
-                    mlmc_model_ratios))[0]),
-              np.exp(mlmc_log_variance))
 
         assert np.allclose(
             np.exp(est._objective(

@@ -269,11 +269,12 @@ def _allocate_samples_mlmc(cov, costs, target_cost):
 
     # compute the number of samples needed for each discrepancy
     nsamples_per_delta = lagrange_multiplier*np.sqrt(var_cost_ratios)
-    print(nsamples_per_delta[0])
-    print(nsamples_per_delta/nsamples_per_delta[0])
+    print(nsamples_per_delta, "D1")
+    # print(nsamples_per_delta/nsamples_per_delta[0], "P1")
 
     # compute the ML estimator variance from the target cost
     variance = np.sum(var_deltas/nsamples_per_delta)
+    print(variance, "V")
 
     # compute the number of samples allocated to each model. For
     # all but the highest fidelity model we need to collect samples
