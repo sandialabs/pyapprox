@@ -175,7 +175,8 @@ def plot_estimator_variance_reductions(optimized_estimators,
 
 
 def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
-                            format_string='{:1.3f}', cmap="jet", nqoi=1):
+                            format_string='{:1.3f}', cmap="jet", nqoi=1,
+                            label_fontsize=16):
     """
     Plot a correlation matrix
 
@@ -198,6 +199,6 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
         model_names = [r"$f_{%d}$" % ii for ii in range(nmodels)]
     ax.set_xticks(np.arange(len(model_names))*nqoi)
     ax.set_yticks(np.arange(len(model_names))*nqoi)
-    ax.set_yticklabels(model_names)
-    ax.set_xticklabels(model_names, rotation=60)
+    ax.set_yticklabels(model_names, fontsize=label_fontsize)
+    ax.set_xticklabels(model_names, rotation=60, fontsize=label_fontsize)
     return ax

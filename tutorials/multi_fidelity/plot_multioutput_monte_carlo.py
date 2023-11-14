@@ -131,14 +131,15 @@ print(stats[3:].reshape(3, 3))
 #
 from pyapprox.multifidelity.visualize import plot_correlation_matrix
 # plot correlation matrix can also be used for covariance matrics
+labels = ([r"$(Q^{\mu}_{0})_{%d}$" % (ii+1) for ii in range(nqoi)] +
+          [r"$(Q^{\Sigma}_{0})_{%d,%d}$" % (ii+1, jj+1)
+           for ii in range(nqoi) for jj in range(nqoi)])
 ax = plt.subplots(1, 1, figsize=(2*8, 2*6))[1]
-_ = plot_correlation_matrix(est.optimized_covariance(), ax=ax)
+_ = plot_correlation_matrix(
+    est.optimized_covariance(), ax=ax, model_names=labels, label_fontsize=20)
 
 #%%
 #We can plot the diagonal, which contains the estimator variances that would be obtained if each statistic was treated individually.
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 est_variances = np.diag(est.optimized_covariance().numpy())
-labels = ([r"$(Q^{\mu}_{0})_{%d}$" % (ii+1) for ii in range(nqoi)] +
-          [r"$(Q^{\Sigma}_{0})_{%d,%d}$" % (ii+1, jj+1)
-           for ii in range(nqoi) for jj in range(nqoi)])
 _ = plt.bar(labels, est_variances)
