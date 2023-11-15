@@ -233,7 +233,7 @@ _ = axs[1].legend()
 #
 #where each model is the function of a single uniform random variable defined on the unit interval :math:`[0,1]`.
 
-from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
+from pyapprox.util.visualization import mathrm_labels, mathrm_label
 plt.figure()
 benchmark = setup_benchmark("polynomial_ensemble")
 poly_model = benchmark.fun
@@ -334,7 +334,6 @@ _ = plt.ylabel(mathrm_label('Variance reduction ratio ')+ r'$\gamma$')
 #-------------------------
 #
 #The previous results compared MLMC with MFMC and ACV-MF when the number of high-fidelity samples were fixed. In the following we compare these methods when the number of samples are optimized to minimize the variance of each estimator. We will only use the first 4 models
-from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
 estimator_types = ["mc", "mlmc", "mfmc", "acvmf", "acvgmfb"]
 estimators = [
     multifidelity.get_estimator(t, cov[:4, :4], model_costs[:4], poly_model.variable)

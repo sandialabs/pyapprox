@@ -3,15 +3,13 @@ Functions for estimating expectations using frequentist control-variate
 Monte-Carlo based methods such as multi-level Monte-Carlo,
 control-variate Monte-Carlo, and approximate control-variate Monte-Carlo.
 """
-import numpy as np
-from scipy.optimize import minimize
 from functools import partial, reduce
 from itertools import product
 
+import numpy as np
+from scipy.optimize import minimize
+import matplotlib.pyplot as plt
 
-from pyapprox.variables.sampling import (
-    generate_independent_random_samples
-)
 from pyapprox.util.utilities import get_all_sample_combinations
 
 try:
@@ -1611,7 +1609,6 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
     corr_matrix : np.ndarray (nvars, nvars)
          The correlation between a set of random variabels
     """
-    from pyapprox.util.configure_plots import plt
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     im = ax.matshow(corr_matrix, cmap=cmap, aspect="auto")
@@ -2128,7 +2125,6 @@ def plot_model_recursion(recursion_index, ax):
 
 def plot_sample_allocation(reorder_allocation_mat, npartition_samples, ax,
                            colors=None):
-    from pyapprox.util.configure_plots import plt
     nmodels = reorder_allocation_mat.shape[0]
     active_partitions = []
     for ii in range(nmodels):
@@ -2161,7 +2157,6 @@ def plot_sample_allocation(reorder_allocation_mat, npartition_samples, ax,
 
 
 def plot_model_costs(costs, model_names=None, ax=None):
-    from pyapprox.util.configure_plots import plt
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     nmodels = len(costs)

@@ -1,76 +1,104 @@
 r"""
 Approximate Control Variate Monte Carlo
 =======================================
-This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` and describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from multiple low-fidelity models with unknown means.
+This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` and describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from a single low-fidelity models with an unknown statistic.
 
-CVMC is often not useful for practical analysis of numerical models because typically the mean of the lower fidelity model, i.e. :math:`\mu_\V{\kappa}`, is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.
+CVMC is often not useful for practical analysis of numerical models because typically the statistic of the lower fidelity model is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.
 
-Let the cost of the high fidelity model per sample be :math:`C_\alpha` and let the cost of the low fidelity model be :math:`C_\kappa`. Now lets use :math:`N` samples to estimate :math:`Q_{\V{\alpha},N}` and :math:`Q_{\V{\kappa},N}` and these  :math:`N` samples plus another :math:`(r-1)N` samples to estimate :math:`\mu_{\V{\kappa}}` so that
-
-.. math::
-
-   Q_{\V{\alpha},N,r}^{\text{ACV}}=Q_{\V{\alpha},N} + \eta \left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r} \right)
-
-and
+Let the cost of the high fidelity model per sample be :math:`C_\alpha` and let the cost of the low fidelity model be :math:`C_\kappa`. A two-model ACV estimators uses :math:`N` samples to estimate :math:`Q_{\alpha}(\rvset_N)` and :math:`Q_{\kappa}(\rvset_N)` another set of samples :math:`\rvset_M` to estimate the exact statistic :math:`Q_{\alpha}` via
 
 .. math::
 
-   \mu_{\V{\kappa},N,r}=\frac{1}{rN}\sum_{i=1}^{rN}Q_\V{\kappa}
+   Q_{{\alpha}}^{\text{ACV}}(\rvset_N, \rvset_M)=Q_{\alpha}(\rvset_N) + \eta \left( Q_{\kappa}(\rvset_N) -Q_{\kappa}(\rvset_M)  \right)
+
+As with CV, the third term :math:`Q_{\kappa}(\rvset_M)` is used to ensure the the ACV estimator is unbiased, but unlike CV it is estimated using a set of samples, rather than being assumed known.
+
+
+In the following we will focus on the estimation of :math:`Q_\alpha=\mean{f_\alpha}` with two models. Future tutorials will show how ACV can be used to compute other statistics and with more than two models.
+
+First, an ACV estimator is unbiased
+
+.. math::
+
+   \mean{Q_{{\alpha}}^{\text{ACV}}(\rvset_N, \rvset_M)}&=\mean{Q_{\alpha}(\rvset_N)} + \mean{\eta \left( Q_{\kappa}(\rvset_N) -Q_{\kappa}(\rvset_M)  \right)}\\
+   &=\mean{f_\alpha}+\eta\left(\mean{Q_{\kappa}(\rvset_N)} -\mean{Q_{\kappa}(\rvset_M)}\right)\\
+   &=\mean{f_\alpha}.
+
+so the MSE of an ACV estimator is equal to the variance of the estimator (when estimating a single statistic).
+
+
+The ACV estimator variance is dependent on the size and structure of the two sample sets :math:`\rvset_N, \rvset_M.` For ACV to reduce the variance of a single model MC estimator :math:`\rvset_N\subset\rvset_M`. That is we evaluate :math:`f_\alpha, f_\kappa` at a common set of samples and evaluate :math:`f_\kappa` at an additional :math:`M-N` samples. For convenience we write the number of samples used to evaluate :math:`f_\kappa` as :math:`rN, r> 1` so that
+
+
+.. math::
+
+   Q_{\kappa}(\rvset_M)=\frac{1}{rN}\sum_{i=1}^{rN}f_{\kappa}^{(i)}.
 
 With this sampling scheme we have
 
 .. math::
 
-  Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r}&=\frac{1}{N}\sum_{i=1}^N f_\V{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=1}^{rN}f_\V{\kappa}^{(i)}\\
-  &=\frac{1}{N}\sum_{i=1}^N f_\V{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=1}^{N}f_\V{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_\V{\kappa}^{(i)}\\
-  &=\frac{r-1}{rN}\sum_{i=1}^N f_\V{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_\V{\kappa}^{(i)}\\
+  Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_M) &=\frac{1}{N}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=1}^{rN}f_{\kappa}^{(i)}\\
+  &=\frac{1}{N}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=1}^{N}f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}\\
+  &=\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}.
 
-where for ease of notation we write :math:`r_\V{\kappa}N` and :math:`\lfloor r_\V{\kappa}N\rfloor` interchangibly.
+..
+  where for ease of notation we write :math:`r_{\kappa}N` and :math:`\lfloor r_{\  kappa}N\rfloor` interchangibly.
+
 Using the above expression yields
 
 .. math::
-   \var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r}\right)}&=\mean{\left(\frac{r-1}{rN}\sum_{i=1}^N f_\V{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_\V{\kappa}^{(i)}\right)^2}\\
-  &=\frac{(r-1)^2}{r^2N^2}\sum_{i=1}^N \var{f_\V{\kappa}^{(i)}}+\frac{1}{r^2N^2}\sum_{i=N}^{rN}\var{f_\V{\kappa}^{(i)}}\\
-  &=\frac{(r-1)^2}{r^2N^2}N\var{f_\V{\kappa}}+\frac{1}{r^2N^2}(r-1)N\var{f_\V{\kappa}}\\
-  %&=\left(\frac{(r-1)^2}{r^2N}+\frac{(r-1)}{r^2N}\right)\var{f_\V{\kappa}}\\
-  &=\frac{r-1}{r}\frac{\var{f_\V{\kappa}}}{N}
+   \var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_M)\right)}&=\mean{\left(\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}\right)^2}\\
+  &=\frac{(r-1)^2}{r^2N^2}\sum_{i=1}^N \var{f_{\kappa}^{(i)}}+\frac{1}{r^2N^2}\sum_{i=N}^{rN}\var{f_{\kappa}^{(i)}}\\
+  &=\frac{(r-1)^2}{r^2N^2}N\var{f_{\kappa}}+\frac{1}{r^2N^2}(r-1)N\var{f_{\kappa}}\\
+  %&=\left(\frac{(r-1)^2}{r^2N}+\frac{(r-1)}{r^2N}\right)\var{f_{\kappa}}\\
+  &=\frac{r-1}{r}\frac{\var{f_{\kappa}}}{N},
 
 where we have used the fact that since the samples used in the first and second term on the first line are not shared, the covariance between these terms is zero. Also we have
 
 .. math::
 
-  \covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r}\right)}=\covar{\frac{1}{N}\sum_{i=1}^N f_\V{\alpha}^{(i)}}{\frac{r-1}{rN}\sum_{i=1}^N f_\V{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_\V{\kappa}^{(i)}}
+  \covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) -  Q_{\kappa}(\rvset_M)\right)}=\covar{\frac{1}{N}\sum_{i=1}^N f_{\alpha}^{(i)}}{\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}}
 
-The correlation between the estimators :math:`\frac{1}{N}\sum_{i=1}^{N}Q_\V{\alpha}` and :math:`\frac{1}{rN}\sum_{i=N}^{rN}Q_\V{\kappa}` is zero because the samples used in these estimators are different for each model. Thus
+The correlation between the estimators :math:`\frac{1}{N}\sum_{i=1}^{N}Q_{\alpha}` and :math:`\frac{1}{rN}\sum_{i=N}^{rN}Q_{\kappa}` is zero because the samples used in these estimators are different for each model. Thus
 
 .. math::
 
-   \covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r}\right)} &=\covar{\frac{1}{N}\sum_{i=1}^N f_\V{\alpha}^{(i)}}{\frac{r-1}{rN}\sum_{i=1}^N f_\V{\kappa}^{(i)}}\\
-  &=\frac{r-1}{r}\frac{\covar{f_\V{\alpha}}{f_\V{\kappa}}}{N}
+   \covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) -  Q_{\kappa}(\rvset_M)\right)} &=\covar{\frac{1}{N}\sum_{i=1}^N f_{\alpha}^{(i)}}{\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}}\\
+  &=\frac{r-1}{r}\frac{\covar{f_{\alpha}}{f_{\kappa}}}{N}
 
 Recalling the variance reduction of the CV estimator using the optimal :math:`\eta` is
 
 .. math::
 
-   \gamma &= 1-\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{ \V{\kappa},N,r}\right)}^2}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r}\right)}\var{Q_{\V{\alpha},N}}}\\
-   &=1-\frac{N^{-2}\frac{(r-1)^2}{r^2}\covar{f_\V{\alpha}}{f_\V{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_\V{\kappa}}N^{-1}\var{f_\V{\alpha}}}\\
-   &=1-\frac{r-1}{r}\corr{f_\V{\alpha}}{f_\V{\kappa}}^2
+   \gamma &= 1-\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - \mu_{ {\kappa},N,r}\right)}^2}{\var{\left( Q_{\kappa}(\rvset_N) - \mu_{{\kappa},N,r}\right)}\var{Q_{\alpha}(\rvset_N)}}\\
+   &=1-\frac{N^{-2}\frac{(r-1)^2}{r^2}\covar{f_{\alpha}}{f_{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_{\kappa}}N^{-1}\var{f_{\alpha}}}\\
+   &=1-\frac{r-1}{r}\corr{f_{\alpha}}{f_{\kappa}}^2
 
 which is found when
 
 .. math::
 
-   \eta&=-\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r}\right)}}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r}\right)}}\\
-  &=-\frac{N^{-1}\frac{r-1}{r}\covar{f_\V{\alpha}}{f_\V{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_\V{\kappa}}}\\
-  &=-\frac{\covar{f_\V{\alpha}}{f_\V{\kappa}}}{\var{f_\V{\kappa}}}
+   \eta&=-\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - \mu_{{\kappa},N,r}\right)}}{\var{\left( Q_{\kappa}(\rvset_N) - \mu_{{\kappa},N,r}\right)}}\\
+  &=-\frac{N^{-1}\frac{r-1}{r}\covar{f_{\alpha}}{f_{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_{\kappa}}}\\
+  &=-\frac{\covar{f_{\alpha}}{f_{\kappa}}}{\var{f_{\kappa}}}
 
+The cost of computing a two model ACV estimator is
+#
+#.. math::
+#
+#   C_\mathrm{cv} = NC_\alpha + rNC_\kappa
+#
+
+The following code can be used to investigate the properties of a two model ACV estimator.
 """
 #%%
-# Lets setup the problem and compute an ACV estimate of :math:`\mean{f_0}`
+# First setup the problem and compute an ACV estimate of :math:`\mean{f_0}`
 import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.benchmarks import setup_benchmark
+from pyapprox.util.visualization import mathrm_label
 
 np.random.seed(1)
 shifts = [.1, .2]
@@ -80,110 +108,123 @@ model = benchmark.fun
 exact_integral_f0 = benchmark.means[0]
 
 #%%
-#Before proceeding to estimate the mean using ACVMV we must first define how to generate samples to estimate :math:`Q_{\V{\alpha},N}` and :math:`\mu_{\V{\kappa},N,r}`. To do so clearly we must first introduce some additional notation. Let :math:`\mathcal{Z}_0` be the set of samples used to evaluate the high-fidelity model and let :math:`\mathcal{Z}_\alpha=\mathcal{Z}_{\alpha,1}\cup\mathcal{Z}_{\alpha,2}` be the samples used to evaluate the low fidelity model. Using this notation we can rewrite the ACV estimator as
-#
-#.. math::
-#
-#   Q_{\V{\alpha},\mathcal{Z}}^{\text{ACV}}=Q_{\V{\alpha},\mathcal{Z}_0} + \eta \left( Q_{\V{\kappa},\mathcal{Z}_{\alpha,1}} - \mu_{\V{\kappa},\mathcal{Z}_{\alpha,2}} \right)
-#
-#where :math:`\mathcal{Z}=\bigcup_{\alpha=0}^M Z_\alpha`. The nature of these samples can be changed to produce different ACV estimators. Here we choose  :math:`\mathcal{Z}_{\alpha,1}\cap\mathcal{Z}_{\alpha,2}=\emptyset` and :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z_0}`. That is we use the set a common set of samples to compute the covariance between all the models and a second independent set to estimate the lower fidelity mean. The sample partitioning for :math:`M` models is  shown in the following Figure. We call this scheme the ACV IS sampling strategy where IS indicates that the second sample set :math:`\mathcal{Z}_{\alpha,2}` assigned to each model are not shared.
-#
-#.. list-table::
-#
-#   * - .. _acv-is-sample-allocation:
-#
-#       .. figure:: ../../figures/acv_is.png
-#          :width: 50%
-#          :align: center
-#
-#          ACV IS sampling strategy
-#
-#The following code generates samples according to this strategy
+#Now initialize the estimator
+from pyapprox.multifidelity.multioutput_monte_carlo import get_estimator
+# The benchmark has three models, so just extract data for first two models
+costs = benchmark.fun.costs()[:2]
+est = get_estimator(
+    "gis", "mean", 1, costs, benchmark.model_covariance[:2, :2])
 
-from pyapprox import multifidelity
-model_costs = 10.**(-np.arange(3))
-est = multifidelity.get_estimator(
-    "acvis", benchmark.model_covariance[:2, :2], model_costs[:2],
-    benchmark.variable)
-est.nsamples_per_model = np.array([10, 100])
-samples_per_model, partition_indices_per_model = \
-    est.generate_sample_allocations()
+#%%
+#Set the number of samples in the two independent sample partitions to
+#:math:`M=10` and :math:`N=100`. For reasons that will become clear in later tuotials the code requires the specification of the number of samples in each independent set of samples i.e. in :math:`mathcal{Z}_N` and :math:`mathcal{Z}_N\cup\mathcal{Z}_N`
+nhf_samples = 10   # The value N
+npartition_ratios = [9]  # Defines the value of M-N
+target_cost = (
+    nhf_samples*costs[0]+(1+npartition_ratios[0])*nhf_samples*costs[1])
+#We set using a private function (starts with an underscore) because in practice
+#the number of samples should be optimized and set with est.allocate samples
+est._set_optimized_params(npartition_ratios, target_cost)
 
-print(partition_indices_per_model)
-samples_shared = samples_per_model[0]
-samples_lf_only = samples_per_model[1][:, partition_indices_per_model[1] == 1]
 #%%
 #Now lets plot the samples assigned to each model.
 
+samples_per_model = est.generate_samples_per_model(benchmark.variable.rvs)
+print(est._rounded_npartition_samples)
+samples_shared = (
+    samples_per_model[0][:, :int(est._rounded_npartition_samples[0])])
+samples_lf_only = (
+    samples_per_model[1][:, int(est._rounded_npartition_samples[0]):])
+
 fig, ax = plt.subplots()
 ax.plot(samples_shared[0, :], samples_shared[1, :], 'ro', ms=12,
-        label=r'$\mathrm{Low\ and\  high\  fidelity\  models}$')
+        label=mathrm_label("Low and high fidelity models"))
 ax.plot(samples_lf_only[0, :], samples_lf_only[1, :], 'ks',
-        label=r'$\mathrm{Low\  fidelity\  model\ only}$')
+        label=mathrm_label("Low fidelity model only"))
 ax.set_xlabel(r'$z_1$')
 ax.set_ylabel(r'$z_2$', rotation=0)
 _ = ax.legend(loc='upper left')
 
 #%%
-#The high-fidelity model is only evaluated on the red dots. Now lets use these samples to estimate the mean of :math:`f_0`.
+#The high-fidelity model is only evaluated on the red dots.
+#
+#Now lets use both sets of samples to construct the ACV estimator
 
-values_per_model = []
-for ii in range(len(samples_per_model)):
-    values_per_model.append(model.models[ii](samples_per_model[ii]))
-
-acv_mean = est.estimate_from_values_per_model(
-    values_per_model, partition_indices_per_model)
+values_per_model = [model.models[ii](samples_per_model[ii])
+                    for ii in range(len(samples_per_model))]
+acv_mean = est(values_per_model)
 
 print('MC difference squared =', (
     values_per_model[0].mean()-exact_integral_f0)**2)
 print('ACVMC difference squared =', (acv_mean-exact_integral_f0)**2)
 
 #%%
-#Note here we have arbitrarily set the number of high fidelity samples :math:`N` and the ratio :math:`r`. In practice one should choose these in one of two ways: (i) for a fixed budget choose the free parameters to minimize the variance of the estimator; or (ii) choose the free parameters to achieve a desired MSE (variance) with the smallest computational cost. Note the cost of computing the two model ACV estimator is
-#
-#.. math::
-#
-#   C_\mathrm{cv} = NC_\alpha + r_\V{\kappa}NC_\kappa
-#
+#Note here we have arbitrarily set the number of high fidelity samples :math:`N` and the ratio :math:`r`. In practice one should choose these in one of two ways: (i) for a fixed budget choose the free parameters to minimize the variance of the estimator; or (ii) choose the free parameters to achieve a desired MSE (variance) with the smallest computational cost.
 
 #%%
-#Now lets compute the variance reduction for different sample sizes
+#Now plot the distribution of this estimators and compare it against
+#a single-fidelity MC estimator of the same target cost
 from pyapprox import interface
-model_ensemble = interface.ModelEnsemble(model.models[:2])
+from pyapprox.multifidelity.multioutput_monte_carlo import (
+    numerically_compute_estimator_variance)
 nhf_samples = 10
 ntrials = 1000
-nsample_ratios = np.array([10])
-nsamples_per_model = np.hstack((1, nsample_ratios))*nhf_samples
-target_cost = np.dot(model_costs[:2], nsamples_per_model)
-means, numerical_var, true_var = \
-    multifidelity.estimate_variance(
-        model_ensemble, est, target_cost, ntrials, nsample_ratios)
+npartition_ratios = np.array([9])
+target_cost = (
+    nhf_samples*costs[0]+(1+npartition_ratios[0])*nhf_samples*costs[1])
+est._set_optimized_params(npartition_ratios, target_cost)
+numerical_var, true_var, means = (
+    numerically_compute_estimator_variance(
+        benchmark.fun.models[:2], benchmark.variable, est, ntrials,
+        return_all=True))[2:5]
 
-print("Theoretical ACV variance", true_var)
-print("Achieved ACV variance", numerical_var)
-
-#%%
-#Let us also plot the distribution of these estimators
+sfmc_est = get_estimator(
+    "mc", "mean", 1, costs, benchmark.model_covariance[:2, :2])
+sfmc_est.allocate_samples(target_cost)
+sfmc_means = (
+    numerically_compute_estimator_variance(
+        benchmark.fun.models[:1], benchmark.variable, sfmc_est, ntrials,
+        return_all=True))[5]
 
 fig, ax = plt.subplots()
-ax.hist(means[:, 0], bins=ntrials//100, density=True, alpha=0.5,
-        label=r'$Q_{0, N}$')
-ax.hist(means[:, 1], bins=ntrials//100, density=True, alpha=0.5,
-        label=r'$Q_{0, N, %d}^\mathrm{CV}$' % nsample_ratios[0])
-
-nsample_ratios = np.array([100])
-nsamples_per_model = np.hstack((1, nsample_ratios))*nhf_samples
-target_cost = np.dot(model_costs[:2], nsamples_per_model)
-means, numerical_var, true_var = \
-    multifidelity.estimate_variance(
-        model_ensemble, est, target_cost, ntrials, nsample_ratios)
-ax.hist(means[:, 1], bins=ntrials//100, density=True, alpha=0.5,
-        label=r'$Q_{0, N, %d}^\mathrm{CV}$' % nsample_ratios[0])
+ax.hist(sfmc_means, bins=ntrials//100, density=True, alpha=0.5,
+        label=r'$Q_{0}(\mathcal{Z}_N)$')
+ax.hist(means, bins=ntrials//100, density=True, alpha=0.5,
+        label=r'$Q_{0}^\mathrm{CV}(\mathcal{Z}_N,\mathcal{Z}_{N+%dN})$' % (
+            npartition_ratios[0]))
 ax.axvline(x=0, c='k', label=r'$E[Q_0]$')
 _ = ax.legend(loc='upper left')
 
 #%%
-#For a fixed number of high-fidelity evaluations :math:`N` the ACVMC variance reduction will converge to the CVMC variance reduction. Try changing :math:`N`.
+#Now compare what happens as we increase the number of low-fidelity samples.
+#Eventually, adding more low-fidelity samples will no-longer reduce the ACV
+#estimator variance. Asymptotically, the accuracy will approach the accuracy
+#that can be obtained by the CV estimator that assumes the mean of the
+#low-fidelity model is known. To reduce the variance further the number of
+#high-fidelity samples must be increased. When this is done more low-fidelity
+#samples can be added before their impact stagnates.
+
+fig, ax = plt.subplots()
+ax.hist(means, bins=ntrials//100, density=True, alpha=0.5,
+        label=r'$Q_{0}^\mathrm{CV}(\mathcal{Z}_N,\mathcal{Z}_{N+%dN})$' % (
+            npartition_ratios[0]))
+
+npartition_ratios = np.array([99])
+target_cost = (
+    nhf_samples*costs[0]+(1+npartition_ratios[0])*nhf_samples*costs[1])
+est._set_optimized_params(npartition_ratios, target_cost)
+numerical_var, true_var, means = (
+    numerically_compute_estimator_variance(
+        benchmark.fun.models[:2], benchmark.variable, est, ntrials,
+        return_all=True))[2:5]
+ax.hist(means, bins=ntrials//100, density=True, alpha=0.5,
+        label=r'$Q_{0}^\mathrm{CV}(\mathcal{Z}_N,\mathcal{Z}_{N+%dN})$' % (
+            npartition_ratios[0]))
+ax.axvline(x=0, c='k', label=r'$E[Q_0]$')
+_ = ax.legend(loc='upper left')
+
+#%%
+#Note the two ACV estimators do not have the same computational cost. They are compared solely to show the impact of increasing the number of low-fidelity samples.
 
 #%%
 #References

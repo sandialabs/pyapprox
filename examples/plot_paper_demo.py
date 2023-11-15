@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from functools import partial
 import torch
 import time
-from pyapprox.util.configure_plots import mathrm_label, mathrm_labels
+from pyapprox.util.visualization import mathrm_label, mathrm_labels
 from pyapprox.variables import (
     IndependentMarginalsVariable, print_statistics, AffineTransform)
 from pyapprox.benchmarks import setup_benchmark, list_benchmarks

@@ -27,19 +27,17 @@ Let's first import the necessary functions and modules and set the seed for repr
 """
 import networkx as nx
 import numpy as np
-from scipy import stats
 import scipy
+from scipy import stats
+import matplotlib.pyplot as plt
 
-from pyapprox.util.configure_plots import plt
 from pyapprox.bayes.laplace import (
-    laplace_posterior_approximation_for_linear_models
-)
+    laplace_posterior_approximation_for_linear_models)
 from pyapprox.bayes.gaussian_network import (
     get_total_degree_polynomials, plot_1d_lvn_approx, GaussianNetwork,
     cond_prob_variable_elimination,
     convert_gaussian_from_canonical_form,
-    plot_peer_network_with_data
-)
+    plot_peer_network_with_data)
 
 np.random.seed(2)
 

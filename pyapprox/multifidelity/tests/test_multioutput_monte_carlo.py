@@ -10,7 +10,8 @@ from pyapprox.multifidelity.stats import (
 from pyapprox.multifidelity._optim import (
     _allocate_samples_mfmc, _allocate_samples_mlmc)
 from pyapprox.multifidelity.multioutput_monte_carlo import (
-    get_estimator, ACVEstimator, MFMCEstimator, MLMCEstimator)
+    get_estimator, ACVEstimator, MFMCEstimator, MLMCEstimator,
+    numerically_compute_estimator_variance)
 from pyapprox.multifidelity.multioutput_monte_carlo import (
     log_trace_variance)
 from pyapprox.multifidelity.tests.test_stats import (
@@ -276,43 +277,27 @@ class TestMOMC(unittest.TestCase):
         max_eval_concurrency = 1
         estimator_vals, Q, delta = self._estimate_components_loop(
             model.variable, ntrials, est, funs, max_eval_concurrency)
+        hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
+            numerically_compute_estimator_variance(
+                funs, model.variable, est, ntrials, max_eval_concurrency, True)
+        )
 
-        CF_mc = torch.as_tensor(
-            np.cov(delta.T, ddof=1), dtype=torch.double)
-        cf_mc = torch.as_tensor(
-            np.cov(Q.T, delta.T, ddof=1)[:idx, idx:], dtype=torch.double)
-
-        hf_var_mc = np.cov(Q.T, ddof=1)
-        hf_var = est._stat.high_fidelity_estimator_covariance(
-            est._rounded_npartition_samples[0])
-        print(hf_var_mc, "A")
-        print(hf_var.numpy())
-        print(((hf_var_mc-hf_var.numpy())/hf_var.numpy()).max())
-        assert np.allclose(hf_var_mc, hf_var, atol=atol, rtol=rtol)
-
+        assert np.allclose(hfcovar_mc, hfcovar, atol=atol, rtol=rtol)
         if est_type != "mc":
+            CF_mc = torch.as_tensor(
+                np.cov(delta.T, ddof=1), dtype=torch.double)
+            cf_mc = torch.as_tensor(
+                np.cov(Q.T, delta.T, ddof=1)[:idx, idx:], dtype=torch.double)
             CF, cf = est._stat._get_discrepancy_covariances(
                 est, est._rounded_npartition_samples)
             CF, cf = CF.numpy(), cf.numpy()
-            # print(CF, "CF")
-            # print(CF_mc, "MC CF")
-            # print(est)
             assert np.allclose(CF_mc, CF, atol=atol, rtol=rtol)
-
-            # print(cf, "cf")
-            # print(cf_mc, "MC cf")
-            # print(cf_mc-cf, "diff")
-            # print(cf_mc.shape, cf.shape, idx)
             assert np.allclose(cf_mc, cf, atol=atol, rtol=rtol)
 
-        var_mc = np.cov(estimator_vals.T, ddof=1)
-        variance = est._covariance_from_npartition_samples(
-            est._rounded_npartition_samples).numpy()
-        # print(est.nsamples_per_model)
-        print(var_mc, 'v_mc')
-        print(variance, 'v')
-        print((var_mc-variance)/variance)
-        assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
+        print(covar_mc, 'v_mc')
+        print(covar, 'v')
+        print((covar_mc-covar)/covar)
+        assert np.allclose(covar_mc, covar, atol=atol, rtol=rtol)
 
     def test_estimator_variances(self):
         test_cases = [
@@ -560,7 +545,7 @@ class TestMOMC(unittest.TestCase):
         estimator_types = [
             "mc", "gmf", "gmf", "gmf", "gmf", "gmf",
             "gmf", "gmf", "gmf"]
-        from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
+        from pyapprox.util.visualization import mathrm_labels, mathrm_label
         est_labels = mathrm_labels(
             ["MC-MV",
              "ACVMF-M",  # Single QoI, optimize mean

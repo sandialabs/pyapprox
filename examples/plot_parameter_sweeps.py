@@ -14,7 +14,7 @@ be the cartesian product of the centered truncated intervals of each
 PDF. For bounded variables the true bounds are used (i.e. are not truncated)
 """
 from pyapprox import analysis
-from pyapprox.util.configure_plots import plt, mathrm_label
+from pyapprox.util.visualization import plt, mathrm_label
 from pyapprox.benchmarks import setup_benchmark
 import numpy as np
 np.random.seed(1)
@@ -38,4 +38,4 @@ plt.show()
 #%%
 #The Sobol G function is not as smooth as the Oakely function. The former
 #has discontinuous first derivatives which can be seen by inspecting their
-#prameter sweeps
+#aprameter sweeps

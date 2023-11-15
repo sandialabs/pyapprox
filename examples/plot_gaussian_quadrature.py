@@ -53,7 +53,7 @@ print(integral)
 #For interest, we plot the quadrature rule against the PDF of the exponential
 #variable
 import numpy as np
-from pyapprox.util.configure_plots import plt
+import matplotlib.pyplot as plt
 from pyapprox.analysis import visualize
 from pyapprox.variables import marginals
 visualize.plot_discrete_measure_1d(x_quad, w_quad)

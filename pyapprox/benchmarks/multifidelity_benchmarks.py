@@ -210,6 +210,17 @@ class TunableModelEnsemble(object):
 
         return Cmat
 
+    def costs(self) -> np.ndarray:
+        """
+        The nominal costs of each model for a single sample
+
+        Returns
+        -------
+        values : np.ndarray (nmodels)
+            Model costs
+        """
+        return np.array([1., 0.01, 0.001])
+
 
 class ShortColumnModelEnsemble(object):
     def __init__(self):

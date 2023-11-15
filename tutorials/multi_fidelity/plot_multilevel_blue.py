@@ -79,9 +79,11 @@ The following code compares MLBLUE to other multif-fidelity esimators when the n
 
 First setup the polynomial benchmark
 """
-import numpy as np
 from functools import partial
-from pyapprox.util.configure_plots import plt, mathrm_labels, mathrm_label
+
+import numpy as np
+
+from pyapprox.util.visualization import plt, mathrm_labels, mathrm_label
 from pyapprox import multifidelity
 from pyapprox.multifidelity.control_variate_monte_carlo import (
     get_control_variate_rsquared)

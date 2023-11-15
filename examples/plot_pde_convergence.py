@@ -7,21 +7,18 @@ First lets define a Integrator class which can be used to integrate multivariate
 
 .. math:: I(\rv) = \int_D f(x, \rv)dx
 """
+from scipy import stats
 import numpy as np
-from pyapprox.analysis.convergence_studies import \
-    run_convergence_study, plot_convergence_data
-from pyapprox.util.configure_plots import plt
+
+from pyapprox.analysis.convergence_studies import (
+    run_convergence_study, plot_convergence_data)
 from pyapprox.surrogates import (
-    get_tensor_product_piecewise_polynomial_quadrature_rule,
-)
+    get_tensor_product_piecewise_polynomial_quadrature_rule)
 from pyapprox.interface import (
     evaluate_1darray_function_on_2d_array, WorkTrackingModel,
-    TimerModel
-)
-from scipy import stats
+    TimerModel)
 from pyapprox.variables import (
-    IndependentMarginalsVariable, ConfigureVariableTransformation
-)
+    IndependentMarginalsVariable, ConfigureVariableTransformation)
 
 
 class Integrator(object):

@@ -2,6 +2,7 @@ import numpy as np
 import networkx as nx
 
 from pyapprox.multifidelity.multioutput_monte_carlo import determinant_variance
+from pyapprox.util.visualization import plt, mathrm_label
 
 
 def _hp(G, root, width=1., vert_gap=0.2, vert_loc=0,
@@ -80,7 +81,6 @@ def plot_model_recursion(recursion_index, ax):
 
 
 def plot_model_costs(costs, model_names=None, ax=None):
-    from pyapprox.util.configure_plots import plt
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     nmodels = len(costs)
@@ -108,7 +108,6 @@ def plot_estimator_variances(optimized_estimators,
 
     relative_id the model id used to normalize variance
     """
-    from pyapprox.util.configure_plots import mathrm_label
     linestyles = ['-', '--', ':', '-.', (0, (5, 10)), '-']
     nestimators = len(est_labels)
     est_criteria = []
@@ -147,7 +146,6 @@ def plot_estimator_variance_reductions(optimized_estimators,
         String used to label each estimator
 
     """
-    from pyapprox.util.configure_plots import mathrm_label
     var_red, est_criterias, sf_criterias = [], [], []
     optimized_estimators = optimized_estimators.copy()
     est_labels = est_labels.copy()
@@ -185,7 +183,6 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
     corr_matrix : np.ndarray (nvars, nvars)
          The correlation between a set of random variabels
     """
-    from pyapprox.util.configure_plots import plt
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     im = ax.matshow(corr_matrix, cmap=cmap, aspect="auto")

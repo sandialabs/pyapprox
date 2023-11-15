@@ -486,8 +486,26 @@ class ACVEstimator(MCEstimator):
             for ii in range(nacv_subsets)]
         return acv_values
 
-    def _separate_samples_per_model(self, samples):
-        return self._separate_values_per_model(samples, True)
+    def _separate_samples_per_model(self, samples_per_model):
+        if len(samples_per_model) != self._nmodels:
+            msg = "len(samples_per_model) {0} != nmodels {1}".format(
+                len(samples_per_model), self._nmodels)
+            raise ValueError(msg)
+        for ii in range(self._nmodels):
+            if samples_per_model[ii].shape[1] != self._nsamples_per_model[ii]:
+                msg = "{0} != {1}".format(
+                    "len(samples_per_model[{0}]): {1}".format(
+                        ii, samples_per_model[ii].shape[0]),
+                    "nsamples_per_model[ii]: {0}".format(
+                        self._nsamples_per_model[ii]))
+                raise ValueError(msg)
+
+        acv_partition_indices = self._get_partition_indices_per_acv_subset()
+        nacv_subsets = len(acv_partition_indices)
+        acv_samples = [
+            samples_per_model[ii//2][:, acv_partition_indices[ii]]
+            for ii in range(nacv_subsets)]
+        return acv_samples
 
     def generate_samples_per_model(self, rvs):
         """
@@ -525,8 +543,8 @@ class ACVEstimator(MCEstimator):
 
     def _compute_single_model_nsamples(self, npartition_samples, model_id):
         active_partitions = np.where(
-                (self._allocation_mat[:, 2*model_id] == 1) |
-                (self._allocation_mat[:, 2*model_id+1] == 1))[0]
+            (self._allocation_mat[:, 2*model_id] == 1) |
+            (self._allocation_mat[:, 2*model_id+1] == 1))[0]
         return npartition_samples[active_partitions].sum()
 
     def _compute_single_model_nsamples_from_partition_ratios(
@@ -569,10 +587,7 @@ class ACVEstimator(MCEstimator):
             The covariance of the estimator values for
             each high-fidelity model QoI
         """
-        CF, cf = self._stat._get_discrepancy_covariances(
-            self, self._rounded_npartition_samples)
-        weights = self._weights(CF, cf)
-        return self._estimate(values_per_model, weights)
+        return self._estimate(values_per_model, self._optimized_weights)
 
     def __repr__(self):
         if self._optimized_criteria is None:
@@ -696,21 +711,21 @@ class ACVEstimator(MCEstimator):
                     II = np.where(partition_indices_per_model[ii] == idx)[0]
                     permuted_values_per_model[ii][II] = values_per_model[ii][
                         II[permuted_partition_indices[idx]]]
-            permuted_acv_values = _separate_model_values_acv(
-                reorder_allocation_mat, permuted_values_per_model,
-                partition_indices_per_model)
-            estimator_vals[kk] = self(permuted_acv_values)
-        bootstrap_mean = estimator_vals.mean()
-        bootstrap_var = estimator_vals.var()
+                    permuted_acv_values = _separate_model_values_acv(
+                        reorder_allocation_mat, permuted_values_per_model,
+                        partition_indices_per_model)
+                    estimator_vals[kk] = self(permuted_acv_values)
+                    bootstrap_mean = estimator_vals.mean()
+                    bootstrap_var = estimator_vals.var()
         return bootstrap_mean, bootstrap_var
 
     def _objective(self, target_cost, x, return_grad=True):
         partition_ratios = torch.as_tensor(x, dtype=torch.double)
         if return_grad:
             partition_ratios.requires_grad = True
-        covariance = self._covariance_from_partition_ratios(
-            target_cost, partition_ratios)
-        val = self._optimization_criteria(covariance)
+            covariance = self._covariance_from_partition_ratios(
+                target_cost, partition_ratios)
+            val = self._optimization_criteria(covariance)
         if not return_grad:
             return val.item()
         val.backward()
@@ -782,8 +797,8 @@ class ACVEstimator(MCEstimator):
 
     def _allocate_samples_user_init_guess(self, cons, target_cost, **kwargs):
         opt = self._allocate_samples_opt(
-                self._cov, self._costs, target_cost, cons,
-                initial_guess=self._initial_guess, **kwargs)
+            self._cov, self._costs, target_cost, cons,
+            initial_guess=self._initial_guess, **kwargs)
         try:
             opt = self._allocate_samples_opt(
                 self._cov, self._costs, target_cost, cons,
@@ -798,7 +813,7 @@ class ACVEstimator(MCEstimator):
         if (not (_check_mfmc_model_costs_and_correlations(
                 self._costs,
                 get_correlation_from_covariance(self._cov.numpy()))) or
-                len(self._cov) != len(self._costs)):
+            len(self._cov) != len(self._costs)):
             # second condition above will not be true for multiple qoi
             return None, np.inf
         mfmc_model_ratios = torch.as_tensor(_allocate_samples_mfmc(
@@ -866,11 +881,11 @@ class ACVEstimator(MCEstimator):
             min_nhf_samples = 2
         else:
             min_nhf_samples = 1
-        cons = [
-            {'type': 'ineq',
-             'fun': self._acv_npartition_samples_constraint,
-             'jac': self._acv_npartition_samples_constraint_jac,
-             'args': (target_cost, min_nhf_samples, 0)}]
+            cons = [
+                {'type': 'ineq',
+                 'fun': self._acv_npartition_samples_constraint,
+                 'jac': self._acv_npartition_samples_constraint_jac,
+                 'args': (target_cost, min_nhf_samples, 0)}]
 
         # Ensure that remaining partitions have at least one sample
         cons += [
@@ -974,7 +989,9 @@ class ACVEstimator(MCEstimator):
             partition_ratios
         """
         self._rounded_partition_ratios, self._rounded_target_cost = (
-            self._round_partition_ratios(target_cost, partition_ratios))
+            self._round_partition_ratios(
+                target_cost,
+                torch.as_tensor(partition_ratios, dtype=torch.double)))
         self._optimized_covariance = self._covariance_from_partition_ratios(
             self._rounded_target_cost, torch.as_tensor(
                 self._rounded_partition_ratios, dtype=torch.double))
@@ -989,6 +1006,11 @@ class ACVEstimator(MCEstimator):
         self._nsamples_per_model = torch.as_tensor(
             self._compute_nsamples_per_model(self._rounded_npartition_samples),
             dtype=torch.int)
+        self._optimized_CF, self._optimized_cf = (
+            self._stat._get_discrepancy_covariances(
+                self,  self._rounded_npartition_samples))
+        self._optimized_weights = self._weights(
+            self._optimized_CF, self._optimized_cf)
 
     def _allocate_samples_for_single_recursion(self, target_cost, verbosity=0):
         partition_ratios, obj_val = self._allocate_samples(
@@ -1407,6 +1429,146 @@ class SingleQoiAndStatComparisonCriteria():
     def __repr__(self):
         return "{0}(stat={1}, qoi={2})".format(
             self.__class__.__name__, self._stat_type, self._qoi_idx)
+
+
+def _estimate_components(variable, est, funs, ii):
+    """
+    Notes
+    -----
+    To create reproducible results when running numpy.random in parallel
+    must use RandomState. If not the results will be non-deterministic.
+    This is happens because of a race condition. numpy.random.* uses only
+    one global PRNG that is shared across all the threads without
+    synchronization. Since the threads are running in parallel, at the same
+    time, and their access to this global PRNG is not synchronized between
+    them, they are all racing to access the PRNG state (so that the PRNG's
+    state might change behind other threads' backs). Giving each thread its
+    own PRNG (RandomState) solves this problem because there is no longer
+    any state that's shared by multiple threads without synchronization.
+    Also see new features
+    https://docs.scipy.org/doc/numpy/reference/random/parallel.html
+    https://docs.scipy.org/doc/numpy/reference/random/multithreading.html
+    """
+    random_state = np.random.RandomState(ii)
+    samples_per_model = est.generate_samples_per_model(
+        partial(variable.rvs, random_state=random_state))
+    values_per_model = [
+        fun(samples) for fun, samples in zip(funs, samples_per_model)]
+
+    mc_est = est._stat.sample_estimate
+    if isinstance(est, ACVEstimator):
+        est_val = est(values_per_model)
+        acv_values = est._separate_values_per_model(values_per_model)
+        Q = mc_est(acv_values[1])
+        delta = np.hstack([mc_est(acv_values[2*ii]) -
+                           mc_est(acv_values[2*ii+1])
+                           for ii in range(1, est._nmodels)])
+    else:
+        est_val = est(values_per_model[0])
+        Q = mc_est(values_per_model[0])
+        delta = Q*0
+    return est_val, Q, delta
+
+
+def _estimate_components_loop(
+        variable, ntrials, est, funs, max_eval_concurrency):
+    if max_eval_concurrency == 1:
+        Q = []
+        delta = []
+        estimator_vals = []
+        for ii in range(ntrials):
+            est_val, Q_val, delta_val = _estimate_components(
+                variable, est, funs, ii)
+            estimator_vals.append(est_val)
+            Q.append(Q_val)
+            delta.append(delta_val)
+        Q = np.array(Q)
+        delta = np.array(delta)
+        estimator_vals = np.array(estimator_vals)
+        return estimator_vals, Q, delta
+
+    from multiprocessing import Pool
+    # set flat funs to none so funs can be pickled
+    pool = Pool(max_eval_concurrency)
+    func = partial(_estimate_components, variable, est, funs)
+    result = pool.map(func, list(range(ntrials)))
+    pool.close()
+    estimator_vals = np.asarray([r[0] for r in result])
+    Q = np.asarray([r[1] for r in result])
+    delta = np.asarray([r[2] for r in result])
+    return estimator_vals, Q, delta
+
+
+def numerically_compute_estimator_variance(
+        funs, variable, est, ntrials=1e3, max_eval_concurrency=1,
+        return_all=False):
+    r"""
+    Numerically estimate the variance of an approximate control variate
+    estimator.
+
+    Parameters
+    ----------
+    funs : list [callable]
+        List of functions with signature
+
+        `fun(samples) -> np.ndarray (nsamples, nqoi)`
+
+    where samples has shape (nvars, nsamples)
+
+    est : :class:`pyapprox.multifidelity.multioutput_monte_carlo.MCEstimator`
+        A Monte Carlo like estimator for computing sample based statistics
+
+    ntrials : integer
+        The number of times to compute estimator using different randomly
+        generated set of samples
+
+    max_eval_concurrency : integer
+        The number of processors used to compute realizations of the estimators
+        which can be run independently and in parallel.
+
+    Returns
+    -------
+    hf_covar_numer : np.ndarray (nstats, nstats)
+        The estimator covariance of the single high-fidelity Monte Carlo
+        estimator
+
+    hf_covar : np.ndarray (nstats, nstats)
+        The analytical value of the estimator covariance of the single
+       high-fidelity Monte Carlo estimator
+
+
+    covar_numer : np.ndarray (nstats, nstats)
+        The estimator covariance of est
+
+    hf_covar : np.ndarray (nstats, nstats)
+        The analytical value of the estimator covariance of est
+
+    est_vals : np.ndarray (ntrials, nstats)
+        The values for the est for each trial. Only returned if return_all=True
+
+    Q0 : np.ndarray (ntrials, nstats)
+        The values for the single fidelity MC estimator for each trial.
+        Only returned if return_all=True
+
+    delta : np.ndarray (ntrials, nstats)
+        The values for the differences between the low-fidelty estimators
+        :math:`\mathcal{Z}_\alpha` and :math:`\mathcal{Z}_\alpha^*`
+        for each trial. Only returned if return_all=True
+    """
+    est_vals, Q0, delta = _estimate_components_loop(
+        variable, ntrials, est, funs, max_eval_concurrency)
+
+    hf_covar_numer = np.cov(Q0, ddof=1, rowvar=False)
+    hf_covar = est._stat.high_fidelity_estimator_covariance(
+        est._rounded_npartition_samples[0])
+
+    covar_numer = np.cov(est_vals, ddof=1, rowvar=False)
+    covar = est._covariance_from_npartition_samples(
+        est._rounded_npartition_samples).numpy()
+
+    if not return_all:
+        return hf_covar_numer, hf_covar, covar_numer, covar
+    return hf_covar_numer, hf_covar, covar_numer, covar, est_vals, Q0, delta
 
 
 # COMMON TORCH AUTOGRAD MISTAKES

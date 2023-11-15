@@ -118,7 +118,7 @@ cov_mc = multifidelity.estimate_model_ensemble_covariance(
     npilot_samples, benchmark.variable.rvs, model_ensemble,
     model_ensemble.nmodels)[0]
 
-from pyapprox.util.configure_plots import mathrm_labels, mathrm_label
+from pyapprox.util.visualization import mathrm_labels, mathrm_label
 estimators = [
     multifidelity.get_estimator("mc", cov, costs, poly_model.variable),
     multifidelity.get_estimator("mfmc", cov, costs, poly_model.variable)]

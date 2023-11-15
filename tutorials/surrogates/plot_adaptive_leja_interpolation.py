@@ -5,10 +5,8 @@ This tutorial describes how to construct a polynomial chaos expansion (PCE) of a
 """
 #%%
 #First lets import necessary modules and define a function useful for estimating the error in the PCE. We will also set the random seed for reproductibility
-
 import numpy as np
-from functools import partial
-from pyapprox.util.configure_plots import plt
+import matplotlib.pyplot as plt
 
 from pyapprox.surrogates.interp.sparse_grid import plot_sparse_grid_2d
 from pyapprox.benchmarks import setup_benchmark

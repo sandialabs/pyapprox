@@ -1,9 +1,10 @@
-import numpy as np
-import subprocess
-from scipy.spatial import ConvexHull
 import os
+import subprocess
 
-from pyapprox.util.configure_plots import plt, mpl
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.spatial import ConvexHull
 
 
 def convert_plot_to_tikz(tikz_file, tikz_dir, show=False,
@@ -271,7 +272,7 @@ def get_meshgrid_function_data(function, plot_limits, num_pts_1d, qoi=0,
 
 
 def plot_contours(X, Y, Z, ax, num_contour_levels=10, offset=0,
-                  cmap=mpl.cm.coolwarm, zorder=None):
+                  cmap="coolwarm", zorder=None):
     """
     Plot the contours of a two-dimensional function using matplotlib.contourf.
 
@@ -333,7 +334,7 @@ def _turn_off_3d_axes(ax):
 
 
 def plot_surface(X, Y, Z, ax, samples=None, limit_state=None,
-                 num_contour_levels=0, plot_axes=True, cmap=mpl.cm.coolwarm,
+                 num_contour_levels=0, plot_axes=True, cmap="coolwarm",
                  axis_labels=None, angle=None, alpha=1., zorder=None,
                  antialiased=False):
     """
@@ -709,3 +710,31 @@ def plot_2d_samples(samples, ax=None, **kwargs):
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     ax.plot(samples[0, :], samples[1, :], linestyle='None', **kwargs)
     return ax
+
+
+linestyle_tuples = {
+     'loosely dotted':        (0, (1, 10)),
+     'dotted':                (0, (1, 1)),
+     'densely dotted':        (0, (1, 1)),
+
+     'loosely dashed':        (0, (5, 10)),
+     'dashed':                (0, (5, 5)),
+     'densely dashed':        (0, (5, 1)),
+
+     'loosely dashdotted':    (0, (3, 10, 1, 10)),
+     'dashdotted':            (0, (3, 5, 1, 5)),
+     'densely dashdotted':    (0, (3, 1, 1, 1)),
+
+     'dashdotdotted':         (0, (3, 5, 1, 5, 1, 5)),
+     'loosely dashdotdotted': (0, (3, 10, 1, 10, 1, 10)),
+     'densely dashdotdotted': (0, (3, 1, 1, 1, 1, 1))}
+
+
+def mathrm_label(label):
+    label = r"$\mathrm{%s}$" % label.replace(" ", r"\;")
+    label = label.replace("-", r"}$-$\mathrm{")
+    return label
+
+
+def mathrm_labels(labels):
+    return [mathrm_label(label) for label in labels]

@@ -5,14 +5,16 @@ Bayesian Optimal Experimental Design
 #%%
 #Load modules
 import os
+from functools import partial
+from multiprocessing import Pool
+
 from scipy import stats
 import numpy as np
-from functools import partial
 import matplotlib.pyplot as plt
+
 from pyapprox.util.visualization import (
-    get_meshgrid_function_data, create_3d_axis, plot_surface,
+    get_meshgrid_function_data, create_3d_axis, mathrm_label,
     _turn_off_3d_axes)
-from pyapprox.util.configure_plots import mathrm_label
 from pyapprox.variables.joint import (
     IndependentMarginalsVariable, get_truncated_range)
 from pyapprox.variables.marginals import get_pdf
@@ -21,7 +23,6 @@ from pyapprox.variables.risk import (
     conditional_value_at_risk)
 from pyapprox.bayes.metropolis import GaussianLogLike
 from pyapprox.surrogates.integrate import integrate
-from multiprocessing import Pool
 from pyapprox.surrogates.interp.tensorprod import (
     TensorProductInterpolant, get_univariate_interpolation_basis)
 savefigs = False

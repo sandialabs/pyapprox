@@ -458,9 +458,7 @@ def plot_unnormalized_2d_marginals(
     from pyapprox.variables.joint import get_truncated_range
     from pyapprox.surrogates.interp.indexing import (
         compute_anova_level_indices)
-    from pyapprox.util.configure_plots import plt
     from pyapprox.util.visualization import get_meshgrid_samples
-    from functools import partial
 
     if variable_pairs is None:
         variable_pairs = np.array(

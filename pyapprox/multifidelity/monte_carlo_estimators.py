@@ -6,7 +6,7 @@ from itertools import combinations
 import copy
 
 from pyapprox.util.utilities import get_correlation_from_covariance
-from pyapprox.util.configure_plots import mathrm_label
+from pyapprox.util.visualization import mathrm_label
 from pyapprox.expdesign.low_discrepancy_sequences import (
     sobol_sequence, halton_sequence
 )

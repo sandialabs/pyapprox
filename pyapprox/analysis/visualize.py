@@ -1,11 +1,10 @@
 import numpy as np
 from scipy import stats
+import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import get_meshgrid_samples
-from pyapprox.util.configure_plots import plt
 from pyapprox.variables.joint import (
-    get_truncated_range, get_truncated_ranges
-)
+    get_truncated_range, get_truncated_ranges)
 from pyapprox.surrogates.interp.indexing import compute_anova_level_indices
 
 
