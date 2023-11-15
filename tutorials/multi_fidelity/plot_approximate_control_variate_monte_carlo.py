@@ -83,12 +83,12 @@ which is found when
   &=-\frac{N^{-1}\frac{r-1}{r}\covar{f_{\alpha}}{f_{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_{\kappa}}}\\
   &=-\frac{\covar{f_{\alpha}}{f_{\kappa}}}{\var{f_{\kappa}}}
 
-The cost of computing a two model ACV estimator is
-#
-#.. math::
-#
-#   C_\mathrm{cv} = NC_\alpha + rNC_\kappa
-#
+Finally, letting :math:`C_\alpha` and :math:`C_\kappa` denote the computational cost of simluating the models :math:`f_\alpha` and :math:`f_\kappa` at one sample, respectively, the cost of computing a two model ACV estimator is
+
+.. math::
+
+   C^\mathrm{ACV} = NC_\alpha + rNC_\kappa.
+
 
 The following code can be used to investigate the properties of a two model ACV estimator.
 """
@@ -109,7 +109,8 @@ exact_integral_f0 = benchmark.means[0]
 
 #%%
 #Now initialize the estimator
-from pyapprox.multifidelity.multioutput_monte_carlo import get_estimator
+from pyapprox.multifidelity.multioutput_monte_carlo import (
+    get_estimator, numerically_compute_estimator_variance)
 # The benchmark has three models, so just extract data for first two models
 costs = benchmark.fun.costs()[:2]
 est = get_estimator(
@@ -117,7 +118,7 @@ est = get_estimator(
 
 #%%
 #Set the number of samples in the two independent sample partitions to
-#:math:`M=10` and :math:`N=100`. For reasons that will become clear in later tuotials the code requires the specification of the number of samples in each independent set of samples i.e. in :math:`mathcal{Z}_N` and :math:`mathcal{Z}_N\cup\mathcal{Z}_N`
+#:math:`M=10` and :math:`N=100`. For reasons that will become clear in later tuotials the code requires the specification of the number of samples in each independent set of samples i.e. in :math:`\mathcal{Z}_N` and :math:`\mathcal{Z}_N\cup\mathcal{Z}_N`
 nhf_samples = 10   # The value N
 npartition_ratios = [9]  # Defines the value of M-N
 target_cost = (
@@ -164,9 +165,6 @@ print('ACVMC difference squared =', (acv_mean-exact_integral_f0)**2)
 #%%
 #Now plot the distribution of this estimators and compare it against
 #a single-fidelity MC estimator of the same target cost
-from pyapprox import interface
-from pyapprox.multifidelity.multioutput_monte_carlo import (
-    numerically_compute_estimator_variance)
 nhf_samples = 10
 ntrials = 1000
 npartition_ratios = np.array([9])

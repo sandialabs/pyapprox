@@ -1,7 +1,8 @@
 import numpy as np
 import networkx as nx
 
-from pyapprox.multifidelity.multioutput_monte_carlo import determinant_variance
+from pyapprox.multifidelity.multioutput_monte_carlo import (
+    PlotCriteria)
 from pyapprox.util.visualization import plt, mathrm_label
 
 
@@ -94,7 +95,7 @@ def plot_model_costs(costs, model_names=None, ax=None):
 def plot_estimator_variances(optimized_estimators,
                              est_labels, ax, ylabel=None,
                              relative_id=0, cost_normalization=1,
-                             criteria=determinant_variance):
+                             criteria=PlotCriteria("det")):
     """
     Plot variance as a function of the total cost for a set of estimators.
 
@@ -116,7 +117,7 @@ def plot_estimator_variances(optimized_estimators,
             [est._rounded_target_cost for est in optimized_estimators[ii]])
         est_criteria.append(np.array(
             [criteria(est._covariance_from_npartition_samples(
-                est._npartition_samples), est)
+                est._rounded_npartition_samples), est)
              for est in optimized_estimators[ii]]))
     est_total_costs *= cost_normalization
     for ii in range(nestimators):
@@ -132,7 +133,7 @@ def plot_estimator_variances(optimized_estimators,
 
 def plot_estimator_variance_reductions(optimized_estimators,
                                        est_labels, ax, ylabel=None,
-                                       criteria=determinant_variance,
+                                       criteria=PlotCriteria("det"),
                                        **bar_kawrgs):
     """
     Plot variance as a function of the total cost for a set of estimators.
@@ -154,11 +155,11 @@ def plot_estimator_variance_reductions(optimized_estimators,
         assert len(optimized_estimators[ii]) == 1
         est = optimized_estimators[ii][0]
         est_criteria = criteria(est._covariance_from_npartition_samples(
-            est._npartition_samples), est)
+            est._rounded_npartition_samples), est)
         nhf_samples = int(est._rounded_target_cost/est._costs[0])
         sf_criteria = criteria(
             est._stat.high_fidelity_estimator_covariance(
-                [nhf_samples]), est)
+                nhf_samples), est)
         var_red.append(sf_criteria/est_criteria)
         sf_criterias.append(sf_criteria)
         est_criterias.append(est_criteria)
@@ -199,3 +200,70 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
     ax.set_yticklabels(model_names, fontsize=label_fontsize)
     ax.set_xticklabels(model_names, rotation=60, fontsize=label_fontsize)
     return ax
+
+
+def _autolabel(ax, rects, model_labels):
+    # Attach a text label in each bar in *rects*
+    for rect, label in zip(rects, model_labels):
+        try:
+            rect = rect[0]
+        except TypeError:
+            pass
+        ax.annotate(label,
+                    xy=(rect.get_x() + rect.get_width()/2,
+                        rect.get_y() + rect.get_height()/2),
+                    xytext=(0, -10),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='center', va='bottom')
+
+
+def plot_estimator_sample_allocation_comparison(
+        estimators, model_labels, ax, legendloc=[0.925, 0.25]):
+    """
+    Plot the number of samples allocated to each model for a set of estimators
+
+    Parameters
+    ----------
+    estimators : list
+       Each entry is a MonteCarlo like estimator
+
+    model_labels : list (nestimators)
+        String used to label each estimator
+    """
+
+    nestimators = len(estimators)
+    xlocs = np.arange(nestimators)
+
+    from matplotlib.pyplot import cm
+    for jj, est in enumerate(estimators):
+        cnt = 0
+        # warning currently colors will not match if estimators use different
+        # models
+        colors = cm.rainbow(np.linspace(0, 1, est._nmodels))
+        rects = []
+        est.model_labels = model_labels
+        for ii in range(est._nmodels):
+            if jj == 0:
+                label = est.model_labels[ii]
+            else:
+                label = None
+            cost_ratio = (est._costs[ii]*est._nsamples_per_model[ii] /
+                          est._rounded_target_cost)
+            rect = ax.bar(
+                xlocs[jj:jj+1], cost_ratio, bottom=cnt, edgecolor='white',
+                label=label, color=colors[ii])
+            rects.append(rect)
+            cnt += cost_ratio
+        _autolabel(ax, rects, ['$%d$' % int(est._nsamples_per_model[ii])
+                               for ii in range(est._nmodels)])
+    ax.set_xticks(xlocs)
+    # number of samples are rounded cost est_rounded cost,
+    # but target cost is not rounded
+    ax.set_xticklabels(
+        ['$%1.2f$' % est._rounded_target_cost for est in estimators])
+    ax.set_xlabel(mathrm_label("Target cost"))
+    # / $N_\alpha$')
+    ax.set_ylabel(
+        mathrm_label("Precentage of target cost"))
+    if legendloc is not None:
+        ax.legend(loc=legendloc)

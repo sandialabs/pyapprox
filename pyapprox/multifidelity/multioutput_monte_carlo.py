@@ -251,8 +251,9 @@ class MCEstimator():
 
     def __call__(self, values):
         if not isinstance(values, np.ndarray):
-            raise ValueError("values must be an np.ndarray type={0}".format(
-                type(values)))
+            raise ValueError(
+                "values must be an np.ndarray but type={0}".format(
+                    type(values)))
         if values.ndim != 2 or values.shape[0] != self._nsamples_per_model[0]:
             msg = "values has the incorrect shape {0} expected {1}".format(
                 values.shape, (self._nsamples_per_model[0], self._nqoi))
@@ -1162,8 +1163,9 @@ class MLMCEstimator(ACVEstimator):
             self._costs.numpy(), target_cost)
         return torch.as_tensor(nsample_ratios, dtype=torch.double), val
 
-    def _create_allocation_matrix(self):
-        return _get_sample_allocation_matrix_mlmc(self._nmodels)
+    def _create_allocation_matrix(self, dummy):
+        self._allocation_mat = _get_sample_allocation_matrix_mlmc(
+            self._nmodels)
 
     @staticmethod
     def _mlmc_ratios_to_npartition_ratios(ratios):
@@ -1397,7 +1399,24 @@ def get_estimator(estimator_type, stat_type, nqoi, costs, cov, *args,
         max_nmodels, *args, **kwargs)
 
 
-class SingleQoiAndStatComparisonCriteria():
+class PlotCriteria():
+    def __init__(self, criteria_type):
+        self._criteria_type = criteria_type
+
+    def __call__(self, est_covariance, est):
+        if self._criteria_type == "det":
+            return determinant_variance(est_covariance)
+        if self._criteria_type == "trace":
+            return np.exp(log_trace_variance(est_covariance))
+        raise ValueError(
+            "Criteria {0} not supported".format(self._criteria_type))
+
+    def __repr__(self):
+        return "{0}(citeria={1})".format(
+            self.__class__.__name__, self._criteria_type)
+
+
+class SingleQoiAndStatComparisonCriteria(PlotCriteria):
     def __init__(self, stat_type, qoi_idx):
         """
         Compare estimators based on the variance of a single statistic
@@ -1500,7 +1519,7 @@ def _estimate_components_loop(
 
 
 def numerically_compute_estimator_variance(
-        funs, variable, est, ntrials=1e3, max_eval_concurrency=1,
+        funs, variable, est, ntrials=int(1e3), max_eval_concurrency=1,
         return_all=False):
     r"""
     Numerically estimate the variance of an approximate control variate
@@ -1555,6 +1574,7 @@ def numerically_compute_estimator_variance(
         :math:`\mathcal{Z}_\alpha` and :math:`\mathcal{Z}_\alpha^*`
         for each trial. Only returned if return_all=True
     """
+    ntrials = int(ntrials)
     est_vals, Q0, delta = _estimate_components_loop(
         variable, ntrials, est, funs, max_eval_concurrency)
 
@@ -1569,6 +1589,35 @@ def numerically_compute_estimator_variance(
     if not return_all:
         return hf_covar_numer, hf_covar, covar_numer, covar
     return hf_covar_numer, hf_covar, covar_numer, covar, est_vals, Q0, delta
+
+
+def compare_estimator_variances(target_costs, estimators):
+    """
+    Compute the variances of different Monte-Carlo like estimators.
+
+    Parameters
+    ----------
+    target_costs : np.ndarray (ntarget_costs)
+        Different total cost budgets
+
+    estimators : list (nestimators)
+        List of Monte Carlo estimator objects, e.g.
+        :class:`~pyapprox.multifidelity.multioutput_monte_carlo.MCEstimator`
+
+    Returns
+    -------
+        optimized_estimators : list
+         Each entry is a list of optimized estimators for a set of target costs
+    """
+    optimized_estimators = []
+    for est in estimators:
+        est_copies = []
+        for target_cost in target_costs:
+            est_copy = copy.deepcopy(est)
+            est_copy.allocate_samples(target_cost)
+            est_copies.append(est_copy)
+        optimized_estimators.append(est_copies)
+    return optimized_estimators
 
 
 # COMMON TORCH AUTOGRAD MISTAKES

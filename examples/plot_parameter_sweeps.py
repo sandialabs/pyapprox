@@ -20,19 +20,17 @@ import numpy as np
 np.random.seed(1)
 
 benchmark = setup_benchmark("oakley")
-fig, axs = analysis.generate_parameter_sweeps_and_plot_from_variable(
+axs = analysis.generate_parameter_sweeps_and_plot_from_variable(
     benchmark.fun, benchmark.variable, num_samples_per_sweep=20, num_sweeps=3)
-fig.suptitle(mathrm_label("Oakely model parameter sweeps"))
+plt.gcf().suptitle(mathrm_label("Oakely model parameter sweeps"))
 plt.show()
 
 #%%
-#
-#
 #Now lets plot parameter sweeps for the Sobol G function
 benchmark = setup_benchmark("sobol_g", nvars=4)
-fig, axs = analysis.generate_parameter_sweeps_and_plot_from_variable(
+axs = analysis.generate_parameter_sweeps_and_plot_from_variable(
     benchmark.fun, benchmark.variable, num_samples_per_sweep=50, num_sweeps=3)
-fig.suptitle(mathrm_label("Sobol G model parameter sweeps"))
+plt.gcf().suptitle(mathrm_label("Sobol G model parameter sweeps"))
 plt.show()
 
 #%%
