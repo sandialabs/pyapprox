@@ -59,10 +59,14 @@ which we can plug back into to :math:`\gamma` to give
    \gamma &= 1-\corr{Q_{\alpha}(\rvset_N)}{Q_{\kappa}(\rvset_N)}^2\\
    &= 1-\corr{f_{\alpha}}{f_{\kappa}}^2\\
 
+and so
 
-Thus if two highly correlated models (one with a known mean) are available then we can drastically reduce the MSE of our estimate of the unknown mean. Similar reductions can be obtained for other statistics such as variance. But when estimating variance the estimator variance reduction ratio will no nolonger depend just on the correlation between the models but also higher order moments.
+.. math:: \var{Q_{\alpha}^{\text{CV}}(\rvset_N)} = \var{Q_{\alpha}(\rvset_N)}(1-\corr{f_{\alpha}}{f_{\kappa}}^2)
 
-Again consider the tunable model ensemble. The correlation between the models :math:`f_0` and :math:`f_1` can be tuned by varying :math:`\theta_1`. For a given choice of theta lets compute a single relization of the CVMC estimate of :math:Q_0=`\mean{f_0}`
+
+Thus, if two highly correlated models (one with a known mean) are available then we can drastically reduce the MSE of our estimate of the unknown mean. Similar reductions can be obtained for other statistics such as variance. But when estimating variance the estimator variance reduction ratio will no nolonger depend just on the correlation between the models but also higher order moments.
+
+Again consider the tunable model ensemble. The correlation between the models :math:`f_0` and :math:`f_1` can be tuned by varying :math:`\theta_1`. For a given choice of theta lets compute a single relization of the CVMC estimate of :math:`Q_0=\mean{f_0}`
 """
 
 #%%
@@ -76,7 +80,6 @@ shifts = [.1, .2]
 benchmark = setup_benchmark(
     "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=shifts)
 model = benchmark.fun
-print(benchmark.variable)
 
 nsamples = int(1e2)
 samples = benchmark.variable.rvs(nsamples)
@@ -109,7 +112,7 @@ print("Achieved variance reduction",
       means[:, 1].var(axis=0)/means[:, 0].var(axis=0))
 
 #%%
-# The following plot shows that unlike the :ref:`Monte Carlo estimator <estimator-histogram>`. :math:`\mean{f_1}` the CVMC estimator is unbiased and has a smaller variance.
+# The following plot shows that unlike the MC estimator of. :math:`\mean{f_1}` the CVMC estimator is unbiased and has a smaller variance.
 
 fig,ax = plt.subplots()
 textstr = '\n'.join(
