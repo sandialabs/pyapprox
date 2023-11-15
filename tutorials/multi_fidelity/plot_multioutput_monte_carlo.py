@@ -79,13 +79,19 @@ print(stats[3:].reshape(3, 3))
 #---------------
 #First consider the estimation of the mean. The covariance between two estimates of the mean that share P samples, i.e. :math:`P=|\rvset_\alpha\cup \rvset_\beta|`, is
 #
+#.. _eq_mean_covariance:
+#
 #.. math:: \covar{\mat{Q}^\mu_\alpha(\rvset_{N})}{\mat{Q}^\mu_\beta(\rvset_{M})} = \frac{P}{MN}\covar{f_\alpha}{f_\beta} \quad \in\reals^{K\times K}
 #
 #Variance Estimation
 #-------------------
 #The covariance between two estimators of variance is
 #
-#.. math:: \covar{\mat{Q}_\alpha^{\Sigma}(\rvset_{N})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})} = \frac{P(P-1)}{M(M-1)N(N-1)}\mat{V}_{\alpha,\beta}+\frac{P}{MN}\mat{W}_{\alpha,\beta}  \quad \in\reals^{K^2\times K^2}
+#.. _eq-var-covariance:
+#
+#.. math::
+#
+#   \covar{\mat{Q}_\alpha^{\Sigma}(\rvset_{N})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})} = \frac{P(P-1)}{M(M-1)N(N-1)}\mat{V}_{\alpha,\beta}+\frac{P}{MN}\mat{W}_{\alpha,\beta}  \quad \in\reals^{K^2\times K^2}
 #
 #where
 #
@@ -109,7 +115,11 @@ print(stats[3:].reshape(3, 3))
 #-----------------------------------------
 #The covariance between two estimators of mean and variance of the form
 #
-#.. math:: \mat{Q}_\alpha^{\mu,\Sigma}(\rvset_{N})=[\mat{Q}_\alpha^{\mu}(\rvset_{N}), \mat{Q}_\alpha^{\Sigma}(\rvset_{N})]^\top  \quad \in\reals^{(K+K^2)\times (K+K^2)}
+#.. _eq_mean_var_covariance:
+#
+#.. math::
+#
+#   \mat{Q}_\alpha^{\mu,\Sigma}(\rvset_{N})=[\mat{Q}_\alpha^{\mu}(\rvset_{N}), \mat{Q}_\alpha^{\Sigma}(\rvset_{N})]^\top  \quad \in\reals^{(K+K^2)\times (K+K^2)}
 #
 #is
 #
@@ -143,3 +153,8 @@ _ = plot_correlation_matrix(
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 est_variances = np.diag(est.optimized_covariance().numpy())
 _ = plt.bar(labels, est_variances)
+
+#%%
+#References
+#^^^^^^^^^^^
+#.. [DWBG2024] `T. Dixon et al. Covariance Expressions for Multi-Fidelity Sampling with Multi-Output, Multi-Statistic Estimators: Application to Approximate Control Variates. 2024 <https://doi.org/10.48550/arXiv.2310.00125>`_
