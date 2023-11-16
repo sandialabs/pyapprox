@@ -1,41 +1,119 @@
 r"""
-Generalized Approximate Control Variate Monte Carlo
-===================================================
-This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py`, :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py`, and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py`. MLMC and MFMC are two approaches which can utilize an esemble of models of vary cost and accuracy to efficiently estimate the expectation of the highest fidelity model. In this tutorial we introduce a general framework for ACVMC when using 2 or more mmodels. We show that MFMC are both instances of this framework and use the flexibility of the framework to derive new ACV estimators.
+Parametrically Defined Approximate Control Variate Monte Carlo
+==============================================================
+This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py`, :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py`, and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py`. MLMC and MFMC are two approaches which can utilize an ensemble of models of vary cost and accuracy to efficiently estimate the expectation of the highest fidelity model. In this tutorial we introduce a general framework for ACVMC when using two or more models to estimate vector-valued statistics.
 
-Control variate Monte Carlo can be easily extended and applied to more than two models. Consider :math:`M` lower fidelity models with sample ratios :math:`r_\alpha>=1`, for :math:`\alpha=1,\ldots,M`. The approximate control variate estimator of the mean of the high-fidelity model :math:`Q_0=\mean{f_0}` is
-
-.. math::
-   Q^{\text{ACV}} &= Q_{0,\mathcal{Z}_{0,1}} + \sum_{\alpha=1}^M \eta_\alpha \left( Q_{\alpha,\mathcal{Z}_{\alpha,1}} - \mu_{\alpha,\mathcal{Z}_{\alpha,2}} \right) =Q_{0,\mathcal{Z}_{0,1}} + \sum_{\alpha=1}^M \eta_\alpha \Delta_{\alpha,\mathcal{Z}_{\alpha,1},\mathcal{Z}_{\alpha,2}}\\&=Q_{0,N}+\V{\eta}\V{\Delta}
-
-Here :math:`\V{\eta}=[\eta_1,\ldots,\eta_M]^T`, :math:`\V{\Delta}=[\Delta_1,\ldots,\Delta_M]^T`, and :math:`\mathcal{Z}_{\alpha,1}`, :math:`\mathcal{Z}_{\alpha,2}` are sample sets that may or may not be disjoint. Specifying the exact nature of these sets, including their cardinality, can be used to design different ACV estimators which will discuss later.
-
-The variance of the ACV estimator is
+The approximate control variate estimator of a vector-valued statistic :math:`\mat{Q}_0\in\reals^{S}` that uses  :math:`M` lower fidelity models is
 
 .. math::
 
-   \var{Q^{\text{ACV}}} = \var{Q_{0}}\left(1+\V{\eta}^T\frac{\covar{\V{\Delta}}{\V{\Delta}}}{\var{Q_0}}\V{\eta}+2\V{\eta}^T\frac{\covar{\V{\Delta}}{Q_0}}{\var{Q_0}}\right)
+  \mat{Q}_{\text{ACV}}(\rvset_0,\rvset_1^*,\rvset_1,\ldots,\rvset^*_M, \rvset_M) &= \mat{Q}_{0}(\rvset_0)+\begin{bmatrix}\eta_{1,1} & \cdots &\eta_{1, SM}\\
+  \eta_{2,1} & \cdots &\eta_{2, SM}\\
+  \vdots\\
+  \eta_{S,1} & \cdots &\eta_{S, SM}
+  \end{bmatrix}\begin{bmatrix} \mat{Q}_{1}(\rvset_1^*)-\mat{Q}_{1}(\rvset_1) \\ \mat{Q}_{2}(\rvset_2^*)-\mat{Q}_{2}(\rvset_2) \\ \vdots \\ \mat{Q}_{M}(\rvset_M^*)-\mat{Q}_{M}(\rvset_M)\end{bmatrix}\in\reals^{S}
 
-The control variate weights that produce the minimum variance are given by
+or in more compact notation
+
+.. math:: \mat{Q}_{\text{ACV}}(\rvset_\text{ACV})&=\mat{Q}_{0}(\rvset_0)+\mat{\eta}\mat{\Delta}(\rvset_{\Delta}), \quad \mat{\Delta}(\rvset_\Delta) = \begin{bmatrix}\mat{\Delta}_1(\rvset_1^*, \rvset_1)\\ \vdots\\ \mat{\Delta}_M(\rvset_M^*,\rvset_M)\end{bmatrix}\in\reals^{SM}, \quad \mat{\eta}\in\reals^{S\times SM},
+where the entries of :math:`\mat{\eta}` are called control variate weights, :math:`\rvset_\Delta=\{\rvset_1^*, \rvset_1, \ldots, \rvset_M^*, \rvset_M\}`, and :math:`\rvset_\text{ACV}=\{\rvset_0, \rvset_\Delta\}`.
+
+Here :math:`\mat{\eta}=[\eta_1,\ldots,\eta_M]^T`, :math:`\mat{\Delta}=[\Delta_1,\ldots,\Delta_M]^T`, and :math:`\rvset_{\alpha}^*`, :math:`\rvset_{\alpha}` are sample sets that may or may not be disjoint. Specifying the exact nature of these sets, including their cardinality, can be used to design different ACV estimators which will discuss later.
+
+This estimator is constructed by evaluating each model at two sets of samples :math:`\rvset_{\alpha}^*=\{\rv^{(n)}\}_{n=1}^{N_{\alpha^*}}` and :math:`\rvset_{\alpha}=\{\rv^{(n)}\}_{n=1}^{N_\alpha}` where some samples may be shared between sets such that in some cases :math:`\rvset_{\alpha}^*\cup\rvset_{\beta}\neq \emptyset`.
+
+For any :math:`\mat{\eta}(\rvset_\text{ACV})`, the covariance of the ACV estimator is
 
 .. math::
 
-   \V{\eta} = -\covar{\V{\Delta}}{\V{\Delta}}^{-1}\covar{\V{\Delta}}{Q_0}
+   \var{\mat{Q}^{\text{ACV}}} = \var{\mat{Q}_{0}}+\mat{\eta}\covar{\mat{\Delta}}{\mat{\Delta}}\mat{\eta}^\top+\mat{\eta}\covar{\mat{\Delta}}{\mat{Q}_0}+\covar{\mat{\Delta}}{\mat{Q}_0}\mat{\eta}^\top, \qquad\in\reals^{S\times S}
 
-The resulting variance reduction is
+The control variate weights that minimize the determinant of the ACV estimator covariance are
+
+.. math:: \mat{\eta} = -\covar{\mat{\Delta}}{\mat{\Delta}}^{-1}\covar{\mat{\Delta}}{\mat{Q}_0}
+
+The ACV estimator covariance using the optimal control variate weights is
+
+.. math:: \covar{\mat{Q}_{\text{ACV}}}{\mat{Q}_{\text{ACV}}}(\rvset_\text{ACV})=\covar{\mat{Q}_0}{ \mat{Q}_0}-\covar{\mat{Q}_0}{\mat{\Delta}}\covar{\mat{\Delta}}{\mat{\Delta}}^{-1}\covar{\mat{Q}_0}{\mat{\Delta}}^\top
+
+Computing the ACV estimator covariance requires computing :math:`\covar{\mat{Q}_0}{\mat{\Delta}}\text{ and} \covar{\mat{\Delta}}{\mat{\Delta}}`.
+
+First
 
 .. math::
 
-   \gamma =1-\covar{\V{\Delta}}{Q_0}^T\frac{\covar{\V{\Delta}}{\V{\Delta}}^{-1}}{\var{Q_0}}\covar{\V{\Delta}}{Q_0}
+  \covar{\mat{\Delta}}{\mat{\Delta}} =
+  \begin{bmatrix}\covar{\mat{\Delta}_1}{\mat{\Delta}_1} & \covar{\mat{\Delta}_1}{\mat{\Delta}_2} & \cdots & \covar{\mat{\Delta}_1}{\mat{\Delta}_M}\\
+  \covar{\mat{\Delta}_2}{\mat{\Delta}_1} & \covar{\mat{\Delta}_1}{\mat{\Delta}_2} &  & \vdots\\
+  \vdots & & \ddots & \vdots \\
+  \covar{\mat{\Delta}_M}{\mat{\Delta}_1} & \cdots & \cdots & \covar{\mat{\Delta}_M}{\mat{\Delta}_M}
+  \end{bmatrix}
 
-The previous formulae require evaluating covarices with the discrepancies :math:`\Delta`. To avoid this we write
+and second
 
-.. math::
+.. math::     \covar{\mat{Q}_0}{\mat{\Delta}} = [\covar{\mat{Q}_0}{\mat{\Delta}_1}, \ldots, \covar{\mat{Q}_0}{\mat{\Delta}_M}]
 
-   \covar{\V{\Delta}}{Q_0}&=N^{-1}\left(\mathrm{diag}\left(F\right)\circ \covar{\V{Q}_\mathrm{LF}}{Q_0}\right)\\
-   \covar{\V{\Delta}}{\V{\Delta}}&=N^{-1}\left(\covar{\V{Q}_\mathrm{LF}}{\V{Q}_\mathrm{LF}}\circ F \right)\\
 
-where :math:`\V{Q}_\mathrm{LF}=[Q_1,\ldots,Q_M]^T` and :math:`\circ` is the Hadamard  (element-wise) product. The matrix :math:`F` is dependent on the sampling scheme used to generate the sets :math:`\mathcal{Z}_{\alpha,1}`, :math:`\mathcal{Z}_{\alpha,2}`. We discuss one useful sampling scheme found in [GGEJJCP2020]_ here.
+where
+
+.. math::     \covar{\mat{Q}_0}{\mat{\Delta}_\alpha} = \covar{\mat{Q}_0(\rvset_0)}{\mat{\Delta}_\alpha(\rvset_\alpha^*)}-\covar{\mat{Q}_0(\rvset_0)}{\mat{\Delta}_\alpha(\rvset_\alpha)}]
+
+When estimating the statistics in :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multioutput_monte_carlo.py`  the above coavariances involving :math:`\Delta` can be computed using the formula in :ref:`sphx_glr_auto_tutorials_multi_fidelity_acv_covariances.py`.
+
+The variance of an ACV estimator is dependent on how samples are allocated to the sets :math:`\rvset_\alpha,\rvset_\alpha^*`, which we call the sample allocation :math:`\mathcal{A}`. Specifically, :math:`\mathcal{A}` specifies: the number of samples in the sets :math:`\rvset_\alpha,\rvset_\alpha^*, \forall \alpha`, denoted by :math:`N_\alpha` and :math:`N_{\alpha^*}`, respectively; the number of samples in the intersections of pairs of sets, that is :math:`N_{\alpha\cap\beta} =|\rvset_\alpha \cap \rvset_\beta|`, :math:`N_{\alpha^*\cap\beta} =|\rvset_\alpha^* \cap \rvset_\beta|`, :math:`N_{\alpha^*\cap\beta^*} =|\rvset_\alpha^* \cap \rvset_\beta^*|`; and the number of samples in the union of pairs of sets :math:`N_{\alpha\cup\beta} = |\rvset_\alpha\cup \rvset_\beta|` and similarly :math:`N_{\alpha^*\cup\beta}`, :math:`N_{\alpha^*\cup\beta^*}`. Thus, finding the best ACV estimator can be theoretically be found by solving the constrained non-linear optimization problem
+
+.. math:: \min_{\mathcal{A}\in\mathbb{A}}\mathrm{Det}\left[\covar{Q_{\text{ACV}}}{Q_{\text{ACV}}}\right](\mathcal{A}) \qquad \mathrm{s.t.} \qquad C(c,\mathcal{A})\le C_\mathrm{max},
+
+Hre :math:`\mathbb{A}` is the set of all possible sample allocations.
+
+Given the computational costs of evaluating each model once :math:`c^\top=[c_0, c_1, \ldots, c_M]`, the constraint ensures that the computational cost of computing the ACV estimator
+
+.. math:: C(c,\mathcal{A})=\sum_{\alpha=0}^M N_{\alpha^*\cup\alpha}c_\alpha
+
+is smaller than a user-specified computational budget :math:`C_\mathrm{max}`.
+
+In the remainder of the tutorial we introduce three so called parameterically defined ACV estimators that place different restrictions on the search space "math:`\matbb{A}`.
+
+Generalized Multifidelity Sampling (GMF)
+----------------------------------------
+.. list-table::
+
+   * -
+       .. _mfmc-sample-allocation:
+
+       .. figure:: ../../figures/mfmc.png
+          :width: 100%
+          :align: center
+
+          GMF sampling strategy
+
+Generalized Recursive Difference Sampling (GRD)
+-----------------------------------------------
+.. list-table::
+
+   * -
+       .. _mlmc-sample-allocation-mfmc-comparison:
+
+       .. figure:: ../../figures/mlmc.png
+          :width: 100%
+          :align: center
+
+          RD sampling strategy
+
+Generalized Independent Sampling (GIS)
+--------------------------------------
+.. list-table::
+
+   * -
+       .. _acv-is-sample-allocation-mlmc-comparison:
+
+       .. figure:: ../../figures/acv_is.png
+          :width: 100%
+          :align: center
+
+          GIS sampling strategy
+
+
 
 MLMC and MFMC are Control Variate Estimators
 --------------------------------------------
@@ -45,23 +123,23 @@ MLMC
 ^^^^
 The three model MLMC estimator is
 
-.. math:: Q_{0,\mathcal{Z}}^\mathrm{ML}=Q_{2,\hat{\mathcal{Z}_{2}}}+\left(Q_{1,\hat{\mathcal{Z}}_{1}}-Q_{2,\hat{\mathcal{Z}}_{1}}\right)+\left(Q_{0,\hat{\mathcal{Z}}_{0}}-Q_{1,\hat{\mathcal{Z}}_{0}}\right)
+.. math:: Q_{0,\rvset}^\mathrm{ML}=Q_{2,\hat{\rvset_{2}}}+\left(Q_{1,\hat{\rvset}_{1}}-Q_{2,\hat{\rvset}_{1}}\right)+\left(Q_{0,\hat{\rvset}_{0}}-Q_{1,\hat{\rvset}_{0}}\right)
 
 The MLMC estimator is a specific form of an ACV estimator.
 By rearranging terms it is clear that this is just a control variate estimator
 
 .. math::
 
-    Q_{0,\mathcal{Z}}^\mathrm{ML}&=Q_{0,\hat{\mathcal{Z}}_{0}} - \left(Q_{1,\hat{\mathcal{Z}}_{0}}-Q_{1,\hat{\mathcal{Z}}_{1}}\right)-\left(Q_{2,\hat{\mathcal{Z}}_{1}}-Q_{2,\hat{\mathcal{Z}}_{2}}\right)\\
-   &=Q_{0,\mathcal{Z}_{0}} - \left(Q_{1,\mathcal{Z}_{1,1}}-Q_{1,\mathcal{Z}_{1,2}}\right)-\left(Q_{2,\mathcal{Z}_{2,1}}-Q_{2,\mathcal{Z}_{2,2}}\right)
+    Q_{0,\rvset}^\mathrm{ML}&=Q_{0,\hat{\rvset}_{0}} - \left(Q_{1,\hat{\rvset}_{0}}-Q_{1,\hat{\rvset}_{1}}\right)-\left(Q_{2,\hat{\rvset}_{1}}-Q_{2,\hat{\rvset}_{2}}\right)\\
+   &=Q_{0}(\rvset_{0}) - \left(Q_{1,\rvset_{1,1}}-Q_{1,\rvset_{1,2}}\right)-\left(Q_{2,\rvset_{2,1}}-Q_{2,\rvset_{2,2}}\right)
 
 where in the last line we have used the general ACV notation for sample partitioning. The control variate weights in this case are just :math:`\eta_1=\eta_2=-1`.
 
 By inductive reasoning we get the :math:`M` model ACV version of the MLMC estimator.
 
-.. math:: Q_{0,\mathcal{Z}}^\mathrm{ML}=Q_{0,\mathcal{Z}_{0}} +\sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha-1,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha,2}}\right)
+.. math:: Q_{0,\rvset}^\mathrm{ML}=Q_{0}(\rvset_{0}) +\sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\rvset_{\alpha-1,1}}-Q_{\alpha}(\rvset_{\alpha})\right)
 
-where :math:`\eta_\alpha=-1,\forall\alpha` and :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{\alpha-1,2}`, and :math:`\mu_{\alpha,\mathcal{Z}_{\alpha,2}}=Q_{\alpha,\mathcal{Z}_{\alpha,2}}`.
+where :math:`\eta_\alpha=-1,\forall\alpha` and :math:`\rvset_{\alpha}^*=\rvset_{\alpha-1,2}`, and :math:`Q_{\alpha}(\rvset_{\alpha})=Q_{\alpha}(\rvset_{\alpha})`.
 
 TODO: Add the F matrix of the MLMC estimator
 
@@ -70,9 +148,9 @@ By viewing MLMC as a control variate we can derive its variance reduction [GGEJJ
 .. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1} - \eta_M^2 \frac{\tau_{M}}{\hat{r}_{M}} - \sum_{i=2}^M \frac{1}{\hat{r}_{i-1}}\left( \eta_i^2 \tau_{i}^2 + \tau_{i-1}^2 \tau_{i-1}^2 - 2 \eta_i \eta_{i-1} \rho_{i,i-1} \tau_{i} \tau_{i-1} \right),
    :label: mlmc-variance-reduction
 
-where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1}{2}}`. Recall that and :math:`\hat{r}_\alpha=\lvert\mathcal{Z}_{\alpha,2}\rvert/N` is the ratio of the cardinality of the sets :math:`\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{0,2}`.
+where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1}{2}}`. Recall that and :math:`\hat{r}_\alpha=\lvert\rvset_{\alpha}\rvert/N` is the ratio of the cardinality of the sets :math:`\rvset_{\alpha}` and :math:`\rvset_{0,2}`.
 
-Now consider what happens to this variance reduction if we have unlimited resources to evaluate the low fidelity model. As :math:`\hat{r}_\alpha\to\infty$, for $\alpha=1,\ldots,M` we have
+Now consider what happens to this variance reduction if we have unlimited resources to evaluate the low fidelity model. As :math:`\hat{r}_\alpha\to\infty`, for :math:`\alpha=1,\ldots,M` we have
 
 .. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1}
 
@@ -82,7 +160,7 @@ MFMC
 ^^^^
 Recall that the :math:`M` model MFMC estimator is given by
 
-.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)
+.. math:: Q_{0,\rvset}^\mathrm{MF}=Q_{0}(\rvset_{0}) + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha}(\rvset_{\alpha}^*)-Q_{\alpha}(\rvset_{\alpha})\right)
 
 From this expression it is clear that MFMC is an approximate control variate estimator.
 
@@ -101,7 +179,7 @@ A New ACV Estimator
 As we have discussed MLMC and MFMC are ACV estimators, are suboptimal for a fixed number of high-fidelity samples.
 In the following we detail a straightforward way to obtain an ACV estimator, which will call ACV-IS, that with enough resources can achieve the optimal variance reduction of CVMC when the low-fidelity means are known.
 
-To obtain the ACV-IS estimator we first evaluate each model (including the high-fidelity model) at a set of :math:`N` samples  :math:`\mathcal{Z}_{\alpha,1}`. We then evaluate each low fidelity model at an additional :math:`N(1-r_\alpha)` samples :math:`\mathcal{Z}_{\alpha,2}`. That is the sample sets satisfy :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{0}\;\forall\alpha>0` and :math:`\left(\mathcal{Z}_{\alpha,2}\setminus\mathcal{Z}_{\alpha,1}\right)\cap\left(\mathcal{Z}_{\kappa,2}\setminus\mathcal{Z}_{\kappa,1}\right)=\emptyset\;\forall\kappa\neq\alpha`. See :ref:`acv-is-sample-allocation-mlmc-comparison` for a comparison of the sample sets used by ACV-IS and MLMC.
+To obtain the ACV-IS estimator we first evaluate each model (including the high-fidelity model) at a set of :math:`N` samples  :math:`\rvset_{\alpha}^*`. We then evaluate each low fidelity model at an additional :math:`N(1-r_\alpha)` samples :math:`\rvset_{\alpha}`. That is the sample sets satisfy :math:`\rvset_{\alpha}^*=\rvset_{0}\;\forall\alpha>0` and :math:`\left(\rvset_{\alpha}\setminus\rvset_{\alpha}^*\right)\cap\left(\rvset_{\kappa,2}\setminus\rvset_{\kappa}^*\right)=\emptyset\;\forall\kappa\neq\alpha`. See :ref:`acv-is-sample-allocation-mlmc-comparison` for a comparison of the sample sets used by ACV-IS and MLMC.
 
 .. list-table::
 
@@ -138,14 +216,15 @@ import matplotlib.pyplot as plt
 from functools import partial
 
 from pyapprox.benchmarks import setup_benchmark
-from pyapprox import interface
-from pyapprox import multifidelity
+from pyapprox.multifidelity.multioutput_monte_carlo import (
+    get_estimator, numerically_compute_estimator_variance)
 
 np.random.seed(2)
 shifts = [.1, .2]
 benchmark = setup_benchmark(
     "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=shifts)
 model = benchmark.fun
+funs = model.models
 model_costs = 10.**(-np.arange(3))
 cov = model.get_covariance_matrix()
 
@@ -153,36 +232,28 @@ cov = model.get_covariance_matrix()
 # First let us just use 2 models
 
 print('Two models')
-model_ensemble = interface.ModelEnsemble(model.models[:2])
-nhf_samples = 10
 ntrials = 1000
-nsample_ratios = np.array([10])
-nsamples_per_model = np.hstack((1, nsample_ratios))*nhf_samples
-target_cost = np.dot(model_costs[:2], nsamples_per_model)
-est = multifidelity.get_estimator(
-    "acvis", benchmark.model_covariance[:2, :2], model_costs[:2],
-    benchmark.variable)
-means, numerical_var, true_var = \
-    multifidelity.estimate_variance(
-        model_ensemble, est, target_cost, ntrials, nsample_ratios)
+target_cost = 100
+est = get_estimator(
+    "acvis", model.costs[:2], benchmark.model_covariance[:2, :2])
+numerical_var, true_var, means = (
+    numerically_compute_estimator_variance(
+        funs[:2], benchmark.variable, est, ntrials,
+        return_all=True))[2:5]
 
 print("Theoretical ACV variance", true_var)
 print("Achieved ACV variance", numerical_var)
 
 #%%
 # Now let us use 3 models
-model_ensemble = interface.ModelEnsemble(model.models[:3])
-nhf_samples = 10
 ntrials = 1000
-nsample_ratios = np.array([10, 10])
-nsamples_per_model = np.hstack((1, nsample_ratios))*nhf_samples
-target_cost = np.dot(model_costs[:3], nsamples_per_model)
-est = multifidelity.get_estimator(
-    "acvis", benchmark.model_covariance[:3, :3], model_costs[:3],
-    benchmark.variable)
-means, numerical_var, true_var = \
-    multifidelity.estimate_variance(
-        model_ensemble, est, target_cost, ntrials, nsample_ratios)
+target_cost = 100
+est = get_estimator(
+    "acvis", model.costs[:3], benchmark.model_covariance[:3, :3])
+numerical_var, true_var, means = (
+    numerically_compute_estimator_variance(
+        funs[:3], benchmark.variable, est, ntrials,
+        return_all=True))[2:5]
 
 print('Three models')
 print("Theoretical ACV variance reduction", true_var)

@@ -1,5 +1,5 @@
 r"""
-Control Variate Monte Carlo
+Two Model Control Variate Monte Carlo
 ===========================
 This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute the statistics of the output of a high-fidelity model using a lower-fidelity model with a known mean. The information presented here builds upon the tutorial :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py`. We will focus on estimation of a single statistic for now, but control variates can be used to estiamte multiple statistics simultaneoulsy.
 

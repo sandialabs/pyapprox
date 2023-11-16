@@ -201,8 +201,7 @@ class MCEstimator():
 
     def _set_optimization_criteria(self, opt_criteria):
         if opt_criteria is None:
-            opt_criteria = log_trace_variance
-            # opt_criteria = log_determinant_variance
+            opt_criteria = log_determinant_variance
         return opt_criteria
 
     def _covariance_from_npartition_samples(self, npartition_samples):
@@ -882,11 +881,11 @@ class ACVEstimator(MCEstimator):
             min_nhf_samples = 2
         else:
             min_nhf_samples = 1
-            cons = [
-                {'type': 'ineq',
-                 'fun': self._acv_npartition_samples_constraint,
-                 'jac': self._acv_npartition_samples_constraint_jac,
-                 'args': (target_cost, min_nhf_samples, 0)}]
+        cons = [
+            {'type': 'ineq',
+             'fun': self._acv_npartition_samples_constraint,
+             'jac': self._acv_npartition_samples_constraint_jac,
+             'args': (target_cost, min_nhf_samples, 0)}]
 
         # Ensure that remaining partitions have at least one sample
         cons += [
@@ -989,21 +988,22 @@ class ACVEstimator(MCEstimator):
             The number of samples allocated to each model using the rounded
             partition_ratios
         """
+        #TODO generalize name of rounded_partition ratios so it can
+        #be inherited and redefined for CV and ACV
         self._rounded_partition_ratios, self._rounded_target_cost = (
             self._round_partition_ratios(
                 target_cost,
                 torch.as_tensor(partition_ratios, dtype=torch.double)))
-        self._optimized_covariance = self._covariance_from_partition_ratios(
-            self._rounded_target_cost, torch.as_tensor(
-                self._rounded_partition_ratios, dtype=torch.double))
-        self._optimized_criteria = self._optimization_criteria(
-            self._optimized_covariance)
         self._rounded_npartition_samples = torch.round(
             self._npartition_samples_from_partition_ratios(
                 self._rounded_target_cost,
                 torch.as_tensor(
                     self._rounded_partition_ratios,
                     dtype=torch.double)))
+        self._optimized_covariance = self._covariance_from_npartition_samples(
+            self._rounded_npartition_samples)
+        self._optimized_criteria = self._optimization_criteria(
+            self._optimized_covariance)
         self._nsamples_per_model = torch.as_tensor(
             self._compute_nsamples_per_model(self._rounded_npartition_samples),
             dtype=torch.int)
@@ -1618,6 +1618,88 @@ def compare_estimator_variances(target_costs, estimators):
             est_copies.append(est_copy)
         optimized_estimators.append(est_copies)
     return optimized_estimators
+
+
+class ControlVariateMonteCarlo(ACVEstimator):
+    def __init__(self, stat, costs, cov, lowfi_stats, opt_criteria=None):
+        super().super().__init__(stat, costs, cov, opt_criteria=opt_criteria)
+        self._set_initial_guess(None)
+        self._lowfi_stats = lowfi_stats
+
+    def _set_initial_guess(self, initial_guess):
+        if initial_guess is None:
+            initial_guess = 10
+        self._initial_guess = torch.as_tensor(
+                initial_guess, dtype=torch.double)
+
+    def _cost_constraint(self, nsamples_np, target_cost, return_numpy=True):
+        nsamples = torch.as_tensor(nsamples_np, dtype=torch.double)
+        val = (nsamples[0]*self._costs).sum()-target_cost
+        if return_numpy:
+            return val.item()
+        return val
+
+    def _cost_constraint_jac(self, nsamples_np, target_cost):
+        return self._constraint_jacobian(
+            self._cost_constraint, nsamples_np, target_cost)
+
+    def _get_constraints(self, target_cost):
+        cons = [
+            {'type': 'ineq',
+             'fun': self._cost_constraint,
+             'jac': self._cost_constraint_jac,
+             'args': (target_cost,)}]
+        return cons
+
+    def _objective(self, target_cost, x, return_grad=True):
+        nsamples = torch.as_tensor(x, dtype=torch.double)
+        if return_grad:
+            nsamples.requires_grad = True
+        covariance = self._covariance_from_nsamples(
+            target_cost, nsamples)
+        val = self._optimization_criteria(covariance)
+        if not return_grad:
+            return val.item()
+        val.backward()
+        grad = nsamples.grad.detach().numpy().copy()
+        nsamples.grad.zero_()
+        return val.item(), grad
+
+    def _round_npartition_samples(self, target_cost, nsamples):
+        rounded_nsamples = np.round(nsamples).astype(int)
+        rounded_target_cost = (rounded_nsamples * self._costs.numpy()).sum()
+        return rounded_nsamples, rounded_target_cost
+
+    def _set_optimized_params(self, nsamples, target_cost):
+        self._rounded_npartition_samples, self._rounded_target_cost = (
+            self._round_npartition_samples(
+                target_cost,
+                torch.as_tensor(nsamples, dtype=torch.double)))
+        self._optimized_covariance = self._covariance_from_npartition_samples(
+            self._rounded_npartition_samples)
+        self._optimized_criteria = self._optimization_criteria(
+            self._optimized_covariance)
+        self._optimized_CF, self._optimized_cf = (
+            self._stat._get_discrepancy_covariances(
+                self,  self._rounded_npartition_samples))
+        self._optimized_weights = self._weights(
+            self._optimized_CF, self._optimized_cf)
+
+    def _estimate(self, values_per_model, weights):
+        nmodels = len(values_per_model)
+        deltas = np.hstack(
+            [self._stat.sample_estimate(values_per_model[ii]) -
+             self._lowfi_means[ii] for ii in range(1, nmodels)])
+        est = (self._stat.sample_estimate(values_per_model[0]) +
+               weights.numpy().dot(deltas))
+        return est
+
+    def __call__(self, values_per_model):
+        for values in values_per_model[1:]:
+            if values.shape[0] != values_per_model[0].shape[0]:
+                msg = "Must provide the same number of samples for each model"
+                raise ValueError(msg)
+        return super().__call(values_per_model)
 
 
 # COMMON TORCH AUTOGRAD MISTAKES

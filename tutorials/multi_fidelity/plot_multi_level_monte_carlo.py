@@ -151,10 +151,7 @@ print('MLMC error', abs(mlmc_mean-true_mean))
 #
 #The following code computes the variance reduction of the MLMC estimator, using the 2 models :math:`f_0,f_1`. The variance reduction is estimated numerically by  running MLMC repeatedly with different realizations of the sample sets and compared with the analytical estimator variance.
 ntrials = int(1e3)
-numerical_var, true_var, means = (
-    numerically_compute_estimator_variance(
-        funs, benchmark.variable, est, ntrials,
-        return_all=True))[2:5]
+
 print("Theoretical 2 model MLMC variance", true_var)
 print("Achieved 2 model MLMC variance", numerical_var)
 
@@ -282,17 +279,16 @@ optimized_estimators = compare_estimator_variances(
     target_costs, estimators)
 
 #%%
-#The following compares the estimator variance of MC with MLMC for a fixed
-#target cost
+#The following compares the estimator variance reduction ratio of MLMC relative to MLMC for a fixed target cost
 
 axs = [plt.subplots(1, 1, figsize=(8, 6))[1]]
-# get MC and MLMC estmators for target cost = 100
-ests_100 = [estlist[1:2] for estlist in optimized_estimators]
+# get MLMC estmators for target cost = 100
+mlmc_est_100 = optimized_estimators[1][1:2]
 _ = plot_estimator_variance_reductions(
-    ests_100, est_labels, axs[0])
+    mlmc_est_100, est_labels[1:2], axs[0])
 
 #%%
-#The following compares the estimator variance of MC with MLMC for a set of 
+#The following compares the estimator variance of MC with MLMC for a set of
 #target costs and plot the number of samples allocated to each model by MLMC
 
 # get MLMC estimators for all target costs

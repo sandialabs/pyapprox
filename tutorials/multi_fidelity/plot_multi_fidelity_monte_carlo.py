@@ -1,14 +1,14 @@
 r"""
 Multi-fidelity Monte Carlo
 ==========================
-This tutorial builds on from :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and introduces an approximate control variate estimator called Multi-fidelity Monte Carlo (MFMC) [PWGSIAM2016]_. Unlike MLMC this method does not assume a strict ordering of models.
+This tutorial builds on from :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and introduces an approximate control variate estimator called Multi-fidelity Monte Carlo (MFMC) [PWGSIAM2016]_.
 
 Many Model MFMC
 ---------------
 
 To derive the MFMC estimator first recall the two model ACV estimator
 
-.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \eta\left(Q_{1,\mathcal{Z}_{0}}-\mu_{1,\mathcal{Z}_{1}}\right)
+.. math:: Q_{0}^\mathrm{MF}(\mathcal{Z})=Q_{0}(\mathcal{Z}_{0}) + \eta\left(Q_1(\mathcal{Z}_{0})-Q_{1}(\mathcal{Z}_{1})\right)
 
 The MFMC estimator can be derived with the following recursive argument. Partition the samples assigned to each model such that
 :math:`\mathcal{Z}_\alpha=\mathcal{Z}_{\alpha,1}\cup\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{\alpha,1}\cap\mathcal{Z}_{\alpha,2}=\emptyset`. That is the samples at the next lowest fidelity model are the samples used at all previous levels plus an additional independent set, i.e. :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{\alpha-1}`. See :ref:`mfmc-sample-allocation`. Note the differences between this scheme and the MLMC scheme.
@@ -37,12 +37,12 @@ Starting from two models we introduce the next low fidelity model in a way that 
 
 .. math::
 
-   Q_{0,\mathcal{Z}}^\mathrm{MF}&=Q_{0,\mathcal{Z}_{0}} + \eta_1\left(Q_{1,\mathcal{Z}_{1}}-\left(\mu_{1,\mathcal{Z}_{1}}+\eta_2\left(Q_{2,\mathcal{Z}_1}-\mu_{2,\mathcal{Z}_2}\right)\right)\right)\\
-   &=Q_{0,\mathcal{Z}_{0}} + \eta_1\left(Q_{1,\mathcal{Z}_{1}}-\mu_{1,\mathcal{Z}_{1}}\right)+\eta_1\eta_2\left(Q_{2,\mathcal{Z}_1}-\mu_{2,\mathcal{Z}_2}\right)
+   Q_{0}^\mathrm{MF}(\mathcal{Z})&=Q_{0}(\mathcal{Z}_{0}) + \eta_1\left(Q_{1,\mathcal{Z}_{1}}-\left(\mu_{1,\mathcal{Z}_{1}}+\eta_2\left(Q_{2,\mathcal{Z}_1}-\mu_{2,\mathcal{Z}_2}\right)\right)\right)\\
+   &=Q_{0}(\mathcal{Z}_{0}) + \eta_1\left(Q_{1,\mathcal{Z}_{1}}-\mu_{1,\mathcal{Z}_{1}}\right)+\eta_1\eta_2\left(Q_{2,\mathcal{Z}_1}-\mu_{2,\mathcal{Z}_2}\right)
 
 We repeat this process for all low fidelity models to obtain
 
-.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha,2}}\right)
+.. math:: Q_{0}^\mathrm{MF}(\mathcal{Z})=Q_{0}(\mathcal{Z}_{0}) + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha,2}}\right)
 
 The optimal control variate weights for the MFMC estimator, which minimize the variance of the estimator, are :math:`\eta=(\eta_1,\ldots,\eta_M)^T`, where for :math:`\alpha=1\ldots,M`
 

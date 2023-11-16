@@ -150,10 +150,9 @@ def plot_estimator_variance_reductions(optimized_estimators,
     var_red, est_criterias, sf_criterias = [], [], []
     optimized_estimators = optimized_estimators.copy()
     est_labels = est_labels.copy()
-    nestimators = len(est_labels)
+    nestimators = len(optimized_estimators)
     for ii in range(nestimators):
-        assert len(optimized_estimators[ii]) == 1
-        est = optimized_estimators[ii][0]
+        est = optimized_estimators[ii]
         est_criteria = criteria(est._covariance_from_npartition_samples(
             est._rounded_npartition_samples), est)
         nhf_samples = int(est._rounded_target_cost/est._costs[0])
