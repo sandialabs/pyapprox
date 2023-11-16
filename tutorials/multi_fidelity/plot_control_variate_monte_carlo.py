@@ -116,15 +116,17 @@ print("Achieved variance reduction",
 
 fig,ax = plt.subplots()
 textstr = '\n'.join(
-    [r'$E[Q_{0}(\mathcal{Z}_N)]=\mathrm{%.2e}$' % means[:, 0].mean(),
-     r'$V[Q_{0}(\mathcal{Z}_N)]=\mathrm{%.2e}$' % means[:, 0].var(),
-     r'$E[Q_{0}^\mathrm{CV}(\mathcal{Z}_N)]=\mathrm{%.2e}$' % means[:, 1].mean(),
-     r'$V[Q_{0}^\mathrm{CV}(\mathcal{Z}_N)]=\mathrm{%.2e}$' % means[:, 1].var()])
+    [r'$\mathbb{E}[Q_{0}(\mathcal{Z}_N)]=\mathrm{%.2e}$' % means[:, 0].mean(),
+     r'$\mathbb{V}[Q_{0}(\mathcal{Z}_N)]=\mathrm{%.2e}$' % means[:, 0].var(),
+     r'$\mathbb{E}[Q_{0}^\mathrm{CV}(\mathcal{Z}_N)]=\mathrm{%.2e}$' % (
+         means[:, 1].mean()),
+     r'$\mathbb{V}[Q_{0}^\mathrm{CV}(\mathcal{Z}_N)]=\mathrm{%.2e}$' % (
+         means[:, 1].var())])
 ax.hist(means[:, 0], bins=ntrials//100, density=True, alpha=0.5,
         label=r'$Q_{0}(\mathcal{Z}_N)$')
 ax.hist(means[:, 1], bins=ntrials//100, density=True, alpha=0.5,
         label=r'$Q_{0}^\mathrm{CV}(\mathcal{Z}_N)$')
-ax.axvline(x=0,c='k',label=r'$E[Q_0]$')
+ax.axvline(x=0,c='k',label=r'$\mathbb{E}[Q_0]$')
 props = {'boxstyle': 'round', 'facecolor': 'white', 'alpha': 1}
 ax.text(0.6, 0.75, textstr,transform=ax.transAxes, bbox=props)
 _ = ax.legend(loc='upper left')
