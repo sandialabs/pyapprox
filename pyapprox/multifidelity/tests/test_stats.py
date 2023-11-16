@@ -30,7 +30,8 @@ def _setup_multioutput_model_subproblem(model_idx, qoi_idx):
     idx = np.arange(9).reshape(3, 3)[np.ix_(model_idx, qoi_idx)].flatten()
     cov = cov[np.ix_(idx, idx)]
     costs = model.costs()[model_idx]
-    return funs, cov, costs, model
+    means = model.get_means()[np.ix_(model_idx, qoi_idx)]
+    return funs, cov, costs, model, means
 
 
 class TestMOSTATS(unittest.TestCase):
@@ -71,8 +72,8 @@ class TestMOSTATS(unittest.TestCase):
         assert np.allclose(variance, samples.var(axis=1, ddof=1))
 
     def _check_pilot_covariances(self, model_idx, qoi_idx):
-        funs, cov_exact, costs, model = _setup_multioutput_model_subproblem(
-            model_idx, qoi_idx)
+        funs, cov_exact, costs, model, means = (
+            _setup_multioutput_model_subproblem(model_idx, qoi_idx))
         nmodels = len(funs)
         # atol is needed for terms close to zero
         rtol, atol = 1e-2, 5.5e-4
@@ -129,7 +130,7 @@ class TestMOSTATS(unittest.TestCase):
 
     def _check_mean_variance_covariances(self, model_idx, qoi_idx):
         nsamples, ntrials = 20, int(1e5)
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         means, covariances = self._mean_variance_realizations(
             funs, model.variable, nsamples, ntrials)

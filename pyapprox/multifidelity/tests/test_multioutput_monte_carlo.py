@@ -10,51 +10,12 @@ from pyapprox.multifidelity.stats import (
 from pyapprox.multifidelity._optim import (
     _allocate_samples_mfmc, _allocate_samples_mlmc)
 from pyapprox.multifidelity.multioutput_monte_carlo import (
-    get_estimator, ACVEstimator, MFMCEstimator, MLMCEstimator,
+    get_estimator, ACVEstimator, MFMCEstimator, MLMCEstimator, CVEstimator,
     numerically_compute_estimator_variance)
 from pyapprox.multifidelity.tests.test_stats import (
     _setup_multioutput_model_subproblem)
 from pyapprox.multifidelity.stats import (
     _get_nsamples_intersect, _get_nsamples_subset)
-
-
-def _estimate_components(variable, est, funs, ii):
-    """
-    Notes
-    -----
-    To create reproducible results when running numpy.random in parallel
-    must use RandomState. If not the results will be non-deterministic.
-    This is happens because of a race condition. numpy.random.* uses only
-    one global PRNG that is shared across all the threads without
-    synchronization. Since the threads are running in parallel, at the same
-    time, and their access to this global PRNG is not synchronized between
-    them, they are all racing to access the PRNG state (so that the PRNG's
-    state might change behind other threads' backs). Giving each thread its
-    own PRNG (RandomState) solves this problem because there is no longer
-    any state that's shared by multiple threads without synchronization.
-    Also see new features
-    https://docs.scipy.org/doc/numpy/reference/random/parallel.html
-    https://docs.scipy.org/doc/numpy/reference/random/multithreading.html
-    """
-    random_state = np.random.RandomState(ii)
-    samples_per_model = est.generate_samples_per_model(
-        partial(variable.rvs, random_state=random_state))
-    values_per_model = [
-        fun(samples) for fun, samples in zip(funs, samples_per_model)]
-
-    mc_est = est._stat.sample_estimate
-    if isinstance(est, ACVEstimator):
-        est_val = est(values_per_model)
-        acv_values = est._separate_values_per_model(values_per_model)
-        Q = mc_est(acv_values[1])
-        delta = np.hstack([mc_est(acv_values[2*ii]) -
-                           mc_est(acv_values[2*ii+1])
-                           for ii in range(1, est._nmodels)])
-    else:
-        est_val = est(values_per_model[0])
-        Q = mc_est(values_per_model[0])
-        delta = Q*0
-    return est_val, Q, delta
 
 
 def _log_single_qoi_criteria(
@@ -76,7 +37,7 @@ class TestMOMC(unittest.TestCase):
     def test_generalized_recursive_difference_allocation_matrices(self):
         model_idx = [0, 1, 2]
         qoi_idx = [0]
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
 
         est = get_estimator("grd", "mean", len(qoi_idx),
@@ -131,7 +92,7 @@ class TestMOMC(unittest.TestCase):
     def test_generalized_multifidelity_allocation_matrices(self):
         model_idx = [0, 1, 2]
         qoi_idx = [0]
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         est = get_estimator(
             "gmf", "mean", len(qoi_idx), costs, cov, recursion_index=[2, 0])
@@ -164,7 +125,7 @@ class TestMOMC(unittest.TestCase):
     def test_generalized_independent_samples_allocation_matrices(self):
         model_idx = [0, 1, 2]
         qoi_idx = [0]
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         est = get_estimator(
             "gis", "mean", len(qoi_idx), costs, cov, recursion_index=[2, 0])
@@ -193,39 +154,11 @@ class TestMOMC(unittest.TestCase):
                       [0.,  0.,  0.,  0.,  0.,  1.]])
         )
 
-    def _estimate_components_loop(
-            self, variable, ntrials, est, funs, max_eval_concurrency):
-        if max_eval_concurrency == 1:
-            Q = []
-            delta = []
-            estimator_vals = []
-            for ii in range(ntrials):
-                est_val, Q_val, delta_val = _estimate_components(
-                    variable, est, funs, ii)
-                estimator_vals.append(est_val)
-                Q.append(Q_val)
-                delta.append(delta_val)
-            Q = np.array(Q)
-            delta = np.array(delta)
-            estimator_vals = np.array(estimator_vals)
-            return estimator_vals, Q, delta
-
-        from multiprocessing import Pool
-        # set flat funs to none so funs can be pickled
-        pool = Pool(max_eval_concurrency)
-        func = partial(_estimate_components, variable, est, funs)
-        result = pool.map(func, list(range(ntrials)))
-        pool.close()
-        estimator_vals = np.asarray([r[0] for r in result])
-        Q = np.asarray([r[1] for r in result])
-        delta = np.asarray([r[2] for r in result])
-        return estimator_vals, Q, delta
-
     def _check_estimator_variances(self, model_idx, qoi_idx, recursion_index,
                                    est_type, stat_type, tree_depth=None,
                                    max_nmodels=None, ntrials=int(1e4)):
         rtol, atol = 4.6e-2, 1.01e-3
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
 
         # change costs so less samples are used in the estimator
@@ -233,8 +166,10 @@ class TestMOMC(unittest.TestCase):
         costs = [2, 1.5, 1][:len(costs)]
 
         nqoi = len(qoi_idx)
+        nmodels = len(model_idx)
+
         args = []
-        if est_type != "mc":
+        if est_type != "mc" and est_type != "cv":
             if tree_depth is not None:
                 kwargs = {"tree_depth": tree_depth}
             else:
@@ -243,7 +178,18 @@ class TestMOMC(unittest.TestCase):
             kwargs = {}
         if stat_type == "mean":
             idx = nqoi
+            if est_type == "cv":
+                kwargs["lowfi_stats"] = [m for m in means[1:]]
         if "variance" in stat_type:
+            if est_type == "cv":
+                lfcovs = []
+                lb, ub = 0, 0
+                for ii in range(1, nmodels):
+                    ub += nqoi
+                    lfcovs.append(cov[lb:ub, lb:ub])
+                    print(lfcovs[-1], lb, ub, cov[lb:ub])
+                    lb = ub
+                kwargs["lowfi_stats"] = [cov.flatten() for cov in lfcovs]
             W = model.covariance_of_centered_values_kronker_product()
             W = _nqoisq_nqoisq_subproblem(
                 W, model.nmodels, model.nqoi, model_idx, qoi_idx)
@@ -254,6 +200,17 @@ class TestMOMC(unittest.TestCase):
             args.append(W)
             idx = nqoi**2
         if stat_type == "mean_variance":
+            if est_type == "cv":
+                lfcovs = []
+                lb, ub = 0, 0
+                for ii in range(1, nmodels):
+                    ub += nqoi
+                    lfcovs.append(cov[lb:ub, lb:ub])
+                    print(lfcovs[-1], lb, ub, cov[lb:ub])
+                    lb = ub
+                kwargs["lowfi_stats"] = [
+                    np.hstack((m, cov.flatten()))
+                    for m, cov in zip(means[1:], lfcovs)]
             B = model.covariance_of_mean_and_variance_estimators()
             B = _nqoi_nqoisq_subproblem(
                 B, model.nmodels, model.nqoi, model_idx, qoi_idx)
@@ -273,8 +230,6 @@ class TestMOMC(unittest.TestCase):
         print(est)
 
         max_eval_concurrency = 1
-        estimator_vals, Q, delta = self._estimate_components_loop(
-            model.variable, ntrials, est, funs, max_eval_concurrency)
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
                 funs, model.variable, est, ntrials, max_eval_concurrency, True)
@@ -282,16 +237,18 @@ class TestMOMC(unittest.TestCase):
 
         assert np.allclose(hfcovar_mc, hfcovar, atol=atol, rtol=rtol)
         if est_type != "mc":
+            print(delta.shape)
             CF_mc = torch.as_tensor(
                 np.cov(delta.T, ddof=1), dtype=torch.double)
             cf_mc = torch.as_tensor(
                 np.cov(Q.T, delta.T, ddof=1)[:idx, idx:], dtype=torch.double)
-            CF, cf = est._stat._get_discrepancy_covariances(
-                est, est._rounded_npartition_samples)
+            CF, cf = est._get_discrepancy_covariances(
+                est._rounded_npartition_samples)
             CF, cf = CF.numpy(), cf.numpy()
             assert np.allclose(CF_mc, CF, atol=atol, rtol=rtol)
             assert np.allclose(cf_mc, cf, atol=atol, rtol=rtol)
 
+        np.set_printoptions(linewidth=1000)
         print(covar_mc, 'v_mc')
         print(covar, 'v')
         print((covar_mc-covar)/covar)
@@ -302,6 +259,9 @@ class TestMOMC(unittest.TestCase):
             [[0], [0, 1, 2], None, "mc", "mean"],
             [[0], [0, 1, 2], None, "mc", "variance"],
             [[0], [0, 1], None, "mc", "mean_variance"],
+            [[0, 1, 2], [0, 1], None, "cv", "mean"],
+            [[0, 1, 2], [0, 1], None, "cv", "variance"],
+            [[0, 1, 2], [0, 1], None, "cv", "mean_variance"],
             [[0, 1, 2], [0], [0, 1], "grd", "mean"],
             [[0, 1, 2], [0, 1], [0, 1], "grd", "mean"],
             [[0, 1, 2], [0, 1], [0, 0], "grd", "mean"],
@@ -338,7 +298,7 @@ class TestMOMC(unittest.TestCase):
         model_idx, qoi_idx = [0, 1, 2], [0]
         recursion_index = [0, 1]
         target_cost = 10
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         est = get_estimator("gmf", "mean", len(qoi_idx), costs, cov,
                             recursion_index=np.asarray(recursion_index))
@@ -405,7 +365,7 @@ class TestMOMC(unittest.TestCase):
         model_idx, qoi_idx = [0, 1, 2], [0]
         recursion_index = [0, 1]
         target_cost = 10
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
 
         # The following will give mlmc with unit variance
@@ -427,8 +387,7 @@ class TestMOMC(unittest.TestCase):
         est._weights = MLMCEstimator._weights
 
         def mlmc_cov(npartition_samples):
-            CF, cf = est._stat._get_discrepancy_covariances(
-                est, npartition_samples)
+            CF, cf = est._get_discrepancy_covariances(npartition_samples)
             weights = est._weights(CF, cf)
             return est._covariance_non_optimal_weights(
                 est._stat.high_fidelity_estimator_covariance(
@@ -491,26 +450,25 @@ class TestMOMC(unittest.TestCase):
         assert np.allclose(model_ratios, mlmc_model_ratios)
 
     def test_best_model_subset_estimator(self):
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
         est = get_estimator("gmf", "mean", 3, costs, cov, max_nmodels=3)
         target_cost = 10
         est.allocate_samples(target_cost, verbosity=1, nprocs=1)
 
         ntrials, max_eval_concurrency = int(1e3), 1
-        estimator_vals, Q, delta = self._estimate_components_loop(
-            model.variable, ntrials, est, funs, max_eval_concurrency)
+        hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
+            numerically_compute_estimator_variance(
+                funs, model.variable, est, ntrials, max_eval_concurrency, True)
+        )
 
-        var_mc = np.cov(estimator_vals.T, ddof=1)
-        variance = est._covariance_from_ratios(
-            target_cost, est._nsample_ratios).numpy()
         rtol, atol = 2e-2, 1e-3
-        assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
+        assert np.allclose(covar_mc, covar, atol=atol, rtol=rtol)
 
         ntrials, max_eval_concurrency = int(1e4), 4
         qoi_idx = [0, 1]
         target_cost = 50
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             [0, 1, 2], qoi_idx)
         W = model.covariance_of_centered_values_kronker_product()
         W = _nqoisq_nqoisq_subproblem(
@@ -521,16 +479,15 @@ class TestMOMC(unittest.TestCase):
         est = get_estimator(
             "gmf", "mean_variance", 3, costs, cov, W, B)
         est.allocate_samples(target_cost)
-        estimator_vals, Q, delta = self._estimate_components_loop(
-            model.variable, ntrials, est, funs, max_eval_concurrency)
-        var_mc = np.cov(estimator_vals.T, ddof=1)
-        variance = est._covariance_from_ratios(
-            est._rounded_target_cost, est._rounded_nsample_ratios).numpy()
+        hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
+            numerically_compute_estimator_variance(
+                funs, model.variable, est, ntrials, max_eval_concurrency, True)
+        )
         rtol, atol = 2e-2, 1e-4
-        assert np.allclose(var_mc, variance, atol=atol, rtol=rtol)
+        assert np.allclose(covar_mc, covar, atol=atol, rtol=rtol)
 
     def test_insert_pilot_samples(self):
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
         nqoi = 3
 
@@ -620,7 +577,7 @@ class TestMOMC(unittest.TestCase):
         assert np.allclose(est_val, est_val_pilot)
 
     def test_bootstrap_estimator(self):
-        funs, cov, costs, model = _setup_multioutput_model_subproblem(
+        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
         nqoi = 3
 
