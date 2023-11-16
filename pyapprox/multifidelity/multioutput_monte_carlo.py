@@ -1626,64 +1626,17 @@ class ControlVariateMonteCarlo(ACVEstimator):
         self._set_initial_guess(None)
         self._lowfi_stats = lowfi_stats
 
-    def _set_initial_guess(self, initial_guess):
-        if initial_guess is None:
-            initial_guess = 10
-        self._initial_guess = torch.as_tensor(
-                initial_guess, dtype=torch.double)
-
-    def _cost_constraint(self, nsamples_np, target_cost, return_numpy=True):
-        nsamples = torch.as_tensor(nsamples_np, dtype=torch.double)
-        val = (nsamples[0]*self._costs).sum()-target_cost
-        if return_numpy:
-            return val.item()
-        return val
-
-    def _cost_constraint_jac(self, nsamples_np, target_cost):
-        return self._constraint_jacobian(
-            self._cost_constraint, nsamples_np, target_cost)
-
-    def _get_constraints(self, target_cost):
-        cons = [
-            {'type': 'ineq',
-             'fun': self._cost_constraint,
-             'jac': self._cost_constraint_jac,
-             'args': (target_cost,)}]
-        return cons
-
-    def _objective(self, target_cost, x, return_grad=True):
-        nsamples = torch.as_tensor(x, dtype=torch.double)
-        if return_grad:
-            nsamples.requires_grad = True
-        covariance = self._covariance_from_nsamples(
-            target_cost, nsamples)
-        val = self._optimization_criteria(covariance)
-        if not return_grad:
-            return val.item()
-        val.backward()
-        grad = nsamples.grad.detach().numpy().copy()
-        nsamples.grad.zero_()
-        return val.item(), grad
-
-    def _round_npartition_samples(self, target_cost, nsamples):
-        rounded_nsamples = np.round(nsamples).astype(int)
-        rounded_target_cost = (rounded_nsamples * self._costs.numpy()).sum()
-        return rounded_nsamples, rounded_target_cost
-
-    def _set_optimized_params(self, nsamples, target_cost):
-        self._rounded_npartition_samples, self._rounded_target_cost = (
-            self._round_npartition_samples(
-                target_cost,
-                torch.as_tensor(nsamples, dtype=torch.double)))
-        self._optimized_covariance = self._covariance_from_npartition_samples(
+    def allocate_samples(self, target_cost):
+        self._nsamples_per_model = np.full(
+            (self._nmodels, ), int(np.floor(target_cost/self._costs.sum())))
+        self._rounded_npartition_samples = self._nsamples[:1]
+        est_covariance = self._covariance_from_npartition_samples(
             self._rounded_npartition_samples)
-        self._optimized_criteria = self._optimization_criteria(
-            self._optimized_covariance)
-        self._optimized_CF, self._optimized_cf = (
-            self._stat._get_discrepancy_covariances(
-                self,  self._rounded_npartition_samples))
-        self._optimized_weights = self._weights(
-            self._optimized_CF, self._optimized_cf)
+        self._optimized_covariance = est_covariance
+        optimized_criteria = self._optimization_criteria(est_covariance)
+        self._rounded_target_cost = (
+            self._costs*self._nsamples_per_model).sum()
+        self._optimized_criteria = optimized_criteria
 
     def _estimate(self, values_per_model, weights):
         nmodels = len(values_per_model)

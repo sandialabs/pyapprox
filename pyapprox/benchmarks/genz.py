@@ -107,7 +107,7 @@ class GenzFunction(object):
         if (case == 1):
             return np.sin(2.0*np.pi*self._w[0]+integral)
         if (case == 2):
-            return-np.cos(2.0*np.pi*self._w[0]+integral)
+            return -np.cos(2.0*np.pi*self._w[0]+integral)
         return -np.sin(2.0*np.pi*self._w[0]+integral)
 
     def _oscillatory_integrate_alternate(self):
@@ -173,18 +173,18 @@ class GenzFunction(object):
 
     def _gaussian_integrate(self):
         result = np.prod(
-            (special.erf(self._c*self._w)+special.erf(self._c-self._c*self._w)) *
-            np.sqrt(np.pi)/(2*self._c))
+            (special.erf(self._c*self._w)+special.erf(self._c-self._c*self._w))
+            * np.sqrt(np.pi)/(2*self._c))
         return result
 
     def _c0_continuous_integrate(self):
         return np.prod(
-            (2.0-np.exp(-self._c*self._w)-np.exp(self._c*(self._w-1.0)))/self._c)
+            (2.0-np.exp(-self._c*self._w)-np.exp(
+                self._c*(self._w-1.0)))/self._c)
 
     def _discontinuous_integrate(self):
         assert self._nvars >= 2
         idx = min(self._nvars, 2)
-        print(idx)
         tmp = np.prod(
             (np.exp(self._c[:idx]*self._w[:idx])-1.0)/self._c[:idx])
         if self._nvars <= 2:
