@@ -123,6 +123,7 @@ def _get_allocation_matrix_acvrd(recursion_index):
 
 
 def log_determinant_variance(variance):
+    #reg = 1e-10*torch.eye(variance.shape[0], dtype=torch.double)
     val = torch.logdet(variance)
     return val
 
@@ -201,7 +202,8 @@ class MCEstimator():
 
     def _set_optimization_criteria(self, opt_criteria):
         if opt_criteria is None:
-            opt_criteria = log_determinant_variance
+            # opt_criteria = log_determinant_variance
+            opt_criteria = log_trace_variance
         return opt_criteria
 
     def _covariance_from_npartition_samples(self, npartition_samples):
@@ -227,7 +229,8 @@ class MCEstimator():
             self._rounded_npartition_samples)
         self._optimized_covariance = est_covariance
         optimized_criteria = self._optimization_criteria(est_covariance)
-        self._rounded_target_cost = self._costs[0]*self._rounded_nsamples_per_model[0]
+        self._rounded_target_cost = (
+            self._costs[0]*self._rounded_nsamples_per_model[0])
         self._optimized_criteria = optimized_criteria
 
     def generate_samples_per_model(self, rvs):
@@ -349,8 +352,19 @@ class CVEstimator(MCEstimator):
             self._optimized_CF, self._optimized_cf)
 
     def allocate_samples(self, target_cost):
-        rounded_npartition_samples = [
-            int(np.floor(target_cost/self._costs.sum()))]
+        npartition_samples = [target_cost/self._costs.sum()]
+        rounded_npartition_samples = [int(np.floor(npartition_samples[0]))]
+        if isinstance(self._stat,
+                      (MultiOutputVariance, MultiOutputMeanAndVariance)):
+            min_nhf_samples = 2
+        else:
+            min_nhf_samples = 1
+        if rounded_npartition_samples[0] < min_nhf_samples:
+            msg = "target_cost is to small. Not enough samples of each model"
+            msg += " can be taken {0} < {1}".format(
+                npartition_samples[0], min_nhf_samples)
+            raise ValueError(msg)
+
         rounded_nsamples_per_model = np.full(
             (self._nmodels,), rounded_npartition_samples[0])
         rounded_target_cost = (
@@ -997,27 +1011,22 @@ class ACVEstimator(CVEstimator):
         return jac
 
     def _get_constraints(self, target_cost):
-        # Ensure the first partition has enough samples to compute
-        # the desired statistic
+        # Ensure the each partition has enough samples to compute
+        # the desired statistic. Techinically we only need the number
+        # of samples in each acv subset have enough. But this constraint
+        # is easy to implement and not really restrictive practically
         if isinstance(
                 self._stat,
                 (MultiOutputVariance, MultiOutputMeanAndVariance)):
-            min_nhf_samples = 2
+            partition_min_nsamples = 2
         else:
-            min_nhf_samples = 1
+            partition_min_nsamples = 1
         cons = [
             {'type': 'ineq',
              'fun': self._acv_npartition_samples_constraint,
              'jac': self._acv_npartition_samples_constraint_jac,
-             'args': (target_cost, min_nhf_samples, 0)}]
-
-        # Ensure that remaining partitions have at least one sample
-        cons += [
-            {'type': 'ineq',
-             'fun': self._acv_npartition_samples_constraint,
-             'jac': self._acv_npartition_samples_constraint_jac,
-             'args': (target_cost, 1, ii)}
-            for ii in range(1, self._nmodels)]
+             'args': (target_cost, partition_min_nsamples, ii)}
+            for ii in range(self._nmodels)]
 
         # Ensure ratios are positive
         cons += [
@@ -1064,10 +1073,11 @@ class ACVEstimator(CVEstimator):
     def _round_partition_ratios(self, target_cost, partition_ratios):
         npartition_samples = self._npartition_samples_from_partition_ratios(
             target_cost, partition_ratios)
-        if ((npartition_samples[0] < 1.-1e-8)):
+        if ((npartition_samples[0] < 1-1e-8)):
             raise RuntimeError("Rounding will cause nhf samples to be zero")
-        rounded_npartition_samples = np.round(
-            npartition_samples.numpy()).astype(int)
+        rounded_npartition_samples = np.floor(
+            npartition_samples.numpy()+1e-8).astype(int)
+        assert rounded_npartition_samples[0] >= 1
         rounded_target_cost = (
             self._compute_nsamples_per_model(rounded_npartition_samples) *
             self._costs.numpy()).sum()
@@ -1102,11 +1112,16 @@ class ACVEstimator(CVEstimator):
             self._round_partition_ratios(
                 target_cost,
                 torch.as_tensor(partition_ratios, dtype=torch.double)))
-        rounded_npartition_samples = torch.round(
+        rounded_npartition_samples = (
             self._npartition_samples_from_partition_ratios(
                 rounded_target_cost,
                 torch.as_tensor(self._rounded_partition_ratios,
                                 dtype=torch.double)))
+        # round because sometimes round_partition_ratios
+        # will produce floats slightly smaller
+        # than an integer so when converted to an integer will produce
+        # values 1 smaller than the correct value
+        rounded_npartition_samples = np.round(rounded_npartition_samples)
         rounded_nsamples_per_model = torch.as_tensor(
             self._compute_nsamples_per_model(rounded_npartition_samples),
             dtype=torch.int)
@@ -1114,21 +1129,22 @@ class ACVEstimator(CVEstimator):
             rounded_npartition_samples, rounded_nsamples_per_model,
             rounded_target_cost)
 
-    def _allocate_samples_for_single_recursion(self, target_cost, verbosity=0):
+    def _allocate_samples_for_single_recursion(self, target_cost, **kwargs):
         partition_ratios, obj_val = self._allocate_samples(
-            target_cost)
+            target_cost, **kwargs)
         self._set_optimized_params(partition_ratios, target_cost)
 
     def _allocate_samples_for_all_recursion_indices(
-            self, target_cost, verbosity):
-        best_variance = torch.as_tensor(np.inf, dtype=torch.double)
+            self, target_cost, **kwargs):
+        verbosity = kwargs.get("verbosity", 0)
+        best_criteria = torch.as_tensor(np.inf, dtype=torch.double)
         best_result = None
         for index in _get_acv_recursion_indices(
                 self._nmodels, self._tree_depth):
             self._set_recursion_index(index)
             try:
                 self._allocate_samples_for_single_recursion(
-                    target_cost, verbosity)
+                    target_cost, **kwargs)
             except RuntimeError as e:
                 # typically solver fails because trying to use
                 # uniformative model as a recursive control variate
@@ -1139,28 +1155,27 @@ class ACVEstimator(CVEstimator):
                     print("Optimizer failed")
             if verbosity > 0:
                 msg = "Recursion: {0} Objective: best {1}, current {2}".format(
-                    index, best_variance.item(),
+                    index, best_criteria.item(),
                     self._optimized_criteria.item())
                 print(msg)
-            if self._optimized_criteria < best_variance:
+            if self._optimized_criteria < best_criteria:
                 best_result = [self._rounded_partition_ratios,
                                self._rounded_target_cost,
                                self._optimized_criteria, index]
-                best_variance = self._optimized_criteria
+                best_criteria = self._optimized_criteria
         if best_result is None:
             raise RuntimeError("No solutions were found")
         self._set_recursion_index(best_result[3])
         self._set_optimized_params(
             torch.as_tensor(best_result[0], dtype=torch.double),
-            *best_result[1:3])
-        return best_result[:3]
+            target_cost)
 
-    def allocate_samples(self, target_cost, verbosity=0):
+    def allocate_samples(self, target_cost, **kwargs):
         if self._tree_depth is not None:
             return self._allocate_samples_for_all_recursion_indices(
-                target_cost, verbosity)
+                target_cost, **kwargs)
         return self._allocate_samples_for_single_recursion(
-            target_cost, verbosity)
+            target_cost, **kwargs)
 
 
 class GMFEstimator(ACVEstimator):
@@ -1439,13 +1454,13 @@ class BestModelSubsetEstimator():
             "generate_samples_per_model",
             "bootstrap",
             # private functions and variables
-            "_separate_model_values",
+            "_separate_values_per_model",
             "_covariance_from_npartition_samples",
-            "_covariance_from_ratios",
-            "_nsample_ratios", "_stat",
-            "_nmodels", "_cov", "_npartition_samples"
-            "_nsamples_per_model", "_costs",
-            "_optimized_criteria",
+            "_covariance_from_partition_ratios",
+            "_rounded_partition_ratios", "_stat",
+            "_nmodels", "_cov", "_rounded_npartition_samples",
+            "_rounded_nsamples_per_model", "_costs",
+            "_optimized_criteria", "_get_discrepancy_covariances",
             "_rounded_target_cost",
             "_get_allocation_matrix"]
         for attr in attr_list:
@@ -1576,7 +1591,10 @@ def _estimate_components(variable, est, funs, ii):
         fun(samples) for fun, samples in zip(funs, samples_per_model)]
 
     mc_est = est._stat.sample_estimate
-    if isinstance(est, ACVEstimator):
+    if (isinstance(est, ACVEstimator) or
+            isinstance(est, BestModelSubsetEstimator)):
+        # the above condition does not allow BestModelSubsetEstimator to be
+        # applied to CVEstimator
         est_val = est(values_per_model)
         acv_values = est._separate_values_per_model(values_per_model)
         Q = mc_est(acv_values[1])
