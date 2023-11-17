@@ -556,7 +556,7 @@ class ACVEstimator(CVEstimator):
         """
         partition_indices = self._get_partition_indices(
             self._rounded_npartition_samples)
-        partition_indices_per_model = [
+        partition_indices_per_acv_subset = [
             np.array([], dtype=int), partition_indices[0]]
         for ii in range(1, self._nmodels):
             active_partitions = np.where(
@@ -576,8 +576,8 @@ class ACVEstimator(CVEstimator):
                 [subset_indices[idx] for idx in active_partitions_1])
             indices_2 = np.hstack(
                 [subset_indices[idx] for idx in active_partitions_2])
-            partition_indices_per_model += [indices_1, indices_2]
-        return partition_indices_per_model
+            partition_indices_per_acv_subset += [indices_1, indices_2]
+        return partition_indices_per_acv_subset
 
     def _partition_ratios_to_model_ratios(self, partition_ratios):
         """
@@ -648,7 +648,8 @@ class ACVEstimator(CVEstimator):
                 len(values_per_model), self._nmodels)
             raise ValueError(msg)
         for ii in range(self._nmodels):
-            if values_per_model[ii].shape[0] != self._rounded_nsamples_per_model[ii]:
+            if (values_per_model[ii].shape[0] !=
+                    self._rounded_nsamples_per_model[ii]):
                 msg = "{0} != {1}".format(
                     "len(values_per_model[{0}]): {1}".format(
                         ii, values_per_model[ii].shape[0]),

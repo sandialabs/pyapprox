@@ -148,3 +148,7 @@ def solve(matrix, vec):
 
 def pinv(matrix):
     return torch.linalg.pinv(matrix)
+
+
+def floor(matrix):
+    return torch.floor(matrix)
