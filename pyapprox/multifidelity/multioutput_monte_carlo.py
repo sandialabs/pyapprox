@@ -13,6 +13,7 @@ from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.multifidelity.stats import (
     MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance,
     _nqoi_nqoi_subproblem)
+from pyapprox.multifidelity._visualize import _plot_allocation_matrix
 from pyapprox.multifidelity._optim import (
     _allocate_samples_mlmc,
     _allocate_samples_mfmc,
@@ -670,7 +671,8 @@ class ACVEstimator(CVEstimator):
                 len(samples_per_model), self._nmodels)
             raise ValueError(msg)
         for ii in range(self._nmodels):
-            if samples_per_model[ii].shape[1] != self._rounded_nsamples_per_model[ii]:
+            if (samples_per_model[ii].shape[1] !=
+                    self._rounded_nsamples_per_model[ii]):
                 msg = "{0} != {1}".format(
                     "len(samples_per_model[{0}]): {1}".format(
                         ii, samples_per_model[ii].shape[0]),
@@ -798,6 +800,18 @@ class ACVEstimator(CVEstimator):
     def combine_acv_values(self, acv_values):
         return _combine_acv_values(
             self._allocation_mat, self._rounded_npartition_samples, acv_values)
+
+    def plot_allocation(self, ax, show_npartition_samples=False, **kwargs):
+        if show_npartition_samples:
+            if self._rounded_npartition_samples is None:
+                msg = "set_optimized_params must be called"
+                raise ValueError(msg)
+            return _plot_allocation_matrix(
+                self._allocation_mat, self._rounded_npartition_samples, ax,
+                **kwargs)
+
+        return _plot_allocation_matrix(
+                self._allocation_mat, None, ax, **kwargs)
 
     def bootstrap(self, values_per_model, nbootstraps=1000):
         raise NotImplementedError()
@@ -1516,57 +1530,6 @@ def get_estimator(estimator_type, stat_type, nqoi, costs, cov, *stat_args,
         max_nmodels, *stat_args, **est_kwargs)
 
 
-class PlotCriteria():
-    def __init__(self, criteria_type):
-        self._criteria_type = criteria_type
-
-    def __call__(self, est_covariance, est):
-        if self._criteria_type == "det":
-            return determinant_variance(est_covariance)
-        if self._criteria_type == "trace":
-            return np.exp(log_trace_variance(est_covariance))
-        raise ValueError(
-            "Criteria {0} not supported".format(self._criteria_type))
-
-    def __repr__(self):
-        return "{0}(citeria={1})".format(
-            self.__class__.__name__, self._criteria_type)
-
-
-class SingleQoiAndStatComparisonCriteria(PlotCriteria):
-    def __init__(self, stat_type, qoi_idx):
-        """
-        Compare estimators based on the variance of a single statistic
-        for a single QoI even though mutiple QoI may have been used to compute
-        multiple statistics
-
-        Parameters
-        ----------
-        stat_type: str
-            The stat type. Must be one of ["mean", "variance", "mean_variance"]
-
-        qoi_idx: integer
-            The index of the QoI as it appears in the covariance matrix
-        """
-        self._stat_type = stat_type
-        self._qoi_idx = qoi_idx
-
-    def __call__(self, est_covariance, est):
-        if self._stat_type != "mean" and isinstance(
-                est._stat, MultiOutputMeanAndVariance):
-            return (
-                est_covariance[est.nqoi+self._qoi_idx, est._nqoi+self._qoi_idx])
-        elif (isinstance(
-                est._stat, (MultiOutputVariance, MultiOutputMean)) or
-              self._stat_type == "mean"):
-            return est_covariance[self._qoi_idx, self._qoi_idx]
-        raise ValueError("{0} not supported".format(est._stat))
-
-    def __repr__(self):
-        return "{0}(stat={1}, qoi={2})".format(
-            self.__class__.__name__, self._stat_type, self._qoi_idx)
-
-
 def _estimate_components(variable, est, funs, ii):
     """
     Notes
@@ -1744,6 +1707,59 @@ def compare_estimator_variances(target_costs, estimators):
             est_copies.append(est_copy)
         optimized_estimators.append(est_copies)
     return optimized_estimators
+
+
+class ComparisionCriteria():
+    def __init__(self, criteria_type):
+        self._criteria_type = criteria_type
+
+    def __call__(self, est_covariance, est):
+        if self._criteria_type == "det":
+            return determinant_variance(est_covariance)
+        if self._criteria_type == "trace":
+            return np.exp(log_trace_variance(est_covariance))
+        raise ValueError(
+            "Criteria {0} not supported".format(self._criteria_type))
+
+    def __repr__(self):
+        return "{0}(citeria={1})".format(
+            self.__class__.__name__, self._criteria_type)
+
+
+class SingleQoiAndStatComparisonCriteria(ComparisionCriteria):
+    def __init__(self, stat_type, qoi_idx):
+        """
+        Compare estimators based on the variance of a single statistic
+        for a single QoI even though mutiple QoI may have been used to compute
+        multiple statistics
+
+        Parameters
+        ----------
+        stat_type: str
+            The stat type. Must be one of ["mean", "variance", "mean_variance"]
+
+        qoi_idx: integer
+            The index of the QoI as it appears in the covariance matrix
+        """
+        self._stat_type = stat_type
+        self._qoi_idx = qoi_idx
+
+    def __call__(self, est_covariance, est):
+        if self._stat_type != "mean" and isinstance(
+                est._stat, MultiOutputMeanAndVariance):
+            return (
+                est_covariance[est.nqoi+self._qoi_idx, est._nqoi+self._qoi_idx])
+        elif (isinstance(
+                est._stat, (MultiOutputVariance, MultiOutputMean)) or
+              self._stat_type == "mean"):
+            return est_covariance[self._qoi_idx, self._qoi_idx]
+        raise ValueError("{0} not supported".format(est._stat))
+
+    def __repr__(self):
+        return "{0}(stat={1}, qoi={2})".format(
+            self.__class__.__name__, self._stat_type, self._qoi_idx)
+
+
 
 
 # COMMON TORCH AUTOGRAD MISTAKES

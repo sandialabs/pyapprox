@@ -62,153 +62,39 @@ When estimating the statistics in :ref:`sphx_glr_auto_tutorials_multi_fidelity_p
 
 The variance of an ACV estimator is dependent on how samples are allocated to the sets :math:`\rvset_\alpha,\rvset_\alpha^*`, which we call the sample allocation :math:`\mathcal{A}`. Specifically, :math:`\mathcal{A}` specifies: the number of samples in the sets :math:`\rvset_\alpha,\rvset_\alpha^*, \forall \alpha`, denoted by :math:`N_\alpha` and :math:`N_{\alpha^*}`, respectively; the number of samples in the intersections of pairs of sets, that is :math:`N_{\alpha\cap\beta} =|\rvset_\alpha \cap \rvset_\beta|`, :math:`N_{\alpha^*\cap\beta} =|\rvset_\alpha^* \cap \rvset_\beta|`, :math:`N_{\alpha^*\cap\beta^*} =|\rvset_\alpha^* \cap \rvset_\beta^*|`; and the number of samples in the union of pairs of sets :math:`N_{\alpha\cup\beta} = |\rvset_\alpha\cup \rvset_\beta|` and similarly :math:`N_{\alpha^*\cup\beta}`, :math:`N_{\alpha^*\cup\beta^*}`. Thus, finding the best ACV estimator can be theoretically be found by solving the constrained non-linear optimization problem
 
-.. math:: \min_{\mathcal{A}\in\mathbb{A}}\mathrm{Det}\left[\covar{Q_{\text{ACV}}}{Q_{\text{ACV}}}\right](\mathcal{A}) \qquad \mathrm{s.t.} \qquad C(c,\mathcal{A})\le C_\mathrm{max},
+.. math:: \min_{\mathcal{A}\in\mathbb{A}}\mathrm{Det}\left[\covar{\mat{Q}_{\text{ACV}}}{\mat{Q}_{\text{ACV}}}\right](\mathcal{A}) \qquad \mathrm{s.t.} \qquad C(\mat{c},\tilde{\mathcal{A}})\le C_\mathrm{max},
 
-Hre :math:`\mathbb{A}` is the set of all possible sample allocations.
+Here, :math:`\tilde{\mathcal{A}}` is the set of all possible sample allocations, and given the computational costs of evaluating each model once :math:`c^\top=[c_0, c_1, \ldots, c_M]`, the constraint ensures that the computational cost of computing the ACV estimator
 
-Given the computational costs of evaluating each model once :math:`c^\top=[c_0, c_1, \ldots, c_M]`, the constraint ensures that the computational cost of computing the ACV estimator
-
-.. math:: C(c,\mathcal{A})=\sum_{\alpha=0}^M N_{\alpha^*\cup\alpha}c_\alpha
+.. math:: C(\mat{c},\mathcal{A})=\sum_{\alpha=0}^M N_{\alpha^*\cup\alpha}c_\alpha
 
 is smaller than a user-specified computational budget :math:`C_\mathrm{max}`.
 
-In the remainder of the tutorial we introduce three so called parameterically defined ACV estimators that place different restrictions on the search space "math:`\matbb{A}`.
+Unfortunately, to date, no method has been devised to solve the above optimization problem for all possible allocations :math:`\tilde{\mathcal{A}}`. Consequently, all existing ACV methods restrict the optimization space to :math:`\mathcal{A}\subset\tilde{\mathcal{A}}`. These restricted search spaces are formulated in terms of a set of :math:`M+1` independent sample partitions :math:`\mathcal{P}_m` that contain :math:`p_m` samples drawn indepedently from the PDF of the random variable :math:`\rv`. Each subset :math:`\rvset_\alpha` is then assumed to consist of a combinations of these indepedent partitions. ACV methods encode the relationship between the sets :math:`\rvset_\alpha` and :math:`\mathcal{P}_m` via allocation matrices :math:`\mat{A}`. For example, the allocation matrix used by MFMC, which is an ACV method, when applied to three models is given by
+
+.. math::
+
+  \mat{A} = \begin{bmatrix}
+   0 & 1 & 1 & 1 & 1 & 1 & 1 & 1\\
+   0 & 0 & 0 & 1 & 1 & 1 & 1 & 1\\
+   0 & 0 & 0 & 0 & 0 & 1 & 1 & 1\\
+   0 & 0 & 0 & 0 & 0 & 0 & 0 & 1
+   \end{bmatrix}
+
+An entry of one indicates in the ith row of the jth column indicates that the ith independent partition :math:`\mathcal{P}_i` is used in the corresponding set :math:`\rvset_j` if j is odd or :math:`\rvset_j^*` if j is even. The first column will always only contain zeros because the set :math:`\rvset_0^*` is never used by ACV estimators.
+
+Once an allocation matrix is specified, the optimal sample allocation can be obtained by optimizing the number of samples in each partition :math:`\mat{p}=[p_0,\ldots,p_M]^\top`, that is
+
+.. math:: \min_{\mat{p}}\mathrm{Det}\left[\covar{\mat{Q}_{\text{ACV}}}{\mat{Q}_{\text{ACV}}}\right](\mat{p}; \mat{A}) \qquad \mathrm{s.t.} \qquad C(\mat{c},\mat{p};\mat{A})\le C_\mathrm{max},
+
+A detailed discussion of how the allocation matrix can be used to parameterize the allocation :math:`\mathcal{A}` can be found in :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_pacv.py`
+
+The following tutorials introduce different ACV methods and their allocation matrices that have been introduced in the literature.
 
 Generalized Multifidelity Sampling (GMF)
 ----------------------------------------
-.. list-table::
-
-   * -
-       .. _mfmc-sample-allocation:
-
-       .. figure:: ../../figures/mfmc.png
-          :width: 100%
-          :align: center
-
-          GMF sampling strategy
-
-Generalized Recursive Difference Sampling (GRD)
------------------------------------------------
-.. list-table::
-
-   * -
-       .. _mlmc-sample-allocation-mfmc-comparison:
-
-       .. figure:: ../../figures/mlmc.png
-          :width: 100%
-          :align: center
-
-          RD sampling strategy
-
-Generalized Independent Sampling (GIS)
---------------------------------------
-.. list-table::
-
-   * -
-       .. _acv-is-sample-allocation-mlmc-comparison:
-
-       .. figure:: ../../figures/acv_is.png
-          :width: 100%
-          :align: center
-
-          GIS sampling strategy
-
-
-
-MLMC and MFMC are Control Variate Estimators
---------------------------------------------
-In the following we show that the MLMC and MFMC estimators are both Control Variate estimators and use this insight to derive additional properties of these estimators not discussed previously.
-
-MLMC
-^^^^
-The three model MLMC estimator is
-
-.. math:: Q_{0,\rvset}^\mathrm{ML}=Q_{2,\hat{\rvset_{2}}}+\left(Q_{1,\hat{\rvset}_{1}}-Q_{2,\hat{\rvset}_{1}}\right)+\left(Q_{0,\hat{\rvset}_{0}}-Q_{1,\hat{\rvset}_{0}}\right)
-
-The MLMC estimator is a specific form of an ACV estimator.
-By rearranging terms it is clear that this is just a control variate estimator
-
-.. math::
-
-    Q_{0,\rvset}^\mathrm{ML}&=Q_{0,\hat{\rvset}_{0}} - \left(Q_{1,\hat{\rvset}_{0}}-Q_{1,\hat{\rvset}_{1}}\right)-\left(Q_{2,\hat{\rvset}_{1}}-Q_{2,\hat{\rvset}_{2}}\right)\\
-   &=Q_{0}(\rvset_{0}) - \left(Q_{1,\rvset_{1,1}}-Q_{1,\rvset_{1,2}}\right)-\left(Q_{2,\rvset_{2,1}}-Q_{2,\rvset_{2,2}}\right)
-
-where in the last line we have used the general ACV notation for sample partitioning. The control variate weights in this case are just :math:`\eta_1=\eta_2=-1`.
-
-By inductive reasoning we get the :math:`M` model ACV version of the MLMC estimator.
-
-.. math:: Q_{0,\rvset}^\mathrm{ML}=Q_{0}(\rvset_{0}) +\sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\rvset_{\alpha-1,1}}-Q_{\alpha}(\rvset_{\alpha})\right)
-
-where :math:`\eta_\alpha=-1,\forall\alpha` and :math:`\rvset_{\alpha}^*=\rvset_{\alpha-1,2}`, and :math:`Q_{\alpha}(\rvset_{\alpha})=Q_{\alpha}(\rvset_{\alpha})`.
-
-TODO: Add the F matrix of the MLMC estimator
-
-By viewing MLMC as a control variate we can derive its variance reduction [GGEJJCP2020]_
-
-.. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1} - \eta_M^2 \frac{\tau_{M}}{\hat{r}_{M}} - \sum_{i=2}^M \frac{1}{\hat{r}_{i-1}}\left( \eta_i^2 \tau_{i}^2 + \tau_{i-1}^2 \tau_{i-1}^2 - 2 \eta_i \eta_{i-1} \rho_{i,i-1} \tau_{i} \tau_{i-1} \right),
-   :label: mlmc-variance-reduction
-
-where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1}{2}}`. Recall that and :math:`\hat{r}_\alpha=\lvert\rvset_{\alpha}\rvert/N` is the ratio of the cardinality of the sets :math:`\rvset_{\alpha}` and :math:`\rvset_{0,2}`.
-
-Now consider what happens to this variance reduction if we have unlimited resources to evaluate the low fidelity model. As :math:`\hat{r}_\alpha\to\infty`, for :math:`\alpha=1,\ldots,M` we have
-
-.. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1}
-
-From this expression it becomes clear that the variance reduction of a MLMC estimaor is bounded by the CVMC estimator (see :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py`) using the lowest fidelity model with the highest correlation with :math:`f_0`.
-
-MFMC
-^^^^
-Recall that the :math:`M` model MFMC estimator is given by
-
-.. math:: Q_{0,\rvset}^\mathrm{MF}=Q_{0}(\rvset_{0}) + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha}(\rvset_{\alpha}^*)-Q_{\alpha}(\rvset_{\alpha})\right)
-
-From this expression it is clear that MFMC is an approximate control variate estimator.
-
-TODO: Add the F matrix of the MFMC estimator
-
-For the optimal choice of the control variate weights the variance reduction of the estimator is
-
-.. math:: \gamma = 1-\rho_1^2\left(\frac{r_1-1}{r_1}+\sum_{\alpha=2}^M \frac{r_\alpha-r_{\alpha-1}}{r_\alpha r_{\alpha-1}}\frac{\rho_\alpha^2}{\rho_1^2}\right)
-
-From close ispection we see that, as with MLMC, when the variance reduction of the MFMC estimator estimator converges to that of the 2 model CVMC estimator that uses the low-fidelity model that has the highest correlation with the high-fidelity model.
-
-In the following we will introduce a ACV estimator which does not suffer from this limitation. However, before doing so we wish to remark that this sub-optimality is when the the number of high-fidelity samples is fixed. If the sample allocation to all models can be optimized, as can be done for both MLMC and MFMC, this suboptimality may not always have an impact. We will investigate this futher later in this tutorial.
-
-A New ACV Estimator
--------------------
-As we have discussed MLMC and MFMC are ACV estimators, are suboptimal for a fixed number of high-fidelity samples.
-In the following we detail a straightforward way to obtain an ACV estimator, which will call ACV-IS, that with enough resources can achieve the optimal variance reduction of CVMC when the low-fidelity means are known.
-
-To obtain the ACV-IS estimator we first evaluate each model (including the high-fidelity model) at a set of :math:`N` samples  :math:`\rvset_{\alpha}^*`. We then evaluate each low fidelity model at an additional :math:`N(1-r_\alpha)` samples :math:`\rvset_{\alpha}`. That is the sample sets satisfy :math:`\rvset_{\alpha}^*=\rvset_{0}\;\forall\alpha>0` and :math:`\left(\rvset_{\alpha}\setminus\rvset_{\alpha}^*\right)\cap\left(\rvset_{\kappa,2}\setminus\rvset_{\kappa}^*\right)=\emptyset\;\forall\kappa\neq\alpha`. See :ref:`acv-is-sample-allocation-mlmc-comparison` for a comparison of the sample sets used by ACV-IS and MLMC.
-
-.. list-table::
-
-   * -
-       .. _mlmc-sample-allocation:
-
-       .. figure:: ../../figures/mlmc.png
-          :width: 100%
-          :align: center
-
-          MLMC sampling strategy
-
-     -
-       .. _acv-is-sample-allocation-mlmc-comparison:
-
-       .. figure:: ../../figures/acv_is.png
-          :width: 100%
-          :align: center
-
-          ACV IS sampling strategy
-
-The matrix :math:`F` corresponding to this sample scheme is
-
-.. math::
-
-   F_{ij}=\begin{cases}\frac{r_i-1}{r_i}\frac{r_j-1}{r_j} & i\neq j\\
-   \frac{r_i-1}{r_i} & i=j
-   \end{cases}
 """
+
 #%%
 #Lets apply ACV to the tunable model ensemble
 import numpy as np
@@ -235,7 +121,9 @@ print('Two models')
 ntrials = 1000
 target_cost = 100
 est = get_estimator(
-    "acvis", model.costs[:2], benchmark.model_covariance[:2, :2])
+    "gis", "mean", 1, model.costs()[:2], benchmark.model_covariance[:2, :2])
+
+est.allocate_samples(target_cost)
 numerical_var, true_var, means = (
     numerically_compute_estimator_variance(
         funs[:2], benchmark.variable, est, ntrials,
@@ -249,7 +137,13 @@ print("Achieved ACV variance", numerical_var)
 ntrials = 1000
 target_cost = 100
 est = get_estimator(
-    "acvis", model.costs[:3], benchmark.model_covariance[:3, :3])
+    "gis", "mean", 1, model.costs()[:3], benchmark.model_covariance[:3, :3])
+est.allocate_samples(target_cost)
+
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+est.plot_allocation(ax, True)
+plt.show()
+
 numerical_var, true_var, means = (
     numerically_compute_estimator_variance(
         funs[:3], benchmark.variable, est, ntrials,
@@ -399,6 +293,15 @@ _ = plt.ylabel(mathrm_label('Variance reduction ratio ')+ r'$\gamma$')
 #%%
 #The variance of the best ACV-GMFB still converges to the lowest possible variance. But its variance at small sample sizes is better than ACV-MF  and comparable to MLMC.
 #
+
+#%%
+#Generalized Recursive Difference Sampling (GRD)
+#-----------------------------------------------
+
+#%%
+#Generalized Independent Sampling (GIS)
+#--------------------------------------
+
 
 #%%
 #Optimal Sample Allocation

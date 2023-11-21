@@ -1,73 +1,9 @@
 import numpy as np
 import networkx as nx
 
-from pyapprox.multifidelity.multioutput_monte_carlo import (
-    PlotCriteria)
 from pyapprox.util.visualization import plt, mathrm_label
-
-
-def _hp(G, root, width=1., vert_gap=0.2, vert_loc=0,
-        xcenter=0.5, pos=None, parent=None):
-    '''
-    see hierarchy_pos docstring for most arguments
-
-    pos: a dict saying where all nodes go if they have been assigned
-    parent: parent of this branch. - only affects it if non-directed
-
-    '''
-
-    if pos is None:
-        pos = {root: (xcenter, vert_loc)}
-    else:
-        pos[root] = (xcenter, vert_loc)
-    children = list(G.neighbors(root))
-    if not isinstance(G, nx.DiGraph) and parent is not None:
-        children.remove(parent)
-    if len(children) != 0:
-        dx = width/len(children)
-        nextx = xcenter - width/2 - dx/2
-        for child in children:
-            nextx += dx
-            pos = _hp(
-                G, child, width=dx, vert_gap=vert_gap,
-                vert_loc=vert_loc-vert_gap, xcenter=nextx,
-                pos=pos, parent=root)
-    return pos
-
-
-def _hierarchy_pos(G, root, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5):
-
-    '''
-    Motivated by Joel's answer at https://stackoverflow.com/a/29597209/2966723.
-    Licensed under Creative Commons Attribution-Share Alike
-
-    If the graph is a tree this will return the positions to plot this in a
-    hierarchical layout.
-
-    G: the graph (must be a tree)
-
-    root: the root node of current branch
-    - if the tree is directed and this is not given,
-      the root will be found and used
-    - if the tree is directed and this is given, then
-      the positions will be just for the descendants of this node.
-    - if the tree is undirected and not given,
-      then a random choice will be used.
-
-    width: horizontal space allocated for this branch - avoids overlap with
-           other branches
-
-    vert_gap: gap between levels of hierarchy
-
-    vert_loc: vertical location of root
-
-    xcenter: horizontal location of root
-    '''
-    if not nx.is_tree(G):
-        msg = 'cannot use hierarchy_pos on a graph that is not a tree'
-        raise TypeError(msg)
-
-    return _hp(G, root, width, vert_gap, vert_loc, xcenter)
+from pyapprox.multifidelity._visualize import _hierarchy_pos, _autolabel
+from pyapprox.multifidelity.multioutput_monte_carlo import ComparisionCriteria
 
 
 def plot_model_recursion(recursion_index, ax):
@@ -95,7 +31,7 @@ def plot_model_costs(costs, model_names=None, ax=None):
 def plot_estimator_variances(optimized_estimators,
                              est_labels, ax, ylabel=None,
                              relative_id=0, cost_normalization=1,
-                             criteria=PlotCriteria("det")):
+                             criteria=ComparisionCriteria("det")):
     """
     Plot variance as a function of the total cost for a set of estimators.
 
@@ -133,7 +69,7 @@ def plot_estimator_variances(optimized_estimators,
 
 def plot_estimator_variance_reductions(optimized_estimators,
                                        est_labels, ax, ylabel=None,
-                                       criteria=PlotCriteria("det"),
+                                       criteria=ComparisionCriteria("det"),
                                        **bar_kawrgs):
     """
     Plot variance as a function of the total cost for a set of estimators.
@@ -164,7 +100,6 @@ def plot_estimator_variance_reductions(optimized_estimators,
         est_criterias.append(est_criteria)
     rects = ax.bar(est_labels, var_red, **bar_kawrgs)
     rects = [r for r in rects]  # convert to list
-    from pyapprox.multifidelity.monte_carlo_estimators import _autolabel
     _autolabel(ax, rects, ['$%1.2f$' % (v) for v in var_red])
     if ylabel is None:
         ylabel = mathrm_label("Estimator variance reduction")
@@ -201,21 +136,6 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
     return ax
 
 
-def _autolabel(ax, rects, model_labels):
-    # Attach a text label in each bar in *rects*
-    for rect, label in zip(rects, model_labels):
-        try:
-            rect = rect[0]
-        except TypeError:
-            pass
-        ax.annotate(label,
-                    xy=(rect.get_x() + rect.get_width()/2,
-                        rect.get_y() + rect.get_height()/2),
-                    xytext=(0, -10),  # 3 points vertical offset
-                    textcoords="offset points",
-                    ha='center', va='bottom')
-
-
 def plot_estimator_sample_allocation_comparison(
         estimators, model_labels, ax, legendloc=[0.925, 0.25]):
     """
@@ -246,14 +166,14 @@ def plot_estimator_sample_allocation_comparison(
                 label = est.model_labels[ii]
             else:
                 label = None
-            cost_ratio = (est._costs[ii]*est._nsamples_per_model[ii] /
+            cost_ratio = (est._costs[ii]*est._rounded_nsamples_per_model[ii] /
                           est._rounded_target_cost)
             rect = ax.bar(
                 xlocs[jj:jj+1], cost_ratio, bottom=cnt, edgecolor='white',
                 label=label, color=colors[ii])
             rects.append(rect)
             cnt += cost_ratio
-        _autolabel(ax, rects, ['$%d$' % int(est._nsamples_per_model[ii])
+        _autolabel(ax, rects, ['$%d$' % int(est._rounded_nsamples_per_model[ii])
                                for ii in range(est._nmodels)])
     ax.set_xticks(xlocs)
     # number of samples are rounded cost est_rounded cost,

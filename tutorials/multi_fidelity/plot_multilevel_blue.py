@@ -195,5 +195,6 @@ _= multifidelity.plot_acv_sample_allocation_comparison(
 #%%
 #References
 #^^^^^^^^^^
-#.. [SUSIAMUQ2020] `D Schaden, E Ullmann. On multilevel best linear unbiased estimators, SIAM/ASA J. Uncertainty Quantification 8 (2), 601 - 635, 2020. <https://doi.org/10.1137/19M1263534>`_
-
+#.. [SUSIAMUQ2020] `D. Schaden, E. Ullmann. On multilevel best linear unbiased estimators, SIAM/ASA J. Uncertainty Quantification 8 (2), 601 - 635, 2020. <https://doi.org/10.1137/19M1263534>`_
+#
+#.. [CWARXIV2023]_ `M. Croci, K. Willcox, S. Wright. Multi-output multilevel best linear unbiased estimators via semidefinite programming. (2023)  <https://doi.org/10.1016/j.cma.2023.116130>`_
