@@ -1,246 +1,57 @@
 r"""
-Parameterized Approximate Control Variate Allocation Matrices
-=============================================================
-
-Optimizing and constructing PACV estimators requires estimating :math:`\covar{Q_0}{\Delta}` and :math:`\covar{\Delta}{\Delta}` which depend on the statistical properties of the models being used but also on the sample alloaction  how independent sample sets are shared among the sample sets :math:`\rvset_\alpha\text{ and }\rvset_\alpha^*`.
-
-For example, when computing the mean of a scalar model when the covariance  between models is given by :math:`\mat{C}` and the first row of :math:`\mat{C}` is :math:`\mat{c}` then
-
-.. math:: \covar{Q_0}{\mat{\Delta}} = \mat{g} \circ \mat{c}
-
-.. math:: g_i = \frac{N_{i^*\cap 0}}{N_{i^*}N_0}-\frac{N_{i\cap 0}}{N_{i}N_0}, \qquad i=1,\ldots,M
-
-and 
-
-.. math:: \covar{\mat{\Delta}}{\mat{\Delta}} = \mat{G} \circ \mat{C}
-
-.. math:: G_{ij} = \frac{N_{i^*\cap j^*}}{N_{i^*}N_{j^*}}-\frac{N_{i^*\cap j}}{N_{i^*}N_j}-\frac{N_{i\cap j^*}}{N_{i}N_{j^*}}+\frac{N_{i\cap j}}{N_{i}N_j}, \qquad i,j=1,\ldots,M
-
-where :math:`\circ` is the Haddamard (element-wise) product.
-
-
-The implementation of PACV uses allocation matrices :math:`\mat{A}` that encode how independent sample sets are shared among the sample sets :math:`\rvset_\alpha\text{ and }\rvset_\alpha^*`.
-
-For example, the allocation matrix of ACVMF using :math:`M=3` low-fidelity models (GMF with recursion index :math:`(0,0,0)`) is
+Parametrically Defined Approximate Control Variates 
+===================================================
+MLMC and MFMC are just two possible ACV estimators derived from two different allocation matrices. Numerous other ACV estimators can be constructed by utilizing different allocation matrices. For example, [GGEJJCP2020]_ introduced the ACVMF and the ACVIS estimators with the allocation matrices, for three models, given respectively by
 
 .. math::
 
-   \mat{A}=\begin{bmatrix}
+  \mat{A}_\text{ACVMF}=\begin{bmatrix}
    0 & 1 & 1 & 1 & 1 & 1 & 1 & 1\\
    0 & 0 & 0 & 1 & 0 & 1 & 0 & 1\\
    0 & 0 & 0 & 0 & 0 & 1 & 0 & 1\\
    0 & 0 & 0 & 0 & 0 & 0 & 0 & 1
-   \end{bmatrix}
-
-An entry of one indicates in the ith row of the jth column indicates that the ith independent sample set is used in the corresponding set :math:`\rvset_j` if j is odd or :math:`\rvset_j^*` if j is even. The first column will always only contain zeros because the set :math:`\rvset_0^*` is never used by ACV estimators.
-
-
-Note, here we focus on how to construct and use allocation matrices for ACVMF like PACV estimtors. However, much of the discussion carries over to other estimators like those based on recursive difference and ACVIS.
-
-
-The allocation matrix together with the number of points :math:`\mat{p}=[p_0,\ldots,p_M]^\top` in the each independent sample set which we call partitions can be used to determine the  number of points in the intersection of the sets  :math:`\rvset_\alpha\text{ and }\rvset_\beta`, where :math:`\alpha\text{ and }\beta` may be unstarred or starred. Intersection matrices are used to compute :math:`\covar{Q_0}{\Delta}` and :math:`\covar{\Delta}{\Delta}`.
-The number of intersection points can be represented by a :math:`2(M+1)\times 2(M+1)` matrix
-
-.. math::
-
-   \mat{B}=\begin{bmatrix}
-   0 & 0 & 0 & 0 & 0 & 0 & 0 & 0\\
-   0 & N_{0\cup 0} & N_{0\cup 1} & N_{0\cup 1^*} & N_{0\cup 2} & N_{0\cup 2^*} &  N_{0\cup 3} & N_{0\cup 3^*}\\
-   0 & N_{1^*\cup 0} & N_{1^*\cup 1^*} & N_{1^*\cup 1} & N_{1^*\cup 2^*} & N_{1^*\cup 2} &  N_{1^*\cup 3^*} & N_{1^*\cup 3}\\
-   0 & N_{1\cup 0} & N_{1\cup 1^*} & N_{1\cup 1} & N_{1\cup 2^*} & N_{1\cup 2} &  N_{1\cup 3^*} & N_{1\cup 3}\\
-   \vdots &\vdots &\vdots &\vdots &\vdots &\vdots &\vdots &\vdots\\
-   0 & N_{3^\star\cup 0} & N_{3^\star\cup 1^*} & N_{3^\star\cup 1} & N_{3^\star\cup 2^*} & N_{3^\star\cup 2} &  N_{3^\star\cup 3^*} & N_{3^\star\cup 3}\\
-   0 & N_{3\cup 0} & N_{3\cup 1^*} & N_{3\cup 1} & N_{3\cup 2^*} & N_{3\cup 2} &  N_{3\cup 3^*} & N_{3\cup 3}
-   \end{bmatrix}
-
-Defining
-
-
-.. math:: \mat{S}=\text{Diag}(\mat{p})\mat{A},
-
-each entry of B can be computed using
-
-.. math:: B_{ij}=\sum_{k=0}^{2M+1} S_{kj} \chi[A_{ki}]
-
-where
-
-.. math::  \chi[A_{ki}]=\begin{cases} 1 & A_{ki}=1 \\ 0 & A_{ki}=0 \end{cases}
-
-
-Note computing :math:`\covar{Q_0}{\Delta}` and :math:`\covar{\Delta}{\Delta}` also requires the number of samples :math:`N_\alpha`,  :math:`N_{\alpha^*}` in each ACV sample set :math:`\rvset_\alpha,\rvset_\alpha^*` which can be computed by simply summing the rows of S or more simply extracting the relevant entry from the diagonal of B. For example
-
-.. math:: N_3 = N_{3\cap3} \text{ and }  N_{3^*} = N_{3^*\cap3^*}
-
-Finally, to compute the computational cost of the estimator we must be able to compute the number of samples per model.
-The number of samples of the ith
-
-.. math:: \sum_{k=1}^M p_{k}\chi[A_{2i,k}+A_{2i+1,k}]
-
-where :math:`\chi[A_{2i,k}+A_{2i+1,k}]=1` if :math:`A_{2i,k}+A_{2i+1,k}>0` and is zero otherwise.
-
-Using our example, the intersection matrix is
-
-.. math:: \mat{p} = [2, 3, 4, 5]
-
-.. math:: \mat{S}=\begin{bmatrix}
-   0 & 2 & 2 & 2 & 2 & 2 & 2 & 2\\
-   0 & 0 & 0 & 3 & 0 & 3 & 0 & 3\\
-   0 & 0 & 0 & 0 & 0 & 4 & 0 & 4\\
-   0 & 0 & 0 & 0 & 0 & 5 & 0 & 0
-   \end{bmatrix}
-
-So summing each column of S we have
-
-.. math:: N_0^*=0, N_0=2,  N_1^*=2, N_1=5,  N_2^*=2, N_2=14,  N_3^*=2, N_3=9, 
-
-And 
-
-.. math::
-
-   \mat{B}=\begin{bmatrix}
-  0 &  0 &  0 &  0 &  0 &  0 &  0 &  0 \\
-  0 &  2 &  2 &  2 &  2 &  2 &  2 &  2 \\
-  0 &  2 &  2 &  2 &  2 &  2 &  2 &  2 \\
-  0 &  2 &  2 &  5 &  2 &  5 &  2 &  5 \\
-  0 &  2 &  2 &  2 &  2 &  2 &  2 &  2 \\
-  0 &  2 &  2 &  5 &  2 & 14 &  2 &  9 \\
-  0 &  2 &  2 &  2 &  2 &  2 &  2 &  2 \\
-  0 &  2 &  2 &  5 &  2 &  9 &  2 &  9
-   \end{bmatrix}
-
-
-The first row and column are all zero because :math:`\rvset_0^*` is always empty.
-
-As an example the thrid entry from the right on the bottom row corresponds to :math:`B_{75}=N_{3\cup 2}` which is computed by finding the rows in R that have non zero entries which are the first three rows. Then the :math:`B_{75}` is the sum of these rows in the 5 column of S, i.e. :math:`2+3+4=9`.
-
-Examples of different allocation matrices
------------------------------------------
-The following lists some example alloaction matrices for the
-parameterically defined ACV estimators based on the general structure of
-ACVMF.
-
-MFMC :math:`(0, 1, 2)`
-
-.. math::
-
-   \begin{bmatrix}
+   \end{bmatrix}, \qquad \mat{A}_\text{ACVIS}=\begin{bmatrix}
    0 & 1 & 1 & 1 & 1 & 1 & 1 & 1\\
-   0 & 0 & 0 & 1 & 1 & 1 & 1 & 1\\
-   0 & 0 & 0 & 0 & 0 & 1 & 1 & 1\\
+   0 & 0 & 0 & 1 & 0 & 0 & 0 & 0\\
+   0 & 0 & 0 & 0 & 0 & 1 & 0 & 0\\
    0 & 0 & 0 & 0 & 0 & 0 & 0 & 1
-   \end{bmatrix}
+   \end{bmatrix}, \qquad 
 
+These were shown to outperform MLMC and MFMC for certain problems, however none of these estimators is optimal. Consequently, [BLWLJCP2022] formulated a large class of so called parameterically defined ACV (PACV)estimators that can be enumerated and used to choose the best allocation matrix for a given problem. This advanced was based on the observation that MFMC uses model m as a contol variate to help estimate the statistic of model :math:`m-1`.
 
-:math:`(0, 0, 1)`
+Generalized Multi-fidelity (GMF) Estimators
+-------------------------------------------
+To date 3 classes of PACV estimators have been defined. The first is based on the MLMC allocation matrix presented in :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py`. A specific instance of these so called generalized recursive difference (GRD) estimators can be obtained by specifying a recusion index :math:`\gamma=[\gamma_1, \ldots, \gamma_M]^\top`. The recursion index defines a zero-rooted directed acyclic graph (DAG) that
 
-.. math::
-
-   \begin{bmatrix}
-   0 & 1 & 1 & 1 & 1 & 1 & 1 & 1\\
-   0 & 0 & 0 & 1 & 0 & 1 & 1 & 1\\
-   0 & 0 & 0 & 0 & 0 & 1 & 0 & 1\\
-   0 & 0 & 0 & 0 & 0 & 0 & 0 & 1
-   \end{bmatrix}
-
-:math:`(0, 0, 2)`
-
-.. math::
-
-   \begin{bmatrix}
-   0 & 1 & 1 & 1 & 1 & 1 & 1 & 1\\
-   0 & 0 & 0 & 1 & 0 & 1 & 1 & 1\\
-   0 & 0 & 0 & 0 & 0 & 1 & 1 & 1\\
-   0 & 0 & 0 & 0 & 0 & 0 & 0 & 1
-   \end{bmatrix}
-
-
-:math:`(0, 1, 1)`
-
-.. math::
-
-   \begin{bmatrix}
-   0 & 1 & 1 & 1 & 1 & 1 & 1 & 1\\
-   0 & 0 & 0 & 1 & 1 & 1 & 1 & 1\\
-   0 & 0 & 0 & 0 & 0 & 1 & 0 & 1\\
-   0 & 0 & 0 & 0 & 0 & 0 & 0 & 1
-   \end{bmatrix}
-
-How to construct ACVMF like allocation matrices
------------------------------------------------
-The following shows the general procedure to construct ACVMF like estimators for a recursion index
-
-.. math:: \gamma=(\gamma_1,\ldots,\gamma_M)
-
-As a concrete example, consider the recursion index :math:`\gamma=(0, 0, 1)`.
-
-First we set :math:`A_{2\alpha+1,\alpha}=1` for all :math:`\alpha=0,\ldots,M`
-
-E.g. for (0,0,1)
-
-.. math::
-
-   \begin{bmatrix}
-  0 & 1 & 0 & 0 & 0 & 0 & 0 & 0 \\
-  0 & 0 & 0 & 1 & 0 & 0 & 0 & 0 \\
-  0 & 0 & 0 & 0 & 0 & 1 & 0 & 0 \\
-  0 & 0 & 0 & 0 & 0 & 0 & 0 & 1
-  \end{bmatrix}
-
-We then set :math:`A_{2\alpha,\gamma_\alpha}=1` for :math:`\alpha=1,\ldots,M`. For example,
-
-.. math::
-
-   \begin{bmatrix}
- 0 & 1 & 1 & 0 & 1 & 0 & 0 & 0 \\
- 0 & 0 & 0 & 1 & 0 & 0 & 1 & 0 \\
- 0 & 0 & 0 & 0 & 0 & 1 & 0 & 0 \\
- 0 & 0 & 0 & 0 & 0 & 0 & 0 & 1
-   \end{bmatrix}
-
-And finally because ACMF always uses all independent partitions up to including :math:`\gamma_\alpha` we set :math:`A_{i,k}=1`, for :math:`k=0,\ldots,\gamma_\alpha` and :math:`\forall i`. For example
-
-.. math::
-
-   \begin{bmatrix}
- 0 & 1 & 1 & 1 & 1 & 1 & 1 & 1 \\
- 0 & 0 & 0 & 1 & 0 & 1 & 1 & 1 \\
- 0 & 0 & 0 & 0 & 0 & 1 & 0 & 1 \\
- 0 & 0 & 0 & 0 & 0 & 0 & 0 & 1
-   \end{bmatrix}
-
-The following can be used to plot the allocation matrix of any PACV estimator (not just GMF). Note we load a benchmark because it is needed to initialize the PACV estimator, but the allocation matrix is independent of any benchmark properties other than the number of models it provides
+Generalized Recursive Difference (GRD) Estimators
+-------------------------------------------------
 """
-import matplotlib.pyplot as plt
 
-from pyapprox.benchmarks import setup_benchmark
-from pyapprox.multifidelity.multioutput_monte_carlo import get_estimator
-
-benchmark = setup_benchmark("tunable_model_ensemble")
-model = benchmark.fun
-funs = model.models
-est = get_estimator(
-    "grd", "mean", 1, model.costs(), benchmark.model_covariance,
-    recursion_index=(2, 0))
-
-ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-est.plot_allocation(ax)
-plt.show()
 
 #%%
-#The different colors represent different independent sample partitions. Subsets :math:`\rvset_\alpha\text{ or  }\rvset_\alpha^*` having the same color, means that the same set of samples are used in each subset.
-#
-#Try changing recursion index to (0, 1) or (2, 0) and the estimator from "gis" to "gmf" or" grd"
+#In this example ACVGMFB is the most efficient estimator, i.e. it has a smaller variance for a fixed cost. However this improvement is problem dependent. For other model ensembles another estimator may be more efficient. Modify the above example to use another model to explore this more. The left plot shows the relative costs of evaluating each model using the ACVMF sampling strategy. Compare this to the MLMC sample allocation. Also edit above code to plot the MFMC sample allocation.
 
 #%%
-#Evaluating a PACV estimator
-#---------------------------
-#Allocation matrices are also useful for evaluating a PACV estimator.
-#To evaluate the ACV estimator we must construct each independent sample partition from a set of :math:`N_\text{tot}` samples :math:`\rvset_\text{tot}` where
+#Before this tutorial ends it is worth noting that a section of the MLMC literature explores adaptive methods which do not assume there is a fixed high-fidelity model but rather attempt to balance the estimator variance with the deterministic bias. These methods add a higher-fidelity model, e.g. a finer finite element mesh, when the variance is made smaller than the bias. We will not explore this here, but an example of this is shown in the tutorial on multi-index collocation.
+
+#%%
+#References
+#^^^^^^^^^^
+#.. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification, Journal of Computational Physics, 408:109257, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_
 #
-#.. math:: N_\text{tot}=\sum_{\alpha=0}^{M} p_\alpha
+#.. [BLWLJCP2022] `On the optimization of approximate control variates with parametrically defined estimators, Journal of Computational Physics,451:110882, 2022 <https://doi.org/10.1016/j.jcp.2021.110882>`_
+
+#%%
+#Accelerated Approximate Control Variate Monte Carlo
+#---------------------------------------------------
+#The recursive estimators work well when the number of low-fidelity samples are smal but ACV can achieve a greater variance reduction for a fixed number of high-fidelity samples. In this section we present an approach called ACV-GMFB that combines the strengths of these methods [BLWLJCP2022]_.
 #
-#We then must allocate each model on a subset of these samples dictated by the allocation matrix. For a model index :math:`\alpha` we must evaluate a model at a independent partition k if :math:`A_{2\alpha, k}=1` or :math:`A_{2\alpha+1, k}=1`. These correspond to the sets :math:`\rvset_{\alpha}^*, \rvset_{\alpha}`. We store these active partitions in a flattened sample array for each model ordered by increasing partition index, which is passed to each user. E.g. if the partitions 0, 1, 3 are active then we store :math:`[\rvset_{0}^\dagger, \rvset_{1}^\dagger, \rvset_{3}^\dagger]` where the dagger indicates the samples sets are associated with partitions and not the estimator sets :math:`\rvset_{\alpha^*}, \rvset_{\alpha}`.
+#This estimator differs from the previous recursive estimators because it uses some models as control variates and other models to estimate the mean of these control variates recursively. This estimator optimizes over the best use of models and returns the best model configuration.
 #
-#The user can then evaluate each model without knowing anything about the ACV estimator sets or the independent partitions.
-#
-#These model evaluations are then passed back to the estimator and internally we must assigne the values to each ACV estimator sample set. Specifically for each model :math:`\alpha`, we loop through all partition indices k and if :math:`A_{2\alpha,k}=1` we assign :math:`\mathcal{f_\alpha(\rvset^\dagger_k)}` to :math:`\rvset_{\alpha^*}` similarly if :math:`A_{2\alpha+1,k}=1` we assign :math:`\mathcal{f_\alpha(\rvset^\dagger_k)}` to :math:`\rvset_{\alpha}`.
+#Let us add the ACV-GMFB estimator to the previous plot
+
+#%%
+#As the theory suggests MLMC and MFMC use multiple models to increase the speed to which we converge to the optimal 2 model CV estimator OCV-2. These two approaches reduce the variance of the estimator more quickly than the ACV estimator, but cannot obtain the optimal variance reduction.
+
+#%%
+#The benefit of using three models over two models depends on the correlation between each low fidelity model and the high-fidelity model. The benefit on using more models also depends on the relative cost of evaluating each model, however here we will just investigate the effect of changing correlation. The following code shows the variance reduction (relative to standard Monte Carlo) obtained using CVMC (not approximate CVMC) using 2 (OCV1) and three models (OCV2). Unlike MLMC and MFMC, ACV-IS will achieve these variance reductions in the limit as the number of samples of the low fidelity models goes to infinity.

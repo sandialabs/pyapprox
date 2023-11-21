@@ -80,8 +80,9 @@ example_filenames_in_order = [
     'plot_multioutput_monte_carlo.py',
     'plot_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_monte_carlo.py',
-    'plot_many_model_approximate_control_variate_monte_carlo.py',
+    'plot_many_model_acv.py',
     'acv_covariances.py',
+    'plot_allocation_matrices.py',
     'plot_pacv.py',
     'plot_multi_level_monte_carlo.py',
     'plot_multi_fidelity_monte_carlo.py',
@@ -138,7 +139,7 @@ sphinx_gallery_conf = {
         '../../tutorials/multi_fidelity',
         '../../examples']),
     'within_subsection_order': ExamplesExplicitOrder,
-    'ignore_pattern': r'__', # any files with __ in the filename are ignored
+    'ignore_pattern': r'util', # any files with util the filename are ignored
     'matplotlib_animations': True,
 }
 try:
@@ -184,7 +185,8 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['cantilever_beam.rst'] # temporarily do not create function documentation
+# temporarily do not create function documentation
+exclude_patterns = ['cantilever_beam.rst']
 
 # use the following temporarily disable automod build. Also need to remove source/api directory and (possibly) build/
 exclude_patterns += ['user_reference_guide.rst']

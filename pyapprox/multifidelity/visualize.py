@@ -3,7 +3,8 @@ import networkx as nx
 
 from pyapprox.util.visualization import plt, mathrm_label
 from pyapprox.multifidelity._visualize import _hierarchy_pos, _autolabel
-from pyapprox.multifidelity.multioutput_monte_carlo import ComparisionCriteria
+from pyapprox.multifidelity.multioutput_monte_carlo import (
+    ComparisionCriteria, compute_variance_reductions)
 
 
 def plot_model_recursion(recursion_index, ax):
@@ -33,7 +34,7 @@ def plot_estimator_variances(optimized_estimators,
                              relative_id=0, cost_normalization=1,
                              criteria=ComparisionCriteria("det")):
     """
-    Plot variance as a function of the total cost for a set of estimators.
+    Plot the estimator variance for a list of estimators.
 
     Parameters
     ----------
@@ -43,7 +44,22 @@ def plot_estimator_variances(optimized_estimators,
     est_labels : list (nestimators)
         String used to label each estimator
 
-    relative_id the model id used to normalize variance
+    relative_id : integer
+
+        The model id used to normalize variance
+
+    cost_normalization : float
+        Costs are divided by this value. Useful, for example, when you
+        want to plot variances as a function of the equivalent number of
+        high-fidelity evaluations in which case cost_normalization=costs[0]
+
+    criteria : callable
+        A function that returns a scalar metric of the estimator covariance
+        with signature
+
+        `criteria(cov) -> float`
+
+        where cov is an np.ndarray (nstats, nstats) is the estimator covariance
     """
     linestyles = ['-', '--', ':', '-.', (0, (5, 10)), '-']
     nestimators = len(est_labels)
@@ -72,7 +88,8 @@ def plot_estimator_variance_reductions(optimized_estimators,
                                        criteria=ComparisionCriteria("det"),
                                        **bar_kawrgs):
     """
-    Plot variance as a function of the total cost for a set of estimators.
+    Plot the variance reduction (relative to single model MC) for a
+    list of optimized estimtors.
 
     Parameters
     ----------
@@ -82,22 +99,17 @@ def plot_estimator_variance_reductions(optimized_estimators,
     est_labels : list (nestimators)
         String used to label each estimator
 
+    criteria : callable
+        A function that returns a scalar metric of the estimator covariance
+        with signature
+
+        `criteria(cov) -> float`
+
+        where cov is an np.ndarray (nstats, nstats) is the estimator covariance
     """
-    var_red, est_criterias, sf_criterias = [], [], []
-    optimized_estimators = optimized_estimators.copy()
     est_labels = est_labels.copy()
-    nestimators = len(optimized_estimators)
-    for ii in range(nestimators):
-        est = optimized_estimators[ii]
-        est_criteria = criteria(est._covariance_from_npartition_samples(
-            est._rounded_npartition_samples), est)
-        nhf_samples = int(est._rounded_target_cost/est._costs[0])
-        sf_criteria = criteria(
-            est._stat.high_fidelity_estimator_covariance(
-                nhf_samples), est)
-        var_red.append(sf_criteria/est_criteria)
-        sf_criterias.append(sf_criteria)
-        est_criterias.append(est_criteria)
+    var_red, est_criterias, sf_criterias = compute_variance_reductions(
+        optimized_estimators, criteria)
     rects = ax.bar(est_labels, var_red, **bar_kawrgs)
     rects = [r for r in rects]  # convert to list
     _autolabel(ax, rects, ['$%1.2f$' % (v) for v in var_red])

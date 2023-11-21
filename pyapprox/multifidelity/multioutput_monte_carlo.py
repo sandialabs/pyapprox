@@ -22,6 +22,7 @@ from pyapprox.multifidelity._optim import (
     _get_sample_allocation_matrix_mlmc,
     _get_sample_allocation_matrix_mfmc,
     _get_acv_recursion_indices)
+from pyapprox.surrogates.autogp._torch_wrappers import asarray
 
 
 def _combine_acv_values(reorder_allocation_mat, npartition_samples,
@@ -288,9 +289,9 @@ class CVEstimator(MCEstimator):
         return (self._stat.high_fidelity_estimator_covariance(
             npartition_samples[0]) + torch.linalg.multi_dot((weights, cf.T)))
 
-    def _set_optimized_params(self, rounded_npartition_samples,
-                              rounded_nsamples_per_model,
-                              rounded_target_cost):
+    def _set_optimized_params_base(self, rounded_npartition_samples,
+                                   rounded_nsamples_per_model,
+                                   rounded_target_cost):
         r"""
         Set the parameters needed to generate samples for evaluating the
         estimator
@@ -352,6 +353,15 @@ class CVEstimator(MCEstimator):
         self._optimized_weights = self._weights(
             self._optimized_CF, self._optimized_cf)
 
+    def _estimator_cost(self, npartition_samples):
+        return (npartition_samples[0]*self._costs).sum()
+
+    def _set_optimized_params(self, rounded_npartition_samples):
+        rounded_target_cost = self._estimator_cost(rounded_npartition_samples)
+        self._set_optimized_params_base(
+            rounded_npartition_samples, rounded_npartition_samples,
+            rounded_target_cost)
+
     def allocate_samples(self, target_cost):
         npartition_samples = [target_cost/self._costs.sum()]
         rounded_npartition_samples = [int(np.floor(npartition_samples[0]))]
@@ -370,7 +380,7 @@ class CVEstimator(MCEstimator):
             (self._nmodels,), rounded_npartition_samples[0])
         rounded_target_cost = (
             self._costs*rounded_nsamples_per_model).sum()
-        self._set_optimized_params(
+        self._set_optimized_params_base(
             rounded_npartition_samples, rounded_nsamples_per_model,
             rounded_target_cost)
 
@@ -971,7 +981,7 @@ class ACVEstimator(CVEstimator):
             return None, np.inf
         mfmc_model_ratios = torch.as_tensor(_allocate_samples_mfmc(
             self._cov, self._costs, target_cost)[0], dtype=torch.double)
-        mfmc_initial_guess = MFMCEstimator._mfmc_ratios_to_npartition_ratios(
+        mfmc_initial_guess = MFMCEstimator._native_ratios_to_npartition_ratios(
             mfmc_model_ratios)
         try:
             opt = self._allocate_samples_opt(
@@ -1100,6 +1110,11 @@ class ACVEstimator(CVEstimator):
             rounded_npartition_samples[1:]/rounded_npartition_samples[0])
         return rounded_partition_ratios, rounded_target_cost
 
+    def _estimator_cost(self, npartition_samples):
+        nsamples_per_model = self._compute_nsamples_per_model(
+            asarray(npartition_samples))
+        return (nsamples_per_model*self._costs.numpy()).sum()
+
     def _set_optimized_params(self, partition_ratios, target_cost):
         """
         Set the parameters needed to generate samples for evaluating the
@@ -1140,7 +1155,7 @@ class ACVEstimator(CVEstimator):
         rounded_nsamples_per_model = torch.as_tensor(
             self._compute_nsamples_per_model(rounded_npartition_samples),
             dtype=torch.int)
-        super()._set_optimized_params(
+        super()._set_optimized_params_base(
             rounded_npartition_samples, rounded_nsamples_per_model,
             rounded_target_cost)
 
@@ -1244,11 +1259,11 @@ class MFMCEstimator(GMFEstimator):
             self._cov.numpy()[self._opt_qoi::nqoi, self._opt_qoi::nqoi],
             self._costs.numpy(), target_cost)
         nsample_ratios = (
-            self._mfmc_ratios_to_npartition_ratios(nsample_ratios))
+            self._native_ratios_to_npartition_ratios(nsample_ratios))
         return torch.as_tensor(nsample_ratios, dtype=torch.double), val
 
     @staticmethod
-    def _mfmc_ratios_to_npartition_ratios(ratios):
+    def _native_ratios_to_npartition_ratios(ratios):
         partition_ratios = np.hstack((ratios[0]-1, np.diff(ratios)))
         return partition_ratios
 
@@ -1298,7 +1313,7 @@ class MLMCEstimator(ACVEstimator):
             self._nmodels)
 
     @staticmethod
-    def _mlmc_ratios_to_npartition_ratios(ratios):
+    def _native_ratios_to_npartition_ratios(ratios):
         partition_ratios = [ratios[0]-1]
         for ii in range(1, len(ratios)):
             partition_ratios.append(ratios[ii]-partition_ratios[ii-1])
@@ -1748,7 +1763,8 @@ class SingleQoiAndStatComparisonCriteria(ComparisionCriteria):
         if self._stat_type != "mean" and isinstance(
                 est._stat, MultiOutputMeanAndVariance):
             return (
-                est_covariance[est.nqoi+self._qoi_idx, est._nqoi+self._qoi_idx])
+                est_covariance[est.nqoi+self._qoi_idx,
+                               est._nqoi+self._qoi_idx])
         elif (isinstance(
                 est._stat, (MultiOutputVariance, MultiOutputMean)) or
               self._stat_type == "mean"):
@@ -1760,7 +1776,53 @@ class SingleQoiAndStatComparisonCriteria(ComparisionCriteria):
             self.__class__.__name__, self._stat_type, self._qoi_idx)
 
 
+def compute_variance_reductions(optimized_estimators,
+                                criteria=ComparisionCriteria("det"),
+                                nhf_samples=None):
+    """
+    Compute the variance reduction (relative to single model MC) for a
+    list of optimized estimtors.
 
+    Parameters
+    ----------
+    optimized_estimators : list
+         Each entry is a list of optimized estimators for a set of target costs
+
+    est_labels : list (nestimators)
+        String used to label each estimator
+
+    criteria : callable
+        A function that returns a scalar metric of the estimator covariance
+        with signature
+
+        `criteria(cov) -> float`
+
+        where cov is an np.ndarray (nstats, nstats) is the estimator covariance
+
+    nhf_samples : int
+        The number of samples of the high-fidelity model used for the
+        high-fidelity only estimator. If None, then the number of high-fidelity
+        evaluations that produce a estimator cost equal to the optimized
+        target cost of the estimator is used. Usually, nhf_samples should be
+        set to None.
+    """
+    var_red, est_criterias, sf_criterias = [], [], []
+    optimized_estimators = optimized_estimators.copy()
+    nestimators = len(optimized_estimators)
+    for ii in range(nestimators):
+        est = optimized_estimators[ii]
+        est_criteria = criteria(est._covariance_from_npartition_samples(
+            est._rounded_npartition_samples), est)
+        if nhf_samples is None:
+            nhf_samples = int(est._rounded_target_cost/est._costs[0])
+        sf_criteria = criteria(
+            est._stat.high_fidelity_estimator_covariance(
+                nhf_samples), est)
+        var_red.append(sf_criteria/est_criteria)
+        sf_criterias.append(sf_criteria)
+        est_criterias.append(est_criteria)
+    return (np.asarray(var_red), np.asarray(est_criterias),
+            np.asarray(sf_criterias))
 
 # COMMON TORCH AUTOGRAD MISTAKES
 # Do not use hstack to form a vector

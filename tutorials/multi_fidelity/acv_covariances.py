@@ -1,5 +1,5 @@
 r"""
-Delta-based covariance formulas for Approximate Control Variates
+Delta-Based Covariance Formulas For Approximate Control Variates
 =========================================================================
 The following lists the formula needed to use ACV to compute vector-valued statistics comprised of means, variances or both. The formulas use the expressions for :math:`\mat{V}, \mat{W}, \mat{B}` in :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multioutput_monte_carlo.py`.
 
