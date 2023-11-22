@@ -221,6 +221,11 @@ _ = plot_estimator_variances(
 #   \end{bmatrix}
 #
 #The following code plots the allocation matrix of one of the 5-model estimator we have already optimized. The numbers inside the boxes represent the sizes :math:`p_m` of the independent partitions (different colors).
+import matplotlib as mpl
+params = {'xtick.labelsize': 24,
+          'ytick.labelsize': 24,
+          'font.size': 18}
+mpl.rcParams.update(params)
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 _ = mlmc_ests[0].plot_allocation(ax, True)
 

@@ -185,8 +185,9 @@ def plot_estimator_sample_allocation_comparison(
                 label=label, color=colors[ii])
             rects.append(rect)
             cnt += cost_ratio
-        _autolabel(ax, rects, ['$%d$' % int(est._rounded_nsamples_per_model[ii])
-                               for ii in range(est._nmodels)])
+        _autolabel(ax, rects,
+                   ['$%d$' % int(est._rounded_nsamples_per_model[ii])
+                    for ii in range(est._nmodels)])
     ax.set_xticks(xlocs)
     # number of samples are rounded cost est_rounded cost,
     # but target cost is not rounded

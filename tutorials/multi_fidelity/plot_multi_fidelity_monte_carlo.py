@@ -96,6 +96,11 @@ _ = plot_estimator_variance_reductions(
 #For this problem there is little difference between the MFMC and MLMC estimators but this is not always the case.
 #
 #The following plots the sample allocation matrices of the MLMC and MFMC estimators
+import matplotlib as mpl
+params = {'xtick.labelsize': 24,
+          'ytick.labelsize': 24,
+          'font.size': 18}
+mpl.rcParams.update(params)
 axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
 ests_100[0].plot_allocation(axs[0], True)
 axs[0].set_title(est_labels[0])

@@ -100,12 +100,17 @@ def _plot_allocation_matrix(allocation_mat, npartition_samples, ax,
               r"$%s_{%d}$" % (set_symbol, ii//2)
               for ii in range(1, nacv_subsets)]
     ax.set_xticklabels(labels)
-    ax.set_yticks([])
+    ax.set_yticks(np.arange(nmodels)+0.5)
+    # number of samples are rounded cost est_rounded cost,
+    # but target cost is not rounded
+    ax.set_yticklabels(
+        [r'$\mathcal{P}_{%d}$' % ii for ii in range(nmodels)])
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
     ax.spines['left'].set_visible(False)
     ax.xaxis.set_tick_params(length=0)
+    ax.yaxis.set_tick_params(length=0)
 
 
 def _autolabel(ax, rects, model_labels):
