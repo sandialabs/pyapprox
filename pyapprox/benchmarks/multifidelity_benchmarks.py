@@ -13,10 +13,10 @@ from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 
 
 class PolynomialModelEnsemble(object):
-    def __init__(self):
-        self.nmodels = 5
+    def __init__(self, nmodels):
+        self.nmodels = nmodels
         self.nvars = 1
-        self.models = [self.m0, self.m1, self.m2, self.m3, self.m4]
+        self.models = [self.m0, self.m1, self.m2, self.m3, self.m4][:nmodels]
 
         univariate_variables = [stats.uniform(0, 1)]
         self.variable = IndependentMarginalsVariable(
@@ -48,7 +48,7 @@ class PolynomialModelEnsemble(object):
         for ii in range(nqoi):
             vals[:, ii] = self.models[ii](x)[:, 0]
         means = vals.T.dot(w)
-        return means
+        return means[:self.nmodels]
 
     def get_covariance_matrix(self):
         x, w = scipy_gauss_legendre_pts_wts_1D(10)
@@ -60,7 +60,7 @@ class PolynomialModelEnsemble(object):
         for ii in range(nqoi):
             vals[:, ii] = self.models[ii](x)[:, 0]
         cov = np.cov(vals, aweights=w, rowvar=False, ddof=0)
-        return cov
+        return cov[:self.nmodels, :self.nmodels]
 
 
 class TunableModelEnsemble(object):
@@ -223,10 +223,10 @@ class TunableModelEnsemble(object):
 
 
 class ShortColumnModelEnsemble(object):
-    def __init__(self):
-        self.nmodels = 5
+    def __init__(self, nmodels):
+        self.nmodels = nmodels
         self.nvars = 5
-        self.models = [self.m0, self.m1, self.m2, self.m3, self.m4]
+        self.models = [self.m0, self.m1, self.m2, self.m3, self.m4][:nmodels]
         self.apply_lognormal = False
 
         univariate_variables = [
@@ -290,7 +290,7 @@ class ShortColumnModelEnsemble(object):
         for ii in range(nqoi):
             vals[:, ii] = self.models[ii](x)[:, 0]
         cov = np.cov(vals, aweights=w, rowvar=False, ddof=0)
-        return cov
+        return cov[:self.nmodels, :self.nmodels]
 
     def get_means(self):
         x, w = self.get_quadrature_rule()
@@ -299,7 +299,7 @@ class ShortColumnModelEnsemble(object):
         vals = np.empty((nsamples, nqoi))
         for ii in range(nqoi):
             vals[:, ii] = self.models[ii](x)[:, 0]
-        return vals.T.dot(w).squeeze()
+        return vals.T.dot(w).squeeze()[:self.nmodels]
 
 
 class MultioutputModelEnsemble():

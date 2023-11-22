@@ -430,7 +430,7 @@ class MultiOutputStatistic(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def compute_pilot_quantities(pilot_values, nmodels):
+    def compute_pilot_quantities(pilot_values):
         raise NotImplementedError
 
     @abstractmethod
@@ -463,7 +463,9 @@ class MultiOutputMean(MultiOutputStatistic):
         return self._cov[:self._nqoi, :self._nqoi]/nhf_samples
 
     @staticmethod
-    def compute_pilot_quantities(pilot_values, nmodels):
+    def compute_pilot_quantities(pilot_values):
+        nmodels = len(pilot_values)
+        pilot_values = np.hstack(pilot_values)
         return np.cov(pilot_values, rowvar=False, ddof=1)
 
     def _get_discrepancy_covariances(self, Gmat, gvec):
@@ -512,7 +514,9 @@ class MultiOutputVariance(MultiOutputStatistic):
             self._V[:self._nqoi**2, :self._nqoi**2], nhf_samples)
 
     @staticmethod
-    def compute_pilot_quantities(pilot_values, nmodels):
+    def compute_pilot_quantities(pilot_values):
+        nmodels = len(pilot_values)
+        pilot_values = np.hstack(pilot_values)
         cov = np.cov(pilot_values, rowvar=False, ddof=1)
         return cov, _get_W_from_pilot(pilot_values, nmodels)
 
@@ -589,7 +593,9 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
              [block_12.T, block_22]])
 
     @staticmethod
-    def compute_pilot_quantities(pilot_values, nmodels):
+    def compute_pilot_quantities(pilot_values):
+        nmodels = len(pilot_values)
+        pilot_values = np.hstack(pilot_values)
         cov = np.cov(pilot_values, rowvar=False, ddof=1)
         W = _get_W_from_pilot(pilot_values, nmodels)
         B = _get_B_from_pilot(pilot_values, nmodels)

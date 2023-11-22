@@ -618,7 +618,8 @@ class TestMOMC(unittest.TestCase):
             f(samples) for f, samples in zip(funs, samples_per_model)]
 
         bootstrap_stats, bootstrap_cov = est.bootstrap(
-            values_per_model, 1e2)
+            values_per_model, 1e3)
+        # print(bootstrap_stats, means[0])
         # print(bootstrap_stats-means[0])
         # print(bootstrap_cov, "CB")
         # print(est._optimized_covariance, "C")
@@ -628,8 +629,9 @@ class TestMOMC(unittest.TestCase):
 
     def test_bootstrap_estimator(self):
         test_cases = [
-            ["mc", 1000], ["cv", 42], ["mfmc", 100]]
-        for test_case in test_cases[2:]:
+            ["mc", 1000], ["cv", 42], ["mfmc", 100], ["gmf", 100],
+            ["grd", 10000], ["gis", 10000]]
+        for test_case in test_cases[-1:]:
             print(test_case)
             self._check_bootstrap_estimator(*test_case)
 

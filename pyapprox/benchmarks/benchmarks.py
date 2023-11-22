@@ -675,7 +675,7 @@ def setup_hastings_ecology_benchmark(qoi_functional=None, time=None):
     return Benchmark(attributes)
 
 
-def setup_polynomial_ensemble():
+def setup_polynomial_ensemble(nmodels=5):
     r"""
     Return an ensemble of 5 univariate models of the form
 
@@ -704,7 +704,7 @@ def setup_polynomial_ensemble():
     ----------
     .. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_
     """
-    model = PolynomialModelEnsemble()
+    model = PolynomialModelEnsemble(nmodels)
     return Benchmark(
         {'fun': model, 'variable': model.variable, "means": model.get_means(),
          "model_covariance": model.get_covariance_matrix()})
@@ -717,8 +717,8 @@ def setup_tunable_model_ensemble(theta1=np.pi/2*0.95, shifts=None):
          "model_covariance": model.get_covariance_matrix()})
 
 
-def setup_short_column_ensemble():
-    model = ShortColumnModelEnsemble()
+def setup_short_column_ensemble(nmodels=5):
+    model = ShortColumnModelEnsemble(nmodels)
     return Benchmark(
         {'fun': model, 'variable': model.variable, "means": model.get_means(),
          "model_covariance": model.get_covariance_matrix()})

@@ -79,9 +79,9 @@ class TestMOSTATS(unittest.TestCase):
         rtol, atol = 1e-2, 5.5e-4
         npilot_samples = int(1e6)
         pilot_samples = model.variable.rvs(npilot_samples)
-        pilot_values = np.hstack([f(pilot_samples) for f in funs])
+        pilot_values = [f(pilot_samples) for f in funs]
         cov, W, B = MultiOutputMeanAndVariance.compute_pilot_quantities(
-            pilot_values, nmodels)
+            pilot_values)
         assert np.allclose(cov, cov_exact, atol=atol, rtol=rtol)
         W_exact = model.covariance_of_centered_values_kronker_product()
         W_exact = _nqoisq_nqoisq_subproblem(

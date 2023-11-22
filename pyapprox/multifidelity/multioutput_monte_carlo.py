@@ -1152,6 +1152,7 @@ class ACVEstimator(CVEstimator):
         npartition_samples = self._npartition_samples_from_partition_ratios(
             target_cost, partition_ratios)
         if ((npartition_samples[0] < 1-1e-8)):
+            print(npartition_samples)
             raise RuntimeError("Rounding will cause nhf samples to be zero")
         rounded_npartition_samples = np.floor(
             npartition_samples.numpy()+1e-8).astype(int)

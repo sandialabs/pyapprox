@@ -114,3 +114,4 @@ def plot_estimator_variance_ratios_for_polynomial_ensemble_nspm(
             optimized_estimators[ii], nhf_samples=nhf_samples)[0]
         ax.semilogy(np.arange(len(factors)), 1/variance_reductions,
                     label=est_labels[ii])
+    
