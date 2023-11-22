@@ -163,7 +163,7 @@ estimators = [
 est_labels = mathrm_labels(
     ["MC", "MLMC", "MFMC", "ACVMF", "ACVGMFB", "MLBLUE"])
 
-target_costs = np.array([1e1, 1e2, 1e3, 1e4], dtype=int)
+target_costs = np.array([1e2, 1e3, 1e4], dtype=int)
 optimized_estimators = multifidelity.compare_estimator_variances(
     target_costs, estimators)
 

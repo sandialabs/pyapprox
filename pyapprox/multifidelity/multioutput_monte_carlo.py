@@ -13,7 +13,8 @@ from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.multifidelity.stats import (
     MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance,
     _nqoi_nqoi_subproblem)
-from pyapprox.multifidelity._visualize import _plot_allocation_matrix
+from pyapprox.multifidelity._visualize import (
+    _plot_allocation_matrix, _plot_model_recursion)
 from pyapprox.multifidelity._optim import (
     _allocate_samples_mlmc,
     _allocate_samples_mfmc,
@@ -266,9 +267,54 @@ class MCEstimator():
             raise ValueError(msg)
         return self._stat.sample_estimate(values)
 
+    def bootstrap(self, values, nbootstraps=1000):
+        r"""
+        Approximate the variance of the estimator using
+        bootstraping. The accuracy of bootstapping depends on the number
+        of values per model. As it gets large the boostrapped statistics
+        will approach the theoretical values.
+
+        Parameters
+        ----------
+        values : [np.ndarray(nsamples, nqoi)]
+            A single entry list containing the unique values of each model.
+            The list is required to allow consistent interface with 
+            multi-fidelity estimators
+
+        nbootstraps : integer
+            The number of boostraps used to compute estimator variance
+
+        Returns
+        -------
+        bootstrap_stats : float
+            The bootstrap estimate of the estimator
+
+        bootstrap_covar : float
+            The bootstrap estimate of the estimator covariance
+        """
+        nbootstraps = int(nbootstraps)
+        estimator_vals = np.empty((nbootstraps, self._stat._nqoi))
+        nsamples = values[0].shape[0]
+        indices = np.arange(nsamples)
+        for kk in range(nbootstraps):
+            bootstrapped_indices = np.random.choice(
+                indices, size=nsamples, replace=True)
+            estimator_vals[kk] = self._stat.sample_estimate(
+                values[0][bootstrapped_indices])
+        bootstrap_mean = estimator_vals.mean(axis=0)
+        bootstrap_covar = np.cov(estimator_vals, rowvar=False, ddof=1)
+        return bootstrap_mean, bootstrap_covar
+
     def __repr__(self):
-        return "{0}(stat={1}, nqoi={2})".format(
-            self.__class__.__name__, self._stat, self._nqoi)
+        if self._optimized_criteria is None:
+            return "{0}(stat={1}, nqoi={2})".format(
+                self.__class__.__name__, self._stat, self._nqoi)
+        rep = "{0}(stat={1}, criteria={2:.3g}".format(
+            self.__class__.__name__, self._stat, self._optimized_criteria)
+        rep += " target_cost={0:.5g}, nsamples={1})".format(
+            self._rounded_target_cost,
+            self._rounded_nsamples_per_model[0])
+        return rep
 
 
 class CVEstimator(MCEstimator):
@@ -436,20 +482,26 @@ class CVEstimator(MCEstimator):
             + torch.linalg.multi_dot((weights, cf.T))
         )
 
-    def _estimate(self, values_per_model, weights):
+    def _estimate(self, values_per_model, weights, bootstrap=False):
         if len(values_per_model) != self._nmodels:
             print(len(self._lowfi_stats), self._nmodels)
             msg = "Must provide the values for each model."
             msg += " {0} != {1}".format(len(values_per_model), self._nmodels)
             raise ValueError(msg)
+        nsamples = values_per_model[0].shape[0]
         for values in values_per_model[1:]:
-            if values.shape[0] != values_per_model[0].shape[0]:
+            if values.shape[0] != nsamples:
                 msg = "Must provide the same number of samples for each model"
                 raise ValueError(msg)
+        indices = np.arange(nsamples)
+        if bootstrap:
+            indices = np.random.choice(
+                indices, size=indices.shape[0],replace=True)
+            
         deltas = np.hstack(
-            [self._stat.sample_estimate(values_per_model[ii]) -
+            [self._stat.sample_estimate(values_per_model[ii][indices]) -
              self._lowfi_stats[ii-1] for ii in range(1, self._nmodels)])
-        est = (self._stat.sample_estimate(values_per_model[0]) +
+        est = (self._stat.sample_estimate(values_per_model[0][indices]) +
                weights.numpy().dot(deltas))
         return est
 
@@ -480,6 +532,38 @@ class CVEstimator(MCEstimator):
             self._rounded_target_cost,
             self._rounded_nsamples_per_model[0])
         return rep
+
+    def bootstrap(self, values_per_model, nbootstraps=1000):
+        r"""
+        Approximate the variance of the estimator using
+        bootstraping. The accuracy of bootstapping depends on the number
+        of values per model. As it gets large the boostrapped statistics
+        will approach the theoretical values.
+
+        Parameters
+        ----------
+        values_per_model : list (nmodels)
+            The unique values of each model
+
+        nbootstraps : integer
+            The number of boostraps used to compute estimator variance
+
+        Returns
+        -------
+        bootstrap_stats : float
+            The bootstrap estimate of the estimator
+
+        bootstrap_covar : float
+            The bootstrap estimate of the estimator covariance
+        """
+        nbootstraps = int(nbootstraps)
+        estimator_vals = np.empty((nbootstraps, self._stat._nqoi))
+        for kk in range(nbootstraps):
+            estimator_vals[kk] = self._estimate(
+                values_per_model, self._optimized_weights, bootstrap=True)
+        bootstrap_mean = estimator_vals.mean(axis=0)
+        bootstrap_covar = np.cov(estimator_vals, rowvar=False, ddof=1)
+        return bootstrap_mean, bootstrap_covar
 
 
 class ACVEstimator(CVEstimator):
@@ -559,7 +643,7 @@ class ACVEstimator(CVEstimator):
             np.round(np.cumsum(npartition_samples.numpy()[:-1])).astype(int))
         return [torch.as_tensor(idx, dtype=int) for idx in indices]
 
-    def _get_partition_indices_per_acv_subset(self):
+    def _get_partition_indices_per_acv_subset(self, bootstrap=False):
         r"""
         Get the indices, into the flattened array of all samples/values
         for each model, of each acv subset
@@ -567,8 +651,19 @@ class ACVEstimator(CVEstimator):
         """
         partition_indices = self._get_partition_indices(
             self._rounded_npartition_samples)
-        partition_indices_per_acv_subset = [
-            np.array([], dtype=int), partition_indices[0]]
+        if bootstrap:
+            npartitions = len(self._rounded_npartition_samples)
+            random_partition_indices = [
+                None for jj in range(npartitions)]
+            random_partition_indices[0] = np.random.choice(
+                np.arange(partition_indices[0].shape[0], dtype=int),
+                size=partition_indices[0].shape[0], replace=True)
+            partition_indices_per_acv_subset = [
+                np.array([], dtype=int),
+                partition_indices[0][random_partition_indices[0]]]
+        else:
+            partition_indices_per_acv_subset = [
+                np.array([], dtype=int), partition_indices[0]]
         for ii in range(1, self._nmodels):
             active_partitions = np.where(
                 (self._allocation_mat[:, 2*ii] == 1) |
@@ -578,6 +673,15 @@ class ACVEstimator(CVEstimator):
             for idx in active_partitions:
                 ub += partition_indices[idx].shape[0]
                 subset_indices[idx] = np.arange(lb, ub)
+                if bootstrap:
+                    if random_partition_indices[idx] is None:
+                        # make sure the same random permutation for partition
+                        # idx is used for all acv_subsets
+                        random_partition_indices[idx] = np.random.choice(
+                            np.arange(ub-lb, dtype=int), size=ub-lb,
+                            replace=True)
+                    subset_indices[idx] = (
+                        subset_indices[idx][random_partition_indices[idx]])
                 lb = ub
             active_partitions_1 = np.where(
                 (self._allocation_mat[:, 2*ii] == 1))[0]
@@ -649,7 +753,7 @@ class ACVEstimator(CVEstimator):
             target_cost, partition_ratios)
         return self._covariance_from_npartition_samples(npartition_samples)
 
-    def _separate_values_per_model(self, values_per_model):
+    def _separate_values_per_model(self, values_per_model, bootstrap=False):
         r"""
         Seperate values per model into the acv subsets associated with
         :math:`\mathcal{Z}_\alpha,\mathcal{Z}_\alpha^*`
@@ -668,10 +772,14 @@ class ACVEstimator(CVEstimator):
                         self._rounded_nsamples_per_model[ii]))
                 raise ValueError(msg)
 
-        acv_partition_indices = self._get_partition_indices_per_acv_subset()
+        acv_partition_indices = self._get_partition_indices_per_acv_subset(
+            bootstrap)
         nacv_subsets = len(acv_partition_indices)
+        # atleast_2d is needed for when acv_partition_indices[ii].shape[0] == 1
+        # in this case python automatically reduces the values array from
+        # shape (1, N) to (N)
         acv_values = [
-            values_per_model[ii//2][acv_partition_indices[ii]]
+            np.atleast_2d(values_per_model[ii//2][acv_partition_indices[ii]])
             for ii in range(nacv_subsets)]
         return acv_values
 
@@ -736,9 +844,10 @@ class ACVEstimator(CVEstimator):
                 npartition_samples, ii)
         return nsamples_per_model
 
-    def _estimate(self, values_per_model, weights):
+    def _estimate(self, values_per_model, weights, bootstrap=False):
         nmodels = len(values_per_model)
-        acv_values = self._separate_values_per_model(values_per_model)
+        acv_values = self._separate_values_per_model(
+            values_per_model, bootstrap)
         deltas = np.hstack(
             [self._stat.sample_estimate(acv_values[2*ii]) -
              self._stat.sample_estimate(acv_values[2*ii+1])
@@ -757,7 +866,7 @@ class ACVEstimator(CVEstimator):
         rep += " target_cost={0:.5g}, ratios={1}, nsamples={2})".format(
             self._rounded_target_cost,
             self._rounded_partition_ratios,
-            self._rounded_nsamples_per_model)
+            self._rounded_nsamples_per_model.numpy())
         return rep
 
     @abstractmethod
@@ -823,64 +932,8 @@ class ACVEstimator(CVEstimator):
         return _plot_allocation_matrix(
                 self._allocation_mat, None, ax, **kwargs)
 
-    def bootstrap(self, values_per_model, nbootstraps=1000):
-        raise NotImplementedError()
-
-    def _bootstrap_acv_estimator(
-            self, values_per_model, partition_indices_per_model,
-            npartition_samples, reorder_allocation_mat,
-            nbootstraps):
-        r"""
-        Approximate the variance of the Monte Carlo estimate of the mean using
-        bootstraping
-
-        Parameters
-        ----------
-
-        nbootstraps : integer
-            The number of boostraps used to compute estimator variance
-
-        Returns
-        -------
-        bootstrap_mean : float
-            The bootstrap estimate of the estimator mean
-
-        bootstrap_var : float
-            The bootstrap estimate of the estimator variance
-        """
-        nmodels = len(values_per_model)
-        npartitions = len(npartition_samples)
-        npartition_samples = _cast_to_integers(npartition_samples)
-        # preallocate memory so do not have to do it repeatedly
-        permuted_partition_indices = [
-            np.empty(npartition_samples[jj], dtype=int)
-            for jj in range(npartitions)]
-        permuted_values_per_model = [v.copy() for v in values_per_model]
-        active_partitions = []
-        for ii in range(nmodels):
-            active_partitions.append(np.where(
-                (reorder_allocation_mat[:, 2*ii] == 1) |
-                (reorder_allocation_mat[:, 2*ii+1] == 1))[0])
-
-        estimator_vals = np.empty((nbootstraps, self._stat._nqoi))
-        for kk in range(nbootstraps):
-            for jj in range(npartitions):
-                n_jj = npartition_samples[jj]
-                permuted_partition_indices[jj][:] = (
-                    np.random.choice(np.arange(n_jj, dtype=int), size=(n_jj),
-                                     replace=True))
-            for ii in range(nmodels):
-                for idx in active_partitions[ii]:
-                    II = np.where(partition_indices_per_model[ii] == idx)[0]
-                    permuted_values_per_model[ii][II] = values_per_model[ii][
-                        II[permuted_partition_indices[idx]]]
-                    permuted_acv_values = _separate_model_values_acv(
-                        reorder_allocation_mat, permuted_values_per_model,
-                        partition_indices_per_model)
-                    estimator_vals[kk] = self(permuted_acv_values)
-                    bootstrap_mean = estimator_vals.mean()
-                    bootstrap_var = estimator_vals.var()
-        return bootstrap_mean, bootstrap_var
+    def plot_recursion_dag(self, ax):
+         return _plot_model_recursion(self._recursion_index, ax)
 
     def _objective(self, target_cost, x, return_grad=True):
         partition_ratios = torch.as_tensor(x, dtype=torch.double)
@@ -1164,13 +1217,15 @@ class ACVEstimator(CVEstimator):
             target_cost, **kwargs)
         self._set_optimized_params(partition_ratios, target_cost)
 
+    def get_all_recursion_indices(self):
+        return _get_acv_recursion_indices(self._nmodels, self._tree_depth)
+
     def _allocate_samples_for_all_recursion_indices(
             self, target_cost, **kwargs):
-        verbosity = kwargs.get("verbosity", 0)
+        verbosity = kwargs.pop("verbosity", 0)
         best_criteria = torch.as_tensor(np.inf, dtype=torch.double)
         best_result = None
-        for index in _get_acv_recursion_indices(
-                self._nmodels, self._tree_depth):
+        for index in self.get_all_recursion_indices():
             self._set_recursion_index(index)
             try:
                 self._allocate_samples_for_single_recursion(
@@ -1204,6 +1259,7 @@ class ACVEstimator(CVEstimator):
         if self._tree_depth is not None:
             return self._allocate_samples_for_all_recursion_indices(
                 target_cost, **kwargs)
+        kwargs.pop("verbosity", 0)
         return self._allocate_samples_for_single_recursion(
             target_cost, **kwargs)
 
@@ -1246,8 +1302,10 @@ class MFMCEstimator(GMFEstimator):
                  opt_qoi=0):
         # Use the sample analytical sample allocation for estimating a scalar
         # mean when estimating any statistic
+        nmodels = len(costs)
         super().__init__(stat, costs, cov,
-                         recursion_index=None, opt_criteria=None)
+                         recursion_index=np.arange(nmodels-1),
+                         opt_criteria=None)
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
 
@@ -1271,7 +1329,7 @@ class MFMCEstimator(GMFEstimator):
         return _get_sample_allocation_matrix_mfmc(self._nmodels)
 
 
-class MLMCEstimator(ACVEstimator):
+class MLMCEstimator(GRDEstimator):
     def __init__(self, stat, costs, cov, opt_criteria=None,
                  opt_qoi=0):
         """
@@ -1281,8 +1339,10 @@ class MLMCEstimator(ACVEstimator):
         Use optimal ACV weights instead of all weights=-1 used by
         classical MLMC.
         """
+        nmodels = len(costs)
         super().__init__(stat, costs, cov,
-                         recursion_index=None, opt_criteria=None)
+                         recursion_index=np.arange(nmodels-1),
+                         opt_criteria=None)
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
 
@@ -1383,14 +1443,14 @@ class BestModelSubsetEstimator():
                 self._estimator_type, self._stat_type, self._nqoi,
                 subset_costs, subset_cov, *sub_args, **sub_kwargs)
         except ValueError as e:
-            if allocate_kwargs.get("verbosity", 0) > 0:
+            if allocate_kwargs.pop("verbosity", 0) > 0:
                 print(e)
             # Some estiamtors, e.g. MFMC, fail when certain criteria
             # are not satisfied
             return None
         try:
             est.allocate_samples(target_cost, **allocate_kwargs)
-            if allocate_kwargs.get("verbosity", 0) > 0:
+            if allocate_kwargs.pop("verbosity", 0) > 0:
                 msg = "Model: {0} Objective: {1}".format(
                     idx, est._optimized_criteria.item())
                 print(msg)
@@ -1492,7 +1552,9 @@ class BestModelSubsetEstimator():
             "_rounded_nsamples_per_model", "_costs",
             "_optimized_criteria", "_get_discrepancy_covariances",
             "_rounded_target_cost",
-            "_get_allocation_matrix"]
+            "_get_allocation_matrix",
+            "_optimization_criteria",
+            "_optimized_covariance"]
         for attr in attr_list:
             setattr(self, attr, getattr(self.best_est, attr))
 

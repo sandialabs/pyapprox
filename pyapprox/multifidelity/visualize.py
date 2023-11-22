@@ -7,16 +7,6 @@ from pyapprox.multifidelity.multioutput_monte_carlo import (
     ComparisionCriteria, compute_variance_reductions)
 
 
-def plot_model_recursion(recursion_index, ax):
-    nmodels = len(recursion_index)+1
-    graph = nx.Graph()
-    graph.add_nodes_from(np.arange(nmodels))
-    for ii, jj in enumerate(recursion_index):
-        graph.add_edge(ii+1, jj)
-    pos = _hierarchy_pos(graph, 0, vert_gap=0.1, width=0.1)
-    nx.draw(graph, pos=pos, ax=ax, with_labels=True, node_size=[2000],
-            font_size=24)
-
 
 def plot_model_costs(costs, model_names=None, ax=None):
     if ax is None:

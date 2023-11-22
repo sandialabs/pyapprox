@@ -156,7 +156,9 @@ class TestMOMC(unittest.TestCase):
 
     def _check_estimator_variances(self, model_idx, qoi_idx, recursion_index,
                                    est_type, stat_type, tree_depth=None,
-                                   max_nmodels=None, ntrials=int(1e4)):
+                                   max_nmodels=None, ntrials=int(1e4),
+                                   target_cost=50):
+        ntrials = int(ntrials)
         rtol, atol = 4.6e-2, 1.01e-3
         funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
@@ -220,7 +222,7 @@ class TestMOMC(unittest.TestCase):
 
         # must call opt otherwise best_est will not be set for
         # best model subset acv
-        est.allocate_samples(100)
+        est.allocate_samples(target_cost)
         print(est)
 
         max_eval_concurrency = 1
@@ -249,6 +251,9 @@ class TestMOMC(unittest.TestCase):
             # print(CF)
             # print(CF_mc)
             # print((np.abs(CF_mc-CF)-(atol + rtol*np.abs(CF))).min())
+            # print(cf)
+            # print(cf_mc)
+            # print((np.abs(cf_mc-cf)-(atol + rtol*np.abs(cf))).min())
             assert np.allclose(CF_mc, CF, atol=atol, rtol=rtol)
             assert np.allclose(cf_mc, cf, atol=atol, rtol=rtol)
 
@@ -265,33 +270,41 @@ class TestMOMC(unittest.TestCase):
             [[0, 1, 2], [0, 1], None, "cv", "mean"],
             [[0, 1, 2], [0, 1], None, "cv", "variance"],
             [[0, 1, 2], [0, 2], None, "cv", "mean_variance",
-             None, None, int(5e4)],
+             None, None, 5e4],
             [[0, 1, 2], [0], [0, 1], "grd", "mean"],
             [[0, 1, 2], [0, 1], [0, 1], "grd", "mean"],
             [[0, 1, 2], [0, 1], [0, 0], "grd", "mean"],
             [[0, 1, 2], [0, 1], [0, 1], "grd", "variance"],
-            [[0, 1, 2], [0, 1], [0, 1], "grd", "mean_variance"],
+            [[0, 1, 2], [0, 1], [0, 1], "grd", "mean_variance",
+             None, None, 5e4],
             [[0, 1, 2], [0], [0, 1], "gis", "mean"],
             [[0, 1, 2], [0, 1, 2], [0, 0], "gmf", "mean"],
-            [[0, 1, 2], [0, 1, 2], [0, 1], "gmf", "mean", 2, None, int(5e4)],
-            [[0, 1, 2], [0, 1, 2], [0, 1], "gmf", "mean", None, 3],
+            # test now fixed bug that occured when number of samples in
+            # an acv_subset was 1
+            [[0, 1, 2], [0, 1, 2], [0, 0], "gmf", "mean",
+             None, None, 1e4, 10],
+            [[0, 1, 2], [0, 1, 2], [0, 1], "gmf", "mean",
+             2, None, 5e4, 100],
+            [[0, 1, 2], [0, 1, 2], [0, 1], "gmf", "mean", None, 3, 1e4, 100],
             [[0, 1, 2], [0, 1, 2], [0, 1], "grd", "mean", None, 3],
             [[0, 1, 2], [2], [0, 1], "grd", "variance", None, 3],
             [[0, 1], [0, 2], [0], "gmf", "mean"],
             [[0, 1], [0], [0], "gmf", "variance"],
             [[0, 1], [0, 2], [0], "gmf", "variance"],
             [[0, 1, 2], [0], [0, 0], "gmf", "variance"],
-            [[0, 1, 2], [0, 1, 2], [0, 0], "gmf", "variance"],
+            [[0, 1, 2], [0, 1, 2], [0, 0], "gmf", "variance",
+             None, None, 1e4, 100],
             [[0, 1], [0], [0], "gmf", "mean_variance"],
             [[0, 1, 2], [0], None, "mfmc", "mean"],
-            [[0, 1, 2], [0], None, "mlmc", "mean"],
-            [[0, 1, 2], [0, 1], None, "mlmc", "mean"],
+            [[0, 1, 2], [0], None, "mlmc", "mean", None, None, 5e4],
+            [[0, 1, 2], [0, 1], None, "mlmc", "mean", None, None, 5e4],
             [[0, 1, 2], [0], None, "mlmc", "variance"],
-            [[0, 1, 2], [0], None, "mlmc", "mean_variance"],
-            [[0, 1, 2], [0, 1, 2], None, "gmf", "variance", 2],
+            [[0, 1, 2], [0], None, "mlmc", "mean_variance",
+             None, None, 1e4, 100],
             [[0], [0, 1, 2], None, "mc", "variance"],
+            [[0, 1, 2], [0, 1, 2], None, "gmf", "variance", 2, None, int(5e4)],
         ]
-        for test_case in test_cases[23:]:
+        for test_case in test_cases:
             np.random.seed(1)
             print(test_case)
             self._check_estimator_variances(*test_case)
@@ -309,16 +322,16 @@ class TestMOMC(unittest.TestCase):
             cov, costs, target_cost)
         assert np.allclose(
             np.exp(est._objective(
-                target_cost, MFMCEstimator._mfmc_ratios_to_npartition_ratios(
+                target_cost, MFMCEstimator._native_ratios_to_npartition_ratios(
                     mfmc_model_ratios))[0]),
             np.exp(mfmc_log_variance))
         assert np.allclose(
             est._objective(
-                target_cost, MFMCEstimator._mfmc_ratios_to_npartition_ratios(
+                target_cost, MFMCEstimator._native_ratios_to_npartition_ratios(
                     mfmc_model_ratios))[1], 0)
 
         partition_ratios = torch.as_tensor(
-            MFMCEstimator._mfmc_ratios_to_npartition_ratios(
+            MFMCEstimator._native_ratios_to_npartition_ratios(
                 mfmc_model_ratios), dtype=torch.double)
         errors = check_gradients(
             lambda z: est._objective(target_cost, z[:, 0]), True,
@@ -399,7 +412,7 @@ class TestMOMC(unittest.TestCase):
 
         # test mapping from partition ratios to model ratios
         partition_ratios = torch.as_tensor(
-            MLMCEstimator._mlmc_ratios_to_npartition_ratios(
+            MLMCEstimator._native_ratios_to_npartition_ratios(
                 mlmc_model_ratios), dtype=torch.double)
         model_ratios = est._partition_ratios_to_model_ratios(partition_ratios)
         npartition_samples = est._npartition_samples_from_partition_ratios(
@@ -415,12 +428,12 @@ class TestMOMC(unittest.TestCase):
 
         assert np.allclose(
             np.exp(est._objective(
-                target_cost, MLMCEstimator._mlmc_ratios_to_npartition_ratios(
+                target_cost, MLMCEstimator._native_ratios_to_npartition_ratios(
                     mlmc_model_ratios))[0]),
             np.exp(mlmc_log_variance))
         assert np.allclose(
             est._objective(
-                target_cost, MLMCEstimator._mlmc_ratios_to_npartition_ratios(
+                target_cost, MLMCEstimator._native_ratios_to_npartition_ratios(
                     mlmc_model_ratios))[1], 0)
 
         errors = check_gradients(
@@ -480,7 +493,7 @@ class TestMOMC(unittest.TestCase):
         B = _nqoi_nqoisq_subproblem(
             B, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
         est = get_estimator(
-            "gmf", "mean_variance", 3, costs, cov, W, B)
+            "gmf", "mean_variance", len(qoi_idx), costs, cov, W, B)
         est.allocate_samples(target_cost)
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
@@ -579,25 +592,46 @@ class TestMOMC(unittest.TestCase):
         est_val_pilot = est(acv_values2)
         assert np.allclose(est_val, est_val_pilot)
 
-    def test_bootstrap_estimator(self):
+    def _check_bootstrap_estimator(self, est_name, target_cost):
+        qoi_idx = [0, 1]
+        model_idx = [0, 1, 2]
+        # model_idx = [0, 1]
         funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
-            [0, 1, 2], [0, 1, 2])
-        nqoi = 3
+            model_idx, qoi_idx)
+        nqoi = len(qoi_idx)
 
         # modify costs so more hf samples are used but all three models
         # are selected
-        costs[1:] = 0.1, 0.05
-        est = get_estimator("gmf", "mean", nqoi, costs, cov, max_nmodels=3)
-        target_cost = 100
-        est.allocate_samples(target_cost, verbosity=0, nprocs=1)
+        costs[1:] = [0.1, 0.05][:len(model_idx)-1]
+        if est_name == "cv":
+            est = get_estimator(
+                "cv", "mean", nqoi, costs, cov, lowfi_stats=means[1:])
+        else:
+            est = get_estimator(
+                est_name, "mean", nqoi, costs, cov)
+        est.allocate_samples(target_cost)#, verbosity=0, nprocs=1)
+        print(est)
 
-        samples_per_model = est._generate_estimator_samples(None)[0]
-        print(samples_per_model)
+        
+        samples_per_model = est.generate_samples_per_model(model.variable.rvs)
         values_per_model = [
             f(samples) for f, samples in zip(funs, samples_per_model)]
 
-        bootstrap_mean, bootstrap_variance = est.bootstrap(
-            values_per_model, 100) # 10000
+        bootstrap_stats, bootstrap_cov = est.bootstrap(
+            values_per_model, 1e2)
+        # print(bootstrap_stats-means[0])
+        # print(bootstrap_cov, "CB")
+        # print(est._optimized_covariance, "C")
+        assert np.allclose(bootstrap_stats, means[0], atol=1e-3, rtol=1e-2)
+        assert np.allclose(bootstrap_cov, est._optimized_covariance,
+                           atol=1e-3, rtol=1e-2)
+
+    def test_bootstrap_estimator(self):
+        test_cases = [
+            ["mc", 1000], ["cv", 42], ["mfmc", 100]]
+        for test_case in test_cases[2:]:
+            print(test_case)
+            self._check_bootstrap_estimator(*test_case)
 
 
 if __name__ == "__main__":

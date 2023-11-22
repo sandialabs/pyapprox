@@ -67,6 +67,17 @@ def _hierarchy_pos(G, root, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5):
     return _hp(G, root, width, vert_gap, vert_loc, xcenter)
 
 
+def _plot_model_recursion(recursion_index, ax):
+    nmodels = len(recursion_index)+1
+    graph = nx.Graph()
+    graph.add_nodes_from(np.arange(nmodels))
+    for ii, jj in enumerate(recursion_index):
+        graph.add_edge(ii+1, jj)
+    pos = _hierarchy_pos(graph, 0, vert_gap=0.1, width=0.1)
+    nx.draw(graph, pos=pos, ax=ax, with_labels=True, node_size=[2000],
+            font_size=24)
+
+
 def _plot_partition(ii, jj, ax, color, text):
     box = np.array(
         [[ii, jj], [ii+1, jj], [ii+1, jj+1], [ii, jj+1], [ii, jj]]).T

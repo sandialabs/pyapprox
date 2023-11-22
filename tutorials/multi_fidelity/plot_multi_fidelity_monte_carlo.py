@@ -110,7 +110,9 @@ _ = axs[1].set_title(est_labels[1])
 #%%
 #Comparison To Control Variates
 #------------------------------
-#It is clear from the recursive derivation of MFMC above that MFMC uses model :math:`m` as a contol variate to help estimate the statistic of model :math:`m-1`. Not all models are used to reduce the variance of :math:`Q_0`. The same is actually true for MLMC. We can see the effect of this with the following code. Below we we plot the ratios :math:`\var{Q_0^\text{MFMC}(\rvset_\text{MFMC})}/\var{Q_0^\text{MC}(\rvset_0)}` and :math:`\var{Q_0^\text{MLMC}(\rvset_\text{MLMC})}/\var{Q_0^\text{MC}(\rvset_0)}` as we increase the number of samples assigned to the low-fidelity models, while keeping the number of high-fidelity samples fixed. We also plot :math:`\var{Q_0^\text{CV}(\rvset_0)}/\var{Q_0^\text{MC}(\rvset_0)}` based on the control variate estimator variance when the low-fidelity model statistics are known when increasing numbers of models are used. These last quantities represent the best ACV estimators could possibly do if the cost of evaluating the low-fidelity models was zero.
+#It is clear from the recursive derivation of MFMC above that MFMC uses model :math:`m` as a contol variate to help estimate the statistic of model :math:`m-1`. Not all models are directly used to reduce the variance of :math:`Q_0`; MLMC admits has the same property. The effect of the recursive property of MFMC and MLMC can be observed with the following code.
+#
+#Below we we plot the ratios :math:`\var{Q_0^\text{MFMC}(\rvset_\text{MFMC})}/\var{Q_0^\text{MC}(\rvset_0)}` and :math:`\var{Q_0^\text{MLMC}(\rvset_\text{MLMC})}/\var{Q_0^\text{MC}(\rvset_0)}` as we increase the number of samples assigned to the low-fidelity models, while keeping the number of high-fidelity samples fixed. We also plot :math:`\var{Q_0^\text{CV}(\rvset_0)}/\var{Q_0^\text{MC}(\rvset_0)}` for control variate estimator that use increasing numbers of models with known low-fidelity statistics. These CV-based variance ratios represent the best ACV estimators could possibly do if the cost of evaluating the low-fidelity models was zero.
 nhf_samples = 1
 nmodels = costs.shape[0]
 cv_ests = [
