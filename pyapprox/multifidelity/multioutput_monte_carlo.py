@@ -522,6 +522,22 @@ class CVEstimator(MCEstimator):
         """
         return self._estimate(values_per_model, self._optimized_weights)
 
+    def insert_pilot_values(self, pilot_values, values_per_model):
+        """
+        Only add pilot values to the fist indepedent partition and thus
+        only to models that use that partition
+        """
+        new_values_per_model = []
+        for ii in range(self._nmodels):
+            active_partition = ((self._allocation_mat[0, 2*ii] == 1) or 
+                               (self._allocation_mat[0, 2*ii+1] == 1))
+            if active_partition:
+                new_values_per_model.append(np.vstack((
+                    pilot_values[ii], values_per_model[ii])))
+            else:
+                new_values_per_model.append(values_per_model[ii].copy())
+        return new_values_per_model
+
     def __repr__(self):
         if self._optimized_criteria is None:
             return "{0}(stat={1}, recursion_index={2})".format(
@@ -805,21 +821,29 @@ class ACVEstimator(CVEstimator):
             for ii in range(nacv_subsets)]
         return acv_samples
 
-    def generate_samples_per_model(self, rvs):
-        ntotal_independent_samples = self._rounded_npartition_samples.sum()
+    def generate_samples_per_model(self, rvs, npilot_samples=0):
+        ntotal_independent_samples = (
+            self._rounded_npartition_samples.sum()-npilot_samples)
         independent_samples = rvs(ntotal_independent_samples)
         samples_per_model = []
+        rounded_npartition_samples = self._rounded_npartition_samples.clone()
+        if npilot_samples > rounded_npartition_samples[0]:
+            raise ValueError(
+                "npilot_samples is larger than optimized first partition size")
+        rounded_npartition_samples[0] -= npilot_samples
+        rounded_nsamples_per_model = self._compute_nsamples_per_model(
+            rounded_npartition_samples)
         partition_indices = self._get_partition_indices(
-            self._rounded_npartition_samples)
+            rounded_npartition_samples)
         for ii in range(self._nmodels):
             active_partitions = np.where(
                 (self._allocation_mat[:, 2*ii] == 1) |
                 (self._allocation_mat[:, 2*ii+1] == 1))[0]
             indices = np.hstack(
                 [partition_indices[idx] for idx in active_partitions])
-            if indices.shape[0] != self._rounded_nsamples_per_model[ii]:
+            if indices.shape[0] != rounded_nsamples_per_model[ii]:
                 msg = "Rounding has caused {0} != {1}".format(
-                    indices.shape[0], self._rounded_nsamples_per_model[ii])
+                    indices.shape[0], rounded_nsamples_per_model[ii])
                 raise RuntimeError(msg)
             samples_per_model.append(independent_samples[:, indices])
         return samples_per_model
@@ -1381,17 +1405,18 @@ class MLMCEstimator(GRDEstimator):
         return np.hstack(partition_ratios)
 
 
-class BestModelSubsetEstimator():
-    def __init__(self, estimator_type, stat_type, costs, cov,
+class BestEstimator():
+    def __init__(self, est_types, stat_type, costs, cov,
                  max_nmodels, *est_args, **est_kwargs):
-
+        
         self.best_est = None
 
-        self._estimator_type = estimator_type
+        self._estimator_types = est_types
         self._stat_type = stat_type
         self._candidate_cov, self._candidate_costs = cov, np.asarray(costs)
         # self._ncandidate_nmodels is the number of total models
         self._ncandidate_models = len(self._candidate_costs)
+        self._lf_model_indices = np.arange(1, self._ncandidate_models)
         self._nqoi = self._candidate_cov.shape[0]//self._ncandidate_models
         self._max_nmodels = max_nmodels
         self._args = est_args
@@ -1402,6 +1427,9 @@ class BestModelSubsetEstimator():
         self._best_model_indices = None
         self._all_model_labels = None
 
+        self._save_candidate_estimators = False
+        self._candidate_estimators = None
+
     @property
     def model_labels(self):
         return [self._all_model_labels[idx]
@@ -1411,16 +1439,7 @@ class BestModelSubsetEstimator():
     def model_labels(self, labels):
         self._all_model_labels = labels
 
-    def _get_model_subset_estimator(self, qoi_idx,
-                                    nsubset_lfmodels, allocate_kwargs,
-                                    target_cost, lf_model_subset_indices):
-        idx = np.hstack(([0], lf_model_subset_indices)).astype(int)
-        subset_cov = _nqoi_nqoi_subproblem(
-            self._candidate_cov, self._ncandidate_models, self._nqoi,
-            idx, qoi_idx)
-        subset_costs = self._candidate_costs[idx]
-        sub_args = multioutput_stats[self._stat_type]._args_model_subset(
-            self._ncandidate_models, self._nqoi, idx, *self._args)
+    def _validate_kwargs(self, nsubset_lfmodels):
         sub_kwargs = copy.deepcopy(self._kwargs)
         if "recursion_index" in sub_kwargs:
             index = sub_kwargs["recursion_index"]
@@ -1439,19 +1458,23 @@ class BestModelSubsetEstimator():
         if "tree_depth" in sub_kwargs:
             sub_kwargs["tree_depth"] = min(
                 sub_kwargs["tree_depth"], nsubset_lfmodels)
+        return sub_kwargs
+
+    def _get_estimator(self, est_type, subset_costs, subset_cov, 
+                       target_cost, sub_args, sub_kwargs, allocate_kwargs):
         try:
             est = get_estimator(
-                self._estimator_type, self._stat_type, self._nqoi,
+                est_type, self._stat_type, self._nqoi,
                 subset_costs, subset_cov, *sub_args, **sub_kwargs)
         except ValueError as e:
-            if allocate_kwargs.pop("verbosity", 0) > 0:
+            if sub_kwargs.pop("verbosity", 0) > 0:
                 print(e)
-            # Some estiamtors, e.g. MFMC, fail when certain criteria
+            # Some estimators, e.g. MFMC, fail when certain criteria
             # are not satisfied
             return None
         try:
             est.allocate_samples(target_cost, **allocate_kwargs)
-            if allocate_kwargs.pop("verbosity", 0) > 0:
+            if sub_kwargs.pop("verbosity", 0) > 0:
                 msg = "Model: {0} Objective: {1}".format(
                     idx, est._optimized_criteria.item())
                 print(msg)
@@ -1460,77 +1483,115 @@ class BestModelSubsetEstimator():
             if self._allow_failures:
                 return None
             raise e
+        
+    def _get_model_subset_estimator(
+            self, qoi_idx, nsubset_lfmodels, allocate_kwargs,
+            target_cost, lf_model_subset_indices):
 
-    def _get_best_models_for_acv_estimator(
-            self, target_cost, **allocate_kwargs):
-        if self._max_nmodels is None:
-            max_nmodels = self._ncandidate_nmodels
-        else:
-            max_nmodels = self._max_nmodels
-            lf_model_indices = np.arange(1, self._ncandidate_models)
+        idx = np.hstack(([0], lf_model_subset_indices)).astype(int)
+        subset_cov = _nqoi_nqoi_subproblem(
+            self._candidate_cov, self._ncandidate_models, self._nqoi,
+            idx, qoi_idx)
+        subset_costs = self._candidate_costs[idx]
+        sub_args = multioutput_stats[self._stat_type]._args_model_subset(
+            self._ncandidate_models, self._nqoi, idx, *self._args)
+        sub_kwargs = self._validate_kwargs(nsubset_lfmodels)
+
+        best_est = None
         best_criteria = np.inf
-        best_est, best_model_indices = None, None
+        for est_type in self._estimator_types:
+            est = self._get_estimator(
+                est_type, subset_costs, subset_cov, 
+                target_cost, sub_args, sub_kwargs, allocate_kwargs)
+            if self._save_candidate_estimators:
+                self._candidate_estimators.append(est)
+            if est is not None and est._optimized_criteria < best_criteria:
+                best_est = est
+                best_criteria = est._optimized_criteria.item()
+        return best_est
+ 
+    def _get_best_model_subset_for_estimator_pool(
+            self, nsubset_lfmodels, target_cost,
+           best_criteria, best_model_indices, best_est, **allocate_kwargs):
         qoi_idx = np.arange(self._nqoi)
         nprocs = allocate_kwargs.get("nprocs", 1)
+        pool = Pool(nprocs)
+        indices = list(
+            combinations(self._lf_model_indices, nsubset_lfmodels))
+        result = pool.map(
+            partial(self._get_model_subset_estimator,
+                    qoi_idx, nsubset_lfmodels, allocate_kwargs,
+                    target_cost), indices)
+        pool.close()
+        criteria = [
+            np.array(est._optimized_criteria)
+            if est is not None else np.inf for est in result]
+        II = np.argmin(criteria)
+        if not np.isfinite(criteria[II]):
+            best_est = None
+        else:
+            best_est = result[II]
+            best_model_indices = np.hstack(
+                ([0], indices[II])).astype(int)
+            best_criteria = best_est._optimized_criteria
+        return best_criteria, best_model_indices, best_est
+
+    def _get_best_model_subset_for_estimator_serial(
+            self, nsubset_lfmodels, target_cost,
+            best_criteria, best_model_indices, best_est, **allocate_kwargs):
+        qoi_idx = np.arange(self._nqoi)
+        for lf_model_subset_indices in combinations(
+                self._lf_model_indices, nsubset_lfmodels):
+            est = self._get_model_subset_estimator(
+                qoi_idx, nsubset_lfmodels, allocate_kwargs,
+                target_cost, lf_model_subset_indices)
+            if est is not None and est._optimized_criteria < best_criteria:
+                best_est = est
+                best_model_indices = np.hstack(
+                    ([0], lf_model_subset_indices)).astype(int)
+                best_criteria = best_est._optimized_criteria
+        return best_criteria, best_model_indices, best_est
+
+    def _get_best_estimator(self, target_cost, **allocate_kwargs):
+        best_criteria = np.inf
+        best_est, best_model_indices = None, None
+        nprocs = allocate_kwargs.get("nprocs", 1)
+        
         if allocate_kwargs.get("verbosity", 0) > 0:
             print(f"Finding best model using {nprocs} processors")
         if "nprocs" in allocate_kwargs:
             del allocate_kwargs["nprocs"]
-        for nsubset_lfmodels in range(1, max_nmodels):
-            if nprocs > 1:
-                pool = Pool(nprocs)
-                indices = list(
-                    combinations(lf_model_indices, nsubset_lfmodels))
-                result = pool.map(
-                    partial(self._get_model_subset_estimator,
-                            qoi_idx, nsubset_lfmodels, allocate_kwargs,
-                            target_cost), indices)
-                pool.close()
-                criteria = [
-                    np.array(est._optimized_criteria)
-                    if est is not None else np.inf for est in result]
-                II = np.argmin(criteria)
-                if not np.isfinite(criteria[II]):
-                    best_est = None
-                else:
-                    best_est = result[II]
-                    best_model_indices = np.hstack(
-                        ([0], indices[II])).astype(int)
-                    best_criteria = best_est._optimized_criteria
-                continue
 
-            for lf_model_subset_indices in combinations(
-                    lf_model_indices, nsubset_lfmodels):
-                est = self._get_model_subset_estimator(
-                    qoi_idx, nsubset_lfmodels, allocate_kwargs,
-                    target_cost, lf_model_subset_indices)
-                if est is not None and est._optimized_criteria < best_criteria:
-                    best_est = est
-                    best_model_indices = np.hstack(
-                        ([0], lf_model_subset_indices)).astype(int)
-                    best_criteria = best_est._optimized_criteria
+        if self._max_nmodels is None:
+            min_nlfmodels = self._ncandidate_models-1
+            max_nmodels = self._ncandidate_models
+        else:
+            min_nlfmodels = 1
+            max_nmodels = self._ncandidate_models
+            
+        for nsubset_lfmodels in range(min_nlfmodels, max_nmodels):
+            if nprocs > 1:
+                 best_criteria, best_model_indices, best_est = (
+                     self._get_best_model_subset_for_estimator_pool(
+                         nsubset_lfmodels, target_cost,
+                         best_criteria, best_model_indices, best_est,
+                         **allocate_kwargs))
+            else:
+                 best_criteria, best_model_indices, best_est = (
+                     self._get_best_model_subset_for_estimator_serial(
+                         nsubset_lfmodels, target_cost,
+                         best_criteria, best_model_indices, best_est,
+                         **allocate_kwargs))
+            
         if best_est is None:
             raise RuntimeError("No solutions found for any model subset")
         return best_est, best_model_indices
 
     def allocate_samples(self, target_cost, **allocate_kwargs):
-        if self._estimator_type == "mc":
-            best_model_indices = np.array([0])
-            args = multioutput_stats[self._stat_type]._args_model_subset(
-                self._ncandidate_models, self._nqoi, best_model_indices,
-                *self._args)
-            best_est = get_estimator(
-                self._estimator_type, self._stat_type, self._nqoi,
-                self._candidate_costs[:1], self._candidate_cov[:1, :1],
-                *args, **self._kwargs)
-            best_est.allocate_samples(target_cost)
-
-        else:
-            best_est, best_model_indices = (
-                self._get_best_models_for_acv_estimator(
-                    target_cost, **allocate_kwargs))
-        # self._optimized_criteria = best_est._optimized_criteria
-        # self._rounded_target_cost = best_est.rounded_target_cost
+        if self._save_candidate_estimators:
+            self._candidate_estimators = []
+        best_est, best_model_indices = self._get_best_estimator(
+            target_cost, **allocate_kwargs)
         self.best_est = best_est
         self._best_model_indices = best_model_indices
         self._set_best_est_attributes()
@@ -1543,7 +1604,9 @@ class BestModelSubsetEstimator():
             "combine_acv_samples",
             "combine_acv_values",
             "generate_samples_per_model",
+            "insert_pilot_values",
             "bootstrap",
+            "plot_allocation",
             # private functions and variables
             "_separate_values_per_model",
             "_covariance_from_npartition_samples",
@@ -1555,7 +1618,8 @@ class BestModelSubsetEstimator():
             "_rounded_target_cost",
             "_get_allocation_matrix",
             "_optimization_criteria",
-            "_optimized_covariance"]
+            "_optimized_covariance",
+            "_allocation_mat"]
         for attr in attr_list:
             setattr(self, attr, getattr(self.best_est, attr))
 
@@ -1586,8 +1650,50 @@ multioutput_stats = {
 }
 
 
-def get_estimator(estimator_type, stat_type, nqoi, costs, cov, *stat_args,
+def get_estimator(estimator_types, stat_type, nqoi, costs, cov, *stat_args,
                   max_nmodels=None, **est_kwargs):
+    """
+    Parameters
+    ----------
+    estimator_types : list [str] or str
+        If str (or len(estimators_types==1), then return the estimator 
+        named estimator_type (or estimator_types[0])
+
+    stat_type : str
+        The type of statistics to compute
+
+    nqoi : integer
+        The number of quantities of interest (QoI) that each model returns
+
+    costs : np.ndarray (nmodels)
+        The computational cost of evaluating each model
+
+    cov : np.ndarray (nmodels*nqoi, nmodels*nqoi)
+        The covariance between all the QoI of all the models
+
+    stat_args : list or tuple
+        The arguments that are needed to compute the statistic
+
+    max_nmodels : integer
+        If None, compute the estimator using all the models. If not None,
+        find the model subset that uses at most max_nmodels that minimizes
+        the estimator covariance.
+
+    est_kwargs : dict
+        Keyword arguments that will be passed when creating each estimator.
+    """
+    if isinstance(estimator_types, list) or max_nmodels is not None:
+        if not isinstance(estimator_types, list):
+            estimator_types = [estimator_types]
+        return BestEstimator(
+            estimator_types, stat_type, costs, cov,
+            max_nmodels, *stat_args, **est_kwargs)
+
+    if isinstance(estimator_types, list):
+        estimator_type = estimator_types[0]
+    else:
+        estimator_type = estimator_types
+    
     if estimator_type not in multioutput_estimators:
         msg = f"Estimator {estimator_type} not supported. "
         msg += f"Must be one of {multioutput_estimators.keys()}"
@@ -1598,14 +1704,9 @@ def get_estimator(estimator_type, stat_type, nqoi, costs, cov, *stat_args,
         msg += f"Must be one of {multioutput_stats.keys()}"
         raise ValueError(msg)
 
-    if max_nmodels is None:
-        stat = multioutput_stats[stat_type](nqoi, cov, *stat_args)
-        return multioutput_estimators[estimator_type](
-            stat, costs, cov, **est_kwargs)
-
-    return BestModelSubsetEstimator(
-        estimator_type, stat_type, costs, cov,
-        max_nmodels, *stat_args, **est_kwargs)
+    stat = multioutput_stats[stat_type](nqoi, cov, *stat_args)
+    return multioutput_estimators[estimator_type](
+        stat, costs, cov, **est_kwargs)
 
 
 def _estimate_components(variable, est, funs, ii):
@@ -1634,8 +1735,8 @@ def _estimate_components(variable, est, funs, ii):
 
     mc_est = est._stat.sample_estimate
     if (isinstance(est, ACVEstimator) or
-            isinstance(est, BestModelSubsetEstimator)):
-        # the above condition does not allow BestModelSubsetEstimator to be
+            isinstance(est, BestEstimator)):
+        # the above condition does not allow BestEstimator to be
         # applied to CVEstimator
         est_val = est(values_per_model)
         acv_values = est._separate_values_per_model(values_per_model)

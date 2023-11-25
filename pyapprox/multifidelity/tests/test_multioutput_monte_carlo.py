@@ -11,7 +11,7 @@ from pyapprox.multifidelity._optim import (
     _allocate_samples_mfmc, _allocate_samples_mlmc)
 from pyapprox.multifidelity.multioutput_monte_carlo import (
     get_estimator, ACVEstimator, MFMCEstimator, MLMCEstimator, CVEstimator,
-    numerically_compute_estimator_variance, BestModelSubsetEstimator)
+    numerically_compute_estimator_variance, BestEstimator)
 from pyapprox.multifidelity.tests.test_stats import (
     _setup_multioutput_model_subproblem)
 from pyapprox.multifidelity.stats import (
@@ -226,7 +226,7 @@ class TestMOMC(unittest.TestCase):
         print(est)
 
         max_eval_concurrency = 1
-        if isinstance(est, BestModelSubsetEstimator):
+        if isinstance(est, BestEstimator):
             funs_subset = [funs[idx] for idx in est._best_model_indices]
         else:
             funs_subset = funs
@@ -286,6 +286,8 @@ class TestMOMC(unittest.TestCase):
             [[0, 1, 2], [0, 1, 2], [0, 1], "gmf", "mean",
              2, None, 5e4, 100],
             [[0, 1, 2], [0, 1, 2], [0, 1], "gmf", "mean", None, 3, 1e4, 100],
+            [[0, 1, 2], [0, 1, 2], [0, 1], ["gmf", "grd", "gis", "mlmc", "mfmc"],
+             "mean", None, 3, 1e4, 100],
             [[0, 1, 2], [0, 1, 2], [0, 1], "grd", "mean", None, 3],
             [[0, 1, 2], [2], [0, 1], "grd", "variance", None, 3],
             [[0, 1], [0, 2], [0], "gmf", "mean"],
@@ -468,9 +470,15 @@ class TestMOMC(unittest.TestCase):
     def test_best_model_subset_estimator(self):
         funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
-        est = get_estimator("gmf", "mean", 3, costs, cov, max_nmodels=3)
+        est = get_estimator(
+            ["gmf", "mfmc", "gis"], "mean", 3, costs, cov, max_nmodels=3)
         target_cost = 10
+        est._save_candidate_estimators = True
         est.allocate_samples(target_cost, verbosity=1, nprocs=1)
+
+        criteria = np.array(
+            [e._optimized_criteria for e in est._candidate_estimators])
+        assert np.allclose(criteria.min(), est._optimized_criteria)
 
         ntrials, max_eval_concurrency = int(1e3), 1
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
@@ -503,6 +511,7 @@ class TestMOMC(unittest.TestCase):
         assert np.allclose(covar_mc, covar, atol=atol, rtol=rtol)
 
     def test_insert_pilot_samples(self):
+        # This test is specific to ACV sampling strategies (not yet MLBLUE)
         funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
         nqoi = 3
@@ -511,86 +520,48 @@ class TestMOMC(unittest.TestCase):
         # are selected
         costs[1:] = 0.1, 0.05
         est = get_estimator(
-            "gmf", "mean", nqoi, costs, cov, max_nmodels=3)
+            "grd", "mean", nqoi, costs, cov, max_nmodels=3,
+            recursion_index=(0, 1))
         target_cost = 100
         est.allocate_samples(target_cost, verbosity=0, nprocs=1)
 
-        random_state = np.random.RandomState(1)
-        est.set_random_state(random_state)
-        acv_samples, acv_values = est.generate_data(funs)
-        est_val = est(acv_values)
-
-        # This test is specific to ACVMF sampling strategy
-        npilot_samples = 5
-        pilot_samples = acv_samples[0][1][:, :npilot_samples]
-        pilot_values = [f(pilot_samples) for f in model.funs]
-        assert np.allclose(pilot_values[0], acv_values[0][1][:npilot_samples])
-
-        values_per_model = est.combine_acv_values(acv_values)
-        values_per_model_wo_pilot = [
-            vals[npilot_samples:] for vals in values_per_model]
+        np.random.seed(1)
+        samples_per_model = est.generate_samples_per_model(model.variable.rvs)
         values_per_model = [
-            np.vstack((pilot_values[ii], vals))
-            for ii, vals in enumerate(values_per_model_wo_pilot)]
-        acv_values = est.separate_model_values(values_per_model)
-        est_stats = est(acv_values)
-        assert np.allclose(est_stats, est_val)
+            fun(samples) for fun, samples in zip(funs, samples_per_model)]
+        est_val = est(values_per_model)
 
-        random_state = np.random.RandomState(1)
-        est.set_random_state(random_state)
-        acv_samples, acv_values = est.generate_data(
-            funs, [pilot_samples, pilot_values])
-        est_val_pilot = est(acv_values)
-        assert np.allclose(est_val, est_val_pilot)
-        for ii in range(1, 3):
-            assert np.allclose(
-                acv_samples[ii][0][:, :npilot_samples],
-                acv_samples[0][1][:, :npilot_samples])
-            assert np.allclose(
-                acv_samples[ii][1][:, :npilot_samples],
-                acv_samples[0][1][:, :npilot_samples])
-
-        npilot_samples = 8
-        pilot_samples = est.best_est.generate_samples(npilot_samples)
-        self.assertRaises(ValueError, est.generate_data,
-                          funs, [pilot_samples, pilot_values])
-
-        # modify costs so more hf samples are used
-        costs[1:] = 0.5, 0.05
-        est = get_estimator("gmf", "mean", nqoi, costs, cov, max_nmodels=3)
-        target_cost = 100
-        est.allocate_samples(target_cost, verbosity=0, nprocs=1)
-        random_state = np.random.RandomState(1)
-        est.set_random_state(random_state)
-        acv_samples, acv_values = est.generate_data(funs)
-        est_val = est(acv_values)
-
+                
+        # start from same seed so samples will be generated in the same order
+        # as above
+        # variable.rvs() does not create nested samples when starting from
+        # the same randomstate and num_vars() > 1, e.g.
+        # partial(variable.rvs, random_state=random_state)(3) != 
+        # partial(variable.rvs, random_state=random_state)(4)[:, :3]
+        np.random.seed(1)
         npilot_samples = 5
-        samples_per_model = est.combine_acv_samples(acv_samples)
-        samples_per_model_wo_pilot = [
-            s[:, npilot_samples:] for s in samples_per_model]
-        values_per_model = est.combine_acv_values(acv_values)
-        values_per_model_wo_pilot = [
-            vals[npilot_samples:] for vals in values_per_model]
-
-        pilot_samples = acv_samples[0][1][:, :npilot_samples]
+        pilot_samples = model.variable.rvs(npilot_samples)
         pilot_values = [f(pilot_samples) for f in model.funs]
-        random_state = np.random.RandomState(1)
-        est.set_random_state(random_state)
-        acv_samples1, acv_values1 = est.generate_data(
-            funs, [pilot_samples, pilot_values])
-        est_val_pilot = est(acv_values1)
-        assert np.allclose(est_val, est_val_pilot)
+        assert np.allclose(pilot_values[0], values_per_model[0][:npilot_samples])
 
-        pilot_data = pilot_samples, pilot_values
-        acv_values2 = est.combine_pilot_data(
-            samples_per_model_wo_pilot, values_per_model_wo_pilot, pilot_data)
-        assert np.allclose(acv_values1[0][1], acv_values[0][1])
-        for ii in range(1, len(acv_values2)):
-            assert np.allclose(acv_values2[ii][0], acv_values[ii][0])
-            assert np.allclose(acv_values2[ii][1], acv_values[ii][1])
-        est_val_pilot = est(acv_values2)
-        assert np.allclose(est_val, est_val_pilot)
+        samples_per_model_wo_pilot = est.generate_samples_per_model(
+            model.variable.rvs, npilot_samples)
+        values_per_model_wo_pilot = [
+            fun(samples) for fun, samples in
+            zip(funs, samples_per_model_wo_pilot)]
+        nvalues_per_model_wo_pilot = [
+            v.shape[0] for v in values_per_model_wo_pilot]
+        modified_values_per_model = est.insert_pilot_values(
+            pilot_values, values_per_model_wo_pilot)
+        for ii in range(len(values_per_model)):
+            assert np.allclose(modified_values_per_model[ii],
+                               values_per_model[ii])
+            # make sure that values_per_model_wo_pilot is not being modified
+            # by insert_pilot_values
+            assert np.allclose(values_per_model_wo_pilot[ii].shape[0],
+                               nvalues_per_model_wo_pilot[ii])
+        est_stats = est(modified_values_per_model)
+        assert np.allclose(est_stats, est_val)
 
     def _check_bootstrap_estimator(self, est_name, target_cost):
         qoi_idx = [0, 1]

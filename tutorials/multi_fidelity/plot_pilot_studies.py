@@ -40,7 +40,7 @@ costs = np.array([1, 0.1, 0.01])
 benchmark = setup_benchmark("short_column_ensemble", nmodels=2)
 costs = np.array([1, 0.5, 0.05, 0.01, 0.002])[:2]
 benchmark = setup_benchmark("polynomial_ensemble", nmodels=3)
-costs = np.array([1, 0.1, 0.01])
+costs = np.array([1, 0.1, 0.05])
 nmodels = len(benchmark.fun.models)
 
 #%%
@@ -116,6 +116,9 @@ def compute_mse(build_acv, funs, variable, target_cost, npilot_samples,
 
 #%%
 #Now we will build many realiaztions of the ACV estimator for each different samples size. We must ensure that the cost of the pilot study and the construction of the ACV estimator do not exceed the target cost.
+
+print("oracle_mse", oracle_est._optimized_covariance[0, 0].item()) # hack remove it is below
+
 np.random.seed(1)
 ntrials = int(1e4)
 mse_list = []
@@ -141,8 +144,7 @@ ax.axhline(y=oracle_mse, ls='--', color='k', label=mathrm_label("Oracle MSE"))
 ax.axhline(y=mc_mse, ls=':', color='r', label=mathrm_label("MC MSE"))
 ax.plot(npilot_samples_list, mse_list, '-o', label=mathrm_label("Pilot MSE"))
 ax.set_xlabel(mathrm_label("Number of pilot samples"))#)
-ax.legend()
-plt.show()
+_ = ax.legend()
 
 #%%
 #Estimating model costs
