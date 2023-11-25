@@ -1,7 +1,7 @@
 r"""
 Multi-level Monte Carlo
 =======================
-This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and describes how the pioneering work of Multi-level Monte Carlo (MLMC) [CGSTCVS2011]_, [GOR2008]_ can be used to estimate the mean of a high-fidelity model using multiple low fidelity models. MLMC is actually a special type of ACV estimator, but it was not originally derived this way. Consequently, this tutorial begins by presenting the typical formulation of MLMC and then concludes by discussing relationships with ACV.
+This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variates.py` and describes how the pioneering work of Multi-level Monte Carlo (MLMC) [CGSTCVS2011]_, [GOR2008]_ can be used to estimate the mean of a high-fidelity model using multiple low fidelity models. MLMC is actually a special type of ACV estimator, but it was not originally derived this way. Consequently, this tutorial begins by presenting the typical formulation of MLMC and then concludes by discussing relationships with ACV.
 
 Two Model MLMC
 --------------
@@ -139,7 +139,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import mathrm_labels
 from pyapprox.benchmarks import setup_benchmark
-from pyapprox.multifidelity.multioutput_monte_carlo import (
+from pyapprox.multifidelity.factory import (
     get_estimator, compare_estimator_variances)
 from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions, plot_estimator_variances,
@@ -207,7 +207,7 @@ _ = plot_estimator_variances(
 #   &=Q_{0}(\rvset_0)-Q_{1}(\rvset_0)+Q_{1}(\rvset_1)\\
 #   &=Q_{0}(\rvset_0)-(Q_{1}(\rvset_0)-Q_{1}(\rvset_1))
 #
-#which has the same form as the two model ACV estimator presented in :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` where the control variate weight has been set to :math:`-1`.
+#which has the same form as the two model ACV estimator presented in :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variates.py` where the control variate weight has been set to :math:`-1`.
 #
 #For three models the allocation matrix of MLMC is
 #

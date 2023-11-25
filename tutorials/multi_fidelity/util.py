@@ -7,8 +7,7 @@ from itertools import cycle
 import torch
 import numpy as np
 
-from pyapprox.multifidelity.multioutput_monte_carlo import (
-    compute_variance_reductions)
+from pyapprox.multifidelity.factory import compute_variance_reductions
 from pyapprox.util.visualization import mathrm_label
 
 
@@ -39,9 +38,10 @@ def plot_estimator_variance_ratios_for_polynomial_ensemble(
         est_copies = []
         for factor in factors:
             npartition_samples = torch.as_tensor(
-                nhf_samples*np.hstack((1, npartition_ratio_base*2**factor)),
+                nhf_samples*np.hstack(
+                    (1, npartition_ratio_base[:est._npartitions-1]*2**factor)),
                 dtype=torch.double)
-            if est._tree_depth is not None:
+            if hasattr(est, "_tree_depth") and est._tree_depth is not None:
                 ests_per_factor = []
                 for ii, index in enumerate(est.get_all_recursion_indices()):
                     est_copy = copy.deepcopy(est)

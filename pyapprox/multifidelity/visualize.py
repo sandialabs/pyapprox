@@ -3,7 +3,7 @@ import networkx as nx
 
 from pyapprox.util.visualization import plt, mathrm_label
 from pyapprox.multifidelity._visualize import _hierarchy_pos, _autolabel
-from pyapprox.multifidelity.multioutput_monte_carlo import (
+from pyapprox.multifidelity.factory import (
     ComparisionCriteria, compute_variance_reductions)
 
 

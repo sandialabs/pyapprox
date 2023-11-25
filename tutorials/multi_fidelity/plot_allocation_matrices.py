@@ -213,7 +213,7 @@ The following can be used to plot the allocation matrix of any PACV estimator (n
 import matplotlib.pyplot as plt
 
 from pyapprox.benchmarks import setup_benchmark
-from pyapprox.multifidelity.multioutput_monte_carlo import get_estimator
+from pyapprox.multifidelity.factory import get_estimator
 
 benchmark = setup_benchmark("tunable_model_ensemble")
 model = benchmark.fun

@@ -109,7 +109,7 @@ exact_integral_f0 = benchmark.means[0]
 
 #%%
 #Now initialize the estimator
-from pyapprox.multifidelity.multioutput_monte_carlo import (
+from pyapprox.multifidelity.factory import (
     get_estimator, numerically_compute_estimator_variance)
 # The benchmark has three models, so just extract data for first two models
 costs = benchmark.fun.costs()[:2]

@@ -79,7 +79,7 @@ example_filenames_in_order = [
     'plot_monte_carlo.py',
     'plot_multioutput_monte_carlo.py',
     'plot_control_variate_monte_carlo.py',
-    'plot_approximate_control_variate_monte_carlo.py',
+    'plot_approximate_control_variates.py',
     'plot_many_model_acv.py',
     'acv_covariances.py',
     'plot_allocation_matrices.py',

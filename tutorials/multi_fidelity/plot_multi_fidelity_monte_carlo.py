@@ -1,7 +1,7 @@
 r"""
 Multi-fidelity Monte Carlo
 ==========================
-This tutorial builds on from :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and introduces an approximate control variate estimator called Multi-fidelity Monte Carlo (MFMC) [PWGSIAM2016]_.
+This tutorial builds on from :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variates.py` and introduces an approximate control variate estimator called Multi-fidelity Monte Carlo (MFMC) [PWGSIAM2016]_.
 
 To derive the MFMC estimator first recall the two model ACV estimator
 
@@ -65,7 +65,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import mathrm_labels
 from pyapprox.benchmarks import setup_benchmark
-from pyapprox.multifidelity.multioutput_monte_carlo import (
+from pyapprox.multifidelity.factory import (
     get_estimator, compare_estimator_variances, compute_variance_reductions)
 from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions)

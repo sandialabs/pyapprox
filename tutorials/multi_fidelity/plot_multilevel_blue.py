@@ -79,66 +79,55 @@ The following code compares MLBLUE to other multif-fidelity esimators when the n
 
 First setup the polynomial benchmark
 """
-from functools import partial
-
 import numpy as np
+import matplotlib.pyplot as plt
 
-from pyapprox.util.visualization import plt, mathrm_labels, mathrm_label
-from pyapprox import multifidelity
-from pyapprox.multifidelity.control_variate_monte_carlo import (
-    get_control_variate_rsquared)
+from pyapprox.util.visualization import mathrm_labels
 from pyapprox.benchmarks import setup_benchmark
-
-plt.figure()
-benchmark = setup_benchmark("polynomial_ensemble")
-poly_model = benchmark.fun
-cov = poly_model.get_covariance_matrix()
-model_costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
-nhf_samples = 10
-nsample_ratios_base = np.array([2, 4, 8, 16])
+from pyapprox.multifidelity.factory import (
+    get_estimator, compare_estimator_variances, compute_variance_reductions)
+from pyapprox.multifidelity.visualize import (
+    plot_estimator_variance_reductions)
 
 #%%
 #First, plot the variance reduction of the optimal control variates using known low-fidelity means.
 #
 #Second, plot the variance reduction of multi-fidelity estimators that do not assume known low-fidelity means. The code below repeatedly doubles the number of low-fidelity samples according to the initial allocation defined by nsample_ratios_base=[2,4,8,16].
 
-# plot optimal control variate variance reduction
-cv_labels = mathrm_labels(["OCV-1", "OCV-2", "OCV-4"])
-cv_rsquared_funcs = [
-    lambda cov: get_control_variate_rsquared(cov[:2, :2]),
-    lambda cov: get_control_variate_rsquared(cov[:3, :3]),
-    lambda cov: get_control_variate_rsquared(cov)]
-cv_gammas = [1-f(cov) for f in cv_rsquared_funcs]
-xloc = -.35
-for ii in range(len(cv_gammas)):
-    plt.axhline(y=cv_gammas[ii], linestyle='--', c='k')
-    plt.text(xloc, cv_gammas[ii]*1.1, cv_labels[ii], fontsize=16)
-plt.axhline(y=1, linestyle='--', c='k')
-plt.text(xloc, 1, mathrm_label("MC"), fontsize=16)
+benchmark = setup_benchmark("polynomial_ensemble")
+model = benchmark.fun
 
-# plot multi-fidelity estimator variance reduction
-est_labels = mathrm_labels(["MLMC", "MFMC", "ACVMF", "ACVGMFB", "MLBLUE"])
-estimator_types = ["mlmc", "mfmc", "acvmf", "acvgmfb", "mlblue"]
+nmodels = 5
+cov = model.get_covariance_matrix()
+costs = np.asarray([10**-ii for ii in range(nmodels)])
+nhf_samples = 1
+cv_ests = [
+    get_estimator("cv", "mean", 1, costs[:ii+1], cov[:ii+1, :ii+1],
+                  lowfi_stats=model.get_means()[1:ii+1])
+    for ii in range(1, nmodels)]
+cv_labels = mathrm_labels(["CV-{%d}" % ii for ii in range(1, nmodels)])
+target_cost = nhf_samples*sum(costs)
+[est.allocate_samples(target_cost) for est in cv_ests]
+cv_variance_reductions = compute_variance_reductions(cv_ests)[0]
+
+from util import (
+    plot_control_variate_variance_ratios,
+    plot_estimator_variance_ratios_for_polynomial_ensemble)
+
 estimators = [
-    multifidelity.get_estimator(t, cov, model_costs, poly_model.variable)
-    for t in estimator_types]
-# acvgmfb and mlblue require nhf_samples so create wrappers of that does not
-estimators[-2]._get_rsquared = partial(
-    estimators[-2]._get_rsquared_from_nhf_samples, nhf_samples)
-estimators[-1]._get_rsquared = partial(
-    estimators[-1]._get_rsquared_from_nhf_samples, nhf_samples)
-nplot_points = 20
-acv_gammas = np.empty((nplot_points, len(estimators)))
-for ii in range(nplot_points):
-    nsample_ratios = np.array([r*(2**ii) for r in nsample_ratios_base])
-    acv_gammas[ii, :] = [1-est._get_rsquared(cov, nsample_ratios)
-                         for est in estimators]
-for ii in range(len(est_labels)):
-    plt.semilogy(np.arange(nplot_points), acv_gammas[:, ii],
-                 label=est_labels[ii])
-plt.legend()
-plt.xlabel(r'$\log_2(r_i)-i$')
-_ = plt.ylabel(mathrm_label('Variance reduction ratio ')+r'$\gamma$')
+    get_estimator("mlmc", "mean", 1, costs, cov),
+    get_estimator("mfmc", "mean", 1, costs, cov),
+    get_estimator("grd", "mean", 1, costs, cov, tree_depth=4),
+    get_estimator("mlblue", "mean", 1, costs, cov, subsets=[
+        np.array([0, 1, 2, 3, 4]),  np.array([1, 2, 3, 4]),
+        np.array([2, 3, 4]), np.array([4,])])]
+est_labels = est_labels = mathrm_labels(["MLMC", "MFMC", "PACV", "MLBLUE"])
+
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+plot_control_variate_variance_ratios(cv_variance_reductions, cv_labels, ax)
+_ = plot_estimator_variance_ratios_for_polynomial_ensemble(
+    estimators, est_labels, ax)
+
 
 #%%
 #Optimal sample allocation
@@ -151,46 +140,35 @@ _ = plt.ylabel(mathrm_label('Variance reduction ratio ')+r'$\gamma$')
 #
 #where :math:`W_j` denotes the cost of evaluating the jth model and :math:`W_{\max}` is the total budget.
 #
-# We will again use the polynomail model and to be consistent with previous tutoriuals, we will only use the first 4 models
-cov = cov[:4, :4]
-model_costs = model_costs[:4]
 
-# Add MC estimator to comparison
-estimator_types = ["mc", "mlmc", "mfmc", "acvmf", "acvgmfb", "mlblue"]
+target_costs = np.array([1e1, 1e2, 1e3], dtype=int)
 estimators = [
-    multifidelity.get_estimator(t, cov, model_costs, benchmark.variable)
-    for t in estimator_types]
-est_labels = mathrm_labels(
-    ["MC", "MLMC", "MFMC", "ACVMF", "ACVGMFB", "MLBLUE"])
-
-target_costs = np.array([1e2, 1e3, 1e4], dtype=int)
-optimized_estimators = multifidelity.compare_estimator_variances(
+    get_estimator("mc", "mean", 1, costs, cov),
+    get_estimator("mlmc", "mean", 1, costs, cov),
+    get_estimator("mlblue", "mean", 1, costs, cov, subsets=[
+        np.array([0, 1, 2, 3, 4]),  np.array([1, 2, 3, 4]),
+        np.array([2, 3, 4]), np.array([4,])]),
+    get_estimator("cv", "mean", 1, costs, cov,
+                  lowfi_stats=model.get_means()[1:])]
+est_labels = mathrm_labels(["MC", "MLMC", "MLBLUE", "CV"])
+optimized_estimators = compare_estimator_variances(
     target_costs, estimators)
 
-fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-multifidelity.plot_estimator_variances(
-    optimized_estimators, est_labels, ax,
-    ylabel=mathrm_label("Relative Estimator Variance"))
-ax.set_xlim(target_costs.min(), target_costs.max())
+from pyapprox.multifidelity.visualize import (
+    plot_estimator_variances, plot_estimator_sample_allocation_comparison)
+fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
+_ = plot_estimator_variances(
+    optimized_estimators, est_labels, axs,
+    relative_id=0, cost_normalization=1)
 
-ocv_variances = np.empty_like(target_costs, dtype=float)
-for ii, target_cost in enumerate(target_costs):
-    # ocv uses one sample for each model (but does not need additional
-    # values for estimating low fidelity means
-    nocv_samples_per_model = int(target_cost//model_costs.sum())
-    ocv_variances[ii] = cov[0, 0]/nocv_samples_per_model*(
-        1-get_control_variate_rsquared(cov))
-rel_ocv_variances = (
-    ocv_variances/optimized_estimators[0][0].optimized_variance)
-ax.loglog(target_costs, rel_ocv_variances, ':o',
-          label=mathrm_label("OCV"))
-ax.legend()
 
 #%%
 #Now plot the number of samples allocated for each target cost
 model_labels = [r"$M_{0}$".format(ii) for ii in range(cov.shape[0])]
-_= multifidelity.plot_acv_sample_allocation_comparison(
-    optimized_estimators[-1], model_labels, plt.figure().gca())
+fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
+_= plot_estimator_sample_allocation_comparison(
+    optimized_estimators[-1], model_labels, axs)
+plt.show()
 
 #%%
 #References

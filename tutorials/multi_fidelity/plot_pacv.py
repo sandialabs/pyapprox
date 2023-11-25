@@ -35,7 +35,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import mathrm_labels
 from pyapprox.benchmarks import setup_benchmark
-from pyapprox.multifidelity.multioutput_monte_carlo import (
+from pyapprox.multifidelity.factory import (
     get_estimator, compare_estimator_variances, compute_variance_reductions)
 from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions)
@@ -128,9 +128,9 @@ estimators = [
     get_estimator("mfmc", "mean", 1, costs, cov),
     get_estimator("gmf", "mean", 1, costs, cov,
                   recursion_index=np.zeros(nmodels-1, dtype=int)),
-    get_estimator("gmf", "mean", 1, costs, cov, tree_depth=2),
-    get_estimator("grd", "mean", 1, costs, cov, tree_depth=2),
-    get_estimator("gis", "mean", 1, costs, cov, tree_depth=2)]
+    get_estimator("gmf", "mean", 1, costs, cov, tree_depth=4),
+    get_estimator("grd", "mean", 1, costs, cov, tree_depth=4),
+    get_estimator("gis", "mean", 1, costs, cov, tree_depth=4)]
 est_labels = est_labels = mathrm_labels(
     ["MLMC", "MFMC", "ACVMF", "GMF", "GRD", "GIS"])
 

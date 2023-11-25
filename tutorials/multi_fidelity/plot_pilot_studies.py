@@ -28,8 +28,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.benchmarks import setup_benchmark
-from pyapprox.multifidelity.multioutput_monte_carlo import (
-    get_estimator)
+from pyapprox.multifidelity.factory import get_estimator
 from pyapprox.util.visualization import mathrm_label
 
 np.random.seed(1)

@@ -1,5 +1,4 @@
 import unittest
-from functools import partial
 
 import torch
 import numpy as np
@@ -9,9 +8,10 @@ from pyapprox.multifidelity.stats import (
     _nqoisq_nqoisq_subproblem, _nqoi_nqoisq_subproblem)
 from pyapprox.multifidelity._optim import (
     _allocate_samples_mfmc, _allocate_samples_mlmc)
-from pyapprox.multifidelity.multioutput_monte_carlo import (
-    get_estimator, ACVEstimator, MFMCEstimator, MLMCEstimator, CVEstimator,
-    numerically_compute_estimator_variance, BestEstimator)
+from pyapprox.multifidelity.acv import (
+    ACVEstimator, MFMCEstimator, MLMCEstimator, CVEstimator)
+from pyapprox.multifidelity.factory import (
+    get_estimator, BestEstimator, numerically_compute_estimator_variance)
 from pyapprox.multifidelity.tests.test_stats import (
     _setup_multioutput_model_subproblem)
 from pyapprox.multifidelity.stats import (
