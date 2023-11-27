@@ -128,12 +128,13 @@ class TestGroupACV(unittest.TestCase):
         costs = np.arange(nmodels, 0, -1)
         variable = IndependentMarginalsVariable(
             [stats.norm(0, 1) for ii in range(nmodels)])
-        est = GroupACVEstimator(None, costs, cov, est_type=group_type)
+        est = GroupACVEstimator(None, costs, cov, est_type=group_type,
+                                asketch=asketch)
         npartition_samples = arange(2., 2+est.nsubsets)
         est._set_optimized_params(
-            npartition_samples, asketch=est._validate_asketch(asketch))
+            npartition_samples)
         est_var = est._covariance_from_npartition_samples(
-            est._rounded_npartition_samples, est._validate_asketch(asketch))
+            est._rounded_npartition_samples)
 
         chol_factor = np.linalg.cholesky(cov)
         exact_means = np.arange(nmodels)
@@ -157,7 +158,7 @@ class TestGroupACV(unittest.TestCase):
                 else:
                     subset_mean = np.zeros(len(est.subsets[kk]))
                 subset_means_nn.append(subset_mean)
-            acv_mean = est(values_per_model, asketch)
+            acv_mean = est(values_per_model)
             subset_means.append(np.hstack(subset_means_nn))
             acv_means.append(acv_mean)
         acv_means = np.array(acv_means)
@@ -201,10 +202,6 @@ class TestGroupACV(unittest.TestCase):
 
         target_cost = 100
         costs = np.logspace(-nmodels+1, 0, nmodels)[::-1].copy()
-        variable = IndependentMarginalsVariable(
-            [stats.norm(0, 1) for ii in range(nmodels)])
-        asketch = np.zeros((costs.shape[0], 1))
-        asketch[0] = 1.0
 
         gest = GroupACVEstimator(None, costs, cov, reg_blue=0)
         gest.allocate_samples(
@@ -235,12 +232,10 @@ class TestGroupACV(unittest.TestCase):
         costs = np.logspace(-nmodels+1, 0, nmodels)[::-1].copy()
         gest = GroupACVEstimator(None, costs, cov, reg_blue=1e-12)
 
-        asketch = np.zeros((costs.shape[0], 1))
-        asketch[0] = 1.0
         init_guess = gest._init_guess(target_cost).numpy()
         # init_guess = np.array([99., 1e-2, 1e-2])
         errors = check_gradients(
-            lambda x: gest._objective(asketch, x[:, 0], True), True,
+            lambda x: gest._objective(x[:, 0], True), True,
             init_guess[:, None],
             disp=True)
         assert errors.min()/errors.max() < 1e-6 and errors[0] < 1

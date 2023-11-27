@@ -48,7 +48,8 @@ def plot_estimator_variance_ratios_for_polynomial_ensemble(
                     est_copy._set_recursion_index(index)
                     est_copy._set_optimized_params_base(
                         npartition_samples,
-                        est_copy._compute_nsamples_per_model(npartition_samples),
+                        est_copy._compute_nsamples_per_model(
+                            npartition_samples),
                         est_copy._estimator_cost(npartition_samples))
                     ests_per_factor.append(est_copy)
                 best_idx = np.argmin(

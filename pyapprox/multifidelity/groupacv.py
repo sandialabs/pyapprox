@@ -10,7 +10,7 @@ try:
     _cvx_available = True
 except ImportError:
     _cvx_available = False
-    
+
 
 from pyapprox.surrogates.autogp._torch_wrappers import (
     full, multidot, pinv, solve, hstack, vstack, asarray, torch,
@@ -99,7 +99,7 @@ def _grouped_acv_beta(nmodels, Sigma, subsets, R, reg, asketch):
     reg_mat = np.identity(nmodels)*reg
     if asketch.shape != (nmodels, 1):
         raise ValueError("asketch has the wrong shape")
-    
+
     # TODO instead of applyint R matrices just collect correct rows and columns
     beta = multidot((
         pinv(Sigma), R.T,
@@ -111,7 +111,7 @@ def _grouped_acv_variance(nmodels, Sigma, subsets, R, reg, asketch):
     reg_mat = np.identity(nmodels)*reg
     if asketch.shape != (nmodels, 1):
         raise ValueError("asketch has the wrong shape")
-    
+
     reg_mat = eye(nmodels)*reg
     return asketch.T @ pinv(multidot((R, pinv(Sigma), R.T))+reg_mat) @ asketch
 
@@ -164,7 +164,7 @@ def _grouped_acv_sigma(
 
 class GroupACVEstimator():
     def __init__(self, stat, costs, cov, reg_blue=1e-12, subsets=None,
-                 est_type="is"):
+                 est_type="is", asketch=None):
         self.cov, self.costs = self._check_cov(cov, costs)
         self.nmodels = len(costs)
         self._reg_blue = reg_blue
@@ -189,8 +189,9 @@ class GroupACVEstimator():
         # otherwise gradient will not be defined.
         self._npartition_samples_lb = 0  # 1e-5
 
-        self._npartitions = self.nsubsets # TODO replace .nsubsets everywhere
+        self._npartitions = self.nsubsets  # TODO replace .nsubsets everywhere
         self._optimized_criteria = None
+        self._asketch = self._validate_asketch(asketch)
 
     def _check_cov(self, cov, costs):
         if cov.shape[0] != len(costs):
@@ -259,18 +260,18 @@ class GroupACVEstimator():
             self.nmodels, self._nintersect_samples(npartition_samples),
             self.cov, self.subsets)
 
-    def _covariance_from_npartition_samples(self, npartition_samples, asketch):
+    def _covariance_from_npartition_samples(self, npartition_samples):
         return _grouped_acv_variance(
             self.nmodels, self._sigma(npartition_samples), self.subsets,
-            self.R, self._reg_blue, asketch)
+            self.R, self._reg_blue, self._asketch)
 
-    def _objective(self, asketch, npartition_samples_np, return_grad=True):
+    def _objective(self, npartition_samples_np, return_grad=True):
         npartition_samples = torch.as_tensor(
             npartition_samples_np, dtype=torch.double)
         if return_grad:
             npartition_samples.requires_grad = True
         est_var = self._covariance_from_npartition_samples(
-            npartition_samples, asketch)
+            npartition_samples)
         # if using log must use exp in get_variance
         log_est_var = log(est_var)
         if not return_grad:
@@ -321,7 +322,7 @@ class GroupACVEstimator():
              'args': []}]
         return cons
 
-    def _constrained_objective(self, asketch, cons, x):
+    def _constrained_objective(self, cons, x):
         # used for gradient free optimizers
         lamda = 1e12
         cons_term = 0
@@ -329,7 +330,7 @@ class GroupACVEstimator():
             c_val = con["fun"](x, *con["args"])
             if c_val < 0:
                 cons_term -= c_val * lamda
-        return self._objective(asketch, x, return_grad=False) + cons_term
+        return self._objective(x, return_grad=False) + cons_term
 
     def _init_guess(self, target_cost):
         # start with the same number of samples per partition
@@ -353,14 +354,14 @@ class GroupACVEstimator():
         return init_guess
 
     def _update_init_guess(
-            self, init_guess, target_cost, constraint_reg, asketch):
+            self, init_guess, target_cost, constraint_reg):
         constraints = self._get_constraints(target_cost, constraint_reg)
         method = "nelder-mead"
         options = {}
         options["xatol"] = 1e-5
         options["fatol"] = 1e-5
         options["maxfev"] = 100 * len(init_guess)
-        obj = partial(self._constrained_objective, asketch, constraints)
+        obj = partial(self._constrained_objective, constraints)
         res = minimize(
             obj, init_guess, jac=False,
             method=method, constraints=None, options=options,
@@ -369,18 +370,16 @@ class GroupACVEstimator():
 
     def _set_optimized_params_base(self, rounded_npartition_samples,
                                    rounded_nsamples_per_model,
-                                   rounded_target_cost, asketch):
+                                   rounded_target_cost):
         self._rounded_npartition_samples = rounded_npartition_samples
         self._rounded_nsamples_per_model = rounded_nsamples_per_model
         self._rounded_target_cost = rounded_target_cost
         self._opt_sample_splits = self._sample_splits_per_model()
         self._optimized_sigma = self._sigma(self._rounded_npartition_samples)
-        print(asketch)
         self._optimized_criteria = self._covariance_from_npartition_samples(
-            self._rounded_npartition_samples, asketch).item()
-        
-    def _set_optimized_params(self, npartition_samples, round_nsamples=True,
-                              asketch=None):
+            self._rounded_npartition_samples).item()
+
+    def _set_optimized_params(self, npartition_samples, round_nsamples=True):
         if round_nsamples:
             rounded_npartition_samples = floor(npartition_samples)
         else:
@@ -388,8 +387,7 @@ class GroupACVEstimator():
         self._set_optimized_params_base(
             rounded_npartition_samples,
             self._compute_nsamples_per_model(rounded_npartition_samples),
-            self._estimator_cost(rounded_npartition_samples),
-            asketch)
+            self._estimator_cost(rounded_npartition_samples))
 
     def _get_bounds(self):
         # better to use bounds because they are never violated
@@ -408,25 +406,22 @@ class GroupACVEstimator():
             asketch = asketch[:, None]
         return asketch
 
-    def allocate_samples(self, target_cost, asketch=None,
+    def allocate_samples(self, target_cost,
                          constraint_reg=1e-12, round_nsamples=True,
                          options={}, init_guess=None):
         """
         Parameters
         ----------
         """
-        nmodels = len(self.costs)
-        asketch = self._validate_asketch(asketch)
-
         # jac = True
         jac = False  # hack because currently autogradients do not works
         # when npartition_samples[ii]== 0
-        obj = partial(self._objective, asketch, return_grad=jac)
+        obj = partial(self._objective, return_grad=jac)
         constraints = self._get_constraints(target_cost, constraint_reg)
         if init_guess is None:
             init_guess = self._init_guess(target_cost)
             # init_guess = self._update_init_guess(
-            #     init_guess, target_cost, constraint_reg, asketch)
+            #     init_guess, target_cost, constraint_reg)
         init_guess = np.maximum(init_guess, self._npartition_samples_lb)
         method = options.pop("method", "trust-constr")
         res = minimize(
@@ -439,7 +434,7 @@ class GroupACVEstimator():
             print(msg)
             raise RuntimeError(msg)
 
-        self._set_optimized_params(asarray(res["x"]), round_nsamples, asketch)
+        self._set_optimized_params(asarray(res["x"]), round_nsamples)
 
     @staticmethod
     def _get_partition_splits(npartition_samples):
@@ -511,15 +506,14 @@ class GroupACVEstimator():
             values_per_subset.append(np.hstack(values))
         return values_per_subset
 
-    def _estimate(self, values_per_subset, asketch):
+    def _estimate(self, values_per_subset):
         return _grouped_acv_estimate(
             self.nmodels, self._optimized_sigma, self._reg_blue, self.subsets,
-            values_per_subset, self.R, asketch)
+            values_per_subset, self.R, self._asketch)
 
-    def __call__(self, values_per_model, asketch=None):
-        asketch = self._validate_asketch(asketch)
+    def __call__(self, values_per_model):
         values_per_subset = self._separate_values_per_model(values_per_model)
-        return self._estimate(values_per_subset, asketch)
+        return self._estimate(values_per_subset)
 
     def __repr__(self):
         if self._optimized_criteria is None:
@@ -551,7 +545,7 @@ class MLBLUEEstimator(GroupACVEstimator):
                 R))
             submats.append(submat)
         return submats
-    
+
     def _cvxpy_psi(self, nsps_cvxpy):
         Psi_blocks = self._psi_blocks()
         Psi = (
@@ -559,10 +553,11 @@ class MLBLUEEstimator(GroupACVEstimator):
         Psi = cvxpy.reshape(Psi, (self.nmodels, self.nmodels))
         return Psi
 
-    def _cvxpy_spd_constraint(self, asketch, nsps_cvxpy, t_cvxpy):
+    def _cvxpy_spd_constraint(self, nsps_cvxpy, t_cvxpy):
         Psi = self._cvxpy_psi(nsps_cvxpy)
         mat = cvxpy.bmat(
-            [[Psi, asketch], [asketch.T, cvxpy.reshape(t_cvxpy, (1, 1))]])
+            [[Psi, self._asketch],
+             [self._asketch.T, cvxpy.reshape(t_cvxpy, (1, 1))]])
         return mat
 
     def _get_nhf_subset_vec(self):
@@ -572,7 +567,7 @@ class MLBLUEEstimator(GroupACVEstimator):
                 hf_subset_vec[ii] = 1
         return hf_subset_vec
 
-    def _minimize_cvxpy(self, target_cost, asketch):
+    def _minimize_cvxpy(self, target_cost):
         # use notation from https://www.cvxpy.org/examples/basic/sdp.html
 
         t_cvxpy = cvxpy.Variable(nonneg=True)
@@ -581,25 +576,22 @@ class MLBLUEEstimator(GroupACVEstimator):
         constraints = [self.subset_costs@nsps_cvxpy <= target_cost]
         constraints += [self._hf_subset_vec@nsps_cvxpy >= 1]
         constraints += [self._cvxpy_spd_constraint(
-            asketch, nsps_cvxpy, t_cvxpy) >> 0]
+            nsps_cvxpy, t_cvxpy) >> 0]
         prob = cvxpy.Problem(obj, constraints)
         prob.solve(verbose=0, solver="CVXOPT")
         res = dict([("x",  nsps_cvxpy.value), ("fun", t_cvxpy.value)])
         return res
 
-    def allocate_samples(self, target_cost, asketch=None,
+    def allocate_samples(self, target_cost,
                          constraint_reg=1e-12, round_nsamples=True,
                          options={}, init_guess=None):
-        asketch = self._validate_asketch(asketch)
-        
         method = options.pop("method", "trust-constr")
         if method == "cvxpy":
             if not _cvx_available:
                 raise ImportError("must install cvxpy")
-            res = self._minimize_cvxpy(target_cost, asketch)
+            res = self._minimize_cvxpy(target_cost)
             return self._set_optimized_params(
-                asarray(res["x"]), round_nsamples, asketch)
+                asarray(res["x"]), round_nsamples)
         return super().allocate_samples(
-            target_cost, asketch, constraint_reg, round_nsamples,
+            target_cost, constraint_reg, round_nsamples,
             options, init_guess)
-    
