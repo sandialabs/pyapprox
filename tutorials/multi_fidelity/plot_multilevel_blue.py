@@ -168,7 +168,6 @@ model_labels = [r"$M_{0}$".format(ii) for ii in range(cov.shape[0])]
 fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
 _= plot_estimator_sample_allocation_comparison(
     optimized_estimators[-1], model_labels, axs)
-plt.show()
 
 #%%
 #References

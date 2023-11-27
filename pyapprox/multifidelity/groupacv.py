@@ -12,7 +12,6 @@ except ImportError:
     _cvx_available = False
     
 
-
 from pyapprox.surrogates.autogp._torch_wrappers import (
     full, multidot, pinv, solve, hstack, vstack, asarray, torch,
     eye, log, einsum, floor, arange)
@@ -84,7 +83,7 @@ def _nest_subsets(subsets, nmodels):
     return [subsets[ii] for ii in idx], np.array(idx)
 
 
-def _grouped_acv_beta(nmodels, Sigma, subsets, R, reg):
+def _grouped_acv_beta(nmodels, Sigma, subsets, R, reg, asketch):
     """
     Parameters
     ----------
@@ -98,26 +97,29 @@ def _grouped_acv_beta(nmodels, Sigma, subsets, R, reg):
         Regularization parameter to stabilize matrix inversion
     """
     reg_mat = np.identity(nmodels)*reg
-    e0 = full((nmodels, ), 0)
-    e0[0] = 1.0
+    if asketch.shape != (nmodels, 1):
+        raise ValueError("asketch has the wrong shape")
+    
     # TODO instead of applyint R matrices just collect correct rows and columns
     beta = multidot((
         pinv(Sigma), R.T,
-        solve(multidot((R, pinv(Sigma), R.T))+reg_mat, e0)))
+        solve(multidot((R, pinv(Sigma), R.T))+reg_mat, asketch[:, 0])))
     return beta
 
 
-def _grouped_acv_variance(nmodels, Sigma, subsets, R, reg):
+def _grouped_acv_variance(nmodels, Sigma, subsets, R, reg, asketch):
+    reg_mat = np.identity(nmodels)*reg
+    if asketch.shape != (nmodels, 1):
+        raise ValueError("asketch has the wrong shape")
+    
     reg_mat = eye(nmodels)*reg
-    e0 = full((nmodels, 1), 0)
-    e0[0] = 1.0
-    # return e0.T @ solve(multidot((R, pinv(Sigma), R.T))+reg_mat, e0)
-    return e0.T @ pinv(multidot((R, pinv(Sigma), R.T))+reg_mat) @ e0
+    return asketch.T @ pinv(multidot((R, pinv(Sigma), R.T))+reg_mat) @ asketch
 
 
-def _grouped_acv_estimate(nmodels, Sigma, reg, subsets, subset_values, R):
+def _grouped_acv_estimate(
+        nmodels, Sigma, reg, subsets, subset_values, R, asketch):
     nsubsets = len(subsets)
-    beta = _grouped_acv_beta(nmodels, Sigma, subsets, R, reg)
+    beta = _grouped_acv_beta(nmodels, Sigma, subsets, R, reg, asketch)
     ll, mm = 0, 0
     acv_mean = 0
     for kk in range(nsubsets):
@@ -214,7 +216,6 @@ class GroupACVEstimator():
         return subsets,  get_allocation_mat(subsets)
 
     def _get_partitions_per_model(self):
-        print(self.subsets)
         # assume npartitions = nsubsets
         npartitions = self.allocation_mat.shape[1]
         partitions_per_model = full((self.nmodels, npartitions), 0.)
@@ -224,7 +225,6 @@ class GroupACVEstimator():
         return partitions_per_model
 
     def _compute_nsamples_per_model(self, npartition_samples):
-        print(self.partitions_per_model.shape, npartition_samples)
         nsamples_per_model = einsum(
             "ji,i->j", self.partitions_per_model, npartition_samples)
         return nsamples_per_model
@@ -259,10 +259,10 @@ class GroupACVEstimator():
             self.nmodels, self._nintersect_samples(npartition_samples),
             self.cov, self.subsets)
 
-    def _covariance_from_npartition_samples(self, npartition_samples):
+    def _covariance_from_npartition_samples(self, npartition_samples, asketch):
         return _grouped_acv_variance(
             self.nmodels, self._sigma(npartition_samples), self.subsets,
-            self.R, self._reg_blue)
+            self.R, self._reg_blue, asketch)
 
     def _objective(self, asketch, npartition_samples_np, return_grad=True):
         npartition_samples = torch.as_tensor(
@@ -270,7 +270,7 @@ class GroupACVEstimator():
         if return_grad:
             npartition_samples.requires_grad = True
         est_var = self._covariance_from_npartition_samples(
-            npartition_samples)
+            npartition_samples, asketch)
         # if using log must use exp in get_variance
         log_est_var = log(est_var)
         if not return_grad:
@@ -365,32 +365,48 @@ class GroupACVEstimator():
             obj, init_guess, jac=False,
             method=method, constraints=None, options=options,
             bounds=None)
-        print(res)
         return res.x
 
     def _set_optimized_params_base(self, rounded_npartition_samples,
                                    rounded_nsamples_per_model,
-                                   rounded_target_cost):
+                                   rounded_target_cost, asketch):
         self._rounded_npartition_samples = rounded_npartition_samples
         self._rounded_nsamples_per_model = rounded_nsamples_per_model
         self._rounded_target_cost = rounded_target_cost
         self._opt_sample_splits = self._sample_splits_per_model()
         self._optimized_sigma = self._sigma(self._rounded_npartition_samples)
+        print(asketch)
         self._optimized_criteria = self._covariance_from_npartition_samples(
-            self._rounded_npartition_samples)[0, 0].item()
+            self._rounded_npartition_samples, asketch).item()
         
-    def _set_optimized_params(self, npartition_samples):
-        rounded_npartition_samples = floor(npartition_samples)
+    def _set_optimized_params(self, npartition_samples, round_nsamples=True,
+                              asketch=None):
+        if round_nsamples:
+            rounded_npartition_samples = floor(npartition_samples)
+        else:
+            rounded_npartition_samples = npartition_samples
         self._set_optimized_params_base(
             rounded_npartition_samples,
             self._compute_nsamples_per_model(rounded_npartition_samples),
-            self._estimator_cost(rounded_npartition_samples))
+            self._estimator_cost(rounded_npartition_samples),
+            asketch)
 
     def _get_bounds(self):
         # better to use bounds because they are never violated
         # but enforcing bounds as constraints means bounds can be violated
         bounds = [(0, np.inf) for ii in range(self.npartitions)]
         return bounds
+
+    def _validate_asketch(self, asketch):
+        if asketch is None:
+            asketch = full((self.nmodels, 1), 0)
+            asketch[0] = 1.0
+        asketch = asarray(asketch)
+        if asketch.shape[0] != self.costs.shape[0]:
+            raise ValueError("aksetch has the wrong shape")
+        if asketch.ndim == 1:
+            asketch = asketch[:, None]
+        return asketch
 
     def allocate_samples(self, target_cost, asketch=None,
                          constraint_reg=1e-12, round_nsamples=True,
@@ -400,10 +416,7 @@ class GroupACVEstimator():
         ----------
         """
         nmodels = len(self.costs)
-        if asketch is None:
-            asketch = np.zeros((nmodels, 1))
-            asketch[0] = 1.0
-        assert asketch.shape[0] == self.costs.shape[0]
+        asketch = self._validate_asketch(asketch)
 
         # jac = True
         jac = False  # hack because currently autogradients do not works
@@ -426,7 +439,7 @@ class GroupACVEstimator():
             print(msg)
             raise RuntimeError(msg)
 
-        self._set_optimized_params(asarray(res["x"]))
+        self._set_optimized_params(asarray(res["x"]), round_nsamples, asketch)
 
     @staticmethod
     def _get_partition_splits(npartition_samples):
@@ -498,14 +511,15 @@ class GroupACVEstimator():
             values_per_subset.append(np.hstack(values))
         return values_per_subset
 
-    def _estimate(self, values_per_subset):
+    def _estimate(self, values_per_subset, asketch):
         return _grouped_acv_estimate(
             self.nmodels, self._optimized_sigma, self._reg_blue, self.subsets,
-            values_per_subset, self.R)
+            values_per_subset, self.R, asketch)
 
-    def __call__(self, values_per_model):
+    def __call__(self, values_per_model, asketch=None):
+        asketch = self._validate_asketch(asketch)
         values_per_subset = self._separate_values_per_model(values_per_model)
-        return self._estimate(values_per_subset)
+        return self._estimate(values_per_subset, asketch)
 
     def __repr__(self):
         if self._optimized_criteria is None:
@@ -560,9 +574,7 @@ class MLBLUEEstimator(GroupACVEstimator):
 
     def _minimize_cvxpy(self, target_cost, asketch):
         # use notation from https://www.cvxpy.org/examples/basic/sdp.html
-        if asketch is None:
-            asketch = np.zeros((self.nmodels, 1))
-            asketch[0] = 1.0
+
         t_cvxpy = cvxpy.Variable(nonneg=True)
         nsps_cvxpy = cvxpy.Variable(self.nsubsets, nonneg=True)
         obj = cvxpy.Minimize(t_cvxpy)
@@ -578,12 +590,15 @@ class MLBLUEEstimator(GroupACVEstimator):
     def allocate_samples(self, target_cost, asketch=None,
                          constraint_reg=1e-12, round_nsamples=True,
                          options={}, init_guess=None):
+        asketch = self._validate_asketch(asketch)
+        
         method = options.pop("method", "trust-constr")
         if method == "cvxpy":
             if not _cvx_available:
                 raise ImportError("must install cvxpy")
             res = self._minimize_cvxpy(target_cost, asketch)
-            return self._set_optimized_params(asarray(res["x"]))
+            return self._set_optimized_params(
+                asarray(res["x"]), round_nsamples, asketch)
         return super().allocate_samples(
             target_cost, asketch, constraint_reg, round_nsamples,
             options, init_guess)

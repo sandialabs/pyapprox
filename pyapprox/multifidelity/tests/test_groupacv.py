@@ -119,7 +119,8 @@ class TestGroupACV(unittest.TestCase):
     def _generate_correlated_values(self, chol_factor, means, samples):
         return (chol_factor @ samples + means[:, None]).T
 
-    def _check_mean_estimator_variance(self, nmodels, ntrials, group_type):
+    def _check_mean_estimator_variance(self, nmodels, ntrials, group_type,
+                                       asketch=None):
         ntrials = int(ntrials)
         cov = np.random.normal(0, 1, (nmodels, nmodels))
         cov = cov.T @ cov
@@ -129,9 +130,10 @@ class TestGroupACV(unittest.TestCase):
             [stats.norm(0, 1) for ii in range(nmodels)])
         est = GroupACVEstimator(None, costs, cov, est_type=group_type)
         npartition_samples = arange(2., 2+est.nsubsets)
-        est._set_optimized_params(npartition_samples)
+        est._set_optimized_params(
+            npartition_samples, asketch=est._validate_asketch(asketch))
         est_var = est._covariance_from_npartition_samples(
-            est._rounded_npartition_samples)
+            est._rounded_npartition_samples, est._validate_asketch(asketch))
 
         chol_factor = np.linalg.cholesky(cov)
         exact_means = np.arange(nmodels)
@@ -155,7 +157,7 @@ class TestGroupACV(unittest.TestCase):
                 else:
                     subset_mean = np.zeros(len(est.subsets[kk]))
                 subset_means_nn.append(subset_mean)
-            acv_mean = est(values_per_model)
+            acv_mean = est(values_per_model, asketch)
             subset_means.append(np.hstack(subset_means_nn))
             acv_means.append(acv_mean)
         acv_means = np.array(acv_means)
@@ -164,9 +166,9 @@ class TestGroupACV(unittest.TestCase):
         Sigma = est._sigma(est._rounded_npartition_samples)
         atol, rtol = 4e-3, 2e-2
         np.set_printoptions(linewidth=1000, precision=4)
-        print(np.diag(mc_group_cov))
-        print(np.diag(Sigma.numpy()))
-        print(np.diag(mc_group_cov)-np.diag(Sigma.numpy()))
+        # print(np.diag(mc_group_cov))
+        # print(np.diag(Sigma.numpy()))
+        # print(np.diag(mc_group_cov)-np.diag(Sigma.numpy()))
         assert np.allclose(
             np.diag(mc_group_cov), np.diag(Sigma.numpy()), rtol=rtol)
         # print(mc_group_cov)
@@ -174,19 +176,20 @@ class TestGroupACV(unittest.TestCase):
         # print(mc_group_cov-Sigma.numpy())
         assert np.allclose(mc_group_cov, Sigma.numpy(), rtol=rtol, atol=atol)
         est_var_mc = acv_means.var(ddof=1)
-        print(est_var_mc, est_var)
+        # print(est_var_mc, est_var)
         assert np.allclose(est_var_mc, est_var, rtol=rtol, atol=atol)
 
     def test_mean_estimator_variance(self):
         test_cases = [
             [2, 5e4, "is"],
+            [2, 5e4, "is", [0.5, 0.5]],
             [2, 2e4, "nested"],
             [3, 5e4, "is"],
             [3, 2e4, "nested"],
             [4, 5e4, "nested"],
         ]
         # ignore last test until I can speed up code
-        for test_case in test_cases[:-1]:
+        for test_case in test_cases:
             np.random.seed(1)
             print(test_case)
             self._check_mean_estimator_variance(*test_case)

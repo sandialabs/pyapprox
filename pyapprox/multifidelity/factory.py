@@ -358,7 +358,6 @@ def _estimate_components(variable, est, funs, ii):
     elif isinstance(est, CVEstimator):
         est_val = est(values_per_model)
         Q = mc_est(values_per_model[0])
-        print(est._lowfi_stats)
         delta = np.hstack(
             [mc_est(values_per_model[ii]) - est._lowfi_stats[ii-1]
              for ii in range(1, est._nmodels)])
