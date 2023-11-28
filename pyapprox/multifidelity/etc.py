@@ -56,7 +56,7 @@ def _AETC_least_squares(hf_values, covariate_values):
 
 def _AETC_BLUE_allocate_samples(
         beta_Sp, Sigma_S, sigma_S_sq, x_Sp, Lambda_Sp, costs_S,
-        reg_blue, constraint_reg):
+        reg_blue, constraint_reg, opt_options):
     nmodels = len(costs_S)
 
     # np.trace(Gamma) = $\hat{\sigma}^2_S
@@ -76,9 +76,9 @@ def _AETC_BLUE_allocate_samples(
     asketch = beta_Sp[1:]  # remove high-fidelity coefficient
 
     target_cost = 1
-    est = MLBLUEEstimator(None, costs_S, Sigma_S)
+    est = MLBLUEEstimator(None, costs_S, Sigma_S, enforce_nhf_constraint=False)
     est.allocate_samples(target_cost, asketch, round_nsamples=False,
-                         options={"method": "cvxpy"})
+                         options=opt_options)
     k2 = est._optimized_criteria
 
     # makes sure nsamples_per_subset.sum() == 1 so that when correcting for
@@ -92,7 +92,7 @@ def _AETC_BLUE_allocate_samples(
 
 def _AETC_optimal_loss(
         total_budget, hf_values, covariate_values, costs, covariate_subset,
-        alpha, reg_blue, constraint_reg, oracle_stats):
+        alpha, reg_blue, constraint_reg, oracle_stats, opt_options):
     r"""
     Parameters
     ----------
@@ -155,7 +155,7 @@ def _AETC_optimal_loss(
     # print(covariate_subset)
     k1, k2, nsamples_per_subset_frac = _AETC_BLUE_allocate_samples(
         beta_Sp, Sigma_S, sigma_S_sq, x_Sp, Lambda_Sp, costs_S,
-        reg_blue, constraint_reg)
+        reg_blue, constraint_reg, opt_options)
 
     # cost of exploration (exploration evaluates all models)
     explore_cost = costs.sum()
@@ -178,7 +178,7 @@ def _AETC_optimal_loss(
 
 class AETCBLUE():
     def __init__(self, models, rvs, costs=None, oracle_stats=None,
-                 reg_blue=1e-15, constraint_reg=0):
+                 reg_blue=1e-15, constraint_reg=0, opt_options={}):
         r"""
         Parameters
         ----------
@@ -213,6 +213,7 @@ class AETCBLUE():
         self._reg_blue = reg_blue
         self._constraint_reg = constraint_reg
         self._oracle_stats = oracle_stats
+        self._opt_options = opt_options
 
     def _validate_costs(self, costs):
         if costs is None:
@@ -249,11 +250,11 @@ class AETCBLUE():
         """
         explore_cost = np.sum(self._costs)
         results = []
-        # print()
         for subset in subsets:
             result = _AETC_optimal_loss(
                 total_budget, values[:, :1], values[:, 1:], self._costs,
-                subset, alpha, reg_blue, constraint_reg, self._oracle_stats)
+                subset, alpha, reg_blue, constraint_reg, self._oracle_stats,
+                self._opt_options)
             (loss, nsamples_per_subset_frac, explore_rate, beta_Sp,
              Sigma_S, k2, exploit_budget) = result
             results.append(result)
@@ -300,7 +301,7 @@ class AETCBLUE():
             raise RuntimeError("Exploitation budget is negative")
         # recorrect for normalization of nsamples by cost
         best_allocation = np.floor(
-            target_cost_fractions/best_subset_group_costs).astype(int)
+            target_cost_fractions/best_subset_group_costs)
 
         # todo change subset to groups when reffereing to model groups
         # passed to multilevel blue. This requires changing notion of group
@@ -342,11 +343,12 @@ class AETCBLUE():
     def exploit(self, result):
         best_subset = result[1]
         beta_Sp, Sigma_best_S, nsamples_per_subset = result[3:6]
-        costs_S = self._costs[best_subset+1]
-        est = MLBLUEEstimator(costs_best_S, Sigma_best_S)
-        beta_S = beta_Sp[1:]
-        est._set_optimized_params(nsamples_per_subset, beta_S)
-        samples_per_model = est.generate_samples_per_model()
+        costs_best_S = self._costs[best_subset+1]
+        beta_best_S = beta_Sp[1:]
+        est = MLBLUEEstimator(
+            None, costs_best_S, Sigma_best_S, asketch=beta_best_S)
+        est._set_optimized_params(nsamples_per_subset)
+        samples_per_model = est.generate_samples_per_model(self.rvs)
         # use +1 to accound for subset indexing only lf models
         values_per_model = [
             self.models[s+1](samples)
@@ -354,11 +356,11 @@ class AETCBLUE():
         # Psi, _ = BLUE_Psi(
         #     Sigma_best_S, None, self._reg_blue, self.subsets,
         #     nsamples_per_subset)
-        #values = BLUE_evaluate_models(
+        # values = BLUE_evaluate_models(
         #    self.rvs, [self.models[s+1] for s in best_subset],
         #    self.subsets, nsamples_per_subset)
         # rhs = BLUE_RHS(self.subsets, Sigma_best_S, values)
-        return beta_Sp[0] + est(values_per_model, beta_S)
+        return beta_Sp[0, 0] + est(values_per_model).item()
         # return np.linalg.multi_dot(
         #         (beta_S.T, np.linalg.lstsq(Psi, rhs, rcond=None)[0])) + beta_Sp[0]
 

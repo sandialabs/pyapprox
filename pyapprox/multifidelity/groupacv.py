@@ -164,7 +164,7 @@ def _grouped_acv_sigma(
 
 class GroupACVEstimator():
     def __init__(self, stat, costs, cov, reg_blue=1e-12, subsets=None,
-                 est_type="is", asketch=None):
+                 est_type="is", asketch=None, enforce_nhf_constraint=True):
         self.cov, self.costs = self._check_cov(cov, costs)
         self.nmodels = len(costs)
         self._reg_blue = reg_blue
@@ -192,6 +192,7 @@ class GroupACVEstimator():
         self._npartitions = self.nsubsets  # TODO replace .nsubsets everywhere
         self._optimized_criteria = None
         self._asketch = self._validate_asketch(asketch)
+        self._enforce_nhf_constraint = enforce_nhf_constraint
 
     def _check_cov(self, cov, costs):
         if cov.shape[0] != len(costs):
@@ -315,11 +316,12 @@ class GroupACVEstimator():
              'fun': self._cost_constraint,
              # 'jac': partial(self._cost_constraint, return_grad=True),
              'args': (target_cost, )}]
-        cons += [
-            {'type': 'ineq',
-             'fun': self._nhf_samples_constraint,
-             # 'jac': self._nhf_samples_constraint_jac,
-             'args': []}]
+        if self._enforce_nhf_constraint:
+            cons += [
+                {'type': 'ineq',
+                 'fun': self._nhf_samples_constraint,
+                 # 'jac': self._nhf_samples_constraint_jac,
+                 'args': []}]
         return cons
 
     def _constrained_objective(self, cons, x):
@@ -423,10 +425,11 @@ class GroupACVEstimator():
             # init_guess = self._update_init_guess(
             #     init_guess, target_cost, constraint_reg)
         init_guess = np.maximum(init_guess, self._npartition_samples_lb)
-        method = options.pop("method", "trust-constr")
+        options_copy = options.copy()
+        method = options_copy.pop("method", "trust-constr")
         res = minimize(
             obj, init_guess, jac=jac,
-            method=method, constraints=constraints, options=options,
+            method=method, constraints=constraints, options=options_copy,
             bounds=self._get_bounds())
         if not res.success:
             # msg = f"optimization not successful {res}"
@@ -527,15 +530,16 @@ class GroupACVEstimator():
         return rep
 
 
-
 class MLBLUEEstimator(GroupACVEstimator):
-    def __init__(self, stats, costs, cov, reg_blue=1e-12, subsets=None):
+    def __init__(self, stats, costs, cov, reg_blue=1e-12, subsets=None,
+                 asketch=None, enforce_nhf_constraint=True):
         # Currently stats is ignored.
-        super().__init__(stats, costs, cov, reg_blue, subsets, est_type="is")
+        super().__init__(stats, costs, cov, reg_blue, subsets, est_type="is",
+                         asketch=asketch,
+                         enforce_nhf_constraint=enforce_nhf_constraint)
         self._hf_subset_vec = self._get_nhf_subset_vec()
 
     def _psi_blocks(self):
-        mat = np.identity(self.nmodels)*self._reg_blue
         submats = []
         for ii, subset in enumerate(self.subsets):
             R = _restriction_matrix(self.nmodels, subset)
@@ -574,7 +578,8 @@ class MLBLUEEstimator(GroupACVEstimator):
         nsps_cvxpy = cvxpy.Variable(self.nsubsets, nonneg=True)
         obj = cvxpy.Minimize(t_cvxpy)
         constraints = [self.subset_costs@nsps_cvxpy <= target_cost]
-        constraints += [self._hf_subset_vec@nsps_cvxpy >= 1]
+        if self._enforce_nhf_constraint:
+            constraints += [self._hf_subset_vec@nsps_cvxpy >= 1]
         constraints += [self._cvxpy_spd_constraint(
             nsps_cvxpy, t_cvxpy) >> 0]
         prob = cvxpy.Problem(obj, constraints)
@@ -585,7 +590,8 @@ class MLBLUEEstimator(GroupACVEstimator):
     def allocate_samples(self, target_cost,
                          constraint_reg=1e-12, round_nsamples=True,
                          options={}, init_guess=None):
-        method = options.pop("method", "trust-constr")
+        options_copy = options.copy()
+        method = options_copy.pop("method", "trust-constr")
         if method == "cvxpy":
             if not _cvx_available:
                 raise ImportError("must install cvxpy")
@@ -594,4 +600,11 @@ class MLBLUEEstimator(GroupACVEstimator):
                 asarray(res["x"]), round_nsamples)
         return super().allocate_samples(
             target_cost, constraint_reg, round_nsamples,
-            options, init_guess)
+            options_copy, init_guess)
+
+
+#cvxpy requires cmake
+#on osx with M1 chip install via
+#arch -arm64 brew install cmake
+#must also install cvxopt via
+#pip install cvxopt

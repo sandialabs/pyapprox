@@ -18,7 +18,7 @@ from pyapprox.multifidelity.groupacv import MLBLUEEstimator
 class BestEstimator():
     def __init__(self, est_types, stat_type, costs, cov,
                  max_nmodels, *est_args, **est_kwargs):
-        
+
         self.best_est = None
 
         self._estimator_types = est_types
@@ -70,7 +70,7 @@ class BestEstimator():
                 sub_kwargs["tree_depth"], nsubset_lfmodels)
         return sub_kwargs
 
-    def _get_estimator(self, est_type, subset_costs, subset_cov, 
+    def _get_estimator(self, est_type, subset_costs, subset_cov,
                        target_cost, sub_args, sub_kwargs, allocate_kwargs):
         try:
             est = get_estimator(
@@ -84,16 +84,12 @@ class BestEstimator():
             return None
         try:
             est.allocate_samples(target_cost, **allocate_kwargs)
-            if sub_kwargs.pop("verbosity", 0) > 0:
-                msg = "Model: {0} Objective: {1}".format(
-                    idx, est._optimized_criteria.item())
-                print(msg)
             return est
         except (RuntimeError, ValueError) as e:
             if self._allow_failures:
                 return None
             raise e
-        
+
     def _get_model_subset_estimator(
             self, qoi_idx, nsubset_lfmodels, allocate_kwargs,
             target_cost, lf_model_subset_indices):
@@ -111,18 +107,22 @@ class BestEstimator():
         best_criteria = np.inf
         for est_type in self._estimator_types:
             est = self._get_estimator(
-                est_type, subset_costs, subset_cov, 
+                est_type, subset_costs, subset_cov,
                 target_cost, sub_args, sub_kwargs, allocate_kwargs)
+            if sub_kwargs.pop("verbosity", 0) > 0:
+                msg = "Model: {0} Objective: {1}".format(
+                    idx, est._optimized_criteria.item())
+                print(msg)
             if self._save_candidate_estimators:
                 self._candidate_estimators.append(est)
             if est is not None and est._optimized_criteria < best_criteria:
                 best_est = est
                 best_criteria = est._optimized_criteria.item()
         return best_est
- 
+
     def _get_best_model_subset_for_estimator_pool(
             self, nsubset_lfmodels, target_cost,
-           best_criteria, best_model_indices, best_est, **allocate_kwargs):
+            best_criteria, best_model_indices, best_est, **allocate_kwargs):
         qoi_idx = np.arange(self._nqoi)
         nprocs = allocate_kwargs.get("nprocs", 1)
         pool = Pool(nprocs)
@@ -166,7 +166,7 @@ class BestEstimator():
         best_criteria = np.inf
         best_est, best_model_indices = None, None
         nprocs = allocate_kwargs.get("nprocs", 1)
-        
+
         if allocate_kwargs.get("verbosity", 0) > 0:
             print(f"Finding best model using {nprocs} processors")
         if "nprocs" in allocate_kwargs:
@@ -178,7 +178,7 @@ class BestEstimator():
         else:
             min_nlfmodels = 1
             max_nmodels = self._ncandidate_models
-            
+
         for nsubset_lfmodels in range(min_nlfmodels, max_nmodels):
             if nprocs > 1:
                  best_criteria, best_model_indices, best_est = (
@@ -192,7 +192,7 @@ class BestEstimator():
                          nsubset_lfmodels, target_cost,
                          best_criteria, best_model_indices, best_est,
                          **allocate_kwargs))
-            
+
         if best_est is None:
             raise RuntimeError("No solutions found for any model subset")
         return best_est, best_model_indices
@@ -268,7 +268,7 @@ def get_estimator(estimator_types, stat_type, nqoi, costs, cov, *stat_args,
     Parameters
     ----------
     estimator_types : list [str] or str
-        If str (or len(estimators_types==1), then return the estimator 
+        If str (or len(estimators_types==1), then return the estimator
         named estimator_type (or estimator_types[0])
 
     stat_type : str
@@ -305,7 +305,7 @@ def get_estimator(estimator_types, stat_type, nqoi, costs, cov, *stat_args,
         estimator_type = estimator_types[0]
     else:
         estimator_type = estimator_types
-    
+
     if estimator_type not in multioutput_estimators:
         msg = f"Estimator {estimator_type} not supported. "
         msg += f"Must be one of {multioutput_estimators.keys()}"
