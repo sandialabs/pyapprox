@@ -13,6 +13,7 @@ from pyapprox.multifidelity.stats import (
     MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance,
     _nqoi_nqoi_subproblem)
 from pyapprox.multifidelity.groupacv import MLBLUEEstimator
+from pyapprox.multifidelity.etc import AETCBLUE
 
 
 class BestEstimator():
@@ -117,7 +118,10 @@ class BestEstimator():
                 self._candidate_estimators.append(est)
             if est is not None and est._optimized_criteria < best_criteria:
                 best_est = est
-                best_criteria = est._optimized_criteria.item()
+                if hasattr(est._optimized_criteria, "item"):
+                    best_criteria = est._optimized_criteria.item()
+                else:
+                    best_criteria = est._optimized_criteria
         return best_est
 
     def _get_best_model_subset_for_estimator_pool(
@@ -232,7 +236,10 @@ class BestEstimator():
             "_allocation_mat",
             "_npartitions"]
         for attr in attr_list:
-            setattr(self, attr, getattr(self.best_est, attr))
+            # Improve this function so that it works without the following
+            # hack for MLBLUE
+            if hasattr(self.best_est, attr):
+                setattr(self, attr, getattr(self.best_est, attr))
 
     def __repr__(self):
         if self._optimized_criteria is None:

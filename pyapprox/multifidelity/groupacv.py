@@ -165,7 +165,7 @@ def _grouped_acv_sigma(
 class GroupACVEstimator():
     def __init__(self, stat, costs, cov, reg_blue=1e-12, subsets=None,
                  est_type="is", asketch=None, enforce_nhf_constraint=True):
-        self.cov, self.costs = self._check_cov(cov, costs)
+        self._cov, self._costs = self._check_cov(cov, costs)
         self.nmodels = len(costs)
         self._reg_blue = reg_blue
         self._stat = stat
@@ -180,10 +180,10 @@ class GroupACVEstimator():
         self.R = hstack(
             [asarray(_restriction_matrix(self.nmodels, subset).T)
              for ii, subset in enumerate(self.subsets)])
-        self.costs = asarray(costs)
-        self.cov = asarray(cov)
+        self._costs = asarray(costs)
+        self._cov = asarray(cov)
         self.subset_costs = self._get_model_subset_costs(
-            self.subsets, self.costs)
+            self.subsets, self._costs)
 
         # set npatition_samples above small constant,
         # otherwise gradient will not be defined.
@@ -233,7 +233,7 @@ class GroupACVEstimator():
 
     def _estimator_cost(self, npartition_samples):
         return sum(
-            self.costs*self._compute_nsamples_per_model(npartition_samples))
+            self._costs*self._compute_nsamples_per_model(npartition_samples))
 
     def _get_subset_intersecting_partitions(self):
         amat = self.allocation_mat
@@ -259,7 +259,7 @@ class GroupACVEstimator():
     def _sigma(self, npartition_samples):
         return _grouped_acv_sigma(
             self.nmodels, self._nintersect_samples(npartition_samples),
-            self.cov, self.subsets)
+            self._cov, self.subsets)
 
     def _covariance_from_npartition_samples(self, npartition_samples):
         return _grouped_acv_variance(
@@ -341,7 +341,7 @@ class GroupACVEstimator():
         # partition
         nsamples_per_model = self._compute_nsamples_per_model(
             full((self.npartitions,), 1.))
-        cost = (nsamples_per_model*self.costs).sum()
+        cost = (nsamples_per_model*self._costs).sum()
 
         # the total number of samples per partition is then target_cost/cost
         # we take the floor to make sure we do not exceed the target cost
@@ -402,7 +402,7 @@ class GroupACVEstimator():
             asketch = full((self.nmodels, 1), 0)
             asketch[0] = 1.0
         asketch = asarray(asketch)
-        if asketch.shape[0] != self.costs.shape[0]:
+        if asketch.shape[0] != self._costs.shape[0]:
             raise ValueError("aksetch has the wrong shape")
         if asketch.ndim == 1:
             asketch = asketch[:, None]
@@ -545,7 +545,7 @@ class MLBLUEEstimator(GroupACVEstimator):
             R = _restriction_matrix(self.nmodels, subset)
             submat = np.linalg.multi_dot((
                 R.T,
-                np.linalg.pinv(self.cov[np.ix_(subset, subset)]),
+                np.linalg.pinv(self._cov[np.ix_(subset, subset)]),
                 R))
             submats.append(submat)
         return submats
