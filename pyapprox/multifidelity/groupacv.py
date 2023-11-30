@@ -385,6 +385,7 @@ class GroupACVEstimator():
             self._rounded_npartition_samples).item()
 
     def _set_optimized_params(self, npartition_samples, round_nsamples=True):
+        print(npartition_samples)
         if round_nsamples:
             rounded_npartition_samples = floor(npartition_samples)
         else:
@@ -418,6 +419,14 @@ class GroupACVEstimator():
         """
         Parameters
         ----------
+        min_nhf_samples : float
+            The minimum number of high-fidelity samples before rounding.
+            Unforunately, there is no way to enforce that the min_nhf_samples
+            is met after rounding. As the differentiable constraint
+            enforces that the sum of the nsamples in each partition involving
+            the high-fidelity model is zero. But when each partition nsample
+            is rounded the rounded nhf_samples may be less than desired. It
+            will be close though
         """
         # jac = True
         jac = False  # hack because currently autogradients do not works
@@ -454,7 +463,7 @@ class GroupACVEstimator():
             (0, np.cumsum(npartition_samples.numpy()))).astype(int)
         return splits
 
-    def generate_samples_per_model(self, rvs):
+    def generate_samples_per_model(self, rvs, npilot_samples=0):
         ntotal_independent_samples = self._rounded_npartition_samples.sum()
         partition_splits = self._get_partition_splits(
             self._rounded_npartition_samples)
@@ -465,7 +474,16 @@ class GroupACVEstimator():
             samples_per_model.append(np.hstack([
                 samples[:, partition_splits[idx]:partition_splits[idx+1]]
                 for idx in active_partitions]))
-        return samples_per_model
+        if npilot_samples == 0:
+            return samples_per_model
+
+        if np.where(self.partitions_per_model[0] *
+                    self._rounded_npartition_samples > 0)[0].shape[0] > 1:
+            msg = "Insert pilot samples currently only supported when only"
+            msg += " one subset contains the high-fidelity model"
+            raise ValueError(msg)
+        return self._remove_pilot_samples(
+            npilot_samples, samples_per_model)
 
     def _sample_splits_per_model(self):
         # for each model get the sample splits in values_per_model
@@ -525,7 +543,7 @@ class GroupACVEstimator():
 
     def _reduce_model_sample_splits(
             self, model_id, partition_id, nsamples_to_reduce):
-        """ return splits that occur when removing the last N samples of
+        """ return splits that occur when removing the N samples of
         a partition of a given model"""
         lb, ub = self._opt_sample_splits[model_id][partition_id]
         sample_splits = self._opt_sample_splits[model_id].copy()
@@ -538,38 +556,56 @@ class GroupACVEstimator():
         active_hf_subsets = np.where(self.partitions_per_model[0] == 1)[0]
         partition_id = active_hf_subsets[np.argmax(
             self._rounded_npartition_samples[active_hf_subsets])]
-        active_partitions = np.where(self.allocation_mat[partition_id])[0]
         for model_id in self.subsets[partition_id]:
-            if (npilot_samples + samples_per_model[model_id] >
+            if (npilot_samples >
                     self._rounded_npartition_samples[partition_id]):
-                raise ValueError("Too many pilot values")
+                msg = "Too many pilot values {0}+>{1}".format(
+                    npilot_samples,
+                    self._rounded_npartition_samples[partition_id])
+                raise ValueError(msg)
+            if (samples_per_model[model_id].shape[1] !=
+                    self._rounded_nsamples_per_model[model_id]):
+                raise ValueError("samples per model has the wrong size")
             splits = self._reduce_model_sample_splits(
                 model_id, partition_id, npilot_samples)
             samples_per_model[model_id] = np.hstack(
-                [samples_per_model[model_id][splits[idx, 0]: splits[idx, 1]]
-                 for idx in active_partitions])
+                [samples_per_model[model_id][:, splits[idx, 0]: splits[idx, 1]]
+                 for idx in np.where(
+                         self.partitions_per_model[model_id] == 1)[0]])
         return samples_per_model
 
     def insert_pilot_values(self, pilot_values, values_per_model):
+        if np.where(self.partitions_per_model[0] *
+                    self._rounded_npartition_samples > 0)[0].shape[0] > 1:
+            msg = "Insert pilot samples currently only supported when only"
+            msg += " one subset contains the high-fidelity model"
+            raise ValueError(msg)
+
         new_values_per_model = []
         active_hf_subsets = np.where(self.partitions_per_model[0] == 1)[0]
         partition_id = active_hf_subsets[np.argmax(
             self._rounded_npartition_samples[active_hf_subsets])]
         for model_id in self.subsets[partition_id]:
             npilot_values = pilot_values[model_id].shape[0]
-            if npilot_values != pilot_values[0]:
+            if npilot_values != pilot_values[0].shape[0]:
                 msg = "Must have the same number of pilot values "
                 msg += "for each model"
                 raise ValueError(msg)
-            if (npilot_values + values_per_model[model_id] >
+            if (npilot_values >
                     self._rounded_npartition_samples[partition_id]):
-                raise ValueError("Too many pilot values")
+                raise ValueError("Too many pilot values {0}>{1}".format(
+                    npilot_values+values_per_model[model_id].shape[0],
+                    self._rounded_npartition_samples[partition_id]))
             lb, ub = self._opt_sample_splits[model_id][partition_id]
-            ub -= npilot_values
-            # add back the pilot samples to the end of the samples of
-            # the partition with partition_id
+            # # Pilot samples become last samples of the chosen partition
+            # ub -= npilot_values
+            # values_per_model[model_id] = np.vstack((
+            #     values_per_model[model_id][:ub], pilot_values[model_id],
+            #     values_per_model[model_id][ub:]))
+
+            # Pilot samples become first samples of the chosen partition
             values_per_model[model_id] = np.vstack((
-                values_per_model[model_id][:ub], pilot_values[model_id],
+                values_per_model[model_id][:lb], pilot_values[model_id],
                 values_per_model[model_id][ub:]))
         return new_values_per_model
 

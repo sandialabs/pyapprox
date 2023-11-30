@@ -313,24 +313,62 @@ class TestGroupACV(unittest.TestCase):
             np.random.seed(1)
             self._check_objective_constraint_gradients(*test_case)
 
-    def _check_insert_pilot_samples(self, nmodels, min_nhf_samples=1):
+    def _check_insert_pilot_samples(self, nmodels, min_nhf_samples):
         cov = np.random.normal(0, 1, (nmodels, nmodels))
         cov = cov.T @ cov
         cov = get_correlation_from_covariance(cov)
 
+        variable = IndependentMarginalsVariable(
+            [stats.norm(0, 1) for ii in range(nmodels)])
+        chol_factor = np.linalg.cholesky(cov)
+        exact_means = np.arange(nmodels)
+        generate_values = partial(
+            self._generate_correlated_values, chol_factor, exact_means)
+
+        np.random.seed(1)
+        npilot_samples = 8
+        pilot_samples = variable.rvs(npilot_samples)
+        pilot_values = [
+            generate_values(pilot_samples)[:, ii:ii+1]
+            for ii in range(nmodels)]
+        cov_pilot = np.cov(np.hstack(pilot_values), ddof=1, rowvar=False)
+
         target_cost = 100
         costs = np.logspace(-nmodels+1, 0, nmodels)[::-1].copy()
-        mlest = MLBLUEEstimator(None, costs, cov, reg_blue=0)
-        mlest.allocate_samples(target_cost, options={"method": "cvxpy"},
-                               min_nhf_samples=min_nhf_samples)
+        est = MLBLUEEstimator(None, costs, cov_pilot, reg_blue=0)
+        est.allocate_samples(target_cost, min_nhf_samples=min_nhf_samples)
+        print(est._rounded_nsamples_per_model)
+        print(est.subsets)
+        print(est._rounded_npartition_samples)
+
+        # the following test only works if variable.num_vars()==1 because
+        # variable.rvs does not produce nested samples when this condition does
+        # not hold
+        samples_per_model_wo_pilot = est.generate_samples_per_model(
+            variable.rvs, npilot_samples)
+        values_per_model_wo_pilot = [
+            generate_values(samples_per_model_wo_pilot[ii])[:, ii:ii+1]
+            for ii in range(est.nmodels)]
+        values_per_model_recovered = est.insert_pilot_values(
+            pilot_values, values_per_model_wo_pilot)
+
+        np.random.seed(1)
+        samples_per_model = est.generate_samples_per_model(
+            variable.rvs, npilot_samples)
+        values_per_model = [
+            generate_values(samples_per_model[ii])[:, ii:ii+1]
+            for ii in range(est.nmodels)]
+
+        for v1, v2 in zip(values_per_model, values_per_model_recovered):
+            assert np.allclose(v1, v2)
 
     def test_insert_pilot_samples(self):
         test_cases = [
-            [2], [3], [4],
+            [2, 1], [3, 11], [4, 1],
         ]
         for test_case in test_cases:
-            np.random.seed(1)
-            self._check_objective_constraint_gradients(*test_case)
+            np.random.seed(2)
+            self._check_insert_pilot_samples(*test_case)
 
 
 if __name__ == '__main__':
