@@ -354,12 +354,14 @@ class TestGroupACV(unittest.TestCase):
 
         np.random.seed(1)
         samples_per_model = est.generate_samples_per_model(
-            variable.rvs, npilot_samples)
+            variable.rvs)
         values_per_model = [
             generate_values(samples_per_model[ii])[:, ii:ii+1]
             for ii in range(est.nmodels)]
 
+        print(est._rounded_nsamples_per_model)
         for v1, v2 in zip(values_per_model, values_per_model_recovered):
+            print(v1.shape, v2.shape)
             assert np.allclose(v1, v2)
 
     def test_insert_pilot_samples(self):

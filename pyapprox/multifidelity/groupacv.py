@@ -547,9 +547,13 @@ class GroupACVEstimator():
         a partition of a given model"""
         lb, ub = self._opt_sample_splits[model_id][partition_id]
         sample_splits = self._opt_sample_splits[model_id].copy()
-        sample_splits[partition_id][1] = (ub-nsamples_to_reduce)
+        # remove last samples in parition
+        # sample_splits[partition_id][1] = (ub-nsamples_to_reduce)
+        # remove first samples in partition
+        sample_splits[partition_id][0] = (lb+nsamples_to_reduce)
         for ii in range(partition_id+1, self.npartitions):
-            sample_splits[ii] -= nsamples_to_reduce
+            # sample_splits[ii] -= nsamples_to_reduce
+            sample_splits[ii] += 0#nsamples_to_reduce
         return sample_splits
 
     def _remove_pilot_samples(self, npilot_samples, samples_per_model):
@@ -581,7 +585,7 @@ class GroupACVEstimator():
             msg += " one subset contains the high-fidelity model"
             raise ValueError(msg)
 
-        new_values_per_model = []
+        new_values_per_model = [v.copy() for v in values_per_model]
         active_hf_subsets = np.where(self.partitions_per_model[0] == 1)[0]
         partition_id = active_hf_subsets[np.argmax(
             self._rounded_npartition_samples[active_hf_subsets])]
@@ -597,16 +601,23 @@ class GroupACVEstimator():
                     npilot_values+values_per_model[model_id].shape[0],
                     self._rounded_npartition_samples[partition_id]))
             lb, ub = self._opt_sample_splits[model_id][partition_id]
+            ub -= npilot_values
             # # Pilot samples become last samples of the chosen partition
-            # ub -= npilot_values
             # values_per_model[model_id] = np.vstack((
             #     values_per_model[model_id][:ub], pilot_values[model_id],
             #     values_per_model[model_id][ub:]))
 
+            print(partition_id, self._opt_sample_splits)
+            print(values_per_model[model_id].shape[0], 'A')
+            print(pilot_values[model_id].shape[0], lb, ub)
+            print(values_per_model[model_id][:lb].shape, values_per_model[model_id][lb:].shape)
             # Pilot samples become first samples of the chosen partition
-            values_per_model[model_id] = np.vstack((
+            new_values_per_model[model_id] = np.vstack((
                 values_per_model[model_id][:lb], pilot_values[model_id],
-                values_per_model[model_id][ub:]))
+                values_per_model[model_id][lb:ub]))
+            print(new_values_per_model[model_id].shape[0], 'B')
+        print(partition_id)
+        print(self._rounded_nsamples_per_model)
         return new_values_per_model
 
     def __repr__(self):
