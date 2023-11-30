@@ -7,7 +7,7 @@ import numpy as np
 
 from pyapprox.multifidelity.acv import (
     CVEstimator, MLMCEstimator, MFMCEstimator, GMFEstimator, GISEstimator,
-    GRDEstimator, MCEstimator, ACVEstimator, log_determinant_variance,
+    GRDEstimator, MCEstimator, ACVEstimator,
     log_trace_variance, determinant_variance)
 from pyapprox.multifidelity.stats import (
     MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance,

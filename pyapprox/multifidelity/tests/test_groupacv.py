@@ -195,7 +195,9 @@ class TestGroupACV(unittest.TestCase):
             print(test_case)
             self._check_mean_estimator_variance(*test_case)
 
-    def _check_mlblue_spd(self, nmodels):
+    def _check_mlblue_objective(self, nmodels, min_nhf_samples):
+        # check specialized mlblue objective is consitent with
+        # more general groupacv estimator when computing a single mean
         cov = np.random.normal(0, 1, (nmodels, nmodels))
         cov = cov.T @ cov
         cov = get_correlation_from_covariance(cov)
@@ -207,17 +209,72 @@ class TestGroupACV(unittest.TestCase):
         gest.allocate_samples(
             target_cost,
             options={"disp": False, "verbose": 0, "maxiter": 1000,
-                     "gtol": 1e-8, "method": "trust-constr"})
+                     "gtol": 1e-8, "method": "trust-constr"},
+            min_nhf_samples=min_nhf_samples)
+        assert gest._nhf_samples(
+            gest._rounded_npartition_samples) >= min_nhf_samples
 
         mlest = MLBLUEEstimator(None, costs, cov, reg_blue=0)
-        mlest.allocate_samples(target_cost, options={"method": "cvxpy"})
+        mlest.allocate_samples(
+            target_cost, options={"method": "trust-constr", "gtol": 1e-8},
+            min_nhf_samples=min_nhf_samples)
+        assert mlest._nhf_samples(
+            mlest._rounded_npartition_samples) >= min_nhf_samples
+        assert np.allclose(mlest._covariance_from_npartition_samples(
+            gest._rounded_npartition_samples),
+                           gest._covariance_from_npartition_samples(
+                               gest._rounded_npartition_samples))
+
+        init_guess = mlest._init_guess(target_cost).numpy()
+        # init_guess = np.array([99., 1e-2, 1e-2])
+        errors = check_gradients(
+            lambda x: gest._objective(x[:, 0], True), True,
+            init_guess[:, None],
+            disp=False)
+        assert errors.min()/errors.max() < 1e-6 and errors[0] < 1
+
+        # the answers will be different because group acv optimization
+        # currently uses finite differences
         assert np.allclose(gest._optimized_criteria,
-                           mlest._optimized_criteria, rtol=1e-4)
+                           mlest._optimized_criteria, rtol=5e-3)
+
+    def test_mlblue_objective(self):
+        test_cases = [
+            [2, 1], [3, 1], [4, 1], [3, 10],
+        ]
+        for test_case in test_cases:
+            np.random.seed(1)
+            self._check_mlblue_objective(*test_case)
+
+    def _check_mlblue_spd(self, nmodels, min_nhf_samples):
+        cov = np.random.normal(0, 1, (nmodels, nmodels))
+        cov = cov.T @ cov
+        cov = get_correlation_from_covariance(cov)
+
+        target_cost = 100
+        costs = np.logspace(-nmodels+1, 0, nmodels)[::-1].copy()
+
+        gest = MLBLUEEstimator(None, costs, cov, reg_blue=0)
+        gest.allocate_samples(
+            target_cost,
+            options={"disp": False, "verbose": 0, "maxiter": 1000,
+                     "gtol": 1e-9, "method": "trust-constr"},
+            min_nhf_samples=min_nhf_samples)
+
+        mlest = MLBLUEEstimator(None, costs, cov, reg_blue=0)
+        mlest.allocate_samples(target_cost, options={"method": "cvxpy"},
+                               min_nhf_samples=min_nhf_samples)
+        assert mlest._nhf_samples(
+            mlest._rounded_npartition_samples) >= min_nhf_samples
+
+        print(gest._optimized_criteria, mlest._optimized_criteria)
+        assert np.allclose(gest._optimized_criteria,
+                           mlest._optimized_criteria, rtol=1e-3)
 
     @unittest.skipIf(not _cvx_available, "cvxpy not installed")
     def test_mlblue_spd(self):
         test_cases = [
-            [2], [3], [4],
+            [2, 1], [3, 1], [4, 1], [3, 10],
         ]
         for test_case in test_cases:
             np.random.seed(1)
@@ -249,6 +306,25 @@ class TestGroupACV(unittest.TestCase):
         assert errors.min()/errors.max() < 1e-6 and errors.max() < 1
 
     def test_objective_constraint_gradients(self):
+        test_cases = [
+            [2], [3], [4],
+        ]
+        for test_case in test_cases:
+            np.random.seed(1)
+            self._check_objective_constraint_gradients(*test_case)
+
+    def _check_insert_pilot_samples(self, nmodels, min_nhf_samples=1):
+        cov = np.random.normal(0, 1, (nmodels, nmodels))
+        cov = cov.T @ cov
+        cov = get_correlation_from_covariance(cov)
+
+        target_cost = 100
+        costs = np.logspace(-nmodels+1, 0, nmodels)[::-1].copy()
+        mlest = MLBLUEEstimator(None, costs, cov, reg_blue=0)
+        mlest.allocate_samples(target_cost, options={"method": "cvxpy"},
+                               min_nhf_samples=min_nhf_samples)
+
+    def test_insert_pilot_samples(self):
         test_cases = [
             [2], [3], [4],
         ]

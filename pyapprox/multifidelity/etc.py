@@ -78,15 +78,12 @@ def _AETC_BLUE_allocate_samples(
     target_cost = 1
     est = MLBLUEEstimator(None, costs_S, Sigma_S, enforce_nhf_constraint=False)
     est.allocate_samples(target_cost, asketch, round_nsamples=False,
-                         options=opt_options)
+                         options=opt_options, min_nhf_samples=0)
     k2 = est._optimized_criteria
 
-    # makes sure nsamples_per_subset.sum() == 1 so that when correcting for
-    # a given budget, num_samples_per_model is a fraction of the total budet
     nsamples_per_subset_frac = np.maximum(
         np.zeros_like(est._rounded_npartition_samples),
         est._rounded_npartition_samples)
-    nsamples_per_subset_frac /= nsamples_per_subset_frac.sum()
     return k1, k2, nsamples_per_subset_frac
 
 
@@ -134,11 +131,9 @@ def _AETC_optimal_loss(
             np.cov(covariate_values[:, covariate_subset].T))
         # TODO in paper $X_{S+}$=X_Sp.T used here
         Lambda_Sp = X_Sp.T.dot(X_Sp)/nsamples
-        # print(Sigma_S, Lambda_Sp, x_Sp)
     else:
         Sigma_S, Lambda_Sp, x_Sp = _AETC_subset_oracle_stats(
             oracle_stats, covariate_subset)
-        # print(Sigma_S, Lambda_Sp, x_Sp)
 
     # extract costs of models in subset
     # covariate_subset+1 is used because high-fidelity assumed
@@ -149,10 +144,6 @@ def _AETC_optimal_loss(
     # find optimal sample allocation
     # only pass in costs_S of subset because exploitation does not
     # further evaluate the high-fidelity model
-    # print(covariate_subset, beta_Sp[:, 0])
-    # print(X_Sp)
-    # print(hf_values[:, 0])
-    # print(covariate_subset)
     k1, k2, nsamples_per_subset_frac = _AETC_BLUE_allocate_samples(
         beta_Sp, Sigma_S, sigma_S_sq, x_Sp, Lambda_Sp, costs_S,
         reg_blue, constraint_reg, opt_options)
@@ -166,12 +157,10 @@ def _AETC_optimal_loss(
         total_budget/(
             explore_cost+np.sqrt(explore_cost*k2/(k1+alpha**(-nsamples)))),
         nsamples)
-    # print(explore_rate, 'r', total_budget, explore_cost, alpha, nsamples)
 
     # estimate optimal loss
     exploit_budget = (total_budget-explore_cost*explore_rate)
     opt_loss = k2/exploit_budget+(k1+alpha**(-nsamples))/explore_rate
-
     return (opt_loss, nsamples_per_subset_frac, explore_rate, beta_Sp, Sigma_S,
             k2, exploit_budget)
 
@@ -258,8 +247,6 @@ class AETCBLUE():
             (loss, nsamples_per_subset_frac, explore_rate, beta_Sp,
              Sigma_S, k2, exploit_budget) = result
             results.append(result)
-            # print(subset)
-            # print(result)
 
         # compute optimal model
         best_subset_idx = np.argmin([result[0] for result in results])
@@ -295,13 +282,11 @@ class AETCBLUE():
             best_subset_costs[group].sum() for group in best_subset_groups])
         # transform nsamples as fraction of unit budget to fraction of
         # target_cost
-        target_cost_fractions = (total_budget-nexplore_samples*explore_cost)*(
-            best_allocation_frac)
-        if (total_budget-nexplore_samples*explore_cost) < 0:
+        exploit_budget = (total_budget-nexplore_samples*explore_cost)
+        if (exploit_budget) < 0:
             raise RuntimeError("Exploitation budget is negative")
-        # recorrect for normalization of nsamples by cost
-        best_allocation = np.floor(
-            target_cost_fractions/best_subset_group_costs)
+        # recorrect for solving exploitation with unit exploit budget
+        best_allocation = np.floor(best_allocation_frac*exploit_budget)
 
         # todo change subset to groups when reffereing to model groups
         # passed to multilevel blue. This requires changing notion of group
@@ -353,16 +338,7 @@ class AETCBLUE():
         values_per_model = [
             self.models[s+1](samples)
             for s, samples in zip(best_subset, samples_per_model)]
-        # Psi, _ = BLUE_Psi(
-        #     Sigma_best_S, None, self._reg_blue, self.subsets,
-        #     nsamples_per_subset)
-        # values = BLUE_evaluate_models(
-        #    self.rvs, [self.models[s+1] for s in best_subset],
-        #    self.subsets, nsamples_per_subset)
-        # rhs = BLUE_RHS(self.subsets, Sigma_best_S, values)
         return beta_Sp[0, 0] + est(values_per_model).item()
-        # return np.linalg.multi_dot(
-        #         (beta_S.T, np.linalg.lstsq(Psi, rhs, rcond=None)[0])) + beta_Sp[0]
 
     @staticmethod
     def _explore_result_to_dict(result):

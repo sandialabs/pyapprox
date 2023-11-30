@@ -276,7 +276,7 @@ class MCEstimator():
         ----------
         values : [np.ndarray(nsamples, nqoi)]
             A single entry list containing the unique values of each model.
-            The list is required to allow consistent interface with 
+            The list is required to allow consistent interface with
             multi-fidelity estimators
 
         nbootstraps : integer
@@ -494,8 +494,8 @@ class CVEstimator(MCEstimator):
         indices = np.arange(nsamples)
         if bootstrap:
             indices = np.random.choice(
-                indices, size=indices.shape[0],replace=True)
-            
+                indices, size=indices.shape[0], replace=True)
+
         deltas = np.hstack(
             [self._stat.sample_estimate(values_per_model[ii][indices]) -
              self._lowfi_stats[ii-1] for ii in range(1, self._nmodels)])
@@ -527,8 +527,9 @@ class CVEstimator(MCEstimator):
         """
         new_values_per_model = []
         for ii in range(self._nmodels):
-            active_partition = ((self._allocation_mat[0, 2*ii] == 1) or 
-                               (self._allocation_mat[0, 2*ii+1] == 1))
+            active_partition = (
+                (self._allocation_mat[0, 2*ii] == 1) or
+                (self._allocation_mat[0, 2*ii+1] == 1))
             if active_partition:
                 new_values_per_model.append(np.vstack((
                     pilot_values[ii], values_per_model[ii])))
