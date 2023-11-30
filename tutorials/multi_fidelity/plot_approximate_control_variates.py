@@ -5,13 +5,13 @@ This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_cont
 
 CVMC is often not useful for practical analysis of numerical models because typically the statistic of the lower fidelity model is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.
 
-Let the cost of the high fidelity model per sample be :math:`C_\alpha` and let the cost of the low fidelity model be :math:`C_\kappa`. A two-model ACV estimators uses :math:`N` samples to estimate :math:`Q_{\alpha}(\rvset_N)` and :math:`Q_{\kappa}(\rvset_N)` another set of samples :math:`\rvset_M` to estimate the exact statistic :math:`Q_{\alpha}` via
+Let the cost of the high fidelity model per sample be :math:`C_\alpha` and let the cost of the low fidelity model be :math:`C_\kappa`. A two-model ACV estimators uses :math:`N` samples to estimate :math:`Q_{\alpha}(\rvset_N)` and :math:`Q_{\kappa}(\rvset_N)` another set of samples :math:`\rvset_{rN}` to estimate the exact statistic :math:`Q_{\alpha}` via
 
 .. math::
 
-   Q_{{\alpha}}^{\text{ACV}}(\rvset_N, \rvset_M)=Q_{\alpha}(\rvset_N) + \eta \left( Q_{\kappa}(\rvset_N) -Q_{\kappa}(\rvset_M)  \right)
+   Q_{{\alpha}}^{\text{ACV}}(\rvset_N, \rvset_{rN})=Q_{\alpha}(\rvset_N) + \eta \left( Q_{\kappa}(\rvset_N) -Q_{\kappa}(\rvset_{rN})  \right)
 
-As with CV, the third term :math:`Q_{\kappa}(\rvset_M)` is used to ensure the the ACV estimator is unbiased, but unlike CV it is estimated using a set of samples, rather than being assumed known.
+As with CV, the third term :math:`Q_{\kappa}(\rvset_{rN})` is used to ensure the the ACV estimator is unbiased, but unlike CV it is estimated using a set of samples, rather than being assumed known.
 
 
 In the following we will focus on the estimation of :math:`Q_\alpha=\mean{f_\alpha}` with two models. Future tutorials will show how ACV can be used to compute other statistics and with more than two models.
@@ -20,25 +20,25 @@ First, an ACV estimator is unbiased
 
 .. math::
 
-   \mean{Q_{{\alpha}}^{\text{ACV}}(\rvset_N, \rvset_M)}&=\mean{Q_{\alpha}(\rvset_N)} + \mean{\eta \left( Q_{\kappa}(\rvset_N) -Q_{\kappa}(\rvset_M)  \right)}\\
-   &=\mean{f_\alpha}+\eta\left(\mean{Q_{\kappa}(\rvset_N)} -\mean{Q_{\kappa}(\rvset_M)}\right)\\
+   \mean{Q_{{\alpha}}^{\text{ACV}}(\rvset_N, \rvset_{rN})}&=\mean{Q_{\alpha}(\rvset_N)} + \mean{\eta \left( Q_{\kappa}(\rvset_N) -Q_{\kappa}(\rvset_{rN})  \right)}\\
+   &=\mean{f_\alpha}+\eta\left(\mean{Q_{\kappa}(\rvset_N)} -\mean{Q_{\kappa}(\rvset_{rN})}\right)\\
    &=\mean{f_\alpha}.
 
 so the MSE of an ACV estimator is equal to the variance of the estimator (when estimating a single statistic).
 
 
-The ACV estimator variance is dependent on the size and structure of the two sample sets :math:`\rvset_N, \rvset_M.` For ACV to reduce the variance of a single model MC estimator :math:`\rvset_N\subset\rvset_M`. That is we evaluate :math:`f_\alpha, f_\kappa` at a common set of samples and evaluate :math:`f_\kappa` at an additional :math:`M-N` samples. For convenience we write the number of samples used to evaluate :math:`f_\kappa` as :math:`rN, r> 1` so that
+The ACV estimator variance is dependent on the size and structure of the two sample sets :math:`\rvset_N, \rvset_{rN}.` For ACV to reduce the variance of a single model MC estimator :math:`\rvset_N\subset\rvset_{rN}`. That is we evaluate :math:`f_\alpha, f_\kappa` at a common set of samples and evaluate :math:`f_\kappa` at an additional :math:`rN-N` samples. For convenience we write the number of samples used to evaluate :math:`f_\kappa` as :math:`rN, r> 1` so that
 
 
 .. math::
 
-   Q_{\kappa}(\rvset_M)=\frac{1}{rN}\sum_{i=1}^{rN}f_{\kappa}^{(i)}.
+   Q_{\kappa}(\rvset_{rN})=\frac{1}{rN}\sum_{i=1}^{rN}f_{\kappa}^{(i)}.
 
 With this sampling scheme we have
 
 .. math::
 
-  Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_M) &=\frac{1}{N}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=1}^{rN}f_{\kappa}^{(i)}\\
+  Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_{rN}) &=\frac{1}{N}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=1}^{rN}f_{\kappa}^{(i)}\\
   &=\frac{1}{N}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=1}^{N}f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}\\
   &=\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}.
 
@@ -48,7 +48,7 @@ With this sampling scheme we have
 Using the above expression yields
 
 .. math::
-   \var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_M)\right)}&=\mean{\left(\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}\right)^2}\\
+   \var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_{rN})\right)}&=\mean{\left(\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}\right)^2}\\
   &=\frac{(r-1)^2}{r^2N^2}\sum_{i=1}^N \var{f_{\kappa}^{(i)}}+\frac{1}{r^2N^2}\sum_{i=N}^{rN}\var{f_{\kappa}^{(i)}}\\
   &=\frac{(r-1)^2}{r^2N^2}N\var{f_{\kappa}}+\frac{1}{r^2N^2}(r-1)N\var{f_{\kappa}}\\
   %&=\left(\frac{(r-1)^2}{r^2N}+\frac{(r-1)}{r^2N}\right)\var{f_{\kappa}}\\
@@ -58,20 +58,20 @@ where we have used the fact that since the samples used in the first and second 
 
 .. math::
 
-  \covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) -  Q_{\kappa}(\rvset_M)\right)}=\covar{\frac{1}{N}\sum_{i=1}^N f_{\alpha}^{(i)}}{\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}}
+  \covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) -  Q_{\kappa}(\rvset_{rN})\right)}=\covar{\frac{1}{N}\sum_{i=1}^N f_{\alpha}^{(i)}}{\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}}
 
 The correlation between the estimators :math:`\frac{1}{N}\sum_{i=1}^{N}Q_{\alpha}` and :math:`\frac{1}{rN}\sum_{i=N}^{rN}Q_{\kappa}` is zero because the samples used in these estimators are different for each model. Thus
 
 .. math::
 
-   \covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) -  Q_{\kappa}(\rvset_M)\right)} &=\covar{\frac{1}{N}\sum_{i=1}^N f_{\alpha}^{(i)}}{\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}}\\
+   \covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) -  Q_{\kappa}(\rvset_{rN})\right)} &=\covar{\frac{1}{N}\sum_{i=1}^N f_{\alpha}^{(i)}}{\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}}\\
   &=\frac{r-1}{r}\frac{\covar{f_{\alpha}}{f_{\kappa}}}{N}
 
 Recalling the variance reduction of the CV estimator using the optimal :math:`\eta` is
 
 .. math::
 
-   \gamma &= 1-\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - \mu_{ {\kappa},N,r}\right)}^2}{\var{\left( Q_{\kappa}(\rvset_N) - \mu_{{\kappa},N,r}\right)}\var{Q_{\alpha}(\rvset_N)}}\\
+   \gamma &= 1-\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_{rN})\right)}^2}{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_{rN})\right)}\var{Q_{\alpha}(\rvset_N)}}\\
    &=1-\frac{N^{-2}\frac{(r-1)^2}{r^2}\covar{f_{\alpha}}{f_{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_{\kappa}}N^{-1}\var{f_{\alpha}}}\\
    &=1-\frac{r-1}{r}\corr{f_{\alpha}}{f_{\kappa}}^2
 
@@ -79,7 +79,7 @@ which is found when
 
 .. math::
 
-   \eta&=-\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - \mu_{{\kappa},N,r}\right)}}{\var{\left( Q_{\kappa}(\rvset_N) - \mu_{{\kappa},N,r}\right)}}\\
+   \eta&=-\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_{rN})\right)}}{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_{rN)}\right)}}\\
   &=-\frac{N^{-1}\frac{r-1}{r}\covar{f_{\alpha}}{f_{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_{\kappa}}}\\
   &=-\frac{\covar{f_{\alpha}}{f_{\kappa}}}{\var{f_{\kappa}}}
 
