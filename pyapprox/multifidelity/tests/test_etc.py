@@ -34,20 +34,16 @@ class TestETC(unittest.TestCase):
         samples = variable.rvs(nsamples)
         values = np.hstack([fun(samples) for fun in funs])
 
+        exploit_cost = 0.5*target_cost
         covariate_subset = np.asarray([0, 1])
         hf_values = values[:, :1]
         covariate_values = values[:, covariate_subset+1]
         result_oracle = _AETC_optimal_loss(
             target_cost, hf_values, covariate_values, costs, covariate_subset,
-            alpha, 0, 0, oracle_stats)
+            alpha, 0, 0, oracle_stats, {}, exploit_cost)
         result_mc = _AETC_optimal_loss(
             target_cost, hf_values, covariate_values, costs, covariate_subset,
-            alpha, 0, 0, None)
-        # for r in result_oracle:
-        #     print(r)
-        #     print("##")
-        # for r in result_mc:
-        #     print(r)
+            alpha, 0, 0, None, {}, exploit_cost)
         assert np.allclose(result_mc[-2], result_oracle[-2], rtol=1e-2)
 
     def test_aetc_blue(self):
@@ -61,14 +57,14 @@ class TestETC(unittest.TestCase):
 
         # provide oracle covariance so numerical and theoretical estimates
         # will coincide
-        # opt_options = {"method": "cvxpy"}
-        opt_options = {"method": "trust-constr"}
+        opt_options = {"method": "cvxpy"}
+        # opt_options = {"method": "trust-constr"}
         print("#")
         estimator = AETCBLUE(
-            funs, variable.rvs, costs,  oracle_stats, 1e-12, 0,
+            funs, variable.rvs, costs,  oracle_stats, 0, 0,
             opt_options=opt_options)
         mean, values, result = estimator.estimate(
-            target_cost, return_dict=False)
+            target_cost, return_dict=False, subsets=[np.array([0, 1])])
         result_dict = estimator._explore_result_to_dict(result)
         print(result_dict)
 
@@ -77,26 +73,29 @@ class TestETC(unittest.TestCase):
             "mlblue", "mean", 1, costs[subset], cov[np.ix_(subset, subset)],
             asketch=result_dict["beta_Sp"][1:])
         true_var = mlblue_est._covariance_from_npartition_samples(
+            result_dict["rounded_nsamples_per_subset"])
+        unrounded_true_var = mlblue_est._covariance_from_npartition_samples(
             result_dict["nsamples_per_subset"])
-        # from pyapprox.multifidelity.multilevelblue import BLUE_variance
-        # true_var = BLUE_variance(
-        #     result_dict["beta_Sp"][1:],
-        #     cov[np.ix_(result_dict["subset"]+1, result_dict["subset"]+1)],
-        #     None, estimator._reg_blue, )
+        print((mlblue_est._costs*mlblue_est._compute_nsamples_per_model(
+            result_dict["nsamples_per_subset"])).sum())
 
         ntrials = int(1e3)
         means = np.empty(ntrials)
         for ii in range(ntrials):
             means[ii] = estimator.exploit(result)
         numerical_var = means.var()
-        # print(numerical_var, "NV")
-        # print(true_var, "TV")
+        print(numerical_var, "NV")
+        print(true_var.numpy(), "TV")
+        print(result_dict["BLUE_variance"])
+        print(unrounded_true_var.numpy()[0, 0], "UN")
+        print(result_dict["exploit_budget"], 'e')
+        print(true_var)
         assert np.allclose(numerical_var, true_var, rtol=3e-2)
         assert np.allclose(
-            result_dict["BLUE_variance"]/result_dict["exploit_budget"],
-            true_var, rtol=3e-2)
+            result_dict["BLUE_variance"],
+            unrounded_true_var, rtol=3e-2)
 
-        ntrials = int(1e2)
+        ntrials = int(1e3)
         means = np.empty(ntrials)
         for ii in range(ntrials):
             means[ii] = estimator.estimate(target_cost)[0]

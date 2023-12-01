@@ -11,7 +11,7 @@ from pyapprox.multifidelity.groupacv import (
     _cvx_available, MLBLUEEstimator)
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.autogp._torch_wrappers import (
-    asarray, arange, full)
+    arange, full)
 
 
 class TestGroupACV(unittest.TestCase):
@@ -300,8 +300,8 @@ class TestGroupACV(unittest.TestCase):
         errors = check_gradients(
             lambda x: gest._cost_constraint(
                 x[:, 0], target_cost, return_grad=False),
-            lambda x: gest._cost_constraint(
-                x[:, 0], target_cost, return_grad=True),
+            lambda x: gest._cost_constraint_jac(
+                x[:, 0], target_cost),
             init_guess[:, None], disp=False)
         assert errors.min()/errors.max() < 1e-6 and errors.max() < 1
 
@@ -313,7 +313,8 @@ class TestGroupACV(unittest.TestCase):
             np.random.seed(1)
             self._check_objective_constraint_gradients(*test_case)
 
-    def _check_insert_pilot_samples(self, nmodels, min_nhf_samples):
+    def _check_insert_pilot_samples(self, nmodels, min_nhf_samples, seed):
+        np.random.seed(seed)
         cov = np.random.normal(0, 1, (nmodels, nmodels))
         cov = cov.T @ cov
         cov = get_correlation_from_covariance(cov)
@@ -325,25 +326,28 @@ class TestGroupACV(unittest.TestCase):
         generate_values = partial(
             self._generate_correlated_values, chol_factor, exact_means)
 
-        np.random.seed(1)
         npilot_samples = 8
-        pilot_samples = variable.rvs(npilot_samples)
-        pilot_values = [
-            generate_values(pilot_samples)[:, ii:ii+1]
-            for ii in range(nmodels)]
-        cov_pilot = np.cov(np.hstack(pilot_values), ddof=1, rowvar=False)
+        assert min_nhf_samples > npilot_samples
 
         target_cost = 100
         costs = np.logspace(-nmodels+1, 0, nmodels)[::-1].copy()
-        est = MLBLUEEstimator(None, costs, cov_pilot, reg_blue=0)
+        est = MLBLUEEstimator(None, costs, cov, reg_blue=0)
         est.allocate_samples(target_cost, min_nhf_samples=min_nhf_samples)
-        print(est._rounded_nsamples_per_model)
-        print(est.subsets)
-        print(est._rounded_npartition_samples)
 
         # the following test only works if variable.num_vars()==1 because
         # variable.rvs does not produce nested samples when this condition does
         # not hold
+
+        np.random.seed(seed)
+        samples_per_model = est.generate_samples_per_model(
+            variable.rvs)
+        pilot_samples = est._remove_pilot_samples(
+            npilot_samples, samples_per_model)[1]
+        pilot_values = [
+            generate_values(pilot_samples)[:, ii:ii+1]
+            for ii in range(nmodels)]
+
+        np.random.seed(seed)
         samples_per_model_wo_pilot = est.generate_samples_per_model(
             variable.rvs, npilot_samples)
         values_per_model_wo_pilot = [
@@ -352,25 +356,24 @@ class TestGroupACV(unittest.TestCase):
         values_per_model_recovered = est.insert_pilot_values(
             pilot_values, values_per_model_wo_pilot)
 
-        np.random.seed(1)
+        np.random.seed(seed)
         samples_per_model = est.generate_samples_per_model(
             variable.rvs)
         values_per_model = [
             generate_values(samples_per_model[ii])[:, ii:ii+1]
             for ii in range(est.nmodels)]
 
-        print(est._rounded_nsamples_per_model)
         for v1, v2 in zip(values_per_model, values_per_model_recovered):
-            print(v1.shape, v2.shape)
             assert np.allclose(v1, v2)
 
     def test_insert_pilot_samples(self):
         test_cases = [
-            [2, 1], [3, 11], [4, 1],
+            [2, 11], [3, 11], [4, 11],
         ]
+        ntrials = 20
         for test_case in test_cases:
-            np.random.seed(2)
-            self._check_insert_pilot_samples(*test_case)
+            for seed in range(ntrials):
+                self._check_insert_pilot_samples(*test_case, seed)
 
 
 if __name__ == '__main__':
