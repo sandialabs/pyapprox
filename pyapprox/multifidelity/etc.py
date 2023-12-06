@@ -47,7 +47,7 @@ def _AETC_least_squares(hf_values, covariate_values):
         (hf_values-X_Sp.dot(beta_Sp))**2).sum()/(nsamples-1)
 
     # debugging
-    # Gamma = np.cov((hf_values-X_Sp.dot(beta_Sp)).T)
+    # Gamma = np.cov((hf_values-X_Sp.dot(beta_Sp)).T, ddof=0)
     # print(((hf_values-X_Sp.dot(beta_Sp)).T).shape, beta_Sp.shape)
     # print(Gamma, sigma_S_sq)#, X_Sp, hf_values[:, 0], beta_Sp[:, 0])
     # assert np.allclose(np.trace(np.atleast_2d(Gamma)), sigma_S_sq)
@@ -66,7 +66,7 @@ def _AETC_BLUE_allocate_samples(
     Sigma_Sp = np.zeros((Sigma_S.shape[0]+1, Sigma_S.shape[1]+1))
     Sigma_Sp[1:, 1:] = Sigma_S
 
-    normalize_opt = opt_options.copy().pop("normalize", True)
+    normalize_opt = opt_options.copy().pop("normalize", False)
 
     if nmodels == 1:
         # exploitation cost
@@ -79,12 +79,13 @@ def _AETC_BLUE_allocate_samples(
 
     asketch = beta_Sp[1:]  # remove high-fidelity coefficient
 
-    est = MLBLUEEstimator(None, costs_S, Sigma_S)
+    est = MLBLUEEstimator(
+        None, costs_S, Sigma_S, asketch=asketch, reg_blue=reg_blue)
     if normalize_opt:
         target_cost = 1
     else:
         target_cost = exploit_budget
-    est.allocate_samples(target_cost, asketch, round_nsamples=False,
+    est.allocate_samples(target_cost, round_nsamples=False,
                          options=opt_options, min_nhf_samples=0)
     nsamples_per_subset = np.maximum(
             np.zeros_like(est._rounded_npartition_samples),
@@ -140,7 +141,7 @@ def _AETC_optimal_loss(
         # x_Sp = $\bar{x}_{S+}$
         x_Sp = X_Sp.mean(axis=0)[:, None]
         Sigma_S = np.atleast_2d(
-            np.cov(covariate_values[:, covariate_subset].T))
+            np.cov(covariate_values[:, covariate_subset].T, ddof=1))
         # TODO in paper $X_{S+}$=X_Sp.T used here
         Lambda_Sp = X_Sp.T.dot(X_Sp)/nsamples
     else:
@@ -282,6 +283,7 @@ class AETCBLUE():
         # use +1 to accound for subset indexing only lf models
         best_subset_costs = self._costs[best_subset+1]
         best_subset_groups = get_model_subsets(best_subset.shape[0])
+        # print(best_subset_groups)
         best_subset_group_costs = asarray([
             best_subset_costs[group].sum() for group in best_subset_groups])
 
@@ -361,15 +363,17 @@ class AETCBLUE():
             for s, samples in zip(best_subset, samples_per_model)]
         return beta_Sp[0, 0] + est(values_per_model).item()
 
-    @staticmethod
-    def _explore_result_to_dict(result):
+    def _explore_result_to_dict(self, result):
         result = {
             "nexplore_samples": result[0], "subset": result[1],
             "subset_cost": result[2], "beta_Sp": result[3],
             "sigma_S": result[4], "rounded_nsamples_per_subset": result[5],
             "nsamples_per_subset": result[6],
-            "loss": result[7], "k1": result[8], "BLUE_variance": result[9],
-            "exploit_budget": result[10], "subset_costs": result[11]}
+            "loss": result[7], "k1": result[8],
+            # BLUE_variance is for unrounded nsamples_per_subset
+            "BLUE_variance": result[9],
+            "exploit_budget": result[10], "mlblue_subset_costs": result[11],
+            "explore_budget": result[0]*(result[2]+self._costs[0])}
         return result
 
     def estimate(self, total_budget, subsets=None, return_dict=True):

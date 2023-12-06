@@ -14,7 +14,7 @@ except ImportError:
 
 from pyapprox.surrogates.autogp._torch_wrappers import (
     full, multidot, pinv, solve, hstack, vstack, asarray,
-    eye, log, einsum, floor)
+    eye, log, einsum, floor, copy)
 
 
 def _restriction_matrix(ncols, subset):
@@ -163,7 +163,7 @@ def _grouped_acv_sigma(
 
 
 class GroupACVEstimator():
-    def __init__(self, stat, costs, cov, reg_blue=1e-12, subsets=None,
+    def __init__(self, stat, costs, cov, reg_blue=0, subsets=None,
                  est_type="is", asketch=None):
         self._cov, self._costs = self._check_cov(cov, costs)
         self.nmodels = len(costs)
@@ -673,7 +673,7 @@ class GroupACVEstimator():
 
 
 class MLBLUEEstimator(GroupACVEstimator):
-    def __init__(self, stats, costs, cov, reg_blue=1e-12, subsets=None,
+    def __init__(self, stats, costs, cov, reg_blue=0, subsets=None,
                  asketch=None):
         # Currently stats is ignored.
         super().__init__(stats, costs, cov, reg_blue, subsets, est_type="is",
@@ -775,6 +775,16 @@ class MLBLUEEstimator(GroupACVEstimator):
         return super().allocate_samples(
             target_cost, constraint_reg, round_nsamples,
             options_copy, init_guess, min_nhf_samples, min_nlf_samples)
+
+    def estimate_all_means(self, values_per_subset):
+        asketch = copy(self._asketch)
+        means = np.empty(self.nmodels)
+        for ii in range(self.nmodels):
+            self._asketch = full((self.nmodels), 0.)
+            self._asketch[ii] = 1.0
+            means[ii] = self._estimate(values_per_subset)
+        self._asketch = asketch
+        return means
 
 
 #cvxpy requires cmake
