@@ -1,7 +1,7 @@
 # Genz Integration Functions
 
 ## Overview
-This benchmark consists of fix families of analytical functions $F_i:\mathbb{R}^D\to\mathbb{R}$, $i=1,\ldots,6$, with means $\mathbb{E}[F(\theta)]$ that can be computed analytically. The number of inputs $D$ and the anisotropy (relative importance of each variable and interactions) of the functions can be adjusted.
+This benchmark consists of fix families of analytical functions $F_k:\mathbb{R}^D\to\mathbb{R}$, $k=1,\ldots,6$, with means $\mathbb{E}[F(\theta)]$ that can be computed analytically. The number of inputs $D$ and the anisotropy (relative importance of each variable and interactions) of the functions can be adjusted.
 
 ## Authors
 John D. Jakeman

@@ -1335,6 +1335,7 @@ def plot_sensitivity_indices(result, axs=None, include_vars=None):
     if include_vars is None:
         include_vars = np.arange(nvars, dtype=int)
 
+    print(result["sobol_indices"])
     im0 = plot_sensitivity_indices_with_confidence_intervals(
         [r'$%s_{%d}$' % (rv, ii+1) for ii in include_vars], axs[0],
         result["sobol_indices"]["median"][:nvars][include_vars],

@@ -271,19 +271,19 @@ class GroupACVEstimator():
 
     def _objective(self, npartition_samples_np, return_grad=True):
         npartition_samples = torch.as_tensor(
-            npartition_samples_np, dtype=torch.double)
+            npartition_samples_np.copy(), dtype=torch.double)
         if return_grad:
             npartition_samples.requires_grad = True
         est_var = self._covariance_from_npartition_samples(
             npartition_samples)
-        # if using log must use exp in get_variance
-        log_est_var = log(est_var)
+        # talking log of objective seems to make scipy strugle to minimize
+        val = est_var
         if not return_grad:
-            return log_est_var.item()
-        log_est_var.backward()
+            return val.item()
+        val.backward()
         grad = npartition_samples.grad.detach().numpy().copy()
         npartition_samples.grad.zero_()
-        return log_est_var.item(), grad
+        return val.item(), grad
 
     @staticmethod
     def _get_model_subset_costs(subsets, costs):
