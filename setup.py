@@ -64,6 +64,7 @@ setuptools.setup(
         # 'tqdm',
         'numba',
         'scikit-fem',
+        'umbridge',
     ],
     extras_require={
         'docs': ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
