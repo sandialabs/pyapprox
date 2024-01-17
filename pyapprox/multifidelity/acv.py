@@ -9,14 +9,13 @@ from scipy.optimize import minimize
 
 from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.multifidelity.stats import (
-    MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance)
+    MultiOutputVariance, MultiOutputMeanAndVariance)
 from pyapprox.multifidelity._visualize import (
     _plot_allocation_matrix, _plot_model_recursion)
 from pyapprox.multifidelity._optim import (
     _allocate_samples_mlmc,
     _allocate_samples_mfmc,
     _check_mfmc_model_costs_and_correlations,
-    _cast_to_integers,
     _get_sample_allocation_matrix_mlmc,
     _get_sample_allocation_matrix_mfmc,
     _get_acv_recursion_indices)
