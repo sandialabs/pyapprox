@@ -377,6 +377,10 @@ class ModelTree():
             index[child.root] = root.root
             self._to_index_recusive(index, child)
 
+    def __repr__(self):
+        return "{0}({1})".format(
+            self.__class__.__name__, self.to_index())
+
 
 def _update_list_for_reduce(mylist, indices):
     mylist[indices[0]].append(indices[1])

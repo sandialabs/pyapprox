@@ -7,7 +7,6 @@ from pyapprox.multifidelity.factory import (
     ComparisionCriteria, compute_variance_reductions)
 
 
-
 def plot_model_costs(costs, model_names=None, ax=None):
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))

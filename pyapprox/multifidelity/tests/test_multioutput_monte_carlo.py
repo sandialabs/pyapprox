@@ -531,18 +531,18 @@ class TestMOMC(unittest.TestCase):
             fun(samples) for fun, samples in zip(funs, samples_per_model)]
         est_val = est(values_per_model)
 
-                
         # start from same seed so samples will be generated in the same order
         # as above
         # variable.rvs() does not create nested samples when starting from
         # the same randomstate and num_vars() > 1, e.g.
-        # partial(variable.rvs, random_state=random_state)(3) != 
+        # partial(variable.rvs, random_state=random_state)(3) !=
         # partial(variable.rvs, random_state=random_state)(4)[:, :3]
         np.random.seed(1)
         npilot_samples = 5
         pilot_samples = model.variable.rvs(npilot_samples)
         pilot_values = [f(pilot_samples) for f in model.funs]
-        assert np.allclose(pilot_values[0], values_per_model[0][:npilot_samples])
+        assert np.allclose(
+            pilot_values[0], values_per_model[0][:npilot_samples])
 
         samples_per_model_wo_pilot = est.generate_samples_per_model(
             model.variable.rvs, npilot_samples)
@@ -583,7 +583,7 @@ class TestMOMC(unittest.TestCase):
         est.allocate_samples(target_cost)#, verbosity=0, nprocs=1)
         print(est)
 
-        
+
         samples_per_model = est.generate_samples_per_model(model.variable.rvs)
         values_per_model = [
             f(samples) for f, samples in zip(funs, samples_per_model)]

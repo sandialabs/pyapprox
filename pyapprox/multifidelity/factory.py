@@ -13,6 +13,7 @@ from pyapprox.multifidelity.stats import (
     MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance,
     _nqoi_nqoi_subproblem)
 from pyapprox.multifidelity.groupacv import MLBLUEEstimator
+from pyapprox.util.utilities import get_all_sample_combinations
 from pyapprox.multifidelity.etc import AETCBLUE
 
 
@@ -181,7 +182,7 @@ class BestEstimator():
             max_nmodels = self._ncandidate_models
         else:
             min_nlfmodels = 1
-            max_nmodels = self._ncandidate_models
+            max_nmodels = self._max_nmodels
 
         for nsubset_lfmodels in range(min_nlfmodels, max_nmodels):
             if nprocs > 1:
@@ -604,3 +605,57 @@ def compute_variance_reductions(optimized_estimators,
         est_criterias.append(est_criteria)
     return (np.asarray(var_red), np.asarray(est_criterias),
             np.asarray(sf_criterias))
+
+
+def estimate_model_ensemble_covariance(npilot_samples, generate_samples,
+                                       model_ensemble, nmodels):
+    r"""
+    Estimate the covariance of a model ensemble from a set of pilot samples
+
+    Parameters
+    ----------
+    npilot_samples : integer
+        The number of samples used to estimate the covariance
+
+    generate_samples : callable
+        Function used to generate realizations of the random variable with
+        call signature samples = generate_samples(npilot_samples)
+
+    model_ensemble : callable or np.ndarray  (nvars, nsamples)
+        Function that takes a set of samples and models ids and evaluates
+        a set of models. See ModelEnsemble.
+        call signature values = model_emsemble(samples)
+
+        relizations of the random variable
+
+    nmodels : integer
+        The number of models in the ensemble
+
+    Returns
+    -------
+    cov : np.ndarray (nqoi,nqoi)
+        The covariance between the model qoi
+
+    pilot_random_samples : np.ndarray (nvars,npilot_samples)
+        The random samples used to compute the covariance. These samples
+        DO NOT have a model id
+
+    pilot_values : np.ndaray (npilot_samples,nmodels)
+        The values of each model at the pilot samples
+    """
+    # generate pilot samples
+    if callable(generate_samples):
+        pilot_random_samples = generate_samples(npilot_samples)
+    else:
+        pilot_random_samples = generate_samples[:, :npilot_samples]
+    config_vars = np.arange(nmodels)[np.newaxis, :]
+    # append model ids to pilot smaples
+    pilot_samples = get_all_sample_combinations(
+        pilot_random_samples, config_vars)
+    # evaluate models at pilot samples
+    pilot_values = model_ensemble(pilot_samples)
+    pilot_values = np.reshape(
+        pilot_values, (npilot_samples, nmodels))
+    # compute covariance
+    cov = np.cov(pilot_values, rowvar=False)
+    return cov, pilot_random_samples, pilot_values

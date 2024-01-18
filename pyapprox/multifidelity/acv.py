@@ -1,11 +1,10 @@
-import copy
 import warnings
 from abc import abstractmethod
 from functools import partial
 
 import torch
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, Bounds
 
 from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.multifidelity.stats import (
@@ -323,6 +322,8 @@ class CVEstimator(MCEstimator):
         self._optimized_cf = None
         self._optimized_weights = None
 
+        self._best_model_indices = np.arange(len(costs))
+
     def _get_discrepancy_covariances(self, npartition_samples):
         return self._stat._get_cv_discrepancy_covariances(npartition_samples)
 
@@ -627,7 +628,6 @@ class ACVEstimator(CVEstimator):
         """
         super().__init__(stat, costs, cov, None, opt_criteria=opt_criteria)
         self._set_initial_guess(None)
-
         if tree_depth is not None and recursion_index is not None:
             msg = "Only tree_depth or recurusion_index must be specified"
             raise ValueError(msg)
@@ -956,15 +956,15 @@ class ACVEstimator(CVEstimator):
                 self._allocation_mat, None, ax, **kwargs)
 
     def plot_recursion_dag(self, ax):
-         return _plot_model_recursion(self._recursion_index, ax)
+        return _plot_model_recursion(self._recursion_index, ax)
 
     def _objective(self, target_cost, x, return_grad=True):
         partition_ratios = torch.as_tensor(x, dtype=torch.double)
         if return_grad:
             partition_ratios.requires_grad = True
-            covariance = self._covariance_from_partition_ratios(
-                target_cost, partition_ratios)
-            val = self._optimization_criteria(covariance)
+        covariance = self._covariance_from_partition_ratios(
+            target_cost, partition_ratios)
+        val = self._optimization_criteria(covariance)
         if not return_grad:
             return val.item()
         val.backward()
@@ -1000,12 +1000,21 @@ class ACVEstimator(CVEstimator):
         nmodels = len(costs)
         nunknowns = len(initial_guess)
         assert nunknowns == nmodels-1
-        bounds = None  # [(0, np.inf) for ii in range(nunknowns)]
+        bounds = Bounds(
+            np.zeros(nunknowns), np.full((nunknowns), np.inf),
+            keep_feasible=True)
 
         return_grad = True
         with warnings.catch_warnings():
             # ignore scipy warnings
             warnings.simplefilter("ignore")
+            # get rough initial guess from global optimizer
+            # nelderemad_opts = {'disp': False, 'maxiter': 100}
+            # opt = minimize(
+            #     partial(self._objective, target_cost, return_grad=False),
+            #     initial_guess, method="nelder-mead", jac=False,
+            #     bounds=bounds, constraints=cons, options=nelderemad_opts)
+            # initial_guess = opt.x
             opt = minimize(
                 partial(self._objective, target_cost, return_grad=return_grad),
                 initial_guess, method=optim_method, jac=return_grad,
@@ -1015,7 +1024,9 @@ class ACVEstimator(CVEstimator):
     def _get_initial_guess(self, initial_guess, cov, costs, target_cost):
         if initial_guess is not None:
             return initial_guess
-        return np.full((self._nmodels-1,), 1)
+        initial_guess = np.full((self._nmodels-1,), 2)
+        initial_guess[0] = 1
+        return initial_guess
 
     def _allocate_samples_opt(self, cov, costs, target_cost,
                               cons=[],
@@ -1029,21 +1040,19 @@ class ACVEstimator(CVEstimator):
             cons)
         partition_ratios = torch.as_tensor(opt.x, dtype=torch.double)
         if not opt.success:  # and (opt.status!=8 or not np.isfinite(opt.fun)):
-            raise RuntimeError('optimizer failed'+f'{opt}')
+            raise RuntimeError('{0} optimizer failed {1}'.format(self, opt))
         else:
             val = opt.fun
         return partition_ratios, val
 
     def _allocate_samples_user_init_guess(self, cons, target_cost, **kwargs):
-        opt = self._allocate_samples_opt(
-            self._cov, self._costs, target_cost, cons,
-            initial_guess=self._initial_guess, **kwargs)
         try:
             opt = self._allocate_samples_opt(
                 self._cov, self._costs, target_cost, cons,
                 initial_guess=self._initial_guess, **kwargs)
             return opt
-        except RuntimeError:
+        except RuntimeError as e:
+            print(e)
             return None, np.inf
 
     def _allocate_samples_mfmc(self, cons, target_cost, **kwargs):
@@ -1102,8 +1111,8 @@ class ACVEstimator(CVEstimator):
             target_cost, min_nsamples, partition_id)
 
     def _npartition_ratios_constaint(self, partition_ratios_np, ratio_id):
-        # needs to be positiv e
-        return partition_ratios_np[ratio_id]-1e-8
+        # needs to be positive
+        return partition_ratios_np[ratio_id]-0
 
     def _npartition_ratios_constaint_jac(
             self, partition_ratios_np, ratio_id):
@@ -1119,9 +1128,9 @@ class ACVEstimator(CVEstimator):
         if isinstance(
                 self._stat,
                 (MultiOutputVariance, MultiOutputMeanAndVariance)):
-            partition_min_nsamples = 2
+            partition_min_nsamples = 2.
         else:
-            partition_min_nsamples = 1
+            partition_min_nsamples = 1.
         cons = [
             {'type': 'ineq',
              'fun': self._acv_npartition_samples_constraint,
@@ -1129,13 +1138,14 @@ class ACVEstimator(CVEstimator):
              'args': (target_cost, partition_min_nsamples, ii)}
             for ii in range(self._nmodels)]
 
+        # Better to enforce this with bounds
         # Ensure ratios are positive
-        cons += [
-            {'type': 'ineq',
-             'fun': self._npartition_ratios_constaint,
-             'jac': self._npartition_ratios_constaint_jac,
-             'args': (ii,)}
-            for ii in range(self._nmodels-1)]
+        # cons += [
+        #     {'type': 'ineq',
+        #      'fun': self._npartition_ratios_constaint,
+        #      'jac': self._npartition_ratios_constaint_jac,
+        #      'args': (ii,)}
+        #     for ii in range(self._nmodels-1)]
 
         # Note target cost is satisfied by construction using the above
         # constraints because nsamples is determined based on target cost
@@ -1167,7 +1177,7 @@ class ACVEstimator(CVEstimator):
         obj_vals = np.array([o[1] for o in opts])
         if not np.any(np.isfinite(obj_vals)):
             raise RuntimeError(
-                "no solution found from multiple initial guesses {0}")
+                "no solution found from multiple initial guesses")
         II = np.argmin(obj_vals)
         return opts[II]
 
@@ -1251,6 +1261,7 @@ class ACVEstimator(CVEstimator):
         best_result = None
         for index in self.get_all_recursion_indices():
             self._set_recursion_index(index)
+            print(index)
             try:
                 self._allocate_samples_for_single_recursion(
                     target_cost, **kwargs)

@@ -82,6 +82,9 @@ class Benchmark(OptimizeResult):
     Use the `keys()` method to see a list of the available
     attributes for a specific benchmark
     """
+    def __repr__(self):
+        return "Benchmark("+", ".join(
+            [str(key) for key, item in self.items()]) + ")"
 
 
 def setup_sobol_g_function(nvars):
