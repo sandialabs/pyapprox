@@ -15,6 +15,7 @@ except ImportError:
 from pyapprox.surrogates.autogp._torch_wrappers import (
     full, multidot, pinv, solve, hstack, vstack, asarray,
     eye, log, einsum, floor, copy)
+from pyapprox.multifidelity.stats import MultiOutputMean
 
 
 def _restriction_matrix(ncols, subset):
@@ -168,6 +169,9 @@ class GroupACVEstimator():
         self._cov, self._costs = self._check_cov(cov, costs)
         self.nmodels = len(costs)
         self._reg_blue = reg_blue
+        if not isinstance(stat, MultiOutputMean):
+            raise ValueError(
+                "MLBLUE currently only suppots estimation of means")
         self._stat = stat
 
         self.subsets, self.allocation_mat = self._set_subsets(
@@ -678,6 +682,7 @@ class MLBLUEEstimator(GroupACVEstimator):
         # Currently stats is ignored.
         super().__init__(stats, costs, cov, reg_blue, subsets, est_type="is",
                          asketch=asketch)
+        self._best_model_indices = np.arange(len(costs))
 
         # compute psi blocks once and store because they are independent
         # of the number of samples per partition/subset
