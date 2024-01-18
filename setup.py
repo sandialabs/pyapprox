@@ -41,7 +41,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/sandialabs/pyapprox",
     packages=setuptools.find_packages(),
-    python_requires='>=3.7', 
+    python_requires='>=3.7',
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
@@ -126,7 +126,7 @@ setuptools.setup(
 # to run a single test with pytest use
 # pytest pyapprox/surrogates/tests/test_approximate.py -k test_cross_validate_pce_degree
 
-# To ignore certain warnings use 
+# To ignore certain warnings use
 # pytest pyapprox/surrogates/tests/test_approximate.py -k test_cross_validate_pce_degree -W ignore:FutureWarning
 
 # However to isolate 3rd party warnings edit pypest.ini, e.g.

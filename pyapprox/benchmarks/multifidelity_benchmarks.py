@@ -381,7 +381,8 @@ class MultioutputModelEnsemble():
         """
         return np.hstack(
             [np.sqrt(7)*samples.T**3,
-             np.sqrt(7)*samples.T**2,
+             #np.sqrt(7)*samples.T**2, # alexs paper
+             np.sqrt(6.9)*samples.T**2,
              np.cos(2*np.pi*samples.T+np.pi/2)])
 
     def f2(self, samples: np.ndarray) -> np.ndarray:
@@ -400,6 +401,7 @@ class MultioutputModelEnsemble():
         """
         return np.hstack(
             [np.sqrt(3)/2*samples.T**2,
+             # np.sqrt(3)/2*samples.T, # alex's paper
              np.sqrt(3)/2*samples.T,
              np.cos(2*np.pi*samples.T+np.pi/4)])
 
@@ -419,7 +421,9 @@ class MultioutputModelEnsemble():
         means : np.ndarray(nmodels, nqoi)
             The means of each model
         """
-        return self._uniform_means()
+        # only works for alexs functions
+        # return self._uniform_means()
+        return np.array(self._mean_quadrature()).reshape(3, 3)
 
     def _uniform_covariance_matrices(self):
         # compute diagonal blocks
@@ -483,20 +487,28 @@ class MultioutputModelEnsemble():
             The covariance treating functions concatinating the qoi
             of each model f0, f1, f2
         """
-        cov11, cov22, cov33, cov12, cov13, cov23 = (
-            self._uniform_covariance_matrices())
-        return np.block([[cov11, cov12, cov13],
-                         [cov12.T, cov22, cov23],
-                         [cov13.T, cov23.T, cov33]])
+        # only works if using expression in alexs paper
+        #cov11, cov22, cov33, cov12, cov13, cov23 = (
+        #    self._uniform_covariance_matrices())
+        # return np.block([[cov11, cov12, cov13],
+        #                  [cov12.T, cov22, cov23],
+        #                  [cov13.T, cov23.T, cov33]])
+        return self._covariance_quadrature()
 
     def __repr__(self):
         return "{0}(nmodels=3, variable_type='uniform')".format(
             self.__class__.__name__)
 
-    def _covariance_quadrature(self):
+    def _mean_quadrature(self):
         xx, ww = gauss_jacobi_pts_wts_1D(201, 0, 0)
         xx = (xx+1)/2
         means = [f(xx).dot(ww)for f in self._flat_funs]
+        return means
+
+    def _covariance_quadrature(self):
+        means = self._mean_quadrature()
+        xx, ww = gauss_jacobi_pts_wts_1D(201, 0, 0)
+        xx = (xx+1)/2
         cov = np.empty((self.nmodels*self.nqoi, self.nmodels*self.nqoi))
         ii = 0
         for fi, mi in zip(self._flat_funs, means):

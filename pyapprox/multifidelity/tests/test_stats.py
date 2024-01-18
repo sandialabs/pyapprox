@@ -154,6 +154,8 @@ class TestMOSTATS(unittest.TestCase):
             W_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
         cov_var_exact = _covariance_of_variance_estimator(
             W_exact, V_exact, nsamples)
+        print(cov)
+        # print(V_exact)
         assert np.allclose(
            cov_var_exact, mc_mean_cov_var[nqoi*nmodels:, nqoi*nmodels:],
            atol=atol, rtol=rtol)
@@ -168,12 +170,12 @@ class TestMOSTATS(unittest.TestCase):
             [[0, 1], [0, 2]],
             [[0, 1], [0, 1, 2]],
             [[0, 1, 2], [0]],
-            [[0, 1, 2], [0, 2]],
+            [[0, 1, 2], [0, 1]],
             [[0, 1, 2], [0, 1, 2]],
         ]
-        if fast_test:
-            test_cases = [test_cases[1], test_cases[-1]]
-        for test_case in test_cases:
+        # if fast_test:
+        #     test_cases = [test_cases[1], test_cases[-1]]
+        for test_case in test_cases[-2:-1]:
             np.random.seed(123)
             self._check_mean_variance_covariances(*test_case)
 

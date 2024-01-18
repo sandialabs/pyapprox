@@ -11,13 +11,13 @@ Computing an ACV estimator of a statistic requires computing  :math:`\covar{\mat
 
 Typically, this is not available so we compute it with a pilot study. A pilot study evaluates all the available models at a small set of samples :math:`\rvset_\text{pilot}` and computes the quantities necessary to construct an ACV estimator. For example when computing the mean we estimate
 
-.. math:: \covar{f_\alpha}{f_\beta}\approx{N_\text{\pilot}^{-1}}\sum_{n=1}^N_\text{\pilot} \left(f_\alpha(\rv^{(n)})-Q_\alpha(\rvset_\text{pilot})\right)\left(f_\beta(\rv^{(n)})-Q_\beta(\rvset_\text{pilot})\right)
+.. math:: \covar{f_\alpha}{f_\beta}\approx{N_\text{pilot}^{-1}}\sum_{n=1}^{N_\text{pilot}} \left(f_\alpha(\rv^{(n)})-Q_\alpha(\rvset_\text{pilot})\right)\left(f_\beta(\rv^{(n)})-Q_\beta(\rvset_\text{pilot})\right)
 
 where
 
-.. math::  Q_\alpha={N_\text{\pilot}^{-1}}\sum_{n=1}^N_\text{\pilot} f_\alpha(\rv^{(n)})\approx \mean{f_\alpha}
+.. math::  Q_\alpha={N_\text{\pilot}^{-1}}\sum_{n=1}^{N_\text{\pilot}} f_\alpha(\rv^{(n)})\approx \mean{f_\alpha}
 
-With an unlimited computational budget, we would drive :math:`N_\text{\pilot}\toinfty`, however in practice we must use a finite number of samples which introduces an error in to an ACV estimator.
+With an unlimited computational budget, we would drive :math:`N_\text{\pilot}\to\infty`, however in practice we must use a finite number of samples which introduces an error in to an ACV estimator.
 
 The following code quantities the impact of the size of the pilot sample on the accuracy of an ACV estimator. If the pilot size is too small the accuracy of the control variate coefficieints will be poor, however it is made larger, constructing the pilot study will eat into the computational budget used to construct the estimator which also degrades accuracy. These two concerns need to be balanced.
 """

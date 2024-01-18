@@ -121,13 +121,20 @@ def _get_allocation_matrix_acvrd(recursion_index):
 
 
 def log_determinant_variance(variance):
-    #reg = 1e-10*torch.eye(variance.shape[0], dtype=torch.double)
-    val = torch.logdet(variance)
+    # return torch.logdet(variance)
+    # Only compute large eigvalues as the variance will
+    # be singular when estimating variance or mean+variance
+    # because of the duplicate entries in
+    # the covariance matrix
+    eigvals = torch.linalg.eigh(variance)[0]
+    val = torch.log(eigvals[eigvals > 1e-14]).sum()
     return val
 
 
 def determinant_variance(variance):
-    return torch.det(variance)
+    # return torch.det(variance)
+    eigvals = torch.linalg.eigh(variance)[0]
+    return eigvals[eigvals > 1e-14].prod()
 
 
 def log_trace_variance(variance):
@@ -1024,8 +1031,9 @@ class ACVEstimator(CVEstimator):
     def _get_initial_guess(self, initial_guess, cov, costs, target_cost):
         if initial_guess is not None:
             return initial_guess
-        initial_guess = np.full((self._nmodels-1,), 2)
-        initial_guess[0] = 1
+        initial_guess = np.full((self._nmodels-1,), 1.)
+        initial_guess += np.random.normal(0, 0.1, initial_guess.shape)
+        # initial_guess[0] = 1
         return initial_guess
 
     def _allocate_samples_opt(self, cov, costs, target_cost,
@@ -1162,6 +1170,7 @@ class ACVEstimator(CVEstimator):
 
         if True:  # opt_user_tr[0] is None:
             kwargs["optim_method"] = "SLSQP"
+            # kwargs["optim_method"] = "trust-constr"
             opt_user_sq = self._allocate_samples_user_init_guess(
                 cons, target_cost, **kwargs)
             opts.append(opt_user_sq)
@@ -1261,7 +1270,6 @@ class ACVEstimator(CVEstimator):
         best_result = None
         for index in self.get_all_recursion_indices():
             self._set_recursion_index(index)
-            print(index)
             try:
                 self._allocate_samples_for_single_recursion(
                     target_cost, **kwargs)
