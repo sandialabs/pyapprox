@@ -175,84 +175,84 @@ if savefig:
 # if savefig:
 #     plt.savefig("gp-sa-indices.pdf", bbox_inches="tight")
 
-# #%%
-# #Now we will use the surrogate with Bayesian inference to learn the
-# #coefficients of the KL. Specifically we will draw a set of samples from
-# #the posterior distribution of the KLE given the observed data provided
-# #in the benchmark.
-# #
-# #But First we will improve the accuracy of the surrogate
-# #and print out the error which can be compared to the errors previously plotted.
-# #The error of the original surrogate was kept low to demonstrate the ability
-# #to quantify error in the sensitivity indices from using a surrogate.
-# approx.refine(100)
-# error = np.linalg.norm(
-#     approx(validation_samples)-validation_values, axis=0)
-# error /= np.linalg.norm(validation_values, axis=0)
-# print("Surrogate", error)
+#%%
+#Now we will use the surrogate with Bayesian inference to learn the
+#coefficients of the KL. Specifically we will draw a set of samples from
+#the posterior distribution of the KLE given the observed data provided
+#in the benchmark.
+#
+#But First we will improve the accuracy of the surrogate
+#and print out the error which can be compared to the errors previously plotted.
+#The error of the original surrogate was kept low to demonstrate the ability
+#to quantify error in the sensitivity indices from using a surrogate.
+approx.refine(100)
+error = np.linalg.norm(
+    approx(validation_samples)-validation_values, axis=0)
+error /= np.linalg.norm(validation_values, axis=0)
+print("Surrogate", error)
 
-# #%%
-# #Now create a MCMCVariable to sample from the posterior. The benchmark
-# #has already formulated the negative log likelihood that is needed. Here
-# #we will use PyApprox's native delayed rejection adaptive metropolis (DRAM)
-# #sampler.
-# #
-# #Uncomment the commented code to use the numerical model instead of the surrogate
-# #with the MCMC algorithm. Again note the significant increase in computational
-# #time
-# npost_samples = 200
-# loglike = partial(loglike_from_negloglike, approx)
-# # loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)
-# mcmc_variable = MetropolisMCMCVariable(
-#     inv_benchmark.variable, loglike, method_opts={"cov_scaling": 1})
-# print(mcmc_variable)
-# map_sample = mcmc_variable.maximum_aposteriori_point()
-# print("Computed Map Point", map_sample[:, 0])
-# post_samples = mcmc_variable.rvs(npost_samples)
-# print("Acceptance rate", mcmc_variable._acceptance_rate)
+#%%
+#Now create a MCMCVariable to sample from the posterior. The benchmark
+#has already formulated the negative log likelihood that is needed. Here
+#we will use PyApprox's native delayed rejection adaptive metropolis (DRAM)
+#sampler.
+#
+#Uncomment the commented code to use the numerical model instead of the surrogate
+#with the MCMC algorithm. Again note the significant increase in computational
+#time
+npost_samples = 200
+loglike = partial(loglike_from_negloglike, approx)
+# loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)
+mcmc_variable = MetropolisMCMCVariable(
+    inv_benchmark.variable, loglike, method_opts={"cov_scaling": 1})
+print(mcmc_variable)
+map_sample = mcmc_variable.maximum_aposteriori_point()
+print("Computed Map Point", map_sample[:, 0])
+post_samples = mcmc_variable.rvs(npost_samples)
+print("Acceptance rate", mcmc_variable._acceptance_rate)
 
-# #%%
-# #Now plot the posterior samples with the 2D Marginals of the posterior. Note
-# #do not do this with the numerical model as this would take an eternity due
-# #to the cost of evaluating the numerical model, which is much higher relative
-# #to the cost of running the surrogate.
-# plot_unnormalized_2d_marginals(
-#     mcmc_variable._variable, mcmc_variable._loglike, nsamples_1d=50,
-#     plot_samples=[
-#         [post_samples, {"alpha": 0.3, "c": "orange"}],
-#         [map_sample, {"c": "k", "marker": "X", "s": 100}]],
-#     unbounded_alpha=0.999)
-# if savefig:
-#     plt.savefig("posterior-samples.pdf", bbox_inches="tight")
+#%%
+#Now plot the posterior samples with the 2D Marginals of the posterior. Note
+#do not do this with the numerical model as this would take an eternity due
+#to the cost of evaluating the numerical model, which is much higher relative
+#to the cost of running the surrogate.
+plot_unnormalized_2d_marginals(
+    mcmc_variable._variable, mcmc_variable._loglike, nsamples_1d=50,
+    plot_samples=[
+        [post_samples, {"alpha": 0.3, "c": "orange"}],
+        [map_sample, {"c": "k", "marker": "X", "s": 100}]],
+    unbounded_alpha=0.999)
+if savefig:
+    plt.savefig("posterior-samples.pdf", bbox_inches="tight")
 
-# #%%
-# #In the Bayesian inference above we used a fixed number of observations
-# #at randomly chosen spatial locations. However choosing observation locations
-# #is usually a poor idea. Not all observations can reduce the uncertainty
-# #in the parameters equally. Here we use Bayesian optimal experimental design
-# #to choose the 3 best design locations from the previously observed 10 pretending
-# #that we do not know the value of the observations.
-# fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-# #plot a single solution to the PDE before overlaying the designs
-# inv_benchmark.mesh.plot(
-#     inv_benchmark.obs_fun._fwd_solver.solve()[:, None], 50, ax=ax)
+#%%
+#In the Bayesian inference above we used a fixed number of observations
+#at randomly chosen spatial locations. However choosing observation locations
+#is usually a poor idea. Not all observations can reduce the uncertainty
+#in the parameters equally. Here we use Bayesian optimal experimental design
+#to choose the 3 best design locations from the previously observed 10 pretending
+#that we do not know the value of the observations.
+fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+#plot a single solution to the PDE before overlaying the designs
+inv_benchmark.mesh.plot(
+    inv_benchmark.obs_fun._fwd_solver.solve()[:, None], 50, ax=ax)
 
-# ndesign = 3
-# design_candidates = inv_benchmark.mesh.mesh_pts[:, inv_benchmark.obs_indices]
-# ndesign_candidates = design_candidates.shape[1]
-# oed = get_bayesian_oed_optimizer(
-#     "kl_params", ndesign_candidates, inv_benchmark.obs_fun, noise_stdev,
-#     inv_benchmark.variable, max_ncollected_obs=ndesign)
-# oed_results = []
-# for step in range(ndesign):
-#     results_step = oed.update_design()[1]
-#     oed_results.append(results_step)
-# selected_candidates = design_candidates[:, np.hstack(oed_results)]
-# print(selected_candidates)
-# ax.plot(design_candidates[0, :], design_candidates[1, :], "rs")
-# ax.plot(selected_candidates[0, :], selected_candidates[1, :], "ko")
-# if savefig:
-#     plt.savefig("oed-selected-design.pdf")
+ndesign = 3
+design_candidates = inv_benchmark.mesh.mesh_pts[:, inv_benchmark.obs_indices]
+ndesign_candidates = design_candidates.shape[1]
+oed = get_bayesian_oed_optimizer(
+    "kl_params", ndesign_candidates, inv_benchmark.obs_fun, noise_stdev,
+    inv_benchmark.variable, max_ncollected_obs=ndesign)
+oed_results = []
+for step in range(ndesign):
+    results_step = oed.update_design()[1]
+    oed_results.append(results_step)
+selected_candidates = design_candidates[:, np.hstack(oed_results)]
+print(selected_candidates)
+ax.plot(design_candidates[0, :], design_candidates[1, :], "rs")
+ax.plot(selected_candidates[0, :], selected_candidates[1, :], "ko")
+if savefig:
+    plt.savefig("oed-selected-design.pdf")
 
 
 #%%
