@@ -1008,7 +1008,7 @@ class ACVEstimator(CVEstimator):
         nunknowns = len(initial_guess)
         assert nunknowns == nmodels-1
         bounds = Bounds(
-            np.zeros(nunknowns), np.full((nunknowns), np.inf),
+            np.zeros(nunknowns)+1e-8, np.full((nunknowns), np.inf),
             keep_feasible=True)
 
         return_grad = True
@@ -1032,7 +1032,7 @@ class ACVEstimator(CVEstimator):
         if initial_guess is not None:
             return initial_guess
         initial_guess = np.full((self._nmodels-1,), 1.)
-        initial_guess += np.random.normal(0, 0.1, initial_guess.shape)
+        # initial_guess += np.random.normal(0, 0.1, initial_guess.shape)
         # initial_guess[0] = 1
         return initial_guess
 

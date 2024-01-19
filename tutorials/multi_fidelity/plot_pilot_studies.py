@@ -15,9 +15,9 @@ Typically, this is not available so we compute it with a pilot study. A pilot st
 
 where
 
-.. math::  Q_\alpha={N_\text{\pilot}^{-1}}\sum_{n=1}^{N_\text{\pilot}} f_\alpha(\rv^{(n)})\approx \mean{f_\alpha}
+.. math::  Q_\alpha={N_\text{pilot}^{-1}}\sum_{n=1}^{N_\text{pilot}} f_\alpha(\rv^{(n)})\approx \mean{f_\alpha}
 
-With an unlimited computational budget, we would drive :math:`N_\text{\pilot}\to\infty`, however in practice we must use a finite number of samples which introduces an error in to an ACV estimator.
+With an unlimited computational budget, we would drive :math:`N_\text{pilot}\to\infty`, however in practice we must use a finite number of samples which introduces an error in to an ACV estimator.
 
 The following code quantities the impact of the size of the pilot sample on the accuracy of an ACV estimator. If the pilot size is too small the accuracy of the control variate coefficieints will be poor, however it is made larger, constructing the pilot study will eat into the computational budget used to construct the estimator which also degrades accuracy. These two concerns need to be balanced.
 """

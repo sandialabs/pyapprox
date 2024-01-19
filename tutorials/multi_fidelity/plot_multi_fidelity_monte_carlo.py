@@ -137,6 +137,13 @@ plot_estimator_variance_ratios_for_polynomial_ensemble(
 #As you can see the MFMC (and MLMC) estimators only converge to the CV estimator  that uses one low-fidelity model (CV-1). The associated allocation matrix are structured in such a way that only the model :math:`f_1` is directly reducing the variance of :math:`Q_0`.
 
 #%%
+#Improving MFMC optimization for small computational budgets
+#-----------------------------------------------------------
+#Typically MFMC solves a real values optimization to determine the optimal sample allocation that minimizes the estimator variance and then rounds the number of samples used to evaluate each model down to the nearest interger. This can be inefficient for very small computational budgets relative to the computational costs of evaluating each model. Consequently, an improved optimization algorithm (again only for estimating expectations) was introduced in [GGLZ2022]_.
+
+#%%
 #References
 #^^^^^^^^^^
 #.. [PWGSIAM2016] `Peherstorfer, B., Willcox, K.,  Gunzburger, M., Optimal Model Management for Multifidelity Monte Carlo Estimation, 2016. <https://doi.org/10.1137/15M1046472>`_
+#
+#.. [GGLZ2022] `Gruber, A., Gunzburger, M., Ju, L. et al. A Multifidelity Monte Carlo Method for Realistic Computational Budgets. J Sci Comput 94, 2 (2023). <https://doi.org/10.1007/s10915-022-02051-y>`_

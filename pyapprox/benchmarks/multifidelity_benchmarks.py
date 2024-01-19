@@ -381,8 +381,8 @@ class MultioutputModelEnsemble():
         """
         return np.hstack(
             [np.sqrt(7)*samples.T**3,
-             #np.sqrt(7)*samples.T**2, # alexs paper
-             np.sqrt(6.9)*samples.T**2,
+             np.sqrt(7)*samples.T**2, # alexs paper
+             # np.sqrt(6.9)*samples.T**2, # test
              np.cos(2*np.pi*samples.T+np.pi/2)])
 
     def f2(self, samples: np.ndarray) -> np.ndarray:
@@ -401,8 +401,8 @@ class MultioutputModelEnsemble():
         """
         return np.hstack(
             [np.sqrt(3)/2*samples.T**2,
-             # np.sqrt(3)/2*samples.T, # alex's paper
-             np.sqrt(3)/2*samples.T,
+             np.sqrt(3)/2*samples.T, # alex's paper
+             # np.sqrt(3)/2*samples.T, # test
              np.cos(2*np.pi*samples.T+np.pi/4)])
 
     def _uniform_means(self):
