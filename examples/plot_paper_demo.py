@@ -36,6 +36,7 @@ torch.manual_seed(2023)
 #%%
 #The tutorial can save the figures to file if desired. If you do want the plots
 #set savefig=True
+
 # savefig = True
 savefig = False
 
@@ -166,14 +167,15 @@ if savefig:
 #the drastic increase in computational cost. Warning: using the numerical model
 #will take many minutes. The plots in the figure, generated from
 #left to right are: main effect, largest Sobol indices and total effect indices.
+
+sa_result = run_sensitivity_analysis(
+    "surrogate_sobol", approx, inv_benchmark.variable)
 # sa_result = run_sensitivity_analysis(
-#     "surrogate_sobol", approx, inv_benchmark.variable)
-# # sa_result = run_sensitivity_analysis(
-# #     "sobol", benchmark.negloglike, inv_benchmark.variable)
-# axs = plot_sensitivity_indices(
-#     sa_result)[1]
-# if savefig:
-#     plt.savefig("gp-sa-indices.pdf", bbox_inches="tight")
+#     "sobol", benchmark.negloglike, inv_benchmark.variable)
+axs = plot_sensitivity_indices(
+    sa_result)[1]
+if savefig:
+    plt.savefig("gp-sa-indices.pdf", bbox_inches="tight")
 
 #%%
 #Now we will use the surrogate with Bayesian inference to learn the

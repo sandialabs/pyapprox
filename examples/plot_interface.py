@@ -173,7 +173,9 @@ print(worktracking_fun_ensemble.work_tracker)
 #via the shell command using python plot_pde_convergence.py because Pool
 #must be called inside
 #
-#`if __name__ == "__main__":
+#.. code-block:: python
+#
+#    if __name__ == '__main__':
 
 # sphinx_gallery_thumbnail_path = './figures/cantilever-beam.png'
 

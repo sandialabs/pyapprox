@@ -164,4 +164,6 @@ _ = plot_convergence_data(convergence_data, cost_type="ndof")
 #via the shell command using python plot_pde_convergence.py because Pool
 #must be called inside
 #
-#`if __name__ == "__main__":
+#.. code-block:: python
+#
+#    if __name__ == '__main__':
