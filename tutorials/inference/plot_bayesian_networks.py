@@ -1,6 +1,6 @@
 r"""Gaussian Networks
 ==================
-This tutorial describes how to perform efficient inference on a network of Gaussian-linear models using Bayesian networks, often referred to as Gaussian networks. Bayesian networks can be constructed to provide a compact representation of joint distribution, which can be used to marginalize out variables and condition on observational data without the need to construct a full representation of the joint density over all variables.
+This tutorial describes how to perform efficient inference on a network of Gaussian-linear models using Bayesian networks, often referred to as Gaussian networks. Bayesian networks [KFPGM2009]_ can be constructed to provide a compact representation of joint distribution, which can be used to marginalize out variables and condition on observational data without the need to construct a full representation of the joint density over all variables.
 
 Directed Acyclic Graphs
 -----------------------

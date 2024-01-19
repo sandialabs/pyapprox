@@ -1,7 +1,7 @@
 r"""
 Adaptive Leja Sequences
 =======================
-This tutorial describes how to construct a polynomial chaos expansion (PCE) of a function with uncertain parameters using Leja sequences. This tutorial assumes that the reader is familiar with the tutorial in :ref:`Polynomial Chaos Regression`.
+This tutorial describes how to construct a polynomial chaos expansion (PCE) of a function with uncertain parameters using Leja sequences.
 """
 #%%
 #First lets import necessary modules and define a function useful for estimating the error in the PCE. We will also set the random seed for reproductibility
@@ -53,7 +53,7 @@ variable = benchmark.variable
 #  f(\V{\rv}) &\approx f_N(\V{\rv}) = \sum_{\lambda\in\Lambda}\alpha_{\lambda}\phi_{\lambda}(\V{\rv}), & |\Lambda| &= N.
 #  \end{align*}
 #
-#where :math:`\lambda=(\lambda_1\ldots,\lambda_d)\in\mathbb{N}_0^d` is a multi-index and :math:`\Lambda` specifies the terms included in the expansion. In :ref:`Polynomial Chaos Regression` we set :math:`\Lambda` to be a total degree expansion. This choice was somewhat arbitray. The exact indices in :math:`\Lambda` should be chosen with more care. The number of terms in a PCE dictates how many samples are need to accurately compute the coefficients of the expansion. Consequently we should choose the index set :math:`\Lambda` in a way that minimizes error for a fixed computational budget. In this tutorial we use an adaptive algorithm to construct an index set that greedily minimizes the error in the PCE.
+#where :math:`\lambda=(\lambda_1\ldots,\lambda_d)\in\mathbb{N}_0^d` is a multi-index and :math:`\Lambda` specifies the terms included in the expansion. Often people set :math:`\Lambda` to be a total degree expansion. However,this choice is somewhat arbitray. The exact indices in :math:`\Lambda` should be chosen with more care. The number of terms in a PCE dictates how many samples are need to accurately compute the coefficients of the expansion. Consequently we should choose the index set :math:`\Lambda` in a way that minimizes error for a fixed computational budget. In this tutorial we use an adaptive algorithm to construct an index set that greedily minimizes the error in the PCE.
 #
 #Before starting the adaptive algorithm  we will generate some test data to estimate the error in the PCE as the adaptive algorithm evolves. We will compute the error at each step using a callback function.
 from pyapprox import variables
@@ -106,7 +106,7 @@ opts = {"method": "leja",
 #
 #The above procedure is an optimization with no known explicit solution, so constructing a Leja sequence is challenging. In [NJ2014]_, gradient based optimization was used to construct weighted Leja sequences. However a simpler procedure based upon LU factorization can also be used [JFNMP2019]_. The simpler approach comes at a cost of slight degradation in the achieved determinant of the LS. We adopt the LU-based approach here due to its ease of implementation.
 #
-#The algorithm for generating weighted Leja sequences using LU factorization is outlined in Algorithm :ref:`Algorithm 1`. The algorithm consists of 5 steps. First a polynomial basis must be specified. The number of polynomial basis elements must be greater than or equal to the number of desired samples in the Leja sequence, i.e. :math:`N \geq M`. The input basis must also be ordered, and the Leja sequence is dependent on this ordering. In this paper we only consider total-degree polynomial spaces, that is we have
+#The algorithm for generating weighted Leja sequences using LU factorization is outlined in :ref:` Algorithm 1 <algo1>`. The algorithm consists of 5 steps. First a polynomial basis must be specified. The number of polynomial basis elements must be greater than or equal to the number of desired samples in the Leja sequence, i.e. :math:`N \geq M`. The input basis must also be ordered, and the Leja sequence is dependent on this ordering. In this paper we only consider total-degree polynomial spaces, that is we have
 #
 #.. math::
 #   \begin{align*}
@@ -114,6 +114,8 @@ opts = {"method": "leja",
 #   \end{align*}
 #
 #for some polynomial degree :math:`k`. We use lexigraphical ordering on :math:`\Lambda` to define the basis. The second step consists of generating a set of :math:`S` candidate samples :math:`\mathcal{Z}_S`; ideally, :math:`S \gg M`. Our candidate samples will be generated as independent and identically-distributed realizations of a random variable. The precise choice of the random draw will be discussed in the next section. For now we only require that the measure of the draw have support identical with the measure of :math:`Z`. Once candidates have been generated we then form the :math:`S \times N` Vandermonde-like matrix :math:`\Phi`, precondition this matrix with :math:`V`, and compute a truncated LU factorization. (Computing the full LU factorization is expensive and unnecessary.) We terminate the LU factorization algorithm after computing the first :math:`M` pivots. These ordered pivots correspond to indices in the candidate samples that will make up the Leja sequence. If we assume that there is \textit{any} size-:math:`M` subset of :math:`\mathcal{Z}_S` that is unisolvent for interpolation, then by the pivoting procedure, a Leja sequence is always chosen so that the interpolation problem is unisolvent.
+#
+#.. _algo1:
 #
 #Algorithm 1:
 #
@@ -130,7 +132,7 @@ opts = {"method": "leja",
 #
 # .. math:: \alpha=(LU)^{-1}P^{-1} V y
 #
-#where the matrices :math:`P`, :math:`L`, and :math:`U` are identified in :ref:`Algorithm 1`.
+#where the matrices :math:`P`, :math:`L`, and :math:`U` are identified in :ref:` Algorithm 1 <algo1>`.
 #
 #These two steps are carried out at each iteration of the adaptive algorithm. The PCE coefficients are used to guide refinement of the polynomial index set :math:`\Lambda`.
 #
@@ -161,6 +163,4 @@ plt.show()
 #%%
 #References
 #^^^^^^^^^^
-#.. [NJ2014] `Narayan A., Jakeman J.D. Adaptive Leja sparse grid constructions for stochastic collocation and high-dimensional approximation SIAM J. Sci. Comput., 36 (6) (2014), pp. A2952-A2983 <https://doi.org/10.1137/140966368>`_
-#
 #.. [JFNMP2019] `John D. Jakeman, Fabian Franzelin, Akil Narayan, Michael Eldred, and Dirk Plfuger.  Polynomial chaosexpansions for dependent random variables. Computer Methods in Applied Mechanics and Engineering, 351:643-666, 2019 <https://doi.org/10.1016/j.cma.2019.03.049>`_

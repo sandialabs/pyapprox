@@ -266,7 +266,7 @@ ani.save("adaptive_misc.gif", dpi=100,
 #
 #.. list-table::
 #
-#   * - .. _multilevel_hierarchy:
+#   * - .. _multiindex_hierarchy:
 #
 #       .. figure:: ../../figures/multiindex-hierarchy.png
 #          :width: 50%

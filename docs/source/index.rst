@@ -30,12 +30,12 @@ The following links document the functionality of the PyApprox module.
       :caption: Tutorials (extended)
 
       auto_dev_tutorials/index
-
-.. toctree::
-   :maxdepth: 2
-   :caption: User Reference Guide
+.. 
+  .. toctree::
+     :maxdepth: 2
+     :caption: User Reference Guide
 	     
-   user_reference_guide
+     user_reference_guide
 
 ..
    .. toctree::

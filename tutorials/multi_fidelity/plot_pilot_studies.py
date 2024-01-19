@@ -1,11 +1,11 @@
 r"""
 Pilot Studies
 =============
-The covariance of an ACV estimator depends on the covariance between the different model fidelities and other statistics, such as variance, depend on additional statistics properties of the model. In previous tutorials, we have assumed that thse statistics are available. However, in practice they must be estimated, because if we knew them we would not have to construct an MC estimator in the first place. 
+The covariance of an ACV estimator depends on the covariance between the different model fidelities and other statistics, such as variance, depend on additional statistics properties of the model. In previous tutorials, we have assumed that thse statistics are available. However, in practice they must be estimated, because if we knew them we would not have to construct an MC estimator in the first place.
 
-This tutorial presents how to use a pilot-study to compute the statistics needed to compute a MC-based estimator and compute its estimator covariance. We will focus on estimating the mean of a scalar model, but the procedures we describe here can easily be extended to estimation of other statistics such as variance. One simlpy must use a pilot study to compute the relevant quantities defined in :ref:`sphx_glr_auto_tutorials_acv_covariances.py`
+This tutorial presents how to use a pilot-study to compute the statistics needed to compute a MC-based estimator and compute its estimator covariance. We will focus on estimating the mean of a scalar model, but the procedures we describe here can easily be extended to estimation of other statistics such as variance. One simlpy must use a pilot study to compute the relevant quantities defined in :ref:`sphx_glr_auto_tutorials_multi_fidelity_acv_covariances.py`
 
-Computing an ACV estimator of a statistic requires computing  :math:`\covar{\mat{Q}_0}{\mat{\Delta}}\text{ and} \covar{\mat{\Delta}}{\mat{\Delta}}`. These quantities in turn depend on the quantities in :ref:`sphx_glr_auto_tutorials_acv_covariances.py`. For example, when estimating the mean we must compute 
+Computing an ACV estimator of a statistic requires computing  :math:`\covar{\mat{Q}_0}{\mat{\Delta}}\text{ and} \covar{\mat{\Delta}}{\mat{\Delta}}`. These quantities in turn depend on the quantities in :ref:`sphx_glr_auto_tutorials_multi_fidelity_acv_covariances.py`. For example, when estimating the mean we must compute
 
 .. math:: \covar{f_\alpha}{f_\beta}\qquad \forall \alpha,\beta
 
@@ -96,9 +96,12 @@ def build_acv(funs, variable, target_cost, npilot_samples, adjust_cost=True,
 
 #%%
 #Now define a function to compute the MSE. Note nprocs cannot be set > 1 unless all of this code is placed inside a function, e.g. called main,  which is then
-#run inside the following conditional
-#if __name__ == '__main__':
-#    main()
+#run inside the following conditional:
+#.. code-block:: python
+#
+#    if __name__ == '__main__':
+#        main()
+
 from multiprocessing import Pool
 def compute_mse(build_acv, funs, variable, target_cost, npilot_samples,
                 adjust_cost, ntrials, nprocs, exact_stats):

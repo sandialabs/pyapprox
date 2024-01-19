@@ -1,7 +1,7 @@
 r"""
 Two model Approximate Control Variate Monte Carlo
 =================================================
-This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` and describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from a single low-fidelity models with an unknown statistic.
+This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` and describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) [GGEJJCP2020]_ sampling to compute expectations of model output from a single low-fidelity models with an unknown statistic.
 
 CVMC is often not useful for practical analysis of numerical models because typically the statistic of the lower fidelity model is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.
 

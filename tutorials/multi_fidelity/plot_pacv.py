@@ -19,7 +19,7 @@ MLMC and MFMC are just two possible ACV estimators derived from two different al
    0 & 0 & 0 & 0 & 0 & 0 & 0 & 1
    \end{bmatrix}, \qquad 
 
-These were shown to outperform MLMC and MFMC for certain problems, however none of the allocation matrices associated with these four estimators is provably optimal for all problems. Consequently, [BLWLJCP2022] formulated a large class of so-called parameterically defined ACV (PACV) estimators that can be enumerated and used to choose the best allocation matrix for a given problem. 
+These were shown to outperform MLMC and MFMC for certain problems, however none of the allocation matrices associated with these four estimators is provably optimal for all problems. Consequently, [BLWLJCP2022]_ formulated a large class of so-called parameterically defined ACV (PACV) estimators that can be enumerated and used to choose the best allocation matrix for a given problem. 
 
 PACV estimators are derived from a so called based allocation matrix and a recursion index :math:`\gamma=[\gamma_1, \ldots, \gamma_M]^\top` that defines a zero-rooted directed acyclic graph (DAG) that controls which models are used for control variates for other models. Specifically, if the jth recursion index entry :math:`\gamma_j=i`, then the jth model acts as a control variate for the ith model such that :math:`\rvset_j^*=\rvset_i`. For example, the recusion indices of the MLMC and MFMC estimators are both :math:`[0, 1, \ldots, M]` and the recursion indices of the ACVIS and ACVMF estimators are both :math:`[0, 0, \ldots, 0]`.
 
@@ -145,6 +145,4 @@ plt.show()
 #%%
 #References
 #^^^^^^^^^^
-#.. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification, Journal of Computational Physics, 408:109257, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_
-#
 #.. [BLWLJCP2022] `On the optimization of approximate control variates with parametrically defined estimators, Journal of Computational Physics,451:110882, 2022 <https://doi.org/10.1016/j.jcp.2021.110882>`_

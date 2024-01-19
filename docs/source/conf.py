@@ -68,7 +68,7 @@ example_filenames_in_order = [
     'plot_bayesian_networks.py',
     'plot_push_forward_based_inference.py',
     # ExpDesign
-    'plot_bayesian_oed.py',
+    # 'plot_bayesian_oed.py', # ignore until paper published
     # Surrogates
     'plot_tensor_product_interpolation.py',
     'plot_sparse_grids.py',
@@ -141,7 +141,7 @@ sphinx_gallery_conf = {
         '../../tutorials/multi_fidelity',
         '../../examples']),
     'within_subsection_order': ExamplesExplicitOrder,
-    'ignore_pattern': r'util', # any files with util the filename are ignored
+    'ignore_pattern': r'util|plot_bayesian_oed\.py',  # any filenames containing util or plot_bayesian_oed.py in the filename are ignored
     'matplotlib_animations': True,
 }
 try:
@@ -188,10 +188,10 @@ templates_path = ['_templates']
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 # temporarily do not create function documentation
-exclude_patterns = ['cantilever_beam.rst']
+exclude_patterns = ['cantilever_beam.rst', 'plot_bayesian_oed.py']
 
 # use the following temporarily disable automod build. Also need to remove source/api directory and (possibly) build/
-exclude_patterns += ['user_reference_guide.rst']
+exclude_patterns += ['user_reference_guide.rst', "modules.rst"]
 
 
 # only add documented functions to manual. If not used then the api of functions

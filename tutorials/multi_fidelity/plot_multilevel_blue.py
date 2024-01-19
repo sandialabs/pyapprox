@@ -1,7 +1,7 @@
 r"""
 Multilevel Best Linear Unbiased estimators (MLBLUE)
 ===================================================
-This tutorial introduces Multilevel Best Linear Unbiased estimators (MLBLUE) and compares its characteristics and performance with the previously introduced
+This tutorial introduces Multilevel Best Linear Unbiased estimators (MLBLUE) [SUSIAMUQ2020]_, [SUSIAMUQ2021]_ and compares its characteristics and performance with the previously introduced
 multi-fidelity estimators.
 
 .. list-table::
@@ -172,6 +172,8 @@ _= plot_estimator_sample_allocation_comparison(
 #%%
 #References
 #^^^^^^^^^^
-#.. [SUSIAMUQ2020] `D. Schaden, E. Ullmann. On multilevel best linear unbiased estimators, SIAM/ASA J. Uncertainty Quantification 8 (2), 601 - 635, 2020. <https://doi.org/10.1137/19M1263534>`_
+#.. [SUSIAMUQ2020] `D. Schaden, E. Ullmann. On multilevel best linear unbiased estimators, SIAM/ASA J. Uncertainty Quantification 8 (2): 601 - 635, 2020. <https://doi.org/10.1137/19M1263534>`_
+#
+#.. [SUSIAMUQ2021] `D. Schaden, E. Ullmann. Asymptotic Analysis of Multilevel Best Linear Unbiased Estimators. SIAM/ASA Journal on Uncertainty Quantification 9 (3):953-978, 2021. <https://doi.org/10.1137/20M1321607>`_
 #
 #.. [CWARXIV2023]_ `M. Croci, K. Willcox, S. Wright. Multi-output multilevel best linear unbiased estimators via semidefinite programming. (2023)  <https://doi.org/10.1016/j.cma.2023.116130>`_

@@ -16,6 +16,7 @@ The approximate control variate estimator of a vector-valued statistic :math:`\m
 or in more compact notation
 
 .. math:: \mat{Q}_{\text{ACV}}(\rvset_\text{ACV})&=\mat{Q}_{0}(\rvset_0)+\mat{\eta}\mat{\Delta}(\rvset_{\Delta}), \quad \mat{\Delta}(\rvset_\Delta) = \begin{bmatrix}\mat{\Delta}_1(\rvset_1^*, \rvset_1)\\ \vdots\\ \mat{\Delta}_M(\rvset_M^*,\rvset_M)\end{bmatrix}\in\reals^{SM}, \quad \mat{\eta}\in\reals^{S\times SM},
+
 where the entries of :math:`\mat{\eta}` are called control variate weights, :math:`\rvset_\Delta=\{\rvset_1^*, \rvset_1, \ldots, \rvset_M^*, \rvset_M\}`, and :math:`\rvset_\text{ACV}=\{\rvset_0, \rvset_\Delta\}`.
 
 Here :math:`\mat{\eta}=[\eta_1,\ldots,\eta_M]^T`, :math:`\mat{\Delta}=[\Delta_1,\ldots,\Delta_M]^T`, and :math:`\rvset_{\alpha}^*`, :math:`\rvset_{\alpha}` are sample sets that may or may not be disjoint. Specifying the exact nature of these sets, including their cardinality, can be used to design different ACV estimators which will discuss later.

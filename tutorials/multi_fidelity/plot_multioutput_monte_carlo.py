@@ -3,7 +3,7 @@ Monte Carlo Quadrature: Beyond Mean Estimation
 ==============================================
 :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py` discussed how to use Monte Carlo quadrature to compute the mean of a model. In contrast, this tutorial shows how to use MC to compute alternative statistics of a model, for example variance, and how to compute the MSE of MC estimates of such statistics.
 
-In this tutorial we will discuss using MC to estimate the mean :math:`\mat{\mu}` and cpvariance :math:`\mat{\Sigma}` of a vector-valued function :math:`f_\alpha:\reals^D\to\reals^K`, with entries respectively given by
+In this tutorial we will discuss using MC to estimate the mean :math:`\mat{\mu}` and covariance :math:`\mat{\Sigma}` of a vector-valued function :math:`f_\alpha:\reals^D\to\reals^K`, with entries respectively given by
 
 .. math:: (\mat{Q}_{\alpha}^\mu)_k=\int_\rvdom f_{\alpha,k}(\rv)\pdf(\rv)\dx{\rv} \qquad k=1,\ldots,K
 
@@ -73,7 +73,7 @@ print(benchmark.fun.get_covariance_matrix()[:3, :3])
 print(stats[3:].reshape(3, 3))
 
 #%%
-#Similarly to a MC estimator for a scalar, a vector-valued MC estimator is a random variable. Assuming that we are not using an approximation of the model we care about, the error in the MC estimator is characterized completely by the covariance of the estimator statistics. The following shows how to compute the estimator covariance. We present general formula for the covariance between estimators of using different vector-valued models :math:`f_\alpha\text{ and }f_\beta` and using sample sets :math:`\rvset_N, \rvset_M` of (potentially) different sizes.
+#Similarly to a MC estimator for a scalar, a vector-valued MC estimator is a random variable. Assuming that we are not using an approximation of the model we care about, the error in the MC estimator is characterized completely by the covariance of the estimator statistics. The following draws from [DWBG2024]_ and shows how to compute the estimator covariance. We present general formula for the covariance between estimators of using different vector-valued models :math:`f_\alpha\text{ and }f_\beta` and using sample sets :math:`\rvset_N, \rvset_M` of (potentially) different sizes.
 #
 #Mean Estimation
 #---------------
