@@ -50,6 +50,7 @@ class TestETC(unittest.TestCase):
         target_cost = 300  # 1e3
         shifts = np.array([1, 2])
         funs, cov, costs, variable = self._setup_model_ensemble_tunable(shifts)
+        print(costs)
 
         true_means = np.hstack((0, shifts))[:, None]
 
@@ -67,11 +68,7 @@ class TestETC(unittest.TestCase):
         subsets = [np.array([0, 1])]
         # subsets = [np.array([0])]
         # subsets = [np.array([1])]
-        from pyapprox.multifidelity.groupacv import _cvx_available
-        if _cvx_available:
-            opt_options = {"method": "cvxpy"}
-        else:
-            opt_options = {"method": "trust-constr"}
+        opt_options = {"method": "trust-constr"}
         print("#")
         np.set_printoptions(precision=16)
         estimator = AETCBLUE(
@@ -132,16 +129,13 @@ class TestETC(unittest.TestCase):
         print(true_means[0], true_means[active_funs_idx])
         true_active_means = np.hstack((true_means[0], true_means[active_funs_idx, 0]))
         for ii in range(ntrials):
-            #print(ii)
+            # print(ii)
+            # print(estimator)
             means[ii], values_per_model, result = estimator.estimate(
                 target_cost, subsets=subsets)
             sq_biases.append(
                 (true_active_means.T @ (true_beta_Sp-result["beta_Sp"]))**2)
             variances.append(result["BLUE_variance"])
-            # print(result["loss"], "L")
-            #print(sq_biases[-1])
-            #print(variances[-1])
-            #print((means[ii]-true_means[0])**2)
 
         mse = np.mean((means-true_means[0])**2)
         sq_bias = np.mean(sq_biases)

@@ -386,12 +386,5 @@ class AETCBLUE():
         return mean, values, result
 
     def __repr__(self):
-        if self._optimized_criteria is None:
-            return "{0}()".format(
-                self.__class__.__name__)
-        rep = "{0}(criteria={1:.3g}".format(
-            self.__class__.__name__, self._optimized_criteria)
-        rep += " target_cost={0:.5g}, nsamples={1})".format(
-            self._rounded_target_cost,
-            self._rounded_nsamples_per_model)
+        rep = "{0}()".format(self.__class__.__name__)
         return rep

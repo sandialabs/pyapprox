@@ -13,7 +13,6 @@ from pyapprox.util.utilities import (
     get_all_sample_combinations, hash_array, cartesian_product
 )
 from pyapprox.util.sys_utilities import has_kwarg
-from pyapprox.variables.transforms import ConfigureVariableTransformation
 
 
 def evaluate_1darray_function_on_2d_array(
