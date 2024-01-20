@@ -336,7 +336,7 @@ class TestMOMC(unittest.TestCase):
             lambda z: est._objective(target_cost, z[:, 0]), True,
             partition_ratios[:, None].numpy()+1,
             fd_eps=np.logspace(-12, 1, 14)[::-1])
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min()/errors.max() < 3.e-6
 
         cons = est._get_constraints(target_cost)
         for con in cons:

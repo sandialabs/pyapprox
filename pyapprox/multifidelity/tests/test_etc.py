@@ -1,7 +1,6 @@
 import unittest
 
 import numpy as np
-from scipy import stats
 
 from pyapprox.benchmarks.multifidelity_benchmarks import (
     TunableModelEnsemble)
@@ -48,7 +47,7 @@ class TestETC(unittest.TestCase):
         assert np.allclose(result_mc[-2], result_oracle[-2], rtol=1e-2)
 
     def test_aetc_blue(self):
-        target_cost = 300# 1e3
+        target_cost = 300  # 1e3
         shifts = np.array([1, 2])
         funs, cov, costs, variable = self._setup_model_ensemble_tunable(shifts)
 
@@ -58,7 +57,7 @@ class TestETC(unittest.TestCase):
         # cov = cov[np.ix_([0, 2, 1], [0, 2, 1])]
         # costs = costs[[0, 2, 1]]
         # true_means = true_means[[0, 2, 1]]
-        
+
         # oracle_stats = [cov, true_means]
         oracle_stats = None
 
@@ -68,8 +67,11 @@ class TestETC(unittest.TestCase):
         subsets = [np.array([0, 1])]
         # subsets = [np.array([0])]
         # subsets = [np.array([1])]
-        opt_options = {"method": "cvxpy"}
-        # opt_options = {"method": "trust-constr"}
+        from pyapprox.multifidelity.groupacv import _cvx_available
+        if _cvx_available:
+            opt_options = {"method": "cvxpy"}
+        else:
+            opt_options = {"method": "trust-constr"}
         print("#")
         np.set_printoptions(precision=16)
         estimator = AETCBLUE(
@@ -82,10 +84,11 @@ class TestETC(unittest.TestCase):
         cov_exe = np.cov(values, rowvar=False, ddof=1)
 
         # todo switch on and off oracle stats
-        
+
         subset = result_dict["subset"]+1
         mlblue_est = get_estimator(
-            "mlblue", "mean", 1, costs[subset], cov_exe[np.ix_(subset, subset)],
+            "mlblue", "mean", 1, costs[subset],
+            cov_exe[np.ix_(subset, subset)],
             asketch=result_dict["beta_Sp"][1:])
         true_var = mlblue_est._covariance_from_npartition_samples(
             result_dict["rounded_nsamples_per_subset"])

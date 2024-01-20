@@ -197,9 +197,12 @@ class GroupACVEstimator():
         self._optimized_criteria = None
         self._asketch = self._validate_asketch(asketch)
 
-        # hack because currently autogradients do not works so must use finite
-        # difference
-        self._obj_jac = False
+        if est_type == "is":
+            self._obj_jac = True
+        else:
+            # hack because currently autogradients do not works so must use finite
+            # difference
+            self._obj_jac = False
 
     def _check_cov(self, cov, costs):
         if cov.shape[0] != len(costs):

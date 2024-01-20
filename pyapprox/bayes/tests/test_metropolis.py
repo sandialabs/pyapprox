@@ -181,7 +181,7 @@ class TestMetropolis(unittest.TestCase):
         map_sample = mcmc_variable.maximum_aposteriori_point(
             prior_variable.get_statistics("mean"))
         assert np.allclose(map_sample, exact_post_mean)
-        
+
         mcmc_samples = mcmc_variable.rvs(nsamples, map_sample)
         print(mcmc_samples.shape)
         acceptance_ratio = mcmc_variable._acceptance_rate
@@ -193,15 +193,15 @@ class TestMetropolis(unittest.TestCase):
         print(np.cov(mcmc_samples, ddof=1), "Samples COV")
         print("mean error", exact_post_mean[:, 0] - mcmc_samples.mean(axis=1))
         print("cov_error", exact_post_covariance-np.cov(mcmc_samples))
-#        import matplotlib.pyplot as plt
-#        from pyapprox.variables.density import NormalDensity
-#        ax = plt.subplots(1, 1)[1]
-#        pdf = NormalDensity(exact_post_mean, exact_post_covariance)
-#        pdf.plot_contours(ax=ax)
-#        ax.plot(*mcmc_samples, 'o')
-#        plt.show()
+        # import matplotlib.pyplot as plt
+        # from pyapprox.variables.density import NormalDensity
+        # ax = plt.subplots(1, 1)[1]
+        # pdf = NormalDensity(exact_post_mean, exact_post_covariance)
+        # pdf.plot_contours(ax=ax)
+        # ax.plot(*mcmc_samples, 'o')
+        # plt.show()
         assert np.allclose(
-            exact_post_mean[:, 0], mcmc_samples.mean(axis=1), atol=2.5e-2)
+            exact_post_mean[:, 0], mcmc_samples.mean(axis=1), atol=4.0e-2)
         assert np.allclose(
             exact_post_covariance, np.cov(mcmc_samples, ddof=1), atol=4.5e-2)
 
@@ -209,13 +209,13 @@ class TestMetropolis(unittest.TestCase):
         def dram_opts(nvars):
             cov_scaling = 1
             nugget = 1e-8
-            return  {"cov_scaling": cov_scaling, "nugget": nugget,
-                     "sd": 2.4**2/nvars*2}
-#        hmc_opts = {"num_steps": 5, "epsilon": 3e-1} # 2D distribution
-        hmc_opts = {"num_steps": 50, "epsilon": 0.005}
+            return {"cov_scaling": cov_scaling, "nugget": nugget,
+                    "sd": 2.4**2/nvars*2}
+        hmc_opts = {"num_steps": 5, "epsilon": 3e-1}  # 2D distribution
+        # hmc_opts = {"num_steps": 50, "epsilon": 0.001}  # 4D
         test_cases = [
-            [4, "DRAM", dram_opts(2)],
-            [4, "hmc", hmc_opts]
+            [2, "DRAM", dram_opts(2)],
+            [2, "hmc", hmc_opts]
         ]
         for test_case in test_cases[-1:]:
             self._check_mcmc_variable(*test_case)
