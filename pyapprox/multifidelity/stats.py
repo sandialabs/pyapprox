@@ -464,7 +464,6 @@ class MultiOutputMean(MultiOutputStatistic):
 
     @staticmethod
     def compute_pilot_quantities(pilot_values):
-        nmodels = len(pilot_values)
         pilot_values = np.hstack(pilot_values)
         return np.cov(pilot_values, rowvar=False, ddof=1)
 

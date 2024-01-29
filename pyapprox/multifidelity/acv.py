@@ -1281,8 +1281,8 @@ class ACVEstimator(CVEstimator):
                 self._optimized_criteria = torch.as_tensor([np.inf])
                 if verbosity > 0:
                     print("Optimizer failed")
-            if verbosity > 0:
-                msg = "Recursion: {0} Objective: best {1}, current {2}".format(
+            if verbosity > 2:
+                msg = "\t\t Recursion: {0} Objective: best {1}, current {2}".format(
                     index, best_criteria.item(),
                     self._optimized_criteria.item())
                 print(msg)

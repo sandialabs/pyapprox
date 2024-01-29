@@ -20,7 +20,12 @@ from pyapprox.multifidelity.etc import AETCBLUE
 class BestEstimator():
     def __init__(self, est_types, stat_type, costs, cov,
                  max_nmodels, *est_args, **est_kwargs):
-
+        """
+        Parameters
+        ----------
+        estimator_types : list or string
+            List of strings of each estimator type to compute, e.g. [gmf, grd]
+        """
         self.best_est = None
 
         self._estimator_types = est_types
@@ -30,6 +35,8 @@ class BestEstimator():
         self._ncandidate_models = len(self._candidate_costs)
         self._lf_model_indices = np.arange(1, self._ncandidate_models)
         self._nqoi = self._candidate_cov.shape[0]//self._ncandidate_models
+        if max_nmodels is not None and max_nmodels < 2:
+            raise ValueError("Ensure max_nmodels > 1")
         self._max_nmodels = max_nmodels
         self._args = est_args
         self._allow_failures = est_kwargs.get("allow_failures", False)
@@ -79,7 +86,7 @@ class BestEstimator():
                 est_type, self._stat_type, self._nqoi,
                 subset_costs, subset_cov, *sub_args, **sub_kwargs)
         except ValueError as e:
-            if sub_kwargs.pop("verbosity", 0) > 0:
+            if allocate_kwargs.get("verbosity", 0) > 0:
                 print(e)
             # Some estimators, e.g. MFMC, fail when certain criteria
             # are not satisfied
@@ -95,7 +102,10 @@ class BestEstimator():
     def _get_model_subset_estimator(
             self, qoi_idx, nsubset_lfmodels, allocate_kwargs,
             target_cost, lf_model_subset_indices):
-
+        """
+        Compute estimator covariance for all estimator types in
+        self._estimator_types
+        """
         idx = np.hstack(([0], lf_model_subset_indices)).astype(int)
         subset_cov = _nqoi_nqoi_subproblem(
             self._candidate_cov, self._ncandidate_models, self._nqoi,
@@ -111,9 +121,8 @@ class BestEstimator():
             est = self._get_estimator(
                 est_type, subset_costs, subset_cov,
                 target_cost, sub_args, sub_kwargs, allocate_kwargs)
-            if sub_kwargs.pop("verbosity", 0) > 0:
-                msg = "Model: {0} Objective: {1}".format(
-                    idx, est._optimized_criteria.item())
+            if allocate_kwargs.get("verbosity", 1) > 0:
+                msg = "\t Models {0}".format(idx)
                 print(msg)
             if self._save_candidate_estimators:
                 self._candidate_estimators.append(est)
@@ -127,9 +136,12 @@ class BestEstimator():
 
     def _get_best_model_subset_for_estimator_pool(
             self, nsubset_lfmodels, target_cost,
-            best_criteria, best_model_indices, best_est, **allocate_kwargs):
+            best_criteria, best_model_indices, best_est, nprocs,
+            **allocate_kwargs):
+        """
+        Compute estimator covariances for all model subets
+        """
         qoi_idx = np.arange(self._nqoi)
-        nprocs = allocate_kwargs.get("nprocs", 1)
         pool = Pool(nprocs)
         indices = list(
             combinations(self._lf_model_indices, nsubset_lfmodels))
@@ -184,19 +196,29 @@ class BestEstimator():
             min_nlfmodels = 1
             max_nmodels = self._max_nmodels
 
+        best_est = None
+        best_criteria = np.inf
         for nsubset_lfmodels in range(min_nlfmodels, max_nmodels):
             if nprocs > 1:
-                 best_criteria, best_model_indices, best_est = (
-                     self._get_best_model_subset_for_estimator_pool(
-                         nsubset_lfmodels, target_cost,
-                         best_criteria, best_model_indices, best_est,
-                         **allocate_kwargs))
+                criteria, model_indices, est = (
+                    self._get_best_model_subset_for_estimator_pool(
+                        nsubset_lfmodels, target_cost,
+                        best_criteria, best_model_indices, best_est, nprocs,
+                        **allocate_kwargs))
             else:
-                 best_criteria, best_model_indices, best_est = (
-                     self._get_best_model_subset_for_estimator_serial(
-                         nsubset_lfmodels, target_cost,
-                         best_criteria, best_model_indices, best_est,
-                         **allocate_kwargs))
+                criteria, model_indices, est = (
+                    self._get_best_model_subset_for_estimator_serial(
+                        nsubset_lfmodels, target_cost,
+                        best_criteria, best_model_indices, best_est,
+                        **allocate_kwargs))
+            if allocate_kwargs.get("verbosity", 0) > 0:
+                msg = "\t No of lf models {0}: {1} best criteria {2}".format(
+                    nsubset_lfmodels, est, best_criteria)
+                print(msg)
+            if criteria < best_criteria:
+                best_criteria = criteria
+                best_est = est
+                best_model_indices = model_indices
 
         if best_est is None:
             raise RuntimeError("No solutions found for any model subset")
@@ -207,6 +229,7 @@ class BestEstimator():
             self._candidate_estimators = []
         best_est, best_model_indices = self._get_best_estimator(
             target_cost, **allocate_kwargs)
+        print(best_est, best_model_indices)
         self.best_est = best_est
         self._best_model_indices = best_model_indices
         self._set_best_est_attributes()

@@ -111,9 +111,9 @@ _ = ax.legend()
 #   &=\mean{\left(Q_{\alpha}(\rvset_N)-\mean{Q_{\alpha}(\rvset_N)}\right)^2}+\mean{\left(\mean{Q_{\alpha}(\rvset_N)}-Q\right)^2}\\
 #   &\qquad\qquad+\mean{2\left(Q_{\alpha}(\rvset_N)-\mean{Q_{\alpha}(\rvset_N)}\right)\left(\mean{Q_{\alpha}(\rvset_N)}-Q\right)}\\
 #   &=\var{Q_{\alpha}(\rvset_N)}+\left(\mean{Q_{\alpha}(\rvset_N)}-Q\right)^2\\
-#   &=\var{Q_{\alpha}(\rvset_N)}+\left(\mean{Q_{\alpha}(\rvset_N)}-Q\right)^2
+#   &=\var{Q_{\alpha}(\rvset_N)}+\left(Q_{\alpha}-Q\right)^2
 #
-#where the expectation :math:`\mathbb{E}` and variance :math:`\mathbb{V}` are taken over different realization of the sample set :math:`\rvset_N`, and we used that :math:`\mean{\left(Q_{\alpha}(\rvset_N)-\mean{Q_{\alpha}(\rvset_N)}\right)}=0` so the third term on the second line is zero.
+#where the expectation :math:`\mathbb{E}` and variance :math:`\mathbb{V}` are taken over different realization of the sample set :math:`\rvset_N`, we used that :math:`\mean{\left(Q_{\alpha}(\rvset_N)-\mean{Q_{\alpha}(\rvset_N)}\right)}=0` so the third term on the second line is zero, and we used :math:`\mean{Q_{\alpha}(\rvset_N)}=Q_{\alpha}` to get the final equality.
 #
 #Now using the well known result that for random variable :math:`X_n`
 #
@@ -135,6 +135,6 @@ _ = ax.legend()
 #
 #.. math::
 #
-#   \mean{\left(Q_{\alpha, N}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{f_\alpha}}_{I}+\underbrace{\left(\mean{Q_{\alpha}}-Q\right)^2}_{II}
+#   \mean{\left(Q_{\alpha, N}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{f_\alpha}}_{I}+\underbrace{\left(Q_{\alpha}-Q\right)^2}_{II}
 #
 #From this expression we can see that the MSE can be decomposed into two terms; a so called stochastic error (I) and a deterministic bias (II). The first term is the variance of the Monte Carlo estimator which comes from using a finite number of samples. The second term is due to using an approximation of :math:`f_0`. These two errors should be balanced, however in the vast majority of all MC analyses a single model :math:`f_\alpha` is used and the choice of :math:`\alpha`, e.g. mesh resolution, is made a priori without much concern for the balancing bias and variance.
