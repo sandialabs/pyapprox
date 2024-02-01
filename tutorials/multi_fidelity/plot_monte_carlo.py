@@ -135,6 +135,6 @@ _ = ax.legend()
 #
 #.. math::
 #
-#   \mean{\left(Q_{\alpha, N}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{f_\alpha}}_{I}+\underbrace{\left(Q_{\alpha}-Q\right)^2}_{II}
+#   \mean{\left(Q_{\alpha}(\rvset_N)-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{f_\alpha}}_{I}+\underbrace{\left(Q_{\alpha}-Q\right)^2}_{II}
 #
 #From this expression we can see that the MSE can be decomposed into two terms; a so called stochastic error (I) and a deterministic bias (II). The first term is the variance of the Monte Carlo estimator which comes from using a finite number of samples. The second term is due to using an approximation of :math:`f_0`. These two errors should be balanced, however in the vast majority of all MC analyses a single model :math:`f_\alpha` is used and the choice of :math:`\alpha`, e.g. mesh resolution, is made a priori without much concern for the balancing bias and variance.
