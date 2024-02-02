@@ -154,7 +154,14 @@ ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 est_variances = np.diag(est.optimized_covariance().numpy())
 _ = plt.bar(labels, est_variances)
 
++#%%
++#Remarks
++#-------
++#Similar experssions to those above for scalar outputs can be found in [QPOVW2018]_.
+
 #%%
 #References
 #^^^^^^^^^^^
 #.. [DWBG2024] `T. Dixon et al. Covariance Expressions for Multi-Fidelity Sampling with Multi-Output, Multi-Statistic Estimators: Application to Approximate Control Variates. 2024 <https://doi.org/10.48550/arXiv.2310.00125>`_
+#
+#.. [QPOVW2018] `Multifidelity Monte Carlo Estimation of Variance and Sensitivity Indices E. Qian, B. Peherstorfer, D. OMalley, V. V. Vesselinov, and K. Willcox. SIAM/ASA Journal on Uncertainty Quantification 2018 6:2, 683-706 <https://doi.org/10.1137/17M1151006>`_
