@@ -154,10 +154,10 @@ ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 est_variances = np.diag(est.optimized_covariance().numpy())
 _ = plt.bar(labels, est_variances)
 
-+#%%
-+#Remarks
-+#-------
-+#Similar experssions to those above for scalar outputs can be found in [QPOVW2018]_.
+#%%
+#Remarks
+#-------
+#Similar experssions to those above for scalar outputs can be found in [QPOVW2018]_.
 
 #%%
 #References

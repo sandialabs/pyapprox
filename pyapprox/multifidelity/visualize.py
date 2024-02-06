@@ -138,7 +138,7 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
 
 
 def plot_estimator_sample_allocation_comparison(
-        estimators, model_labels, ax, legendloc=[0.925, 0.25]):
+        estimators, model_labels, ax, legendloc=[0.925, 0.25], xlabels=None):
     """
     Plot the number of samples allocated to each model for a set of estimators
 
@@ -180,8 +180,11 @@ def plot_estimator_sample_allocation_comparison(
     ax.set_xticks(xlocs)
     # number of samples are rounded cost est_rounded cost,
     # but target cost is not rounded
-    ax.set_xticklabels(
-        ['$%1.2f$' % est._rounded_target_cost for est in estimators])
+    if xlabels is None:
+        ax.set_xticklabels(
+            ['$%1.2f$' % est._rounded_target_cost for est in estimators])
+    else:
+        ax.set_xticklabels(xlabels)
     ax.set_xlabel(mathrm_label("Target cost"))
     # / $N_\alpha$')
     ax.set_ylabel(

@@ -227,7 +227,7 @@ class MCEstimator():
         """
         return self._optimized_covariance
 
-    def allocate_samples(self, target_cost, verbosity=0):
+    def allocate_samples(self, target_cost, optim_options={}):
         self._rounded_nsamples_per_model = np.asarray(
             [int(np.floor(target_cost/self._costs[0]))])
         self._rounded_npartition_samples = self._rounded_nsamples_per_model
@@ -413,7 +413,7 @@ class CVEstimator(MCEstimator):
             rounded_npartition_samples, rounded_npartition_samples,
             rounded_target_cost)
 
-    def allocate_samples(self, target_cost):
+    def allocate_samples(self, target_cost, optim_options={}):
         npartition_samples = [target_cost/self._costs.sum()]
         rounded_npartition_samples = [int(np.floor(npartition_samples[0]))]
         if isinstance(self._stat,
@@ -634,7 +634,6 @@ class ACVEstimator(CVEstimator):
             of the model ensemble
         """
         super().__init__(stat, costs, cov, None, opt_criteria=opt_criteria)
-        self._set_initial_guess(None)
         if tree_depth is not None and recursion_index is not None:
             msg = "Only tree_depth or recurusion_index must be specified"
             raise ValueError(msg)
@@ -645,6 +644,7 @@ class ACVEstimator(CVEstimator):
 
         self._rounded_partition_ratios = None
         self._npartitions = self._nmodels
+        self._objective_scaling = 1.0
 
     def _get_discrepancy_covariances(self, npartition_samples):
         return self._stat._get_acv_discrepancy_covariances(
@@ -971,7 +971,8 @@ class ACVEstimator(CVEstimator):
             partition_ratios.requires_grad = True
         covariance = self._covariance_from_partition_ratios(
             target_cost, partition_ratios)
-        val = self._optimization_criteria(covariance)
+        val = self._optimization_criteria(covariance)*self._objective_scaling
+        # print(val)
         if not return_grad:
             return val.item()
         val.backward()
@@ -979,34 +980,31 @@ class ACVEstimator(CVEstimator):
         partition_ratios.grad.zero_()
         return val.item(), grad
 
-    def _set_initial_guess(self, initial_guess):
-        if initial_guess is not None:
-            self._initial_guess = torch.as_tensor(
-                initial_guess, dtype=torch.double)
-        else:
-            self._initial_guess = None
+    def _allocate_samples_minimize(
+            self, costs, target_cost, cons, optim_options):
 
-    def _allocate_samples_opt_minimize(
-            self, costs, target_cost, initial_guess, optim_method,
-            optim_options, cons):
-        if optim_options is None:
-            if optim_method == "SLSQP":
-                optim_options = {'disp': False, 'ftol': 1e-10,
-                                 'maxiter': 10000, "iprint": 0}
-            elif optim_method == "trust-constr":
-                optim_options = {'disp': False, 'gtol': 1e-10,
-                                 'maxiter': 10000, "verbose": 0}
-            else:
-                raise ValueError(f"{optim_method} not supported")
+        # take copy of options so do not effect options dictionary
+        # provided by user. Items will then be popped from opts
+        # so that remaining opts are those needed for scipy opt
+        optim_opts_copy = optim_options.copy()
+        # default guess is to use nedler mead
+        init_guess = optim_opts_copy.pop(
+            "init_guess", {"disp": False, "maxiter": 500})
+        optim_method = optim_opts_copy.pop("method", "SLSQP")
+        if optim_method != "SLSQP" and optim_method != "trust-constr":
+            raise ValueError(f"{optim_method} not supported")
+
+        # the robustness of optimization can be improved by scaling
+        # the objective.
+        self._objective_scaling = optim_opts_copy.pop(
+            "scaling", 1e-2)
 
         if target_cost < costs.sum():
             msg = "Target cost does not allow at least one sample from "
             msg += "each model"
             raise ValueError(msg)
 
-        nmodels = len(costs)
-        nunknowns = len(initial_guess)
-        assert nunknowns == nmodels-1
+        nunknowns = self._nmodels-1
         bounds = Bounds(
             np.zeros(nunknowns)+1e-8, np.full((nunknowns), np.inf),
             keep_feasible=True)
@@ -1015,74 +1013,22 @@ class ACVEstimator(CVEstimator):
         with warnings.catch_warnings():
             # ignore scipy warnings
             warnings.simplefilter("ignore")
-            # get rough initial guess from global optimizer
-            # nelderemad_opts = {'disp': False, 'maxiter': 100}
-            # opt = minimize(
-            #     partial(self._objective, target_cost, return_grad=False),
-            #     initial_guess, method="nelder-mead", jac=False,
-            #     bounds=bounds, constraints=cons, options=nelderemad_opts)
-            # initial_guess = opt.x
+            if isinstance(init_guess, dict):
+                # get rough initial guess from global optimizer
+                default_init_guess = asarray(np.full((self._nmodels-1,), 1.))
+                opt = minimize(
+                    partial(self._objective, target_cost, return_grad=False),
+                    default_init_guess, method="nelder-mead", jac=False,
+                    bounds=bounds, constraints=cons, options=init_guess)
+                init_guess = opt.x
+            if init_guess.shape[0] != self._nmodels-1:
+                raise ValueError(
+                    "init_guess {0} has the wrong shape".format(init_guess))
             opt = minimize(
                 partial(self._objective, target_cost, return_grad=return_grad),
-                initial_guess, method=optim_method, jac=return_grad,
+                init_guess, method=optim_method, jac=return_grad,
                 bounds=bounds, constraints=cons, options=optim_options)
         return opt
-
-    def _get_initial_guess(self, initial_guess, cov, costs, target_cost):
-        if initial_guess is not None:
-            return initial_guess
-        initial_guess = np.full((self._nmodels-1,), 1.)
-        # initial_guess += np.random.normal(0, 0.1, initial_guess.shape)
-        # initial_guess[0] = 1
-        return initial_guess
-
-    def _allocate_samples_opt(self, cov, costs, target_cost,
-                              cons=[],
-                              initial_guess=None,
-                              optim_options=None, optim_method='trust-constr'):
-        initial_guess = self._get_initial_guess(
-            initial_guess, cov, costs, target_cost)
-        assert optim_method == "SLSQP" or optim_method == "trust-constr"
-        opt = self._allocate_samples_opt_minimize(
-            costs, target_cost, initial_guess, optim_method, optim_options,
-            cons)
-        partition_ratios = torch.as_tensor(opt.x, dtype=torch.double)
-        if not opt.success:  # and (opt.status!=8 or not np.isfinite(opt.fun)):
-            raise RuntimeError('{0} optimizer failed {1}'.format(self, opt))
-        else:
-            val = opt.fun
-        return partition_ratios, val
-
-    def _allocate_samples_user_init_guess(self, cons, target_cost, **kwargs):
-        try:
-            opt = self._allocate_samples_opt(
-                self._cov, self._costs, target_cost, cons,
-                initial_guess=self._initial_guess, **kwargs)
-            return opt
-        except RuntimeError as e:
-            print(e)
-            return None, np.inf
-
-    def _allocate_samples_mfmc(self, cons, target_cost, **kwargs):
-        # TODO convert MFMC allocation per model to npartition_samples
-        assert False
-        if (not (_check_mfmc_model_costs_and_correlations(
-                self._costs,
-                get_correlation_from_covariance(self._cov.numpy()))) or
-                len(self._cov) != len(self._costs)):
-            # second condition above will not be true for multiple qoi
-            return None, np.inf
-        mfmc_model_ratios = torch.as_tensor(_allocate_samples_mfmc(
-            self._cov, self._costs, target_cost)[0], dtype=torch.double)
-        mfmc_initial_guess = MFMCEstimator._native_ratios_to_npartition_ratios(
-            mfmc_model_ratios)
-        try:
-            opt = self._allocate_samples_opt(
-                self._cov, self._costs, target_cost, cons,
-                initial_guess=mfmc_initial_guess, **kwargs)
-            return opt
-        except RuntimeError:
-            return None, np.inf
 
     @abstractmethod
     def _get_specific_constraints(self, target_cost):
@@ -1160,35 +1106,16 @@ class ACVEstimator(CVEstimator):
         cons += self._get_specific_constraints(target_cost)
         return cons
 
-    def _allocate_samples(self, target_cost, **kwargs):
+    def _allocate_samples(self, target_cost, optim_options):
         cons = self._get_constraints(target_cost)
-        opts = []
-        # kwargs["optim_method"] = "trust-constr"
-        # opt_user_tr = self._allocate_samples_user_init_guess(
-        #     cons, target_cost, **kwargs)
-        # opts.append(opt_user_tr)
-
-        if True:  # opt_user_tr[0] is None:
-            kwargs["optim_method"] = "SLSQP"
-            # kwargs["optim_method"] = "trust-constr"
-            opt_user_sq = self._allocate_samples_user_init_guess(
-                cons, target_cost, **kwargs)
-            opts.append(opt_user_sq)
-
-        # kwargs["optim_method"] = "trust-constr"
-        # opt_mfmc_tr = self._allocate_samples_mfmc(cons, target_cost, **kwargs)
-        # opts.append(opt_mfmc_tr)
-        # if opt_mfmc_tr[0] is None:
-        #     kwargs["optim_method"] = "SLSQP"
-        #     opt_mfmc_sq = self._allocate_samples_mfmc(
-        #         cons, target_cost, **kwargs)
-        #     opts.append(opt_mfmc_sq)
-        obj_vals = np.array([o[1] for o in opts])
-        if not np.any(np.isfinite(obj_vals)):
-            raise RuntimeError(
-                "no solution found from multiple initial guesses")
-        II = np.argmin(obj_vals)
-        return opts[II]
+        opt = self._allocate_samples_minimize(
+            self._costs, target_cost, cons, optim_options)
+        partition_ratios = torch.as_tensor(opt.x, dtype=torch.double)
+        if not opt.success:
+            raise RuntimeError('{0} optimizer failed {1}'.format(self, opt))
+        else:
+            val = opt.fun
+        return partition_ratios, val
 
     def _round_partition_ratios(self, target_cost, partition_ratios):
         npartition_samples = self._npartition_samples_from_partition_ratios(
@@ -1255,30 +1182,32 @@ class ACVEstimator(CVEstimator):
             rounded_npartition_samples, rounded_nsamples_per_model,
             rounded_target_cost)
 
-    def _allocate_samples_for_single_recursion(self, target_cost, **kwargs):
+    def _allocate_samples_for_single_recursion(
+            self, target_cost, optim_options):
         partition_ratios, obj_val = self._allocate_samples(
-            target_cost, **kwargs)
+            target_cost, optim_options)
         self._set_optimized_params(partition_ratios, target_cost)
 
     def get_all_recursion_indices(self):
         return _get_acv_recursion_indices(self._nmodels, self._tree_depth)
 
     def _allocate_samples_for_all_recursion_indices(
-            self, target_cost, **kwargs):
-        verbosity = kwargs.pop("verbosity", 0)
+            self, target_cost, optim_options):
+        verbosity = optim_options.get("verbosity", 0)
         best_criteria = torch.as_tensor(np.inf, dtype=torch.double)
         best_result = None
         for index in self.get_all_recursion_indices():
             self._set_recursion_index(index)
             try:
                 self._allocate_samples_for_single_recursion(
-                    target_cost, **kwargs)
+                    target_cost, optim_options)
             except RuntimeError as e:
                 # typically solver fails because trying to use
                 # uniformative model as a recursive control variate
                 if not self._allow_failures:
                     raise e
-                self._optimized_criteria = torch.as_tensor([np.inf])
+                self._optimized_criteria = torch.as_tensor(
+                    np.inf, dtype=torch.double)
                 if verbosity > 0:
                     print("Optimizer failed")
             if verbosity > 2:
@@ -1298,13 +1227,12 @@ class ACVEstimator(CVEstimator):
             torch.as_tensor(best_result[0], dtype=torch.double),
             target_cost)
 
-    def allocate_samples(self, target_cost, **kwargs):
+    def allocate_samples(self, target_cost, optim_options={}):
         if self._tree_depth is not None:
             return self._allocate_samples_for_all_recursion_indices(
-                target_cost, **kwargs)
-        kwargs.pop("verbosity", 0)
+                target_cost, optim_options)
         return self._allocate_samples_for_single_recursion(
-            target_cost, **kwargs)
+            target_cost, optim_options)
 
 
 class GMFEstimator(ACVEstimator):
@@ -1352,7 +1280,7 @@ class MFMCEstimator(GMFEstimator):
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
 
-    def _allocate_samples(self, target_cost):
+    def _allocate_samples(self, target_cost, optim_options={}):
         # nsample_ratios returned will be listed in according to
         # self.model_order which is what self.get_rsquared requires
         nqoi = self._cov.shape[0]//len(self._costs)
@@ -1404,7 +1332,7 @@ class MLMCEstimator(GRDEstimator):
             self._stat.high_fidelity_estimator_covariance(
                 npartition_samples[0]), weights, CF, cf)
 
-    def _allocate_samples(self, target_cost):
+    def _allocate_samples(self, target_cost, optim_options={}):
         nqoi = self._cov.shape[0]//len(self._costs)
         nsample_ratios, val = _allocate_samples_mlmc(
             self._cov.numpy()[self._opt_qoi::nqoi, self._opt_qoi::nqoi],

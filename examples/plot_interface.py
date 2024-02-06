@@ -176,9 +176,9 @@ print(worktracking_fun_ensemble.work_tracker)
 #.. code-block:: python
 #
 #    if __name__ == '__main__':
-
-# sphinx_gallery_thumbnail_path = './figures/cantilever-beam.png'
+#
 
 #%%
+# sphinx_gallery_thumbnail_path = './figures/cantilever-beam.png'
 #.. gallery thumbnail will say broken if no plots are made in this file so
 #.. specify a default file as above. Must start with a #

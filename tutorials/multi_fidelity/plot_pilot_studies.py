@@ -96,7 +96,8 @@ def build_acv(funs, variable, target_cost, npilot_samples, adjust_cost=True,
 
 #%%
 #Now define a function to compute the MSE. Note nprocs cannot be set > 1 unless all of this code is placed inside a function, e.g. called main,  which is then
-#run inside the following conditional:
+#run inside the following conditional
+#
 #.. code-block:: python
 #
 #    if __name__ == '__main__':

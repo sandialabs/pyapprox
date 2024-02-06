@@ -89,4 +89,40 @@ Once an allocation matrix is specified, the optimal sample allocation can be obt
 .. math:: \min_{\mat{p}}\mathrm{Det}\left[\covar{\mat{Q}_{\text{ACV}}}{\mat{Q}_{\text{ACV}}}\right](\mat{p}; \mat{A}) \qquad \mathrm{s.t.} \qquad C(\mat{c},\mat{p};\mat{A})\le C_\mathrm{max},
 
 The following tutorials introduce different ACV methods and their allocation matrices that have been introduced in the literature.
+
+The following compares the estimator variances of three different ACV estimators. No one estimator type is best for all problems. Consequently for any given problem all possible estimators should be constructed. This requires estimates of the model covariance using a pilot study see :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_pilot_studies.py`
 """
+import numpy as np
+import matplotlib.pyplot as plt
+
+from pyapprox.util.visualization import mathrm_labels
+from pyapprox.benchmarks import setup_benchmark
+from pyapprox.multifidelity.factory import (
+    get_estimator, compare_estimator_variances)
+from pyapprox.multifidelity.visualize import (
+    plot_estimator_variance_reductions)
+
+np.random.seed(1)
+benchmark = setup_benchmark("polynomial_ensemble")
+model = benchmark.fun
+cov = model.get_covariance_matrix()
+nmodels = cov.shape[0]
+target_costs = np.array([1e2], dtype=int)
+costs = np.asarray([10**-ii for ii in range(nmodels)])
+model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
+
+estimators = [
+    get_estimator("mlmc", "mean", 1, costs, cov),
+    get_estimator("mfmc", "mean", 1, costs, cov),
+    get_estimator("gmf", "mean", 1, costs, cov,
+                  recursion_index=np.zeros(nmodels-1, dtype=int))]
+est_labels = mathrm_labels(["MLMC", "MFMC", "ACVMF"])
+optimized_estimators = compare_estimator_variances(
+    target_costs, estimators)
+
+axs = [plt.subplots(1, 1, figsize=(8, 6))[1]]
+
+# get estimators for target cost = 100
+ests_100 = [ests[0] for ests in optimized_estimators]
+_ = plot_estimator_variance_reductions(
+    ests_100, est_labels, axs[0])

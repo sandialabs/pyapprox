@@ -200,8 +200,8 @@ class GroupACVEstimator():
         if est_type == "is":
             self._obj_jac = True
         else:
-            # hack because currently autogradients do not works so must use finite
-            # difference
+            # hack because currently autogradients do not works so must
+            # use finite difference
             self._obj_jac = False
 
     def _check_cov(self, cov, costs):
@@ -342,21 +342,31 @@ class GroupACVEstimator():
             raise ValueError(msg)
         return lb, ub
 
+    def _nelder_mead_min_nlf_samples_constraint(
+            self, x, min_nlf_samples, ii):
+        return (self.partitions_per_model[ii].numpy()*x).sum()-min_nlf_samples
+
+    def _get_nelder_mead_constraints(self, target_cost, min_nhf_samples,
+                                     min_nlf_samples, constraint_reg=0):
+        cons = [
+            {'type': 'ineq',
+             'fun': self._cost_constraint,
+             'args': (target_cost, )}]
+        cons += [
+            {'type': 'ineq',
+             'fun': self._nelder_mead_min_nlf_samples_constraint,
+             'args': [min_nhf_samples, 0]}]
+        if min_nlf_samples is not None:
+            assert len(min_nlf_samples) == self.nmodels-1
+            for ii in range(1, self.nmodels):
+                cons += [
+                    {'type': 'ineq',
+                     'fun': self._nelder_mead_min_nlf_samples_constraint,
+                     'args': [min_nlf_samples, ii, ]}]
+        return cons
+
     def _get_constraints(self, target_cost, min_nhf_samples,
                          min_nlf_samples, constraint_reg=0):
-        # cons = [
-        #     {'type': 'ineq',
-        #      'fun': self._cost_constraint,
-        #      'args': (target_cost, )}]
-        # if self._obj_jac:
-        #     cons[-1]['jac'] = self._cost_constraint_jac
-        # if min_nhf_samples > 0:
-        #     cons += [
-        #         {'type': 'ineq',
-        #          'fun': self._nhf_samples_constraint,
-        #          'args': [min_nhf_samples]}]
-        #     if self._obj_jac:
-        #         cons[-1]['jac'] = self._nhf_samples_constraint_jac
         keep_feasible = False
         lb, ub = self._validate_target_cost_min_nhf_samples(
             target_cost, min_nhf_samples)
@@ -377,7 +387,7 @@ class GroupACVEstimator():
 
     def _constrained_objective(self, cons, x):
         # used for gradient free optimizers
-        lamda = 1e12
+        lamda = 1e8
         cons_term = 0
         for con in cons:
             c_val = con["fun"](x, *con["args"])
@@ -400,14 +410,10 @@ class GroupACVEstimator():
         return full(
             (self.npartitions,), np.floor(target_cost/cost))
 
-    def _update_init_guess(
-            self, init_guess, target_cost, min_nhf_samples, constraint_reg):
-        constraints = self._get_constraints(
-            target_cost, min_nhf_samples, constraint_reg)
+    def _update_init_guess(self, init_guess, constraints, options):
         method = "nelder-mead"
-        options = {}
-        options["xatol"] = 1e-5
-        options["fatol"] = 1e-5
+        #options["xatol"] = 1e-6
+        #options["fatol"] = 1e-6
         options["maxfev"] = 100 * len(init_guess)
         obj = partial(self._constrained_objective, constraints)
         res = minimize(
@@ -441,7 +447,7 @@ class GroupACVEstimator():
         # better to use bounds because they are never violated
         # but enforcing bounds as constraints means bounds can be violated
         # bounds = [(0, np.inf) for ii in range(self.npartitions)]
-        bounds = Bounds(np.zeros(self.npartitions),
+        bounds = Bounds(np.zeros(self.npartitions)+1e-8,
                         np.full((self.npartitions,), np.inf),
                         keep_feasible=True)
         return bounds
@@ -460,7 +466,8 @@ class GroupACVEstimator():
     def allocate_samples(self, target_cost,
                          constraint_reg=0, round_nsamples=True,
                          options={}, init_guess=None,
-                         min_nhf_samples=1, min_nlf_samples=None):
+                         min_nhf_samples=1, min_nlf_samples=None,
+                         optim_options={}):
         """
         Parameters
         ----------
@@ -478,13 +485,18 @@ class GroupACVEstimator():
             target_cost, min_nhf_samples, min_nlf_samples, constraint_reg)
         if init_guess is None:
             init_guess = self._init_guess(target_cost)
-            # init_guess = self._update_init_guess(
-            #     init_guess, target_cost, min_nhf_samples, constraint_reg)
+            init_opts = optim_options.get("init_guess", {})
+            if isinstance(init_opts, dict):
+                nelder_mead_constraints = self._get_nelder_mead_constraints(
+                    target_cost, min_nhf_samples, min_nlf_samples,
+                    constraint_reg)
+                init_guess = self._update_init_guess(
+                    init_guess, nelder_mead_constraints, init_opts)
         init_guess = np.maximum(init_guess, self._npartition_samples_lb)
         options_copy = options.copy()
         method = options_copy.pop("method", "trust-constr")
-        # import warnings
-        # warnings.filterwarnings("error")
+        import warnings
+        warnings.filterwarnings("error")
         res = minimize(
             obj, init_guess, jac=self._obj_jac,
             method=method, constraints=constraints, options=options_copy,
@@ -717,7 +729,13 @@ class MLBLUEEstimator(GroupACVEstimator):
     def _objective(self, npartition_samples_np, return_grad=True):
         # leverage block diagonal structure to compute gradients efficiently
         psi = self._psi_matrix(npartition_samples_np)
-        psi_inv = np.linalg.inv(psi)
+        try:
+            psi_inv = np.linalg.inv(psi)
+        except np.linalg.LinAlgError:
+            # sometimes nelder mead tries values that violate constraints
+            # so return large value here
+            assert not return_grad
+            return 9e16
         variance = np.linalg.multi_dot(
             (self._asketch.T, psi_inv, self._asketch))
         if not return_grad:
@@ -767,9 +785,10 @@ class MLBLUEEstimator(GroupACVEstimator):
     def allocate_samples(self, target_cost,
                          constraint_reg=0, round_nsamples=True,
                          options={}, init_guess=None, min_nhf_samples=1,
-                         min_nlf_samples=None):
+                         min_nlf_samples=None, optim_options={}):
         options_copy = options.copy()
-        method = options_copy.pop("method", "trust-constr")
+        method = options_copy.pop(
+            "method", "cvxpy" if _cvx_available else "trust-constr")
         if method == "cvxpy":
             if not _cvx_available:
                 raise ImportError("must install cvxpy")
@@ -780,6 +799,7 @@ class MLBLUEEstimator(GroupACVEstimator):
         # TODO
         # when running mlblue with trust-constr make sure to compute
         # contraint jacobians and activate them
+        # TODO put all keyword args into optim_options
         return super().allocate_samples(
             target_cost, constraint_reg, round_nsamples,
             options_copy, init_guess, min_nhf_samples, min_nlf_samples)

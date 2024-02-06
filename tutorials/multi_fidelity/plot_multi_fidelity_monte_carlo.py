@@ -58,8 +58,6 @@ Recalling that :math:`\rho_{j,k}` denotes the correlation between models :math:`
 
 Now lets us compare MC with MFMC using optimal sample allocations
 """
-import copy
-
 import numpy as np
 import matplotlib.pyplot as plt
 

@@ -710,7 +710,8 @@ def setup_polynomial_ensemble(nmodels=5):
     model = PolynomialModelEnsemble(nmodels)
     return Benchmark(
         {'fun': model, 'variable': model.variable, "means": model.get_means(),
-         "model_covariance": model.get_covariance_matrix()})
+         "model_covariance": model.get_covariance_matrix(),
+         "funs": [model.m0, model.m1, model.m2, model.m3, model.m4]})
 
 
 def setup_tunable_model_ensemble(theta1=np.pi/2*0.95, shifts=None):

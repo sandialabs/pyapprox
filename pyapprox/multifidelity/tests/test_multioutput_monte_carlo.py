@@ -178,6 +178,7 @@ class TestMOMC(unittest.TestCase):
                 kwargs = {"recursion_index": np.asarray(recursion_index)}
         else:
             kwargs = {}
+
         if stat_type == "mean":
             idx = nqoi
             if est_type == "cv":
@@ -216,6 +217,9 @@ class TestMOMC(unittest.TestCase):
                 B, model.nmodels, model.nqoi, model_idx, qoi_idx)
             args.append(B)
             idx = nqoi+nqoi**2
+
+        # check covariance matrix is positive definite
+        np.linalg.cholesky(cov)
         est = get_estimator(
             est_type, stat_type, nqoi, costs, cov, *args,
             max_nmodels=max_nmodels, **kwargs)
@@ -286,12 +290,12 @@ class TestMOMC(unittest.TestCase):
             [[0, 1, 2], [0, 1, 2], [0, 1],
              ["gmf", "grd", "gis", "mlmc", "mfmc"], "mean", None, 3, 1e4, 100],
             [[0, 1, 2], [0, 1, 2], [0, 1], "grd", "mean", None, 3],
-            [[0, 1, 2], [2], [0, 1], "grd", "variance", None, 3],
+            [[0, 1, 2], [1], [0, 1], "grd", "variance", None, 3],
             [[0, 1], [0, 2], [0], "gmf", "mean"],
             [[0, 1], [0], [0], "gmf", "variance"],
             [[0, 1], [0, 2], [0], "gmf", "variance"],
             [[0, 1, 2], [0], [0, 0], "gmf", "variance"],
-            [[0, 1, 2], [0, 1, 2], [0, 0], "gmf", "variance",
+            [[0, 1, 2], [0, 2], [0, 0], "gmf", "variance",
              None, None, 1e4, 100],
             [[0, 1], [0], [0], "gmf", "mean_variance"],
             [[0, 1, 2], [0], None, "mfmc", "mean"],
@@ -301,7 +305,7 @@ class TestMOMC(unittest.TestCase):
             [[0, 1, 2], [0], None, "mlmc", "mean_variance",
              None, None, 1e4, 100],
             [[0], [0, 1, 2], None, "mc", "variance"],
-            [[0, 1, 2], [0, 1, 2], None, "gmf", "variance", 2, None, int(5e4)],
+            [[0, 1, 2], [0, 2], None, "gmf", "variance", 2, None, int(5e4)],
         ]
         for test_case in test_cases:
             np.random.seed(1)
@@ -365,7 +369,7 @@ class TestMOMC(unittest.TestCase):
         # avoid using est._allocate_samples so we do not start
         # from mfmc exact solution
         partition_ratios, obj_val = est._allocate_samples(
-            target_cost)
+            target_cost, {"scaling": 1.})
         npartition_samples = est._npartition_samples_from_partition_ratios(
             target_cost, partition_ratios)
         nsamples_per_model = est._compute_nsamples_per_model(
@@ -454,7 +458,7 @@ class TestMOMC(unittest.TestCase):
         # avoid using est._allocate_samples so we do not start
         # from mlmc exact solution
         partition_ratios, obj_val = est._allocate_samples(
-            target_cost)
+            target_cost, {"scaling": 1.})
         npartition_samples = est._npartition_samples_from_partition_ratios(
             target_cost, partition_ratios)
         nsamples_per_model = est._compute_nsamples_per_model(
@@ -471,7 +475,7 @@ class TestMOMC(unittest.TestCase):
             ["gmf", "mfmc", "gis"], "mean", 3, costs, cov, max_nmodels=3)
         target_cost = 10
         est._save_candidate_estimators = True
-        est.allocate_samples(target_cost, verbosity=1, nprocs=1)
+        est.allocate_samples(target_cost, {"verbosity": 1, "nprocs": 1})
 
         criteria = np.array(
             [e._optimized_criteria for e in est._candidate_estimators])
@@ -520,7 +524,7 @@ class TestMOMC(unittest.TestCase):
             "grd", "mean", nqoi, costs, cov, max_nmodels=3,
             recursion_index=(0, 1))
         target_cost = 100
-        est.allocate_samples(target_cost, verbosity=0, nprocs=1)
+        est.allocate_samples(target_cost, {"verbosity": 0, "nprocs": 1})
 
         np.random.seed(1)
         samples_per_model = est.generate_samples_per_model(model.variable.rvs)
@@ -580,7 +584,6 @@ class TestMOMC(unittest.TestCase):
         est.allocate_samples(target_cost)#, verbosity=0, nprocs=1)
         print(est)
 
-
         samples_per_model = est.generate_samples_per_model(model.variable.rvs)
         values_per_model = [
             f(samples) for f, samples in zip(funs, samples_per_model)]
@@ -602,6 +605,22 @@ class TestMOMC(unittest.TestCase):
         for test_case in test_cases[-1:]:
             print(test_case)
             self._check_bootstrap_estimator(*test_case)
+
+    def test_polynomial_ensemeble(self):
+        from pyapprox.benchmarks.benchmarks import setup_benchmark
+        benchmark = setup_benchmark("polynomial_ensemble")
+        model = benchmark.fun
+        cov = model.get_covariance_matrix()
+        nmodels = cov.shape[0]
+        costs = np.asarray([10**-ii for ii in range(nmodels)])
+        est = get_estimator("gmf", "mean", 1, costs, cov,
+                            recursion_index=np.zeros(nmodels-1, dtype=int))
+        est.allocate_samples(100)
+        hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
+            numerically_compute_estimator_variance(
+                benchmark.funs, model.variable, est, 1000, 1, True)
+        )
+        assert np.allclose(covar_mc, covar, rtol=1e-2)
 
 
 if __name__ == "__main__":
