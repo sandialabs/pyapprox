@@ -678,6 +678,13 @@ def setup_hastings_ecology_benchmark(qoi_functional=None, time=None):
     return Benchmark(attributes)
 
 
+def _extract_acv_benchmark_dict(model):
+    return {'fun': model, 'variable': model.variable,
+            "mean": model.get_means(),
+            "covariance": model.get_covariance_matrix(),
+            "funs": model.funs, "nqoi": model.nqoi}
+
+
 def setup_polynomial_ensemble(nmodels=5):
     r"""
     Return an ensemble of 5 univariate models of the form
@@ -700,7 +707,7 @@ def setup_polynomial_ensemble(nmodels=5):
     means : np.ndarray (nmodels)
         The mean of each model fidelity
 
-    model_covariance : np.ndarray (nmodels)
+    covariance : np.ndarray (nmodels)
         The covariance between the outputs of each model fidelity
 
     References
@@ -708,32 +715,22 @@ def setup_polynomial_ensemble(nmodels=5):
     .. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_
     """
     model = PolynomialModelEnsemble(nmodels)
-    return Benchmark(
-        {'fun': model, 'variable': model.variable, "means": model.get_means(),
-         "model_covariance": model.get_covariance_matrix(),
-         "funs": [model.m0, model.m1, model.m2, model.m3, model.m4]})
+    return Benchmark(_extract_acv_benchmark_dict(model))
 
 
 def setup_tunable_model_ensemble(theta1=np.pi/2*0.95, shifts=None):
     model = TunableModelEnsemble(theta1, shifts)
-    return Benchmark(
-        {'fun': model, 'variable': model.variable, "means": model.get_means(),
-         "model_covariance": model.get_covariance_matrix(),
-         "funs": [model.m0, model.m1, model.m2]})
+    return Benchmark(_extract_acv_benchmark_dict(model))
 
 
 def setup_short_column_ensemble(nmodels=5):
     model = ShortColumnModelEnsemble(nmodels)
-    return Benchmark(
-        {'fun': model, 'variable': model.variable, "means": model.get_means(),
-         "model_covariance": model.get_covariance_matrix()})
+    return Benchmark(_extract_acv_benchmark_dict(model))
 
 
 def setup_multioutput_model_ensemble():
     model = MultioutputModelEnsemble()
-    return Benchmark(
-        {'fun': model, 'variable': model.variable, "means": model.get_means(),
-         "model_covariance": model.get_covariance_matrix()})
+    return Benchmark(_extract_acv_benchmark_dict(model))
 
 
 def setup_parameterized_nonlinear_model():

@@ -22,7 +22,7 @@ As an example, in the following we will show how to use MC to compute the mean a
 
 where for a general matrix :math:`\mat{X}\in\reals^{M\times N}`
 
-.. math:: \text{flat}(\mat{X})=[X_{11}, \ldots, X_{1N}, \ldots, [X_{M1}, \ldots, X_{MN}]^\top \in \reals^{MN}.
+.. math:: \text{flat}(\mat{X})=[X_{11}, \ldots, X_{1N}, \ldots, X_{M1}, \ldots, X_{MN}]^\top \in \reals^{MN}.
 
 Specifically, we will consider
 

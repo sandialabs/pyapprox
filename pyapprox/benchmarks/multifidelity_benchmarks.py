@@ -1,28 +1,197 @@
+from abc import ABC, abstractmethod
 from functools import partial
 
 import numpy as np
 from scipy import stats
 
+from pyapprox.surrogates.integrate import integrate
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.variables.transforms import AffineTransform
-from pyapprox.util.utilities import (
-    scipy_gauss_legendre_pts_wts_1D, scipy_gauss_hermite_pts_wts_1D,
-    get_tensor_product_quadrature_rule
-)
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.interface.wrappers import ModelEnsemble
 
 
-class PolynomialModelEnsemble(object):
-    def __init__(self, nmodels):
-        self.nmodels = nmodels
-        self.nvars = 1
-        self.models = [self.m0, self.m1, self.m2, self.m3, self.m4][:nmodels]
+class ACVBenchmark(ABC):
+    def __init__(self, *args, **kwargs):
+        self.variable = self._set_variable(*args, **kwargs)
+        self.nvars = self.variable.num_vars()
+        self.funs, self.nqoi = self._set_funs(*args, **kwargs)
+        self.nmodels = len(self.funs)
+        self._quadrature_rule = self._set_quadrature_rule(*args, **kwargs)
+        self._flat_funs = self._flatten_funs()
+        self._model_ensemble = ModelEnsemble(self.funs)
 
-        univariate_variables = [stats.uniform(0, 1)]
-        self.variable = IndependentMarginalsVariable(
-            univariate_variables)
-        self.generate_samples = self.variable.rvs
+    @abstractmethod
+    def _set_funs(self):
+        raise NotImplementedError
 
+    def _set_quadrature_rule(self, *args, **kwargs):
+        quad_x, quad_w = integrate(
+            "tensorproduct", self.variable,
+            levels=[10]*self.variable.num_vars())
+        return quad_x, quad_w
+
+    def _flat_fun_wrapper(self, ii, jj, xx):
+        return self.funs[ii](xx)[:, jj]
+
+    def _flatten_funs(self):
+        flat_funs = []
+        for ii in range(self.nmodels):
+            for jj in range(self.nqoi):
+                flat_funs.append(
+                    partial(self._flat_fun_wrapper, ii, jj))
+        return flat_funs
+
+    def _get_means(self) -> np.ndarray:
+        # overide this function if you know the means exactly
+        quad_xx, quad_ww = self._quadrature_rule
+        means = [f(quad_xx).dot(quad_ww) for f in self._flat_funs]
+        return np.array(means).reshape(self.nmodels, self.nqoi)
+
+    def get_means(self) -> np.ndarray:
+        """
+        Return the means of the QoI of each model
+
+        Returns
+        -------
+        means : np.ndarray(nmodels, nqoi)
+            The means of each model
+        """
+        means = self._get_means()
+        if (means.ndim != 2 or means.shape[0] != self.nmodels or
+                means.shape[1] != self.nqoi):
+            raise RuntimeError("_get_means() not implemented correctly")
+        return means
+
+    def _get_covariance_matrix(self) -> np.ndarray:
+        # overide this function if you know the means exactly
+        quad_xx, quad_ww = self._quadrature_rule
+        means = [f(quad_xx).dot(quad_ww) for f in self._flat_funs]
+
+        cov = np.empty((self.nmodels*self.nqoi, self.nmodels*self.nqoi))
+        ii = 0
+        for fi, mi in zip(self._flat_funs, means):
+            jj = 0
+            for fj, mj in zip(self._flat_funs, means):
+                cov[ii, jj] = ((fi(quad_xx)-mi)*(fj(quad_xx)-mj)).dot(quad_ww)
+                jj += 1
+            ii += 1
+        return cov
+
+    def get_covariance_matrix(self) -> np.ndarray:
+        """
+        The covariance between the qoi of each model
+
+        Returns
+        -------
+        cov = np.ndarray (nmodels*nqoi, nmodels*nqoi)
+            The covariance treating functions concatinating the qoi
+            of each model f0, f1, f2
+        """
+        cov = self._get_covariance_matrix()
+        if (cov.ndim != 2 or cov.shape[0] != self.nmodels*self.nqoi or
+                cov.shape[1] != self.nmodels*self.nqoi):
+            raise RuntimeError(
+                "_get_covariance_matrix() not implemented correctly")
+        return cov
+
+    def _V_fun_entry(self, jj, kk, ll, means, flat_covs, xx):
+        idx1 = jj*self.nqoi + kk
+        idx2 = jj*self.nqoi + ll
+        return ((self._flat_funs[idx1](xx)-means[idx1])*(
+            self._flat_funs[idx2](xx)-means[idx2]) -
+                flat_covs[jj][kk*self.nqoi+ll])
+
+    def _V_fun(self, jj1, kk1, ll1, jj2, kk2, ll2, means, flat_covs, xx):
+        return (
+            self._V_fun_entry(jj1, kk1, ll1, means, flat_covs, xx) *
+            self._V_fun_entry(jj2, kk2, ll2, means, flat_covs, xx))
+
+    def _B_fun(self, ii, jj, kk, ll, means, flat_covs, xx):
+        return (
+            (self._flat_funs[ii](xx)-means[ii]) *
+            self._V_fun_entry(jj, kk, ll, means, flat_covs, xx))
+
+    def _flat_covs(self):
+        cov = self.get_covariance_matrix()
+        # store covariance only between the QoI of a model with QoI of the same
+        # model
+        flat_covs = []
+        for ii in range(self.nmodels):
+            flat_covs.append([])
+            for jj in range(self.nqoi):
+                for kk in range(self.nqoi):
+                    flat_covs[ii].append(cov[ii*self.nqoi+jj][ii*self.nqoi+kk])
+        return flat_covs
+
+    def covariance_of_centered_values_kronker_product(self) -> np.ndarray:
+        r"""
+        The W matrix used to compute the covariance between the
+        Kroneker product of centered (mean is subtracted off) values.
+
+        Returns
+        -------
+        np.ndarray (nmodels*nqoi**2, nmodels*nqoi**2)
+            The covariance :math:`Cov[(f_i-\mathbb{E}[f_i])^{\otimes^2}, (f_j-\mathbb{E}[f_j])^{\otimes^2}]`
+        """
+        means = self.get_means().flatten()
+        flat_covs = self._flat_covs()
+
+        xx, ww = gauss_jacobi_pts_wts_1D(201, 0, 0)
+        xx = (xx+1)/2
+        est_cov = np.empty(
+            (self.nmodels*self.nqoi**2, self.nmodels*self.nqoi**2))
+        cnt1 = 0
+        for jj1 in range(self.nmodels):
+            for kk1 in range(self.nqoi):
+                for ll1 in range(self.nqoi):
+                    cnt2 = 0
+                    for jj2 in range(self.nmodels):
+                        for kk2 in range(self.nqoi):
+                            for ll2 in range(self.nqoi):
+                                quad_cov = self._V_fun(
+                                    jj1, kk1, ll1, jj2, kk2, ll2,
+                                    means, flat_covs, xx).dot(ww)
+                                est_cov[cnt1, cnt2] = quad_cov
+                                cnt2 += 1
+                    cnt1 += 1
+        return np.array(est_cov)
+
+    def covariance_of_mean_and_variance_estimators(self) -> np.ndarray:
+        r"""
+        The B matrix used to compute the covariance between mean and variance
+        estimators.
+
+        Returns
+        -------
+        np.ndarray (nmodels*nqoi, nmodels*nqoi**2)
+            The covariance :math:`Cov[f_i, (f_j-\mathbb{E}[f_j])^{\otimes^2}]`
+        """
+        means = self.get_means().flatten()
+        flat_covs = self._flat_covs()
+        xx, ww = gauss_jacobi_pts_wts_1D(201, 0, 0)
+        xx = (xx+1)/2
+        est_cov = np.empty((self.nmodels*self.nqoi, self.nmodels*self.nqoi**2))
+        for ii in range(len(self._flat_funs)):
+            cnt = 0
+            for jj in range(self.nmodels):
+                for kk in range(self.nqoi):
+                    for ll in range(self.nqoi):
+                        quad_cov = self._B_fun(
+                            ii, jj, kk, ll, means, flat_covs, xx).dot(ww)
+                        est_cov[ii, cnt] = quad_cov
+                        cnt += 1
+        return np.array(est_cov)
+
+    def __repr__(self):
+        return "{0}(nmodels={1}, nqoi={2})".format(
+            self.__class__.__name__, self.nmodels, self.nqoi)
+
+    def __call__(self, samples):
+        # samples must include model id in last row
+        return self._model_ensemble(samples)
+
+
+class PolynomialModelEnsemble(ACVBenchmark):
     def m0(self, samples):
         return samples.T**5
 
@@ -38,32 +207,20 @@ class PolynomialModelEnsemble(object):
     def m4(self, samples):
         return samples.T**1
 
-    def get_means(self):
-        x, w = scipy_gauss_legendre_pts_wts_1D(50)
-        # scale to [0,1]
-        x = (x[np.newaxis, :]+1)/2
-        nsamples = x.shape[1]
-        nqoi = len(self.models)
-        vals = np.empty((nsamples, nqoi))
-        for ii in range(nqoi):
-            vals[:, ii] = self.models[ii](x)[:, 0]
-        means = vals.T.dot(w)
-        return means[:self.nmodels]
+    def _set_funs(self, nmodels):
+        return [self.m0, self.m1, self.m2, self.m3, self.m4][:nmodels], 1
 
-    def get_covariance_matrix(self):
-        x, w = scipy_gauss_legendre_pts_wts_1D(10)
-        # scale to [0,1]
-        x = (x[np.newaxis, :]+1)/2
-        nsamples = x.shape[1]
-        nqoi = len(self.models)
-        vals = np.empty((nsamples, nqoi))
-        for ii in range(nqoi):
-            vals[:, ii] = self.models[ii](x)[:, 0]
-        cov = np.cov(vals, aweights=w, rowvar=False, ddof=0)
-        return cov[:self.nmodels, :self.nmodels]
+    def _get_means(self):
+        return 1/np.arange(6, 1, -1)[:self.nmodels].reshape(
+            self.nmodels, self.nqoi)
+
+    def _set_variable(self, nmodels):
+        univariate_variables = [stats.uniform(0, 1)]
+        return IndependentMarginalsVariable(
+            univariate_variables)
 
 
-class TunableModelEnsemble(object):
+class TunableModelEnsemble(ACVBenchmark):
 
     def __init__(self, theta1, shifts=None):
         """
@@ -75,24 +232,7 @@ class TunableModelEnsemble(object):
         -----
         The choice of A0, A1, A2 here results in unit variance for each model
         """
-        self.A0 = np.sqrt(11)
-        self.A1 = np.sqrt(7)
-        self.A2 = np.sqrt(3)
-        self.nmodels = 3
-        self.theta0 = np.pi/2
-        self.theta1 = theta1
-        self.theta2 = np.pi/6
-        assert self.theta0 > self.theta1 and self.theta1 > self.theta2
-        self.shifts = shifts
-        if self.shifts is None:
-            self.shifts = [0, 0]
-        assert len(self.shifts) == 2
-        self.models = [self.m0, self.m1, self.m2]
-
-        univariate_variables = [stats.uniform(-1, 2), stats.uniform(-1, 2)]
-        self.variable = IndependentMarginalsVariable(
-            univariate_variables)
-        self.generate_samples = self.variable.rvs
+        super().__init__(theta1, shifts=shifts)
 
     def m0(self, samples):
         assert samples.shape[0] == 2
@@ -112,7 +252,25 @@ class TunableModelEnsemble(object):
         return (self.A2*(np.cos(self.theta2) * x + np.sin(self.theta2) *
                          y)+self.shifts[1])[:, np.newaxis]
 
-    def get_covariance_matrix(self):
+    def _set_funs(self, theta1, shifts=None):
+        self.A0 = np.sqrt(11)
+        self.A1 = np.sqrt(7)
+        self.A2 = np.sqrt(3)
+        self.nmodels = 3
+        self.theta0 = np.pi/2
+        self.theta1 = theta1
+        self.theta2 = np.pi/6
+        assert self.theta0 > self.theta1 and self.theta1 > self.theta2
+        self.shifts = shifts
+        if self.shifts is None:
+            self.shifts = [0, 0]
+        return [self.m0, self.m1, self.m2], 1
+
+    def _set_variable(self, theta1, shifts):
+        univariate_variables = [stats.uniform(-1, 2), stats.uniform(-1, 2)]
+        return IndependentMarginalsVariable(univariate_variables)
+
+    def _get_covariance_matrix(self):
         cov = np.eye(self.nmodels)
         cov[0, 1] = self.A0*self.A1/9*(np.sin(self.theta0)*np.sin(
             self.theta1)+np.cos(self.theta0)*np.cos(self.theta1))
@@ -126,9 +284,9 @@ class TunableModelEnsemble(object):
         cov[2, 1] = cov[1, 2]
         return cov
 
-    def get_means(self):
+    def _get_means(self):
         return np.array(
-            [0, self.shifts[0], self.shifts[1]])
+            [0, self.shifts[0], self.shifts[1]])[:, None]
 
     def get_kurtosis(self):
         return np.array([
@@ -222,130 +380,64 @@ class TunableModelEnsemble(object):
         return np.array([1., 0.01, 0.001])
 
 
-class ShortColumnModelEnsemble(object):
-    def __init__(self, nmodels):
-        self.nmodels = nmodels
-        self.nvars = 5
-        self.models = [self.m0, self.m1, self.m2, self.m3, self.m4][:nmodels]
-        self.apply_lognormal = False
+class ShortColumnModelEnsemble(ACVBenchmark):
+    def __init(self):
+        super().__init__()
 
-        univariate_variables = [
-            stats.uniform(5, 10), stats.uniform(15, 10), stats.norm(500, 100),
-            stats.norm(2000, 400), stats.lognorm(s=0.5, scale=np.exp(5))]
-        self.variable = IndependentMarginalsVariable(
-            univariate_variables)
-        self.generate_samples = self.variable.rvs
-
-    def extract_variables(self, samples):
+    def _extract_variables(self, samples):
         assert samples.shape[0] == 5
         b = samples[0, :]
         h = samples[1, :]
         P = samples[2, :]
         M = samples[3, :]
         Y = samples[4, :]
-        if self.apply_lognormal:
+        if self._apply_lognormal:
             Y = np.exp(Y)
         return b, h, P, M, Y
 
     def m0(self, samples):
-        b, h, P, M, Y = self.extract_variables(samples)
-        return (1 - 4*M/(b*(h**2)*Y) - (P/(b*h*Y))**2)[:, np.newaxis]
+        b, h, P, M, Y = self._extract_variables(samples)
+        return (1 - 4*M/(b*(h**2)*Y) - (P/(b*h*Y))**2)[:, None]
 
     def m1(self, samples):
-        b, h, P, M, Y = self.extract_variables(samples)
+        b, h, P, M, Y = self._extract_variables(samples)
         return (1 - 3.8*M/(b*(h**2)*Y) - (
-            (P*(1 + (M-2000)/4000))/(b*h*Y))**2)[:, np.newaxis]
+            (P*(1 + (M-2000)/4000))/(b*h*Y))**2)[:, None]
 
     def m2(self, samples):
-        b, h, P, M, Y = self.extract_variables(samples)
-        return (1 - M/(b*(h**2)*Y) - (P/(b*h*Y))**2)[:, np.newaxis]
+        b, h, P, M, Y = self._extract_variables(samples)
+        return (1 - M/(b*(h**2)*Y) - (P/(b*h*Y))**2)[:, None]
 
     def m3(self, samples):
-        b, h, P, M, Y = self.extract_variables(samples)
-        return (1 - M/(b*(h**2)*Y) - (P*(1 + M)/(b*h*Y))**2)[:, np.newaxis]
+        b, h, P, M, Y = self._extract_variables(samples)
+        return (1 - M/(b*(h**2)*Y) - (P*(1 + M)/(b*h*Y))**2)[:, None]
 
     def m4(self, samples):
-        b, h, P, M, Y = self.extract_variables(samples)
-        return (1 - M/(b*(h**2)*Y) - (P*(1 + M)/(h*Y))**2)[:, np.newaxis]
+        b, h, P, M, Y = self._extract_variables(samples)
+        return (1 - M/(b*(h**2)*Y) - (P*(1 + M)/(h*Y))**2)[:, None]
 
-    def get_quadrature_rule(self):
-        nvars = self.variable.num_vars()
-        degrees = [10]*nvars
-        var_trans = AffineTransform(self.variable)
-        univariate_quadrature_rules = [
-            scipy_gauss_legendre_pts_wts_1D, scipy_gauss_legendre_pts_wts_1D,
-            scipy_gauss_hermite_pts_wts_1D,
-            scipy_gauss_hermite_pts_wts_1D, scipy_gauss_hermite_pts_wts_1D]
-        x, w = get_tensor_product_quadrature_rule(
-            degrees, self.variable.num_vars(), univariate_quadrature_rules,
-            var_trans.map_from_canonical)
-        return x, w
+    def _set_funs(self, nmodels):
+        self._apply_lognormal = False
+        return [self.m0, self.m1, self.m2, self.m3, self.m4][:nmodels], 1
 
-    def get_covariance_matrix(self):
-        x, w = self.get_quadrature_rule()
+    def _set_variable(self, nmodels):
+        univariate_variables = [
+            stats.uniform(5, 10), stats.uniform(15, 10), stats.norm(500, 100),
+            stats.norm(2000, 400), stats.lognorm(s=0.5, scale=np.exp(5))]
+        return IndependentMarginalsVariable(univariate_variables)
 
-        nsamples = x.shape[1]
-        nqoi = len(self.models)
-        vals = np.empty((nsamples, nqoi))
-        for ii in range(nqoi):
-            vals[:, ii] = self.models[ii](x)[:, 0]
-        cov = np.cov(vals, aweights=w, rowvar=False, ddof=0)
-        return cov[:self.nmodels, :self.nmodels]
-
-    def get_means(self):
-        x, w = self.get_quadrature_rule()
-        nsamples = x.shape[1]
-        nqoi = len(self.models)
-        vals = np.empty((nsamples, nqoi))
-        for ii in range(nqoi):
-            vals[:, ii] = self.models[ii](x)[:, 0]
-        return vals.T.dot(w).squeeze()[:self.nmodels]
+    def _set_quadrature_rule(self, *args, **kwargs):
+        nsamples = int(1e7)
+        quad_x = self.variable.rvs(nsamples)
+        quad_w = np.full((nsamples), 1/nsamples)
+        return quad_x, quad_w
 
 
-class MultioutputModelEnsemble():
+class MultioutputModelEnsemble(ACVBenchmark):
     """
     Benchmark for testing multifidelity algorithms that estimate statistics
     for vector valued models of varying fidelity.
     """
-    def __init__(self):
-        self.variable = IndependentMarginalsVariable([stats.uniform(0, 1)])
-        self.funs = [self.f0, self.f1, self.f2]
-        self.nmodels = len(self.funs)  # number of models
-        self.nqoi = 3  # nqoi per model
-
-        # self._sp_funs = [
-        #     ["sqrt(11)*x**5", "x**4", "sin(2*pi*x)"],
-        #     ["sqrt(7)*x**3", "sqrt(7)*x**2", "cos(2*pi*x+pi/2)"],
-        #     ["sqrt(3)/2*x**2", "sqrt(3)/2*x", "cos(2*pi*x+pi/4)"]]
-        self.flatten_funs()
-        self.models = [self.f0, self.f1, self.f2]
-
-    def _flat_fun_wrapper(self, ii, jj, xx):
-        return self.funs[ii](xx[None, :])[:, jj]
-
-    def flatten_funs(self):
-        # If sp.lambdify is called then this class cannot be pickled
-        # sp_x = sp.Symbol("x")
-        # self._flat_funs = [
-        #     np.vectorize(sp.lambdify((sp_x), sp.sympify(f), "numpy"))
-        #     for model_funs in self._sp_funs for f in model_funs]
-        self._flat_funs = []
-        for ii in range(self.nmodels):
-            for jj in range(self.nqoi):
-                self._flat_funs.append(
-                    partial(self._flat_fun_wrapper, ii, jj))
-
-    def costs(self) -> np.ndarray:
-        """
-        The nominal costs of each model for a single sample
-
-        Returns
-        -------
-        values : np.ndarray (nmodels)
-            Model costs
-        """
-        return np.array([1., 0.01, 0.001])
-
     def f0(self, samples: np.ndarray) -> np.ndarray:
         """
         Highest fidelity model
@@ -401,9 +493,25 @@ class MultioutputModelEnsemble():
         """
         return np.hstack(
             [np.sqrt(3)/2*samples.T**2,
-             np.sqrt(3)/2*samples.T, # alex's paper
-             # np.sqrt(3)/2*samples.T, # test
+             np.sqrt(3)/2*samples.T,
              np.cos(2*np.pi*samples.T+np.pi/4)])
+
+    def _set_variable(self):
+        return IndependentMarginalsVariable([stats.uniform(0, 1)])
+
+    def _set_funs(self):
+        return [self.f0, self.f1, self.f2], 3
+
+    def costs(self) -> np.ndarray:
+        """
+        The nominal costs of each model for a single sample
+
+        Returns
+        -------
+        values : np.ndarray (nmodels)
+            Model costs
+        """
+        return np.array([1., 0.01, 0.001])
 
     def _uniform_means(self):
         return np.array([
@@ -411,19 +519,6 @@ class MultioutputModelEnsemble():
             [np.sqrt(7)/4, np.sqrt(7)/3, 0.0],
             [1/(2*np.sqrt(3)), np.sqrt(3)/4, 0.0],
         ])
-
-    def get_means(self) -> np.ndarray:
-        """
-        Return the means of the QoI of each model
-
-        Returns
-        -------
-        means : np.ndarray(nmodels, nqoi)
-            The means of each model
-        """
-        # only works for alexs functions
-        # return self._uniform_means()
-        return np.array(self._mean_quadrature()).reshape(3, 3)
 
     def _uniform_covariance_matrices(self):
         # compute diagonal blocks
@@ -476,133 +571,3 @@ class MultioutputModelEnsemble():
             [np.sqrt(3)/(4*np.pi), np.sqrt(3)/(4*np.pi), 1/(2*np.sqrt(2))]
         ])
         return cov11, cov22, cov33, cov12, cov13, cov23
-
-    def get_covariance_matrix(self) -> np.ndarray:
-        """
-        The covariance between the qoi of each model
-
-        Returns
-        -------
-        cov = np.ndarray (nmodels*nqoi, nmodels*nqoi)
-            The covariance treating functions concatinating the qoi
-            of each model f0, f1, f2
-        """
-        # only works if using expression in alexs paper
-        #cov11, cov22, cov33, cov12, cov13, cov23 = (
-        #    self._uniform_covariance_matrices())
-        # return np.block([[cov11, cov12, cov13],
-        #                  [cov12.T, cov22, cov23],
-        #                  [cov13.T, cov23.T, cov33]])
-        return self._covariance_quadrature()
-
-    def __repr__(self):
-        return "{0}(nmodels=3, variable_type='uniform')".format(
-            self.__class__.__name__)
-
-    def _mean_quadrature(self):
-        xx, ww = gauss_jacobi_pts_wts_1D(201, 0, 0)
-        xx = (xx+1)/2
-        means = [f(xx).dot(ww)for f in self._flat_funs]
-        return means
-
-    def _covariance_quadrature(self):
-        means = self._mean_quadrature()
-        xx, ww = gauss_jacobi_pts_wts_1D(201, 0, 0)
-        xx = (xx+1)/2
-        cov = np.empty((self.nmodels*self.nqoi, self.nmodels*self.nqoi))
-        ii = 0
-        for fi, mi in zip(self._flat_funs, means):
-            jj = 0
-            for fj, mj in zip(self._flat_funs, means):
-                cov[ii, jj] = ((fi(xx)-mi)*(fj(xx)-mj)).dot(ww)
-                jj += 1
-            ii += 1
-        return cov
-
-    def _V_fun_entry(self, jj, kk, ll, means, flat_covs, xx):
-        idx1 = jj*self.nqoi + kk
-        idx2 = jj*self.nqoi + ll
-        return ((self._flat_funs[idx1](xx)-means[idx1])*(
-            self._flat_funs[idx2](xx)-means[idx2]) -
-                flat_covs[jj][kk*self.nqoi+ll])
-
-    def _V_fun(self, jj1, kk1, ll1, jj2, kk2, ll2, means, flat_covs, xx):
-        return (
-            self._V_fun_entry(jj1, kk1, ll1, means, flat_covs, xx) *
-            self._V_fun_entry(jj2, kk2, ll2, means, flat_covs, xx))
-
-    def _B_fun(self, ii, jj, kk, ll, means, flat_covs, xx):
-        return (
-            (self._flat_funs[ii](xx)-means[ii]) *
-            self._V_fun_entry(jj, kk, ll, means, flat_covs, xx))
-
-    def _flat_covs(self):
-        cov = self.get_covariance_matrix()
-        # store covariance only between the QoI of a model with QoI of the same
-        # model
-        flat_covs = []
-        for ii in range(self.nmodels):
-            flat_covs.append([])
-            for jj in range(self.nqoi):
-                for kk in range(self.nqoi):
-                    flat_covs[ii].append(cov[ii*self.nqoi+jj][ii*self.nqoi+kk])
-        return flat_covs
-
-    def covariance_of_centered_values_kronker_product(self) -> np.ndarray:
-        r"""
-        The W matrix used to compute the covariance between the
-        Kroneker product of centered (mean is subtracted off) values.
-
-        Returns
-        -------
-        np.ndarray (nmodels*nqoi**2, nmodels*nqoi**2)
-            The covariance :math:`Cov[(f_i-\mathbb{E}[f_i])^{\otimes^2}, (f_j-\mathbb{E}[f_j])^{\otimes^2}]`
-        """
-        means = self.get_means().flatten()
-        flat_covs = self._flat_covs()
-
-        xx, ww = gauss_jacobi_pts_wts_1D(201, 0, 0)
-        xx = (xx+1)/2
-        est_cov = np.empty(
-            (self.nmodels*self.nqoi**2, self.nmodels*self.nqoi**2))
-        cnt1 = 0
-        for jj1 in range(self.nmodels):
-            for kk1 in range(self.nqoi):
-                for ll1 in range(self.nqoi):
-                    cnt2 = 0
-                    for jj2 in range(self.nmodels):
-                        for kk2 in range(self.nqoi):
-                            for ll2 in range(self.nqoi):
-                                quad_cov = self._V_fun(
-                                    jj1, kk1, ll1, jj2, kk2, ll2,
-                                    means, flat_covs, xx).dot(ww)
-                                est_cov[cnt1, cnt2] = quad_cov
-                                cnt2 += 1
-                    cnt1 += 1
-        return np.array(est_cov)
-
-    def covariance_of_mean_and_variance_estimators(self) -> np.ndarray:
-        r"""
-        The B matrix used to compute the covariance between mean and variance
-        estimators.
-
-        Returns
-        -------
-        np.ndarray (nmodels*nqoi, nmodels*nqoi**2)
-            The covariance :math:`Cov[f_i, (f_j-\mathbb{E}[f_j])^{\otimes^2}]`
-        """
-        means = self.get_means().flatten()
-        flat_covs = self._flat_covs()
-        xx, ww = gauss_jacobi_pts_wts_1D(201, 0, 0)
-        xx = (xx+1)/2
-        est_cov = np.empty((self.nmodels*self.nqoi, self.nmodels*self.nqoi**2))
-        for ii in range(len(self._flat_funs)):
-            cnt = 0
-            for jj in range(self.nmodels):
-                for kk in range(self.nqoi):
-                    for ll in range(self.nqoi):
-                        quad_cov = self._B_fun(
-                            ii, jj, kk, ll, means, flat_covs, xx).dot(ww)
-                        est_cov[ii, cnt] = quad_cov
-                        cnt += 1
-        return np.array(est_cov)

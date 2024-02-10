@@ -49,8 +49,20 @@ from pyapprox.util.utilities import get_correlation_from_covariance
 print(get_correlation_from_covariance(benchmark.fun.get_covariance_matrix()))
 target_cost = 100
 est_name = "mfmc"
-oracle_est = get_estimator(
-    est_name, "mean", 1, costs, benchmark.fun.get_covariance_matrix())
+cov = benchmark.fun.get_covariance_matrix()
+# stat_type = "mean"
+# oracle_stats = benchmark.fun.get_means()[0]
+# oracle_stat_args = None
+
+stat_type = "variance"
+oracle_stats = benchmark.fun.get_covariance_matrix()[0, 0]
+oracle_stat_args = []
+
+if oracle_stat_args is None:
+    oracle_est = get_estimator(est_name, stat_type, 1, costs, cov)
+else:
+    oracle_est = get_estimator(
+        est_name, stat_type, 1, costs, *oracle_stat_args)
 oracle_est.allocate_samples(target_cost)
 print(oracle_est)
 
@@ -59,10 +71,11 @@ print(oracle_est)
 #
 #Note, the function we define below can be replicated for most practical application of ACV estimation, but in such situations it sill only be called once.
 from pyapprox.multifidelity.stats import MultiOutputMean
+from pyapprox.multifidelity.factory import multioutput_stats
 from functools import partial
 
 def build_acv(funs, variable, target_cost, npilot_samples, adjust_cost=True,
-              seed=1):
+              seed=1, stat_type="mean"):
     # run pilot study
 
     # random state is only needed if running build acv using multiprocesing.Pool
@@ -70,12 +83,19 @@ def build_acv(funs, variable, target_cost, npilot_samples, adjust_cost=True,
     # pilot_samples = variable.rvs(npilot_samples, random_state=random_state)
     pilot_samples = variable.rvs(npilot_samples)
     pilot_values_per_model = [fun(pilot_samples) for fun in funs]
-    pilot_cov = MultiOutputMean.compute_pilot_quantities(
+    stat_class = multioutput_stats[stat_type]
+    pilot_quantities = stat_class.compute_pilot_quantities(
         pilot_values_per_model)
     # print(get_correlation_from_covariance(pilot_cov))
 
     # optimize the ACV estimator
-    est = get_estimator(est_name, "mean", 1, costs, pilot_cov)
+    if stat_type != "mean":
+        est = get_estimator(
+            est_name, stat_type, 1, costs, pilot_quantities[0],
+            *pilot_quantities[1:])
+    else:
+        est = get_estimator(
+            est_name, stat_type, 1, costs, pilot_quantities)
     # remaining_budget_after_pilot
     if adjust_cost:
         adjusted_target_cost = target_cost - (costs*npilot_samples).sum()
@@ -85,7 +105,7 @@ def build_acv(funs, variable, target_cost, npilot_samples, adjust_cost=True,
     est.allocate_samples(adjusted_target_cost)
 
     # compute the ACV estimator
-    random_state = np.random.RandomState(seed+npilot_samples)
+    # random_state = np.random.RandomState(seed+npilot_samples)
     # samples_per_model = est.generate_samples_per_model(partial(
     #    variable.rvs, random_state=random_state))
     samples_per_model = est.generate_samples_per_model(variable.rvs)
@@ -105,22 +125,23 @@ def build_acv(funs, variable, target_cost, npilot_samples, adjust_cost=True,
 
 from multiprocessing import Pool
 def compute_mse(build_acv, funs, variable, target_cost, npilot_samples,
-                adjust_cost, ntrials, nprocs, exact_stats):
+                adjust_cost, ntrials, nprocs, exact_stats, stat_type):
     build = partial(
-        build_acv, funs, variable, target_cost, npilot_samples, adjust_cost)
+        build_acv, funs, variable, target_cost, npilot_samples, adjust_cost,
+        stat_type=stat_type)
     if nprocs > 1:
         pool = Pool(nprocs)
         est_vals = pool.map(build, list(range(ntrials)))
         pool.close()
     else:
         est_vals = np.asarray([build(ii) for ii in range(ntrials)])
+    # make sure random seed is getting set correctly on each processor
+    assert np.unique(est_vals).shape[0] == len(est_vals)
     mse = ((est_vals-exact_stats)**2).mean()
     return mse
 
 #%%
 #Now we will build many realiaztions of the ACV estimator for each different samples size. We must ensure that the cost of the pilot study and the construction of the ACV estimator do not exceed the target cost.
-
-print("oracle_mse", oracle_est._optimized_covariance[0, 0].item()) # hack remove it is below
 
 np.random.seed(1)
 ntrials = int(1e4)
@@ -130,14 +151,15 @@ for npilot_samples in npilot_samples_list:
     print(npilot_samples)
     mse_list.append(compute_mse(
         build_acv, benchmark.fun.models, benchmark.variable, target_cost,
-        npilot_samples, False, ntrials, 1, benchmark.fun.get_means()[0]))
+        npilot_samples, False, ntrials, 1, oracle_stats,
+        stat_type))
     print(mse_list[-1])
 
 #%%
 # Now compare the MSE of the oracle ACV estimator which is just equal to its estimator variance, with the estimators constructed for different pilot samples sizes.
 
 mc_est = get_estimator(
-    "mc", "mean", 1, costs, benchmark.fun.get_covariance_matrix())
+    "mc", stat_type, 1, costs, cov)
 mc_est.allocate_samples(target_cost)
 mc_mse = mc_est._optimized_covariance[0, 0].item()
 

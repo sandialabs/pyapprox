@@ -292,6 +292,7 @@ multioutput_stats = {
 }
 
 
+#TODO: remove cov as a standalone argument and put into stat_args
 def get_estimator(estimator_types, stat_type, nqoi, costs, cov, *stat_args,
                   max_nmodels=None, **est_kwargs):
     """
