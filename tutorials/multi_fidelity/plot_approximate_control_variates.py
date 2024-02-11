@@ -173,7 +173,7 @@ target_cost = (
 est._set_optimized_params(npartition_ratios, target_cost)
 numerical_var, true_var, means = (
     numerically_compute_estimator_variance(
-        benchmark.funs[:2], benchmark.variable, est, ntrials, 1, 
+        benchmark.funs[:2], benchmark.variable, est, ntrials, 1,
         return_all=True))[2:5]
 
 sfmc_est = get_estimator(

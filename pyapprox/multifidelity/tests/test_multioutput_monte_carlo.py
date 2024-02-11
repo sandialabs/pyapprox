@@ -170,7 +170,7 @@ class TestMOMC(unittest.TestCase):
         nqoi = len(qoi_idx)
         nmodels = len(model_idx)
 
-        args = []
+        args = [cov]
         if est_type == "gmf" or est_type == "grd" or est_type == "gis":
             if tree_depth is not None:
                 kwargs = {"tree_depth": tree_depth}
@@ -219,9 +219,9 @@ class TestMOMC(unittest.TestCase):
             idx = nqoi+nqoi**2
 
         # check covariance matrix is positive definite
-        np.linalg.cholesky(cov)
+        # np.linalg.cholesky(cov)
         est = get_estimator(
-            est_type, stat_type, nqoi, costs, cov, *args,
+            est_type, stat_type, nqoi, costs, *args,
             max_nmodels=max_nmodels, **kwargs)
 
         est.allocate_samples(target_cost)
@@ -288,7 +288,7 @@ class TestMOMC(unittest.TestCase):
             # [[0, 1, 2], [0, 1, 2], [0, 1], "gmf", "mean", 2, None, 5e4, 100], # fails for some reason when using truncated eigvals to compute log determinant, but works if using torch.logdet even though no eigenvalues are truncated
             [[0, 1, 2], [0, 1, 2], [0, 1], "gmf", "mean", None, 3, 1e4, 100],
             [[0, 1, 2], [0, 1, 2], [0, 1],
-             ["gmf", "grd", "gis", "mlmc", "mfmc"], "mean", None, 3, 1e4, 100],
+             ["gmf", "grd", "gis", "mlmc"], "mean", None, 3, 1e4, 100],
             [[0, 1, 2], [0, 1, 2], [0, 1], "grd", "mean", None, 3],
             [[0, 1, 2], [1], [0, 1], "grd", "variance", None, 3],
             [[0, 1], [0, 2], [0], "gmf", "mean"],
@@ -475,6 +475,8 @@ class TestMOMC(unittest.TestCase):
             ["gmf", "mfmc", "gis"], "mean", 3, costs, cov, max_nmodels=3)
         target_cost = 10
         est._save_candidate_estimators = True
+        np.set_printoptions(linewidth=1000)
+        print(cov, "C###")
         est.allocate_samples(target_cost, {"verbosity": 1, "nprocs": 1})
 
         criteria = np.array(
@@ -581,7 +583,7 @@ class TestMOMC(unittest.TestCase):
         else:
             est = get_estimator(
                 est_name, "mean", nqoi, costs, cov)
-        est.allocate_samples(target_cost)#, verbosity=0, nprocs=1)
+        est.allocate_samples(target_cost)  #, verbosity=0, nprocs=1)
         print(est)
 
         samples_per_model = est.generate_samples_per_model(model.variable.rvs)

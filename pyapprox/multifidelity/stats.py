@@ -465,7 +465,7 @@ class MultiOutputMean(MultiOutputStatistic):
     @staticmethod
     def compute_pilot_quantities(pilot_values):
         pilot_values = np.hstack(pilot_values)
-        return np.cov(pilot_values, rowvar=False, ddof=1)
+        return (np.cov(pilot_values, rowvar=False, ddof=1), )
 
     def _get_discrepancy_covariances(self, Gmat, gvec):
         return _get_multioutput_acv_mean_discrepancy_covariances(
@@ -487,7 +487,11 @@ class MultiOutputMean(MultiOutputStatistic):
 
     @staticmethod
     def _args_model_subset(nmodels, nqoi, model_idx, *args):
-        return []
+        cov = args[0]
+        qoi_idx = np.arange(nqoi)
+        cov_sub = _nqoi_nqoi_subproblem(
+            cov, nmodels, nqoi, model_idx, qoi_idx)
+        return (cov_sub, )
 
 
 class MultiOutputVariance(MultiOutputStatistic):
@@ -550,11 +554,13 @@ class MultiOutputVariance(MultiOutputStatistic):
 
     @staticmethod
     def _args_model_subset(nmodels, nqoi, model_idx, *args):
-        W = args[0]
+        cov, W = args
         qoi_idx = np.arange(nqoi)
+        cov_sub = _nqoi_nqoi_subproblem(
+            cov, nmodels, nqoi, model_idx, qoi_idx)
         W_sub = _nqoisq_nqoisq_subproblem(
             W, nmodels, nqoi, model_idx, qoi_idx)
-        return (W_sub, )
+        return cov_sub, W_sub
 
 
 class MultiOutputMeanAndVariance(MultiOutputStatistic):
@@ -631,10 +637,12 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
 
     @staticmethod
     def _args_model_subset(nmodels, nqoi, model_idx, *args):
-        W, B = args
+        cov, W, B = args
         qoi_idx = np.arange(nqoi)
+        cov_sub = _nqoi_nqoi_subproblem(
+            cov, nmodels, nqoi, model_idx, qoi_idx)
         W_sub = _nqoisq_nqoisq_subproblem(
             W, nmodels, nqoi, model_idx, qoi_idx)
         B_sub = _nqoi_nqoisq_subproblem(
             B, nmodels, nqoi, model_idx, qoi_idx)
-        return W_sub, B_sub
+        return cov_sub, W_sub, B_sub

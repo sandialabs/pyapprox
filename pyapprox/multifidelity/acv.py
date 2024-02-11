@@ -151,7 +151,7 @@ def log_linear_combination_diag_variance(weights, variance):
 
 
 class MCEstimator():
-    def __init__(self, stat, costs, cov, opt_criteria=None):
+    def __init__(self, stat, costs, opt_criteria=None):
         r"""
         Parameters
         ----------
@@ -160,11 +160,6 @@ class MCEstimator():
 
         costs : np.ndarray (nmodels)
             The relative costs of evaluating each model
-
-        cov : np.ndarray (nmodels*nqoi, nmodels)
-            The covariance C between each of the models. The highest fidelity
-            model is the first model, i.e. covariance between its QoI
-            is cov[:nqoi, :nqoi]
 
         opt_criteria : callable
             Function of the the covariance between the high-fidelity
@@ -184,7 +179,7 @@ class MCEstimator():
         # private variables (no guarantee that these variables
         #                    will exist in the future)
         self._cov, self._costs, self._nmodels, self._nqoi = self._check_cov(
-            cov, costs)
+            self._stat._cov, costs)
         self._optimization_criteria = self._set_optimization_criteria(
             opt_criteria)
 
@@ -321,8 +316,8 @@ class MCEstimator():
 
 
 class CVEstimator(MCEstimator):
-    def __init__(self, stat, costs, cov, lowfi_stats=None, opt_criteria=None):
-        super().__init__(stat, costs, cov, opt_criteria=opt_criteria)
+    def __init__(self, stat, costs, lowfi_stats=None, opt_criteria=None):
+        super().__init__(stat, costs, opt_criteria=opt_criteria)
         self._lowfi_stats = lowfi_stats
 
         self._optimized_CF = None
@@ -589,7 +584,7 @@ class CVEstimator(MCEstimator):
 
 
 class ACVEstimator(CVEstimator):
-    def __init__(self, stat, costs, cov,
+    def __init__(self, stat, costs,
                  recursion_index=None, opt_criteria=None,
                  tree_depth=None, allow_failures=False):
         """
@@ -633,7 +628,7 @@ class ACVEstimator(CVEstimator):
             that have optimization that enforce constraints on the structure
             of the model ensemble
         """
-        super().__init__(stat, costs, cov, None, opt_criteria=opt_criteria)
+        super().__init__(stat, costs, None, opt_criteria=opt_criteria)
         if tree_depth is not None and recursion_index is not None:
             msg = "Only tree_depth or recurusion_index must be specified"
             raise ValueError(msg)
@@ -966,6 +961,7 @@ class ACVEstimator(CVEstimator):
         return _plot_model_recursion(self._recursion_index, ax)
 
     def _objective(self, target_cost, x, return_grad=True):
+        print(x)
         partition_ratios = torch.as_tensor(x, dtype=torch.double)
         if return_grad:
             partition_ratios.requires_grad = True
@@ -1004,8 +1000,10 @@ class ACVEstimator(CVEstimator):
             raise ValueError(msg)
 
         nunknowns = self._nmodels-1
+        # lower and upper bounds can cause some edge cases to
+        # not solve reliably
         bounds = Bounds(
-            np.zeros(nunknowns)+1e-8, np.full((nunknowns), np.inf),
+            np.zeros(nunknowns)+1e-10, np.full((nunknowns), np.inf),
             keep_feasible=True)
 
         return_grad = True
@@ -1020,6 +1018,8 @@ class ACVEstimator(CVEstimator):
                     default_init_guess, method="nelder-mead", jac=False,
                     bounds=bounds, constraints=cons, options=init_guess)
                 init_guess = opt.x
+                print(self._cov.detach().numpy())
+                print(opt.x, "X")
             if init_guess.shape[0] != self._nmodels-1:
                 raise ValueError(
                     "init_guess {0} has the wrong shape".format(init_guess))
@@ -1269,12 +1269,11 @@ class GRDEstimator(ACVEstimator):
 
 
 class MFMCEstimator(GMFEstimator):
-    def __init__(self, stat, costs, cov, opt_criteria=None,
-                 opt_qoi=0):
+    def __init__(self, stat, costs, opt_criteria=None, opt_qoi=0):
         # Use the sample analytical sample allocation for estimating a scalar
         # mean when estimating any statistic
         nmodels = len(costs)
-        super().__init__(stat, costs, cov,
+        super().__init__(stat, costs,
                          recursion_index=np.arange(nmodels-1),
                          opt_criteria=None)
         # The qoi index used to generate the sample allocation
@@ -1305,7 +1304,7 @@ class MFMCEstimator(GMFEstimator):
 
 
 class MLMCEstimator(GRDEstimator):
-    def __init__(self, stat, costs, cov, opt_criteria=None,
+    def __init__(self, stat, costs, opt_criteria=None,
                  opt_qoi=0):
         """
         Use the sample analytical sample allocation for estimating a scalar
@@ -1315,7 +1314,7 @@ class MLMCEstimator(GRDEstimator):
         classical MLMC.
         """
         nmodels = len(costs)
-        super().__init__(stat, costs, cov,
+        super().__init__(stat, costs,
                          recursion_index=np.arange(nmodels-1),
                          opt_criteria=None)
         # The qoi index used to generate the sample allocation

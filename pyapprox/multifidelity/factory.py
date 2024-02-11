@@ -18,7 +18,7 @@ from pyapprox.multifidelity.etc import AETCBLUE
 
 
 class BestEstimator():
-    def __init__(self, est_types, stat_type, costs, cov,
+    def __init__(self, est_types, stat_type, costs,
                  max_nmodels, *est_args, **est_kwargs):
         """
         Parameters
@@ -30,7 +30,8 @@ class BestEstimator():
 
         self._estimator_types = est_types
         self._stat_type = stat_type
-        self._candidate_cov, self._candidate_costs = cov, np.asarray(costs)
+        self._candidate_cov = est_args[0]
+        self._candidate_costs = np.asarray(costs)
         # self._ncandidate_nmodels is the number of total models
         self._ncandidate_models = len(self._candidate_costs)
         self._lf_model_indices = np.arange(1, self._ncandidate_models)
@@ -79,12 +80,12 @@ class BestEstimator():
                 sub_kwargs["tree_depth"], nsubset_lfmodels)
         return sub_kwargs
 
-    def _get_estimator(self, est_type, subset_costs, subset_cov,
+    def _get_estimator(self, est_type, subset_costs,
                        target_cost, sub_args, sub_kwargs, optim_options):
         try:
             est = get_estimator(
                 est_type, self._stat_type, self._nqoi,
-                subset_costs, subset_cov, *sub_args, **sub_kwargs)
+                subset_costs, *sub_args, **sub_kwargs)
         except ValueError as e:
             if optim_options.get("verbosity", 0) > 0:
                 print(e)
@@ -107,9 +108,6 @@ class BestEstimator():
         self._estimator_types
         """
         idx = np.hstack(([0], lf_model_subset_indices)).astype(int)
-        subset_cov = _nqoi_nqoi_subproblem(
-            self._candidate_cov, self._ncandidate_models, self._nqoi,
-            idx, qoi_idx)
         subset_costs = self._candidate_costs[idx]
         sub_args = multioutput_stats[self._stat_type]._args_model_subset(
             self._ncandidate_models, self._nqoi, idx, *self._args)
@@ -119,8 +117,8 @@ class BestEstimator():
         best_criteria = np.inf
         for est_type in self._estimator_types:
             est = self._get_estimator(
-                est_type, subset_costs, subset_cov,
-                target_cost, sub_args, sub_kwargs, optim_options)
+                est_type, subset_costs, target_cost,
+                sub_args, sub_kwargs, optim_options)
             if optim_options.get("verbosity", 1) > 0:
                 msg = "\t Models {0}".format(idx)
                 print(msg)
@@ -292,8 +290,7 @@ multioutput_stats = {
 }
 
 
-#TODO: remove cov as a standalone argument and put into stat_args
-def get_estimator(estimator_types, stat_type, nqoi, costs, cov, *stat_args,
+def get_estimator(estimator_types, stat_type, nqoi, costs, *stat_args,
                   max_nmodels=None, **est_kwargs):
     """
     Parameters
@@ -311,9 +308,6 @@ def get_estimator(estimator_types, stat_type, nqoi, costs, cov, *stat_args,
     costs : np.ndarray (nmodels)
         The computational cost of evaluating each model
 
-    cov : np.ndarray (nmodels*nqoi, nmodels*nqoi)
-        The covariance between all the QoI of all the models
-
     stat_args : list or tuple
         The arguments that are needed to compute the statistic
 
@@ -329,7 +323,7 @@ def get_estimator(estimator_types, stat_type, nqoi, costs, cov, *stat_args,
         if not isinstance(estimator_types, list):
             estimator_types = [estimator_types]
         return BestEstimator(
-            estimator_types, stat_type, costs, cov,
+            estimator_types, stat_type, costs,
             max_nmodels, *stat_args, **est_kwargs)
 
     if isinstance(estimator_types, list):
@@ -347,9 +341,9 @@ def get_estimator(estimator_types, stat_type, nqoi, costs, cov, *stat_args,
         msg += f"Must be one of {multioutput_stats.keys()}"
         raise ValueError(msg)
 
-    stat = multioutput_stats[stat_type](nqoi, cov, *stat_args)
+    stat = multioutput_stats[stat_type](nqoi, *stat_args)
     return multioutput_estimators[estimator_type](
-        stat, costs, cov, **est_kwargs)
+        stat, costs, **est_kwargs)
 
 
 def _estimate_components(variable, est, funs, ii):
@@ -370,9 +364,10 @@ def _estimate_components(variable, est, funs, ii):
     https://docs.scipy.org/doc/numpy/reference/random/parallel.html
     https://docs.scipy.org/doc/numpy/reference/random/multithreading.html
     """
-    random_state = np.random.RandomState(ii)
+    random_states = [np.random.RandomState(ii*variable.num_vars()+jj)
+                     for jj in range(variable.num_vars())]
     samples_per_model = est.generate_samples_per_model(
-        partial(variable.rvs, random_state=random_state))
+        partial(variable.rvs, random_states=random_states))
     values_per_model = [
         fun(samples) for fun, samples in zip(funs, samples_per_model)]
 

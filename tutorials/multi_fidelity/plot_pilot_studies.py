@@ -51,22 +51,19 @@ costs = np.array([1, 0.1, 0.05])
 stat_type = "mean"
 # stat_type = "variance"
 
+cov = benchmark.covariance
 if stat_type == "mean":
     oracle_stats = benchmark.mean[0]
-    oracle_stat_args = None
+    oracle_stat_args = [cov]
 else:
     oracle_stats = benchmark.covariance[0, 0]
     oracle_stat_args = [
-        benchmark.fun.covariance_of_centered_values_kronker_product()]
+        cov, benchmark.fun.covariance_of_centered_values_kronker_product()]
 
 print(get_correlation_from_covariance(benchmark.covariance))
-cov = benchmark.covariance
 
-if oracle_stat_args is None:
-    oracle_est = get_estimator(est_name, stat_type, 1, costs, cov)
-else:
-    oracle_est = get_estimator(
-        est_name, stat_type, 1, costs, cov, *oracle_stat_args)
+oracle_est = get_estimator(
+    est_name, stat_type, 1, costs, *oracle_stat_args)
 oracle_est.allocate_samples(target_cost)
 print(oracle_est)
 
@@ -95,13 +92,8 @@ def build_acv(funs, variable, target_cost, npilot_samples, adjust_cost=True,
     # print(get_correlation_from_covariance(pilot_cov))
 
     # optimize the ACV estimator
-    if stat_type != "mean":
-        est = get_estimator(
-            est_name, stat_type, 1, costs, pilot_quantities[0],
-            *pilot_quantities[1:])
-    else:
-        est = get_estimator(
-            est_name, stat_type, 1, costs, pilot_quantities)
+    est = get_estimator(
+        est_name, stat_type, 1, costs, *pilot_quantities)
     # remaining_budget_after_pilot
     if adjust_cost:
         adjusted_target_cost = target_cost - (costs*npilot_samples).sum()
@@ -183,11 +175,8 @@ for npilot_samples in npilot_samples_list:
 #%%
 # Now compare the MSE of the oracle ACV estimator which is just equal to its estimator variance, with the estimators constructed for different pilot samples sizes.
 
-if oracle_stat_args is None:
-    mc_est = get_estimator("mc", stat_type, 1, costs, cov)
-else:
-    mc_est = get_estimator(
-        "mc", stat_type, 1, costs, cov, *oracle_stat_args)
+mc_est = get_estimator(
+    "mc", stat_type, 1, costs, *oracle_stat_args)
 mc_est.allocate_samples(target_cost)
 mc_mse = mc_est._optimized_covariance[0, 0].item()
 
@@ -227,10 +216,9 @@ ax.axhline(y=mc_mse, ls=':', color='r', label=mathrm_label("MC MSE"))
 ax.plot(npilot_samples_list, mse_list, '-o', label=mathrm_label("Pilot MSE"))
 ax.set_xlabel(mathrm_label("Number of pilot samples"))
 _ = ax.legend()
-plt.show()
 
 #%%
-#As you can see if the computational cost of the pilot study is to larger a fraction of the target cost then the MSE becomes very bad.
+#As you can see if the computational cost of the pilot study is a large fraction of the target cost then the MSE becomes very bad.
 
 
 #%%
