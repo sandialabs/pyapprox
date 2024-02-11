@@ -31,6 +31,7 @@ class ACVBenchmark(ABC):
         return quad_x, quad_w
 
     def _flat_fun_wrapper(self, ii, jj, xx):
+        assert xx.ndim == 2 and xx.shape[0] == self.nvars
         return self.funs[ii](xx)[:, jj]
 
     def _flatten_funs(self):
@@ -136,8 +137,7 @@ class ACVBenchmark(ABC):
         means = self.get_means().flatten()
         flat_covs = self._flat_covs()
 
-        xx, ww = gauss_jacobi_pts_wts_1D(201, 0, 0)
-        xx = (xx+1)/2
+        xx, ww = self._quadrature_rule
         est_cov = np.empty(
             (self.nmodels*self.nqoi**2, self.nmodels*self.nqoi**2))
         cnt1 = 0
@@ -168,8 +168,7 @@ class ACVBenchmark(ABC):
         """
         means = self.get_means().flatten()
         flat_covs = self._flat_covs()
-        xx, ww = gauss_jacobi_pts_wts_1D(201, 0, 0)
-        xx = (xx+1)/2
+        xx, ww = self._quadrature_rule
         est_cov = np.empty((self.nmodels*self.nqoi, self.nmodels*self.nqoi**2))
         for ii in range(len(self._flat_funs)):
             cnt = 0
@@ -473,7 +472,7 @@ class MultioutputModelEnsemble(ACVBenchmark):
         """
         return np.hstack(
             [np.sqrt(7)*samples.T**3,
-             np.sqrt(7)*samples.T**2, # alexs paper
+             np.sqrt(7)*samples.T**2,  # alexs paper
              # np.sqrt(6.9)*samples.T**2, # test
              np.cos(2*np.pi*samples.T+np.pi/2)])
 

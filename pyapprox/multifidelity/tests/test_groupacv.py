@@ -1,6 +1,7 @@
 import unittest
-import numpy as np
 from functools import partial
+
+import numpy as np
 from scipy import stats
 
 from pyapprox.util.utilities import (
@@ -244,6 +245,7 @@ class TestGroupACV(unittest.TestCase):
         ]
         for test_case in test_cases:
             np.random.seed(1)
+            print(test_case)
             self._check_mlblue_objective(*test_case)
 
     def _check_mlblue_spd(self, nmodels, min_nhf_samples):

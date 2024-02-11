@@ -972,7 +972,6 @@ class ACVEstimator(CVEstimator):
         covariance = self._covariance_from_partition_ratios(
             target_cost, partition_ratios)
         val = self._optimization_criteria(covariance)*self._objective_scaling
-        # print(val)
         if not return_grad:
             return val.item()
         val.backward()
@@ -1121,8 +1120,9 @@ class ACVEstimator(CVEstimator):
         npartition_samples = self._npartition_samples_from_partition_ratios(
             target_cost, partition_ratios)
         if ((npartition_samples[0] < 1-1e-8)):
-            print(npartition_samples)
-            raise RuntimeError("Rounding will cause nhf samples to be zero")
+            msg = "Rounding will cause nhf samples to be zero {0}".format(
+                npartition_samples)
+            raise RuntimeError(msg)
         rounded_npartition_samples = np.floor(
             npartition_samples.numpy()+1e-8).astype(int)
         assert rounded_npartition_samples[0] >= 1
@@ -1284,6 +1284,10 @@ class MFMCEstimator(GMFEstimator):
         # nsample_ratios returned will be listed in according to
         # self.model_order which is what self.get_rsquared requires
         nqoi = self._cov.shape[0]//len(self._costs)
+        if not _check_mfmc_model_costs_and_correlations(
+                self._costs,
+                get_correlation_from_covariance(self._cov.numpy())):
+            raise ValueError("models do not admit a hierarchy")
         nsample_ratios, val = _allocate_samples_mfmc(
             self._cov.numpy()[self._opt_qoi::nqoi, self._opt_qoi::nqoi],
             self._costs.numpy(), target_cost)

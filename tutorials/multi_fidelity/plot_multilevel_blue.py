@@ -98,12 +98,12 @@ benchmark = setup_benchmark("polynomial_ensemble")
 model = benchmark.fun
 
 nmodels = 5
-cov = model.get_covariance_matrix()
+cov = benchmark.covariance
 costs = np.asarray([10**-ii for ii in range(nmodels)])
 nhf_samples = 1
 cv_ests = [
     get_estimator("cv", "mean", 1, costs[:ii+1], cov[:ii+1, :ii+1],
-                  lowfi_stats=model.get_means()[1:ii+1])
+                  lowfi_stats=benchmark.mean[1:ii+1])
     for ii in range(1, nmodels)]
 cv_labels = mathrm_labels(["CV-{%d}" % ii for ii in range(1, nmodels)])
 target_cost = nhf_samples*sum(costs)
@@ -147,10 +147,10 @@ estimators = [
     get_estimator("mlmc", "mean", 1, costs, cov),
     get_estimator("mlblue", "mean", 1, costs, cov, subsets=[
         np.array([0, 1, 2, 3, 4]),  np.array([1, 2, 3, 4]),
-        np.array([2, 3, 4]), np.array([4,])]),
+        np.array([2, 3, 4]), np.array([3, 4]), np.array([4,])]),
     get_estimator("gmf", "mean", 1, costs, cov, tree_depth=4),
     get_estimator("cv", "mean", 1, costs, cov,
-                  lowfi_stats=model.get_means()[1:])]
+                  lowfi_stats=benchmark.mean[1:])]
 est_labels = mathrm_labels(["MC", "MLMC", "MLBLUE", "GRD", "CV"])
 optimized_estimators = compare_estimator_variances(
     target_costs, estimators)
@@ -169,7 +169,6 @@ model_labels = [r"$M_{0}$".format(ii) for ii in range(cov.shape[0])]
 fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
 _= plot_estimator_sample_allocation_comparison(
     optimized_estimators[-1], model_labels, axs)
-plt.show()
 
 #%%
 #References

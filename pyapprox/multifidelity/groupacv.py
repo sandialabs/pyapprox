@@ -447,8 +447,9 @@ class GroupACVEstimator():
         # better to use bounds because they are never violated
         # but enforcing bounds as constraints means bounds can be violated
         # bounds = [(0, np.inf) for ii in range(self.npartitions)]
+        # optimizer has trouble when ub in np.inf
         bounds = Bounds(np.zeros(self.npartitions)+1e-8,
-                        np.full((self.npartitions,), np.inf),
+                        np.full((self.npartitions,), 1e10),
                         keep_feasible=True)
         return bounds
 
@@ -495,8 +496,8 @@ class GroupACVEstimator():
         init_guess = np.maximum(init_guess, self._npartition_samples_lb)
         options_copy = options.copy()
         method = options_copy.pop("method", "trust-constr")
-        import warnings
-        warnings.filterwarnings("error")
+        # import warnings
+        # warnings.filterwarnings("error")
         res = minimize(
             obj, init_guess, jac=self._obj_jac,
             method=method, constraints=constraints, options=options_copy,

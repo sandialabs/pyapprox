@@ -217,14 +217,12 @@ from pyapprox.multifidelity.factory import get_estimator
 
 benchmark = setup_benchmark("tunable_model_ensemble")
 model = benchmark.fun
-funs = model.models
 est = get_estimator(
-    "grd", "mean", 1, model.costs(), benchmark.model_covariance,
+    "grd", "mean", 1, model.costs(), benchmark.covariance,
     recursion_index=(2, 0))
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-est.plot_allocation(ax)
-plt.show()
+_ = est.plot_allocation(ax)
 
 #%%
 #The different colors represent different independent sample partitions. Subsets :math:`\rvset_\alpha\text{ or  }\rvset_\alpha^*` having the same color, means that the same set of samples are used in each subset.

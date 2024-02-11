@@ -1,10 +1,10 @@
 import unittest
+
 import numpy as np
 
 from pyapprox.pde.karhunen_loeve_expansion import (
     multivariate_chain_rule, MeshKLE, compute_kle_gradient_from_mesh_gradient,
-    KLE1D
-)
+    KLE1D)
 from pyapprox.util.utilities import approx_jacobian
 
 
@@ -62,7 +62,7 @@ class TestKLE(unittest.TestCase):
             def scalar_function_of_field(field):
                 return np.dot(field[:, 0], field[:, 0])
 
-            sample = np.random.normal(0. ,1., (nvars, 1))
+            sample = np.random.normal(0., 1., (nvars, 1))
             kle_vals = kle(sample)
 
             mesh_gradient = kle_vals.T*2
@@ -86,7 +86,8 @@ class TestKLE(unittest.TestCase):
         level = 10
         nterms = 3
         len_scale, sigma = 1, 1
-        from pyapprox.surrogates.orthopoly.quadrature import clenshaw_curtis_pts_wts_1D
+        from pyapprox.surrogates.orthopoly.quadrature import (
+            clenshaw_curtis_pts_wts_1D)
         mesh_coords, quad_weights = clenshaw_curtis_pts_wts_1D(level)
         quad_weights *= 2   # remove pdf of uniform variable
         # map to [lb, ub]
@@ -127,7 +128,9 @@ class TestKLE(unittest.TestCase):
         level1, level2 = 6, 8
         nterms = 3
         len_scale, sigma = 1, 1
-        from pyapprox.surrogates.orthopoly.quadrature import clenshaw_curtis_pts_wts_1D
+        from pyapprox.surrogates.orthopoly.quadrature import (
+            clenshaw_curtis_pts_wts_1D)
+
         def trapezoid_rule(level):
             npts = 2**level+1
             pts = np.linspace(-1, 1, npts)
@@ -152,7 +155,7 @@ class TestKLE(unittest.TestCase):
         mesh_coords1, quad_weights1 = quad_rule(level1)
         quad_weights1 *= 2   # remove pdf of uniform variable
         # map to [lb, ub]
-        lb1, ub1 = 0, 2 # hack
+        lb1, ub1 = 0, 2  # hack
         dom_len1 = ub1-lb1
         mesh_coords1 = (mesh_coords1+1)/2*dom_len1+lb1
         quad_weights1 *= (ub1-lb1)/2
@@ -185,6 +188,7 @@ class TestKLE(unittest.TestCase):
         level = max(level1, level2)+1
         nterms = 6
         len_scale, sigma = 1, 1
+
         def trapezoid_rule(level):
             npts = 2**level+1
             pts = np.linspace(-1, 1, npts)
@@ -246,7 +250,6 @@ class TestKLE(unittest.TestCase):
         plt.plot(mesh_coords[0, :], eig_vecs, '-ko')
         plt.plot(mesh_coords_mix[0, :], eig_vecs_mix, 'r--s')
         plt.show()
-
 
 
 if __name__ == "__main__":

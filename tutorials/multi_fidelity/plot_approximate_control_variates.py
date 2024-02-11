@@ -105,7 +105,7 @@ shifts = [.1, .2]
 benchmark = setup_benchmark(
     "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=shifts)
 model = benchmark.fun
-exact_integral_f0 = benchmark.means[0]
+exact_integral_f0 = benchmark.mean[0]
 
 #%%
 #Now initialize the estimator
@@ -114,7 +114,7 @@ from pyapprox.multifidelity.factory import (
 # The benchmark has three models, so just extract data for first two models
 costs = benchmark.fun.costs()[:2]
 est = get_estimator(
-    "gis", "mean", 1, costs, benchmark.model_covariance[:2, :2])
+    "gis", "mean", 1, costs, benchmark.covariance[:2, :2])
 
 #%%
 #Set the number of samples in the two independent sample partitions to
@@ -151,7 +151,7 @@ _ = ax.legend(loc='upper left')
 #
 #Now lets use both sets of samples to construct the ACV estimator
 
-values_per_model = [model.models[ii](samples_per_model[ii])
+values_per_model = [benchmark.funs[ii](samples_per_model[ii])
                     for ii in range(len(samples_per_model))]
 acv_mean = est(values_per_model)
 
@@ -173,15 +173,15 @@ target_cost = (
 est._set_optimized_params(npartition_ratios, target_cost)
 numerical_var, true_var, means = (
     numerically_compute_estimator_variance(
-        benchmark.fun.models[:2], benchmark.variable, est, ntrials, 1, 
+        benchmark.funs[:2], benchmark.variable, est, ntrials, 1, 
         return_all=True))[2:5]
 
 sfmc_est = get_estimator(
-    "mc", "mean", 1, costs, benchmark.model_covariance[:2, :2])
+    "mc", "mean", 1, costs, benchmark.covariance[:2, :2])
 sfmc_est.allocate_samples(target_cost)
 sfmc_means = (
     numerically_compute_estimator_variance(
-        benchmark.fun.models[:1], benchmark.variable, sfmc_est, ntrials,
+        benchmark.funs[:1], benchmark.variable, sfmc_est, ntrials,
         return_all=True))[5]
 
 fig, ax = plt.subplots()
@@ -213,7 +213,7 @@ target_cost = (
 est._set_optimized_params(npartition_ratios, target_cost)
 numerical_var, true_var, means = (
     numerically_compute_estimator_variance(
-        benchmark.fun.models[:2], benchmark.variable, est, ntrials,
+        benchmark.funs[:2], benchmark.variable, est, ntrials,
         return_all=True))[2:5]
 ax.hist(means, bins=ntrials//100, density=True, alpha=0.5,
         label=r'$Q_{0}^\mathrm{CV}(\mathcal{Z}_N,\mathcal{Z}_{N+%dN})$' % (

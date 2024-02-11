@@ -54,7 +54,7 @@ benchmark = setup_benchmark("multioutput_model_ensemble")
 #needed to compute the value of the estimator from a sample set, however they are needed to compute the MSE of the estimator and the number of samples of that model for a given target cost. We load these quantities but ignore there meaning for the moment.
 costs = [1]
 nqoi = 3
-cov = benchmark.fun.get_covariance_matrix()[:3, :3]
+cov = benchmark.covariance[:3, :3]
 W = benchmark.fun.covariance_of_centered_values_kronker_product()[:9, :9]
 B = benchmark.fun.covariance_of_mean_and_variance_estimators()[:3, :9]
 
@@ -62,14 +62,14 @@ target_cost = 10
 est = get_estimator("mc", "mean_variance", nqoi, costs, cov, W, B)
 est.allocate_samples(target_cost)
 samples = est.generate_samples_per_model(benchmark.variable.rvs)[0]
-values = benchmark.fun.models[0](samples)
+values = benchmark.funs[0](samples)
 stats = est(values)
 
 #%%
 #The following compares the estimated value with the true values. We are only extracting certain components from the benchmark because the benchmark is designed for estimating vector-valued statistics with multiple models, but we are ignoring the other models for now.
-print(benchmark.fun.get_means()[0])
+print(benchmark.mean[0])
 print(stats[:3])
-print(benchmark.fun.get_covariance_matrix()[:3, :3])
+print(benchmark.covariance[:3, :3])
 print(stats[3:].reshape(3, 3))
 
 #%%

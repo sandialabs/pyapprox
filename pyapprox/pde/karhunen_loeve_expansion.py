@@ -344,14 +344,15 @@ class MeshKLE(object):
         K = self.compute_kernel_matrix(length_scale)
         if self.quad_weights is None:
             eig_vals, eig_vecs = eigh(
-                K, turbo=False, eigvals=(K.shape[0]-nterms, K.shape[0]-1))
+                K, turbo=False,
+                subset_by_index=(K.shape[0]-nterms, K.shape[0]-1))
         else:
             # see https://etheses.lse.ac.uk/2950/1/U615901.pdf
             # page 42
             sqrt_weights = np.sqrt(self.quad_weights)
             sym_eig_vals, sym_eig_vecs = eigh(
                 sqrt_weights[:, None]*K*sqrt_weights, turbo=False,
-                eigvals=(K.shape[0]-nterms, K.shape[0]-1))
+                subset_by_index=(K.shape[0]-nterms, K.shape[0]-1))
             eig_vecs = 1/sqrt_weights[:, None]*sym_eig_vecs
             eig_vals = sym_eig_vals
         eig_vecs = adjust_sign_eig(eig_vecs)

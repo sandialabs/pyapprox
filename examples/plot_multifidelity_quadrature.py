@@ -16,8 +16,8 @@ np.random.seed(1)
 #First define an ensemble of models using :py:class:`~pyapprox.benchmarks.setup_benchmark`, see  :mod:`pyapprox.benchmarks`.
 benchmark = setup_benchmark(
     "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=[.1, .2])
-model_ensemble = interface.ModelEnsemble(benchmark.fun.models)
-hf_mean = benchmark.means[0]
+model_ensemble = interface.ModelEnsemble(benchmark.funs)
+hf_mean = benchmark.mean[0]
 
 #%%
 #Initialize a multifidelity estimator. This requires an estimate of the covariance between the models and the model costs and the random variable representing the model inputs
@@ -42,7 +42,7 @@ est.allocate_samples(target_cost)
 args = [benchmark.variable] if est_name == "mlblue" else []
 samples_per_model = est.generate_samples_per_model(
     benchmark.variable.rvs)
-best_models = [benchmark.fun.models[idx] for idx in est._best_model_indices]
+best_models = [benchmark.funs[idx] for idx in est._best_model_indices]
 values_per_model = [
     fun(samples) for fun, samples in zip(best_models, samples_per_model)]
 mf_mean = est(values_per_model)

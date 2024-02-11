@@ -50,7 +50,7 @@ def plot_estimator_histrogram(nsamples, model_id, ax):
     ntrials = 1000
     np.random.seed(1)
     means = np.empty((ntrials))
-    model = benchmark.fun.models[model_id]
+    model = benchmark.funs[model_id]
     for ii in range(ntrials):
         samples = benchmark.variable.rvs(nsamples)
         values = model(samples)

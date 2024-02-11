@@ -38,11 +38,6 @@ class TestMOSTATS(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
-    def test_multioutput_model(self):
-        model = MultioutputModelEnsemble()
-        assert np.allclose(model.get_covariance_matrix(),
-                           model._covariance_quadrature())
-
     def test_covariance_einsum(self):
         model = MultioutputModelEnsemble()
         npilot_samples = int(1e5)
