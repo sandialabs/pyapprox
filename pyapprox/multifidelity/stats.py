@@ -472,6 +472,7 @@ class MultiOutputMean(MultiOutputStatistic):
     def high_fidelity_estimator_covariance(self, nhf_samples):
         return self._cov[:self._nqoi, :self._nqoi]/nhf_samples
 
+    @staticmethod
     def compute_pilot_quantities(pilot_values):
         pilot_values = np.hstack(pilot_values)
         return (np.cov(pilot_values, rowvar=False, ddof=1), )

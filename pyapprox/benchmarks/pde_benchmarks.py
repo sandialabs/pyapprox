@@ -158,7 +158,8 @@ class AdvectionDiffusionReactionKLEModel():
         import inspect
         if "mesh" == inspect.getfullargspec(functional).args[0]:
             if "physics" == inspect.getfullargspec(functional).args[1]:
-                functional = partial(functional, mesh, self._fwd_solver.physics)
+                functional = partial(
+                    functional, mesh, self._fwd_solver.physics)
             else:
                 functional = partial(functional, mesh)
         for ii in range(len(functional_deriv_funs)):
@@ -176,8 +177,9 @@ class AdvectionDiffusionReactionKLEModel():
 
         if issubclass(type(self._fwd_solver), SteadyStatePDE):
             dqdu, dqdp = functional_deriv_funs
-            dRdp = partial(advection_diffusion_reaction_kle_dRdp,
-                           mesh, self._kle, self._fwd_solver.physics._bndry_conds)
+            dRdp = partial(
+                advection_diffusion_reaction_kle_dRdp,
+                mesh, self._kle, self._fwd_solver.physics._bndry_conds)
             # dRdp must be after boundary conditions are applied.
             # For now assume that parameters do not effect boundary conditions
             # so dRdp at boundary indices is zero
@@ -228,6 +230,11 @@ class AdvectionDiffusionReactionKLEModel():
             raise ValueError(msg)
         orders = config_vals
         return int(np.prod(np.asarray(orders)+1))**3
+
+    def __repr__(self):
+        return "{0}(kle={1}, mesh={2})".format(
+            self.__class__.__name__, self._kle,
+            self._fwd_solver.physics.mesh)
 
 
 class TransientAdvectionDiffusionReactionKLEModel(
@@ -298,6 +305,12 @@ class TransientAdvectionDiffusionReactionKLEModel(
         return super().get_num_degrees_of_freedom_cost(
             config_vals[:-1])*ntsteps
 
+    def __repr__(self):
+        return "{0}(kle={1}, T0={2}, T={3}, dt={4}, tableau={5}, mesh={6})".format(
+            self.__class__.__name__, self._kle, self._init_time,
+            self._final_time, self._deltat, self._butcher_tableau,
+            self._fwd_solver.physics.mesh)
+
 
 def _setup_advection_diffusion_benchmark(
         amp, scale, loc, length_scale, sigma, nvars, orders, functional,
@@ -364,6 +377,10 @@ class InterpolatedMeshKLE(MeshKLE):
         self._kle_mesh = kle_mesh
         self._kle = kle
         self._mesh = mesh
+
+        self.matern_nu = self._kle.matern_nu
+        self.nterms = self._kle.nterms
+        self.lenscale = self._kle.lenscale
 
         self._basis_mat = self._kle_mesh._get_lagrange_basis_mat(
             self._kle_mesh._canonical_mesh_pts_1d,

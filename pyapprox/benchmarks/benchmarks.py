@@ -908,7 +908,8 @@ def setup_multi_index_advection_diffusion_benchmark(
     """
     base_model, variable, config_var_trans, model_ensemble = (
         _setup_multi_index_advection_diffusion_benchmark(
-            kle_length_scale, kle_stdev, kle_nvars, time_scenario=time_scenario,
+            kle_length_scale, kle_stdev, kle_nvars,
+            time_scenario=time_scenario,
             functional=functional, config_values=config_values,
             source_loc=source_loc, source_scale=source_scale,
             source_amp=source_amp, vel_vec=vel_vec,
@@ -916,14 +917,16 @@ def setup_multi_index_advection_diffusion_benchmark(
     timer_model = TimerModel(base_model, base_model)
     pool_model = PoolModel(
         timer_model, max_eval_concurrency, base_model=base_model)
+    # enforce_timer_model must be False because pool is wrapping TimerModel
     model = WorkTrackingModel(pool_model, base_model,
-                              base_model._nconfig_vars)
+                              base_model._nconfig_vars,
+                              enforce_timer_model=False)
     model0 = base_model._model_ensemble.functions[0]
     attributes = {
         'fun': model, 'variable': variable,
         "get_num_degrees_of_freedom": model0.get_num_degrees_of_freedom_cost,
         "config_var_trans": config_var_trans,
-        'model_ensemble': model_ensemble}
+        'model_ensemble': model_ensemble, "funs": model_ensemble.functions}
     return Benchmark(attributes)
 
 
@@ -1080,7 +1083,7 @@ def setup_advection_diffusion_kle_inversion_benchmark(
         timer_model, max_eval_concurrency, base_model=base_model)
 
     # add wrapper that tracks execution times.
-    model = WorkTrackingModel(pool_model, base_model)
+    model = WorkTrackingModel(pool_model, base_model, enforce_timer_model=False)
 
     attributes = {'negloglike': model, 'variable': variable,
                   "noiseless_obs": noiseless_obs, "obs": obs,

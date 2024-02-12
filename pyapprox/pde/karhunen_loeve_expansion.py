@@ -297,6 +297,9 @@ class MeshKLE(object):
         self.mean_field = mean_field
         self.matern_nu = matern_nu
 
+        self.nterms = None
+        self.lenscale = None
+
     def compute_kernel_matrix(self, length_scale):
         if self.matern_nu == np.inf:
             dists = pdist(self.mesh_coords.T / length_scale,
@@ -340,6 +343,7 @@ class MeshKLE(object):
         if length_scale.shape[0] == 1:
             length_scale = np.full(self.mesh_coords.shape[0], length_scale[0])
         assert length_scale.shape[0] == self.mesh_coords.shape[0]
+        self.lenscale = length_scale
 
         K = self.compute_kernel_matrix(length_scale)
         if self.quad_weights is None:
@@ -387,6 +391,13 @@ class MeshKLE(object):
         import torch
         return (self.mean_field[:, None] +
                 torch.linalg.multi_dot((torch.as_tensor(self.eig_vecs), coef)))
+
+    def __repr__(self):
+        if self.nterms is None:
+            return "{0}(mu={1})".format(
+                self.__class__.__name__, self.matern_nu)
+        return "{0}(mu={1}, nvars={2}, lenscale={3})".format(
+            self.__class__.__name__, self.matern_nu, self.nterms, self.lenscale)
 
 
 def multivariate_chain_rule(jac_yu, jac_ux):

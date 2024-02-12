@@ -44,7 +44,8 @@ class BestEstimator():
         self._best_model_indices = None
         self._all_model_labels = None
 
-        self._save_candidate_estimators = False
+        self._save_candidate_estimators = est_kwargs.pop(
+            "save_candidate_estimators", False)
         self._candidate_estimators = None
 
     @property
@@ -91,6 +92,8 @@ class BestEstimator():
             est.allocate_samples(target_cost, optim_options)
             return est
         except (RuntimeError, ValueError) as e:
+            if optim_options.get("verbosity", 0) > 0:
+                print(e)
             if self._allow_failures:
                 return None
             raise e
@@ -115,11 +118,12 @@ class BestEstimator():
             est = self._get_estimator(
                 est_type, subset_costs, target_cost,
                 sub_stat, sub_kwargs, optim_options)
-            if optim_options.get("verbosity", 1) > 0:
+            if optim_options.get("verbosity", 0) > 1:
                 msg = "\t Models {0}".format(idx)
                 print(msg)
             if self._save_candidate_estimators:
-                self._candidate_estimators.append(est)
+                self._candidate_estimators.append(
+                    [est, lf_model_subset_indices])
             if est is not None and est._optimized_criteria < best_criteria:
                 best_est = est
                 if hasattr(est._optimized_criteria, "item"):

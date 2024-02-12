@@ -192,6 +192,8 @@ class MCEstimator():
         self._npartitions = 1
 
     def _check_cov(self, cov, costs):
+        if costs.ndim != 1:
+            raise ValueError("costs is not a 1D iterable")
         nmodels = len(costs)
         if cov.shape[0] % nmodels:
             msg = "cov.shape {0} and costs.shape {1} are inconsistent".format(

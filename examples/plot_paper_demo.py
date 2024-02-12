@@ -13,12 +13,12 @@ import matplotlib.pyplot as plt
 from functools import partial
 import torch
 import time
-from pyapprox.util.visualization import mathrm_label, mathrm_labels
+from pyapprox.util.visualization import mathrm_label
 from pyapprox.variables import (
     IndependentMarginalsVariable, print_statistics, AffineTransform)
 from pyapprox.benchmarks import setup_benchmark, list_benchmarks
 from pyapprox.interface.wrappers import (
-    ModelEnsemble, TimerModel, WorkTrackingModel,
+    TimerModel, WorkTrackingModel,
     evaluate_1darray_function_on_2d_array)
 from pyapprox.surrogates import adaptive_approximate
 from pyapprox.analysis.sensitivity_analysis import (
@@ -28,7 +28,7 @@ from pyapprox.bayes.metropolis import (
 from pyapprox.bayes.metropolis import MetropolisMCMCVariable
 from pyapprox.expdesign.bayesian_oed import get_bayesian_oed_optimizer
 from pyapprox import multifidelity
-import warnings
+# import warnings
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
 np.random.seed(2023)
 torch.manual_seed(2023)
@@ -251,7 +251,7 @@ for step in range(ndesign):
     oed_results.append(results_step)
 selected_candidates = design_candidates[:, np.hstack(oed_results)]
 print(selected_candidates)
-ax.plot(design_candidates[0, :], design_candidates[1, :], "rs")
+ax.plot(design_candidates[0, :], design_candidates[1, :], "rs", ms=16)
 ax.plot(selected_candidates[0, :], selected_candidates[1, :], "ko")
 if savefig:
     plt.savefig("oed-selected-design.pdf")
@@ -320,15 +320,18 @@ multifidelity.plot_correlation_matrix(
     multifidelity.get_correlation_from_covariance(cov), ax=axs[0])
 multifidelity.plot_model_costs(model_costs, ax=axs[1])
 axs[0].set_title(mathrm_label("Model covariances"))
-axs[1].set_title(mathrm_label("Relative model costs"))
+_ = axs[1].set_title(mathrm_label("Relative model costs"))
 
 #%%
 #Now find the best multi-fidelity estimator among all available options
 #Note, the exact predicted variance will change from run to run even with the
 #same seed because the computational time measured will change slightly
 #for each run
+stat = multifidelity.multioutput_stats["mean"](1)
+stat.set_pilot_quantities(cov)
+
 best_est = multifidelity.get_estimator(
-    "gmf", "mean", 1, model_costs, cov, tree_depth=4, allow_failures=True,
+    "gmf", stat, model_costs, tree_depth=4, allow_failures=True,
     max_nmodels=4)
 
 target_cost = 1e2
