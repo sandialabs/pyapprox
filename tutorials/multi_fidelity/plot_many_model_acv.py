@@ -98,7 +98,7 @@ import matplotlib.pyplot as plt
 from pyapprox.util.visualization import mathrm_labels
 from pyapprox.benchmarks import setup_benchmark
 from pyapprox.multifidelity.factory import (
-    get_estimator, compare_estimator_variances)
+    get_estimator, compare_estimator_variances, multioutput_stats)
 from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions)
 
@@ -111,10 +111,12 @@ target_costs = np.array([1e2], dtype=int)
 costs = np.asarray([10**-ii for ii in range(nmodels)])
 model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
 
+stat = multioutput_stats["mean"](benchmark.nqoi)
+stat.set_pilot_quantities(cov)
 estimators = [
-    get_estimator("mlmc", "mean", 1, costs, cov),
-    get_estimator("mfmc", "mean", 1, costs, cov),
-    get_estimator("gmf", "mean", 1, costs, cov,
+    get_estimator("mlmc", stat, costs),
+    get_estimator("mfmc", stat, costs),
+    get_estimator("gmf", stat, costs,
                   recursion_index=np.zeros(nmodels-1, dtype=int))]
 est_labels = mathrm_labels(["MLMC", "MFMC", "ACVMF"])
 optimized_estimators = compare_estimator_variances(

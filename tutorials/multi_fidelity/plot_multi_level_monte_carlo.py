@@ -140,7 +140,7 @@ import matplotlib.pyplot as plt
 from pyapprox.util.visualization import mathrm_labels
 from pyapprox.benchmarks import setup_benchmark
 from pyapprox.multifidelity.factory import (
-    get_estimator, compare_estimator_variances)
+    get_estimator, compare_estimator_variances, multioutput_stats)
 from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions, plot_estimator_variances,
     plot_estimator_sample_allocation_comparison)
@@ -152,13 +152,15 @@ from pyapprox.multifidelity.visualize import (
 np.random.seed(1)
 benchmark = setup_benchmark("polynomial_ensemble")
 poly_model = benchmark.fun
-cov = poly_model.get_covariance_matrix()
+cov = benchmark.covariance
 target_costs = np.array([1e1, 1e2, 1e3], dtype=int)
 costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
 model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
+stat = multioutput_stats["mean"](benchmark.nqoi)
+stat.set_pilot_quantities(cov)
 estimators = [
-    get_estimator("mc", "mean", 1, costs, cov),
-    get_estimator("mlmc", "mean", 1, costs, cov)]
+    get_estimator("mc", stat, costs),
+    get_estimator("mlmc", stat, costs)]
 est_labels = mathrm_labels(["MC", "MLMC"])
 optimized_estimators = compare_estimator_variances(
     target_costs, estimators)
@@ -234,9 +236,9 @@ _ = mlmc_ests[0].plot_allocation(ax, True)
 #
 #The following code builds an MLMC estimator with the optimal control variate weights and compares them to traditional MLMC when estimating a single mean.
 estimators = [
-    get_estimator("mc", "mean", 1, costs, cov),
-    get_estimator("mlmc", "mean", 1, costs, cov),
-    get_estimator("grd", "mean", 1, costs, cov,
+    get_estimator("mc", stat, costs),
+    get_estimator("mlmc", stat, costs),
+    get_estimator("grd", stat, costs,
                   recursion_index=range(len(costs)-1))]
 est_labels = mathrm_labels(["MC", "MLMC", "MLMC-OPT"])
 optimized_estimators = compare_estimator_variances(

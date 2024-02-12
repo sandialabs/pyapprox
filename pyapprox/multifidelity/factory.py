@@ -18,8 +18,7 @@ from pyapprox.multifidelity.etc import AETCBLUE
 
 
 class BestEstimator():
-    def __init__(self, est_types, stat_type, costs,
-                 max_nmodels, *est_args, **est_kwargs):
+    def __init__(self, est_types, stat, costs, max_nmodels, **est_kwargs):
         """
         Parameters
         ----------
@@ -29,17 +28,15 @@ class BestEstimator():
         self.best_est = None
 
         self._estimator_types = est_types
-        self._stat_type = stat_type
-        self._candidate_cov = est_args[0]
+        self._stat = stat
         self._candidate_costs = np.asarray(costs)
         # self._ncandidate_nmodels is the number of total models
         self._ncandidate_models = len(self._candidate_costs)
         self._lf_model_indices = np.arange(1, self._ncandidate_models)
-        self._nqoi = self._candidate_cov.shape[0]//self._ncandidate_models
+        self._nqoi = stat._nqoi
         if max_nmodels is not None and max_nmodels < 2:
             raise ValueError("Ensure max_nmodels > 1")
         self._max_nmodels = max_nmodels
-        self._args = est_args
         self._allow_failures = est_kwargs.get("allow_failures", False)
         if "allow_failures" in est_kwargs:
             del est_kwargs["allow_failures"]
@@ -81,11 +78,9 @@ class BestEstimator():
         return sub_kwargs
 
     def _get_estimator(self, est_type, subset_costs,
-                       target_cost, sub_args, sub_kwargs, optim_options):
+                       target_cost, sub_stat, sub_kwargs, optim_options):
         try:
-            est = get_estimator(
-                est_type, self._stat_type, self._nqoi,
-                subset_costs, *sub_args, **sub_kwargs)
+            est = get_estimator(est_type, sub_stat, subset_costs, **sub_kwargs)
         except ValueError as e:
             if optim_options.get("verbosity", 0) > 0:
                 print(e)
@@ -109,8 +104,9 @@ class BestEstimator():
         """
         idx = np.hstack(([0], lf_model_subset_indices)).astype(int)
         subset_costs = self._candidate_costs[idx]
-        sub_args = multioutput_stats[self._stat_type]._args_model_subset(
-            self._ncandidate_models, self._nqoi, idx, *self._args)
+        sub_stat = self._stat.__class__(self._stat._nqoi)
+        sub_stat.set_pilot_quantities(*self._stat.get_pilot_quantities_subset(
+            self._ncandidate_models, self._nqoi, idx))
         sub_kwargs = self._validate_kwargs(nsubset_lfmodels)
 
         best_est = None
@@ -118,7 +114,7 @@ class BestEstimator():
         for est_type in self._estimator_types:
             est = self._get_estimator(
                 est_type, subset_costs, target_cost,
-                sub_args, sub_kwargs, optim_options)
+                sub_stat, sub_kwargs, optim_options)
             if optim_options.get("verbosity", 1) > 0:
                 msg = "\t Models {0}".format(idx)
                 print(msg)
@@ -290,7 +286,7 @@ multioutput_stats = {
 }
 
 
-def get_estimator(estimator_types, stat_type, nqoi, costs, *stat_args,
+def get_estimator(estimator_types, stat, costs,
                   max_nmodels=None, **est_kwargs):
     """
     Parameters
@@ -301,9 +297,6 @@ def get_estimator(estimator_types, stat_type, nqoi, costs, *stat_args,
 
     stat_type : str
         The type of statistics to compute
-
-    nqoi : integer
-        The number of quantities of interest (QoI) that each model returns
 
     costs : np.ndarray (nmodels)
         The computational cost of evaluating each model
@@ -323,8 +316,8 @@ def get_estimator(estimator_types, stat_type, nqoi, costs, *stat_args,
         if not isinstance(estimator_types, list):
             estimator_types = [estimator_types]
         return BestEstimator(
-            estimator_types, stat_type, costs,
-            max_nmodels, *stat_args, **est_kwargs)
+            estimator_types, stat, costs,
+            max_nmodels, **est_kwargs)
 
     if isinstance(estimator_types, list):
         estimator_type = estimator_types[0]
@@ -336,12 +329,6 @@ def get_estimator(estimator_types, stat_type, nqoi, costs, *stat_args,
         msg += f"Must be one of {multioutput_estimators.keys()}"
         raise ValueError(msg)
 
-    if stat_type not in multioutput_stats:
-        msg = f"Statistic {stat_type} not supported. "
-        msg += f"Must be one of {multioutput_stats.keys()}"
-        raise ValueError(msg)
-
-    stat = multioutput_stats[stat_type](nqoi, *stat_args)
     return multioutput_estimators[estimator_type](
         stat, costs, **est_kwargs)
 

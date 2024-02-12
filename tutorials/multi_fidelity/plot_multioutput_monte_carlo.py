@@ -42,7 +42,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.benchmarks import setup_benchmark
-from pyapprox.multifidelity.factory import get_estimator
+from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
 
 np.random.seed(1)
 shifts = [.1, .2]
@@ -59,7 +59,9 @@ W = benchmark.fun.covariance_of_centered_values_kronker_product()[:9, :9]
 B = benchmark.fun.covariance_of_mean_and_variance_estimators()[:3, :9]
 
 target_cost = 10
-est = get_estimator("mc", "mean_variance", nqoi, costs, cov, W, B)
+stat = multioutput_stats["mean_variance"](nqoi)
+stat.set_pilot_quantities(cov, W, B)
+est = get_estimator("mc", stat, costs)
 est.allocate_samples(target_cost)
 samples = est.generate_samples_per_model(benchmark.variable.rvs)[0]
 values = benchmark.funs[0](samples)

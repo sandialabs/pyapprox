@@ -28,7 +28,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.benchmarks import setup_benchmark
-from pyapprox.multifidelity.factory import get_estimator
+from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
 from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.util.visualization import mathrm_label
 
@@ -36,8 +36,6 @@ import warnings
 warnings.filterwarnings("error")
 
 np.random.seed(1)
-# benchmark = setup_benchmark("short_column_ensemble", nmodels=3)
-# costs = np.array([1, 0.5, 0.05, 0.01, 0.002])[:3]
 
 #%%
 #Now choose an estimator and optimally allocate it with oracle information,
@@ -62,8 +60,10 @@ else:
 
 print(get_correlation_from_covariance(benchmark.covariance))
 
-oracle_est = get_estimator(
-    est_name, stat_type, 1, costs, *oracle_stat_args)
+oracle_stat = multioutput_stats[stat_type](benchmark.nqoi)
+oracle_stat.set_pilot_quantities(*oracle_stat_args)
+
+oracle_est = get_estimator(est_name, oracle_stat, costs)
 oracle_est.allocate_samples(target_cost)
 print(oracle_est)
 
@@ -92,8 +92,9 @@ def build_acv(funs, variable, target_cost, npilot_samples, adjust_cost=True,
     # print(get_correlation_from_covariance(pilot_cov))
 
     # optimize the ACV estimator
-    est = get_estimator(
-        est_name, stat_type, 1, costs, *pilot_quantities)
+    stat = multioutput_stats[stat_type](benchmark.nqoi)
+    stat.set_pilot_quantities(*pilot_quantities)
+    est = get_estimator(est_name, stat, costs)
     # remaining_budget_after_pilot
     if adjust_cost:
         adjusted_target_cost = target_cost - (costs*npilot_samples).sum()
@@ -175,8 +176,7 @@ for npilot_samples in npilot_samples_list:
 #%%
 # Now compare the MSE of the oracle ACV estimator which is just equal to its estimator variance, with the estimators constructed for different pilot samples sizes.
 
-mc_est = get_estimator(
-    "mc", stat_type, 1, costs, *oracle_stat_args)
+mc_est = get_estimator("mc", oracle_stat, costs)
 mc_est.allocate_samples(target_cost)
 mc_mse = mc_est._optimized_covariance[0, 0].item()
 

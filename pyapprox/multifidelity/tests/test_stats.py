@@ -69,7 +69,6 @@ class TestMOSTATS(unittest.TestCase):
     def _check_pilot_covariances(self, model_idx, qoi_idx):
         funs, cov_exact, costs, model, means = (
             _setup_multioutput_model_subproblem(model_idx, qoi_idx))
-        nmodels = len(funs)
         # atol is needed for terms close to zero
         rtol, atol = 1e-2, 5.5e-4
         npilot_samples = int(1e6)
@@ -156,7 +155,7 @@ class TestMOSTATS(unittest.TestCase):
            atol=atol, rtol=rtol)
 
     def test_mean_variance_covariances(self):
-        fast_test = True
+        # fast_test = True
         test_cases = [
             [[0], [0]],
             [[1], [0, 1]],
@@ -170,7 +169,7 @@ class TestMOSTATS(unittest.TestCase):
         ]
         # if fast_test:
         #     test_cases = [test_cases[1], test_cases[-1]]
-        for test_case in test_cases[-2:-1]:
+        for test_case in test_cases:
             np.random.seed(123)
             self._check_mean_variance_covariances(*test_case)
 

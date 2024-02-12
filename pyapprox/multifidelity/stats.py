@@ -434,6 +434,10 @@ class MultiOutputStatistic(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def set_pilot_quantities(self):
+        raise NotImplementedError
+
+    @abstractmethod
     def _get_cv_discrepancy_covariances(self, estimator, npartition_samples):
         raise NotImplementedError
 
@@ -441,9 +445,8 @@ class MultiOutputStatistic(ABC):
     def _get_acv_discrepancy_covariances(self, estimator, npartition_samples):
         raise NotImplementedError
 
-    @staticmethod
     @abstractmethod
-    def _args_model_subset(nmodels, nqoi, model_idx, *args):
+    def get_pilot_quantities_subset(self, nmodels, nqoi, model_idx):
         raise NotImplementedError
 
     def __repr__(self):
@@ -451,10 +454,17 @@ class MultiOutputStatistic(ABC):
 
 
 class MultiOutputMean(MultiOutputStatistic):
-    def __init__(self, nqoi, cov):
-        self._cov = torch.as_tensor(cov, dtype=torch.double)
+    def __init__(self, nqoi):
+        """
+        Parameters
+        ----------
+        nqoi : integer
+            The number of quantities of interest (QoI) that each model returns
+        """
         self._nqoi = nqoi
-        self._nmodels = self._cov.shape[0] // self._nqoi
+
+        self._nmodels = None
+        self._cov = None
 
     def sample_estimate(self, values):
         return np.mean(values, axis=0)
@@ -462,10 +472,13 @@ class MultiOutputMean(MultiOutputStatistic):
     def high_fidelity_estimator_covariance(self, nhf_samples):
         return self._cov[:self._nqoi, :self._nqoi]/nhf_samples
 
-    @staticmethod
     def compute_pilot_quantities(pilot_values):
         pilot_values = np.hstack(pilot_values)
         return (np.cov(pilot_values, rowvar=False, ddof=1), )
+
+    def set_pilot_quantities(self, cov):
+        self._cov = torch.as_tensor(cov, dtype=torch.double)
+        self._nmodels = self._cov.shape[0] // self._nqoi
 
     def _get_discrepancy_covariances(self, Gmat, gvec):
         return _get_multioutput_acv_mean_discrepancy_covariances(
@@ -485,28 +498,21 @@ class MultiOutputMean(MultiOutputStatistic):
             allocation_mat, npartition_samples)
         return self._get_discrepancy_covariances(Gmat, gvec)
 
-    @staticmethod
-    def _args_model_subset(nmodels, nqoi, model_idx, *args):
-        cov = args[0]
+    def get_pilot_quantities_subset(self, nmodels, nqoi, model_idx):
         qoi_idx = np.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
-            cov, nmodels, nqoi, model_idx, qoi_idx)
+            self._cov, nmodels, nqoi, model_idx, qoi_idx)
         return (cov_sub, )
 
 
 class MultiOutputVariance(MultiOutputStatistic):
-    def __init__(self, nqoi, cov, W):
-        self._cov = torch.as_tensor(cov, dtype=torch.double)
+    def __init__(self, nqoi):
         self._nqoi = nqoi
-        self._nmodels = self._cov.shape[0] // self._nqoi
-        self._V = torch.as_tensor(
-            _get_V_from_covariance(self._cov, self._nmodels),
-            dtype=torch.double)
-        if W.shape != self._V.shape:
-            msg = "W has the wrong shape {0}. Should be {1}".format(
-                W.shape, self._V.shape)
-            raise ValueError(msg)
-        self._W = torch.as_tensor(W, dtype=torch.double)
+
+        self._nmodels = None
+        self._cov = None
+        self._W = None
+        self._V = None
 
     def sample_estimate(self, values):
         return np.cov(values.T, ddof=1).flatten()
@@ -522,6 +528,18 @@ class MultiOutputVariance(MultiOutputStatistic):
         pilot_values = np.hstack(pilot_values)
         cov = np.cov(pilot_values, rowvar=False, ddof=1)
         return cov, _get_W_from_pilot(pilot_values, nmodels)
+
+    def set_pilot_quantities(self, cov, W):
+        self._cov = torch.as_tensor(cov, dtype=torch.double)
+        self._nmodels = self._cov.shape[0] // self._nqoi
+        self._V = torch.as_tensor(
+            _get_V_from_covariance(self._cov, self._nmodels),
+            dtype=torch.double)
+        if W.shape != self._V.shape:
+            msg = "W has the wrong shape {0}. Should be {1}".format(
+                W.shape, self._V.shape)
+            raise ValueError(msg)
+        self._W = torch.as_tensor(W, dtype=torch.double)
 
     def _get_discrepancy_covariances(self, Gmat, gvec, Hmat, hvec):
         return _get_multioutput_acv_variance_discrepancy_covariances(
@@ -552,36 +570,24 @@ class MultiOutputVariance(MultiOutputStatistic):
                 allocation_mat, npartition_samples))
         return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
-    @staticmethod
-    def _args_model_subset(nmodels, nqoi, model_idx, *args):
-        cov, W = args
+    def get_pilot_quantities_subset(self, nmodels, nqoi, model_idx):
         qoi_idx = np.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
-            cov, nmodels, nqoi, model_idx, qoi_idx)
+            self._cov, nmodels, nqoi, model_idx, qoi_idx)
         W_sub = _nqoisq_nqoisq_subproblem(
-            W, nmodels, nqoi, model_idx, qoi_idx)
+            self._W, nmodels, nqoi, model_idx, qoi_idx)
         return cov_sub, W_sub
 
 
 class MultiOutputMeanAndVariance(MultiOutputStatistic):
-    def __init__(self, nqoi, cov, W, B):
-        self._cov = torch.as_tensor(cov, dtype=torch.double)
+    def __init__(self, nqoi):
         self._nqoi = nqoi
-        self._nmodels = self._cov.shape[0] // self._nqoi
-        self._V = torch.as_tensor(
-            _get_V_from_covariance(self._cov, self._nmodels),
-            dtype=torch.double)
-        if W.shape != self._V.shape:
-            msg = "W has the wrong shape {0}. Should be {1}".format(
-                W.shape, self._V.shape)
-            raise ValueError(msg)
-        self._W = torch.as_tensor(W, dtype=torch.double)
-        B_shape = cov.shape[0], self._V.shape[1]
-        if B.shape != B_shape:
-            msg = "B has the wrong shape {0}. Should be {1}".format(
-                B.shape, B_shape)
-            raise ValueError(msg)
-        self._B = torch.as_tensor(B, dtype=torch.double)
+
+        self._nmodels = None
+        self._cov = None
+        self._W = None
+        self._V = None
+        self._B = None
 
     def sample_estimate(self, values):
         return np.hstack([np.mean(values, axis=0),
@@ -605,6 +611,24 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         W = _get_W_from_pilot(pilot_values, nmodels)
         B = _get_B_from_pilot(pilot_values, nmodels)
         return cov, W, B
+
+    def set_pilot_quantities(self, cov, W, B):
+        self._cov = torch.as_tensor(cov, dtype=torch.double)
+        self._nmodels = self._cov.shape[0] // self._nqoi
+        self._V = torch.as_tensor(
+            _get_V_from_covariance(self._cov, self._nmodels),
+            dtype=torch.double)
+        if W.shape != self._V.shape:
+            msg = "W has the wrong shape {0}. Should be {1}".format(
+                W.shape, self._V.shape)
+            raise ValueError(msg)
+        self._W = torch.as_tensor(W, dtype=torch.double)
+        B_shape = cov.shape[0], self._V.shape[1]
+        if B.shape != B_shape:
+            msg = "B has the wrong shape {0}. Should be {1}".format(
+                B.shape, B_shape)
+            raise ValueError(msg)
+        self._B = torch.as_tensor(B, dtype=torch.double)
 
     def _get_discrepancy_covariances(self, Gmat, gvec, Hmat, hvec):
         return _get_multioutput_acv_mean_and_variance_discrepancy_covariances(
@@ -635,14 +659,12 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
                 allocation_mat, npartition_samples))
         return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
-    @staticmethod
-    def _args_model_subset(nmodels, nqoi, model_idx, *args):
-        cov, W, B = args
+    def get_pilot_quantities_subset(self, nmodels, nqoi, model_idx):
         qoi_idx = np.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
-            cov, nmodels, nqoi, model_idx, qoi_idx)
+            self._cov, nmodels, nqoi, model_idx, qoi_idx)
         W_sub = _nqoisq_nqoisq_subproblem(
-            W, nmodels, nqoi, model_idx, qoi_idx)
+            self._W, nmodels, nqoi, model_idx, qoi_idx)
         B_sub = _nqoi_nqoisq_subproblem(
-            B, nmodels, nqoi, model_idx, qoi_idx)
+            self._B, nmodels, nqoi, model_idx, qoi_idx)
         return cov_sub, W_sub, B_sub

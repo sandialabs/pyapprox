@@ -961,7 +961,6 @@ class ACVEstimator(CVEstimator):
         return _plot_model_recursion(self._recursion_index, ax)
 
     def _objective(self, target_cost, x, return_grad=True):
-        print(x)
         partition_ratios = torch.as_tensor(x, dtype=torch.double)
         if return_grad:
             partition_ratios.requires_grad = True
@@ -1018,8 +1017,6 @@ class ACVEstimator(CVEstimator):
                     default_init_guess, method="nelder-mead", jac=False,
                     bounds=bounds, constraints=cons, options=init_guess)
                 init_guess = opt.x
-                print(self._cov.detach().numpy())
-                print(opt.x, "X")
             if init_guess.shape[0] != self._nmodels-1:
                 raise ValueError(
                     "init_guess {0} has the wrong shape".format(init_guess))

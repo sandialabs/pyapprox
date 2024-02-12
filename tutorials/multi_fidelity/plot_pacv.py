@@ -36,7 +36,8 @@ import matplotlib.pyplot as plt
 from pyapprox.util.visualization import mathrm_labels
 from pyapprox.benchmarks import setup_benchmark
 from pyapprox.multifidelity.factory import (
-    get_estimator, compare_estimator_variances, compute_variance_reductions)
+    get_estimator, compare_estimator_variances, compute_variance_reductions,
+    multioutput_stats)
 from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions)
 
@@ -44,10 +45,12 @@ nmodels = 4
 np.random.seed(1)
 benchmark = setup_benchmark("polynomial_ensemble")
 model = benchmark.fun
-cov = model.get_covariance_matrix()[:nmodels, :nmodels]
+cov = benchmark.covariance[:nmodels, :nmodels]
 costs = np.asarray([10**-ii for ii in range(nmodels)])
 
-gmf_est = get_estimator("gmf", "mean", 1, costs, cov, tree_depth=nmodels-1)
+stat = multioutput_stats["mean"](benchmark.nqoi)
+stat.set_pilot_quantities(cov)
+gmf_est = get_estimator("gmf", stat, costs, tree_depth=nmodels-1)
 recursion_indices = list(gmf_est.get_all_recursion_indices())
 axs_mats = plt.subplots(4, 4, figsize=(4*8, 4*6))[1].flatten()
 axs_graphs = plt.subplots(4, 4, figsize=(4*8, 4*6))[1].flatten()
@@ -64,7 +67,7 @@ for ii, recursion_index in enumerate(recursion_indices):
 #Note MLMC estimators are GRD estimators that use the recursion index :math:`[0, 1, \ldots, M]`.
 #The following code plots the allocation matrices of all four model GRD esimators. The DAGs are not plotted because they are independent of the base allocation matrix and thus are the same as those plotted for the GMF estimators.
 
-grd_est = get_estimator("grd", "mean", 1, costs, cov, tree_depth=nmodels-1)
+grd_est = get_estimator("grd", stat, costs, tree_depth=nmodels-1)
 recursion_indices = list(gmf_est.get_all_recursion_indices())
 axs_mats = plt.subplots(4, 4, figsize=(4*8, 4*6))[1].flatten()
 for ii, recursion_index in enumerate(recursion_indices):
@@ -78,7 +81,7 @@ for ii, recursion_index in enumerate(recursion_indices):
 #Generalized indepedent sample (GIS) estimators are derived from the ACVIS allocation matrix. The assume that if `\gamma_j=i` then :math:`\rvset_j^*=\rvset_i` and :math:`\rvset_i^*\subset\rvset_i`. Note ACVIS estimators are GIS estimators that use the recursion index :math:`[0, 0, \ldots, 0]`.
 #The following code plots the allocation matrices of all four model GIS esimators.
 
-gis_est = get_estimator("gis", "mean", 1, costs, cov, tree_depth=nmodels-1)
+gis_est = get_estimator("gis", stat, costs, tree_depth=nmodels-1)
 recursion_indices = list(gmf_est.get_all_recursion_indices())
 axs_mats = plt.subplots(4, 4, figsize=(4*8, 4*6))[1].flatten()
 for ii, recursion_index in enumerate(recursion_indices):
@@ -90,13 +93,16 @@ for ii, recursion_index in enumerate(recursion_indices):
 #The following code shows the benefit of using all models as control variates for the highest fidelity model, such as is enforced by ACVMF estimators. Specifically, it shows that as the number of low-fideliy samples increases, but the number of high-fidelity samples is fixed, the ACVMF estiamtor variance converges to the estiamtor variance of the CV estimator that uses all 5 models. In contrast the  MLMC and MFMC estimators only converge to the CV estimator CV that uses 1 low-fidelity model. However, these two approaches reduce the variance of the estimator more quickly than the ACV estimator, but cannot obtain the optimal variance reduction.
 
 nmodels = 5
-cov = model.get_covariance_matrix()
+cov = benchmark.covariance
 costs = np.asarray([10**-ii for ii in range(nmodels)])
 nhf_samples = 1
-cv_ests = [
-    get_estimator("cv", "mean", 1, costs[:ii+1], cov[:ii+1, :ii+1],
-                  lowfi_stats=model.get_means()[1:ii+1])
-    for ii in range(1, nmodels)]
+cv_stats, cv_ests = [], []
+for ii in range(1, nmodels):
+    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi))
+    cv_stats[ii-1].set_pilot_quantities(cov[:ii+1, :ii+1])
+    cv_ests.append(get_estimator(
+        "cv", cv_stats[ii-1], costs[:ii+1],
+        lowfi_stats=benchmark.mean[1:ii+1]))
 cv_labels = mathrm_labels(["CV-{%d}" % ii for ii in range(1, nmodels)])
 target_cost = nhf_samples*sum(costs)
 [est.allocate_samples(target_cost) for est in cv_ests]
@@ -106,10 +112,12 @@ from util import (
     plot_control_variate_variance_ratios,
     plot_estimator_variance_ratios_for_polynomial_ensemble)
 
+stat = multioutput_stats["mean"](benchmark.nqoi)
+stat.set_pilot_quantities(cov)
 estimators = [
-    get_estimator("mlmc", "mean", 1, costs, cov),
-    get_estimator("mfmc", "mean", 1, costs, cov),
-    get_estimator("gmf", "mean", 1, costs, cov,
+    get_estimator("mlmc", stat, costs),
+    get_estimator("mfmc", stat, costs),
+    get_estimator("gmf", stat, costs,
                   recursion_index=np.zeros(nmodels-1, dtype=int))]
 est_labels = est_labels = mathrm_labels(["MLMC", "MFMC", "ACVMF"])
 
@@ -124,13 +132,13 @@ _ = plot_estimator_variance_ratios_for_polynomial_ensemble(
 #The following code compares the best GMF, GRD and GIS estimators with the MLMC, MFMC and ACVMF estimators.
 
 estimators = [
-    get_estimator("mlmc", "mean", 1, costs, cov),
-    get_estimator("mfmc", "mean", 1, costs, cov),
-    get_estimator("gmf", "mean", 1, costs, cov,
+    get_estimator("mlmc", stat, costs),
+    get_estimator("mfmc", stat, costs),
+    get_estimator("gmf", stat, costs,
                   recursion_index=np.zeros(nmodels-1, dtype=int)),
-    get_estimator("gmf", "mean", 1, costs, cov, tree_depth=4),
-    get_estimator("grd", "mean", 1, costs, cov, tree_depth=4),
-    get_estimator("gis", "mean", 1, costs, cov, tree_depth=4)]
+    get_estimator("gmf", stat, costs, tree_depth=4),
+    get_estimator("grd", stat, costs, tree_depth=4),
+    get_estimator("gis", stat, costs, tree_depth=4)]
 est_labels = est_labels = mathrm_labels(
     ["MLMC", "MFMC", "ACVMF", "GMF", "GRD", "GIS"])
 
@@ -144,10 +152,10 @@ _ = plot_estimator_variance_ratios_for_polynomial_ensemble(
 
 target_costs = np.array([2e1, 1e2, 1e3], dtype=int)
 estimators = [
-    get_estimator("mc", "mean", 1, costs, cov),
-    get_estimator("mlmc", "mean", 1, costs, cov),
-    get_estimator("mfmc", "mean", 1, costs, cov),
-    get_estimator("gmf", "mean", 1, costs, cov, tree_depth=nmodels-1,
+    get_estimator("mc", stat, costs),
+    get_estimator("mlmc", stat, costs),
+    get_estimator("mfmc", stat, costs),
+    get_estimator("gmf", stat, costs, tree_depth=nmodels-1,
                   allow_failures=False)]
 est_labels = mathrm_labels(["MC", "MLMC", "MFMC", "GMF"])
 optim_opts = {'ftol': 1e-6, 'maxiter': 10000, "iprint": 0, "scaling": 0.01,

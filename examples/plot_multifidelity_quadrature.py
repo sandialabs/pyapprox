@@ -27,13 +27,15 @@ npilot_samples = int(1e2)
 # The models are trivial to evaluate so make up model costs
 model_costs = 10.**(-np.arange(3))
 
-est_name = "mlblue"
+
 stat_name = "mean"
 cov = multifidelity.estimate_model_ensemble_covariance(
     npilot_samples, benchmark.variable.rvs, model_ensemble,
     model_ensemble.nmodels)[0]
-est = multifidelity.get_estimator(
-    est_name, stat_name, 1, model_costs, cov)
+stat = multifidelity.multioutput_stats[stat_name](benchmark.nqoi)
+stat.set_pilot_quantities(cov)
+est_name = "mlblue"
+est = multifidelity.get_estimator(est_name, stat, model_costs)
 
 #%%
 #Define a target cost and determine the optimal number of samples to allocate to each model

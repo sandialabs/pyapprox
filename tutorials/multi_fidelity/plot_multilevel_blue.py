@@ -85,7 +85,8 @@ import matplotlib.pyplot as plt
 from pyapprox.util.visualization import mathrm_labels
 from pyapprox.benchmarks import setup_benchmark
 from pyapprox.multifidelity.factory import (
-    get_estimator, compare_estimator_variances, compute_variance_reductions)
+    get_estimator, compare_estimator_variances, compute_variance_reductions,
+    multioutput_stats)
 from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions)
 
@@ -101,10 +102,14 @@ nmodels = 5
 cov = benchmark.covariance
 costs = np.asarray([10**-ii for ii in range(nmodels)])
 nhf_samples = 1
-cv_ests = [
-    get_estimator("cv", "mean", 1, costs[:ii+1], cov[:ii+1, :ii+1],
-                  lowfi_stats=benchmark.mean[1:ii+1])
-    for ii in range(1, nmodels)]
+
+cv_stats, cv_ests = [], []
+for ii in range(1, nmodels):
+    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi))
+    cv_stats[ii-1].set_pilot_quantities(cov[:ii+1, :ii+1])
+    cv_ests.append(get_estimator(
+        "cv", cv_stats[ii-1], costs[:ii+1],
+        lowfi_stats=benchmark.mean[1:ii+1]))
 cv_labels = mathrm_labels(["CV-{%d}" % ii for ii in range(1, nmodels)])
 target_cost = nhf_samples*sum(costs)
 [est.allocate_samples(target_cost) for est in cv_ests]
@@ -115,12 +120,12 @@ from util import (
     plot_estimator_variance_ratios_for_polynomial_ensemble)
 
 estimators = [
-    get_estimator("mlmc", "mean", 1, costs, cov),
-    get_estimator("mfmc", "mean", 1, costs, cov),
-    get_estimator("grd", "mean", 1, costs, cov, tree_depth=4),
-    get_estimator("mlblue", "mean", 1, costs, cov, subsets=[
+    get_estimator("mlmc", cv_stats[-1], costs),
+    get_estimator("mfmc", cv_stats[-1], costs),
+    get_estimator("grd", cv_stats[-1], costs, tree_depth=4),
+    get_estimator("mlblue", cv_stats[-1], costs, subsets=[
         np.array([0, 1, 2, 3, 4]),  np.array([1, 2, 3, 4]),
-        np.array([2, 3, 4]), np.array([4,])])]
+        np.array([2, 3, 4]), np.array([3, 4]), np.array([4,])])]
 est_labels = est_labels = mathrm_labels(["MLMC", "MFMC", "PACV", "MLBLUE"])
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
@@ -143,13 +148,13 @@ _ = plot_estimator_variance_ratios_for_polynomial_ensemble(
 
 target_costs = np.array([1e1, 1e2, 1e3], dtype=int)
 estimators = [
-    get_estimator("mc", "mean", 1, costs, cov),
-    get_estimator("mlmc", "mean", 1, costs, cov),
-    get_estimator("mlblue", "mean", 1, costs, cov, subsets=[
+    get_estimator("mc", cv_stats[-1], costs),
+    get_estimator("mlmc", cv_stats[-1], costs),
+    get_estimator("mlblue", cv_stats[-1], costs, subsets=[
         np.array([0, 1, 2, 3, 4]),  np.array([1, 2, 3, 4]),
         np.array([2, 3, 4]), np.array([3, 4]), np.array([4,])]),
-    get_estimator("gmf", "mean", 1, costs, cov, tree_depth=4),
-    get_estimator("cv", "mean", 1, costs, cov,
+    get_estimator("gmf", cv_stats[-1], costs, tree_depth=4),
+    get_estimator("cv", cv_stats[-1], costs,
                   lowfi_stats=benchmark.mean[1:])]
 est_labels = mathrm_labels(["MC", "MLMC", "MLBLUE", "GRD", "CV"])
 optimized_estimators = compare_estimator_variances(

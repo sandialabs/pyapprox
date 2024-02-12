@@ -110,11 +110,12 @@ exact_integral_f0 = benchmark.mean[0]
 #%%
 #Now initialize the estimator
 from pyapprox.multifidelity.factory import (
-    get_estimator, numerically_compute_estimator_variance)
+    get_estimator, numerically_compute_estimator_variance, multioutput_stats)
 # The benchmark has three models, so just extract data for first two models
 costs = benchmark.fun.costs()[:2]
-est = get_estimator(
-    "gis", "mean", 1, costs, benchmark.covariance[:2, :2])
+stat = multioutput_stats["mean"](benchmark.nqoi)
+stat.set_pilot_quantities(benchmark.covariance[:2, :2])
+est = get_estimator("gis", stat, costs)
 
 #%%
 #Set the number of samples in the two independent sample partitions to
@@ -176,8 +177,8 @@ numerical_var, true_var, means = (
         benchmark.funs[:2], benchmark.variable, est, ntrials, 1,
         return_all=True))[2:5]
 
-sfmc_est = get_estimator(
-    "mc", "mean", 1, costs, benchmark.covariance[:2, :2])
+
+sfmc_est = get_estimator("mc", stat, costs)
 sfmc_est.allocate_samples(target_cost)
 sfmc_means = (
     numerically_compute_estimator_variance(

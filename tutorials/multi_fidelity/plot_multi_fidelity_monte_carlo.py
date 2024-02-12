@@ -64,21 +64,24 @@ import matplotlib.pyplot as plt
 from pyapprox.util.visualization import mathrm_labels
 from pyapprox.benchmarks import setup_benchmark
 from pyapprox.multifidelity.factory import (
-    get_estimator, compare_estimator_variances, compute_variance_reductions)
+    get_estimator, compare_estimator_variances, compute_variance_reductions,
+    multioutput_stats)
 from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions)
 
 np.random.seed(1)
 benchmark = setup_benchmark("polynomial_ensemble")
 model = benchmark.fun
-cov = model.get_covariance_matrix()
+cov = benchmark.covariance
 target_costs = np.array([1e1, 1e2, 1e3, 1e4], dtype=int)
 costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
 model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
 
+stat = multioutput_stats["mean"](benchmark.nqoi)
+stat.set_pilot_quantities(cov)
 estimators = [
-    get_estimator("mlmc", "mean", 1, costs, cov),
-    get_estimator("mfmc", "mean", 1, costs, cov)]
+    get_estimator("mlmc", stat, costs),
+    get_estimator("mfmc", stat, costs)]
 est_labels = mathrm_labels(["MLMC", "MFMC"])
 optimized_estimators = compare_estimator_variances(
     target_costs, estimators)
@@ -113,10 +116,14 @@ _ = axs[1].set_title(est_labels[1])
 #Below we we plot the ratios :math:`\var{Q_0^\text{MFMC}(\rvset_\text{MFMC})}/\var{Q_0^\text{MC}(\rvset_0)}` and :math:`\var{Q_0^\text{MLMC}(\rvset_\text{MLMC})}/\var{Q_0^\text{MC}(\rvset_0)}` as we increase the number of samples assigned to the low-fidelity models, while keeping the number of high-fidelity samples fixed. We also plot :math:`\var{Q_0^\text{CV}(\rvset_0)}/\var{Q_0^\text{MC}(\rvset_0)}` for control variate estimator that use increasing numbers of models with known low-fidelity statistics. These CV-based variance ratios represent the best ACV estimators could possibly do if the cost of evaluating the low-fidelity models was zero.
 nhf_samples = 1
 nmodels = costs.shape[0]
-cv_ests = [
-    get_estimator("cv", "mean", 1, costs[:ii+1], cov[:ii+1, :ii+1],
-                  lowfi_stats=model.get_means()[1:ii+1])
-    for ii in range(1, nmodels)]
+
+cv_stats, cv_ests = [], []
+for ii in range(1, nmodels):
+    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi))
+    cv_stats[ii-1].set_pilot_quantities(cov[:ii+1, :ii+1])
+    cv_ests.append(get_estimator(
+        "cv", cv_stats[ii-1], costs[:ii+1],
+        lowfi_stats=benchmark.mean[1:ii+1]))
 cv_labels = mathrm_labels(["CV-{%d}" % ii for ii in range(1, nmodels)])
 target_cost = nhf_samples*sum(costs)
 [est.allocate_samples(target_cost) for est in cv_ests]

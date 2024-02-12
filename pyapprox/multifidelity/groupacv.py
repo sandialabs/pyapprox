@@ -164,9 +164,9 @@ def _grouped_acv_sigma(
 
 
 class GroupACVEstimator():
-    def __init__(self, stat, costs, cov, reg_blue=0, subsets=None,
+    def __init__(self, stat, costs, reg_blue=0, subsets=None,
                  est_type="is", asketch=None):
-        self._cov, self._costs = self._check_cov(cov, costs)
+        self._cov, self._costs = self._check_cov(stat._cov, costs)
         self.nmodels = len(costs)
         self._reg_blue = reg_blue
         # if not isinstance(stat, MultiOutputMean):
@@ -185,7 +185,6 @@ class GroupACVEstimator():
             [asarray(_restriction_matrix(self.nmodels, subset).T)
              for ii, subset in enumerate(self.subsets)])
         self._costs = asarray(costs)
-        self._cov = asarray(cov)
         self.subset_costs = self._get_model_subset_costs(
             self.subsets, self._costs)
 
@@ -208,7 +207,7 @@ class GroupACVEstimator():
         if cov.shape[0] != len(costs):
             print(cov.shape, costs.shape)
             raise ValueError("cov and costs are inconsistent")
-        return cov.copy(), np.array(costs)
+        return cov, np.array(costs)
 
     def _set_subsets(self, subsets, est_type):
         if subsets is None:
@@ -693,10 +692,10 @@ class GroupACVEstimator():
 
 
 class MLBLUEEstimator(GroupACVEstimator):
-    def __init__(self, stats, costs, cov, reg_blue=0, subsets=None,
+    def __init__(self, stat, costs, reg_blue=0, subsets=None,
                  asketch=None):
         # Currently stats is ignored.
-        super().__init__(stats, costs, cov, reg_blue, subsets, est_type="is",
+        super().__init__(stat, costs, reg_blue, subsets, est_type="is",
                          asketch=asketch)
         self._best_model_indices = np.arange(len(costs))
 
