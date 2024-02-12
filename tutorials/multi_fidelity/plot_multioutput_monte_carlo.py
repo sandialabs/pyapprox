@@ -45,7 +45,6 @@ from pyapprox.benchmarks import setup_benchmark
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
 
 np.random.seed(1)
-shifts = [.1, .2]
 benchmark = setup_benchmark("multioutput_model_ensemble")
 
 #%%

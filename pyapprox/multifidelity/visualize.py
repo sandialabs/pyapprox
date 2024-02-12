@@ -1,10 +1,9 @@
 import numpy as np
-import networkx as nx
 
 from pyapprox.util.visualization import plt, mathrm_label
-from pyapprox.multifidelity._visualize import _hierarchy_pos, _autolabel
+from pyapprox.multifidelity._visualize import _autolabel
 from pyapprox.multifidelity.factory import (
-    ComparisionCriteria, compute_variance_reductions)
+    compute_variance_reductions, ComparisonCriteria)
 
 
 def plot_model_costs(costs, model_names=None, ax=None):
@@ -21,7 +20,7 @@ def plot_model_costs(costs, model_names=None, ax=None):
 def plot_estimator_variances(optimized_estimators,
                              est_labels, ax, ylabel=None,
                              relative_id=0, cost_normalization=1,
-                             criteria=ComparisionCriteria("det")):
+                             criteria=ComparisonCriteria("det")):
     """
     Plot the estimator variance for a list of estimators.
 
@@ -74,7 +73,7 @@ def plot_estimator_variances(optimized_estimators,
 
 def plot_estimator_variance_reductions(optimized_estimators,
                                        est_labels, ax, ylabel=None,
-                                       criteria=ComparisionCriteria("det"),
+                                       criteria=ComparisonCriteria("det"),
                                        **bar_kawrgs):
     """
     Plot the variance reduction (relative to single model MC) for a

@@ -86,6 +86,7 @@ example_filenames_in_order = [
     'plot_multi_level_monte_carlo.py',
     'plot_multi_fidelity_monte_carlo.py',
     'plot_pacv.py',
+    'plot_multioutput_acv.py',
     'plot_pilot_studies.py',
     'plot_ensemble_selection.py',
     'plot_multilevel_blue.py',

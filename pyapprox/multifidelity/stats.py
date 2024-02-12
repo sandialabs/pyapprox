@@ -446,7 +446,8 @@ class MultiOutputStatistic(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_pilot_quantities_subset(self, nmodels, nqoi, model_idx):
+    def get_pilot_quantities_subset(
+            self, nmodels, nqoi, model_idx, qoi_idx=None):
         raise NotImplementedError
 
     def __repr__(self):
@@ -499,8 +500,10 @@ class MultiOutputMean(MultiOutputStatistic):
             allocation_mat, npartition_samples)
         return self._get_discrepancy_covariances(Gmat, gvec)
 
-    def get_pilot_quantities_subset(self, nmodels, nqoi, model_idx):
-        qoi_idx = np.arange(nqoi)
+    def get_pilot_quantities_subset(
+            self, nmodels, nqoi, model_idx, qoi_idx=None):
+        if qoi_idx is None:
+            qoi_idx = np.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
             self._cov, nmodels, nqoi, model_idx, qoi_idx)
         return (cov_sub, )
@@ -571,8 +574,10 @@ class MultiOutputVariance(MultiOutputStatistic):
                 allocation_mat, npartition_samples))
         return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
-    def get_pilot_quantities_subset(self, nmodels, nqoi, model_idx):
-        qoi_idx = np.arange(nqoi)
+    def get_pilot_quantities_subset(
+            self, nmodels, nqoi, model_idx, qoi_idx=None):
+        if qoi_idx is None:
+            qoi_idx = np.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
             self._cov, nmodels, nqoi, model_idx, qoi_idx)
         W_sub = _nqoisq_nqoisq_subproblem(
@@ -660,8 +665,10 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
                 allocation_mat, npartition_samples))
         return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
-    def get_pilot_quantities_subset(self, nmodels, nqoi, model_idx):
-        qoi_idx = np.arange(nqoi)
+    def get_pilot_quantities_subset(
+            self, nmodels, nqoi, model_idx, qoi_idx=None):
+        if qoi_idx is None:
+            qoi_idx = np.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
             self._cov, nmodels, nqoi, model_idx, qoi_idx)
         W_sub = _nqoisq_nqoisq_subproblem(

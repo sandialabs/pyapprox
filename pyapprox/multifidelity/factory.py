@@ -516,8 +516,8 @@ def compare_estimator_variances(target_costs, estimators, optim_opts={}):
     return optimized_estimators
 
 
-class ComparisionCriteria():
-    def __init__(self, criteria_type):
+class ComparisonCriteria():
+    def __init__(self, criteria_type=None):
         self._criteria_type = criteria_type
 
     def __call__(self, est_covariance, est):
@@ -533,7 +533,7 @@ class ComparisionCriteria():
             self.__class__.__name__, self._criteria_type)
 
 
-class SingleQoiAndStatComparisonCriteria(ComparisionCriteria):
+class SingleQoiAndStatComparisonCriteria(ComparisonCriteria):
     def __init__(self, stat_type, qoi_idx):
         """
         Compare estimators based on the variance of a single statistic
@@ -569,7 +569,7 @@ class SingleQoiAndStatComparisonCriteria(ComparisionCriteria):
 
 
 def compute_variance_reductions(optimized_estimators,
-                                criteria=ComparisionCriteria("det"),
+                                criteria=ComparisonCriteria("det"),
                                 nhf_samples=None):
     """
     Compute the variance reduction (relative to single model MC) for a
