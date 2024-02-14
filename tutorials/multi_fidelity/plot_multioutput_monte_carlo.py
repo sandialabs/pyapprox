@@ -51,7 +51,7 @@ benchmark = setup_benchmark("multioutput_model_ensemble")
 #Now construct the estimator. The following requires the costs of the model
 #the covariance and some other quantities W and B. These four quantities are not
 #needed to compute the value of the estimator from a sample set, however they are needed to compute the MSE of the estimator and the number of samples of that model for a given target cost. We load these quantities but ignore there meaning for the moment.
-costs = [1]
+costs = np.array([1])
 nqoi = 3
 cov = benchmark.covariance[:3, :3]
 W = benchmark.fun.covariance_of_centered_values_kronker_product()[:9, :9]

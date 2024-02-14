@@ -183,7 +183,7 @@ mc_mse = mc_est._optimized_covariance[0, 0].item()
 oracle_mse = oracle_est._optimized_covariance[0, 0].item()
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 ax.axhline(y=oracle_mse, ls='--', color='k', label=mathrm_label("Oracle MSE"))
-ax.axhline(y=mc_mse, ls=':', color='r', label=mathrm_label("MC MSE"))
+ax.axhline(y=mc_mse, ls=':', color='r', label=mathrm_label("Oracle MC MSE"))
 ax.plot(npilot_samples_list, mse_list, '-o', label=mathrm_label("Pilot MSE"))
 ax.set_xlabel(mathrm_label("Number of pilot samples"))
 _ = ax.legend()
@@ -212,7 +212,7 @@ for npilot_samples in npilot_samples_list:
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 ax.axhline(y=oracle_mse, ls='--', color='k', label=mathrm_label("Oracle MSE"))
-ax.axhline(y=mc_mse, ls=':', color='r', label=mathrm_label("MC MSE"))
+ax.axhline(y=mc_mse, ls=':', color='r', label=mathrm_label("Oracle MC MSE"))
 ax.plot(npilot_samples_list, mse_list, '-o', label=mathrm_label("Pilot MSE"))
 ax.set_xlabel(mathrm_label("Number of pilot samples"))
 _ = ax.legend()

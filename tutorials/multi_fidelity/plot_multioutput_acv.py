@@ -17,8 +17,14 @@ costs = np.array([1, 0.01, 0.001])
 nmodels = 3
 
 cov = benchmark.covariance
-W = benchmark.fun.covariance_of_centered_values_kronker_product()
-B = benchmark.fun.covariance_of_mean_and_variance_estimators()
+
+labels = ([r"$(f_{0})_{%d}$" % (ii+1) for ii in range(benchmark.nqoi)] +
+          [r"$(f_{2})_{%d}$" % (ii+1) for ii in range(benchmark.nqoi)] +
+          [r"$(f_{2})_{%d}$" % (ii+1) for ii in range(benchmark.nqoi)])
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+_ = mf.plot_correlation_matrix(
+    mf.get_correlation_from_covariance(cov), ax=ax, model_names=labels,
+    label_fontsize=20)
 
 target_cost = 10
 stat = mf.multioutput_stats["mean"](benchmark.nqoi)

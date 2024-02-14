@@ -70,6 +70,7 @@ example_filenames_in_order = [
     # ExpDesign
     # 'plot_bayesian_oed.py', # ignore until paper published
     # Surrogates
+    'plot_univariate_interpolation.py',
     'plot_tensor_product_interpolation.py',
     'plot_sparse_grids.py',
     'plot_adaptive_leja_interpolation.py',
@@ -164,7 +165,7 @@ except ImportError:
 #     add_markdown_cell(work_notebook, first_cell)#jdj
 #     add_code_cell(work_notebook,"%matplotlib inline")#jdj
 # then add user defs like so
-sphinx_gallery_conf['first_notebook_cell'] = r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\rvset{{\mathcal{Z}}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\mathrm{d}#1}\newcommand{mat}[1]{{\boldsymbol{\mathrm{#1}}}}$$"
+sphinx_gallery_conf['first_notebook_cell'] = r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\rvset{{\mathcal{Z}}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\text{d}#1}\newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}$$"
 
 # if change conf make sure to remove source/auto_examples, using make clean
 # Note sphinx can use align with single line, e.g. a=1 & & b=1 if \\ is added to the end of the line, i.e  a=1 & & b=1\\
@@ -265,11 +266,10 @@ SOFTWARE.\par
 \def\rvdom{\Gamma}
 \def\coloneqq{\colon=}
 \newcommand{\norm}[1]{\lVert #1 \rVert}
-%\def\argmax{\operatorname{argmax}}
 \def\ai{\alpha}
 \def\bi{\beta}
-\newcommand{\dx}[1]{\;\mathrm{d}#1}
-\newcommand{mat}[1]{{\boldsymbol{\mathrm{#1}}}}
+\newcommand{\dx}[1]{\;\text{d}#1}
+\newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}
 ''',
 }
 
@@ -327,7 +327,7 @@ mathjax3_config = {
           "corr": [r'\mathbb{C}\text{or}\left[#1,#2\right]', 2],
           "ai": r'\alpha',
           "bi": r'\beta',
-          "dx": [r'\;\mathrm{d}#1', 1],
+          "dx": [r'\;\text{d}#1', 1],
           "mat": [r'{\boldsymbol{\mathrm{#1}}}', 1],
     },
   },

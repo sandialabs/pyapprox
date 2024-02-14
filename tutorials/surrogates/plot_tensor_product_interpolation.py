@@ -1,6 +1,6 @@
 r"""
-Tensor-product Barycentric Interpolation
-========================================
+Tensor-product Interpolation
+============================
 Many simulation models are extremely computationally expensive such that adequately understanding their behaviour and quantifying uncertainty can be computationally intractable for any of the aforementioned techniques. Various methods have been developed to produce surrogates of the model response to uncertain parameters, the most efficient are goal-oriented in nature and target very specific uncertainty measures.
 
 Generally speaking surrogates are built using a "small" number of model simulations and are then substituted in place of the expensive simulation models in future analysis. Some of the most popular surrogate types include polynomial chaos expansions (PCE) [XKSISC2002]_, Gaussian processes (GP) [RWMIT2006]_, and sparse grids (SG) [BGAN2004]_.
@@ -45,7 +45,7 @@ Here we will use the nested Clenshaw-Curtis points
 
 .. math::
 
-  z_{i}^{(j)}=\cos\left(\frac{(j-1)\pi}{m_{\beta_i}}\right),\qquad j=1,\ldots,m_{\beta_i}
+  z_{i}^{(j)}=\cos\left(\frac{(j-1)\pi}{m_{\beta_i}-1}\right),\qquad j=1,\ldots,m_{\beta_i}
 
 to define the univariate Lagrange polynomials. The number of points :math:`m(l)` of this rule grows exponentially with the level :math:`l`, specifically
 :math:`m(0)=1` and :math:`m(l)=2^{l}+1` for :math:`l\geq1`. The univariate Clenshaw-Curtis points, the tensor-product grid :math:`\mathcal{Z}_{\boldsymbol{\beta}}`, and two multivariate Lagrange polynomials with their corresponding univariate Lagrange polynomials are shown below for :math:`\boldsymbol{\beta}=(2,2)`.
@@ -53,9 +53,6 @@ to define the univariate Lagrange polynomials. The number of points :math:`m(l)`
 import numpy as np
 from pyapprox.util.utilities import cartesian_product
 from pyapprox.util.visualization import get_meshgrid_function_data, plt
-from pyapprox.surrogates.interp.barycentric_interpolation import (
-    plot_tensor_product_lagrange_basis_2d,
-    tensor_product_barycentric_lagrange_interpolation)
 from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.surrogates.orthopoly.quadrature import clenshaw_curtis_pts_wts_1D
 from pyapprox.surrogates.approximate import adaptive_approximate
@@ -67,25 +64,26 @@ from pyapprox.surrogates.orthopoly.quadrature import (
 from pyapprox.surrogates.interp.tensorprod import (
     canonical_univariate_piecewise_polynomial_quad_rule)
 from pyapprox.benchmarks.benchmarks import setup_benchmark
-from pyapprox.variables.transforms import AffineTransform
 from pyapprox.surrogates.interp.tensorprod import (
-    tensor_product_piecewise_polynomial_basis,
-    tensor_product_piecewise_polynomial_interpolation)
-from pyapprox.surrogates.interp.barycentric_interpolation import (
-    precompute_tensor_product_lagrange_polynomial_basis)
+    UnivariatePiecewiseQuadraticBasis, UnivariateLagrangeBasis,
+    TensorProductInterpolant, TensorProductBasis)
 
-quad_rule = clenshaw_curtis_pts_wts_1D
+nnodes_1d = [5, 9]
+nodes_1d = [-np.cos(np.arange(nnodes)*np.pi/(nnodes-1))
+            for nnodes in nnodes_1d]
+nodes = cartesian_product(nodes_1d)
+lagrange_basis_1d = UnivariateLagrangeBasis()
+tp_lagrange_basis = TensorProductBasis([lagrange_basis_1d]*2)
+
 fig = plt.figure(figsize=(2*8, 6))
 ax = fig.add_subplot(1, 2, 1, projection='3d')
-level = 2
-ii, jj = 1, 1
-plot_tensor_product_lagrange_basis_2d(quad_rule, level, ii, jj, ax)
+ii, jj = 1, 3
+tp_lagrange_basis.plot_single_basis(ax, nodes_1d, ii, jj, nodes)
 
 ax = fig.add_subplot(1, 2, 2, projection='3d')
 level = 2
-ii, jj = 1, 3
-ii = 1
-plot_tensor_product_lagrange_basis_2d(quad_rule, level, ii, jj, ax)
+ii, jj = 2, 4
+tp_lagrange_basis.plot_single_basis(ax, nodes_1d, ii, jj, nodes)
 
 #%%
 #To construct a surrogate using tensor product interpolation we simply multiply all such basis functions by the value of the function :math:`f_\ai` evaluated at the corresponding interpolation point. The following uses tensor product interpolation to approximate the simple function
@@ -93,30 +91,25 @@ plot_tensor_product_lagrange_basis_2d(quad_rule, level, ii, jj, ax)
 #.. math:: f_\ai(\rv) = \cos(2\pi\rv_1)\cos(2\pi\rv_2), \qquad \rv\in\rvdom=[-1,1]^2
 
 
-def f(z): return (np.cos(2*np.pi*z[0, :]) *
-                  np.cos(2*np.pi*z[1, :]))[:, np.newaxis]
+def fun(z): return (np.cos(2*np.pi*z[0, :]) *
+                    np.cos(2*np.pi*z[1, :]))[:, np.newaxis]
 
 
-grid_levels = [2, 3]
-grid_samples_1d = [clenshaw_curtis_pts_wts_1D(ll)[0] for ll in grid_levels]
-grid_samples = cartesian_product(grid_samples_1d)
-
-
-def interp(samples):
-    return tensor_product_barycentric_lagrange_interpolation(
-        grid_samples_1d, f, samples)
+lagrange_interpolant = TensorProductInterpolant([lagrange_basis_1d]*2)
+values = fun(nodes)
+lagrange_interpolant.fit(nodes_1d, values)
 
 
 marker_color = 'k'
 alpha = 1.0
 fig, axs = plt.subplots(1, 1, figsize=(8, 6))
-axs.plot(grid_samples[0, :], grid_samples[1, :], 'o',
+axs.plot(nodes[0, :], nodes[1, :], 'o',
          color=marker_color, ms=10, alpha=alpha)
 
 plot_limits = [-1, 1, -1, 1]
 num_pts_1d = 101
 X, Y, Z = get_meshgrid_function_data(
-    interp, plot_limits, num_pts_1d)
+    lagrange_interpolant, plot_limits, num_pts_1d)
 
 num_contour_levels = 10
 levels = np.linspace(Z.min(), Z.max(), num_contour_levels)
@@ -158,7 +151,7 @@ cset = axs.contourf(
 #
 #which can be computed analytically.
 x, w = get_tensor_product_quadrature_rule(level, 2, clenshaw_curtis_pts_wts_1D)
-surrogate_mean = f(x)[:, 0].dot(w)
+surrogate_mean = fun(x)[:, 0].dot(w)
 print('Quadrature mean', surrogate_mean)
 #%%
 #Here we have recomptued the values of :math:`f` at the interpolation samples, but in practice we sould just re-use the values collected when building the interpolant.
@@ -166,7 +159,7 @@ print('Quadrature mean', surrogate_mean)
 #Now let us compare the quadrature mean with the MC mean computed using the surrogate
 num_samples = int(1e6)
 samples = np.random.uniform(-1, 1, (2, num_samples))
-values = interp(samples)
+values = lagrange_interpolant(samples)
 mc_mean = values.mean()
 print('Monte Carlo surrogate mean', mc_mean)
 
@@ -175,44 +168,20 @@ print('Monte Carlo surrogate mean', mc_mean)
 #----------------------------------
 #Polynomial interpolation accurately approximates smooth functions, however its accuracy degrades as the regularity of the target function decreases. For piecewise continuous functions, or functions with only a limited number of continuous derivaties, piecewise-polynomial approximation may be more appropriate.
 #
-#The following code compares polynomial and piecewise polynomial univariate basis functions.
-samples = np.linspace(-1, 1, 201)[None, :]
-ax = plt.subplots(1, 2, figsize=(2*8, 6), sharey=True)[1]
-lagrange_basis = precompute_tensor_product_lagrange_polynomial_basis(
-        samples, grid_samples_1d[:1], [0])[0].T
-ax[0].plot(samples[0], lagrange_basis)
-piecewise_basis = tensor_product_piecewise_polynomial_basis(
-    grid_levels[:1], samples, basis_type="quadratic")
-_ = ax[1].plot(samples[0], piecewise_basis)
+#The following plots two piecewise-quadratic basis functions in 2D
+fig = plt.figure(figsize=(2*8, 6))
+nnodes_1d = [5, 5]
+nodes_1d = [np.linspace(-1, 1, nnodes) for nnodes in nnodes_1d]
+nodes = cartesian_product(nodes_1d)
+tp_quadratic_basis = TensorProductBasis(
+    [UnivariatePiecewiseQuadraticBasis()]*2)
+ax = fig.add_subplot(1, 2, 1, projection='3d')
+tp_quadratic_basis.plot_single_basis(ax, nodes_1d, 2, 2, nodes)
+ax = fig.add_subplot(1, 2, 2, projection='3d')
+tp_quadratic_basis.plot_single_basis(ax, nodes_1d, 0, 1, nodes)
 
 #%%
-#Notice that the unlike the lagrange basis the picewise polynomial basis is non-zero only on a local region of the input space.
-#
-#The compares the accuracy of lagrange basis the picewise polynomial approximations for a piecewise continuous function
-def fun(samples):
-    yy = samples[0].copy()
-    yy[yy > 1/3] = 1.0
-    yy[yy <= 1/3] = 0.
-    return yy[:, None]
-
-piecewise_basis_type = "quadratic"
-axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
-[ax.plot(samples[0], fun(samples)) for ax in axs]
-for level in range(1, 5):
-    lgrid_samples_1d = [clenshaw_curtis_pts_wts_1D(level)[0]]
-    lgrid_samples = cartesian_product(lgrid_samples_1d)
-    lvalues = tensor_product_barycentric_lagrange_interpolation(
-        lgrid_samples_1d, fun, samples)
-    axs[0].plot(samples[0], lvalues, ':')
-    pvalues = tensor_product_piecewise_polynomial_interpolation(
-        samples, [level], fun, piecewise_basis_type)
-    axs[1].plot(samples[0], pvalues, '--')
-
-
-#%%
-#The Lagrange polynomials induce oscillations around the discontinuity, which significantly decreases the convergence rate of the approximation. The picewise quadratic also over and undershoots around the discontinuity, but the phenomena is localized.
-#
-#The following compares the convergence of lagrange and picewise polynomial tensor product interpolants. Change the benchmark to see the effect of smoothness on the approximation accuracy.
+#The following compares the convergence of Lagrange and picewise polynomial tensor product interpolants. Change the benchmark to see the effect of smoothness on the approximation accuracy.
 #
 #First define wrappers to build the tensor product interpolants
 
@@ -227,6 +196,7 @@ def build_lagrange_tp(max_level_1d):
          "univariate_quad_rule_info": univariate_quad_rule_info,
          "max_nsamples": np.inf}).approx
 
+
 def build_piecewise_tp(max_level_1d):
     basis_type = "quadratic"
     # basis_type = "linear"
@@ -240,6 +210,7 @@ def build_piecewise_tp(max_level_1d):
          "max_level_1d": max_level_1d,
          "univariate_quad_rule_info": univariate_quad_rule_info,
          "basis_type": basis_type, "max_nsamples": np.inf}).approx
+
 
 #%%
 #Load a benchmark
