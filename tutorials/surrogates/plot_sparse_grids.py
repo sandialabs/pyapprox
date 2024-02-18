@@ -318,7 +318,7 @@ from pyapprox.surrogates.interp.adaptive_sparse_grid import (
 fig, axs = plt.subplots(1, 3, sharey=False, figsize=(3*8, 6))
 ranges = benchmark.variable.get_statistics("interval", 1.0).flatten()
 data = [get_meshgrid_function_data(sg, ranges, 51)
-        for sg in  adaptive_callback.sparse_grids]
+        for sg in adaptive_callback.sparse_grids]
 Z_min = np.min([d[2] for d in data])
 Z_max = np.max([d[2] for d in data])
 levels = np.linspace(Z_min, Z_max, 21)

@@ -551,14 +551,14 @@ class TensorProductBasis():
             single_basis_fun, plot_limits, num_pts_1d)
         if surface_cmap is not None:
             plot_surface(X, Y, Z, ax, axis_labels=None, limit_state=None,
-                         alpha=0.3, cmap="coolwarm", zorder=3, plot_axes=False)
+                         alpha=0.3, cmap=surface_cmap, zorder=3, plot_axes=False)
         if contour_cmap is not None:
             num_contour_levels = 30
             offset = -(Z.max()-Z.min())/2
             ax.contourf(
                 X, Y, Z, zdir='z', offset=offset,
                 levels=np.linspace(Z.min(), Z.max(), num_contour_levels),
-                cmap="gray", zorder=-1)
+                cmap=contour_cmap, zorder=-1)
 
         if nodes is None:
             return

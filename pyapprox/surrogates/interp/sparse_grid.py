@@ -846,7 +846,8 @@ def plot_sparse_grid_2d(samples, weights, poly_indices=None, subspace_indices=No
     return axs
 
 
-def plot_sparse_grid_3d(samples, weights, poly_indices=None, subspace_indices=None,
+def plot_sparse_grid_3d(samples, weights, poly_indices=None,
+                        subspace_indices=None,
                         active_samples=None, active_subspace_indices=None):
     from pyapprox.util.visualization import plot_3d_indices
     if samples.shape[0] != 3:

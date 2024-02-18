@@ -67,10 +67,12 @@ cheby_nodes = np.cos(np.arange(nnodes)*np.pi/(nnodes-1))
 lagrange_basis = UnivariateLagrangeBasis()
 lagrange_basis_vals = lagrange_basis(cheby_nodes, samples)
 ax[0].plot(samples, lagrange_basis_vals)
+ax[0].plot(cheby_nodes, cheby_nodes*0, 'ko')
 equidistant_nodes = np.linspace(-1, 1, nnodes)
 quadratic_basis = UnivariatePiecewiseQuadraticBasis()
 piecewise_basis_vals = quadratic_basis(equidistant_nodes, samples)
 _ = ax[1].plot(samples, piecewise_basis_vals)
+_ = ax[1].plot(equidistant_nodes, equidistant_nodes*0, 'ko')
 
 #%%
 #Notice that the unlike the lagrange basis the picewise polynomial basis is non-zero only on a local region of the input space.
@@ -160,7 +162,7 @@ opt_interp.fit(opt_train_samples, opt_train_values)
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 plot_xx = np.linspace(0, 1, 101)
 true_vals = benchmark.fun(plot_xx[None, :])
-pbwt = "w"
+pbwt = r"\pi"
 ax.plot(plot_xx, true_vals, '-r', label=r'$f(z)$')
 ax.plot(plot_xx, interp(plot_xx[None, :]), ':k', label=r'$f_M^\nu$')
 ax.plot(train_samples[0], train_values[:, 0], 'ko', ms=10,
@@ -176,7 +178,8 @@ ax.fill_between(
     plot_xx, ax.get_ylim()[0], pdf_vals+ax.get_ylim()[0],
     alpha=0.3, visible=True,
     label=r'$%s(z)$' % pbwt)
-_ = ax.legend()
+ax.set_xlabel(r'$M$', fontsize=24)
+_ = ax.legend(fontsize=18, loc="upper right")
 
 #%%
 #As you can see the approximation that targets the uniform norm is "more accurate" on average over the domain, but the interpolant that directly targets accuracy with respect to the desired Beta distribution is more accurate in the regions of non-negligible probability.
@@ -237,6 +240,11 @@ for alpha_poly in alpha_polys:
     ax.semilogy(ntrain_samples_list, results,
                 label="{0:1.2f}".format(density_ratio))
 
-ax.set_xlabel(r'$M$')
-ax.set_ylabel(r'$\| f-f_M^\nu\|_{L^2_%s}$' % pbwt)
+ax.set_xlabel(r'$M$', fontsize=24)
+ax.set_ylabel(r'$\| f-f_M^\nu\|_{L^2_%s}$' % pbwt, fontsize=24)
 _ = ax.legend(ncol=2)
+
+#%%
+#References
+#----------
+#.. [XJD2013] `Chen Xiaoxiao, Park Eun-Jae, Xiu Dongbin. A flexible numerical approach for quantification of epistemic uncertainty. J. Comput. Phys., 240 (2013), pp. 211-224 <https://doi.org/10.1016/j.jcp.2013.01.018>`_

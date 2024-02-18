@@ -3,6 +3,8 @@ Multioutput Approximate Control Variates
 ========================================
 
 This tutorial demonstrates how computing statistics for multiple outputs simultaneoulsy can improve the accuracy of ACV estimates of individual statistics when compared to ACV applied to each output separately.
+
+The optimal control variate weights are obtained by minimizing the estimator covariance [RM1985]_.
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -53,3 +55,9 @@ class CustomComparisionCriteria(ComparisonCriteria):
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 _ = mf.plot_estimator_variance_reductions(
     [est, est_0], est_labels, ax, criteria=CustomComparisionCriteria())
+
+
+#%%
+#References
+#----------
+#[RM1985] `Reuven Y. Rubinstein and Ruth Marcus. Efficiency of multivariate control variates in monte carlo simulation. Operations Research, 33(3):661–677, 1985. <https://doi.org/10.48550/arXiv.2310.00125>`_
