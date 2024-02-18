@@ -132,7 +132,7 @@ pool_model = PoolModel(
     timer_fun_ensemble, max_eval_concurrency, assert_omp=False)
 worktracking_fun_ensemble.work_tracker.costs = dict()
 worktracking_fun_ensemble = WorkTrackingModel(
-    pool_model, num_config_vars=1)
+    pool_model, num_config_vars=1, enforce_timer_model=False)
 
 # create more samples to notice improvement in wall time
 nsamples = 10

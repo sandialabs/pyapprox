@@ -185,7 +185,7 @@ _ = ax.legend(fontsize=18, loc="upper right")
 #As you can see the approximation that targets the uniform norm is "more accurate" on average over the domain, but the interpolant that directly targets accuracy with respect to the desired Beta distribution is more accurate in the regions of non-negligible probability.
 
 #%%
-#Now lets looks at how the accuracy changes with the "distance" between the dominating and target measures.
+#Now lets looks at how the accuracy changes with the "distance" between the dominating and target measures. This demonstrates the numerical impact of the main theorem in [XJD2013]_.
 
 
 def compute_density_ratio_beta(num, true_rv, alpha_stat_2, beta_stat_2):

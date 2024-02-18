@@ -4,6 +4,7 @@ import numpy as np
 
 from pyapprox.multifidelity.groupacv import MLBLUEEstimator, get_model_subsets
 from pyapprox.surrogates.autogp._torch_wrappers import asarray
+from pyapprox.multifidelity.stats import MultiOutputMean
 
 
 def _AETC_subset_oracle_stats(oracle_stats, covariate_subset):
@@ -79,8 +80,10 @@ def _AETC_BLUE_allocate_samples(
 
     asketch = beta_Sp[1:]  # remove high-fidelity coefficient
 
+    stat_S = MultiOutputMean(1)
+    stat_S.set_pilot_quantities(Sigma_S)
     est = MLBLUEEstimator(
-        None, costs_S, Sigma_S, asketch=asketch, reg_blue=reg_blue)
+        stat_S, costs_S, asketch=asketch, reg_blue=reg_blue)
     if normalize_opt:
         target_cost = 1
     else:
@@ -353,8 +356,10 @@ class AETCBLUE():
         beta_Sp, Sigma_best_S, rounded_nsamples_per_subset = result[3:6]
         costs_best_S = self._costs[best_subset+1]
         beta_best_S = beta_Sp[1:]
+        stat_best_S = MultiOutputMean(1)
+        stat_best_S.set_pilot_quantities(Sigma_best_S)
         est = MLBLUEEstimator(
-            None, costs_best_S, Sigma_best_S, asketch=beta_best_S)
+            stat_best_S, costs_best_S, Sigma_best_S, asketch=beta_best_S)
         est._set_optimized_params(rounded_nsamples_per_subset)
         samples_per_model = est.generate_samples_per_model(self.rvs)
         # use +1 to accound for subset indexing only lf models

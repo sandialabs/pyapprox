@@ -60,4 +60,4 @@ _ = mf.plot_estimator_variance_reductions(
 #%%
 #References
 #----------
-#[RM1985] `Reuven Y. Rubinstein and Ruth Marcus. Efficiency of multivariate control variates in monte carlo simulation. Operations Research, 33(3):661–677, 1985. <https://doi.org/10.48550/arXiv.2310.00125>`_
+#.. [RM1985] `Reuven Y. Rubinstein and Ruth Marcus. Efficiency of multivariate control variates in monte carlo simulation. Operations Research, 33(3):661–677, 1985. <https://doi.org/10.48550/arXiv.2310.00125>`_

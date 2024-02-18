@@ -13,6 +13,7 @@ from pyapprox.multifidelity.groupacv import (
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.autogp._torch_wrappers import (
     arange, full)
+from pyapprox.multifidelity.factory import multioutput_stats
 
 
 class TestGroupACV(unittest.TestCase):
@@ -79,8 +80,10 @@ class TestGroupACV(unittest.TestCase):
         cov = np.random.normal(0, 1, (nmodels, nmodels))
         cov = cov.T @ cov
         costs = np.arange(nmodels, 0, -1)
-        print(costs)
-        est = GroupACVEstimator(None, costs, cov)
+
+        stat = multioutput_stats["mean"](1)
+        stat.set_pilot_quantities(cov)
+        est = GroupACVEstimator(stat, costs)
         npartition_samples = arange(2., 2+est.nsubsets)
         assert np.allclose(
             est._compute_nsamples_per_model(npartition_samples),
@@ -92,7 +95,7 @@ class TestGroupACV(unittest.TestCase):
         self._check_separate_samples(est)
 
         est = GroupACVEstimator(
-            None, costs, cov, est_type="nested")
+            stat, costs, est_type="nested")
         npartition_samples = arange(2., 2+est.nsubsets)
         assert np.allclose(
             est._compute_nsamples_per_model(npartition_samples),
@@ -129,7 +132,9 @@ class TestGroupACV(unittest.TestCase):
         costs = np.arange(nmodels, 0, -1)
         variable = IndependentMarginalsVariable(
             [stats.norm(0, 1) for ii in range(nmodels)])
-        est = GroupACVEstimator(None, costs, cov, est_type=group_type,
+        stat = multioutput_stats["mean"](1)
+        stat.set_pilot_quantities(cov)
+        est = GroupACVEstimator(stat, costs, est_type=group_type,
                                 asketch=asketch)
         npartition_samples = arange(2., 2+est.nsubsets)
         est._set_optimized_params(
@@ -205,8 +210,9 @@ class TestGroupACV(unittest.TestCase):
 
         target_cost = 100
         costs = np.logspace(-nmodels+1, 0, nmodels)[::-1].copy()
-
-        gest = GroupACVEstimator(None, costs, cov, reg_blue=0)
+        stat = multioutput_stats["mean"](1)
+        stat.set_pilot_quantities(cov)
+        gest = GroupACVEstimator(stat, costs, reg_blue=0)
         gest.allocate_samples(
             target_cost,
             options={"disp": False, "verbose": 0, "maxiter": 1000,
@@ -215,7 +221,7 @@ class TestGroupACV(unittest.TestCase):
         assert gest._nhf_samples(
             gest._rounded_npartition_samples) >= min_nhf_samples
 
-        mlest = MLBLUEEstimator(None, costs, cov, reg_blue=0)
+        mlest = MLBLUEEstimator(stat, costs, reg_blue=0)
         mlest.allocate_samples(
             target_cost, options={"method": "trust-constr", "gtol": 1e-8},
             min_nhf_samples=min_nhf_samples)
@@ -256,14 +262,16 @@ class TestGroupACV(unittest.TestCase):
         target_cost = 100
         costs = np.logspace(-nmodels+1, 0, nmodels)[::-1].copy()
 
-        gest = MLBLUEEstimator(None, costs, cov, reg_blue=0)
+        stat = multioutput_stats["mean"](1)
+        stat.set_pilot_quantities(cov)
+        gest = MLBLUEEstimator(stat, costs, reg_blue=0)
         gest.allocate_samples(
             target_cost,
             options={"disp": False, "verbose": 0, "maxiter": 1000,
                      "gtol": 1e-9, "method": "trust-constr"},
             min_nhf_samples=min_nhf_samples)
 
-        mlest = MLBLUEEstimator(None, costs, cov, reg_blue=0)
+        mlest = MLBLUEEstimator(stat, costs, reg_blue=0)
         mlest.allocate_samples(target_cost, options={"method": "cvxpy"},
                                min_nhf_samples=min_nhf_samples)
         assert mlest._nhf_samples(
@@ -289,7 +297,9 @@ class TestGroupACV(unittest.TestCase):
 
         target_cost = 100
         costs = np.logspace(-nmodels+1, 0, nmodels)[::-1].copy()
-        gest = GroupACVEstimator(None, costs, cov, reg_blue=1e-12)
+        stat = multioutput_stats["mean"](1)
+        stat.set_pilot_quantities(cov)
+        gest = GroupACVEstimator(stat, costs, reg_blue=1e-12)
 
         init_guess = gest._init_guess(target_cost).numpy()
         # init_guess = np.array([99., 1e-2, 1e-2])
@@ -333,7 +343,9 @@ class TestGroupACV(unittest.TestCase):
 
         target_cost = 100
         costs = np.logspace(-nmodels+1, 0, nmodels)[::-1].copy()
-        est = MLBLUEEstimator(None, costs, cov, reg_blue=0)
+        stat = multioutput_stats["mean"](1)
+        stat.set_pilot_quantities(cov)
+        est = MLBLUEEstimator(stat, costs, reg_blue=0)
         est.allocate_samples(target_cost, min_nhf_samples=min_nhf_samples)
 
         # the following test only works if variable.num_vars()==1 because

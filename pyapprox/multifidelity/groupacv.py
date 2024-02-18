@@ -169,9 +169,9 @@ class GroupACVEstimator():
         self._cov, self._costs = self._check_cov(stat._cov, costs)
         self.nmodels = len(costs)
         self._reg_blue = reg_blue
-        # if not isinstance(stat, MultiOutputMean):
-        #     raise ValueError(
-        #         "MLBLUE currently only suppots estimation of means")
+        if not isinstance(stat, MultiOutputMean):
+            raise ValueError(
+                "MLBLUE currently only suppots estimation of means")
         self._stat = stat
 
         self.subsets, self.allocation_mat = self._set_subsets(
@@ -507,6 +507,7 @@ class GroupACVEstimator():
             # bounds and I am not sure why
             msg = "optimization not successful"
             print(msg)
+            print(res)
             raise RuntimeError(msg)
         # print([con.residual(res["x"]) for con in constraints])
         # print([(con.lb, con.ub) for con in constraints])

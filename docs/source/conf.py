@@ -193,7 +193,7 @@ templates_path = ['_templates']
 exclude_patterns = ['cantilever_beam.rst', 'plot_bayesian_oed.py']
 
 # use the following temporarily disable automod build. Also need to remove source/api directory and (possibly) build/
-exclude_patterns += ['user_reference_guide.rst', "modules.rst"]
+exclude_patterns += ["modules.rst"]  # , 'user_reference_guide.rst']
 
 
 # only add documented functions to manual. If not used then the api of functions
