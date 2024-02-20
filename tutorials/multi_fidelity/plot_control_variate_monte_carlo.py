@@ -134,6 +134,20 @@ _ = ax.legend(loc='upper left')
 #%%
 #Change ``eta`` to ``eta_mc`` to see how the variance reduction changes when the covariance between models is approximated
 
+
+#%%
+#Videos
+#------
+#Click on the image below to view a video tutorial on control variate Monte Carlo quadrature with one low-fidelity model
+#
+#.. image:: ../../figures/cvmc.png
+#   :target: https://youtu.be/2GpwGG8EmNU
+#
+#Click on the image below to view a video tutorial on control variate Monte Carlo quadrature with one multiple lower fidelity models
+#
+#.. image:: ../../figures/cvmc-many-models.png
+#   :target: https://youtu.be/lBvtWo2ZwaU
+
 #%%
 #References
 #^^^^^^^^^^

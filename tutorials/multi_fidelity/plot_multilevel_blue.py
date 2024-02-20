@@ -145,6 +145,7 @@ _ = plot_estimator_variance_ratios_for_polynomial_ensemble(
 #
 #where :math:`W_j` denotes the cost of evaluating the jth model and :math:`W_{\max}` is the total budget.
 #
+# This optimization problem can be solved effectively using semi-definite programming [CWARXIV2023]_.
 
 target_costs = np.array([1e1, 1e2, 1e3], dtype=int)
 estimators = [
@@ -182,4 +183,4 @@ _= plot_estimator_sample_allocation_comparison(
 #
 #.. [SUSIAMUQ2021] `D. Schaden, E. Ullmann. Asymptotic Analysis of Multilevel Best Linear Unbiased Estimators. SIAM/ASA Journal on Uncertainty Quantification 9 (3):953-978, 2021. <https://doi.org/10.1137/20M1321607>`_
 #
-#.. [CWARXIV2023]_ `M. Croci, K. Willcox, S. Wright. Multi-output multilevel best linear unbiased estimators via semidefinite programming. (2023)  <https://doi.org/10.1016/j.cma.2023.116130>`_
+#.. [CWARXIV2023] `M. Croci, K. Willcox, S. Wright. Multi-output multilevel best linear unbiased estimators via semidefinite programming. (2023)  <https://doi.org/10.1016/j.cma.2023.116130>`_
