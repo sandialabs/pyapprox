@@ -128,3 +128,12 @@ axs = [plt.subplots(1, 1, figsize=(8, 6))[1]]
 ests_100 = [ests[0] for ests in optimized_estimators]
 _ = plot_estimator_variance_reductions(
     ests_100, est_labels, axs[0])
+
+
+#%%
+#Video
+#-----
+#Click on the image below to view a video tutorial on approximate control variate Monte Carlo quadrature
+#
+#.. image:: ../../figures/acv-thumbnail.png
+#   :target: https://youtu.be/G8YGH3U2A8s?si=xQuQzxxqkZJo7PST

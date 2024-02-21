@@ -161,6 +161,14 @@ _ = plt.bar(labels, est_variances)
 #Similar experssions to those above for scalar outputs can be found in [QPOVW2018]_.
 
 #%%
+#Video
+#-----
+#Click on the image below to view a video tutorial on multi-output Monte Carlo quadrature
+#
+#.. image:: ../../figures/multi-output-mc-thumbnail.png
+#   :target: https://youtu.be/u4Oa8tV-phM?si=OCNJLSMGdncByTfq
+
+#%%
 #References
 #^^^^^^^^^^^
 #.. [DWBG2024] `T. Dixon et al. Covariance Expressions for Multi-Fidelity Sampling with Multi-Output, Multi-Statistic Estimators: Application to Approximate Control Variates. 2024 <https://doi.org/10.48550/arXiv.2310.00125>`_

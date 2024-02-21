@@ -225,6 +225,7 @@ _ = ax.legend(loc='upper left')
 #%%
 #Note the two ACV estimators do not have the same computational cost. They are compared solely to show the impact of increasing the number of low-fidelity samples.
 
+
 #%%
 #References
 #^^^^^^^^^^

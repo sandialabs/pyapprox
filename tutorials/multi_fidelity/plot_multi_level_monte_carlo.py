@@ -259,6 +259,15 @@ _ = plot_estimator_variance_reductions(
 #^^^^^^
 #MLMC was originally developed to estimate the mean of a function, but adaptations MMLC have since ben developed to estimate other statistics, e.g. [MD2019]_. PyApprox, however, does not implement these specific methods, because it implements a more flexible way to compute multiple statistics which we will describe in later tutorials.
 
+
+#%%
+#Video
+#-----
+#Click on the image below to view a video tutorial on multi-level Monte Carlo quadrature
+#
+#.. image:: ../../figures/mlmc-thumbnail.png
+#   :target: https://youtu.be/ilvqZfa2Vt0?si=4ErVOsViRbn856wU
+
 #%%
 #References
 #^^^^^^^^^^
