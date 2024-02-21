@@ -100,7 +100,8 @@ class TestModelwrappers(unittest.TestCase):
             timer_model, max_eval_concurrency, base_model=base_model,
             assert_omp=False)
         # pool_model = timer_model
-        model = WorkTrackingModel(pool_model, base_model)
+        model = WorkTrackingModel(
+            pool_model, base_model, enforce_timer_model=False)
 
         samples = np.random.normal(0, 1, (nvars, nsamples))
         values = model(samples)
@@ -109,9 +110,6 @@ class TestModelwrappers(unittest.TestCase):
         assert np.allclose(values, exact_values)
         values, grads = model(samples, return_grad=True)
         assert np.allclose(values, exact_values)
-        print(grads)
-        print(np.vstack(grads))
-        print(exact_grads)
         assert np.allclose(np.vstack(grads), exact_grads)
 
     def test_pool_model(self):

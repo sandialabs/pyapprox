@@ -192,6 +192,7 @@ class MCEstimator():
         self._npartitions = 1
 
     def _check_cov(self, cov, costs):
+        costs = np.atleast_1d(costs)
         if costs.ndim != 1:
             raise ValueError("costs is not a 1D iterable")
         nmodels = len(costs)

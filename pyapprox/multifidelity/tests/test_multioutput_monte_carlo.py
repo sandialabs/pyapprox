@@ -495,11 +495,10 @@ class TestMOMC(unittest.TestCase):
         target_cost = 10
         est._save_candidate_estimators = True
         np.set_printoptions(linewidth=1000)
-        print(cov, "C###")
         est.allocate_samples(target_cost, {"verbosity": 1, "nprocs": 1})
 
         criteria = np.array(
-            [e._optimized_criteria for e in est._candidate_estimators])
+            [e[0]._optimized_criteria for e in est._candidate_estimators])
         assert np.allclose(criteria.min(), est._optimized_criteria)
 
         ntrials, max_eval_concurrency = int(1e3), 1

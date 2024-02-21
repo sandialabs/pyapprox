@@ -73,7 +73,8 @@ class ACVBenchmark(ABC):
         for fi, mi in zip(self._flat_funs, means):
             jj = 0
             for fj, mj in zip(self._flat_funs, means):
-                cov[ii, jj] = ((fi(quad_xx)-mi)*(fj(quad_xx)-mj)).dot(quad_ww)
+                cov[ii, jj] = (
+                    (fi(quad_xx)-mi)*(fj(quad_xx)-mj)).dot(quad_ww).item()
                 jj += 1
             ii += 1
         return cov
@@ -151,7 +152,7 @@ class ACVBenchmark(ABC):
                                 quad_cov = self._V_fun(
                                     jj1, kk1, ll1, jj2, kk2, ll2,
                                     means, flat_covs, xx).dot(ww)
-                                est_cov[cnt1, cnt2] = quad_cov
+                                est_cov[cnt1, cnt2] = quad_cov.item()
                                 cnt2 += 1
                     cnt1 += 1
         return np.array(est_cov)
@@ -177,7 +178,7 @@ class ACVBenchmark(ABC):
                     for ll in range(self.nqoi):
                         quad_cov = self._B_fun(
                             ii, jj, kk, ll, means, flat_covs, xx).dot(ww)
-                        est_cov[ii, cnt] = quad_cov
+                        est_cov[ii, cnt] = quad_cov.item()
                         cnt += 1
         return np.array(est_cov)
 
