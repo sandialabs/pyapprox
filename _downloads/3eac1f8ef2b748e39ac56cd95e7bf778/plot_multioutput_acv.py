@@ -2,7 +2,7 @@ r"""
 Multioutput Approximate Control Variates
 ========================================
 
-This tutorial demonstrates how computing statistics for multiple outputs simultaneoulsy can improve the accuracy of ACV estimates of individual statistics when compared to ACV applied to each output separately.
+This tutorial demonstrates how computing statistics for multiple outputs simultaneoulsy can improve the accuracy of ACV estimates of individual statistics when compared to ACV applied to each output separately [DWBG2024]_.
 
 The optimal control variate weights are obtained by minimizing the estimator covariance [RM1985]_.
 """
