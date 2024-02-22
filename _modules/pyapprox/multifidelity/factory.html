@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.multifidelity.factory &mdash; PyApprox 1.0.3 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.multifidelity.factory</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.multifidelity.factory</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">combinations</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">Pool</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.acv</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">CVEstimator</span><span class="p">,</span> <span class="n">MLMCEstimator</span><span class="p">,</span> <span class="n">MFMCEstimator</span><span class="p">,</span> <span class="n">GMFEstimator</span><span class="p">,</span> <span class="n">GISEstimator</span><span class="p">,</span>
+    <span class="n">GRDEstimator</span><span class="p">,</span> <span class="n">MCEstimator</span><span class="p">,</span> <span class="n">ACVEstimator</span><span class="p">,</span>
+    <span class="n">log_trace_variance</span><span class="p">,</span> <span class="n">determinant_variance</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.stats</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">MultiOutputMean</span><span class="p">,</span> <span class="n">MultiOutputVariance</span><span class="p">,</span> <span class="n">MultiOutputMeanAndVariance</span><span class="p">,</span>
+    <span class="n">_nqoi_nqoi_subproblem</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.groupacv</span> <span class="kn">import</span> <span class="n">MLBLUEEstimator</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">get_all_sample_combinations</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.etc</span> <span class="kn">import</span> <span class="n">AETCBLUE</span>
+
+
+<span class="k">class</span> <span class="nc">BestEstimator</span><span class="p">():</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">est_types</span><span class="p">,</span> <span class="n">stat</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="n">max_nmodels</span><span class="p">,</span> <span class="o">**</span><span class="n">est_kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        estimator_types : list or string</span>
+<span class="sd">            List of strings of each estimator type to compute, e.g. [gmf, grd]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">best_est</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_estimator_types</span> <span class="o">=</span> <span class="n">est_types</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stat</span> <span class="o">=</span> <span class="n">stat</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_candidate_costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">costs</span><span class="p">)</span>
+        <span class="c1"># self._ncandidate_nmodels is the number of total models</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ncandidate_models</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_candidate_costs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lf_model_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ncandidate_models</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nqoi</span> <span class="o">=</span> <span class="n">stat</span><span class="o">.</span><span class="n">_nqoi</span>
+        <span class="k">if</span> <span class="n">max_nmodels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">max_nmodels</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Ensure max_nmodels &gt; 1&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_max_nmodels</span> <span class="o">=</span> <span class="n">max_nmodels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_allow_failures</span> <span class="o">=</span> <span class="n">est_kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;allow_failures&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;allow_failures&quot;</span> <span class="ow">in</span> <span class="n">est_kwargs</span><span class="p">:</span>
+            <span class="k">del</span> <span class="n">est_kwargs</span><span class="p">[</span><span class="s2">&quot;allow_failures&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kwargs</span> <span class="o">=</span> <span class="n">est_kwargs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_best_model_indices</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_all_model_labels</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_save_candidate_estimators</span> <span class="o">=</span> <span class="n">est_kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span>
+            <span class="s2">&quot;save_candidate_estimators&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_candidate_estimators</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">model_labels</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_all_model_labels</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_best_model_indices</span><span class="p">]</span>
+
+    <span class="nd">@model_labels</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">model_labels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_all_model_labels</span> <span class="o">=</span> <span class="n">labels</span>
+
+    <span class="k">def</span> <span class="nf">_validate_kwargs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nsubset_lfmodels</span><span class="p">):</span>
+        <span class="n">sub_kwargs</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;recursion_index&quot;</span> <span class="ow">in</span> <span class="n">sub_kwargs</span><span class="p">:</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="n">sub_kwargs</span><span class="p">[</span><span class="s2">&quot;recursion_index&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">index</span><span class="p">)))</span> <span class="ow">or</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">index</span><span class="p">)))):</span>
+                <span class="n">sub_kwargs</span><span class="p">[</span><span class="s2">&quot;recursion_index&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">index</span><span class="p">[:</span><span class="n">nsubset_lfmodels</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;model selection can only be used with recursion indices&quot;</span>
+                <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot; (0, 1, 2, ...) or (0, ..., 0) or tree_depth is&quot;</span>
+                <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot; not None&quot;</span>
+                <span class="c1"># There is no logical way to reduce a recursion index to use</span>
+                <span class="c1"># a subset of model unless they are one of these two indices</span>
+                <span class="c1"># or tree_depth is not None so that all possible recursion</span>
+                <span class="c1"># indices are considered</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;tree_depth&quot;</span> <span class="ow">in</span> <span class="n">sub_kwargs</span><span class="p">:</span>
+            <span class="n">sub_kwargs</span><span class="p">[</span><span class="s2">&quot;tree_depth&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span>
+                <span class="n">sub_kwargs</span><span class="p">[</span><span class="s2">&quot;tree_depth&quot;</span><span class="p">],</span> <span class="n">nsubset_lfmodels</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sub_kwargs</span>
+
+    <span class="k">def</span> <span class="nf">_get_estimator</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">est_type</span><span class="p">,</span> <span class="n">subset_costs</span><span class="p">,</span>
+                       <span class="n">target_cost</span><span class="p">,</span> <span class="n">sub_stat</span><span class="p">,</span> <span class="n">sub_kwargs</span><span class="p">,</span> <span class="n">optim_options</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">est</span> <span class="o">=</span> <span class="n">get_estimator</span><span class="p">(</span><span class="n">est_type</span><span class="p">,</span> <span class="n">sub_stat</span><span class="p">,</span> <span class="n">subset_costs</span><span class="p">,</span> <span class="o">**</span><span class="n">sub_kwargs</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">optim_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;verbosity&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="c1"># Some estimators, e.g. MFMC, fail when certain criteria</span>
+            <span class="c1"># are not satisfied</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span><span class="n">target_cost</span><span class="p">,</span> <span class="n">optim_options</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">est</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">RuntimeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">optim_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;verbosity&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_allow_failures</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
+            <span class="k">raise</span> <span class="n">e</span>
+
+    <span class="k">def</span> <span class="nf">_get_model_subset_estimator</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">qoi_idx</span><span class="p">,</span> <span class="n">nsubset_lfmodels</span><span class="p">,</span> <span class="n">optim_options</span><span class="p">,</span>
+            <span class="n">target_cost</span><span class="p">,</span> <span class="n">lf_model_subset_indices</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute estimator covariance for all estimator types in</span>
+<span class="sd">        self._estimator_types</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(([</span><span class="mi">0</span><span class="p">],</span> <span class="n">lf_model_subset_indices</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">subset_costs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_candidate_costs</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="n">sub_stat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stat</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_stat</span><span class="o">.</span><span class="n">_nqoi</span><span class="p">)</span>
+        <span class="n">sub_stat</span><span class="o">.</span><span class="n">set_pilot_quantities</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_stat</span><span class="o">.</span><span class="n">get_pilot_quantities_subset</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ncandidate_models</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nqoi</span><span class="p">,</span> <span class="n">idx</span><span class="p">))</span>
+        <span class="n">sub_kwargs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_kwargs</span><span class="p">(</span><span class="n">nsubset_lfmodels</span><span class="p">)</span>
+
+        <span class="n">best_est</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">best_criteria</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+        <span class="k">for</span> <span class="n">est_type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_estimator_types</span><span class="p">:</span>
+            <span class="n">est</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_estimator</span><span class="p">(</span>
+                <span class="n">est_type</span><span class="p">,</span> <span class="n">subset_costs</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span>
+                <span class="n">sub_stat</span><span class="p">,</span> <span class="n">sub_kwargs</span><span class="p">,</span> <span class="n">optim_options</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">optim_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;verbosity&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2"> Models </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_save_candidate_estimators</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_candidate_estimators</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="p">[</span><span class="n">est</span><span class="p">,</span> <span class="n">lf_model_subset_indices</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">est</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">est</span><span class="o">.</span><span class="n">_optimized_criteria</span> <span class="o">&lt;</span> <span class="n">best_criteria</span><span class="p">:</span>
+                <span class="n">best_est</span> <span class="o">=</span> <span class="n">est</span>
+                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_optimized_criteria</span><span class="p">,</span> <span class="s2">&quot;item&quot;</span><span class="p">):</span>
+                    <span class="n">best_criteria</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">_optimized_criteria</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">best_criteria</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">_optimized_criteria</span>
+        <span class="k">return</span> <span class="n">best_est</span>
+
+    <span class="k">def</span> <span class="nf">_get_best_model_subset_for_estimator_pool</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">nsubset_lfmodels</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span>
+            <span class="n">best_criteria</span><span class="p">,</span> <span class="n">best_model_indices</span><span class="p">,</span> <span class="n">best_est</span><span class="p">,</span> <span class="n">nprocs</span><span class="p">,</span>
+            <span class="n">optim_options</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute estimator covariances for all model subets</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">qoi_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nqoi</span><span class="p">)</span>
+        <span class="n">pool</span> <span class="o">=</span> <span class="n">Pool</span><span class="p">(</span><span class="n">nprocs</span><span class="p">)</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
+            <span class="n">combinations</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_lf_model_indices</span><span class="p">,</span> <span class="n">nsubset_lfmodels</span><span class="p">))</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+            <span class="n">partial</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_model_subset_estimator</span><span class="p">,</span>
+                    <span class="n">qoi_idx</span><span class="p">,</span> <span class="n">nsubset_lfmodels</span><span class="p">,</span> <span class="n">optim_options</span><span class="p">,</span>
+                    <span class="n">target_cost</span><span class="p">),</span> <span class="n">indices</span><span class="p">)</span>
+        <span class="n">pool</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="n">criteria</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_optimized_criteria</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">est</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span> <span class="k">for</span> <span class="n">est</span> <span class="ow">in</span> <span class="n">result</span><span class="p">]</span>
+        <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">criteria</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">criteria</span><span class="p">[</span><span class="n">II</span><span class="p">]):</span>
+            <span class="n">best_est</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">best_est</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="n">II</span><span class="p">]</span>
+            <span class="n">best_model_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+                <span class="p">([</span><span class="mi">0</span><span class="p">],</span> <span class="n">indices</span><span class="p">[</span><span class="n">II</span><span class="p">]))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+            <span class="n">best_criteria</span> <span class="o">=</span> <span class="n">best_est</span><span class="o">.</span><span class="n">_optimized_criteria</span>
+        <span class="k">return</span> <span class="n">best_criteria</span><span class="p">,</span> <span class="n">best_model_indices</span><span class="p">,</span> <span class="n">best_est</span>
+
+    <span class="k">def</span> <span class="nf">_get_best_model_subset_for_estimator_serial</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">nsubset_lfmodels</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span>
+            <span class="n">best_criteria</span><span class="p">,</span> <span class="n">best_model_indices</span><span class="p">,</span> <span class="n">best_est</span><span class="p">,</span> <span class="n">optim_options</span><span class="p">):</span>
+        <span class="n">qoi_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nqoi</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">lf_model_subset_indices</span> <span class="ow">in</span> <span class="n">combinations</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_lf_model_indices</span><span class="p">,</span> <span class="n">nsubset_lfmodels</span><span class="p">):</span>
+            <span class="n">est</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_model_subset_estimator</span><span class="p">(</span>
+                <span class="n">qoi_idx</span><span class="p">,</span> <span class="n">nsubset_lfmodels</span><span class="p">,</span> <span class="n">optim_options</span><span class="p">,</span>
+                <span class="n">target_cost</span><span class="p">,</span> <span class="n">lf_model_subset_indices</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">est</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">est</span><span class="o">.</span><span class="n">_optimized_criteria</span> <span class="o">&lt;</span> <span class="n">best_criteria</span><span class="p">:</span>
+                <span class="n">best_est</span> <span class="o">=</span> <span class="n">est</span>
+                <span class="n">best_model_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+                    <span class="p">([</span><span class="mi">0</span><span class="p">],</span> <span class="n">lf_model_subset_indices</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+                <span class="n">best_criteria</span> <span class="o">=</span> <span class="n">best_est</span><span class="o">.</span><span class="n">_optimized_criteria</span>
+        <span class="k">return</span> <span class="n">best_criteria</span><span class="p">,</span> <span class="n">best_model_indices</span><span class="p">,</span> <span class="n">best_est</span>
+
+    <span class="k">def</span> <span class="nf">_get_best_estimator</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span> <span class="n">optim_options</span><span class="p">):</span>
+        <span class="n">best_criteria</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+        <span class="n">best_est</span><span class="p">,</span> <span class="n">best_model_indices</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+        <span class="n">nprocs</span> <span class="o">=</span> <span class="n">optim_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nprocs&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">optim_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;verbosity&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Finding best model using </span><span class="si">{</span><span class="n">nprocs</span><span class="si">}</span><span class="s2"> processors&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;nprocs&quot;</span> <span class="ow">in</span> <span class="n">optim_options</span><span class="p">:</span>
+            <span class="k">del</span> <span class="n">optim_options</span><span class="p">[</span><span class="s2">&quot;nprocs&quot;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_max_nmodels</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">min_nlfmodels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ncandidate_models</span><span class="o">-</span><span class="mi">1</span>
+            <span class="n">max_nmodels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ncandidate_models</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">min_nlfmodels</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="n">max_nmodels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_max_nmodels</span>
+
+        <span class="n">best_est</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">best_criteria</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+        <span class="k">for</span> <span class="n">nsubset_lfmodels</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">min_nlfmodels</span><span class="p">,</span> <span class="n">max_nmodels</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">nprocs</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">criteria</span><span class="p">,</span> <span class="n">model_indices</span><span class="p">,</span> <span class="n">est</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_get_best_model_subset_for_estimator_pool</span><span class="p">(</span>
+                        <span class="n">nsubset_lfmodels</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span>
+                        <span class="n">best_criteria</span><span class="p">,</span> <span class="n">best_model_indices</span><span class="p">,</span> <span class="n">best_est</span><span class="p">,</span> <span class="n">nprocs</span><span class="p">,</span>
+                        <span class="n">optim_options</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">criteria</span><span class="p">,</span> <span class="n">model_indices</span><span class="p">,</span> <span class="n">est</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_get_best_model_subset_for_estimator_serial</span><span class="p">(</span>
+                        <span class="n">nsubset_lfmodels</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span>
+                        <span class="n">best_criteria</span><span class="p">,</span> <span class="n">best_model_indices</span><span class="p">,</span> <span class="n">best_est</span><span class="p">,</span>
+                        <span class="n">optim_options</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">optim_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;verbosity&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2"> No of lf models </span><span class="si">{0}</span><span class="s2">: </span><span class="si">{1}</span><span class="s2"> best criteria </span><span class="si">{2}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">nsubset_lfmodels</span><span class="p">,</span> <span class="n">est</span><span class="p">,</span> <span class="n">best_criteria</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">criteria</span> <span class="o">&lt;</span> <span class="n">best_criteria</span><span class="p">:</span>
+                <span class="n">best_criteria</span> <span class="o">=</span> <span class="n">criteria</span>
+                <span class="n">best_est</span> <span class="o">=</span> <span class="n">est</span>
+                <span class="n">best_model_indices</span> <span class="o">=</span> <span class="n">model_indices</span>
+
+        <span class="k">if</span> <span class="n">best_est</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;No solutions found for any model subset&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">best_est</span><span class="p">,</span> <span class="n">best_model_indices</span>
+
+    <span class="k">def</span> <span class="nf">allocate_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span> <span class="n">optim_options</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_save_candidate_estimators</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_candidate_estimators</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">best_est</span><span class="p">,</span> <span class="n">best_model_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_best_estimator</span><span class="p">(</span>
+            <span class="n">target_cost</span><span class="p">,</span> <span class="n">optim_options</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">best_est</span> <span class="o">=</span> <span class="n">best_est</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_best_model_indices</span> <span class="o">=</span> <span class="n">best_model_indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_best_est_attributes</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_set_best_est_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># allow direct access of important self.best_est attributes</span>
+        <span class="c1"># __call__ cannot be set using this approach.</span>
+        <span class="n">attr_list</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="c1"># public functions</span>
+            <span class="s2">&quot;combine_acv_samples&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;combine_acv_values&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;generate_samples_per_model&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;insert_pilot_values&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;bootstrap&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;plot_allocation&quot;</span><span class="p">,</span>
+            <span class="c1"># private functions and variables</span>
+            <span class="s2">&quot;_separate_values_per_model&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;_covariance_from_npartition_samples&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;_covariance_from_partition_ratios&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;_rounded_partition_ratios&quot;</span><span class="p">,</span> <span class="s2">&quot;_stat&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;_nmodels&quot;</span><span class="p">,</span> <span class="s2">&quot;_cov&quot;</span><span class="p">,</span> <span class="s2">&quot;_rounded_npartition_samples&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;_rounded_nsamples_per_model&quot;</span><span class="p">,</span> <span class="s2">&quot;_costs&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;_optimized_criteria&quot;</span><span class="p">,</span> <span class="s2">&quot;_get_discrepancy_covariances&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;_rounded_target_cost&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;_get_allocation_matrix&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;_optimization_criteria&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;_optimized_covariance&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;_allocation_mat&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;_npartitions&quot;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">attr_list</span><span class="p">:</span>
+            <span class="c1"># Improve this function so that it works without the following</span>
+            <span class="c1"># hack for MLBLUE</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">best_est</span><span class="p">,</span> <span class="n">attr</span><span class="p">):</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">best_est</span><span class="p">,</span> <span class="n">attr</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optimized_criteria</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">(est=</span><span class="si">{1}</span><span class="s2">, subset=</span><span class="si">{2}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">best_est</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_best_model_indices</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">best_est</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+
+
+<span class="n">multioutput_estimators</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;cv&quot;</span><span class="p">:</span> <span class="n">CVEstimator</span><span class="p">,</span>
+    <span class="s2">&quot;gmf&quot;</span><span class="p">:</span> <span class="n">GMFEstimator</span><span class="p">,</span>
+    <span class="s2">&quot;gis&quot;</span><span class="p">:</span> <span class="n">GISEstimator</span><span class="p">,</span>
+    <span class="s2">&quot;grd&quot;</span><span class="p">:</span> <span class="n">GRDEstimator</span><span class="p">,</span>
+    <span class="s2">&quot;mfmc&quot;</span><span class="p">:</span> <span class="n">MFMCEstimator</span><span class="p">,</span>
+    <span class="s2">&quot;mlmc&quot;</span><span class="p">:</span> <span class="n">MLMCEstimator</span><span class="p">,</span>
+    <span class="s2">&quot;mc&quot;</span><span class="p">:</span> <span class="n">MCEstimator</span><span class="p">,</span>
+    <span class="s2">&quot;mlblue&quot;</span><span class="p">:</span> <span class="n">MLBLUEEstimator</span><span class="p">}</span>
+
+
+<span class="n">multioutput_stats</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;mean&quot;</span><span class="p">:</span> <span class="n">MultiOutputMean</span><span class="p">,</span>
+    <span class="s2">&quot;variance&quot;</span><span class="p">:</span> <span class="n">MultiOutputVariance</span><span class="p">,</span>
+    <span class="s2">&quot;mean_variance&quot;</span><span class="p">:</span> <span class="n">MultiOutputMeanAndVariance</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="get_estimator"><a class="viewcode-back" href="../../../api/pyapprox.multifidelity.get_estimator.html#pyapprox.multifidelity.get_estimator">[docs]</a><span class="k">def</span> <span class="nf">get_estimator</span><span class="p">(</span><span class="n">estimator_types</span><span class="p">,</span> <span class="n">stat</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span>
+                  <span class="n">max_nmodels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">est_kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    estimator_types : list [str] or str</span>
+<span class="sd">        If str (or len(estimators_types==1), then return the estimator</span>
+<span class="sd">        named estimator_type (or estimator_types[0])</span>
+
+<span class="sd">    stat_type : str</span>
+<span class="sd">        The type of statistics to compute</span>
+
+<span class="sd">    costs : np.ndarray (nmodels)</span>
+<span class="sd">        The computational cost of evaluating each model</span>
+
+<span class="sd">    stat_args : list or tuple</span>
+<span class="sd">        The arguments that are needed to compute the statistic</span>
+
+<span class="sd">    max_nmodels : integer</span>
+<span class="sd">        If None, compute the estimator using all the models. If not None,</span>
+<span class="sd">        find the model subset that uses at most max_nmodels that minimizes</span>
+<span class="sd">        the estimator covariance.</span>
+
+<span class="sd">    est_kwargs : dict</span>
+<span class="sd">        Keyword arguments that will be passed when creating each estimator.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">estimator_types</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="n">max_nmodels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">estimator_types</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">estimator_types</span> <span class="o">=</span> <span class="p">[</span><span class="n">estimator_types</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">BestEstimator</span><span class="p">(</span>
+            <span class="n">estimator_types</span><span class="p">,</span> <span class="n">stat</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span>
+            <span class="n">max_nmodels</span><span class="p">,</span> <span class="o">**</span><span class="n">est_kwargs</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">estimator_types</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="n">estimator_type</span> <span class="o">=</span> <span class="n">estimator_types</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">estimator_type</span> <span class="o">=</span> <span class="n">estimator_types</span>
+
+    <span class="k">if</span> <span class="n">estimator_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">multioutput_estimators</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Estimator </span><span class="si">{</span><span class="n">estimator_type</span><span class="si">}</span><span class="s2"> not supported. &quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;Must be one of </span><span class="si">{</span><span class="n">multioutput_estimators</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">multioutput_estimators</span><span class="p">[</span><span class="n">estimator_type</span><span class="p">](</span>
+        <span class="n">stat</span><span class="p">,</span> <span class="n">costs</span><span class="p">,</span> <span class="o">**</span><span class="n">est_kwargs</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_estimate_components</span><span class="p">(</span><span class="n">variable</span><span class="p">,</span> <span class="n">est</span><span class="p">,</span> <span class="n">funs</span><span class="p">,</span> <span class="n">ii</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    To create reproducible results when running numpy.random in parallel</span>
+<span class="sd">    must use RandomState. If not the results will be non-deterministic.</span>
+<span class="sd">    This is happens because of a race condition. numpy.random.* uses only</span>
+<span class="sd">    one global PRNG that is shared across all the threads without</span>
+<span class="sd">    synchronization. Since the threads are running in parallel, at the same</span>
+<span class="sd">    time, and their access to this global PRNG is not synchronized between</span>
+<span class="sd">    them, they are all racing to access the PRNG state (so that the PRNG&#39;s</span>
+<span class="sd">    state might change behind other threads&#39; backs). Giving each thread its</span>
+<span class="sd">    own PRNG (RandomState) solves this problem because there is no longer</span>
+<span class="sd">    any state that&#39;s shared by multiple threads without synchronization.</span>
+<span class="sd">    Also see new features</span>
+<span class="sd">    https://docs.scipy.org/doc/numpy/reference/random/parallel.html</span>
+<span class="sd">    https://docs.scipy.org/doc/numpy/reference/random/multithreading.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">random_states</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">RandomState</span><span class="p">(</span><span class="n">ii</span><span class="o">*</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span><span class="o">+</span><span class="n">jj</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">())]</span>
+    <span class="n">samples_per_model</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">generate_samples_per_model</span><span class="p">(</span>
+        <span class="n">partial</span><span class="p">(</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span> <span class="n">random_states</span><span class="o">=</span><span class="n">random_states</span><span class="p">))</span>
+    <span class="n">values_per_model</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">fun</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span> <span class="k">for</span> <span class="n">fun</span><span class="p">,</span> <span class="n">samples</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">funs</span><span class="p">,</span> <span class="n">samples_per_model</span><span class="p">)]</span>
+
+    <span class="n">mc_est</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">_stat</span><span class="o">.</span><span class="n">sample_estimate</span>
+    <span class="k">if</span> <span class="p">((</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">est</span><span class="p">,</span> <span class="n">ACVEstimator</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">est</span><span class="p">,</span> <span class="n">BestEstimator</span><span class="p">))):</span>
+        <span class="c1"># the above condition does not allow BestEstimator to be</span>
+        <span class="c1"># applied to CVEstimator</span>
+        <span class="n">est_val</span> <span class="o">=</span> <span class="n">est</span><span class="p">(</span><span class="n">values_per_model</span><span class="p">)</span>
+        <span class="n">acv_values</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">_separate_values_per_model</span><span class="p">(</span><span class="n">values_per_model</span><span class="p">)</span>
+        <span class="n">Q</span> <span class="o">=</span> <span class="n">mc_est</span><span class="p">(</span><span class="n">acv_values</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">mc_est</span><span class="p">(</span><span class="n">acv_values</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="p">])</span> <span class="o">-</span>
+                           <span class="n">mc_est</span><span class="p">(</span><span class="n">acv_values</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span>
+                           <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">est</span><span class="o">.</span><span class="n">_nmodels</span><span class="p">)])</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">est</span><span class="p">,</span> <span class="n">CVEstimator</span><span class="p">):</span>
+        <span class="n">est_val</span> <span class="o">=</span> <span class="n">est</span><span class="p">(</span><span class="n">values_per_model</span><span class="p">)</span>
+        <span class="n">Q</span> <span class="o">=</span> <span class="n">mc_est</span><span class="p">(</span><span class="n">values_per_model</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">mc_est</span><span class="p">(</span><span class="n">values_per_model</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span> <span class="o">-</span> <span class="n">est</span><span class="o">.</span><span class="n">_lowfi_stats</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+             <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">est</span><span class="o">.</span><span class="n">_nmodels</span><span class="p">)])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">est_val</span> <span class="o">=</span> <span class="n">est</span><span class="p">(</span><span class="n">values_per_model</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">Q</span> <span class="o">=</span> <span class="n">mc_est</span><span class="p">(</span><span class="n">values_per_model</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">Q</span><span class="o">*</span><span class="mi">0</span>
+    <span class="k">return</span> <span class="n">est_val</span><span class="p">,</span> <span class="n">Q</span><span class="p">,</span> <span class="n">delta</span>
+
+
+<span class="k">def</span> <span class="nf">_estimate_components_loop</span><span class="p">(</span>
+        <span class="n">variable</span><span class="p">,</span> <span class="n">ntrials</span><span class="p">,</span> <span class="n">est</span><span class="p">,</span> <span class="n">funs</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">max_eval_concurrency</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">Q</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">estimator_vals</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ntrials</span><span class="p">):</span>
+            <span class="n">est_val</span><span class="p">,</span> <span class="n">Q_val</span><span class="p">,</span> <span class="n">delta_val</span> <span class="o">=</span> <span class="n">_estimate_components</span><span class="p">(</span>
+                <span class="n">variable</span><span class="p">,</span> <span class="n">est</span><span class="p">,</span> <span class="n">funs</span><span class="p">,</span> <span class="n">ii</span><span class="p">)</span>
+            <span class="n">estimator_vals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">est_val</span><span class="p">)</span>
+            <span class="n">Q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Q_val</span><span class="p">)</span>
+            <span class="n">delta</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">delta_val</span><span class="p">)</span>
+        <span class="n">Q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">Q</span><span class="p">)</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">delta</span><span class="p">)</span>
+        <span class="n">estimator_vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">estimator_vals</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">estimator_vals</span><span class="p">,</span> <span class="n">Q</span><span class="p">,</span> <span class="n">delta</span>
+
+    <span class="c1"># set flat funs to none so funs can be pickled</span>
+    <span class="n">pool</span> <span class="o">=</span> <span class="n">Pool</span><span class="p">(</span><span class="n">max_eval_concurrency</span><span class="p">)</span>
+    <span class="n">func</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">_estimate_components</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">est</span><span class="p">,</span> <span class="n">funs</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">ntrials</span><span class="p">)))</span>
+    <span class="n">pool</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="n">estimator_vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">result</span><span class="p">])</span>
+    <span class="n">Q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">result</span><span class="p">])</span>
+    <span class="n">delta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">r</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">result</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">estimator_vals</span><span class="p">,</span> <span class="n">Q</span><span class="p">,</span> <span class="n">delta</span>
+
+
+<span class="k">def</span> <span class="nf">numerically_compute_estimator_variance</span><span class="p">(</span>
+        <span class="n">funs</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">est</span><span class="p">,</span> <span class="n">ntrials</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="mf">1e3</span><span class="p">),</span> <span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">return_all</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Numerically estimate the variance of an approximate control variate</span>
+<span class="sd">    estimator.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    funs : list [callable]</span>
+<span class="sd">        List of functions with signature</span>
+
+<span class="sd">        `fun(samples) -&gt; np.ndarray (nsamples, nqoi)`</span>
+
+<span class="sd">    where samples has shape (nvars, nsamples)</span>
+
+<span class="sd">    est : :class:`pyapprox.multifidelity.multioutput_monte_carlo.MCEstimator`</span>
+<span class="sd">        A Monte Carlo like estimator for computing sample based statistics</span>
+
+<span class="sd">    ntrials : integer</span>
+<span class="sd">        The number of times to compute estimator using different randomly</span>
+<span class="sd">        generated set of samples</span>
+
+<span class="sd">    max_eval_concurrency : integer</span>
+<span class="sd">        The number of processors used to compute realizations of the estimators</span>
+<span class="sd">        which can be run independently and in parallel.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    hf_covar_numer : np.ndarray (nstats, nstats)</span>
+<span class="sd">        The estimator covariance of the single high-fidelity Monte Carlo</span>
+<span class="sd">        estimator</span>
+
+<span class="sd">    hf_covar : np.ndarray (nstats, nstats)</span>
+<span class="sd">        The analytical value of the estimator covariance of the single</span>
+<span class="sd">       high-fidelity Monte Carlo estimator</span>
+
+
+<span class="sd">    covar_numer : np.ndarray (nstats, nstats)</span>
+<span class="sd">        The estimator covariance of est</span>
+
+<span class="sd">    hf_covar : np.ndarray (nstats, nstats)</span>
+<span class="sd">        The analytical value of the estimator covariance of est</span>
+
+<span class="sd">    est_vals : np.ndarray (ntrials, nstats)</span>
+<span class="sd">        The values for the est for each trial. Only returned if return_all=True</span>
+
+<span class="sd">    Q0 : np.ndarray (ntrials, nstats)</span>
+<span class="sd">        The values for the single fidelity MC estimator for each trial.</span>
+<span class="sd">        Only returned if return_all=True</span>
+
+<span class="sd">    delta : np.ndarray (ntrials, nstats)</span>
+<span class="sd">        The values for the differences between the low-fidelty estimators</span>
+<span class="sd">        :math:`\mathcal{Z}_\alpha` and :math:`\mathcal{Z}_\alpha^*`</span>
+<span class="sd">        for each trial. Only returned if return_all=True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ntrials</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">ntrials</span><span class="p">)</span>
+    <span class="n">est_vals</span><span class="p">,</span> <span class="n">Q0</span><span class="p">,</span> <span class="n">delta</span> <span class="o">=</span> <span class="n">_estimate_components_loop</span><span class="p">(</span>
+        <span class="n">variable</span><span class="p">,</span> <span class="n">ntrials</span><span class="p">,</span> <span class="n">est</span><span class="p">,</span> <span class="n">funs</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">)</span>
+
+    <span class="n">hf_covar_numer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cov</span><span class="p">(</span><span class="n">Q0</span><span class="p">,</span> <span class="n">ddof</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">rowvar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">hf_covar</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">_stat</span><span class="o">.</span><span class="n">high_fidelity_estimator_covariance</span><span class="p">(</span>
+        <span class="n">est</span><span class="o">.</span><span class="n">_rounded_npartition_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="n">covar_numer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cov</span><span class="p">(</span><span class="n">est_vals</span><span class="p">,</span> <span class="n">ddof</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">rowvar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">covar</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">_covariance_from_npartition_samples</span><span class="p">(</span>
+        <span class="n">est</span><span class="o">.</span><span class="n">_rounded_npartition_samples</span><span class="p">)</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">return_all</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">hf_covar_numer</span><span class="p">,</span> <span class="n">hf_covar</span><span class="p">,</span> <span class="n">covar_numer</span><span class="p">,</span> <span class="n">covar</span>
+    <span class="k">return</span> <span class="n">hf_covar_numer</span><span class="p">,</span> <span class="n">hf_covar</span><span class="p">,</span> <span class="n">covar_numer</span><span class="p">,</span> <span class="n">covar</span><span class="p">,</span> <span class="n">est_vals</span><span class="p">,</span> <span class="n">Q0</span><span class="p">,</span> <span class="n">delta</span>
+
+
+<span class="k">def</span> <span class="nf">compare_estimator_variances</span><span class="p">(</span><span class="n">target_costs</span><span class="p">,</span> <span class="n">estimators</span><span class="p">,</span> <span class="n">optim_opts</span><span class="o">=</span><span class="p">{}):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the variances of different Monte-Carlo like estimators.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    target_costs : np.ndarray (ntarget_costs)</span>
+<span class="sd">        Different total cost budgets</span>
+
+<span class="sd">    estimators : list (nestimators)</span>
+<span class="sd">        List of Monte Carlo estimator objects, e.g.</span>
+<span class="sd">        :class:`~pyapprox.multifidelity.multioutput_monte_carlo.MCEstimator`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">        optimized_estimators : list</span>
+<span class="sd">         Each entry is a list of optimized estimators for a set of target costs</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">optimized_estimators</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">est</span> <span class="ow">in</span> <span class="n">estimators</span><span class="p">:</span>
+        <span class="n">est_copies</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">target_cost</span> <span class="ow">in</span> <span class="n">target_costs</span><span class="p">:</span>
+            <span class="n">est_copy</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">est</span><span class="p">)</span>
+            <span class="n">est_copy</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span>
+                <span class="n">target_cost</span><span class="p">,</span> <span class="n">optim_options</span><span class="o">=</span><span class="n">optim_opts</span><span class="p">)</span>
+            <span class="n">est_copies</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">est_copy</span><span class="p">)</span>
+        <span class="n">optimized_estimators</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">est_copies</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">optimized_estimators</span>
+
+
+<span class="k">class</span> <span class="nc">ComparisonCriteria</span><span class="p">():</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">criteria_type</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_criteria_type</span> <span class="o">=</span> <span class="n">criteria_type</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">est_covariance</span><span class="p">,</span> <span class="n">est</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_criteria_type</span> <span class="o">==</span> <span class="s2">&quot;det&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">determinant_variance</span><span class="p">(</span><span class="n">est_covariance</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_criteria_type</span> <span class="o">==</span> <span class="s2">&quot;trace&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">log_trace_variance</span><span class="p">(</span><span class="n">est_covariance</span><span class="p">))</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;Criteria </span><span class="si">{0}</span><span class="s2"> not supported&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_criteria_type</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">(citeria=</span><span class="si">{1}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_criteria_type</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">SingleQoiAndStatComparisonCriteria</span><span class="p">(</span><span class="n">ComparisonCriteria</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stat_type</span><span class="p">,</span> <span class="n">qoi_idx</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compare estimators based on the variance of a single statistic</span>
+<span class="sd">        for a single QoI even though mutiple QoI may have been used to compute</span>
+<span class="sd">        multiple statistics</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        stat_type: str</span>
+<span class="sd">            The stat type. Must be one of [&quot;mean&quot;, &quot;variance&quot;, &quot;mean_variance&quot;]</span>
+
+<span class="sd">        qoi_idx: integer</span>
+<span class="sd">            The index of the QoI as it appears in the covariance matrix</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stat_type</span> <span class="o">=</span> <span class="n">stat_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_qoi_idx</span> <span class="o">=</span> <span class="n">qoi_idx</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">est_covariance</span><span class="p">,</span> <span class="n">est</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stat_type</span> <span class="o">!=</span> <span class="s2">&quot;mean&quot;</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span>
+                <span class="n">est</span><span class="o">.</span><span class="n">_stat</span><span class="p">,</span> <span class="n">MultiOutputMeanAndVariance</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">(</span>
+                <span class="n">est_covariance</span><span class="p">[</span><span class="n">est</span><span class="o">.</span><span class="n">nqoi</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">_qoi_idx</span><span class="p">,</span>
+                               <span class="n">est</span><span class="o">.</span><span class="n">_nqoi</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">_qoi_idx</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span>
+                <span class="n">est</span><span class="o">.</span><span class="n">_stat</span><span class="p">,</span> <span class="p">(</span><span class="n">MultiOutputVariance</span><span class="p">,</span> <span class="n">MultiOutputMean</span><span class="p">))</span> <span class="ow">or</span>
+              <span class="bp">self</span><span class="o">.</span><span class="n">_stat_type</span> <span class="o">==</span> <span class="s2">&quot;mean&quot;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">est_covariance</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_qoi_idx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_qoi_idx</span><span class="p">]</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0}</span><span class="s2"> not supported&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_stat</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">(stat=</span><span class="si">{1}</span><span class="s2">, qoi=</span><span class="si">{2}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stat_type</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_qoi_idx</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">compute_variance_reductions</span><span class="p">(</span><span class="n">optimized_estimators</span><span class="p">,</span>
+                                <span class="n">criteria</span><span class="o">=</span><span class="n">ComparisonCriteria</span><span class="p">(</span><span class="s2">&quot;det&quot;</span><span class="p">),</span>
+                                <span class="n">nhf_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the variance reduction (relative to single model MC) for a</span>
+<span class="sd">    list of optimized estimtors.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    optimized_estimators : list</span>
+<span class="sd">         Each entry is a list of optimized estimators for a set of target costs</span>
+
+<span class="sd">    est_labels : list (nestimators)</span>
+<span class="sd">        String used to label each estimator</span>
+
+<span class="sd">    criteria : callable</span>
+<span class="sd">        A function that returns a scalar metric of the estimator covariance</span>
+<span class="sd">        with signature</span>
+
+<span class="sd">        `criteria(cov) -&gt; float`</span>
+
+<span class="sd">        where cov is an np.ndarray (nstats, nstats) is the estimator covariance</span>
+
+<span class="sd">    nhf_samples : int</span>
+<span class="sd">        The number of samples of the high-fidelity model used for the</span>
+<span class="sd">        high-fidelity only estimator. If None, then the number of high-fidelity</span>
+<span class="sd">        evaluations that produce a estimator cost equal to the optimized</span>
+<span class="sd">        target cost of the estimator is used. Usually, nhf_samples should be</span>
+<span class="sd">        set to None.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">var_red</span><span class="p">,</span> <span class="n">est_criterias</span><span class="p">,</span> <span class="n">sf_criterias</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="n">optimized_estimators</span> <span class="o">=</span> <span class="n">optimized_estimators</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">nestimators</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">optimized_estimators</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nestimators</span><span class="p">):</span>
+        <span class="n">est</span> <span class="o">=</span> <span class="n">optimized_estimators</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+        <span class="n">est_criteria</span> <span class="o">=</span> <span class="n">criteria</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_covariance_from_npartition_samples</span><span class="p">(</span>
+            <span class="n">est</span><span class="o">.</span><span class="n">_rounded_npartition_samples</span><span class="p">),</span> <span class="n">est</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">nhf_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">nhf_samples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_rounded_target_cost</span><span class="o">/</span><span class="n">est</span><span class="o">.</span><span class="n">_costs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">sf_criteria</span> <span class="o">=</span> <span class="n">criteria</span><span class="p">(</span>
+            <span class="n">est</span><span class="o">.</span><span class="n">_stat</span><span class="o">.</span><span class="n">high_fidelity_estimator_covariance</span><span class="p">(</span>
+                <span class="n">nhf_samples</span><span class="p">),</span> <span class="n">est</span><span class="p">)</span>
+        <span class="n">var_red</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sf_criteria</span><span class="o">/</span><span class="n">est_criteria</span><span class="p">)</span>
+        <span class="n">sf_criterias</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sf_criteria</span><span class="p">)</span>
+        <span class="n">est_criterias</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">est_criteria</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">var_red</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">est_criterias</span><span class="p">),</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">sf_criterias</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="estimate_model_ensemble_covariance"><a class="viewcode-back" href="../../../api/pyapprox.multifidelity.estimate_model_ensemble_covariance.html#pyapprox.multifidelity.estimate_model_ensemble_covariance">[docs]</a><span class="k">def</span> <span class="nf">estimate_model_ensemble_covariance</span><span class="p">(</span><span class="n">npilot_samples</span><span class="p">,</span> <span class="n">generate_samples</span><span class="p">,</span>
+                                       <span class="n">model_ensemble</span><span class="p">,</span> <span class="n">nmodels</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Estimate the covariance of a model ensemble from a set of pilot samples</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    npilot_samples : integer</span>
+<span class="sd">        The number of samples used to estimate the covariance</span>
+
+<span class="sd">    generate_samples : callable</span>
+<span class="sd">        Function used to generate realizations of the random variable with</span>
+<span class="sd">        call signature samples = generate_samples(npilot_samples)</span>
+
+<span class="sd">    model_ensemble : callable or np.ndarray  (nvars, nsamples)</span>
+<span class="sd">        Function that takes a set of samples and models ids and evaluates</span>
+<span class="sd">        a set of models. See ModelEnsemble.</span>
+<span class="sd">        call signature values = model_emsemble(samples)</span>
+
+<span class="sd">        relizations of the random variable</span>
+
+<span class="sd">    nmodels : integer</span>
+<span class="sd">        The number of models in the ensemble</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    cov : np.ndarray (nqoi,nqoi)</span>
+<span class="sd">        The covariance between the model qoi</span>
+
+<span class="sd">    pilot_random_samples : np.ndarray (nvars,npilot_samples)</span>
+<span class="sd">        The random samples used to compute the covariance. These samples</span>
+<span class="sd">        DO NOT have a model id</span>
+
+<span class="sd">    pilot_values : np.ndaray (npilot_samples,nmodels)</span>
+<span class="sd">        The values of each model at the pilot samples</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># generate pilot samples</span>
+    <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">generate_samples</span><span class="p">):</span>
+        <span class="n">pilot_random_samples</span> <span class="o">=</span> <span class="n">generate_samples</span><span class="p">(</span><span class="n">npilot_samples</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">pilot_random_samples</span> <span class="o">=</span> <span class="n">generate_samples</span><span class="p">[:,</span> <span class="p">:</span><span class="n">npilot_samples</span><span class="p">]</span>
+    <span class="n">config_vars</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="c1"># append model ids to pilot smaples</span>
+    <span class="n">pilot_samples</span> <span class="o">=</span> <span class="n">get_all_sample_combinations</span><span class="p">(</span>
+        <span class="n">pilot_random_samples</span><span class="p">,</span> <span class="n">config_vars</span><span class="p">)</span>
+    <span class="c1"># evaluate models at pilot samples</span>
+    <span class="n">pilot_values</span> <span class="o">=</span> <span class="n">model_ensemble</span><span class="p">(</span><span class="n">pilot_samples</span><span class="p">)</span>
+    <span class="n">pilot_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+        <span class="n">pilot_values</span><span class="p">,</span> <span class="p">(</span><span class="n">npilot_samples</span><span class="p">,</span> <span class="n">nmodels</span><span class="p">))</span>
+    <span class="c1"># compute covariance</span>
+    <span class="n">cov</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cov</span><span class="p">(</span><span class="n">pilot_values</span><span class="p">,</span> <span class="n">rowvar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">cov</span><span class="p">,</span> <span class="n">pilot_random_samples</span><span class="p">,</span> <span class="n">pilot_values</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

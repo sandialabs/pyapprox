@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Monte Carlo Quadrature: Beyond Mean Estimation &mdash; PyApprox 1.0.3 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Two Model Control Variate Monte Carlo" href="plot_control_variate_monte_carlo.html" />
+    <link rel="prev" title="Monte Carlo Quadrature" href="plot_monte_carlo.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Monte Carlo Quadrature: Beyond Mean Estimation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#mean-estimation">Mean Estimation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#variance-estimation">Variance Estimation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#simultaneous-mean-and-variance-estimation">Simultaneous Mean and Variance Estimation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mse">MSE</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#remarks">Remarks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#video">Video</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Two Model Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variates.html">Two model Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_many_model_acv.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="acv_covariances.html">Delta-Based Covariance Formulas For Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_allocation_matrices.html">Approximate Control Variate Allocation Matrices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pacv.html">Parametrically Defined Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_acv.html">Multioutput Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pilot_studies.html">Pilot Studies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_ensemble_selection.html">Model Ensemble Selection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multilevel_blue.html">Multilevel Best Linear Unbiased estimators (MLBLUE)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-level and Multi-index Collocation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multifidelity_gp.html">Multifidelity Gaussian processes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_gaussian_mfnets.html">MFNets: Multi-fidelity networks</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">Monte Carlo Quadrature: Beyond Mean Estimation</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/auto_tutorials/multi_fidelity/plot_multioutput_monte_carlo.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-multioutput-monte-carlo-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="monte-carlo-quadrature-beyond-mean-estimation">
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-multioutput-monte-carlo-py"></span><h1>Monte Carlo Quadrature: Beyond Mean Estimation<a class="headerlink" href="#monte-carlo-quadrature-beyond-mean-estimation" title="Permalink to this heading"></a></h1>
+<p><a class="reference internal" href="plot_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-monte-carlo-py"><span class="std std-ref">Monte Carlo Quadrature</span></a> discussed how to use Monte Carlo quadrature to compute the mean of a model. In contrast, this tutorial shows how to use MC to compute alternative statistics of a model, for example variance, and how to compute the MSE of MC estimates of such statistics.</p>
+<p>In this tutorial we will discuss using MC to estimate the mean <span class="math notranslate nohighlight">\(\mat{\mu}\)</span> and covariance <span class="math notranslate nohighlight">\(\mat{\Sigma}\)</span> of a vector-valued function <span class="math notranslate nohighlight">\(f_\alpha:\reals^D\to\reals^K\)</span>, with entries respectively given by</p>
+<div class="math notranslate nohighlight">
+\[(\mat{Q}_{\alpha}^\mu)_k=\int_\rvdom f_{\alpha,k}(\rv)\pdf(\rv)\dx{\rv} \qquad k=1,\ldots,K\]</div>
+<div class="math notranslate nohighlight">
+\[(\mat{Q}_{\alpha}^{\Sigma})_{jk}=\int_\rvdom \left(f_{\alpha,j}^2(\rv)-Q_{\alpha,j}^\mu\right)\left(f_{\alpha,k}(\rv)-Q_{\alpha,k}^\mu\right)^\top\pdf(\rv)\dx{\rv}, \qquad j,k=1,\ldots,K.\]</div>
+<p>Moreover, we will show how to estimate a vector-valued statistics
+that may be comprised of multiple statistics of a scalar function, a single statistics of a vector-valued function, or a combination of both.</p>
+<p>In the most general case, the vector valued statistic comprised of <span class="math notranslate nohighlight">\(S\)</span> different statistics</p>
+<div class="math notranslate nohighlight">
+\[\mat{Q}_\alpha=[(Q_{\alpha})_1,\ldots,(Q_{\alpha})_S]^\top \in \reals^{S},\]</div>
+<p>As an example, in the following we will show how to use MC to compute the mean and covariance <span class="math notranslate nohighlight">\(\mat{\Sigma}\)</span> of a vector-valued function <span class="math notranslate nohighlight">\(f_\alpha:\reals^D\to\reals^K\)</span>, that is</p>
+<div class="math notranslate nohighlight">
+\[\mat{Q}_\alpha=[(\mat{Q}_{\alpha}^\mu)^\top, \text{flat}(\mat{Q}_{\alpha}^{\Sigma})^\top]^\top\in\reals^{K+K^2}.\]</div>
+<p>where for a general matrix <span class="math notranslate nohighlight">\(\mat{X}\in\reals^{M\times N}\)</span></p>
+<div class="math notranslate nohighlight">
+\[\text{flat}(\mat{X})=[X_{11}, \ldots, X_{1N}, \ldots, X_{M1}, \ldots, X_{MN}]^\top \in \reals^{MN}.\]</div>
+<p>Specifically, we will consider</p>
+<div class="math notranslate nohighlight">
+\[f_0(\rv) = [\sqrt{11}\rv^5, \rv^4, \sin(2\pi \rv)]^\top\]</div>
+<p>To compute a vector-valued statistic we follow the same procedure introduced for estimating the mean of a scalar function but now compute MC estimators for each statistic and function, that is</p>
+<div class="math notranslate nohighlight">
+\[(Q^\mu_{\alpha}(\rvset_N))_k= N^{-1}\sum_{n=1}^N f_{\alpha, k}^{(n)}, \qquad k=1,\ldots, K\]</div>
+<div class="math notranslate nohighlight">
+\[(Q^{\Sigma}_{\alpha}(\rvset_N))_{jk}= (N-1)^{-1}\sum_{n=1}^N \left( f_{\alpha, j}^{(n)}-(Q^\mu_{\alpha}(\rvset_N))_j\right)\left( f_{\alpha, k}^{(n)}-(Q^\mu_{\alpha}(\rvset_N))_k\right), \quad j,k=1,\ldots, K.\]</div>
+<p>The following implements this procedure.</p>
+<p>First load the benchmark</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.factory</span> <span class="kn">import</span> <span class="n">get_estimator</span><span class="p">,</span> <span class="n">multioutput_stats</span>
+
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;multioutput_model_ensemble&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now construct the estimator. The following requires the costs of the model
+the covariance and some other quantities W and B. These four quantities are not
+needed to compute the value of the estimator from a sample set, however they are needed to compute the MSE of the estimator and the number of samples of that model for a given target cost. We load these quantities but ignore there meaning for the moment.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">nqoi</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">cov</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">covariance</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+<span class="n">W</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="o">.</span><span class="n">covariance_of_centered_values_kronker_product</span><span class="p">()[:</span><span class="mi">9</span><span class="p">,</span> <span class="p">:</span><span class="mi">9</span><span class="p">]</span>
+<span class="n">B</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="o">.</span><span class="n">covariance_of_mean_and_variance_estimators</span><span class="p">()[:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">9</span><span class="p">]</span>
+
+<span class="n">target_cost</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">stat</span> <span class="o">=</span> <span class="n">multioutput_stats</span><span class="p">[</span><span class="s2">&quot;mean_variance&quot;</span><span class="p">](</span><span class="n">nqoi</span><span class="p">)</span>
+<span class="n">stat</span><span class="o">.</span><span class="n">set_pilot_quantities</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+<span class="n">est</span> <span class="o">=</span> <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mc&quot;</span><span class="p">,</span> <span class="n">stat</span><span class="p">,</span> <span class="n">costs</span><span class="p">)</span>
+<span class="n">est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span><span class="n">target_cost</span><span class="p">)</span>
+<span class="n">samples</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">generate_samples_per_model</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">funs</span><span class="p">[</span><span class="mi">0</span><span class="p">](</span><span class="n">samples</span><span class="p">)</span>
+<span class="n">stats</span> <span class="o">=</span> <span class="n">est</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The following compares the estimated value with the true values. We are only extracting certain components from the benchmark because the benchmark is designed for estimating vector-valued statistics with multiple models, but we are ignoring the other models for now.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">mean</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">stats</span><span class="p">[:</span><span class="mi">3</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">covariance</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">stats</span><span class="p">[</span><span class="mi">3</span><span class="p">:]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[ 5.52770798e-01  2.00000000e-01 -7.60350892e-17]
+[0.08939676 0.04328916 0.3916164 ]
+[[ 0.69444444  0.22110832 -0.30108393]
+ [ 0.22110832  0.07111111 -0.11077764]
+ [-0.30108393 -0.11077764  0.5       ]]
+[[ 0.03995681  0.01661502 -0.10618668]
+ [ 0.01661502  0.00696109 -0.04480152]
+ [-0.10618668 -0.04480152  0.38481283]]
+</pre></div>
+</div>
+<p>Similarly to a MC estimator for a scalar, a vector-valued MC estimator is a random variable. Assuming that we are not using an approximation of the model we care about, the error in the MC estimator is characterized completely by the covariance of the estimator statistics. The following draws from <a class="reference internal" href="#dwbg2024" id="id1"><span>[DWBG2024]</span></a> and shows how to compute the estimator covariance. We present general formula for the covariance between estimators of using different vector-valued models <span class="math notranslate nohighlight">\(f_\alpha\text{ and }f_\beta\)</span> and using sample sets <span class="math notranslate nohighlight">\(\rvset_N, \rvset_M\)</span> of (potentially) different sizes.</p>
+<section id="mean-estimation">
+<h2>Mean Estimation<a class="headerlink" href="#mean-estimation" title="Permalink to this heading"></a></h2>
+<p>First consider the estimation of the mean. The covariance between two estimates of the mean that share P samples, i.e. <span class="math notranslate nohighlight">\(P=|\rvset_\alpha\cup \rvset_\beta|\)</span>, is</p>
+<div class="math notranslate nohighlight" id="eq-mean-covariance">
+\[\covar{\mat{Q}^\mu_\alpha(\rvset_{N})}{\mat{Q}^\mu_\beta(\rvset_{M})} = \frac{P}{MN}\covar{f_\alpha}{f_\beta} \quad \in\reals^{K\times K}\]</div>
+</section>
+<section id="variance-estimation">
+<h2>Variance Estimation<a class="headerlink" href="#variance-estimation" title="Permalink to this heading"></a></h2>
+<p>The covariance between two estimators of variance is</p>
+<div class="math notranslate nohighlight" id="eq-var-covariance">
+\[\covar{\mat{Q}_\alpha^{\Sigma}(\rvset_{N})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})} = \frac{P(P-1)}{M(M-1)N(N-1)}\mat{V}_{\alpha,\beta}+\frac{P}{MN}\mat{W}_{\alpha,\beta}  \quad \in\reals^{K^2\times K^2}\]</div>
+<p>where</p>
+<div class="math notranslate nohighlight">
+\[\mat{V}_{\alpha,\beta} = \covar{f_\alpha}{f_\beta}^{\otimes2}+(\mat{1}_K^\top\otimes\covar{f_\alpha}{f_\beta}\otimes\mat{1}_K)\circ(\mat{1}_K\otimes\covar{f_\alpha}{f_\beta}\otimes\mat{1}_K^\top),\quad \in \reals^{K^2\times K^2}\]</div>
+<div class="math notranslate nohighlight">
+\[\mat{W}_{\alpha,\beta} = \covar{(f_\alpha-\mean{f_\alpha})^{\otimes 2}}{(f_\beta-\mean{f_\beta})^{\otimes 2}} \quad \in \reals^{K^2\times K^2}\]</div>
+<p>Above we used the notation, for general matrices <span class="math notranslate nohighlight">\(\mat{X},\mat{Y}\)</span>,</p>
+<div class="math notranslate nohighlight">
+\[\mat{X}\otimes \mat{Y}=\text{flat}(\mat{X}\mat{Y}^\top)\]</div>
+<p>for a flattened outer product,</p>
+<div class="math notranslate nohighlight">
+\[\mat{X}\circ \mat{Y}\]</div>
+<p>for an element wise product, and</p>
+<div class="math notranslate nohighlight">
+\[X^{\otimes2}=\mat{X}\otimes \mat{X}\]</div>
+</section>
+<section id="simultaneous-mean-and-variance-estimation">
+<h2>Simultaneous Mean and Variance Estimation<a class="headerlink" href="#simultaneous-mean-and-variance-estimation" title="Permalink to this heading"></a></h2>
+<p>The covariance between two estimators of mean and variance of the form</p>
+<div class="math notranslate nohighlight" id="eq-mean-var-covariance">
+\[\mat{Q}_\alpha^{\mu,\Sigma}(\rvset_{N})=[\mat{Q}_\alpha^{\mu}(\rvset_{N}), \mat{Q}_\alpha^{\Sigma}(\rvset_{N})]^\top  \quad \in\reals^{(K+K^2)\times (K+K^2)}\]</div>
+<p>is</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\covar{\mat{Q}_\alpha^{\mu,\Sigma}(\rvset_{N})}{\mat{Q}_\beta^{\mu,\Sigma}(\rvset_{M})} = \begin{bmatrix}\covar{\mat{Q}_\alpha^\mu(\rvset_{N})}{\mat{Q}_\beta^\mu(\rvset_{N})} &amp; \covar{\mat{Q}_\alpha^\mu(\rvset_{N})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})}\\ \covar{\mat{Q}_\alpha^{\Sigma}(\rvset_{M})}{\mat{Q}_\beta^\mu(\rvset_{N})}&amp; \covar{\mat{Q}_\alpha^{\Sigma}(\rvset_{M})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})}\end{bmatrix}\end{split}\]</div>
+<p>We have already shown the form of the upper and lower diagonal blocks. The off diagonal blocks are</p>
+<div class="math notranslate nohighlight">
+\[\covar{\mat{Q}_\alpha^\mu(\rvset_{N})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})}=\frac{P}{MN}\mat{B}_{\alpha,\beta}\quad\in\reals^{K\times K^2}\]</div>
+<p>where</p>
+<div class="math notranslate nohighlight">
+\[\mat{B}_{\alpha,\beta}=\covar{f_\alpha}{(f_\beta-\mean{f_\beta})^{\otimes 2}}\quad\in\reals^{K\times K^2}\]</div>
+</section>
+<section id="mse">
+<h2>MSE<a class="headerlink" href="#mse" title="Permalink to this heading"></a></h2>
+<p>For vector valued statistics, the MSE formular presented in the previous tutorial no longer makes sense because the estimator is a multivariate random variable with a mean and covariance (not a mean and variance like for the scalar formulation). Consequently, for an unbiased estimator, the error in a vector-valued statistic is usually a scalar function of the estimator covariance. Two common choices are the determinant and trace of the estimator covariance.</p>
+<p>The estimator covariance can be obtained using</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.multifidelity.visualize</span> <span class="kn">import</span> <span class="n">plot_correlation_matrix</span>
+<span class="c1"># plot correlation matrix can also be used for covariance matrics</span>
+<span class="n">labels</span> <span class="o">=</span> <span class="p">([</span><span class="sa">r</span><span class="s2">&quot;$(Q^{\mu}_</span><span class="si">{0}</span><span class="s2">)_{</span><span class="si">%d</span><span class="s2">}$&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nqoi</span><span class="p">)]</span> <span class="o">+</span>
+          <span class="p">[</span><span class="sa">r</span><span class="s2">&quot;$(Q^{\Sigma}_</span><span class="si">{0}</span><span class="s2">)_{</span><span class="si">%d</span><span class="s2">,</span><span class="si">%d</span><span class="s2">}$&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">jj</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+           <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nqoi</span><span class="p">)</span> <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nqoi</span><span class="p">)])</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">plot_correlation_matrix</span><span class="p">(</span>
+    <span class="n">est</span><span class="o">.</span><span class="n">optimized_covariance</span><span class="p">(),</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">model_names</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">label_fontsize</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_multioutput_monte_carlo_001.png" srcset="../../_images/sphx_glr_plot_multioutput_monte_carlo_001.png" alt="plot multioutput monte carlo" class = "sphx-glr-single-img"/><p>We can plot the diagonal, which contains the estimator variances that would be obtained if each statistic was treated individually.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">est_variances</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">optimized_covariance</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">labels</span><span class="p">,</span> <span class="n">est_variances</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_multioutput_monte_carlo_002.png" srcset="../../_images/sphx_glr_plot_multioutput_monte_carlo_002.png" alt="plot multioutput monte carlo" class = "sphx-glr-single-img"/></section>
+<section id="remarks">
+<h2>Remarks<a class="headerlink" href="#remarks" title="Permalink to this heading"></a></h2>
+<p>Similar experssions to those above for scalar outputs can be found in <a class="reference internal" href="#qpovw2018" id="id2"><span>[QPOVW2018]</span></a>.</p>
+</section>
+<section id="video">
+<h2>Video<a class="headerlink" href="#video" title="Permalink to this heading"></a></h2>
+<p>Click on the image below to view a video tutorial on multi-output Monte Carlo quadrature</p>
+<a class="reference external image-reference" href="https://youtu.be/u4Oa8tV-phM?si=OCNJLSMGdncByTfq"><img alt="../../_images/multi-output-mc-thumbnail.png" src="../../_images/multi-output-mc-thumbnail.png" /></a>
+<section id="references">
+<h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
+<div role="list" class="citation-list">
+<div class="citation" id="dwbg2024" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">DWBG2024</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.48550/arXiv.2310.00125">T. Dixon et al. Covariance Expressions for Multi-Fidelity Sampling with Multi-Output, Multi-Statistic Estimators: Application to Approximate Control Variates. 2024</a></p>
+</div>
+<div class="citation" id="qpovw2018" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">QPOVW2018</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1137/17M1151006">Multifidelity Monte Carlo Estimation of Variance and Sensitivity Indices E. Qian, B. Peherstorfer, D. OMalley, V. V. Vesselinov, and K. Willcox. SIAM/ASA Journal on Uncertainty Quantification 2018 6:2, 683-706</a></p>
+</div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.284 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multioutput-monte-carlo-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/6f5c01c6ebd4bd6803c3a914f3dafbcd/plot_multioutput_monte_carlo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multioutput_monte_carlo.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/b7c19192d07e11f002cabec58a5784df/plot_multioutput_monte_carlo.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_multioutput_monte_carlo.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="plot_monte_carlo.html" class="btn btn-neutral float-left" title="Monte Carlo Quadrature" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_control_variate_monte_carlo.html" class="btn btn-neutral float-right" title="Two Model Control Variate Monte Carlo" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

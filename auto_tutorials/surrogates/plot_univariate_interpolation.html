@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Univariate Interpolation &mdash; PyApprox 1.0.3 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Tensor-product Interpolation" href="plot_tensor_product_interpolation.html" />
+    <link rel="prev" title="Push Forward Based Inference" href="../inference/plot_push_forward_based_inference.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#surrogates">Surrogates</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Univariate Interpolation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#lagrange-interpolation">Lagrange Interpolation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#piecewise-polynomial-interpolation">Piecewise polynomial interpolation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#probability-aware-interpolation-for-uq">Probability aware interpolation for UQ</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="plot_tensor_product_interpolation.html">Tensor-product Interpolation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_sparse_grids.html">Sparse Grids</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_adaptive_leja_interpolation.html">Adaptive Leja Sequences</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_gaussian_processes.html">Gaussian processes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">Univariate Interpolation</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/auto_tutorials/surrogates/plot_univariate_interpolation.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-surrogates-plot-univariate-interpolation-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="univariate-interpolation">
+<span id="sphx-glr-auto-tutorials-surrogates-plot-univariate-interpolation-py"></span><h1>Univariate Interpolation<a class="headerlink" href="#univariate-interpolation" title="Permalink to this heading"></a></h1>
+<p>This tutorial will present methods to approximate univariate functions <span class="math notranslate nohighlight">\(\hat{f}_{\alpha}:\reals\to\reals\)</span> using interpolation. An interpolant of a function <span class="math notranslate nohighlight">\(f\)</span> is a weighted linear combination of basis functions</p>
+<div class="math notranslate nohighlight">
+\[f_{\alpha,\beta}(\rv_i)=\sum_{j=1}^M f_{\alpha}(\rv_i^{(j)})\phi_{i,j}(\rv_i),\]</div>
+<p>where the weights are the evaluation on the function <span class="math notranslate nohighlight">\(f\)</span> on a set of points <span class="math notranslate nohighlight">\(\rv_i^{(j)}, j=1\ldots,M_\beta\)</span>. Here <span class="math notranslate nohighlight">\(\beta\)</span> is an index that controls the number of points in the interpolant and the indices <span class="math notranslate nohighlight">\(\alpha\)</span> and <span class="math notranslate nohighlight">\(i\)</span> can be ingored in this tutorial.</p>
+<p>I included <span class="math notranslate nohighlight">\(\alpha\)</span> and <span class="math notranslate nohighlight">\(i\)</span> because they will be useful in later tutotorials that build multi-fidelity multi-variate interpolants of functions <span class="math notranslate nohighlight">\(f_\alpha:\reals^D\to\reals\)</span>. In such cases i is used to denote the dimension <span class="math notranslate nohighlight">\(i=1\ldots,D\)</span> and <span class="math notranslate nohighlight">\(\alpha\)</span> is an index functions of different accuracy (fidelity).</p>
+<p>The properties of interpolants depends on two factors. The way the interpolation points <span class="math notranslate nohighlight">\(\rv_i^{(j)}\)</span> are constructed and the form of the basis functions <span class="math notranslate nohighlight">\(\phi\)</span>.</p>
+<p>In this tutorial I will introduce two types on interpolation strategies based on local and global basis functions.</p>
+<section id="lagrange-interpolation">
+<h2>Lagrange Interpolation<a class="headerlink" href="#lagrange-interpolation" title="Permalink to this heading"></a></h2>
+<p>Lagrange interpolation uses global polynomials as basis functions</p>
+<div class="math notranslate nohighlight">
+\[\phi_{i,j}(\rv_i) = \prod_{k=1,k\neq j}^{m_{\beta_i}}\frac{\rv_i-\rv_i^{(k)}}{\rv_i^{(j)}-\rv_i^{(k)}}.\]</div>
+<p>The error of a Lagrange interpolant on the interval <span class="math notranslate nohighlight">\([a,b]\)</span> is given by</p>
+<div class="math notranslate nohighlight">
+\[e(\rv_i) = f_\alpha(\rv_i)- f_{\alpha,\beta}(\rv_i)\leq\frac{f_\alpha^{(m_\beta+1)}(c)}{(m_\beta+1)!}\prod_{j=1}^{m_{\beta_i}}(\rv_i-\rv_i^{(j)})\]</div>
+<p>where <span class="math notranslate nohighlight">\(f_\alpha^{(n+1)}(c)\)</span> is the (n+1)-th derivative of the function at some point in <span class="math notranslate nohighlight">\(c\in[a,b]\)</span>.</p>
+<p>The error in the polynomial is bounded by</p>
+<div class="math notranslate nohighlight">
+\[\max_{\rv_i\in[a,b]}\lvert e(\rv_i)\rvert = \max_{\rv_i\in[a,b]}\left\lvert f_\alpha(\rv_i)- f_{\alpha,\beta}(\rv_i)\right\rvert  \leq \frac{1}{(n+1)!} \max_{\rv_i\in[a,b]}\prod_{j=1}^{m_{\beta_i}}\left\lvert (\rv_i-\rv_i^{(j)})\right\rvert\max_{c\in[a,b]} \left\lvert f_\alpha^{(n+1)}(c)\right\rvert\]</div>
+<p>This result shows that the choice of inteprolation points matter. Specificallly, we can not change the derivatives of a function but we can attempt to minimize</p>
+<div class="math notranslate nohighlight">
+\[\prod_{j=1}^{m_{\beta_i}}\left\lvert(\rv_i-\rv_i^{(j)})\right\rvert\]</div>
+<p>Chebyshev points are a very good choice of interpolation points that produce a small value of the quantity above. They are given by</p>
+<div class="math notranslate nohighlight">
+\[z_{i}^{(j)}=\cos\left(\frac{(j-1)\pi}{m_{\beta_i}-1}\right),\qquad j=1,\ldots,m_{\beta_i}\]</div>
+</section>
+<section id="piecewise-polynomial-interpolation">
+<h2>Piecewise polynomial interpolation<a class="headerlink" href="#piecewise-polynomial-interpolation" title="Permalink to this heading"></a></h2>
+<div class="math notranslate nohighlight">
+\[\max_{\rv\in[\rv_i^{(j)},\rv_i^{(j+1)}]}\lvert f_\alpha(\rv_i)-f_{\alpha,\beta}(\rv_i)\lvert \leq \frac{h^3}{72\sqrt{3}} \max_{\rv_i\in[\rv_i^{(j)},\rv_i^{(j+1)}]} f_\alpha^{(3)}(\rv_i)\]</div>
+<p>A proof of this lemma can be found <a class="reference external" href="https://eng.libretexts.org/Workbench/Math%2C_Numerics%2C_and_Programming_(Ethan's)/01%3A_Unit_I_-_(Numerical)_Calculus_and_Elementary_Programming_Concepts/1.02%3A_Interpolation/1.2.01%3A_Interpolation_of_Univariate_Functions">here</a></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.tensorprod</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">UnivariatePiecewiseQuadraticBasis</span><span class="p">,</span> <span class="n">UnivariateLagrangeBasis</span><span class="p">,</span>
+    <span class="n">TensorProductInterpolant</span><span class="p">)</span>
+
+
+<span class="c1">#The following code compares polynomial and piecewise polynomial univariate basis functions.</span>
+<span class="n">nnodes</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">201</span><span class="p">)</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">sharey</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">cheby_nodes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="p">(</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+<span class="n">lagrange_basis</span> <span class="o">=</span> <span class="n">UnivariateLagrangeBasis</span><span class="p">()</span>
+<span class="n">lagrange_basis_vals</span> <span class="o">=</span> <span class="n">lagrange_basis</span><span class="p">(</span><span class="n">cheby_nodes</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">lagrange_basis_vals</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">cheby_nodes</span><span class="p">,</span> <span class="n">cheby_nodes</span><span class="o">*</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;ko&#39;</span><span class="p">)</span>
+<span class="n">equidistant_nodes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nnodes</span><span class="p">)</span>
+<span class="n">quadratic_basis</span> <span class="o">=</span> <span class="n">UnivariatePiecewiseQuadraticBasis</span><span class="p">()</span>
+<span class="n">piecewise_basis_vals</span> <span class="o">=</span> <span class="n">quadratic_basis</span><span class="p">(</span><span class="n">equidistant_nodes</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">piecewise_basis_vals</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">equidistant_nodes</span><span class="p">,</span> <span class="n">equidistant_nodes</span><span class="o">*</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;ko&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_univariate_interpolation_001.png" srcset="../../_images/sphx_glr_plot_univariate_interpolation_001.png" alt="plot univariate interpolation" class = "sphx-glr-single-img"/><p>Notice that the unlike the lagrange basis the picewise polynomial basis is non-zero only on a local region of the input space.</p>
+<p>The compares the accuracy of lagrange basis the picewise polynomial approximations for a piecewise continuous function</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">fun</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+    <span class="n">yy</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">yy</span><span class="p">[</span><span class="n">yy</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">yy</span><span class="p">[</span><span class="n">yy</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+    <span class="k">return</span> <span class="n">yy</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+
+<span class="n">lagrange_interpolant</span> <span class="o">=</span> <span class="n">TensorProductInterpolant</span><span class="p">([</span><span class="n">lagrange_basis</span><span class="p">])</span>
+<span class="n">quadratic_interpolant</span> <span class="o">=</span> <span class="n">TensorProductInterpolant</span><span class="p">([</span><span class="n">quadratic_basis</span><span class="p">])</span>
+<span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="p">[</span><span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">fun</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]))</span> <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axs</span><span class="p">]</span>
+<span class="n">cheby_nodes</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="p">(</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">cheby_nodes</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span>
+<span class="n">lagrange_interpolant</span><span class="o">.</span><span class="n">fit</span><span class="p">([</span><span class="n">cheby_nodes</span><span class="p">],</span> <span class="n">values</span><span class="p">)</span>
+<span class="n">equidistant_nodes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nnodes</span><span class="p">)</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">equidistant_nodes</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span>
+<span class="n">quadratic_interpolant</span><span class="o">.</span><span class="n">fit</span><span class="p">([</span><span class="n">equidistant_nodes</span><span class="p">],</span> <span class="n">values</span><span class="p">)</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">lagrange_interpolant</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]),</span> <span class="s1">&#39;:&#39;</span><span class="p">)</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">cheby_nodes</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="s1">&#39;o&#39;</span><span class="p">)</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">quadratic_interpolant</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]),</span> <span class="s1">&#39;--&#39;</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">equidistant_nodes</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="s1">&#39;s&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_univariate_interpolation_002.png" srcset="../../_images/sphx_glr_plot_univariate_interpolation_002.png" alt="plot univariate interpolation" class = "sphx-glr-single-img"/><p>The Lagrange polynomials induce oscillations around the discontinuity, which significantly decreases the convergence rate of the approximation. The picewise quadratic also over and undershoots around the discontinuity, but the phenomena is localized.</p>
+<p>Now lets see how the error changes as we increase the number of nodes</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="p">[</span><span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">fun</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]))</span> <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axs</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">nnodes</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">17</span><span class="p">]:</span>
+    <span class="n">nodes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="p">(</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">nodes</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span>
+    <span class="n">lagrange_interpolant</span><span class="o">.</span><span class="n">fit</span><span class="p">([</span><span class="n">nodes</span><span class="p">],</span> <span class="n">values</span><span class="p">)</span>
+    <span class="n">nodes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nnodes</span><span class="p">)</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">nodes</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span>
+    <span class="n">quadratic_interpolant</span><span class="o">.</span><span class="n">fit</span><span class="p">([</span><span class="n">nodes</span><span class="p">],</span> <span class="n">values</span><span class="p">)</span>
+    <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">lagrange_interpolant</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]),</span> <span class="s1">&#39;:&#39;</span><span class="p">)</span>
+    <span class="n">_</span> <span class="o">=</span> <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">quadratic_interpolant</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]),</span> <span class="s1">&#39;--&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_univariate_interpolation_003.png" srcset="../../_images/sphx_glr_plot_univariate_interpolation_003.png" alt="plot univariate interpolation" class = "sphx-glr-single-img"/></section>
+<section id="probability-aware-interpolation-for-uq">
+<h2>Probability aware interpolation for UQ<a class="headerlink" href="#probability-aware-interpolation-for-uq" title="Permalink to this heading"></a></h2>
+<p>When interpolants are used for UQ we do not need the approximation to be accurate everywhere but rather only in regions of high-probability. First lets see what happens when we approximate a function using an interpolant that targets accuracy with respect to a dominating measure <span class="math notranslate nohighlight">\(\nu\)</span> when really needed an approximation that targets accuracy with respect to a different measure <span class="math notranslate nohighlight">\(w\)</span>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables.joint</span> <span class="kn">import</span> <span class="n">IndependentMarginalsVariable</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.quadrature</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">gauss_jacobi_pts_wts_1D</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">cartesian_product</span>
+
+<span class="n">nvars</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">20</span><span class="p">])</span>
+<span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span>
+    <span class="s2">&quot;genz&quot;</span><span class="p">,</span> <span class="n">test_name</span><span class="o">=</span><span class="s2">&quot;oscillatory&quot;</span><span class="p">,</span> <span class="n">nvars</span><span class="o">=</span><span class="n">nvars</span><span class="p">,</span> <span class="n">coeff</span><span class="o">=</span><span class="p">[</span><span class="n">c</span><span class="p">,</span> <span class="n">w</span><span class="p">])</span>
+
+<span class="n">alpha_stat</span><span class="p">,</span> <span class="n">beta_stat</span> <span class="o">=</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">11</span>
+<span class="n">true_rv</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">beta</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="n">alpha_stat</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="n">beta_stat</span><span class="p">)]</span><span class="o">*</span><span class="n">nvars</span><span class="p">)</span>
+
+<span class="n">interp</span> <span class="o">=</span> <span class="n">TensorProductInterpolant</span><span class="p">([</span><span class="n">lagrange_basis</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span><span class="p">)</span>
+<span class="n">opt_interp</span> <span class="o">=</span> <span class="n">TensorProductInterpolant</span><span class="p">([</span><span class="n">lagrange_basis</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span><span class="p">)</span>
+
+<span class="n">alpha_poly</span><span class="p">,</span> <span class="n">beta_poly</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+<span class="n">ntrain_samples</span> <span class="o">=</span> <span class="mi">7</span>
+<span class="n">xx</span> <span class="o">=</span> <span class="n">gauss_jacobi_pts_wts_1D</span><span class="p">(</span><span class="n">ntrain_samples</span><span class="p">,</span> <span class="n">alpha_poly</span><span class="p">,</span> <span class="n">beta_poly</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">train_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">([(</span><span class="n">xx</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span><span class="p">)</span>
+<span class="n">train_values</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
+<span class="n">interp</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train_samples</span><span class="p">,</span> <span class="n">train_values</span><span class="p">)</span>
+
+<span class="n">opt_xx</span> <span class="o">=</span> <span class="n">gauss_jacobi_pts_wts_1D</span><span class="p">(</span><span class="n">ntrain_samples</span><span class="p">,</span> <span class="n">beta_stat</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">alpha_stat</span><span class="o">-</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">opt_train_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">([(</span><span class="n">opt_xx</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span><span class="p">)</span>
+<span class="n">opt_train_values</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">opt_train_samples</span><span class="p">)</span>
+<span class="n">opt_interp</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">opt_train_samples</span><span class="p">,</span> <span class="n">opt_train_values</span><span class="p">)</span>
+
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">plot_xx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">101</span><span class="p">)</span>
+<span class="n">true_vals</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">plot_xx</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span>
+<span class="n">pbwt</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;\pi&quot;</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plot_xx</span><span class="p">,</span> <span class="n">true_vals</span><span class="p">,</span> <span class="s1">&#39;-r&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$f(z)$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plot_xx</span><span class="p">,</span> <span class="n">interp</span><span class="p">(</span><span class="n">plot_xx</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]),</span> <span class="s1">&#39;:k&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$f_M^\nu$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">train_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">train_values</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;ko&#39;</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+        <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$\mathcal</span><span class="si">{Z}</span><span class="s1">_</span><span class="si">{M}</span><span class="s1">^{\nu}$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plot_xx</span><span class="p">,</span> <span class="n">opt_interp</span><span class="p">(</span><span class="n">plot_xx</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]),</span> <span class="s1">&#39;--b&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$f_M^</span><span class="si">%s</span><span class="s1">$&#39;</span> <span class="o">%</span> <span class="n">pbwt</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">opt_train_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">opt_train_values</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;bs&#39;</span><span class="p">,</span>
+        <span class="n">ms</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$\mathcal</span><span class="si">{Z}</span><span class="s1">_M^</span><span class="si">%s</span><span class="s1">$&#39;</span> <span class="o">%</span> <span class="n">pbwt</span><span class="p">)</span>
+
+<span class="n">pdf_vals</span> <span class="o">=</span> <span class="n">true_rv</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="n">plot_xx</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])[:,</span> <span class="mi">0</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">true_vals</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">-</span><span class="mf">0.1</span><span class="o">*</span><span class="nb">abs</span><span class="p">(</span><span class="n">true_vals</span><span class="o">.</span><span class="n">min</span><span class="p">()),</span>
+            <span class="nb">max</span><span class="p">(</span><span class="n">true_vals</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="n">pdf_vals</span><span class="o">.</span><span class="n">max</span><span class="p">())</span><span class="o">*</span><span class="mf">1.1</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span>
+    <span class="n">plot_xx</span><span class="p">,</span> <span class="n">ax</span><span class="o">.</span><span class="n">get_ylim</span><span class="p">()[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pdf_vals</span><span class="o">+</span><span class="n">ax</span><span class="o">.</span><span class="n">get_ylim</span><span class="p">()[</span><span class="mi">0</span><span class="p">],</span>
+    <span class="n">alpha</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span> <span class="n">visible</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$</span><span class="si">%s</span><span class="s1">(z)$&#39;</span> <span class="o">%</span> <span class="n">pbwt</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$M$&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">loc</span><span class="o">=</span><span class="s2">&quot;upper right&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_univariate_interpolation_004.png" srcset="../../_images/sphx_glr_plot_univariate_interpolation_004.png" alt="plot univariate interpolation" class = "sphx-glr-single-img"/><p>As you can see the approximation that targets the uniform norm is “more accurate” on average over the domain, but the interpolant that directly targets accuracy with respect to the desired Beta distribution is more accurate in the regions of non-negligible probability.</p>
+<p>Now lets looks at how the accuracy changes with the “distance” between the dominating and target measures. This demonstrates the numerical impact of the main theorem in <a class="reference internal" href="#xjd2013" id="id1"><span>[XJD2013]</span></a>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">compute_density_ratio_beta</span><span class="p">(</span><span class="n">num</span><span class="p">,</span> <span class="n">true_rv</span><span class="p">,</span> <span class="n">alpha_stat_2</span><span class="p">,</span> <span class="n">beta_stat_2</span><span class="p">):</span>
+    <span class="n">beta_rv2</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">beta</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="n">alpha_stat_2</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="n">beta_stat_2</span><span class="p">)]</span><span class="o">*</span><span class="n">nvars</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">beta_rv2</span><span class="p">,</span> <span class="n">true_rv</span><span class="p">)</span>
+    <span class="n">xx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="n">nvars</span><span class="p">,</span> <span class="mi">100000</span><span class="p">))</span>
+    <span class="n">density_ratio</span> <span class="o">=</span> <span class="n">true_rv</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span><span class="o">/</span><span class="n">beta_rv2</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span>
+    <span class="n">II</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">density_ratio</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">II</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="n">density_ratio</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">compute_L2_error</span><span class="p">(</span><span class="n">interp</span><span class="p">,</span> <span class="n">validation_samples</span><span class="p">,</span> <span class="n">validation_values</span><span class="p">):</span>
+    <span class="n">nvalidation_samples</span> <span class="o">=</span> <span class="n">validation_values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">approx_vals</span> <span class="o">=</span> <span class="n">interp</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
+    <span class="n">l2_error</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">validation_values</span><span class="o">-</span><span class="n">approx_vals</span><span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+        <span class="n">nvalidation_samples</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">l2_error</span>
+
+
+<span class="n">nvars</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">20</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">20</span><span class="p">])</span>
+<span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span>
+    <span class="s2">&quot;genz&quot;</span><span class="p">,</span> <span class="n">test_name</span><span class="o">=</span><span class="s2">&quot;oscillatory&quot;</span><span class="p">,</span> <span class="n">nvars</span><span class="o">=</span><span class="n">nvars</span><span class="p">,</span> <span class="n">coeff</span><span class="o">=</span><span class="p">[</span><span class="n">c</span><span class="p">,</span> <span class="n">w</span><span class="p">])</span>
+<span class="n">true_rv</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">beta</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="n">alpha_stat</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="n">beta_stat</span><span class="p">)]</span><span class="o">*</span><span class="n">nvars</span><span class="p">)</span>
+
+<span class="n">nvalidation_samples</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="n">validation_samples</span> <span class="o">=</span> <span class="n">true_rv</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">nvalidation_samples</span><span class="p">)</span>
+<span class="n">validation_values</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
+<span class="n">interp</span> <span class="o">=</span> <span class="n">TensorProductInterpolant</span><span class="p">([</span><span class="n">lagrange_basis</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span><span class="p">)</span>
+
+<span class="n">alpha_polys</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">11.</span><span class="p">,</span> <span class="mf">2.</span><span class="p">)</span>
+<span class="n">ntrain_samples_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">alpha_poly</span> <span class="ow">in</span> <span class="n">alpha_polys</span><span class="p">:</span>
+    <span class="n">beta_poly</span> <span class="o">=</span> <span class="n">alpha_poly</span>
+    <span class="n">density_ratio</span> <span class="o">=</span> <span class="n">compute_density_ratio_beta</span><span class="p">(</span>
+        <span class="n">nvars</span><span class="p">,</span> <span class="n">true_rv</span><span class="p">,</span> <span class="n">beta_poly</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">alpha_poly</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ntrain_samples</span> <span class="ow">in</span> <span class="n">ntrain_samples_list</span><span class="p">:</span>
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">gauss_jacobi_pts_wts_1D</span><span class="p">(</span><span class="n">ntrain_samples</span><span class="p">,</span> <span class="n">alpha_poly</span><span class="p">,</span> <span class="n">beta_poly</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">nodes_1d</span> <span class="o">=</span> <span class="p">[(</span><span class="n">xx</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span>
+        <span class="n">train_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">nodes_1d</span><span class="p">)</span>
+        <span class="n">train_values</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
+        <span class="n">interp</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">nodes_1d</span><span class="p">,</span> <span class="n">train_values</span><span class="p">)</span>
+        <span class="n">l2_error</span> <span class="o">=</span> <span class="n">compute_L2_error</span><span class="p">(</span>
+            <span class="n">interp</span><span class="p">,</span> <span class="n">validation_samples</span><span class="p">,</span> <span class="n">validation_values</span><span class="p">)</span>
+        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">l2_error</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">semilogy</span><span class="p">(</span><span class="n">ntrain_samples_list</span><span class="p">,</span> <span class="n">results</span><span class="p">,</span>
+                <span class="n">label</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{0:1.2f}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">density_ratio</span><span class="p">))</span>
+
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$M$&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\| f-f_M^\nu\|_{L^2_</span><span class="si">%s</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">pbwt</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">ncol</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_univariate_interpolation_005.png" srcset="../../_images/sphx_glr_plot_univariate_interpolation_005.png" alt="plot univariate interpolation" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Independent Marginal Variable
+Number of variables: 3
+Unique variables and global id:
+    beta(a=1.0,b=1.0,loc=[0],scale=[1]): z0, z1, z2 Independent Marginal Variable
+Number of variables: 3
+Unique variables and global id:
+    beta(a=11,b=11,loc=[0],scale=[1]): z0, z1, z2
+Independent Marginal Variable
+Number of variables: 3
+Unique variables and global id:
+    beta(a=3.0,b=3.0,loc=[0],scale=[1]): z0, z1, z2 Independent Marginal Variable
+Number of variables: 3
+Unique variables and global id:
+    beta(a=11,b=11,loc=[0],scale=[1]): z0, z1, z2
+Independent Marginal Variable
+Number of variables: 3
+Unique variables and global id:
+    beta(a=5.0,b=5.0,loc=[0],scale=[1]): z0, z1, z2 Independent Marginal Variable
+Number of variables: 3
+Unique variables and global id:
+    beta(a=11,b=11,loc=[0],scale=[1]): z0, z1, z2
+Independent Marginal Variable
+Number of variables: 3
+Unique variables and global id:
+    beta(a=7.0,b=7.0,loc=[0],scale=[1]): z0, z1, z2 Independent Marginal Variable
+Number of variables: 3
+Unique variables and global id:
+    beta(a=11,b=11,loc=[0],scale=[1]): z0, z1, z2
+Independent Marginal Variable
+Number of variables: 3
+Unique variables and global id:
+    beta(a=9.0,b=9.0,loc=[0],scale=[1]): z0, z1, z2 Independent Marginal Variable
+Number of variables: 3
+Unique variables and global id:
+    beta(a=11,b=11,loc=[0],scale=[1]): z0, z1, z2
+Independent Marginal Variable
+Number of variables: 3
+Unique variables and global id:
+    beta(a=11.0,b=11.0,loc=[0],scale=[1]): z0, z1, z2 Independent Marginal Variable
+Number of variables: 3
+Unique variables and global id:
+    beta(a=11,b=11,loc=[0],scale=[1]): z0, z1, z2
+</pre></div>
+</div>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h2>
+<div role="list" class="citation-list">
+<div class="citation" id="xjd2013" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">XJD2013</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1016/j.jcp.2013.01.018">Chen Xiaoxiao, Park Eun-Jae, Xiu Dongbin. A flexible numerical approach for quantification of epistemic uncertainty. J. Comput. Phys., 240 (2013), pp. 211-224</a></p>
+</div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.676 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-surrogates-plot-univariate-interpolation-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/e2c880f4ce9ea479cc50de7a8da6250c/plot_univariate_interpolation.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_univariate_interpolation.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/e24794ca821850ae9bd3d610d690b843/plot_univariate_interpolation.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_univariate_interpolation.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../inference/plot_push_forward_based_inference.html" class="btn btn-neutral float-left" title="Push Forward Based Inference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_tensor_product_interpolation.html" class="btn btn-neutral float-right" title="Tensor-product Interpolation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

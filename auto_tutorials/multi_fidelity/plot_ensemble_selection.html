@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Model Ensemble Selection &mdash; PyApprox 1.0.3 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Multilevel Best Linear Unbiased estimators (MLBLUE)" href="plot_multilevel_blue.html" />
+    <link rel="prev" title="Pilot Studies" href="plot_pilot_studies.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_monte_carlo.html">Monte Carlo Quadrature: Beyond Mean Estimation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Two Model Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variates.html">Two model Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_many_model_acv.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="acv_covariances.html">Delta-Based Covariance Formulas For Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_allocation_matrices.html">Approximate Control Variate Allocation Matrices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pacv.html">Parametrically Defined Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_acv.html">Multioutput Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pilot_studies.html">Pilot Studies</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Model Ensemble Selection</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#configure-the-benchmark">Configure the benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#run-the-pilot-study">Run the pilot study</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#find-the-best-subset-of-of-low-fidelity-models">Find the best subset of of low-fidelity models</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#find-the-best-estimator">Find the best estimator</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multilevel_blue.html">Multilevel Best Linear Unbiased estimators (MLBLUE)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-level and Multi-index Collocation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multifidelity_gp.html">Multifidelity Gaussian processes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_gaussian_mfnets.html">MFNets: Multi-fidelity networks</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">Model Ensemble Selection</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/auto_tutorials/multi_fidelity/plot_ensemble_selection.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-ensemble-selection-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="model-ensemble-selection">
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-ensemble-selection-py"></span><h1>Model Ensemble Selection<a class="headerlink" href="#model-ensemble-selection" title="Permalink to this heading"></a></h1>
+<p>For many applications a large number of model fidelities are available. However, it may not be beneficial to use all the lower-fidelity models because if a lower-fidelity model is poorly correlated with the other models it can increase the covariance of the ACV estimator. In some extreme cases, the covariance can be worse than the variance of a single fidelity MC estimator that solely uses the high-fidelity data. Consequently, in practice it is important to choose the subset of models that produces the smallest estimator covariance.</p>
+<p>The following tutorial shows how to choose the best subset of models.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">multifidelity</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="kn">from</span> <span class="nn">pyapprox.interface.wrappers</span> <span class="kn">import</span> <span class="n">WorkTrackingModel</span><span class="p">,</span> <span class="n">TimerModel</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.visualization</span> <span class="kn">import</span> <span class="n">mathrm_label</span>
+
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="configure-the-benchmark">
+<h2>Configure the benchmark<a class="headerlink" href="#configure-the-benchmark" title="Permalink to this heading"></a></h2>
+<p>Lets configure the benchmark.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">time_scenario</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;final_time&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>
+    <span class="s2">&quot;butcher_tableau&quot;</span><span class="p">:</span> <span class="s2">&quot;im_crank2&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;deltat&quot;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span>  <span class="c1"># default will be overwritten</span>
+    <span class="s2">&quot;init_sol_fun&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="s2">&quot;sink&quot;</span><span class="p">:</span> <span class="kc">None</span>
+<span class="p">}</span>
+
+<span class="n">nlevels</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">config_values</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">[</span><span class="mi">11</span><span class="p">,</span> <span class="mi">21</span><span class="p">,</span> <span class="mi">31</span><span class="p">],</span>
+    <span class="p">[</span><span class="mi">11</span><span class="p">,</span> <span class="mi">31</span><span class="p">],</span>
+    <span class="p">[</span><span class="mf">0.125</span><span class="p">,</span> <span class="mf">0.0625</span><span class="p">]]</span>
+
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span>
+    <span class="s2">&quot;multi_index_advection_diffusion&quot;</span><span class="p">,</span>
+    <span class="n">kle_nvars</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">kle_length_scale</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+    <span class="n">time_scenario</span><span class="o">=</span><span class="n">time_scenario</span><span class="p">,</span> <span class="n">config_values</span><span class="o">=</span><span class="n">config_values</span><span class="p">)</span>
+
+<span class="c1"># Add wraper to compute the time each model takes to run</span>
+<span class="n">funs</span> <span class="o">=</span> <span class="p">[</span><span class="n">WorkTrackingModel</span><span class="p">(</span>
+    <span class="n">TimerModel</span><span class="p">(</span><span class="n">fun</span><span class="p">),</span> <span class="n">base_model</span><span class="o">=</span><span class="n">fun</span><span class="p">)</span> <span class="k">for</span> <span class="n">fun</span> <span class="ow">in</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">funs</span><span class="p">]</span>
+</pre></div>
+</div>
+</section>
+<section id="run-the-pilot-study">
+<h2>Run the pilot study<a class="headerlink" href="#run-the-pilot-study" title="Permalink to this heading"></a></h2>
+<p>The following code runs a pilot study to compute the necessary
+pilot quantities needed to predict the variance of any estimator
+of the mean of the model</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">npilot_samples</span> <span class="o">=</span> <span class="mi">20</span>
+<span class="n">pilot_samples</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">npilot_samples</span><span class="p">)</span>
+<span class="n">pilot_values_per_model</span> <span class="o">=</span> <span class="p">[</span><span class="n">fun</span><span class="p">(</span><span class="n">pilot_samples</span><span class="p">)</span> <span class="k">for</span> <span class="n">fun</span> <span class="ow">in</span> <span class="n">funs</span><span class="p">]</span>
+
+<span class="n">nmodels</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">funs</span><span class="p">)</span>
+<span class="n">stat</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">multioutput_stats</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">](</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">stat</span><span class="o">.</span><span class="n">set_pilot_quantities</span><span class="p">(</span>
+    <span class="o">*</span><span class="n">stat</span><span class="o">.</span><span class="n">compute_pilot_quantities</span><span class="p">(</span><span class="n">pilot_values_per_model</span><span class="p">))</span>
+
+<span class="c1"># Extract median run times of each model</span>
+<span class="n">model_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)])</span>
+<span class="n">model_costs</span> <span class="o">=</span> <span class="p">[</span><span class="n">fun</span><span class="o">.</span><span class="n">cost_function</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">fun</span> <span class="ow">in</span> <span class="n">funs</span><span class="p">]</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">multifidelity</span><span class="o">.</span><span class="n">plot_model_costs</span><span class="p">(</span><span class="n">model_costs</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="mi">12</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">plot_correlation_matrix</span><span class="p">(</span>
+    <span class="n">multifidelity</span><span class="o">.</span><span class="n">get_correlation_from_covariance</span><span class="p">(</span><span class="n">stat</span><span class="o">.</span><span class="n">_cov</span><span class="o">.</span><span class="n">numpy</span><span class="p">()),</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span>
+    <span class="n">format_string</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</pre></div>
+</div>
+<ul class="sphx-glr-horizontal">
+<li><img src="../../_images/sphx_glr_plot_ensemble_selection_001.png" srcset="../../_images/sphx_glr_plot_ensemble_selection_001.png" alt="plot ensemble selection" class = "sphx-glr-multi-img"/></li>
+<li><img src="../../_images/sphx_glr_plot_ensemble_selection_002.png" srcset="../../_images/sphx_glr_plot_ensemble_selection_002.png" alt="plot ensemble selection" class = "sphx-glr-multi-img"/></li>
+</ul>
+</section>
+<section id="find-the-best-subset-of-of-low-fidelity-models">
+<h2>Find the best subset of of low-fidelity models<a class="headerlink" href="#find-the-best-subset-of-of-low-fidelity-models" title="Permalink to this heading"></a></h2>
+<blockquote>
+<div><p>The following code finds the subset of models that minimizes the variance of a single estimator by iterating over all possible subsets of models and computing the optimal sample allocation and assocated estimator variance. Here we restrict our attention to model subsets that contain at most 4 models.</p>
+</div></blockquote>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Some MFMC estimators will fail because the models</span>
+<span class="c1"># do not satisfy its hierarchical condition so set</span>
+<span class="c1"># allow_failures=True</span>
+<span class="n">best_est</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">get_estimator</span><span class="p">(</span>
+    <span class="s2">&quot;mfmc&quot;</span><span class="p">,</span> <span class="n">stat</span><span class="p">,</span> <span class="n">model_costs</span><span class="p">,</span> <span class="n">allow_failures</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">max_nmodels</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">save_candidate_estimators</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="n">target_cost</span> <span class="o">=</span> <span class="mf">1e2</span>
+<span class="n">best_est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span><span class="n">target_cost</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Predicted variance&quot;</span><span class="p">,</span>
+      <span class="n">best_est</span><span class="o">.</span><span class="n">_covariance_from_npartition_samples</span><span class="p">(</span>
+          <span class="n">best_est</span><span class="o">.</span><span class="n">_rounded_npartition_samples</span><span class="p">))</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance tensor([[1.3803e-06]])
+</pre></div>
+</div>
+<p>Plot the variance reduction relative to single-fidelity MC of the best estimator for increasing total number of allowed low fidelity models.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Sort candidate estimators into lists with the same numbers of models</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="n">est_dict</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">best_est</span><span class="o">.</span><span class="n">_candidate_estimators</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># skip failures</span>
+        <span class="k">continue</span>
+    <span class="n">est_dict</span><span class="p">[</span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">_nmodels</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+<span class="n">nmodels_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">est_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+<span class="n">best_est_indices</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">([</span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">_optimized_criteria</span> <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">est_dict</span><span class="p">[</span><span class="n">nmodels</span><span class="p">]])</span>
+    <span class="k">for</span> <span class="n">nmodels</span> <span class="ow">in</span> <span class="n">nmodels_list</span><span class="p">]</span>
+<span class="n">best_ests</span> <span class="o">=</span> <span class="p">[</span><span class="n">est_dict</span><span class="p">[</span><span class="n">nmodels_list</span><span class="p">[</span><span class="n">ii</span><span class="p">]][</span><span class="n">best_est_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]][</span><span class="mi">0</span><span class="p">]</span>
+             <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nmodels_list</span><span class="p">))]</span>
+<span class="n">est_labels</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">est_dict</span><span class="p">[</span><span class="n">nmodels_list</span><span class="p">[</span><span class="n">ii</span><span class="p">]][</span><span class="n">best_est_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]][</span><span class="mi">1</span><span class="p">])</span>
+              <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nmodels_list</span><span class="p">))]</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">plot_estimator_variance_reductions</span><span class="p">(</span>
+    <span class="n">best_ests</span><span class="p">,</span> <span class="n">est_labels</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Low fidelity models&quot;</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_ensemble_selection_003.png" srcset="../../_images/sphx_glr_plot_ensemble_selection_003.png" alt="plot ensemble selection" class = "sphx-glr-single-img"/></section>
+<section id="find-the-best-estimator">
+<h2>Find the best estimator<a class="headerlink" href="#find-the-best-estimator" title="Permalink to this heading"></a></h2>
+<p>We can also find the best estimator from a list of estimator types while still determining the best model subset. This code chooses the best estimator from two possible parameterized ACV estimator classes. Specifically it chooses from all possible generalized recursive difference (GRD) estimators and genearlized multifidelity estimators that use at most 3 models and have a maximum tree depth of 3.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">best_est</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">get_estimator</span><span class="p">(</span>
+    <span class="p">[</span><span class="s2">&quot;grd&quot;</span><span class="p">,</span> <span class="s2">&quot;gmf&quot;</span><span class="p">],</span> <span class="n">stat</span><span class="p">,</span> <span class="n">model_costs</span><span class="p">,</span> <span class="n">allow_failures</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">max_nmodels</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">tree_depth</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="n">save_candidate_estimators</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="n">target_cost</span> <span class="o">=</span> <span class="mf">1e2</span>
+<span class="n">best_est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span><span class="n">target_cost</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Predicted variance&quot;</span><span class="p">,</span>
+      <span class="n">best_est</span><span class="o">.</span><span class="n">_covariance_from_npartition_samples</span><span class="p">(</span>
+          <span class="n">best_est</span><span class="o">.</span><span class="n">_rounded_npartition_samples</span><span class="p">))</span>
+
+<span class="c1"># Sort candidate estimators into lists with the same estimator type</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="n">est_dict</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">best_est</span><span class="o">.</span><span class="n">_candidate_estimators</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># skip failures</span>
+        <span class="k">continue</span>
+    <span class="n">est_dict</span><span class="p">[</span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+
+<span class="n">est_name_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">est_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<span class="n">est_name_list</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+<span class="n">best_est_indices</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">([</span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">_optimized_criteria</span> <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">est_dict</span><span class="p">[</span><span class="n">name</span><span class="p">]])</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">est_name_list</span><span class="p">]</span>
+<span class="n">best_ests</span> <span class="o">=</span> <span class="p">[</span><span class="n">est_dict</span><span class="p">[</span><span class="n">est_name_list</span><span class="p">[</span><span class="n">ii</span><span class="p">]][</span><span class="n">best_est_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]][</span><span class="mi">0</span><span class="p">]</span>
+             <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">est_name_list</span><span class="p">))]</span>
+<span class="n">est_labels</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">(</span><span class="si">{1}</span><span class="s2">, </span><span class="si">{2}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">est_name_list</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+        <span class="n">est_dict</span><span class="p">[</span><span class="n">est_name_list</span><span class="p">[</span><span class="n">ii</span><span class="p">]][</span><span class="n">best_est_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]][</span><span class="mi">1</span><span class="p">],</span>
+        <span class="n">est_dict</span><span class="p">[</span><span class="n">est_name_list</span><span class="p">[</span><span class="n">ii</span><span class="p">]][</span><span class="n">best_est_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">_recursion_index</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">est_name_list</span><span class="p">))]</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">plot_estimator_variance_reductions</span><span class="p">(</span>
+    <span class="n">best_ests</span><span class="p">,</span> <span class="n">est_labels</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Estimator types&quot;</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_ensemble_selection_004.png" srcset="../../_images/sphx_glr_plot_ensemble_selection_004.png" alt="plot ensemble selection" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance tensor([[1.3787e-06]])
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 1 minutes  21.022 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-ensemble-selection-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/f05fe02b81bad03f4ad503a1728e7a08/plot_ensemble_selection.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_ensemble_selection.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/d676155eabf4daec5a8a2fce8091af8f/plot_ensemble_selection.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_ensemble_selection.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="plot_pilot_studies.html" class="btn btn-neutral float-left" title="Pilot Studies" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_multilevel_blue.html" class="btn btn-neutral float-right" title="Multilevel Best Linear Unbiased estimators (MLBLUE)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

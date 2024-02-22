@@ -214,7 +214,7 @@ prints the median execution time of the model.</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">())</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.03084362]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.02805579]
 </pre></div>
 </div>
 <p>Other wrappers available in PyApprox include those for running multiple models
@@ -400,12 +400,12 @@ that we do not know the value of the observations.</p>
 </div>
 <img src="../_images/sphx_glr_plot_paper_demo_005.png" srcset="../_images/sphx_glr_plot_paper_demo_005.png" alt="plot paper demo" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Running 1000 outer model evaluations
 Predicted observation bounds 14.477297168295355 1.1388690449350853
-Evaluations took 12.62476396560669
+Evaluations took 12.961029767990112
 Running 1000 inner model evaluations
-Evaluations took 12.516699075698853
-Computing utilities in serial took 0.2389240264892578
-Computing utilities in serial took 0.02367711067199707
-Computing utilities in serial took 0.03195381164550781
+Evaluations took 13.260978937149048
+Computing utilities in serial took 0.2432870864868164
+Computing utilities in serial took 0.02371382713317871
+Computing utilities in serial took 0.03223705291748047
 [[0.0954915  0.42178277 0.42178277]
  [0.05449674 0.85355339 0.85355339]]
 </pre></div>
@@ -491,7 +491,7 @@ for each run</p>
           <span class="n">best_est</span><span class="o">.</span><span class="n">_rounded_npartition_samples</span><span class="p">))</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance tensor([[7.5676e-06]])
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Predicted variance tensor([[7.6507e-06]])
 </pre></div>
 </div>
 <p>Now we can plot the relative performance of the single and multi-fidelity
@@ -523,7 +523,7 @@ is ready to actually estimate the mean QoI they can use</p>
 </pre></div>
 </div>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Benchmark(fun, variable, get_num_degrees_of_freedom, config_var_trans, model_ensemble, funs)
-Mean QoI [0.50196224]
+Mean QoI [0.50525131]
 </pre></div>
 </div>
 <section id="references">
@@ -534,7 +534,7 @@ Mean QoI [0.50196224]
 <p><a class="reference external" href="https://doi.org/10.1016/j.envsoft.2023.105825">Jakeman J.D., PyApprox: A software package for sensitivity analysis, Bayesian inference, optimal experimental design, and multi-fidelity uncertainty quantification and surrogate modeling. (2023)</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 2 minutes  10.244 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 2 minutes  13.459 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-paper-demo-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/4231eb2cab42df6435f116bfe8f5e15a/plot_paper_demo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_paper_demo.py</span></code></a></p>

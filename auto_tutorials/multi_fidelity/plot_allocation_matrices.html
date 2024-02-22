@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Approximate Control Variate Allocation Matrices &mdash; PyApprox 1.0.3 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Multi-level Monte Carlo" href="plot_multi_level_monte_carlo.html" />
+    <link rel="prev" title="Delta-Based Covariance Formulas For Approximate Control Variates" href="acv_covariances.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_monte_carlo.html">Monte Carlo Quadrature: Beyond Mean Estimation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Two Model Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variates.html">Two model Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_many_model_acv.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="acv_covariances.html">Delta-Based Covariance Formulas For Approximate Control Variates</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Approximate Control Variate Allocation Matrices</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#examples-of-different-allocation-matrices">Examples of different allocation matrices</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#how-to-construct-acvmf-like-allocation-matrices">How to construct ACVMF like allocation matrices</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#evaluating-a-pacv-estimator">Evaluating a PACV estimator</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pacv.html">Parametrically Defined Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_acv.html">Multioutput Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pilot_studies.html">Pilot Studies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_ensemble_selection.html">Model Ensemble Selection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multilevel_blue.html">Multilevel Best Linear Unbiased estimators (MLBLUE)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-level and Multi-index Collocation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multifidelity_gp.html">Multifidelity Gaussian processes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_gaussian_mfnets.html">MFNets: Multi-fidelity networks</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">Approximate Control Variate Allocation Matrices</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/auto_tutorials/multi_fidelity/plot_allocation_matrices.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-allocation-matrices-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="approximate-control-variate-allocation-matrices">
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-allocation-matrices-py"></span><h1>Approximate Control Variate Allocation Matrices<a class="headerlink" href="#approximate-control-variate-allocation-matrices" title="Permalink to this heading"></a></h1>
+<p>Optimizing and constructing PACV estimators requires estimating <span class="math notranslate nohighlight">\(\covar{Q_0}{\Delta}\)</span> and <span class="math notranslate nohighlight">\(\covar{\Delta}{\Delta}\)</span> which depend on the statistical properties of the models being used but also on the sample alloaction  how independent sample sets are shared among the sample sets <span class="math notranslate nohighlight">\(\rvset_\alpha\text{ and }\rvset_\alpha^*\)</span>.</p>
+<p>For example, when computing the mean of a scalar model when the covariance  between models is given by <span class="math notranslate nohighlight">\(\mat{C}\)</span> and the first row of <span class="math notranslate nohighlight">\(\mat{C}\)</span> is <span class="math notranslate nohighlight">\(\mat{c}\)</span> then</p>
+<div class="math notranslate nohighlight">
+\[\covar{Q_0}{\mat{\Delta}} = \mat{g} \circ \mat{c}\]</div>
+<div class="math notranslate nohighlight">
+\[g_i = \frac{N_{i^*\cap 0}}{N_{i^*}N_0}-\frac{N_{i\cap 0}}{N_{i}N_0}, \qquad i=1,\ldots,M\]</div>
+<p>and</p>
+<div class="math notranslate nohighlight">
+\[\covar{\mat{\Delta}}{\mat{\Delta}} = \mat{G} \circ \mat{C}\]</div>
+<div class="math notranslate nohighlight">
+\[G_{ij} = \frac{N_{i^*\cap j^*}}{N_{i^*}N_{j^*}}-\frac{N_{i^*\cap j}}{N_{i^*}N_j}-\frac{N_{i\cap j^*}}{N_{i}N_{j^*}}+\frac{N_{i\cap j}}{N_{i}N_j}, \qquad i,j=1,\ldots,M\]</div>
+<p>where <span class="math notranslate nohighlight">\(\circ\)</span> is the Haddamard (element-wise) product.</p>
+<p>The implementation of PACV uses allocation matrices <span class="math notranslate nohighlight">\(\mat{A}\)</span> that encode how independent sample sets are shared among the sample sets <span class="math notranslate nohighlight">\(\rvset_\alpha\text{ and }\rvset_\alpha^*\)</span>.</p>
+<p>For example, the allocation matrix of ACVMF using <span class="math notranslate nohighlight">\(M=3\)</span> low-fidelity models (GMF with recursion index <span class="math notranslate nohighlight">\((0,0,0)\)</span>) is</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mat{A}=\begin{bmatrix}
+0 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 1 &amp; 0 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1
+\end{bmatrix}\end{split}\]</div>
+<p>An entry of one indicates in the ith row of the jth column indicates that the ith independent sample set is used in the corresponding set <span class="math notranslate nohighlight">\(\rvset_j\)</span> if j is odd or <span class="math notranslate nohighlight">\(\rvset_j^*\)</span> if j is even. The first column will always only contain zeros because the set <span class="math notranslate nohighlight">\(\rvset_0^*\)</span> is never used by ACV estimators.</p>
+<p>Note, here we focus on how to construct and use allocation matrices for ACVMF like PACV estimtors. However, much of the discussion carries over to other estimators like those based on recursive difference and ACVIS.</p>
+<p>The allocation matrix together with the number of points <span class="math notranslate nohighlight">\(\mat{p}=[p_0,\ldots,p_M]^\top\)</span> in the each independent sample set which we call partitions can be used to determine the  number of points in the intersection of the sets  <span class="math notranslate nohighlight">\(\rvset_\alpha\text{ and }\rvset_\beta\)</span>, where <span class="math notranslate nohighlight">\(\alpha\text{ and }\beta\)</span> may be unstarred or starred. Intersection matrices are used to compute <span class="math notranslate nohighlight">\(\covar{Q_0}{\Delta}\)</span> and <span class="math notranslate nohighlight">\(\covar{\Delta}{\Delta}\)</span>.
+The number of intersection points can be represented by a <span class="math notranslate nohighlight">\(2(M+1)\times 2(M+1)\)</span> matrix</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mat{B}=\begin{bmatrix}
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0\\
+0 &amp; N_{0\cup 0} &amp; N_{0\cup 1} &amp; N_{0\cup 1^*} &amp; N_{0\cup 2} &amp; N_{0\cup 2^*} &amp;  N_{0\cup 3} &amp; N_{0\cup 3^*}\\
+0 &amp; N_{1^*\cup 0} &amp; N_{1^*\cup 1^*} &amp; N_{1^*\cup 1} &amp; N_{1^*\cup 2^*} &amp; N_{1^*\cup 2} &amp;  N_{1^*\cup 3^*} &amp; N_{1^*\cup 3}\\
+0 &amp; N_{1\cup 0} &amp; N_{1\cup 1^*} &amp; N_{1\cup 1} &amp; N_{1\cup 2^*} &amp; N_{1\cup 2} &amp;  N_{1\cup 3^*} &amp; N_{1\cup 3}\\
+\vdots &amp;\vdots &amp;\vdots &amp;\vdots &amp;\vdots &amp;\vdots &amp;\vdots &amp;\vdots\\
+0 &amp; N_{3^\star\cup 0} &amp; N_{3^\star\cup 1^*} &amp; N_{3^\star\cup 1} &amp; N_{3^\star\cup 2^*} &amp; N_{3^\star\cup 2} &amp;  N_{3^\star\cup 3^*} &amp; N_{3^\star\cup 3}\\
+0 &amp; N_{3\cup 0} &amp; N_{3\cup 1^*} &amp; N_{3\cup 1} &amp; N_{3\cup 2^*} &amp; N_{3\cup 2} &amp;  N_{3\cup 3^*} &amp; N_{3\cup 3}
+\end{bmatrix}\end{split}\]</div>
+<p>Defining</p>
+<div class="math notranslate nohighlight">
+\[\mat{S}=\text{Diag}(\mat{p})\mat{A},\]</div>
+<p>each entry of B can be computed using</p>
+<div class="math notranslate nohighlight">
+\[B_{ij}=\sum_{k=0}^{2M+1} S_{kj} \chi[A_{ki}]\]</div>
+<p>where</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\chi[A_{ki}]=\begin{cases} 1 &amp; A_{ki}=1 \\ 0 &amp; A_{ki}=0 \end{cases}\end{split}\]</div>
+<p>Note computing <span class="math notranslate nohighlight">\(\covar{Q_0}{\Delta}\)</span> and <span class="math notranslate nohighlight">\(\covar{\Delta}{\Delta}\)</span> also requires the number of samples <span class="math notranslate nohighlight">\(N_\alpha\)</span>,  <span class="math notranslate nohighlight">\(N_{\alpha^*}\)</span> in each ACV sample set <span class="math notranslate nohighlight">\(\rvset_\alpha,\rvset_\alpha^*\)</span> which can be computed by simply summing the rows of S or more simply extracting the relevant entry from the diagonal of B. For example</p>
+<div class="math notranslate nohighlight">
+\[N_3 = N_{3\cap3} \text{ and }  N_{3^*} = N_{3^*\cap3^*}\]</div>
+<p>Finally, to compute the computational cost of the estimator we must be able to compute the number of samples per model.
+The number of samples of the ith</p>
+<div class="math notranslate nohighlight">
+\[\sum_{k=1}^M p_{k}\chi[A_{2i,k}+A_{2i+1,k}]\]</div>
+<p>where <span class="math notranslate nohighlight">\(\chi[A_{2i,k}+A_{2i+1,k}]=1\)</span> if <span class="math notranslate nohighlight">\(A_{2i,k}+A_{2i+1,k}&gt;0\)</span> and is zero otherwise.</p>
+<p>Using our example, the intersection matrix is</p>
+<div class="math notranslate nohighlight">
+\[\mat{p} = [2, 3, 4, 5]\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mat{S}=\begin{bmatrix}
+0 &amp; 2 &amp; 2 &amp; 2 &amp; 2 &amp; 2 &amp; 2 &amp; 2\\
+0 &amp; 0 &amp; 0 &amp; 3 &amp; 0 &amp; 3 &amp; 0 &amp; 3\\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 4 &amp; 0 &amp; 4\\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 5 &amp; 0 &amp; 0
+\end{bmatrix}\end{split}\]</div>
+<p>So summing each column of S we have</p>
+<div class="math notranslate nohighlight">
+\[N_0^*=0, N_0=2,  N_1^*=2, N_1=5,  N_2^*=2, N_2=14,  N_3^*=2, N_3=9,\]</div>
+<p>And</p>
+<div class="math notranslate nohighlight">
+\[\begin{split} \mat{B}=\begin{bmatrix}
+0 &amp;  0 &amp;  0 &amp;  0 &amp;  0 &amp;  0 &amp;  0 &amp;  0 \\
+0 &amp;  2 &amp;  2 &amp;  2 &amp;  2 &amp;  2 &amp;  2 &amp;  2 \\
+0 &amp;  2 &amp;  2 &amp;  2 &amp;  2 &amp;  2 &amp;  2 &amp;  2 \\
+0 &amp;  2 &amp;  2 &amp;  5 &amp;  2 &amp;  5 &amp;  2 &amp;  5 \\
+0 &amp;  2 &amp;  2 &amp;  2 &amp;  2 &amp;  2 &amp;  2 &amp;  2 \\
+0 &amp;  2 &amp;  2 &amp;  5 &amp;  2 &amp; 14 &amp;  2 &amp;  9 \\
+0 &amp;  2 &amp;  2 &amp;  2 &amp;  2 &amp;  2 &amp;  2 &amp;  2 \\
+0 &amp;  2 &amp;  2 &amp;  5 &amp;  2 &amp;  9 &amp;  2 &amp;  9
+ \end{bmatrix}\end{split}\]</div>
+<p>The first row and column are all zero because <span class="math notranslate nohighlight">\(\rvset_0^*\)</span> is always empty.</p>
+<p>As an example the thrid entry from the right on the bottom row corresponds to <span class="math notranslate nohighlight">\(B_{75}=N_{3\cup 2}\)</span> which is computed by finding the rows in R that have non zero entries which are the first three rows. Then the <span class="math notranslate nohighlight">\(B_{75}\)</span> is the sum of these rows in the 5 column of S, i.e. <span class="math notranslate nohighlight">\(2+3+4=9\)</span>.</p>
+<section id="examples-of-different-allocation-matrices">
+<h2>Examples of different allocation matrices<a class="headerlink" href="#examples-of-different-allocation-matrices" title="Permalink to this heading"></a></h2>
+<p>The following lists some example alloaction matrices for the
+parameterically defined ACV estimators based on the general structure of
+ACVMF.</p>
+<p>MFMC <span class="math notranslate nohighlight">\((0, 1, 2)\)</span></p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\begin{bmatrix}
+0 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1 &amp; 1 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1
+\end{bmatrix}\end{split}\]</div>
+<p><span class="math notranslate nohighlight">\((0, 0, 1)\)</span></p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\begin{bmatrix}
+0 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 1 &amp; 1 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1
+\end{bmatrix}\end{split}\]</div>
+<p><span class="math notranslate nohighlight">\((0, 0, 2)\)</span></p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\begin{bmatrix}
+0 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 1 &amp; 1 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1 &amp; 1 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1
+\end{bmatrix}\end{split}\]</div>
+<p><span class="math notranslate nohighlight">\((0, 1, 1)\)</span></p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\begin{bmatrix}
+0 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 1\\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1
+\end{bmatrix}\end{split}\]</div>
+</section>
+<section id="how-to-construct-acvmf-like-allocation-matrices">
+<h2>How to construct ACVMF like allocation matrices<a class="headerlink" href="#how-to-construct-acvmf-like-allocation-matrices" title="Permalink to this heading"></a></h2>
+<p>The following shows the general procedure to construct ACVMF like estimators for a recursion index</p>
+<div class="math notranslate nohighlight">
+\[\gamma=(\gamma_1,\ldots,\gamma_M)\]</div>
+<p>As a concrete example, consider the recursion index <span class="math notranslate nohighlight">\(\gamma=(0, 0, 1)\)</span>.</p>
+<p>First we set <span class="math notranslate nohighlight">\(A_{2\alpha+1,\alpha}=1\)</span> for all <span class="math notranslate nohighlight">\(\alpha=0,\ldots,M\)</span></p>
+<p>E.g. for (0,0,1)</p>
+<div class="math notranslate nohighlight">
+\[\begin{split} \begin{bmatrix}
+0 &amp; 1 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 \\
+0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 0 &amp; 0 &amp; 0 \\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 0 \\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1
+\end{bmatrix}\end{split}\]</div>
+<p>We then set <span class="math notranslate nohighlight">\(A_{2\alpha,\gamma_\alpha}=1\)</span> for <span class="math notranslate nohighlight">\(\alpha=1,\ldots,M\)</span>. For example,</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}  \begin{bmatrix}
+0 &amp; 1 &amp; 1 &amp; 0 &amp; 1 &amp; 0 &amp; 0 &amp; 0 \\
+0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 0 &amp; 1 &amp; 0 \\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 0 \\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1
+  \end{bmatrix}\end{split}\]</div>
+<p>And finally because ACMF always uses all independent partitions up to including <span class="math notranslate nohighlight">\(\gamma_\alpha\)</span> we set <span class="math notranslate nohighlight">\(A_{i,k}=1\)</span>, for <span class="math notranslate nohighlight">\(k=0,\ldots,\gamma_\alpha\)</span> and <span class="math notranslate nohighlight">\(\forall i\)</span>. For example</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}  \begin{bmatrix}
+0 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 \\
+0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 1 &amp; 1 &amp; 1 \\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 1 \\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1
+  \end{bmatrix}\end{split}\]</div>
+<p>The following can be used to plot the allocation matrix of any PACV estimator (not just GMF). Note we load a benchmark because it is needed to initialize the PACV estimator, but the allocation matrix is independent of any benchmark properties other than the number of models it provides</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.factory</span> <span class="kn">import</span> <span class="n">get_estimator</span><span class="p">,</span> <span class="n">multioutput_stats</span>
+
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;tunable_model_ensemble&quot;</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span>
+
+<span class="n">stat</span> <span class="o">=</span> <span class="n">multioutput_stats</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">](</span><span class="n">benchmark</span><span class="o">.</span><span class="n">nqoi</span><span class="p">)</span>
+<span class="n">stat</span><span class="o">.</span><span class="n">set_pilot_quantities</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">covariance</span><span class="p">)</span>
+<span class="n">est</span> <span class="o">=</span> <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;grd&quot;</span><span class="p">,</span> <span class="n">stat</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">costs</span><span class="p">(),</span> <span class="n">recursion_index</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">plot_allocation</span><span class="p">(</span><span class="n">ax</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_allocation_matrices_001.png" srcset="../../_images/sphx_glr_plot_allocation_matrices_001.png" alt="plot allocation matrices" class = "sphx-glr-single-img"/><p>The different colors represent different independent sample partitions. Subsets <span class="math notranslate nohighlight">\(\rvset_\alpha\text{ or  }\rvset_\alpha^*\)</span> having the same color, means that the same set of samples are used in each subset.</p>
+<p>Try changing recursion index to (0, 1) or (2, 0) and the estimator from “gis” to “gmf” or” grd”</p>
+</section>
+<section id="evaluating-a-pacv-estimator">
+<h2>Evaluating a PACV estimator<a class="headerlink" href="#evaluating-a-pacv-estimator" title="Permalink to this heading"></a></h2>
+<p>Allocation matrices are also useful for evaluating a PACV estimator.
+To evaluate the ACV estimator we must construct each independent sample partition from a set of <span class="math notranslate nohighlight">\(N_\text{tot}\)</span> samples <span class="math notranslate nohighlight">\(\rvset_\text{tot}\)</span> where</p>
+<div class="math notranslate nohighlight">
+\[N_\text{tot}=\sum_{\alpha=0}^{M} p_\alpha\]</div>
+<p>We then must allocate each model on a subset of these samples dictated by the allocation matrix. For a model index <span class="math notranslate nohighlight">\(\alpha\)</span> we must evaluate a model at a independent partition k if <span class="math notranslate nohighlight">\(A_{2\alpha, k}=1\)</span> or <span class="math notranslate nohighlight">\(A_{2\alpha+1, k}=1\)</span>. These correspond to the sets <span class="math notranslate nohighlight">\(\rvset_{\alpha}^*, \rvset_{\alpha}\)</span>. We store these active partitions in a flattened sample array for each model ordered by increasing partition index, which is passed to each user. E.g. if the partitions 0, 1, 3 are active then we store <span class="math notranslate nohighlight">\([\rvset_{0}^\dagger, \rvset_{1}^\dagger, \rvset_{3}^\dagger]\)</span> where the dagger indicates the samples sets are associated with partitions and not the estimator sets <span class="math notranslate nohighlight">\(\rvset_{\alpha^*}, \rvset_{\alpha}\)</span>.</p>
+<p>The user can then evaluate each model without knowing anything about the ACV estimator sets or the independent partitions.</p>
+<p>These model evaluations are then passed back to the estimator and internally we must assigne the values to each ACV estimator sample set. Specifically for each model <span class="math notranslate nohighlight">\(\alpha\)</span>, we loop through all partition indices k and if <span class="math notranslate nohighlight">\(A_{2\alpha,k}=1\)</span> we assign <span class="math notranslate nohighlight">\(\mathcal{f_\alpha(\rvset^\dagger_k)}\)</span> to <span class="math notranslate nohighlight">\(\rvset_{\alpha^*}\)</span> similarly if <span class="math notranslate nohighlight">\(A_{2\alpha+1,k}=1\)</span> we assign <span class="math notranslate nohighlight">\(\mathcal{f_\alpha(\rvset^\dagger_k)}\)</span> to <span class="math notranslate nohighlight">\(\rvset_{\alpha}\)</span>.</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.038 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-allocation-matrices-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/2d969826735946bc35e8b13b21ad80b7/plot_allocation_matrices.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_allocation_matrices.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/8a3bdfe5378b1fc4fa156e3459f20fa6/plot_allocation_matrices.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_allocation_matrices.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="acv_covariances.html" class="btn btn-neutral float-left" title="Delta-Based Covariance Formulas For Approximate Control Variates" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_multi_level_monte_carlo.html" class="btn btn-neutral float-right" title="Multi-level Monte Carlo" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

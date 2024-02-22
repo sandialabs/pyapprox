@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pilot Studies &mdash; PyApprox 1.0.3 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Model Ensemble Selection" href="plot_ensemble_selection.html" />
+    <link rel="prev" title="Multioutput Approximate Control Variates" href="plot_multioutput_acv.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_monte_carlo.html">Monte Carlo Quadrature: Beyond Mean Estimation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Two Model Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variates.html">Two model Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_many_model_acv.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="acv_covariances.html">Delta-Based Covariance Formulas For Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_allocation_matrices.html">Approximate Control Variate Allocation Matrices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pacv.html">Parametrically Defined Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_acv.html">Multioutput Approximate Control Variates</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Pilot Studies</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ignoring-the-computational-cost-of-the-pilot-study">Ignoring the computational cost of the pilot study</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#accounting-for-the-computational-cost-of-the-pilot-study">Accounting for the computational cost of the pilot study</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#estimating-model-costs">Estimating model costs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#estimating-statistics-other-than-the-mean">Estimating statistics other than the mean</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="plot_ensemble_selection.html">Model Ensemble Selection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multilevel_blue.html">Multilevel Best Linear Unbiased estimators (MLBLUE)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-level and Multi-index Collocation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multifidelity_gp.html">Multifidelity Gaussian processes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_gaussian_mfnets.html">MFNets: Multi-fidelity networks</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">Pilot Studies</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/auto_tutorials/multi_fidelity/plot_pilot_studies.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-pilot-studies-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="pilot-studies">
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-pilot-studies-py"></span><h1>Pilot Studies<a class="headerlink" href="#pilot-studies" title="Permalink to this heading"></a></h1>
+<p>The covariance of an ACV estimator depends on the covariance between the different model fidelities and other statistics, such as variance, depend on additional statistics properties of the model. In previous tutorials, we have assumed that thse statistics are available. However, in practice they must be estimated, because if we knew them we would not have to construct an MC estimator in the first place.</p>
+<p>This tutorial presents how to use a pilot-study to compute the statistics needed to compute a MC-based estimator and compute its estimator covariance. We will focus on estimating the mean of a scalar model, but the procedures we describe here can easily be extended to estimation of other statistics such as variance. One simlpy must use a pilot study to compute the relevant quantities defined in <a class="reference internal" href="acv_covariances.html#sphx-glr-auto-tutorials-multi-fidelity-acv-covariances-py"><span class="std std-ref">Delta-Based Covariance Formulas For Approximate Control Variates</span></a></p>
+<p>Computing an ACV estimator of a statistic requires computing  <span class="math notranslate nohighlight">\(\covar{\mat{Q}_0}{\mat{\Delta}}\text{ and} \covar{\mat{\Delta}}{\mat{\Delta}}\)</span>. These quantities in turn depend on the quantities in <a class="reference internal" href="acv_covariances.html#sphx-glr-auto-tutorials-multi-fidelity-acv-covariances-py"><span class="std std-ref">Delta-Based Covariance Formulas For Approximate Control Variates</span></a>. For example, when estimating the mean we must compute</p>
+<div class="math notranslate nohighlight">
+\[\covar{f_\alpha}{f_\beta}\qquad \forall \alpha,\beta\]</div>
+<p>Typically, this is not available so we compute it with a pilot study. A pilot study evaluates all the available models at a small set of samples <span class="math notranslate nohighlight">\(\rvset_\text{pilot}\)</span> and computes the quantities necessary to construct an ACV estimator. For example when computing the mean we estimate</p>
+<div class="math notranslate nohighlight">
+\[\covar{f_\alpha}{f_\beta}\approx{N_\text{pilot}^{-1}}\sum_{n=1}^{N_\text{pilot}} \left(f_\alpha(\rv^{(n)})-Q_\alpha(\rvset_\text{pilot})\right)\left(f_\beta(\rv^{(n)})-Q_\beta(\rvset_\text{pilot})\right)\]</div>
+<p>where</p>
+<div class="math notranslate nohighlight">
+\[Q_\alpha={N_\text{pilot}^{-1}}\sum_{n=1}^{N_\text{pilot}} f_\alpha(\rv^{(n)})\approx \mean{f_\alpha}\]</div>
+<p>With an unlimited computational budget, we would drive <span class="math notranslate nohighlight">\(N_\text{pilot}\to\infty\)</span>, however in practice we must use a finite number of samples which introduces an error in to an ACV estimator.</p>
+<p>The following code quantities the impact of the size of the pilot sample on the accuracy of an ACV estimator. If the pilot size is too small the accuracy of the control variate coefficieints will be poor, however it is made larger, constructing the pilot study will eat into the computational budget used to construct the estimator which also degrades accuracy. These two concerns need to be balanced.</p>
+<p>First setup the example</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.factory</span> <span class="kn">import</span> <span class="n">get_estimator</span><span class="p">,</span> <span class="n">multioutput_stats</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">get_correlation_from_covariance</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.visualization</span> <span class="kn">import</span> <span class="n">mathrm_label</span>
+
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now choose an estimator and optimally allocate it with oracle information,
+that is the exact model covariance. We will use MFMC because the optimal sample allocation can be obtained analytically which speeds up this tutorial. However other estimators can be used. Also note that if using MFMC to estimate variance or other stats its allocation it still uses the allocation that is only guaranteed to be optimal when estimating the mean. This is not true of any other estimator except MLMC.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">target_cost</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="n">est_name</span> <span class="o">=</span> <span class="s2">&quot;mfmc&quot;</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;polynomial_ensemble&quot;</span><span class="p">,</span> <span class="n">nmodels</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">nmodels</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">funs</span><span class="p">)</span>
+<span class="n">costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">])</span>
+
+<span class="n">stat_type</span> <span class="o">=</span> <span class="s2">&quot;mean&quot;</span>
+<span class="c1"># stat_type = &quot;variance&quot;</span>
+
+<span class="n">cov</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">covariance</span>
+<span class="k">if</span> <span class="n">stat_type</span> <span class="o">==</span> <span class="s2">&quot;mean&quot;</span><span class="p">:</span>
+    <span class="n">oracle_stats</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">mean</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">oracle_stat_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">cov</span><span class="p">]</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">oracle_stats</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">covariance</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">oracle_stat_args</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">cov</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="o">.</span><span class="n">covariance_of_centered_values_kronker_product</span><span class="p">()]</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">get_correlation_from_covariance</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">covariance</span><span class="p">))</span>
+
+<span class="n">oracle_stat</span> <span class="o">=</span> <span class="n">multioutput_stats</span><span class="p">[</span><span class="n">stat_type</span><span class="p">](</span><span class="n">benchmark</span><span class="o">.</span><span class="n">nqoi</span><span class="p">)</span>
+<span class="n">oracle_stat</span><span class="o">.</span><span class="n">set_pilot_quantities</span><span class="p">(</span><span class="o">*</span><span class="n">oracle_stat_args</span><span class="p">)</span>
+
+<span class="n">oracle_est</span> <span class="o">=</span> <span class="n">get_estimator</span><span class="p">(</span><span class="n">est_name</span><span class="p">,</span> <span class="n">oracle_stat</span><span class="p">,</span> <span class="n">costs</span><span class="p">)</span>
+<span class="n">oracle_est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span><span class="n">target_cost</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">oracle_est</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[[1.         0.99498744 0.97499604]
+ [0.99498744 1.         0.99215674]
+ [0.97499604 0.99215674 1.        ]]
+MFMCEstimator(stat=MultiOutputMean, recursion_index=[0 1], criteria=-9.29 target_cost=99.6, ratios=[ 5.30769231 37.69230769], nsamples=[  26  164 1144])
+</pre></div>
+</div>
+<p>Now lets look at the MSE of the ACV estimator when pilot samples of different sizes are used. First, create a function that computes an acv estimator for a single pilot study.  We will then repeatedly call this function to compute the MSE.</p>
+<p>Note, the function we define below can be replicated for most practical application of ACV estimation, but in such situations it sill only be called once.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.multifidelity.stats</span> <span class="kn">import</span> <span class="n">MultiOutputMean</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.factory</span> <span class="kn">import</span> <span class="n">multioutput_stats</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+
+<span class="k">def</span> <span class="nf">build_acv</span><span class="p">(</span><span class="n">funs</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span> <span class="n">npilot_samples</span><span class="p">,</span> <span class="n">adjust_cost</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+              <span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">stat_type</span><span class="o">=</span><span class="s2">&quot;mean&quot;</span><span class="p">):</span>
+    <span class="c1"># run pilot study</span>
+
+    <span class="c1"># Note must set random state if running with nprocs &gt; 1</span>
+    <span class="n">random_states</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">RandomState</span><span class="p">(</span><span class="n">seed</span><span class="o">*</span><span class="mi">2</span><span class="o">*</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span><span class="o">+</span><span class="n">ii</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">())]</span>
+    <span class="c1"># instead of np.random.seed(seed)</span>
+    <span class="n">pilot_samples</span> <span class="o">=</span> <span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">npilot_samples</span><span class="p">,</span> <span class="n">random_states</span><span class="o">=</span><span class="n">random_states</span><span class="p">)</span>
+    <span class="n">pilot_values_per_model</span> <span class="o">=</span> <span class="p">[</span><span class="n">fun</span><span class="p">(</span><span class="n">pilot_samples</span><span class="p">)</span> <span class="k">for</span> <span class="n">fun</span> <span class="ow">in</span> <span class="n">funs</span><span class="p">]</span>
+    <span class="n">stat_class</span> <span class="o">=</span> <span class="n">multioutput_stats</span><span class="p">[</span><span class="n">stat_type</span><span class="p">]</span>
+    <span class="n">pilot_quantities</span> <span class="o">=</span> <span class="n">stat_class</span><span class="o">.</span><span class="n">compute_pilot_quantities</span><span class="p">(</span>
+        <span class="n">pilot_values_per_model</span><span class="p">)</span>
+    <span class="c1"># print(get_correlation_from_covariance(pilot_cov))</span>
+
+    <span class="c1"># optimize the ACV estimator</span>
+    <span class="n">stat</span> <span class="o">=</span> <span class="n">multioutput_stats</span><span class="p">[</span><span class="n">stat_type</span><span class="p">](</span><span class="n">benchmark</span><span class="o">.</span><span class="n">nqoi</span><span class="p">)</span>
+    <span class="n">stat</span><span class="o">.</span><span class="n">set_pilot_quantities</span><span class="p">(</span><span class="o">*</span><span class="n">pilot_quantities</span><span class="p">)</span>
+    <span class="n">est</span> <span class="o">=</span> <span class="n">get_estimator</span><span class="p">(</span><span class="n">est_name</span><span class="p">,</span> <span class="n">stat</span><span class="p">,</span> <span class="n">costs</span><span class="p">)</span>
+    <span class="c1"># remaining_budget_after_pilot</span>
+    <span class="k">if</span> <span class="n">adjust_cost</span><span class="p">:</span>
+        <span class="n">adjusted_target_cost</span> <span class="o">=</span> <span class="n">target_cost</span> <span class="o">-</span> <span class="p">(</span><span class="n">costs</span><span class="o">*</span><span class="n">npilot_samples</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">adjusted_target_cost</span> <span class="o">=</span> <span class="n">target_cost</span>
+    <span class="c1"># print(adjusted_target_cost)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span><span class="n">adjusted_target_cost</span><span class="p">)</span>
+        <span class="c1"># compute the ACV estimator</span>
+        <span class="n">random_states</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">RandomState</span><span class="p">(</span>
+                <span class="n">seed</span><span class="o">*</span><span class="mi">2</span><span class="o">*</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span><span class="o">+</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span><span class="o">+</span><span class="n">ii</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">())]</span>
+        <span class="n">samples_per_model</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">generate_samples_per_model</span><span class="p">(</span>
+            <span class="n">partial</span><span class="p">(</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span> <span class="n">random_states</span><span class="o">=</span><span class="n">random_states</span><span class="p">))</span>
+        <span class="n">values_per_model</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">fun</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span> <span class="k">for</span> <span class="n">fun</span><span class="p">,</span> <span class="n">samples</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">funs</span><span class="p">,</span> <span class="n">samples_per_model</span><span class="p">)]</span>
+        <span class="n">est_stats</span> <span class="o">=</span> <span class="n">est</span><span class="p">(</span><span class="n">values_per_model</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">est_stats</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">RuntimeError</span><span class="p">,</span> <span class="ne">RuntimeWarning</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="c1"># sometimes MFMC will fail when used to find optimal solution</span>
+        <span class="c1"># for variance because we cannot bound from below the number of</span>
+        <span class="c1"># high-fidelity samples to be at least 2.</span>
+        <span class="c1"># This causes the error</span>
+        <span class="c1"># Degrees of freedom &lt;= 0 for slice error occurs because</span>
+        <span class="c1"># or</span>
+        <span class="c1"># Rounding will cause nhf samples to be zero tensor</span>
+        <span class="c1"># when nhf samples is below 1.</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Now define a function to compute the MSE. Note nprocs cannot be set &gt; 1 unless all of this code is placed inside a function, e.g. called main,  which is then
+run inside the following conditional</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">Pool</span>
+<span class="k">def</span> <span class="nf">compute_mse</span><span class="p">(</span><span class="n">build_acv</span><span class="p">,</span> <span class="n">funs</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span> <span class="n">npilot_samples</span><span class="p">,</span>
+                <span class="n">adjust_cost</span><span class="p">,</span> <span class="n">ntrials</span><span class="p">,</span> <span class="n">nprocs</span><span class="p">,</span> <span class="n">exact_stats</span><span class="p">,</span> <span class="n">stat_type</span><span class="p">):</span>
+    <span class="n">build</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
+        <span class="n">build_acv</span><span class="p">,</span> <span class="n">funs</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span> <span class="n">npilot_samples</span><span class="p">,</span> <span class="n">adjust_cost</span><span class="p">,</span>
+        <span class="n">stat_type</span><span class="o">=</span><span class="n">stat_type</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">nprocs</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">pool</span> <span class="o">=</span> <span class="n">Pool</span><span class="p">(</span><span class="n">nprocs</span><span class="p">)</span>
+        <span class="n">est_vals</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">build</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">ntrials</span><span class="p">)))</span>
+        <span class="n">pool</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">est_vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">build</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ntrials</span><span class="p">)])</span>
+
+    <span class="c1"># exclude failed MCMC runs</span>
+    <span class="n">est_vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">est_vals</span><span class="p">)[</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">est_vals</span><span class="p">)]</span>
+    <span class="c1"># make sure random seed is getting set correctly on each processor</span>
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">est_vals</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">est_vals</span><span class="p">)</span>
+    <span class="n">mse</span> <span class="o">=</span> <span class="p">((</span><span class="n">est_vals</span><span class="o">-</span><span class="n">exact_stats</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">mse</span>
+</pre></div>
+</div>
+<section id="ignoring-the-computational-cost-of-the-pilot-study">
+<h2>Ignoring the computational cost of the pilot study<a class="headerlink" href="#ignoring-the-computational-cost-of-the-pilot-study" title="Permalink to this heading"></a></h2>
+<p>Now we will build many realiaztions of the ACV estimator for each different samples size. We must ensure that the cost of the pilot study and the construction of the ACV estimator do not exceed the target cost.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">ntrials</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">1e3</span><span class="p">)</span>
+<span class="n">mse_list</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">npilot_samples_list</span> <span class="o">=</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">80</span><span class="p">,</span> <span class="mi">160</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">npilot_samples</span> <span class="ow">in</span> <span class="n">npilot_samples_list</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">npilot_samples</span><span class="p">)</span>
+    <span class="n">mse_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">compute_mse</span><span class="p">(</span>
+        <span class="n">build_acv</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">funs</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">,</span>
+        <span class="n">npilot_samples</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="n">ntrials</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">oracle_stats</span><span class="p">,</span>
+        <span class="n">stat_type</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">mse_list</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>5
+Rounding will cause nhf samples to be zero tensor([2.0059e-01, 3.5647e+00, 1.9847e+03])
+Rounding will cause nhf samples to be zero tensor([5.2019e-01, 8.5195e+00, 1.9625e+03])
+Rounding will cause nhf samples to be zero tensor([8.5891e-01, 1.2316e+01, 1.9433e+03])
+0.00030055376524214494
+10
+0.00012597668290734038
+20
+9.738350413654201e-05
+40
+9.059521503433804e-05
+80
+8.950838488655008e-05
+160
+8.98108769019937e-05
+</pre></div>
+</div>
+<p>Now compare the MSE of the oracle ACV estimator which is just equal to its estimator variance, with the estimators constructed for different pilot samples sizes.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mc_est</span> <span class="o">=</span> <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mc&quot;</span><span class="p">,</span> <span class="n">oracle_stat</span><span class="p">,</span> <span class="n">costs</span><span class="p">)</span>
+<span class="n">mc_est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span><span class="n">target_cost</span><span class="p">)</span>
+<span class="n">mc_mse</span> <span class="o">=</span> <span class="n">mc_est</span><span class="o">.</span><span class="n">_optimized_covariance</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+
+<span class="n">oracle_mse</span> <span class="o">=</span> <span class="n">oracle_est</span><span class="o">.</span><span class="n">_optimized_covariance</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">y</span><span class="o">=</span><span class="n">oracle_mse</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Oracle MSE&quot;</span><span class="p">))</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">y</span><span class="o">=</span><span class="n">mc_mse</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Oracle MC MSE&quot;</span><span class="p">))</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">npilot_samples_list</span><span class="p">,</span> <span class="n">mse_list</span><span class="p">,</span> <span class="s1">&#39;-o&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Pilot MSE&quot;</span><span class="p">))</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Number of pilot samples&quot;</span><span class="p">))</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_pilot_studies_001.png" srcset="../../_images/sphx_glr_plot_pilot_studies_001.png" alt="plot pilot studies" class = "sphx-glr-single-img"/></section>
+<section id="accounting-for-the-computational-cost-of-the-pilot-study">
+<h2>Accounting for the computational cost of the pilot study<a class="headerlink" href="#accounting-for-the-computational-cost-of-the-pilot-study" title="Permalink to this heading"></a></h2>
+<p>The previous study asssumed that the target cost of the estimator was not impacted by the computational cost of running the pilot study but this is not practical. Now lets plot the MSE vs the number of pilot samples keeping while ensuring that the cost of computing the pilot and the cost of constructing the estimator are always equal to the target cost</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">ntrials</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">1e3</span><span class="p">)</span>
+<span class="n">mse_list</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">target_cost</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="c1"># we must keep pilot cost below target cost</span>
+<span class="n">npilot_samples_list</span> <span class="o">=</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">60</span><span class="p">,</span> <span class="mi">70</span><span class="p">,</span> <span class="mi">80</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">npilot_samples</span> <span class="ow">in</span> <span class="n">npilot_samples_list</span><span class="p">:</span>
+    <span class="c1"># The cost of evaluating all models once is np.sum(costs)</span>
+    <span class="n">pilot_cost</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">costs</span><span class="p">)</span><span class="o">*</span><span class="n">npilot_samples</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">npilot_samples</span><span class="p">)</span>
+    <span class="n">mse_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">compute_mse</span><span class="p">(</span>
+        <span class="n">build_acv</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">funs</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">target_cost</span><span class="o">-</span><span class="n">pilot_cost</span><span class="p">,</span>
+        <span class="n">npilot_samples</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="n">ntrials</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">oracle_stats</span><span class="p">,</span>
+        <span class="n">stat_type</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">mse_list</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">y</span><span class="o">=</span><span class="n">oracle_mse</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Oracle MSE&quot;</span><span class="p">))</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">y</span><span class="o">=</span><span class="n">mc_mse</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Oracle MC MSE&quot;</span><span class="p">))</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">npilot_samples_list</span><span class="p">,</span> <span class="n">mse_list</span><span class="p">,</span> <span class="s1">&#39;-o&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Pilot MSE&quot;</span><span class="p">))</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Number of pilot samples&quot;</span><span class="p">))</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_pilot_studies_002.png" srcset="../../_images/sphx_glr_plot_pilot_studies_002.png" alt="plot pilot studies" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>5
+Rounding will cause nhf samples to be zero tensor([1.8906e-01, 3.3597e+00, 1.8706e+03])
+Rounding will cause nhf samples to be zero tensor([4.9028e-01, 8.0296e+00, 1.8496e+03])
+Rounding will cause nhf samples to be zero tensor([8.0952e-01, 1.1608e+01, 1.8316e+03])
+0.000314882320678576
+10
+0.00014706721463649233
+20
+0.0001330628522724495
+40
+0.00016543197783316097
+60
+0.00028222563377836794
+70
+0.00045427233226952914
+80
+0.001310297937485497
+</pre></div>
+</div>
+<p>As you can see if the computational cost of the pilot study is a large fraction of the target cost then the MSE becomes very bad.</p>
+</section>
+<section id="estimating-model-costs">
+<h2>Estimating model costs<a class="headerlink" href="#estimating-model-costs" title="Permalink to this heading"></a></h2>
+<p>The pilot study is also used to approximate the model costs. Typically, we take the median run time of each model over the pilot samples</p>
+</section>
+<section id="estimating-statistics-other-than-the-mean">
+<h2>Estimating statistics other than the mean<a class="headerlink" href="#estimating-statistics-other-than-the-mean" title="Permalink to this heading"></a></h2>
+<blockquote>
+<div><p>Try setting stat_type=”variance”. What impact does it have on the MSE as a function of the number of pilot samples?</p>
+</div></blockquote>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  20.653 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-pilot-studies-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/e97c1780feda558ebe9f6262a5c11e09/plot_pilot_studies.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_pilot_studies.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/9a0f60f34568c72dc4b2ff3a9b23de4f/plot_pilot_studies.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_pilot_studies.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="plot_multioutput_acv.html" class="btn btn-neutral float-left" title="Multioutput Approximate Control Variates" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_ensemble_selection.html" class="btn btn-neutral float-right" title="Model Ensemble Selection" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -3,7 +3,6 @@
 *~
 *.so
 *.c
-*.html
 *.pdf
 *.npz
 *.pkl

@@ -194,7 +194,7 @@ The function :func:`pyapprox.interface.wrappers.evaluate_1darray_function_on_2d_
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.017 seconds)
+   **Total running time of the script:** ( 0 minutes  0.021 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_setup_model.py:

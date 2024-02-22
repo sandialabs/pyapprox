@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pyapprox.multifidelity.visualize &mdash; PyApprox 1.0.3 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_examples/index.html">Software Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">Theoretical Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">pyapprox.multifidelity.visualize</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for pyapprox.multifidelity.visualize</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.util.visualization</span> <span class="kn">import</span> <span class="n">plt</span><span class="p">,</span> <span class="n">mathrm_label</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity._visualize</span> <span class="kn">import</span> <span class="n">_autolabel</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.factory</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">compute_variance_reductions</span><span class="p">,</span> <span class="n">ComparisonCriteria</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="plot_model_costs"><a class="viewcode-back" href="../../../api/pyapprox.multifidelity.plot_model_costs.html#pyapprox.multifidelity.plot_model_costs">[docs]</a><span class="k">def</span> <span class="nf">plot_model_costs</span><span class="p">(</span><span class="n">costs</span><span class="p">,</span> <span class="n">model_names</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">nmodels</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">costs</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">model_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">model_names</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s2">&quot;$f_{</span><span class="si">%d</span><span class="s2">}$&quot;</span> <span class="o">%</span> <span class="n">ii</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">),</span> <span class="n">costs</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">))</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">model_names</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">plot_estimator_variances</span><span class="p">(</span><span class="n">optimized_estimators</span><span class="p">,</span>
+                             <span class="n">est_labels</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                             <span class="n">relative_id</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">cost_normalization</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                             <span class="n">criteria</span><span class="o">=</span><span class="n">ComparisonCriteria</span><span class="p">(</span><span class="s2">&quot;det&quot;</span><span class="p">)):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot the estimator variance for a list of estimators.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    optimized_estimators : list</span>
+<span class="sd">         Each entry is a list of optimized estimators for a set of target costs</span>
+
+<span class="sd">    est_labels : list (nestimators)</span>
+<span class="sd">        String used to label each estimator</span>
+
+<span class="sd">    relative_id : integer</span>
+
+<span class="sd">        The model id used to normalize variance</span>
+
+<span class="sd">    cost_normalization : float</span>
+<span class="sd">        Costs are divided by this value. Useful, for example, when you</span>
+<span class="sd">        want to plot variances as a function of the equivalent number of</span>
+<span class="sd">        high-fidelity evaluations in which case cost_normalization=costs[0]</span>
+
+<span class="sd">    criteria : callable</span>
+<span class="sd">        A function that returns a scalar metric of the estimator covariance</span>
+<span class="sd">        with signature</span>
+
+<span class="sd">        `criteria(cov) -&gt; float`</span>
+
+<span class="sd">        where cov is an np.ndarray (nstats, nstats) is the estimator covariance</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">linestyles</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="s1">&#39;-.&#39;</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">)),</span> <span class="s1">&#39;-&#39;</span><span class="p">]</span>
+    <span class="n">nestimators</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">est_labels</span><span class="p">)</span>
+    <span class="n">est_criteria</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nestimators</span><span class="p">):</span>
+        <span class="n">est_total_costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">est</span><span class="o">.</span><span class="n">_rounded_target_cost</span> <span class="k">for</span> <span class="n">est</span> <span class="ow">in</span> <span class="n">optimized_estimators</span><span class="p">[</span><span class="n">ii</span><span class="p">]])</span>
+        <span class="n">est_criteria</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">criteria</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_covariance_from_npartition_samples</span><span class="p">(</span>
+                <span class="n">est</span><span class="o">.</span><span class="n">_rounded_npartition_samples</span><span class="p">),</span> <span class="n">est</span><span class="p">)</span>
+             <span class="k">for</span> <span class="n">est</span> <span class="ow">in</span> <span class="n">optimized_estimators</span><span class="p">[</span><span class="n">ii</span><span class="p">]]))</span>
+    <span class="n">est_total_costs</span> <span class="o">*=</span> <span class="n">cost_normalization</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nestimators</span><span class="p">):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">est_total_costs</span><span class="p">,</span>
+                  <span class="n">est_criteria</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">/</span><span class="n">est_criteria</span><span class="p">[</span><span class="n">relative_id</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span>
+                  <span class="n">label</span><span class="o">=</span><span class="n">est_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">ls</span><span class="o">=</span><span class="n">linestyles</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;o&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ylabel</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ylabel</span> <span class="o">=</span> <span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Estimator variance&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Target cost&quot;</span><span class="p">))</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="n">ylabel</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="plot_estimator_variance_reductions"><a class="viewcode-back" href="../../../api/pyapprox.multifidelity.plot_estimator_variance_reductions.html#pyapprox.multifidelity.plot_estimator_variance_reductions">[docs]</a><span class="k">def</span> <span class="nf">plot_estimator_variance_reductions</span><span class="p">(</span><span class="n">optimized_estimators</span><span class="p">,</span>
+                                       <span class="n">est_labels</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                       <span class="n">criteria</span><span class="o">=</span><span class="n">ComparisonCriteria</span><span class="p">(</span><span class="s2">&quot;det&quot;</span><span class="p">),</span>
+                                       <span class="o">**</span><span class="n">bar_kawrgs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot the variance reduction (relative to single model MC) for a</span>
+<span class="sd">    list of optimized estimtors.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    optimized_estimators : list</span>
+<span class="sd">         Each entry is a list of optimized estimators for a set of target costs</span>
+
+<span class="sd">    est_labels : list (nestimators)</span>
+<span class="sd">        String used to label each estimator</span>
+
+<span class="sd">    criteria : callable</span>
+<span class="sd">        A function that returns a scalar metric of the estimator covariance</span>
+<span class="sd">        with signature</span>
+
+<span class="sd">        `criteria(cov) -&gt; float`</span>
+
+<span class="sd">        where cov is an np.ndarray (nstats, nstats) is the estimator covariance</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">est_labels</span> <span class="o">=</span> <span class="n">est_labels</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">var_red</span><span class="p">,</span> <span class="n">est_criterias</span><span class="p">,</span> <span class="n">sf_criterias</span> <span class="o">=</span> <span class="n">compute_variance_reductions</span><span class="p">(</span>
+        <span class="n">optimized_estimators</span><span class="p">,</span> <span class="n">criteria</span><span class="p">)</span>
+    <span class="n">rects</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">est_labels</span><span class="p">,</span> <span class="n">var_red</span><span class="p">,</span> <span class="o">**</span><span class="n">bar_kawrgs</span><span class="p">)</span>
+    <span class="n">rects</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rects</span><span class="p">]</span>  <span class="c1"># convert to list</span>
+    <span class="n">_autolabel</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">rects</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;$</span><span class="si">%1.2f</span><span class="s1">$&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">var_red</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">ylabel</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ylabel</span> <span class="o">=</span> <span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Estimator variance reduction&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="n">ylabel</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">var_red</span><span class="p">,</span> <span class="n">est_criterias</span><span class="p">,</span> <span class="n">sf_criterias</span></div>
+
+
+<div class="viewcode-block" id="plot_correlation_matrix"><a class="viewcode-back" href="../../../api/pyapprox.multifidelity.plot_correlation_matrix.html#pyapprox.multifidelity.plot_correlation_matrix">[docs]</a><span class="k">def</span> <span class="nf">plot_correlation_matrix</span><span class="p">(</span><span class="n">corr_matrix</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">model_names</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                            <span class="n">format_string</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">{:1.3f}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;jet&quot;</span><span class="p">,</span> <span class="n">nqoi</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                            <span class="n">label_fontsize</span><span class="o">=</span><span class="mi">16</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot a correlation matrix</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    corr_matrix : np.ndarray (nvars, nvars)</span>
+<span class="sd">         The correlation between a set of random variabels</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">matshow</span><span class="p">(</span><span class="n">corr_matrix</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">),</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">ndenumerate</span><span class="p">(</span><span class="n">corr_matrix</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">format_string</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">format_string</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">z</span><span class="p">),</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span>
+                    <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">model_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">nmodels</span> <span class="o">=</span> <span class="n">corr_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">model_names</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s2">&quot;$f_{</span><span class="si">%d</span><span class="s2">}$&quot;</span> <span class="o">%</span> <span class="n">ii</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">model_names</span><span class="p">))</span><span class="o">*</span><span class="n">nqoi</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_yticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">model_names</span><span class="p">))</span><span class="o">*</span><span class="n">nqoi</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">(</span><span class="n">model_names</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="n">label_fontsize</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">model_names</span><span class="p">,</span> <span class="n">rotation</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="n">label_fontsize</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ax</span></div>
+
+
+<div class="viewcode-block" id="plot_estimator_sample_allocation_comparison"><a class="viewcode-back" href="../../../api/pyapprox.multifidelity.plot_estimator_sample_allocation_comparison.html#pyapprox.multifidelity.plot_estimator_sample_allocation_comparison">[docs]</a><span class="k">def</span> <span class="nf">plot_estimator_sample_allocation_comparison</span><span class="p">(</span>
+        <span class="n">estimators</span><span class="p">,</span> <span class="n">model_labels</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="n">legendloc</span><span class="o">=</span><span class="p">[</span><span class="mf">0.925</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">],</span> <span class="n">xlabels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot the number of samples allocated to each model for a set of estimators</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    estimators : list</span>
+<span class="sd">       Each entry is a MonteCarlo like estimator</span>
+
+<span class="sd">    model_labels : list (nestimators)</span>
+<span class="sd">        String used to label each estimator</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">nestimators</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">estimators</span><span class="p">)</span>
+    <span class="n">xlocs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nestimators</span><span class="p">)</span>
+
+    <span class="kn">from</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">import</span> <span class="n">cm</span>
+    <span class="k">for</span> <span class="n">jj</span><span class="p">,</span> <span class="n">est</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">estimators</span><span class="p">):</span>
+        <span class="n">cnt</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1"># warning currently colors will not match if estimators use different</span>
+        <span class="c1"># models</span>
+        <span class="n">colors</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">rainbow</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">est</span><span class="o">.</span><span class="n">_nmodels</span><span class="p">))</span>
+        <span class="n">rects</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">est</span><span class="o">.</span><span class="n">model_labels</span> <span class="o">=</span> <span class="n">model_labels</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_nmodels</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">jj</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">label</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">model_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">label</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">cost_ratio</span> <span class="o">=</span> <span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_costs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">est</span><span class="o">.</span><span class="n">_rounded_nsamples_per_model</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">/</span>
+                          <span class="n">est</span><span class="o">.</span><span class="n">_rounded_target_cost</span><span class="p">)</span>
+            <span class="n">rect</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span>
+                <span class="n">xlocs</span><span class="p">[</span><span class="n">jj</span><span class="p">:</span><span class="n">jj</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="n">cost_ratio</span><span class="p">,</span> <span class="n">bottom</span><span class="o">=</span><span class="n">cnt</span><span class="p">,</span> <span class="n">edgecolor</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">,</span>
+                <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+            <span class="n">rects</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rect</span><span class="p">)</span>
+            <span class="n">cnt</span> <span class="o">+=</span> <span class="n">cost_ratio</span>
+        <span class="n">_autolabel</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">rects</span><span class="p">,</span>
+                   <span class="p">[</span><span class="s1">&#39;$</span><span class="si">%d</span><span class="s1">$&#39;</span> <span class="o">%</span> <span class="nb">int</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_rounded_nsamples_per_model</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+                    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_nmodels</span><span class="p">)])</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">xlocs</span><span class="p">)</span>
+    <span class="c1"># number of samples are rounded cost est_rounded cost,</span>
+    <span class="c1"># but target cost is not rounded</span>
+    <span class="k">if</span> <span class="n">xlabels</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span>
+            <span class="p">[</span><span class="s1">&#39;$</span><span class="si">%1.2f</span><span class="s1">$&#39;</span> <span class="o">%</span> <span class="n">est</span><span class="o">.</span><span class="n">_rounded_target_cost</span> <span class="k">for</span> <span class="n">est</span> <span class="ow">in</span> <span class="n">estimators</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">xlabels</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Target cost&quot;</span><span class="p">))</span>
+    <span class="c1"># / $N_\alpha$&#39;)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span>
+        <span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Precentage of target cost&quot;</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">legendloc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="n">legendloc</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

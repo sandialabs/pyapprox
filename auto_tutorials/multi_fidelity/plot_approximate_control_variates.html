@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Two model Approximate Control Variate Monte Carlo &mdash; PyApprox 1.0.3 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-binder.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-dataframe.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/sg_gallery-rendered-html.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Approximate Control Variate Monte Carlo" href="plot_many_model_acv.html" />
+    <link rel="prev" title="Two Model Control Variate Monte Carlo" href="plot_control_variate_monte_carlo.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            PyApprox
+              <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Software Tutorial</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_monte_carlo.html">Monte Carlo Quadrature: Beyond Mean Estimation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Two Model Control Variate Monte Carlo</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Two model Approximate Control Variate Monte Carlo</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="plot_many_model_acv.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="acv_covariances.html">Delta-Based Covariance Formulas For Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_allocation_matrices.html">Approximate Control Variate Allocation Matrices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pacv.html">Parametrically Defined Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_acv.html">Multioutput Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pilot_studies.html">Pilot Studies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_ensemble_selection.html">Model Ensemble Selection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multilevel_blue.html">Multilevel Best Linear Unbiased estimators (MLBLUE)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-level and Multi-index Collocation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multifidelity_gp.html">Multifidelity Gaussian processes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_gaussian_mfnets.html">MFNets: Multi-fidelity networks</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
+      <li class="breadcrumb-item active">Two model Approximate Control Variate Monte Carlo</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/auto_tutorials/multi_fidelity/plot_approximate_control_variates.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-approximate-control-variates-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code</p>
+</div>
+<section class="sphx-glr-example-title" id="two-model-approximate-control-variate-monte-carlo">
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-approximate-control-variates-py"></span><h1>Two model Approximate Control Variate Monte Carlo<a class="headerlink" href="#two-model-approximate-control-variate-monte-carlo" title="Permalink to this heading"></a></h1>
+<p>This tutorial builds upon <a class="reference internal" href="plot_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-control-variate-monte-carlo-py"><span class="std std-ref">Two Model Control Variate Monte Carlo</span></a> and describes how to implement and deploy <em>approximate</em> control variate Monte Carlo (ACVMC) <a class="reference internal" href="#ggejjcp2020" id="id1"><span>[GGEJJCP2020]</span></a> sampling to compute expectations of model output from a single low-fidelity models with an unknown statistic.</p>
+<p>CVMC is often not useful for practical analysis of numerical models because typically the statistic of the lower fidelity model is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.</p>
+<p>Let the cost of the high fidelity model per sample be <span class="math notranslate nohighlight">\(C_\alpha\)</span> and let the cost of the low fidelity model be <span class="math notranslate nohighlight">\(C_\kappa\)</span>. A two-model ACV estimators uses <span class="math notranslate nohighlight">\(N\)</span> samples to estimate <span class="math notranslate nohighlight">\(Q_{\alpha}(\rvset_N)\)</span> and <span class="math notranslate nohighlight">\(Q_{\kappa}(\rvset_N)\)</span> another set of samples <span class="math notranslate nohighlight">\(\rvset_{rN}\)</span> to estimate the exact statistic <span class="math notranslate nohighlight">\(Q_{\alpha}\)</span> via</p>
+<div class="math notranslate nohighlight">
+\[Q_{{\alpha}}^{\text{ACV}}(\rvset_N, \rvset_{rN})=Q_{\alpha}(\rvset_N) + \eta \left( Q_{\kappa}(\rvset_N) -Q_{\kappa}(\rvset_{rN})  \right)\]</div>
+<p>As with CV, the third term <span class="math notranslate nohighlight">\(Q_{\kappa}(\rvset_{rN})\)</span> is used to ensure the the ACV estimator is unbiased, but unlike CV it is estimated using a set of samples, rather than being assumed known.</p>
+<p>In the following we will focus on the estimation of <span class="math notranslate nohighlight">\(Q_\alpha=\mean{f_\alpha}\)</span> with two models. Future tutorials will show how ACV can be used to compute other statistics and with more than two models.</p>
+<p>First, an ACV estimator is unbiased</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mean{Q_{{\alpha}}^{\text{ACV}}(\rvset_N, \rvset_{rN})}&amp;=\mean{Q_{\alpha}(\rvset_N)} + \mean{\eta \left( Q_{\kappa}(\rvset_N) -Q_{\kappa}(\rvset_{rN})  \right)}\\
+&amp;=\mean{f_\alpha}+\eta\left(\mean{Q_{\kappa}(\rvset_N)} -\mean{Q_{\kappa}(\rvset_{rN})}\right)\\
+&amp;=\mean{f_\alpha}.\end{split}\]</div>
+<p>so the MSE of an ACV estimator is equal to the variance of the estimator (when estimating a single statistic).</p>
+<p>The ACV estimator variance is dependent on the size and structure of the two sample sets <span class="math notranslate nohighlight">\(\rvset_N, \rvset_{rN}.\)</span> For ACV to reduce the variance of a single model MC estimator <span class="math notranslate nohighlight">\(\rvset_N\subset\rvset_{rN}\)</span>. That is we evaluate <span class="math notranslate nohighlight">\(f_\alpha, f_\kappa\)</span> at a common set of samples and evaluate <span class="math notranslate nohighlight">\(f_\kappa\)</span> at an additional <span class="math notranslate nohighlight">\(rN-N\)</span> samples. For convenience we write the number of samples used to evaluate <span class="math notranslate nohighlight">\(f_\kappa\)</span> as <span class="math notranslate nohighlight">\(rN, r&gt; 1\)</span> so that</p>
+<div class="math notranslate nohighlight">
+\[Q_{\kappa}(\rvset_{rN})=\frac{1}{rN}\sum_{i=1}^{rN}f_{\kappa}^{(i)}.\]</div>
+<p>With this sampling scheme we have</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_{rN}) &amp;=\frac{1}{N}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=1}^{rN}f_{\kappa}^{(i)}\\
+&amp;=\frac{1}{N}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=1}^{N}f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}\\
+&amp;=\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}.\end{split}\]</div>
+<p>Using the above expression yields</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_{rN})\right)}&amp;=\mean{\left(\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}\right)^2}\\
+&amp;=\frac{(r-1)^2}{r^2N^2}\sum_{i=1}^N \var{f_{\kappa}^{(i)}}+\frac{1}{r^2N^2}\sum_{i=N}^{rN}\var{f_{\kappa}^{(i)}}\\
+&amp;=\frac{(r-1)^2}{r^2N^2}N\var{f_{\kappa}}+\frac{1}{r^2N^2}(r-1)N\var{f_{\kappa}}\\
+%&amp;=\left(\frac{(r-1)^2}{r^2N}+\frac{(r-1)}{r^2N}\right)\var{f_{\kappa}}\\
+&amp;=\frac{r-1}{r}\frac{\var{f_{\kappa}}}{N},\end{split}\]</div>
+<p>where we have used the fact that since the samples used in the first and second term on the first line are not shared, the covariance between these terms is zero. Also we have</p>
+<div class="math notranslate nohighlight">
+\[\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) -  Q_{\kappa}(\rvset_{rN})\right)}=\covar{\frac{1}{N}\sum_{i=1}^N f_{\alpha}^{(i)}}{\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_{\kappa}^{(i)}}\]</div>
+<p>The correlation between the estimators <span class="math notranslate nohighlight">\(\frac{1}{N}\sum_{i=1}^{N}Q_{\alpha}\)</span> and <span class="math notranslate nohighlight">\(\frac{1}{rN}\sum_{i=N}^{rN}Q_{\kappa}\)</span> is zero because the samples used in these estimators are different for each model. Thus</p>
+<div class="math notranslate nohighlight">
+\[\begin{split} \covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) -  Q_{\kappa}(\rvset_{rN})\right)} &amp;=\covar{\frac{1}{N}\sum_{i=1}^N f_{\alpha}^{(i)}}{\frac{r-1}{rN}\sum_{i=1}^N f_{\kappa}^{(i)}}\\
+&amp;=\frac{r-1}{r}\frac{\covar{f_{\alpha}}{f_{\kappa}}}{N}\end{split}\]</div>
+<p>Recalling the variance reduction of the CV estimator using the optimal <span class="math notranslate nohighlight">\(\eta\)</span> is</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\gamma &amp;= 1-\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_{rN})\right)}^2}{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_{rN})\right)}\var{Q_{\alpha}(\rvset_N)}}\\
+&amp;=1-\frac{N^{-2}\frac{(r-1)^2}{r^2}\covar{f_{\alpha}}{f_{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_{\kappa}}N^{-1}\var{f_{\alpha}}}\\
+&amp;=1-\frac{r-1}{r}\corr{f_{\alpha}}{f_{\kappa}}^2\end{split}\]</div>
+<p>which is found when</p>
+<div class="math notranslate nohighlight">
+\[\begin{split} \eta&amp;=-\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_{rN})\right)}}{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}(\rvset_{rN)}\right)}}\\
+&amp;=-\frac{N^{-1}\frac{r-1}{r}\covar{f_{\alpha}}{f_{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_{\kappa}}}\\
+&amp;=-\frac{\covar{f_{\alpha}}{f_{\kappa}}}{\var{f_{\kappa}}}\end{split}\]</div>
+<p>Finally, letting <span class="math notranslate nohighlight">\(C_\alpha\)</span> and <span class="math notranslate nohighlight">\(C_\kappa\)</span> denote the computational cost of simluating the models <span class="math notranslate nohighlight">\(f_\alpha\)</span> and <span class="math notranslate nohighlight">\(f_\kappa\)</span> at one sample, respectively, the cost of computing a two model ACV estimator is</p>
+<div class="math notranslate nohighlight">
+\[C^\mathrm{ACV} = NC_\alpha + rNC_\kappa.\]</div>
+<p>The following code can be used to investigate the properties of a two model ACV estimator.</p>
+<p>First setup the problem and compute an ACV estimate of <span class="math notranslate nohighlight">\(\mean{f_0}\)</span></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.visualization</span> <span class="kn">import</span> <span class="n">mathrm_label</span>
+
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">shifts</span> <span class="o">=</span> <span class="p">[</span><span class="mf">.1</span><span class="p">,</span> <span class="mf">.2</span><span class="p">]</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span>
+    <span class="s2">&quot;tunable_model_ensemble&quot;</span><span class="p">,</span> <span class="n">theta1</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">2</span><span class="o">*</span><span class="mf">.95</span><span class="p">,</span> <span class="n">shifts</span><span class="o">=</span><span class="n">shifts</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span>
+<span class="n">exact_integral_f0</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">mean</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Now initialize the estimator</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.multifidelity.factory</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_estimator</span><span class="p">,</span> <span class="n">numerically_compute_estimator_variance</span><span class="p">,</span> <span class="n">multioutput_stats</span><span class="p">)</span>
+<span class="c1"># The benchmark has three models, so just extract data for first two models</span>
+<span class="n">costs</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="o">.</span><span class="n">costs</span><span class="p">()[:</span><span class="mi">2</span><span class="p">]</span>
+<span class="n">stat</span> <span class="o">=</span> <span class="n">multioutput_stats</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">](</span><span class="n">benchmark</span><span class="o">.</span><span class="n">nqoi</span><span class="p">)</span>
+<span class="n">stat</span><span class="o">.</span><span class="n">set_pilot_quantities</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">covariance</span><span class="p">[:</span><span class="mi">2</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">])</span>
+<span class="n">est</span> <span class="o">=</span> <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;gis&quot;</span><span class="p">,</span> <span class="n">stat</span><span class="p">,</span> <span class="n">costs</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Set the number of samples in the two independent sample partitions to
+<span class="math notranslate nohighlight">\(M=10\)</span> and <span class="math notranslate nohighlight">\(N=100\)</span>. For reasons that will become clear in later tuotials the code requires the specification of the number of samples in each independent set of samples i.e. in <span class="math notranslate nohighlight">\(\mathcal{Z}_N\)</span> and <span class="math notranslate nohighlight">\(\mathcal{Z}_N\cup\mathcal{Z}_N\)</span></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nhf_samples</span> <span class="o">=</span> <span class="mi">10</span>   <span class="c1"># The value N</span>
+<span class="n">npartition_ratios</span> <span class="o">=</span> <span class="p">[</span><span class="mi">9</span><span class="p">]</span>  <span class="c1"># Defines the value of M-N</span>
+<span class="n">target_cost</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">nhf_samples</span><span class="o">*</span><span class="n">costs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">npartition_ratios</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">*</span><span class="n">nhf_samples</span><span class="o">*</span><span class="n">costs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="c1">#We set using a private function (starts with an underscore) because in practice</span>
+<span class="c1">#the number of samples should be optimized and set with est.allocate samples</span>
+<span class="n">est</span><span class="o">.</span><span class="n">_set_optimized_params</span><span class="p">(</span><span class="n">npartition_ratios</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now lets plot the samples assigned to each model.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">samples_per_model</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">generate_samples_per_model</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_rounded_npartition_samples</span><span class="p">)</span>
+<span class="n">samples_shared</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">samples_per_model</span><span class="p">[</span><span class="mi">0</span><span class="p">][:,</span> <span class="p">:</span><span class="nb">int</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_rounded_npartition_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">])])</span>
+<span class="n">samples_lf_only</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">samples_per_model</span><span class="p">[</span><span class="mi">1</span><span class="p">][:,</span> <span class="nb">int</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_rounded_npartition_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">]):])</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples_shared</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">samples_shared</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s1">&#39;ro&#39;</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+        <span class="n">label</span><span class="o">=</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Low and high fidelity models&quot;</span><span class="p">))</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples_lf_only</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">samples_lf_only</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s1">&#39;ks&#39;</span><span class="p">,</span>
+        <span class="n">label</span><span class="o">=</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Low fidelity model only&quot;</span><span class="p">))</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$z_1$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$z_2$&#39;</span><span class="p">,</span> <span class="n">rotation</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;upper left&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_approximate_control_variates_001.png" srcset="../../_images/sphx_glr_plot_approximate_control_variates_001.png" alt="plot approximate control variates" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>tensor([10., 90.])
+</pre></div>
+</div>
+<p>The high-fidelity model is only evaluated on the red dots.</p>
+<p>Now lets use both sets of samples to construct the ACV estimator</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">values_per_model</span> <span class="o">=</span> <span class="p">[</span><span class="n">benchmark</span><span class="o">.</span><span class="n">funs</span><span class="p">[</span><span class="n">ii</span><span class="p">](</span><span class="n">samples_per_model</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+                    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">samples_per_model</span><span class="p">))]</span>
+<span class="n">acv_mean</span> <span class="o">=</span> <span class="n">est</span><span class="p">(</span><span class="n">values_per_model</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;MC difference squared =&#39;</span><span class="p">,</span> <span class="p">(</span>
+    <span class="n">values_per_model</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">-</span><span class="n">exact_integral_f0</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ACVMC difference squared =&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">acv_mean</span><span class="o">-</span><span class="n">exact_integral_f0</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>MC difference squared = [0.16633083]
+ACVMC difference squared = [0.01069783]
+</pre></div>
+</div>
+<p>Note here we have arbitrarily set the number of high fidelity samples <span class="math notranslate nohighlight">\(N\)</span> and the ratio <span class="math notranslate nohighlight">\(r\)</span>. In practice one should choose these in one of two ways: (i) for a fixed budget choose the free parameters to minimize the variance of the estimator; or (ii) choose the free parameters to achieve a desired MSE (variance) with the smallest computational cost.</p>
+<p>Now plot the distribution of this estimators and compare it against
+a single-fidelity MC estimator of the same target cost</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nhf_samples</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">ntrials</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="n">npartition_ratios</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">9</span><span class="p">])</span>
+<span class="n">target_cost</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">nhf_samples</span><span class="o">*</span><span class="n">costs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">npartition_ratios</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">*</span><span class="n">nhf_samples</span><span class="o">*</span><span class="n">costs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">est</span><span class="o">.</span><span class="n">_set_optimized_params</span><span class="p">(</span><span class="n">npartition_ratios</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">)</span>
+<span class="n">numerical_var</span><span class="p">,</span> <span class="n">true_var</span><span class="p">,</span> <span class="n">means</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">numerically_compute_estimator_variance</span><span class="p">(</span>
+        <span class="n">benchmark</span><span class="o">.</span><span class="n">funs</span><span class="p">[:</span><span class="mi">2</span><span class="p">],</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">est</span><span class="p">,</span> <span class="n">ntrials</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">return_all</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">2</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span>
+
+
+<span class="n">sfmc_est</span> <span class="o">=</span> <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mc&quot;</span><span class="p">,</span> <span class="n">stat</span><span class="p">,</span> <span class="n">costs</span><span class="p">)</span>
+<span class="n">sfmc_est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span><span class="n">target_cost</span><span class="p">)</span>
+<span class="n">sfmc_means</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">numerically_compute_estimator_variance</span><span class="p">(</span>
+        <span class="n">benchmark</span><span class="o">.</span><span class="n">funs</span><span class="p">[:</span><span class="mi">1</span><span class="p">],</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">sfmc_est</span><span class="p">,</span> <span class="n">ntrials</span><span class="p">,</span>
+        <span class="n">return_all</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">5</span><span class="p">]</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">sfmc_means</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="n">ntrials</span><span class="o">//</span><span class="mi">100</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$Q_</span><span class="si">{0}</span><span class="s1">(\mathcal</span><span class="si">{Z}</span><span class="s1">_N)$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">means</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="n">ntrials</span><span class="o">//</span><span class="mi">100</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$Q_</span><span class="si">{0}</span><span class="s1">^\mathrm</span><span class="si">{CV}</span><span class="s1">(\mathcal</span><span class="si">{Z}</span><span class="s1">_N,\mathcal</span><span class="si">{Z}</span><span class="s1">_{N+</span><span class="si">%d</span><span class="s1">N})$&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="n">npartition_ratios</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$E[Q_0]$&#39;</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;upper left&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_approximate_control_variates_002.png" srcset="../../_images/sphx_glr_plot_approximate_control_variates_002.png" alt="plot approximate control variates" class = "sphx-glr-single-img"/><p>Now compare what happens as we increase the number of low-fidelity samples.
+Eventually, adding more low-fidelity samples will no-longer reduce the ACV
+estimator variance. Asymptotically, the accuracy will approach the accuracy
+that can be obtained by the CV estimator that assumes the mean of the
+low-fidelity model is known. To reduce the variance further the number of
+high-fidelity samples must be increased. When this is done more low-fidelity
+samples can be added before their impact stagnates.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">means</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="n">ntrials</span><span class="o">//</span><span class="mi">100</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$Q_</span><span class="si">{0}</span><span class="s1">^\mathrm</span><span class="si">{CV}</span><span class="s1">(\mathcal</span><span class="si">{Z}</span><span class="s1">_N,\mathcal</span><span class="si">{Z}</span><span class="s1">_{N+</span><span class="si">%d</span><span class="s1">N})$&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="n">npartition_ratios</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+<span class="n">npartition_ratios</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">99</span><span class="p">])</span>
+<span class="n">target_cost</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">nhf_samples</span><span class="o">*</span><span class="n">costs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">npartition_ratios</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">*</span><span class="n">nhf_samples</span><span class="o">*</span><span class="n">costs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">est</span><span class="o">.</span><span class="n">_set_optimized_params</span><span class="p">(</span><span class="n">npartition_ratios</span><span class="p">,</span> <span class="n">target_cost</span><span class="p">)</span>
+<span class="n">numerical_var</span><span class="p">,</span> <span class="n">true_var</span><span class="p">,</span> <span class="n">means</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">numerically_compute_estimator_variance</span><span class="p">(</span>
+        <span class="n">benchmark</span><span class="o">.</span><span class="n">funs</span><span class="p">[:</span><span class="mi">2</span><span class="p">],</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">est</span><span class="p">,</span> <span class="n">ntrials</span><span class="p">,</span>
+        <span class="n">return_all</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">2</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">means</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="n">ntrials</span><span class="o">//</span><span class="mi">100</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$Q_</span><span class="si">{0}</span><span class="s1">^\mathrm</span><span class="si">{CV}</span><span class="s1">(\mathcal</span><span class="si">{Z}</span><span class="s1">_N,\mathcal</span><span class="si">{Z}</span><span class="s1">_{N+</span><span class="si">%d</span><span class="s1">N})$&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="n">npartition_ratios</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$E[Q_0]$&#39;</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;upper left&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<img src="../../_images/sphx_glr_plot_approximate_control_variates_003.png" srcset="../../_images/sphx_glr_plot_approximate_control_variates_003.png" alt="plot approximate control variates" class = "sphx-glr-single-img"/><p>Note the two ACV estimators do not have the same computational cost. They are compared solely to show the impact of increasing the number of low-fidelity samples.</p>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h2>
+<div role="list" class="citation-list">
+<div class="citation" id="ggejjcp2020" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">GGEJJCP2020</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1016/j.jcp.2020.109257">A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020.</a></p>
+</div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.344 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-approximate-control-variates-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/ef205fc64ed4a7b4a3d331f7128256b0/plot_approximate_control_variates.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_approximate_control_variates.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/6078f3741674a619f74856a48c5ca5a9/plot_approximate_control_variates.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_approximate_control_variates.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="plot_control_variate_monte_carlo.html" class="btn btn-neutral float-left" title="Two Model Control Variate Monte Carlo" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_many_model_acv.html" class="btn btn-neutral float-right" title="Approximate Control Variate Monte Carlo" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
