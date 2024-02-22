@@ -89,7 +89,7 @@ def _AETC_BLUE_allocate_samples(
     else:
         target_cost = exploit_budget
     est.allocate_samples(target_cost, round_nsamples=False,
-                         options=opt_options, min_nhf_samples=0)
+                         optim_options=opt_options, min_nhf_samples=0)
     nsamples_per_subset = np.maximum(
             np.zeros_like(est._rounded_npartition_samples),
             est._rounded_npartition_samples)
