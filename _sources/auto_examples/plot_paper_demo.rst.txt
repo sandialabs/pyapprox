@@ -200,7 +200,7 @@ prints the median execution time of the model.
 
  .. code-block:: none
 
-    [0.02805579]
+    [0.02757704]
 
 
 
@@ -547,12 +547,12 @@ that we do not know the value of the observations.
 
     Running 1000 outer model evaluations
     Predicted observation bounds 14.477297168295355 1.1388690449350853
-    Evaluations took 12.961029767990112
+    Evaluations took 11.889188766479492
     Running 1000 inner model evaluations
-    Evaluations took 13.260978937149048
-    Computing utilities in serial took 0.2432870864868164
-    Computing utilities in serial took 0.02371382713317871
-    Computing utilities in serial took 0.03223705291748047
+    Evaluations took 12.404850959777832
+    Computing utilities in serial took 0.22218799591064453
+    Computing utilities in serial took 0.023702144622802734
+    Computing utilities in serial took 0.032163143157958984
     [[0.0954915  0.42178277 0.42178277]
      [0.05449674 0.85355339 0.85355339]]
 
@@ -714,7 +714,7 @@ for each run
 
  .. code-block:: none
 
-    Predicted variance tensor([[7.6507e-06]])
+    Predicted variance tensor([[7.8238e-06]])
 
 
 
@@ -780,7 +780,7 @@ is ready to actually estimate the mean QoI they can use
  .. code-block:: none
 
     Benchmark(fun, variable, get_num_degrees_of_freedom, config_var_trans, model_ensemble, funs)
-    Mean QoI [0.50525131]
+    Mean QoI [0.49783295]
 
 
 
@@ -794,7 +794,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 2 minutes  13.459 seconds)
+   **Total running time of the script:** ( 2 minutes  8.696 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_paper_demo.py:

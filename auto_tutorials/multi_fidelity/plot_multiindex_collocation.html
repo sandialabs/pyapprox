@@ -576,42 +576,42 @@ input[type=range].anim-slider {
 </style>
 
 <div class="animation">
-  <img id="_anim_imgc3c4256d2f5f427ba7674e1759cedd05">
+  <img id="_anim_imgac511859593f4ef8bed0144c581f0f1e">
   <div class="anim-controls">
-    <input id="_anim_sliderc3c4256d2f5f427ba7674e1759cedd05" type="range" class="anim-slider"
+    <input id="_anim_sliderac511859593f4ef8bed0144c581f0f1e" type="range" class="anim-slider"
            name="points" min="0" max="1" step="1" value="0"
-           oninput="animc3c4256d2f5f427ba7674e1759cedd05.set_frame(parseInt(this.value));">
+           oninput="animac511859593f4ef8bed0144c581f0f1e.set_frame(parseInt(this.value));">
     <div class="anim-buttons">
-      <button title="Decrease speed" aria-label="Decrease speed" onclick="animc3c4256d2f5f427ba7674e1759cedd05.slower()">
+      <button title="Decrease speed" aria-label="Decrease speed" onclick="animac511859593f4ef8bed0144c581f0f1e.slower()">
           <i class="fa fa-minus"></i></button>
-      <button title="First frame" aria-label="First frame" onclick="animc3c4256d2f5f427ba7674e1759cedd05.first_frame()">
+      <button title="First frame" aria-label="First frame" onclick="animac511859593f4ef8bed0144c581f0f1e.first_frame()">
         <i class="fa fa-fast-backward"></i></button>
-      <button title="Previous frame" aria-label="Previous frame" onclick="animc3c4256d2f5f427ba7674e1759cedd05.previous_frame()">
+      <button title="Previous frame" aria-label="Previous frame" onclick="animac511859593f4ef8bed0144c581f0f1e.previous_frame()">
           <i class="fa fa-step-backward"></i></button>
-      <button title="Play backwards" aria-label="Play backwards" onclick="animc3c4256d2f5f427ba7674e1759cedd05.reverse_animation()">
+      <button title="Play backwards" aria-label="Play backwards" onclick="animac511859593f4ef8bed0144c581f0f1e.reverse_animation()">
           <i class="fa fa-play fa-flip-horizontal"></i></button>
-      <button title="Pause" aria-label="Pause" onclick="animc3c4256d2f5f427ba7674e1759cedd05.pause_animation()">
+      <button title="Pause" aria-label="Pause" onclick="animac511859593f4ef8bed0144c581f0f1e.pause_animation()">
           <i class="fa fa-pause"></i></button>
-      <button title="Play" aria-label="Play" onclick="animc3c4256d2f5f427ba7674e1759cedd05.play_animation()">
+      <button title="Play" aria-label="Play" onclick="animac511859593f4ef8bed0144c581f0f1e.play_animation()">
           <i class="fa fa-play"></i></button>
-      <button title="Next frame" aria-label="Next frame" onclick="animc3c4256d2f5f427ba7674e1759cedd05.next_frame()">
+      <button title="Next frame" aria-label="Next frame" onclick="animac511859593f4ef8bed0144c581f0f1e.next_frame()">
           <i class="fa fa-step-forward"></i></button>
-      <button title="Last frame" aria-label="Last frame" onclick="animc3c4256d2f5f427ba7674e1759cedd05.last_frame()">
+      <button title="Last frame" aria-label="Last frame" onclick="animac511859593f4ef8bed0144c581f0f1e.last_frame()">
           <i class="fa fa-fast-forward"></i></button>
-      <button title="Increase speed" aria-label="Increase speed" onclick="animc3c4256d2f5f427ba7674e1759cedd05.faster()">
+      <button title="Increase speed" aria-label="Increase speed" onclick="animac511859593f4ef8bed0144c581f0f1e.faster()">
           <i class="fa fa-plus"></i></button>
     </div>
-    <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_selectc3c4256d2f5f427ba7674e1759cedd05"
+    <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_selectac511859593f4ef8bed0144c581f0f1e"
           class="anim-state">
-      <input type="radio" name="state" value="once" id="_anim_radio1_c3c4256d2f5f427ba7674e1759cedd05"
+      <input type="radio" name="state" value="once" id="_anim_radio1_ac511859593f4ef8bed0144c581f0f1e"
              >
-      <label for="_anim_radio1_c3c4256d2f5f427ba7674e1759cedd05">Once</label>
-      <input type="radio" name="state" value="loop" id="_anim_radio2_c3c4256d2f5f427ba7674e1759cedd05"
+      <label for="_anim_radio1_ac511859593f4ef8bed0144c581f0f1e">Once</label>
+      <input type="radio" name="state" value="loop" id="_anim_radio2_ac511859593f4ef8bed0144c581f0f1e"
              checked>
-      <label for="_anim_radio2_c3c4256d2f5f427ba7674e1759cedd05">Loop</label>
-      <input type="radio" name="state" value="reflect" id="_anim_radio3_c3c4256d2f5f427ba7674e1759cedd05"
+      <label for="_anim_radio2_ac511859593f4ef8bed0144c581f0f1e">Loop</label>
+      <input type="radio" name="state" value="reflect" id="_anim_radio3_ac511859593f4ef8bed0144c581f0f1e"
              >
-      <label for="_anim_radio3_c3c4256d2f5f427ba7674e1759cedd05">Reflect</label>
+      <label for="_anim_radio3_ac511859593f4ef8bed0144c581f0f1e">Reflect</label>
     </form>
   </div>
 </div>
@@ -621,9 +621,9 @@ input[type=range].anim-slider {
   /* Instantiate the Animation class. */
   /* The IDs given should match those used in the template above. */
   (function() {
-    var img_id = "_anim_imgc3c4256d2f5f427ba7674e1759cedd05";
-    var slider_id = "_anim_sliderc3c4256d2f5f427ba7674e1759cedd05";
-    var loop_select_id = "_anim_loop_selectc3c4256d2f5f427ba7674e1759cedd05";
+    var img_id = "_anim_imgac511859593f4ef8bed0144c581f0f1e";
+    var slider_id = "_anim_sliderac511859593f4ef8bed0144c581f0f1e";
+    var loop_select_id = "_anim_loop_selectac511859593f4ef8bed0144c581f0f1e";
     var frames = new Array(14);
 
   frames[0] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAACWAAAAJYCAYAAADmY91UAAAAOXRFWHRTb2Z0d2FyZQBNYXRwbG90\
@@ -16356,7 +16356,7 @@ AADATf8HR11xaXHet/gAAAAASUVORK5CYII=\
     /* set a timeout to make sure all the above elements are created before
        the object is initialized. */
     setTimeout(function() {
-        animc3c4256d2f5f427ba7674e1759cedd05 = new Animation(frames, img_id, slider_id, 500.0,
+        animac511859593f4ef8bed0144c581f0f1e = new Animation(frames, img_id, slider_id, 500.0,
                                  loop_select_id);
     }, 0);
   })()
@@ -16398,7 +16398,7 @@ AADATf8HR11xaXHet/gAAAAASUVORK5CYII=\
 <p><a class="reference external" href="https://onlinelibrary.wiley.com/doi/abs/10.1002/nme.6268">J.D. Jakeman, M.S. Eldred, G. Geraci, and A. Gorodetsky. Adaptive Multi-index Collocation for Uncertainty Quantification and Sensitivity Analysis. International Journal for Numerical Methods in Engineering (2019).</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  12.689 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  12.667 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multiindex-collocation-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/d2a8545a2e1eca51f0099881b04faa06/plot_multiindex_collocation.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multiindex_collocation.py</span></code></a></p>
