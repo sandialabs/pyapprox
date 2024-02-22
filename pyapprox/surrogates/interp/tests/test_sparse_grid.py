@@ -1576,7 +1576,8 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         # function of polynomial model that just fixes cost for each level of
         # the multilevel model
         timer_model = base_model
-        model = WorkTrackingModel(timer_model, base_model, 1)
+        model = WorkTrackingModel(
+            timer_model, base_model, 1, enforce_timer_model=False)
 
         ranges = [2*(-1)**(ii+1) for ii in range(2*num_vars)]
         canonical_ranges = [(-1)**(ii+1) for ii in range(2*num_vars)]

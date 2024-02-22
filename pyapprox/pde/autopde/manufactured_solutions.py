@@ -9,8 +9,8 @@ from pyapprox.pde.autopde.sympy_utils import (
 
 
 def setup_advection_diffusion_reaction_manufactured_solution(
-        sol_string, linear_diff_string, vel_strings, react_fun, transient=False,
-        nonlinear_diff_fun=None):
+        sol_string, linear_diff_string, vel_strings, react_fun,
+        transient=False, nonlinear_diff_fun=None):
     nphys_vars = len(vel_strings)
     sp_x, sp_y = sp.symbols(['x', 'y'])
     symbs = (sp_x, sp_y)[:nphys_vars]
@@ -46,7 +46,13 @@ def setup_advection_diffusion_reaction_manufactured_solution(
          for vel_expr, symb in zip(vel_exprs, symbs)])
 
     if react_fun is not None:
-        reaction_expr = react_fun(sol_expr)
+        try:
+            reaction_expr = react_fun(sol_expr)
+        except TypeError:
+            # some reaction_expr take x as an argument
+            # currently only support manufacturing solutions
+            # that take react_fun that does not depend on x
+            reaction_expr = react_fun(None, sol_expr)
     else:
         reaction_expr = 0
 
@@ -214,6 +220,9 @@ def setup_helmholtz_manufactured_solution(sol_string, wnum_string, nphys_vars):
         sp.lambdify(symbs, flux_expr, "numpy") for flux_expr in flux_exprs]
     flux_funs = partial(_evaluate_list_of_sp_lambda, flux_lambdas)
 
+    # print(sol_expr)
+    # print(wnum_expr)
+    # print(forc_expr)
     return sol_fun, wnum_fun, forc_fun, flux_funs
 
 

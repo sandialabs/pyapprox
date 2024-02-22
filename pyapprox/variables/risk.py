@@ -271,7 +271,7 @@ def conditional_value_at_risk(samples, alpha, weights=None,
         weights = np.ones(num_samples)/num_samples
     if prob:
         assert np.allclose(weights.sum(), 1), (weights.sum())
-    assert weights.ndim == 1 or weights.shape[1] == 1
+    assert weights.ndim == 1
     if not samples_sorted:
         II = np.argsort(samples)
         xx, ww = samples[II], weights[II]
@@ -521,8 +521,8 @@ def lognormal_cvar(p, mu, sigma_sq):
     mean = lognormal_mean(mu, sigma_sq)
     if p == 0:
         return mean
-    import warnings
-    warnings.filterwarnings("error")
+    # import warnings
+    # warnings.filterwarnings("error")
     if sigma_sq < 0 and sigma_sq > -1e-16:
         sigma_sq = 0
     sigma = np.sqrt(sigma_sq)

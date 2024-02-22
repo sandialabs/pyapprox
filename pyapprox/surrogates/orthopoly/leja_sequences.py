@@ -829,7 +829,7 @@ def get_christoffel_leja_sequence_1d(
             res = pyapprox_minimize(
                 fun, initial_guess, jac=jac, hess=hess, bounds=bounds,
                 options=opts, method='slsqp')
-            new_samples[0, jj] = res.x
+            new_samples[0, jj] = res.x[0]
             obj_vals[jj] = res.fun
         obj_vals[~np.isfinite(obj_vals)] = np.inf
         best_idx = np.argmin(obj_vals)
@@ -925,7 +925,7 @@ def get_pdf_weighted_leja_sequence_1d(
             res = pyapprox_minimize(
                 fun, initial_guess, jac=jac, hess=hess, bounds=bounds,
                 options=options, method='slsqp')
-            new_samples[0, jj] = res.x
+            new_samples[0, jj] = res.x[0]
             obj_vals[jj] = res.fun
         best_idx = np.argmin(obj_vals)
         new_sample = new_samples[:, best_idx]

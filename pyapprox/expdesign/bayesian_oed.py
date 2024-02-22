@@ -564,24 +564,6 @@ def _compute_negative_expected_deviation_monte_carlo(
         in_pred_qois, deviation_fun, pred_risk_fun, data_risk_fun,
         noise_samples, noise_std, active_indices, return_all):
     nout_samples = out_pred_obs.shape[0]
-    nin_samples = int(in_pred_obs.shape[0]//nout_samples)
-    nobs = out_pred_obs.shape[1]
-
-    # tmp = in_pred_obs.reshape(nout_samples, nin_samples, nobs)
-    # inner_log_likelihood_vals = _loglike_fun_from_noiseless_obs(
-    #     out_pred_obs, tmp, noise_samples,
-    #     noise_std, active_indices)
-    # # evidences = _evidences(inner_log_likelihood_vals, in_weights)
-    # # print(evidences.shape, 'e')
-
-    # # inner_log_likelihood_vals = log_likelihood_fun(
-    # #     out_pred_obs, tmp, active_indices)
-    # evidences, weights = _evidences_and_weights(
-    #     inner_log_likelihood_vals, in_weights)
-
-    # # make deviation_fun operate on columns of samples
-    # # so that it returns a vector of deviations one for each column
-    # deviations = deviation_fun(in_pred_qois, weights)
 
     out_obs = out_pred_obs[:, active_indices].copy()
     # print(out_obs.shape, active_indices.shape, noise_samples.shape)
@@ -589,6 +571,8 @@ def _compute_negative_expected_deviation_monte_carlo(
     deviations, evidences = deviation_fun(
         out_obs, in_pred_obs, in_weights, active_indices, noise_std,
         in_pred_qois)
+    # deviation.shape = [nout_quad, nprediction_candidates]
+    # evidences.shape = [nout_quad, 1]
 
     # expectation taken with respect to observations
     # assume always want deviation here, but this can be changed

@@ -941,7 +941,8 @@ def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps)):
 
 def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
     function_val, directional_derivative = fun(zz, direction)
-    function_val = function_val.squeeze()
+    if isinstance(function_val, np.ndarray):
+        function_val = function_val.squeeze()
 
     if fd_eps is None:
         fd_eps = np.logspace(-13, 0, 14)[::-1]
@@ -963,12 +964,13 @@ def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
         # perturbed_function_val = fun(zz_perturbed)
         # add jac=False so that exact gradient is not always computed
         perturbed_function_val = fun(zz_perturbed, direction=None)
-        if type(perturbed_function_val) == np.ndarray:
+        if isinstance(perturbed_function_val, np.ndarray):
             perturbed_function_val = perturbed_function_val.squeeze()
         # print(inspect.getfullargspec(fun).args)
-        # print(perturbed_function_val.shape, function_val.shape, fd_eps[ii])
+        # print(perturbed_function_val, function_val, fd_eps[ii])
         fd_directional_derivative = (
-            perturbed_function_val-function_val).squeeze()/fd_eps[ii]
+            perturbed_function_val-function_val)/fd_eps[ii]
+        # print(fd_directional_derivative)
         errors.append(np.linalg.norm(
             fd_directional_derivative.reshape(directional_derivative.shape) -
             directional_derivative))
@@ -1114,8 +1116,8 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
         direction /= np.linalg.norm(direction)
     assert direction.ndim == 2 and direction.shape[1] == 1
 
-    return _check_gradients(fun_wrapper, zz, direction, plot, disp, rel, fd_eps)
-
+    return _check_gradients(
+        fun_wrapper, zz, direction, plot, disp, rel, fd_eps)
 
 
 def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True, rel=True,

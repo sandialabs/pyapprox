@@ -455,7 +455,7 @@ class GaussianNetwork(object):
             assert (data[ii].ndim == 1 or data[ii].shape[1] == 1), (
                 ii, data[ii].shape)
             for jj in range(data[ii].shape[0]):
-                evidence[kk] = data[ii][jj]
+                evidence[kk] = data[ii][jj][0]
                 kk += 1
         return evidence, self.evidence_var_ids
 

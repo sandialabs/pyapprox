@@ -929,6 +929,8 @@ def _get_stats_functions(summary_stats):
                            "std": np.std,
                            "quantile-0.25": quantile_stats[0],
                            "quantile-0.75": quantile_stats[1]}
+    stat_functions_dict["min"].__name__ = "amin"
+    stat_functions_dict["max"].__name__ = "amax"
     for name in summary_stats:
         if name not in stat_functions_dict:
             msg = f"Summary stats {name} not supported\n"

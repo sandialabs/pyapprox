@@ -1,7 +1,7 @@
 r"""
 Gaussian processes
 ==================
-Gaussian processes (GPs) are an extremely popular tool for approximating multivariate functions from limited data. A GP is a distribution over a set of functions. Given a prior distribution on the class of admissible functions an approximation of a deterministic function is obtained by conditioning the GP on available observations of the function.
+Gaussian processes (GPs) [RW2006]_ are an extremely popular tool for approximating multivariate functions from limited data. A GP is a distribution over a set of functions. Given a prior distribution on the class of admissible functions an approximation of a deterministic function is obtained by conditioning the GP on available observations of the function.
 
 Constructing a GP requires specifying a prior mean :math:`m(\rv)` and covariance kernel :math:`C(\rv, \rv^\star)`. The GP leverages the correlation between training samples to approximate the residuals between the training data and the mean function. In the following we set the mean to zero. The covariance kernel should be tailored to the smoothness of the class of functions under consideration. The matern kernel with hyper-parameters :math:`\theta=[\sigma^2,\ell^\top]^\top` is a common choice.
 
@@ -195,6 +195,11 @@ plt.show()
 #Active Learning
 #---------------
 # The samples selected by the aforementioned methods depends on the kernel specified. Change the length_scale of the kernel above to see how the selected samples changes. Active learning chooses a small initial sample set then trains the GP to learn the best kernel hyper-parameters. These parameters are then used to increment the training set and then used to train the GP hyper-parameters again and so until a sufficient accuracy or computational budget is reached. PyApprox's AdaptiveGaussianProcess implements this procedure [HJZ2021]_.
+
+#%%
+#Constrained Gaussian processes
+#------------------------------
+#For certain application is it desirable for GPs to satisfy certain properties, e.g. positivity or monotonicity. See [SGFSJ2020]_ for a review of methods to construct constrained GPs.
 
 #%%
 #References

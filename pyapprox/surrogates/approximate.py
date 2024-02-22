@@ -241,9 +241,7 @@ def adaptive_approximate_sparse_grid(
         if max_level_1d is None:
             msg = "max_level_1d must be set if config_var_trans is provided"
             #raise ValueError(msg)
-        print(max_level_1d)
         for ii, cv in enumerate(config_var_trans.config_values):
-            print(len(cv))
             if len(cv) <= max_level_1d[config_variables_idx+ii]:
                 msg = f"maxlevel_1d {max_level_1d} and "
                 msg += "config_var_trans.config_values with shapes {0}".format(

@@ -289,7 +289,7 @@ class IndependentMarginalsVariable(JointVariable):
                 return False
         return True
 
-    def rvs(self, num_samples, random_state=None):
+    def rvs(self, num_samples, random_states=None):
         """
         Generate samples from a tensor-product probability measure.
 
@@ -305,12 +305,16 @@ class IndependentMarginalsVariable(JointVariable):
         """
         num_samples = int(num_samples)
         samples = np.empty((self.num_vars(), num_samples), dtype=float)
+        if random_states is not None:
+            assert len(random_states) == self.num_vars()
+        else:
+            random_states = [None]*self.num_vars()
         for ii in range(self.nunique_vars):
             var = self.unique_variables[ii]
             indices = self.unique_variable_indices[ii]
             samples[indices, :] = var.rvs(
                 size=(indices.shape[0], num_samples),
-                random_state=random_state)
+                random_state=random_states[ii])
         return samples
 
 

@@ -1,10 +1,9 @@
 import numpy as np
 
 from pyapprox.util.utilities import (
-    cartesian_product, get_all_sample_combinations
-)
+    cartesian_product, get_all_sample_combinations)
 from pyapprox.interface.wrappers import WorkTrackingModel
-from pyapprox.util.configure_plots import plt, mathrm_label
+from pyapprox.util.visualization import plt, mathrm_label
 
 
 def run_convergence_study(model, variable, validation_levels,

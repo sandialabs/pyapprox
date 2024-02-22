@@ -6,7 +6,7 @@ from itertools import combinations
 import copy
 
 from pyapprox.util.utilities import get_correlation_from_covariance
-from pyapprox.util.configure_plots import mathrm_label
+from pyapprox.util.visualization import mathrm_label
 from pyapprox.expdesign.low_discrepancy_sequences import (
     sobol_sequence, halton_sequence
 )
@@ -34,14 +34,13 @@ from pyapprox.multifidelity.control_variate_monte_carlo import (
     get_npartition_samples_mfmc,
     separate_samples_per_model_acv, get_sample_allocation_matrix_mfmc,
     get_npartition_samples_acvis, get_sample_allocation_matrix_acvis,
-    bootstrap_acv_estimator, get_acv_recursion_indices
+    bootstrap_acv_estimator, get_acv_recursion_indices,
 )
 from pyapprox.interface.wrappers import ModelEnsemble
 from pyapprox.multifidelity.multilevelblue import (
-    BLUE_bound_constraint, BLUE_bound_constraint_jac,
     BLUE_variance, BLUE_Psi, BLUE_RHS, BLUE_evaluate_models,
-    get_model_subsets, BLUE_cost_constraint,
-    BLUE_cost_constraint_jac, AETC_optimal_loss)
+    get_model_subsets, BLUE_cost_constraint, BLUE_hf_nsamples_constraint,
+    BLUE_cost_constraint_jac, AETC_optimal_loss, BLUE_hf_nsamples_constraint_jac)
 from scipy.optimize import minimize
 
 
@@ -65,12 +64,8 @@ class AbstractMonteCarloEstimator(ABC):
         sampling_method : string
             Supported types are ["random", "sobol", "halton"]
         """
-        if cov.shape[0] != len(costs):
-            print(cov.shape, costs.shape)
-            raise ValueError("cov and costs are inconsistent")
+        self.cov, self.costs = self._check_cov(cov, costs)
 
-        self.cov = cov.copy()
-        self.costs = np.array(costs)
         self.variable = variable
         self.sampling_method = sampling_method
         self.set_random_state(None)
@@ -83,6 +78,12 @@ class AbstractMonteCarloEstimator(ABC):
                 self.cov_opt = pkg.tensor(self.cov, dtype=pkg.double)
             if not pkg.is_tensor(self.costs):
                 self.costs_opt = pkg.tensor(self.costs, dtype=pkg.double)
+
+    def _check_cov(self, cov, costs):
+        if cov.shape[0] != len(costs):
+            print(cov.shape, costs.shape)
+            raise ValueError("cov and costs are inconsistent")
+        return cov.copy(), np.array(costs)
 
     def set_sampling_method(self):
         sampling_methods = {
@@ -723,14 +724,16 @@ class AbstractNumericalACVEstimator(AbstractACVEstimator):
             self.cov_opt, self.costs, target_cost, self,  cons,
             initial_guess=self.initial_guess)
 
-        if check_mfmc_model_costs_and_correlations(
-                self.costs, get_correlation_from_covariance(self.cov)):
+        if (check_mfmc_model_costs_and_correlations(
+                self.costs, get_correlation_from_covariance(self.cov)) and
+            len(self.cov_opt) == len(self.costs)):
+            # second condition above  will not be true for multiple qoi
             mfmc_initial_guess = allocate_samples_mfmc(
                 self.cov_opt, self.costs, target_cost)[0]
             opt_mfmc = allocate_samples_acv(
                 self.cov_opt, self.costs, target_cost, self, cons,
                 initial_guess=mfmc_initial_guess)
-            #print(opt[1], opt_mfmc[1])
+            # print(opt[1], opt_mfmc[1])
             if opt_mfmc[1] < opt[1]:
                 # print("using mfmc initial guess")
                 opt = opt_mfmc
@@ -871,7 +874,7 @@ class ACVGMFBEstimator(ACVGMFEstimator):
         target_cost = nhf_samples*self.costs[0]+nsample_ratios.dot(
             self.costs[1:])*nhf_samples
         best_rsq = -np.inf
-        for index in get_acv_recursion_indices(cov.shape[0]):
+        for index in get_acv_recursion_indices(self.nmodels):
             self.set_recursion_index(index)
             rsq = super()._get_rsquared(cov, nsample_ratios, target_cost)
             best_rsq = max(best_rsq, rsq)
@@ -911,9 +914,11 @@ class ACVMFEstimator(AbstractNumericalACVEstimator):
 
 
 class ACVISEstimator(AbstractNumericalACVEstimator):
-    # recusion not currently supported
+    # recursion not currently supported
 
     def _get_rsquared(self, cov, nsample_ratios):
+        # from pyapprox.multifidelity.control_variate_monte_carlo import (
+        #     get_discrepancy_covariances_IS_new)
         return get_rsquared_acv(
             cov, nsample_ratios, get_discrepancy_covariances_IS)
 
@@ -974,11 +979,13 @@ def get_best_models_for_acv_estimator(
                 continue
             try:
                 est.allocate_samples(target_cost, **allocate_kwargs)
+                # print(idx, est.recursion_index, est.optimized_variance)
                 if est.optimized_variance < best_variance:
                     best_est = est
                     best_model_indices = idx
                     best_variance = est.optimized_variance
             except (RuntimeError, ValueError):
+                # raise e
                 # print(e)
                 continue
             # print(idx, est.optimized_variance)
@@ -1051,7 +1058,6 @@ class BestModelSubsetEstimator():
             self.__class__.__name__, self.best_est.__class__.__name__,
             self.optimized_variance, self.rounded_target_cost,
             self.best_model_indices)
-
 
 
 def compute_single_fidelity_and_approximate_control_variate_mean_estimates(
@@ -1272,6 +1278,21 @@ def plot_estimator_variances(optimized_estimators,
     ax.legend()
 
 
+def _autolabel(ax, rects, model_labels):
+    # Attach a text label in each bar in *rects*
+    for rect, label in zip(rects, model_labels):
+        try:
+            rect = rect[0]
+        except TypeError:
+            pass
+        ax.annotate(label,
+                    xy=(rect.get_x() + rect.get_width()/2,
+                        rect.get_y() + rect.get_height()/2),
+                    xytext=(0, -10),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='center', va='bottom')
+
+
 def plot_acv_sample_allocation_comparison(
         estimators, model_labels, ax, legendloc=[0.925, 0.25]):
     """
@@ -1285,16 +1306,6 @@ def plot_acv_sample_allocation_comparison(
     model_labels : list (nestimators)
         String used to label each estimator
     """
-    def autolabel(ax, rects, model_labels):
-        # Attach a text label in each bar in *rects*
-        for rect, label in zip(rects, model_labels):
-            rect = rect[0]
-            ax.annotate(label,
-                        xy=(rect.get_x() + rect.get_width()/2,
-                            rect.get_y() + rect.get_height()/2),
-                        xytext=(0, -10),  # 3 points vertical offset
-                        textcoords="offset points",
-                        ha='center', va='bottom')
 
     nestimators = len(estimators)
     xlocs = np.arange(nestimators)
@@ -1320,8 +1331,8 @@ def plot_acv_sample_allocation_comparison(
             rects.append(rect)
             cnt += cost_ratio
             # print(est.nsamples_per_model[ii], label)
-        autolabel(ax, rects, ['$%d$' % int(est.nsamples_per_model[ii])
-                              for ii in range(est.nmodels)])
+        _autolabel(ax, rects, ['$%d$' % int(est.nsamples_per_model[ii])
+                               for ii in range(est.nmodels)])
     ax.set_xticks(xlocs)
     # number of samples are rounded cost est_rounded cost,
     # but target cost is not rounded
@@ -1343,15 +1354,143 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         self.nsamples_per_subset, self.optimized_variance = None, None
         self.rounded_target_cost = None
         self.nsamples_per_model = None
+        self.subsets = get_model_subsets(self.nmodels)
+        self.nsubsets = len(self.subsets)
+        self.subset_costs = self._get_model_subset_costs(
+            self.subsets, self.costs)
+        self.hf_subset_vec = self._get_nhf_subset_vec()
 
-    def _get_nsamples_per_model(self):
+    def _get_nhf_subset_vec(self):
+        hf_subset_vec = np.zeros(self.nsubsets)
+        for ii, subset in enumerate(self.subsets):
+            if 0 in subset:
+                hf_subset_vec[ii] = 1
+        return hf_subset_vec
+
+    def _get_nsamples_per_model(self, subsets, nsamples_per_subset):
         nsamples_per_model = np.zeros(self.nmodels)
-        for jj, subset in enumerate(self.subsets):
-            nsamples_per_model[subset] += self.nsamples_per_subset[jj]
+        for jj, subset in enumerate(subsets):
+            nsamples_per_model[subset] += nsamples_per_subset[jj]
         return nsamples_per_model
 
+    def _objective(self, asketch, nsamples_per_subset):
+        obj, grad = BLUE_variance(
+            asketch, self.cov, self.costs, self._reg_blue, self.subsets,
+            nsamples_per_subset, return_grad=True)
+        grad = 1/obj*grad
+        obj = np.log(obj)
+        return obj, grad
+
+    def _get_bounds(self, target_cost):
+        nsubsets = len(self.subsets)
+        bounds = [(0, target_cost/self.subset_costs[ii]) for ii in range(
+            nsubsets)]
+        return bounds
+
+    @staticmethod
+    def _get_constraints(subsets, subset_costs, target_cost, constraint_reg):
+        return [
+            {'type': 'ineq',
+             'fun': partial(BLUE_hf_nsamples_constraint, subsets),
+             # use of anlytical gradient messes up minimize
+             'jac': partial(BLUE_hf_nsamples_constraint_jac, subsets)
+             },
+            {'type': 'eq',
+             'fun': partial(BLUE_cost_constraint, target_cost, subset_costs),
+             # 'jac': partial(
+             #     BLUE_cost_constraint_jac, target_cost, subset_costs)
+             }
+        ]
+
+    def _set_optimization_result(
+            self, nsamples_per_subset, subsets, round_nsamples,
+            asketch):
+        if round_nsamples:
+            unrounded_nsamples_per_subset = nsamples_per_subset.copy()
+            nsamples_per_subset = np.asarray(nsamples_per_subset).astype(int)
+            maxn = 0
+            for subset, ns in zip(subsets, nsamples_per_subset):
+                if 0 in subset:
+                    maxn = max(maxn, ns)
+            if maxn == 0:
+                msg = "No high-fidelity samples were used after rounding. "
+                msg += "Likely the relaxed sum of samples of sets involving "
+                msg += "the high-fidelity model sumed to >1 but no individual "
+                msg += "sample size was >1. nsamples_per_subset was "
+                msg += "\n{0}.\n".format(unrounded_nsamples_per_subset)
+                msg += 'Increasing target_cost will fix this'
+                raise RuntimeError(msg)
+        rounded_target_cost = self._get_nsamples_per_model(
+            subsets, nsamples_per_subset) @ self.costs
+
+        # set attributes needed for self._estimate
+        self.nsamples_per_subset = nsamples_per_subset
+        # self.optimized_variance = BLUE_variance(
+        #     asketch, self.cov, None, self._reg_blue,
+        #     self.nsamples_per_subset)
+        self.optimized_variance = self.get_variance(
+            nsamples_per_subset, asketch)
+        self.rounded_target_cost = rounded_target_cost
+        self.nsamples_per_model = self._get_nsamples_per_model(
+            self.subsets, self.nsamples_per_subset)
+        return self.optimized_variance, self.rounded_target_cost
+
+    def _extract_optimization_result(self, res, target_cost):
+        variance = res["fun"]
+        # This is normalized variance true variance is obtained by
+        # variance/target_cost
+        # nsamples_per_subset_frac = np.maximum(
+        #     np.zeros_like(res["x"]), res["x"])
+        # nsamples_per_subset_frac /= nsamples_per_subset_frac.sum()
+        # # transform nsamples as fraction of unit budget to fraction of
+        # # target_cost
+        # nsamples_per_subset = target_cost*nsamples_per_subset_frac
+        # # correct for normalization of nsamples by cost
+        # nsamples_per_subset /= self.subset_costs
+        nsamples_per_subset = res["x"]
+        return variance, nsamples_per_subset, self.subsets
+
+    def _init_guess(self, target_cost):
+        nsubsets = len(self.subsets)
+        # x0 = (target_cost/nsubsets)/self.subset_costs
+        x0 = np.zeros(nsubsets)
+        x0[-1] = target_cost/self.subset_costs[-1]
+        return x0
+
+    def _cvxpy_psi(self, nsps_cvxpy):
+        import cvxpy
+        Psi_blocks = BLUE_Psi(
+            self.cov, self.costs, 0, self.subsets, np.ones(self.nsubsets))[1]
+        Psi = (
+            np.hstack([b.flatten()[:, None] for b in Psi_blocks])@nsps_cvxpy)
+        Psi = cvxpy.reshape(Psi, (self.nmodels, self.nmodels))
+        return Psi
+
+    def _cvxpy_spd_constraint(self, asketch, nsps_cvxpy, t_cvxpy):
+        import cvxpy
+        Psi = self._cvxpy_psi(nsps_cvxpy)
+        mat = cvxpy.bmat(
+            [[Psi, asketch], [asketch.T, cvxpy.reshape(t_cvxpy, (1, 1))]])
+        return mat
+
+    def _minimize_cvxpy(self, target_cost, asketch):
+        # use notation from https://www.cvxpy.org/examples/basic/sdp.html
+        import cvxpy
+        t_cvxpy = cvxpy.Variable(nonneg=True)
+        nsps_cvxpy = cvxpy.Variable(self.nsubsets, nonneg=True)
+        obj = cvxpy.Minimize(t_cvxpy)
+        constraints = [self.subset_costs@nsps_cvxpy <= target_cost]
+        constraints += [self.hf_subset_vec@nsps_cvxpy >= 1]
+        constraints += [self._cvxpy_spd_constraint(
+            asketch, nsps_cvxpy, t_cvxpy) >> 0]
+        prob = cvxpy.Problem(obj, constraints)
+        prob.solve(verbose=0, solver="CVXOPT")
+        res = dict([("x",  nsps_cvxpy.value), ("fun", t_cvxpy.value)])
+        return res
+
     def allocate_samples(self, target_cost, asketch=None,
-                         constraint_reg=1e-12, round_nsamples=True):
+                         constraint_reg=1e-12, round_nsamples=True,
+                         options={}, init_guess=None):
         """
         Parameters
         ----------
@@ -1361,77 +1500,60 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
             asketch = np.zeros((nmodels, 1))
             asketch[0] = 1.0
         assert asketch.shape[0] == self.costs.shape[0]
-        init_guess = np.full(2**nmodels-1, (1/(2**nmodels-1)))
-        obj = partial(BLUE_variance, asketch, self.cov,
-                      self.costs, self._reg_blue, return_grad=True)
-        constraints = [
-            {'type': 'ineq',
-             'fun': partial(BLUE_bound_constraint, constraint_reg),
-             'jac': BLUE_bound_constraint_jac},
-            {'type': 'eq',
-             'fun': BLUE_cost_constraint,
-             'jac': BLUE_cost_constraint_jac}]
-        res = minimize(obj, init_guess, jac=True, method="SLSQP",
-                       constraints=constraints)
-        if not res.success:
-            print(partial(BLUE_bound_constraint, constraint_reg)(init_guess))
-            print(BLUE_cost_constraint(init_guess))
-            msg = f"optimization not successful {res}"
-            print(msg)
-            # raise RuntimeError(msg)
-        variance = res["fun"]
-        nsamples_per_subset_frac = np.maximum(
-            np.zeros_like(res["x"]), res["x"])
-        nsamples_per_subset_frac /= nsamples_per_subset_frac.sum()
-        # transform nsamples as fraction of unit budget to fraction of
-        # target_cost
-        nsamples_per_subset = target_cost*nsamples_per_subset_frac
-        # correct for normalization of nsamples by cost
-        subset_costs, subsets = self._get_model_subset_costs(self.costs)
-        nsamples_per_subset /= subset_costs
-        if round_nsamples:
-            nsamples_per_subset = np.asarray(nsamples_per_subset).astype(int)
-        rounded_target_cost = np.sum(nsamples_per_subset*subset_costs)
 
-        # set attributes needed for self._estimate
-        self.nsamples_per_subset = nsamples_per_subset
-        # variance for unrounded nsamples_per_subset
-        # self.optimized_variance = variance/target_cost
-        # variance for rounded nsamples_per_subset
-        self.optimized_variance = BLUE_variance(
-            asketch, self.cov, None, self._reg_blue,
-            self.nsamples_per_subset)
-        self.rounded_target_cost = rounded_target_cost
-        self.subsets = subsets
-        self.nsamples_per_model = self._get_nsamples_per_model()
+        obj = partial(self._objective, asketch)
+        constraints = self._get_constraints(
+            self.subsets, self.subset_costs, target_cost, constraint_reg)
+        if init_guess is None:
+            init_guess = self._init_guess(target_cost)
+        jac = True
+        method = options.pop("method", "trust-constr")
+        if method == "cvxpy":
+            res = self._minimize_cvxpy(target_cost, asketch)
+        else:
+            res = minimize(
+                obj, init_guess, jac=jac,
+                method=method, constraints=constraints, options=options,
+                bounds=self._get_bounds(target_cost))
+            if not res.success:
+                msg = f"optimization not successful {res}"
+                print(msg)
+                raise RuntimeError(msg)
+
+        variance, nsamples_per_subset, subsets = (
+            self._extract_optimization_result(res, target_cost))
+        variance, rounded_target_cost = self._set_optimization_result(
+            nsamples_per_subset, subsets, round_nsamples,
+            asketch)
         return nsamples_per_subset, variance, rounded_target_cost
 
     @staticmethod
-    def _get_model_subset_costs(costs):
-        nmodels = len(costs)
-        subsets = get_model_subsets(nmodels)
+    def _get_model_subset_costs(subsets, costs):
         subset_costs = np.array(
             [costs[subset].sum() for subset in subsets])
-        return subset_costs, subsets
+        return subset_costs
 
     def generate_data(self, models, variable, pilot_values=None):
         # todo consider removing self.variable from baseclass
         return BLUE_evaluate_models(
-            variable.rvs, models, self.nsamples_per_subset, pilot_values)
+            variable.rvs, models, self.subsets, self.nsamples_per_subset,
+            pilot_values)
 
     def _estimate(self, values, asketch=None):
         if asketch is None:
             asketch = np.zeros((self.nmodels, 1))
             asketch[0] = 1.0
         Psi, _ = BLUE_Psi(
-            self.cov, None, self._reg_blue, self.nsamples_per_subset)
-        rhs = BLUE_RHS(self.cov, values)
+            self.cov, None, self._reg_blue, self.subsets,
+            self.nsamples_per_subset)
+        rhs = BLUE_RHS(self.subsets, self.cov, values)
         return np.linalg.multi_dot(
             (asketch.T, np.linalg.lstsq(Psi, rhs, rcond=None)[0]))
 
     def get_variance(self, nsamples_per_subset, asketch):
         return BLUE_variance(
-            asketch, self.cov, None, self._reg_blue, nsamples_per_subset)
+            asketch, self.cov, None, self._reg_blue, self.subsets,
+            nsamples_per_subset)
 
     def bootstrap_estimator(self, values, asketch, nbootstraps=1000):
         means = np.empty(nbootstraps)
@@ -1458,17 +1580,16 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
         # compute active subsets of fully coupled BLUEs
         active_subsets = [
             np.arange(nmodels)[ii:] for ii in range(nmodels)]
-        subsets = get_model_subsets(nmodels)
         active_subset_indices = []
         for subset in active_subsets:
-            for ii, s in enumerate(subsets):
+            for ii, s in enumerate(self.subsets):
                 if s.shape[0] == len(subset) and np.allclose(s, subset):
                     active_subset_indices.append(ii)
                     break
         active_subset_indices = np.asarray(active_subset_indices)
 
         # convert nsample_ratios into nsamples_per_subset
-        nsamples_per_subset = np.zeros(len(subsets))
+        nsamples_per_subset = np.zeros(len(self.subsets))
         nlf_model_samples = nsample_ratios*nhf_samples
         nsamples_per_subset[active_subset_indices] = np.hstack(
             (nhf_samples, nlf_model_samples[0]-nhf_samples,
@@ -1481,7 +1602,8 @@ class MLBLUEstimator(AbstractMonteCarloEstimator):
 
         # estimate the variance reduction relative to single-fidelity MC
         mlblue_variance = BLUE_variance(
-            asketch, cov, None, self._reg_blue, nsamples_per_subset)
+            asketch, cov, None, self._reg_blue, self.subsets,
+            nsamples_per_subset)
         mc_variance = cov[0, 0]/nhf_samples
         gamma = mlblue_variance/mc_variance
         return 1-gamma
@@ -1690,12 +1812,13 @@ class AETCBLUE():
         best_subset = result[1]
         beta_Sp, Sigma_best_S, nsamples_per_subset = result[3:6]
         Psi, _ = BLUE_Psi(
-            Sigma_best_S, None, self._reg_blue, nsamples_per_subset)
+            Sigma_best_S, None, self._reg_blue, self.subsets,
+            nsamples_per_subset)
         # use +1 to accound for subset indexing only lf models
         values = BLUE_evaluate_models(
             self.rvs, [self.models[s+1] for s in best_subset],
-            nsamples_per_subset)
-        rhs = BLUE_RHS(Sigma_best_S, values)
+            self.subsets, nsamples_per_subset)
+        rhs = BLUE_RHS(self.subsets, Sigma_best_S, values)
         beta_S = beta_Sp[1:]
         return np.linalg.multi_dot(
             (beta_S.T, np.linalg.lstsq(Psi, rhs, rcond=None)[0])) + beta_Sp[0]
@@ -1718,6 +1841,14 @@ class AETCBLUE():
         # package up result
         result = self._explore_result_to_dict(result)
         return mean, values, result
+
+    def __repr__(self):
+        if self.optimized_criteria is None:
+            return "{0}".format(self.__class__.__name__)
+        return "{0}(stat={1}, MSE={2:.3g}, target_cost={3:.5g}, ratios={4})".format(
+            self.__class__.__name__, 
+            self.optimized_varuabce, self.rounded_target_cost,
+            self.nsample_ratios.numpy())
 
 
 monte_carlo_estimators = {"acvmf": ACVMFEstimator,

@@ -325,8 +325,8 @@ def plot_parameter_sweeps(active_samples, vals, fig_basename=None,
     if axs is None:
         fig, axs = plt.subplots(1, len(qoi_indices),
                                 figsize=(8*len(qoi_indices), 6), sharey=True)
-    if len(qoi_indices) == 1:
-        axs = [axs]
+        if len(qoi_indices) == 1:
+            axs = [axs]
 
     if axes_label_opts is None:
         axes_label_opts = [dict() for ii in range(len(qoi_indices))]
@@ -345,7 +345,7 @@ def plot_parameter_sweeps(active_samples, vals, fig_basename=None,
         plt.savefig(fig_basename+'.pdf', bbox_inches='tight')
     if show:
         plt.show()
-    return fig, axs
+    return axs
 
 
 def generate_parameter_sweeps_samples(opts, sweep_type, num_samples_per_sweep,
@@ -430,7 +430,7 @@ def generate_parameter_sweeps_and_plot_from_variable(
     ----------
     model : callable
         Function with the signature
-       
+
         `model(samples) -> np.ndarray(nsamples, nqoi)`
 
         where samples : np.ndarray (nvars, nsamples)

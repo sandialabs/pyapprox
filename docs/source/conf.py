@@ -28,7 +28,7 @@ copyright = '2019 National Technology & Engineering Solutions of Sandia, LLC (NT
 author = 'John D. Jakeman'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0.2'
+release = '1.0.3'
 
 
 # -- General configuration ---------------------------------------------------
@@ -67,7 +67,10 @@ example_filenames_in_order = [
     'plot_bayesian_inference.py',
     'plot_bayesian_networks.py',
     'plot_push_forward_based_inference.py',
+    # ExpDesign
+    # 'plot_bayesian_oed.py', # ignore until paper published
     # Surrogates
+    'plot_univariate_interpolation.py',
     'plot_tensor_product_interpolation.py',
     'plot_sparse_grids.py',
     'plot_adaptive_leja_interpolation.py',
@@ -75,11 +78,18 @@ example_filenames_in_order = [
     # 'plot_integrated_surrogates.py',
     # Multi-fidelity
     'plot_monte_carlo.py',
+    'plot_multioutput_monte_carlo.py',
     'plot_control_variate_monte_carlo.py',
-    'plot_approximate_control_variate_monte_carlo.py',
+    'plot_approximate_control_variates.py',
+    'plot_many_model_acv.py',
+    'acv_covariances.py',
+    'plot_allocation_matrices.py',
     'plot_multi_level_monte_carlo.py',
     'plot_multi_fidelity_monte_carlo.py',
-    'plot_many_model_approximate_control_variate_monte_carlo.py',
+    'plot_pacv.py',
+    'plot_multioutput_acv.py',
+    'plot_pilot_studies.py',
+    'plot_ensemble_selection.py',
     'plot_multilevel_blue.py',
     'plot_multiindex_collocation.py',
     'plot_multifidelity_gp.py',
@@ -128,11 +138,12 @@ sphinx_gallery_conf = {
     'subsection_order': ExplicitOrder([
         '../../tutorials/analysis',
         '../../tutorials/inference',
+        '../../tutorials/expdesign',
         '../../tutorials/surrogates',
         '../../tutorials/multi_fidelity',
         '../../examples']),
     'within_subsection_order': ExamplesExplicitOrder,
-    'ignore_pattern': r'__', # any files with __ in the filename are ignored
+    'ignore_pattern': r'util|plot_bayesian_oed\.py',  # any filenames containing util or plot_bayesian_oed.py in the filename are ignored
     'matplotlib_animations': True,
 }
 try:
@@ -154,15 +165,15 @@ except ImportError:
 #     add_markdown_cell(work_notebook, first_cell)#jdj
 #     add_code_cell(work_notebook,"%matplotlib inline")#jdj
 # then add user defs like so
-sphinx_gallery_conf['first_notebook_cell'] = r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\mathrm{d}#1}$$"
+sphinx_gallery_conf['first_notebook_cell'] = r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\rvset{{\mathcal{Z}}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\text{d}#1}\newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}$$"
 
 # if change conf make sure to remove source/auto_examples, using make clean
 # Note sphinx can use align with single line, e.g. a=1 & & b=1 if \\ is added to the end of the line, i.e  a=1 & & b=1\\
 
 # silence warning created by sphinx-gallery
-warnings.filterwarnings("ignore", category=UserWarning,
-                        message='Matplotlib is currently using agg, which is a'
-                                ' non-GUI backend, so cannot show the figure.')
+# warnings.filterwarnings("ignore", category=UserWarning,
+#                         message='Matplotlib is currently using agg, which is a'
+#                                 ' non-GUI backend, so cannot show the figure.')
 
 # numpydoc_show_class_members=False option is ncessary when using automodapi
 # to avoid having methods and attributes of classes being shown multiple times.
@@ -178,11 +189,11 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['control_variate_monte_carlo.rst','adaptive_leja_sequences.rst','examples.rst','cantilever_beam.rst','parameter_sweeps.rst','tensor_product_lagrange_interpolation.rst','polynomial_chaos_interpolation.rst','isotropic_sparse_grid_quadrature_example.rst','plot_design_under_uncertainty.rst'] # temporarily do not create function documentation
+# temporarily do not create function documentation
+exclude_patterns = ['cantilever_beam.rst', 'plot_bayesian_oed.py']
 
-#exclude_patterns += ['modules.rst']
-
-# use above to temporarily disable automod build. Also need to remove source/api directory and (possibly) build/
+# use the following temporarily disable automod build. Also need to remove source/api directory and (possibly) build/
+exclude_patterns += ["modules.rst"]  # , 'user_reference_guide.rst']
 
 
 # only add documented functions to manual. If not used then the api of functions
@@ -249,15 +260,16 @@ SOFTWARE.\par
 \newcommand{\corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}
 %\def\argmin{\mathrm{argmin}}
 \def\rv{z}
+\def\rvset{{\mathcal{Z}}}
 \def\reals{\mathbb{R}}
 \def\pdf{\rho}
 \def\rvdom{\Gamma}
 \def\coloneqq{\colon=}
 \newcommand{\norm}[1]{\lVert #1 \rVert}
-%\def\argmax{\operatorname{argmax}}
 \def\ai{\alpha}
 \def\bi{\beta}
-\newcommand{\dx}[1]{\;\mathrm{d}#1}
+\newcommand{\dx}[1]{\;\text{d}#1}
+\newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}
 ''',
 }
 
@@ -298,23 +310,25 @@ SOFTWARE.\par
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 mathjax3_config = {
   "tex": {
-    "macros": {
-      "V": [r'{\boldsymbol{#1}}', 1],
-      "mean": [r'{\mathbb{E}\left[#1\right]}', 1],
-      "var": [r'{\mathbb{V}\left[#1\right]}', 1],
-      "rv": r'{z}',
-      "reals": r'\mathbb{R}',
-      "pdf": r'\rho',
-      "rvdom": r'\Gamma',
-      "coloneqq": r'\colon=',
-      "norm": [r'{\lVert #1 \rVert}', 1],
-      "argmax": [r'\operatorname{argmax}'],
-      "argmin": [r'\operatorname{argmin}'],
-      "covar": [r'\mathbb{C}\text{ov}\left[#1,#2\right]', 2],
-      "corr": [r'\mathbb{C}\text{or}\left[#1,#2\right]', 2],
-      "ai": r'\alpha',
-      "bi": r'\beta',
-      "dx": [r'\;\mathrm{d}#1', 1]
+      "macros": {
+          "V": [r'{\boldsymbol{#1}}', 1],
+          "mean": [r'{\mathbb{E}\left[#1\right]}', 1],
+          "var": [r'{\mathbb{V}\left[#1\right]}', 1],
+          "rv": r'{z}',
+          "rvset": r'{\mathcal{Z}}',
+          "reals": r'\mathbb{R}',
+          "pdf": r'\rho',
+          "rvdom": r'\Gamma',
+          "coloneqq": r'\colon=',
+          "norm": [r'{\lVert #1 \rVert}', 1],
+          "argmax": [r'\operatorname{argmax}'],
+          "argmin": [r'\operatorname{argmin}'],
+          "covar": [r'\mathbb{C}\text{ov}\left[#1,#2\right]', 2],
+          "corr": [r'\mathbb{C}\text{or}\left[#1,#2\right]', 2],
+          "ai": r'\alpha',
+          "bi": r'\beta',
+          "dx": [r'\;\text{d}#1', 1],
+          "mat": [r'{\boldsymbol{\mathrm{#1}}}', 1],
     },
   },
 }

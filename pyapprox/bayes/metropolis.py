@@ -4,10 +4,13 @@ from scipy.linalg import solve_triangular
 from scipy.optimize import (
     minimize, differential_evolution)
 import matplotlib.pyplot as plt
+from functools import partial
 
+from pyapprox.variables.marginals import get_distribution_info
 from pyapprox.variables.joint import JointVariable
 from pyapprox.analysis.visualize import setup_2d_cross_section_axes
 from pyapprox.variables.joint import get_truncated_range
+from pyapprox.bayes.hmc import hmc
 
 
 def update_mean_and_covariance(
@@ -213,13 +216,11 @@ class MetropolisMCMCVariable(JointVariable):
     def _univariate_logprior_grad(rv, x):
         if rv.dist.name == "beta":
             # todo only extract this info once
-            from pyapprox.variables.marginals import get_distribution_info
-            from pyapprox.variables.density import pdf_derivative_under_affine_map
-            from functools import partial
             scales, shapes = get_distribution_info(rv)[1:]
             loc, scale = scales["loc"], scales["scale"]
             a, b = shapes["a"], shapes["b"]
-            val = (loc*(-(a+b-2))+x*(a+b-2)-a*scale+scale)/((loc-x)*(loc+scale-x))
+            val = (loc*(-(a+b-2))+x*(a+b-2)-a*scale+scale)/(
+                (loc-x)*(loc+scale-x))
             return val
         if rv.dist.name == "uniform":
             return 0
@@ -250,6 +251,37 @@ class MetropolisMCMCVariable(JointVariable):
         logprior_grad = self._logprior_grad(sample)
         return loglike+logprior, loglike_grad + logprior_grad
 
+    def _rvs_dram(self, init_sample, init_proposal_cov, num_samples,
+                  nburn_samples):
+        nugget = self._method_opts.get("nugget", 1e-6)
+        cov_scaling = self._method_opts.get("cov_scaling", 1e-2)
+        sd = self._method_opts.get("sd", None)
+        # hack remove self._sample_covariance
+        samples, accepted, self._sample_covariance = DRAM(
+            self._log_bayes_numerator, init_sample, init_proposal_cov,
+            num_samples+nburn_samples, self._nsamples_per_tuning, nugget,
+            cov_scaling, verbosity=self._verbosity, sd=sd)
+        # print(accepted)
+        # print(accepted[nburn_samples:].sum(), num_samples, nburn_samples)
+        acceptance_rate = accepted[nburn_samples:].sum()/num_samples
+        return samples, acceptance_rate
+
+    def _log_bayes_numerator_hmc(self, sample):
+        val, grad = self._log_bayes_numerator(
+            sample[:, None], return_grad=True)
+        return val, grad[0]
+
+    def _rvs_hmc(self, init_sample, init_momentum, num_samples):
+        hmc_opts = self._method_opts.copy()
+        hmc_opts["num_samples"] = num_samples
+        result = hmc(
+            init_sample[:, 0], init_momentum[:, 0],
+            self._log_bayes_numerator_hmc, [],
+            hmc_opts, np.random)
+        acceptance_rate = (result["num_acc"])/(
+            result["num_acc"]+result["num_rej"])
+        return result["samples"].T, acceptance_rate
+
     def rvs(self, num_samples, init_sample=None):
         if init_sample is None:
             # init_sample = self._variable.get_statistics("mean")
@@ -262,21 +294,15 @@ class MetropolisMCMCVariable(JointVariable):
         # print(num_samples, self._burn_fraction)
         nburn_samples = int(np.ceil(num_samples*self._burn_fraction))
         if self._algorithm == "DRAM":
-            nugget = self._method_opts.get("nugget", 1e-6)
-            cov_scaling = self._method_opts.get("cov_scaling", 1e-2)
-            sd = self._method_opts.get("sd", None)
-            # hack remove self._sample_covariance
-            samples, accepted, self._sample_covariance = DRAM(
-                self._log_bayes_numerator, init_sample, init_proposal_cov,
-                num_samples+nburn_samples, self._nsamples_per_tuning, nugget,
-                cov_scaling, verbosity=self._verbosity, sd=sd)
-            # print(accepted)
-            # print(accepted[nburn_samples:].sum(), num_samples, nburn_samples)
-            acceptance_rate = accepted[nburn_samples:].sum()/num_samples
+            samples, acceptance_rate = self._rvs_dram(
+                init_sample, init_proposal_cov, num_samples, nburn_samples)
         elif self._algorithm == "hmc":
-            L, eps = self._method_opts["L"], self._method_opts["eps"]
-            return hamiltonian_monte_carlo(
-                L, eps, self._log_bayes_numerator, init_sample, num_samples)
+            init_momentum = np.random.normal(0, 1, (init_sample.shape[0], 1))
+            samples, acceptance_rate = self._rvs_hmc(
+                init_sample, init_momentum, num_samples)
+            # L, eps = self._method_opts["L"], self._method_opts["eps"]
+            # return hamiltonian_monte_carlo(
+            #     L, eps, self._log_bayes_numerator, init_sample, num_samples)
         else:
             # TODO allow all combinations of adaptive and delayed
             # rejection metropolis
@@ -432,9 +458,7 @@ def plot_unnormalized_2d_marginals(
     from pyapprox.variables.joint import get_truncated_range
     from pyapprox.surrogates.interp.indexing import (
         compute_anova_level_indices)
-    from pyapprox.util.configure_plots import plt
     from pyapprox.util.visualization import get_meshgrid_samples
-    from functools import partial
 
     if variable_pairs is None:
         variable_pairs = np.array(

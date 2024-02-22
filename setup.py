@@ -33,7 +33,7 @@ extensions = cythonize(
 
 setuptools.setup(
     name="pyapprox",
-    version="1.0.2",
+    version="1.0.3",
     author="John D. Jakeman",
     author_email="29109026+jdjakem@users.noreply.github.com",
     description="High-dimensional function approximation and estimation",
@@ -41,7 +41,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/sandialabs/pyapprox",
     packages=setuptools.find_packages(),
-    python_requires='>=3.7', 
+    python_requires='>=3.7',
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
@@ -64,6 +64,7 @@ setuptools.setup(
         # 'tqdm',
         'numba',
         'scikit-fem',
+        'umbridge',
     ],
     extras_require={
         'docs': ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
@@ -96,7 +97,7 @@ setuptools.setup(
 
 # To test pyapprox on test.pypi use the following.
 # Note the use of extra-index-url
-# python -m pip install --extra-index-url=https://test.pypi.org/simple/ pyapprox==1.0.2
+# python -m pip install --extra-index-url=https://test.pypi.org/simple/ pyapprox==1.0.3
 
 # To build wheel locally use
 # python -m build
@@ -125,7 +126,7 @@ setuptools.setup(
 # to run a single test with pytest use
 # pytest pyapprox/surrogates/tests/test_approximate.py -k test_cross_validate_pce_degree
 
-# To ignore certain warnings use 
+# To ignore certain warnings use
 # pytest pyapprox/surrogates/tests/test_approximate.py -k test_cross_validate_pce_degree -W ignore:FutureWarning
 
 # However to isolate 3rd party warnings edit pypest.ini, e.g.
@@ -134,14 +135,5 @@ setuptools.setup(
 # "Individual warnings filters are specified as a sequence of fields separated by colons:"
 # action:message:category:module:line
 
-# # the following can be used to append location of print statement so
-# # that errant print statements can be found and removed
-# import builtins
-# from inspect import getframeinfo, stack
-# original_print = print
-
-# def print_wrap(*args, **kwargs):
-#     caller = getframeinfo(stack()[1][0])
-#     original_print("FN:",caller.filename,"Line:", caller.lineno,"Func:", caller.function,":::", *args, **kwargs)
-
-# builtins.print = print_wrap
+# run pytest coverage on a single test
+# coverage run -m pytest -v tests/test_stats.py && coverage html && open htmlcov/index.html

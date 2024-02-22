@@ -832,6 +832,9 @@ class CanonicalCollocationMesh():
             bndry_conds, residual, jac, sol, flux_jac)
         return residual, jac
 
+    def __repr__(self):
+        return "{0}(orders={1})".format(self.__class__.__name__, self._orders)
+
 
 class TransformedCollocationMesh(CanonicalCollocationMesh):
     # TODO need to changes weights of _get_quadrature_rule to account

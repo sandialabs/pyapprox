@@ -176,7 +176,3 @@ class TestSpectralGalerkin(unittest.TestCase):
                 *test_case)
 
 
-if __name__ == "__main__":
-    stokes_test_suite = \
-        unittest.TestLoader().loadTestsFromTestCase(TestSpectralGalerkin)
-    unittest.TextTestRunner(verbosity=2).run(stokes_test_suite)

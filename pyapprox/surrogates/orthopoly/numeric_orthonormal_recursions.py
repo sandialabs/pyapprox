@@ -434,7 +434,7 @@ def predictor_corrector(nterms, measure, lb, ub, quad_options={}):
         def integrand(measure, x):
             pvals = evaluate_orthonormal_polynomial_1d(
                 np.atleast_1d(x), ii, ab)
-            return measure(x)*pvals[:, ii]*pvals[:, ii-1]
+            return (measure(x)*pvals[:, ii]*pvals[:, ii-1])
 
         G_ii_iim1 = integrate(partial(integrand, measure))
         ab[ii-1, 0] += ab[ii-1, 1] * G_ii_iim1

@@ -4,6 +4,7 @@ from skfem import (
     ElementLineP1, ElementLineP2, ElementQuad1, ElementQuad2)
 from skfem.helpers import dot, grad
 
+
 def _get_mesh(bounds, nrefine):
     nphys_vars = len(bounds)//2
     if nphys_vars > 2:

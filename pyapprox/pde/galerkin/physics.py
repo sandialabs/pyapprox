@@ -110,6 +110,86 @@ def _diffusion_residual(v, w):
     return (w["forc"] * v - dot(w["diff"]*grad(w['u_prev']), grad(v)) -
             w["react"] * v)
 
+
+class LinearDiffusionResidual():
+    def __init__(self, forc_fun, diff_fun, react_fun, vel_fun):
+        # for use with direct solvers, i.e. not in residual form,
+        # typically used for computing initial guess for newton solve
+        self._forc_fun = forc_fun
+        self._diff_fun = diff_fun
+        if react_fun is None:
+            react_fun = self._zero_fun
+        self._react_fun = react_fun
+        if vel_fun is None:
+            vel_fun = self._zero_vel_fun
+        self._vel_fun = vel_fun
+        self.__name__ = self.__class__.__name__
+
+    def _zero_fun(self, x, *args):
+        return x[0]*0
+
+    def _zero_vel_fun(self, x, *args):
+        return x*0
+
+    def linear_form(self, v, w):
+        return self._forc_fun(w.x) * v
+
+    def _advection_term(self, u, v, w):
+        du = u.grad
+        vel = self._vel_fun(w.x)
+        return sum([v*vel[ii]*du[ii] for ii in range(w.x.shape[0])])
+
+    def bilinear_form(self, u, v, w):
+        diff = self._diff_fun(w.x)
+        react = self._react_fun(w.x)
+        return (dot(diff * grad(u), grad(v)) + react*u*v +
+                self._advection_term(u, v, w))
+
+
+class NonLinearDiffusionResidual():
+    def __init__(self, forc_fun, react_fun, react_prime, nl_diff_fun,
+                 nl_diff_prime, vel_fun):
+        self._forc_fun = forc_fun
+        self._nl_diff_fun = nl_diff_fun
+        self._nl_diff_prime = nl_diff_prime
+        if react_fun is None:
+            react_fun = self._zero_fun
+            react_prime = self._zero_fun
+        if vel_fun is None:
+            vel_fun = self._zero_vel_fun
+        self._vel_fun = vel_fun
+        self._react_fun = react_fun
+        self._react_prime = react_prime
+        self.__name__ = self.__class__.__name__
+
+    def _zero_fun(self, x, *args):
+        return x[0]*0
+
+    def _zero_vel_fun(self, x, *args):
+        return x*0
+
+    def linear_form(self, v, w):
+        forc = self._forc_fun(w.x)
+        diff = self._nl_diff_fun(w.x, w.u_prev)
+        react = self._react_fun(w.x, w.u_prev)
+        return (forc * v - dot(diff*grad(w.u_prev), grad(v)) -
+                react * v - self._advection_term(w.u_prev, v, w))
+
+    def _advection_term(self, u, v, w):
+        du = u.grad
+        vel = self._vel_fun(w.x)
+        return sum([v*vel[ii]*du[ii] for ii in range(w.x.shape[0])])
+
+    def bilinear_form(self, u, v, w):
+        diff = self._nl_diff_fun(w.x, w.u_prev)
+        diff_prime = self._nl_diff_prime(w.x, w.u_prev)
+        react_prime = self._react_prime(w.x, w.u_prev)
+        mat = (dot(diff * grad(u), grad(v)) +
+               dot(diff_prime*u*grad(w.u_prev), grad(v)) +
+               react_prime * u * v) + self._advection_term(u, v, w)
+        return mat
+
+
 # TODO allow anisotropic diffusion
 # see https://github.com/kinnala/scikit-fem/discussions/923
 # @BilinearForm
@@ -120,60 +200,39 @@ def _diffusion_residual(v, w):
 
 
 def _raw_assemble_advection_diffusion_reaction(
-        diff_fun, forc_fun, nl_diff_funs, react_funs,
+        diff_fun, forc_fun, nl_diff_funs, react_funs, vel_fun,
         bndry_conds, mesh, element, basis, u_prev=None):
 
-    # project only takes functions that return 1D arrays
-    # project takes functions that can compute when x is a 3D array
-    # thus manufactured solutions must be created with x in most strings
-    # there are some exceptions
-    forc = basis.interpolate(basis.project(forc_fun))
-    # diff is only linear component
-    diff_proj = basis.project(diff_fun)
-    diff = basis.interpolate(diff_proj)
+    # Note, project only takes functions that return 1D arrays
+    # project takes functions that can compute when x is a 3D array,
+    # thus manufactured solutions must be created with x in most strings.
+    # However, there are some exceptions
 
     nl_diff_fun, nl_diff_prime = nl_diff_funs
-    if u_prev is not None:
-        if nl_diff_fun is not None:
-            if nl_diff_prime is None:
-                raise ValueError(
-                    "nl_diff_prime must be provided with nl_diff_fun")
-            diff = basis.interpolate(nl_diff_fun(diff_proj, u_prev))
 
-    # TODO add reaction term to bilinear form and to linear form
-    # associated with the residual
+    if nl_diff_fun is not None:
+        if nl_diff_prime is None:
+            raise ValueError(
+                "nl_diff_prime must be provided with nl_diff_fun")
 
     if u_prev is None:
         assert nl_diff_fun is None
         assert react_funs[0] is None
-        # use below if solving directly with linear solve
-        bilinear_mat = asm(BilinearForm(_diffusion), basis, diff=diff)
+        residual = LinearDiffusionResidual(
+            forc_fun, diff_fun, react_funs[0], vel_fun)
+        bilinear_mat = asm(
+            BilinearForm(residual.bilinear_form), basis)
         linear_vec = asm(
-            LinearForm(_forcing), basis, forc=forc)
+            LinearForm(residual.linear_form), basis)
     else:
+        residual = NonLinearDiffusionResidual(
+            forc_fun, *react_funs, *nl_diff_funs, vel_fun)
         # use below if using newton solve
         u_prev_interp = basis.interpolate(u_prev)
-        if nl_diff_fun is None:
-            diff_prime = 0
-        else:
-            diff_prime = basis.interpolate(nl_diff_prime(diff_proj, u_prev))
-        if react_funs[0] is not None:
-            if react_funs[1] is None:
-                raise ValueError("react_prime must be provided with react_fun")
-            react = basis.interpolate(react_funs[0](u_prev))
-            react_prime = basis.interpolate(react_funs[1](u_prev))
-        else:
-            react = 0
-            react_prime = 0
         bilinear_mat = asm(
-            BilinearForm(_linearized_nonlinear_diffusion), basis,
-            diff=diff, diff_prime=diff_prime,
-            react=react, react_prime=react_prime,
-            u_prev=u_prev_interp)
+            BilinearForm(residual.bilinear_form), basis, u_prev=u_prev_interp)
         linear_vec = asm(
-            LinearForm(_diffusion_residual),
-            basis, forc=forc,  diff=diff, react=react,
-            u_prev=u_prev_interp)
+            LinearForm(residual.linear_form), basis, u_prev=u_prev_interp)
 
     bilinear_mat, linear_vec = (
         _enforce_scalar_robin_neumann_boundary_conditions(
@@ -182,10 +241,10 @@ def _raw_assemble_advection_diffusion_reaction(
 
 
 def _assemble_advection_diffusion_reaction(
-        diff_fun, forc_fun, nl_diff_funs, react_funs,
+        diff_fun, forc_fun, nl_diff_funs, react_funs, vel_fun,
         bndry_conds, mesh, element, basis, u_prev=None):
     bilinear_mat, linear_vec = _raw_assemble_advection_diffusion_reaction(
-        diff_fun, forc_fun, nl_diff_funs, react_funs,
+        diff_fun, forc_fun, nl_diff_funs, react_funs, vel_fun,
         bndry_conds, mesh, element, basis, u_prev)
     D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
         mesh, element, basis, bilinear_mat, linear_vec,
@@ -403,6 +462,62 @@ class Physics(ABC):
         return mass_mat
 
 
+class LinearAdvectionDiffusionReaction(Physics):
+    def __init__(
+            self,
+            mesh: Mesh,
+            element: Element,
+            basis: Basis,
+            bndry_conds: List,
+            diff_fun: Callable[[np.ndarray],  np.ndarray],
+            forc_fun: Callable[[np.ndarray],  np.ndarray],
+            vel_fun: Optional[Callable[[np.ndarray],  np.ndarray]] = None,
+            react_fun: Optional[Callable[[np.ndarray],  np.ndarray]] = None):
+
+        self.diff_fun = diff_fun
+        self.vel_fun = vel_fun
+        self.forc_fun = forc_fun
+        self.react_fun = react_fun
+
+        super().__init__(mesh, element, basis, bndry_conds)
+
+    def _set_funs(self) -> List:
+        return [self.diff_fun, self.vel_fun, self.forc_fun, self.react_fun]
+
+    def apply_dirichlet_boundary_conditions(
+            self,
+            sol: np.ndarray,
+            bilinear_mat: spmatrix,
+            linear_vec: Union[np.ndarray, spmatrix]) -> Tuple[
+                spmatrix,
+                Union[np.ndarray, spmatrix],
+                np.ndarray,
+                np.ndarray]:
+        D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
+            self.mesh, self.element, self.basis, bilinear_mat, linear_vec,
+            self.bndry_conds[0], sol)
+        return bilinear_mat, linear_vec, D_vals, D_dofs
+
+    def raw_assemble(self, sol: np.ndarray = None) -> Tuple[
+            spmatrix,
+            Union[np.ndarray, spmatrix]]:
+        residual = LinearDiffusionResidual(
+             self.forc_fun, self.diff_fun, self.react_fun, self.vel_fun)
+        bilinear_mat = asm(
+            BilinearForm(residual.bilinear_form), self.basis)
+        linear_vec = asm(
+            LinearForm(residual.linear_form), self.basis)
+        bilinear_mat, linear_vec = (
+            _enforce_scalar_robin_neumann_boundary_conditions(
+                self.mesh, self.element, bilinear_mat, linear_vec,
+                *self.bndry_conds[1:], sol))
+        return bilinear_mat, linear_vec
+
+    def init_guess(self) -> np.ndarray:
+        bilinear_mat, linear_vec, D_vals, D_dofs = self.assemble()
+        return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
+
+
 class AdvectionDiffusionReaction(Physics):
     def __init__(
             self,
@@ -429,10 +544,6 @@ class AdvectionDiffusionReaction(Physics):
 
         super().__init__(mesh, element, basis, bndry_conds)
 
-        if self.vel_fun is not None:
-            # TODO add these terms
-            raise NotImplementedError("Options currently not supported")
-
     def _set_funs(self) -> List:
         return [self.diff_fun, self.vel_fun, self.forc_fun, self.nl_diff_funs,
                 self.react_funs]
@@ -441,15 +552,27 @@ class AdvectionDiffusionReaction(Physics):
         bilinear_mat, linear_vec, D_vals, D_dofs = (
             _assemble_advection_diffusion_reaction(
                 self.diff_fun, self.forc_fun, [None, None], [None, None],
+                self.vel_fun,
                 self.bndry_conds, self.mesh, self.element, self.basis))
         return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
 
     def raw_assemble(self, sol: np.ndarray = None) -> Tuple[
             spmatrix,
             Union[np.ndarray, spmatrix]]:
-        return _raw_assemble_advection_diffusion_reaction(
-            self.diff_fun, self.forc_fun, self.nl_diff_funs, self.react_funs,
-            self.bndry_conds, self.mesh, self.element, self.basis, sol)
+        residual = NonLinearDiffusionResidual(
+            self.forc_fun, *self.react_funs, *self.nl_diff_funs, self.vel_fun)
+        # use below if using newton solve
+        u_prev_interp = self.basis.interpolate(sol)
+        bilinear_mat = asm(
+            BilinearForm(residual.bilinear_form), self.basis,
+            u_prev=u_prev_interp)
+        linear_vec = asm(
+            LinearForm(residual.linear_form), self.basis, u_prev=u_prev_interp)
+        bilinear_mat, linear_vec = (
+            _enforce_scalar_robin_neumann_boundary_conditions(
+                self.mesh, self.element, bilinear_mat, linear_vec,
+                *self.bndry_conds[1:], sol))
+        return bilinear_mat, linear_vec
 
     def apply_dirichlet_boundary_conditions(
             self,
@@ -464,6 +587,39 @@ class AdvectionDiffusionReaction(Physics):
             self.mesh, self.element, self.basis, bilinear_mat, linear_vec,
             self.bndry_conds[0], sol)
         return bilinear_mat, linear_vec, D_vals, D_dofs
+
+
+class Helmholtz(LinearAdvectionDiffusionReaction):
+    def __init__(
+            self,
+            mesh: Mesh,
+            element: Element,
+            basis: Basis,
+            bndry_conds: List,
+            wave_number_fun: Callable[[np.ndarray],  np.ndarray],
+            forc_fun: Optional[Callable[[np.ndarray],  np.ndarray]] = None):
+
+        if forc_fun is None:
+            forc_fun = self._zero_forcing
+
+        super().__init__(
+            mesh, element, basis, bndry_conds, self._unit_diff,
+            forc_fun, self._zero_vel, wave_number_fun)
+
+    def _unit_diff(self, x):
+        # negative is taken because advection diffusion code solves
+        # -k*\nabla^2 u + c*u = f
+        # but Helmholtz solves
+        # \nabla^2 u + c*u = 0 which is equivalent when k=-1
+        return -1+0*x[0]
+
+    def _zero_vel(self, x):
+        # Helmholtz is a special case of the advection diffusion reaction
+        # equation when there is no advection, i.e. velocity field is zero
+        return 0*x
+
+    def _zero_forcing(self, x):
+        return 0*x[0]
 
 
 class Stokes(Physics):
@@ -548,7 +704,6 @@ class BiLaplacianPrior():
         self.gamma = gamma
         self.delta = delta
         self.beta = np.sqrt(self.gamma*self.delta)*1.42
-        print(mesh.p.shape[0])
         if anisotropic_tensor is None:
             anisotropic_tensor = np.eye(mesh.p.shape[0])*gamma
         else:

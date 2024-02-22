@@ -13,7 +13,6 @@ from pyapprox.util.utilities import (
     get_all_sample_combinations, hash_array, cartesian_product
 )
 from pyapprox.util.sys_utilities import has_kwarg
-from pyapprox.variables.transforms import ConfigureVariableTransformation
 
 
 def evaluate_1darray_function_on_2d_array(
@@ -651,7 +650,8 @@ class WorkTrackingModel(object):
     Keep track of the wall time needed to evaluate a function.
     """
 
-    def __init__(self, function, base_model=None, num_config_vars=0):
+    def __init__(self, function, base_model=None, num_config_vars=0,
+                 enforce_timer_model=True):
         """
         Keep track of the wall time needed to evaluate a function.
 
@@ -666,21 +666,26 @@ class WorkTrackingModel(object):
              The last qoi returned by function (i.e. the last column of the
              output array) must be the cost of the simulation. This column
              is removed from the output of __call__.
-
+model = WorkTrackingModel(TimerModel(benchmark.fun), num_config_vars=1)
         base_model : callable
             A function with signature
 
             ``base_model(w) -> float``
 
-             where ``w`` is a np.ndarray of shape (nvars,nsamples).
+            where ``w`` is a np.ndarray of shape (nvars,nsamples).
 
-             This is useful when function is a wrapper of another model, i.e.
-             base_model and algorithms or the user want access to the attribtes
-             of the base_model.
+            This is useful when function is a wrapper of another model, i.e.
+            base_model and algorithms or the user want access to the attribtes
+            of the base_model.
 
         num_config_vars : integer
-             The number of configuration variables of fun. For most functions
-             this will be zero.
+            The number of configuration variables of fun. For most functions
+            this will be zero.
+
+        enforce_timer_model : boolean
+            If True function must be an instance of TimerModel.
+            If False function must return qoi plus an additional column
+            which is the model run time
 
         Notes
         -----
@@ -689,6 +694,8 @@ class WorkTrackingModel(object):
         of function
         """
         self.wt_function = function
+        if enforce_timer_model and not isinstance(function, TimerModel):
+            raise ValueError("Function is not an instance of TimerModel")
         self.work_tracker = WorkTracker()
         self.base_model = base_model
         self.num_config_vars = num_config_vars
@@ -719,6 +726,9 @@ class WorkTrackingModel(object):
             data = self.wt_function(samples)
         else:
             data, grads = self.wt_function(samples, return_grad=return_grad)
+        if data.shape[1] <= 1:
+            raise RuntimeError(
+                "function did not return at least one QoI and time")
         values = data[:, :-1]
         work = data[:, -1]
         if self.num_config_vars > 0:
@@ -730,7 +740,7 @@ class WorkTrackingModel(object):
             return values
         return values, grads
 
-    def cost_function(self, config_samples):
+    def cost_function(self, config_samples=None):
         """
         Retrun the cost of evaluating the functions with the ids given in
         a set of config_samples. These samples are assumed to be in user space
@@ -738,11 +748,20 @@ class WorkTrackingModel(object):
 
         Parameters
         ----------
-        config_samples : np.ndarray (nconfig_vars,nsamples)
+        config_samples : np.ndarray (nconfig_vars, nsamples)
             The configuration indices
         """
+        if config_samples is None:
+            config_samples = np.zeros((1, 1))
         cost = self.work_tracker(config_samples)
         return cost
+
+    def __repr__(self):
+        if self.base_model is not None:
+            return "{0}(base_model={1})".format(
+                self.__class__.__name__, self.base_model)
+        return "{0}(model={1})".format(
+            self.__class__.__name__, self.wt_function)
 
 
 class PoolModel(object):
@@ -1116,7 +1135,9 @@ class ModelEnsemble(object):
         for ii in range(1, active_model_ids.shape[0]):
             active_model_id = active_model_ids[ii]
             II = np.where(model_ids == active_model_id)[0]
-            values[II] = self.functions[active_model_id](samples[:-1, II])
+            values_II = self.functions[active_model_id](samples[:-1, II])
+            assert values_II.ndim == 2
+            values[II] = values_II
         return values
 
     def __repr__(self):

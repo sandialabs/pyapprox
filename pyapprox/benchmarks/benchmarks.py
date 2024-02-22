@@ -24,7 +24,8 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     ParameterizedNonlinearModel)
 from pyapprox.benchmarks.genz import GenzFunction
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    PolynomialModelEnsemble, TunableModelEnsemble, ShortColumnModelEnsemble)
+    PolynomialModelEnsemble, TunableModelEnsemble, ShortColumnModelEnsemble,
+    MultioutputModelEnsemble)
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.interface.wrappers import (
     TimerModel, PoolModel, WorkTrackingModel)
@@ -81,6 +82,9 @@ class Benchmark(OptimizeResult):
     Use the `keys()` method to see a list of the available
     attributes for a specific benchmark
     """
+    def __repr__(self):
+        return "Benchmark("+", ".join(
+            [str(key) for key, item in self.items()]) + ")"
 
 
 def setup_sobol_g_function(nvars):
@@ -674,7 +678,14 @@ def setup_hastings_ecology_benchmark(qoi_functional=None, time=None):
     return Benchmark(attributes)
 
 
-def setup_polynomial_ensemble():
+def _extract_acv_benchmark_dict(model):
+    return {'fun': model, 'variable': model.variable,
+            "mean": model.get_means(),
+            "covariance": model.get_covariance_matrix(),
+            "funs": model.funs, "nqoi": model.nqoi}
+
+
+def setup_polynomial_ensemble(nmodels=5):
     r"""
     Return an ensemble of 5 univariate models of the form
 
@@ -696,31 +707,30 @@ def setup_polynomial_ensemble():
     means : np.ndarray (nmodels)
         The mean of each model fidelity
 
-    model_covariance : np.ndarray (nmodels)
+    covariance : np.ndarray (nmodels)
         The covariance between the outputs of each model fidelity
 
     References
     ----------
     .. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_
     """
-    model = PolynomialModelEnsemble()
-    return Benchmark(
-        {'fun': model, 'variable': model.variable, "means": model.get_means(),
-         "model_covariance": model.get_covariance_matrix()})
+    model = PolynomialModelEnsemble(nmodels)
+    return Benchmark(_extract_acv_benchmark_dict(model))
 
 
 def setup_tunable_model_ensemble(theta1=np.pi/2*0.95, shifts=None):
     model = TunableModelEnsemble(theta1, shifts)
-    return Benchmark(
-        {'fun': model, 'variable': model.variable, "means": model.get_means(),
-         "model_covariance": model.get_covariance_matrix()})
+    return Benchmark(_extract_acv_benchmark_dict(model))
 
 
-def setup_short_column_ensemble():
-    model = ShortColumnModelEnsemble()
-    return Benchmark(
-        {'fun': model, 'variable': model.variable, "means": model.get_means(),
-         "model_covariance": model.get_covariance_matrix()})
+def setup_short_column_ensemble(nmodels=5):
+    model = ShortColumnModelEnsemble(nmodels)
+    return Benchmark(_extract_acv_benchmark_dict(model))
+
+
+def setup_multioutput_model_ensemble():
+    model = MultioutputModelEnsemble()
+    return Benchmark(_extract_acv_benchmark_dict(model))
 
 
 def setup_parameterized_nonlinear_model():
@@ -898,7 +908,8 @@ def setup_multi_index_advection_diffusion_benchmark(
     """
     base_model, variable, config_var_trans, model_ensemble = (
         _setup_multi_index_advection_diffusion_benchmark(
-            kle_length_scale, kle_stdev, kle_nvars, time_scenario=time_scenario,
+            kle_length_scale, kle_stdev, kle_nvars,
+            time_scenario=time_scenario,
             functional=functional, config_values=config_values,
             source_loc=source_loc, source_scale=source_scale,
             source_amp=source_amp, vel_vec=vel_vec,
@@ -906,14 +917,16 @@ def setup_multi_index_advection_diffusion_benchmark(
     timer_model = TimerModel(base_model, base_model)
     pool_model = PoolModel(
         timer_model, max_eval_concurrency, base_model=base_model)
+    # enforce_timer_model must be False because pool is wrapping TimerModel
     model = WorkTrackingModel(pool_model, base_model,
-                              base_model._nconfig_vars)
+                              base_model._nconfig_vars,
+                              enforce_timer_model=False)
     model0 = base_model._model_ensemble.functions[0]
     attributes = {
         'fun': model, 'variable': variable,
         "get_num_degrees_of_freedom": model0.get_num_degrees_of_freedom_cost,
         "config_var_trans": config_var_trans,
-        'model_ensemble': model_ensemble}
+        'model_ensemble': model_ensemble, "funs": model_ensemble.functions}
     return Benchmark(attributes)
 
 
@@ -1070,7 +1083,7 @@ def setup_advection_diffusion_kle_inversion_benchmark(
         timer_model, max_eval_concurrency, base_model=base_model)
 
     # add wrapper that tracks execution times.
-    model = WorkTrackingModel(pool_model, base_model)
+    model = WorkTrackingModel(pool_model, base_model, enforce_timer_model=False)
 
     attributes = {'negloglike': model, 'variable': variable,
                   "noiseless_obs": noiseless_obs, "obs": obs,
@@ -1098,6 +1111,7 @@ _benchmarks = {
     setup_advection_diffusion_kle_inversion_benchmark,
     'polynomial_ensemble': setup_polynomial_ensemble,
     'tunable_model_ensemble': setup_tunable_model_ensemble,
+    'multioutput_model_ensemble': setup_multioutput_model_ensemble,
     'short_column_ensemble': setup_short_column_ensemble,
     "parameterized_nonlinear_model": setup_parameterized_nonlinear_model}
 

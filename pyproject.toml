@@ -40,9 +40,19 @@ dependencies = [
     'networkx',
     'numba',
     'scikit-fem',
+    'umbridge',
 ]
 
 
 [project.optional-dependencies]
 docs = ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
         'sphinx-gallery', 'jupyter']
+
+[tool.coverage]
+    [tool.coverage.run]
+    omit = [
+        '__init__.py',
+    ]
+
+    [tool.coverage.report]
+    skip_empty = true

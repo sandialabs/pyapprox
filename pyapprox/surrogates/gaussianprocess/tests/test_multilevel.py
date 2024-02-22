@@ -385,7 +385,7 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
         # Sample from discrepancies
         # each DD is independent so draw new gaussian samples
         # take advantage of nestedness and that all models  with nn > 0
-        # use sampls that are a subset of model 0
+        # use samples that are a subset of model 0
         DD_list = [
             np.linalg.cholesky(kernel.kernels[nn](XX_list[0])).dot(
                 np.random.normal(0, 1, (nsamples_per_model[0], nsamples)))

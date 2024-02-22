@@ -1,23 +1,21 @@
 import unittest
+from functools import partial
+
 import numpy as np
 from scipy import stats
-from functools import partial
 from numpy.polynomial.legendre import leggauss
 
 from pyapprox.variables.marginals import (
-    get_probability_masses, float_rv_discrete, transform_scale_parameters
-)
+    get_probability_masses, float_rv_discrete, transform_scale_parameters)
 from pyapprox.surrogates.orthopoly.recursion_factory import (
-    get_recursion_coefficients_from_variable
-)
+    get_recursion_coefficients_from_variable)
 from pyapprox.surrogates.orthopoly.numeric_orthonormal_recursions import (
     ortho_polynomial_grammian_bounded_continuous_variable,
-    native_recursion_integrate_fun
-)
+    native_recursion_integrate_fun)
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
-    evaluate_orthonormal_polynomial_1d
-    )
-from pyapprox.surrogates.orthopoly.orthonormal_recursions import laguerre_recurrence
+    evaluate_orthonormal_polynomial_1d)
+from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
+    laguerre_recurrence)
 
 
 class TestRecursionFactory(unittest.TestCase):
