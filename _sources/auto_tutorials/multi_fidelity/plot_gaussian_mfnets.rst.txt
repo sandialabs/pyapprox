@@ -44,25 +44,23 @@ As our first example we will consider the following ensemble of three univariate
 
 Let's first import the necessary functions and modules and set the seed for reproducibility
 
-.. GENERATED FROM PYTHON SOURCE LINES 28-46
+.. GENERATED FROM PYTHON SOURCE LINES 28-44
 
 .. code-block:: default
 
     import networkx as nx
     import numpy as np
-    from scipy import stats
     import scipy
+    from scipy import stats
+    import matplotlib.pyplot as plt
 
-    from pyapprox.util.configure_plots import plt
     from pyapprox.bayes.laplace import (
-        laplace_posterior_approximation_for_linear_models
-    )
+        laplace_posterior_approximation_for_linear_models)
     from pyapprox.bayes.gaussian_network import (
         get_total_degree_polynomials, plot_1d_lvn_approx, GaussianNetwork,
         cond_prob_variable_elimination,
         convert_gaussian_from_canonical_form,
-        plot_peer_network_with_data
-    )
+        plot_peer_network_with_data)
 
     np.random.seed(2)
 
@@ -73,11 +71,11 @@ Let's first import the necessary functions and modules and set the seed for repr
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 47-48
+.. GENERATED FROM PYTHON SOURCE LINES 45-46
 
 Now define the information sources and their inputs
 
-.. GENERATED FROM PYTHON SOURCE LINES 48-57
+.. GENERATED FROM PYTHON SOURCE LINES 46-55
 
 .. code-block:: default
 
@@ -97,11 +95,11 @@ Now define the information sources and their inputs
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 58-59
+.. GENERATED FROM PYTHON SOURCE LINES 56-57
 
 Plot the 3 functions
 
-.. GENERATED FROM PYTHON SOURCE LINES 59-65
+.. GENERATED FROM PYTHON SOURCE LINES 57-63
 
 .. code-block:: default
 
@@ -123,11 +121,11 @@ Plot the 3 functions
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 66-67
+.. GENERATED FROM PYTHON SOURCE LINES 64-65
 
 Now setup the polynomial approximations of each information source
 
-.. GENERATED FROM PYTHON SOURCE LINES 67-71
+.. GENERATED FROM PYTHON SOURCE LINES 65-69
 
 .. code-block:: default
 
@@ -142,11 +140,11 @@ Now setup the polynomial approximations of each information source
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 72-73
+.. GENERATED FROM PYTHON SOURCE LINES 70-71
 
 Next generate the training data. Here we will set the noise to be independent Gaussian with mean zero and variance :math:`0.01^2`.
 
-.. GENERATED FROM PYTHON SOURCE LINES 73-80
+.. GENERATED FROM PYTHON SOURCE LINES 71-78
 
 .. code-block:: default
 
@@ -164,7 +162,7 @@ Next generate the training data. Here we will set the noise to be independent Ga
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 81-98
+.. GENERATED FROM PYTHON SOURCE LINES 79-96
 
 In the following we will assume a Gaussian prior on the coefficients of each approximation. Because the noise is also Gaussian and we are using linear subspace models the posterior of the approximation coefficients will also be Gaussian.
 
@@ -184,7 +182,7 @@ For our three model example we have
 
 where the :math:`0_{mp}\in\reals^{m\times p}` is a matrix of zeros.
 
-.. GENERATED FROM PYTHON SOURCE LINES 98-106
+.. GENERATED FROM PYTHON SOURCE LINES 96-104
 
 .. code-block:: default
 
@@ -203,7 +201,7 @@ where the :math:`0_{mp}\in\reals^{m\times p}` is a matrix of zeros.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 107-112
+.. GENERATED FROM PYTHON SOURCE LINES 105-110
 
 Now let the prior on the coefficients of :math:`Y_\alpha` be Gaussian with mean :math:`\mu_\alpha` and covariance :math:`\Sigma_{\alpha\alpha}`, and the covariance between the coefficients of different information sources :math:`Y_\alpha` and :math:`Y_\beta` be :math:`\Sigma_{\alpha\beta}`, such that the joint density of the coefficients of all information sources is Gaussian with mean and covariance given by
 
@@ -211,7 +209,7 @@ Now let the prior on the coefficients of :math:`Y_\alpha` be Gaussian with mean 
 
 In the following we will set the prior mean to zero for all coefficients and first try setting all the coefficients to be independent
 
-.. GENERATED FROM PYTHON SOURCE LINES 112-115
+.. GENERATED FROM PYTHON SOURCE LINES 110-113
 
 .. code-block:: default
 
@@ -225,14 +223,14 @@ In the following we will set the prior mean to zero for all coefficients and fir
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 116-120
+.. GENERATED FROM PYTHON SOURCE LINES 114-118
 
 With these definition the posterior distribution of the coefficients is (see :ref:`sphx_glr_auto_tutorials_inference_plot_bayesian_inference.py`)
 
 .. math:: \Sigma^\mathrm{post}=\left(\Sigma^{-1}+\Phi^\top\Sigma_\epsilon^{-1}\Phi\right)^{-1}, \qquad  \mu^\mathrm{post}=\Sigma^\mathrm{post}\left(\Phi^\top\Sigma_\epsilon^{-1}y+\Sigma^{-1}\mu\right),
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 120-124
+.. GENERATED FROM PYTHON SOURCE LINES 118-122
 
 .. code-block:: default
 
@@ -247,11 +245,11 @@ With these definition the posterior distribution of the coefficients is (see :re
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 125-126
+.. GENERATED FROM PYTHON SOURCE LINES 123-124
 
 Now let's plot the resulting approximation of the high-fidelity data.
 
-.. GENERATED FROM PYTHON SOURCE LINES 126-142
+.. GENERATED FROM PYTHON SOURCE LINES 124-140
 
 .. code-block:: default
 
@@ -283,11 +281,11 @@ Now let's plot the resulting approximation of the high-fidelity data.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 143-144
+.. GENERATED FROM PYTHON SOURCE LINES 141-142
 
 Unfortunately by assuming that the coefficients of each information source are independent the lower fidelity data is not informing the estimation of the coefficients of the high-fidelity approximation. This statement can be verified by computing an approximation with only the high-fidelity data
 
-.. GENERATED FROM PYTHON SOURCE LINES 144-151
+.. GENERATED FROM PYTHON SOURCE LINES 142-149
 
 .. code-block:: default
 
@@ -305,7 +303,7 @@ Unfortunately by assuming that the coefficients of each information source are i
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 152-179
+.. GENERATED FROM PYTHON SOURCE LINES 150-177
 
 We can improve the high-fidelity approximation by encoding a correlation between the coefficients of each information source. In the following we will assume that the cofficients of an information source is linearly related to the coefficients of the other information sources. Specifically we will assume that
 
@@ -335,7 +333,7 @@ In this tutorial we will set :math:`A_{31}=a_{31} I`, :math:`A_{32}=a_{32} I`, :
 
 In the following we want to set the prior covariance of each individual information source to be the same, i.e. we set :math:`s_{11}=s_{22}` and :math:`v_3=s_{33}-(a_{31}^2\Sigma_{11}+a_{32}^2\Sigma_{22})`
 
-.. GENERATED FROM PYTHON SOURCE LINES 179-191
+.. GENERATED FROM PYTHON SOURCE LINES 177-189
 
 .. code-block:: default
 
@@ -358,11 +356,11 @@ In the following we want to set the prior covariance of each individual informat
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 192-193
+.. GENERATED FROM PYTHON SOURCE LINES 190-191
 
 Plot the structure of the prior covariance
 
-.. GENERATED FROM PYTHON SOURCE LINES 193-196
+.. GENERATED FROM PYTHON SOURCE LINES 191-194
 
 .. code-block:: default
 
@@ -381,7 +379,7 @@ Plot the structure of the prior covariance
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 197-201
+.. GENERATED FROM PYTHON SOURCE LINES 195-199
 
 .. code-block:: default
 
@@ -396,11 +394,11 @@ Plot the structure of the prior covariance
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 202-203
+.. GENERATED FROM PYTHON SOURCE LINES 200-201
 
 Now let's plot the resulting approximation of the high-fidelity data.
 
-.. GENERATED FROM PYTHON SOURCE LINES 203-218
+.. GENERATED FROM PYTHON SOURCE LINES 201-216
 
 .. code-block:: default
 
@@ -431,7 +429,7 @@ Now let's plot the resulting approximation of the high-fidelity data.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 219-233
+.. GENERATED FROM PYTHON SOURCE LINES 217-231
 
 Depsite using only a very small number of samples of the high-fidelity information source, the multi-fidelity approximation has smaller variance and the mean more closely approximates the true high-fidelity information source, when compared to the single fidelity strategy.
 
@@ -448,7 +446,7 @@ In the following we will use use Gaussian networks to fuse information from a mo
   f_3(\rv) &= f_2(\rv)+\cos(3\pi\rv_1)
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 233-245
+.. GENERATED FROM PYTHON SOURCE LINES 231-243
 
 .. code-block:: default
 
@@ -471,7 +469,7 @@ In the following we will use use Gaussian networks to fuse information from a mo
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 246-251
+.. GENERATED FROM PYTHON SOURCE LINES 244-249
 
 The difference between this example and the previous is that one of the low-fidelity information sources has two inputs in contrast to the other sources (functions) which have one. These types of sources CANNOT be fused by other multi-fidelity methods. Fusion is possible with MFNets because it relates information sources through correlation between the coefficients of the approximations of each information source. In the context of Bayesian networks the coefficients are called latent variables.
 
@@ -479,7 +477,7 @@ Again assume that the coefficients of one source are only related to the coeffic
 
 Use the following to setup a Gaussian network for our example
 
-.. GENERATED FROM PYTHON SOURCE LINES 251-295
+.. GENERATED FROM PYTHON SOURCE LINES 249-293
 
 .. code-block:: default
 
@@ -534,11 +532,11 @@ Use the following to setup a Gaussian network for our example
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 296-297
+.. GENERATED FROM PYTHON SOURCE LINES 294-295
 
 We can compute the prior from this network using by instantiating the factors used to represent the joint density of the coefficients and then multiplying them together using the conditional probability variable elimination algorithm. We will describe this algorithm in more detail when infering the posterior distribution of the coefficients from data using the graph. When computing the prior this algorithm simply amounts to multiplying the factors of the graph together.
 
-.. GENERATED FROM PYTHON SOURCE LINES 297-323
+.. GENERATED FROM PYTHON SOURCE LINES 295-321
 
 .. code-block:: default
 
@@ -580,7 +578,7 @@ We can compute the prior from this network using by instantiating the factors us
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 324-335
+.. GENERATED FROM PYTHON SOURCE LINES 322-333
 
 For this network we have :math:`\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(2)=\{1,2\}` and the graph has one CPDs which for this example is given by
 
@@ -594,7 +592,7 @@ The joint density of the network is given by
 
 .. math:: \mathbb{P}(\theta_1,\theta_2,\theta_3)=\mathbb{P}(\theta_3\mid \theta_1,\theta_2)\mathbb{P}(\theta_1)\mathbb{P}(\theta_2)
 
-.. GENERATED FROM PYTHON SOURCE LINES 335-356
+.. GENERATED FROM PYTHON SOURCE LINES 333-354
 
 .. code-block:: default
 
@@ -631,13 +629,14 @@ The joint density of the network is given by
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 357-390
+.. GENERATED FROM PYTHON SOURCE LINES 355-389
 
 References
 ^^^^^^^^^^
 .. [GJGEIJUQ2020] `A. Gorodetsky et al. MFNets: Multi-fidelity data-driven networks for bayesian learning and prediction, International Journal for Uncertainty Quantification, 2020. <https://www.alexgorodetsky.com/static/papers/gorodetsky_jakeman_geraci_eldred_mfnets_2020.pdf>`_
 
-.. [GJGJCP2020] `A. Gorodetsky et al. MFNets: Learning network representations for multifidelity surrogate modeling, 2020. <https://res.arxiv.org/abs/2008.02672>`_
+..
+ .. [GJGJCP2020] `A. Gorodetsky et al. MFNets: Learning network representations for multifidelity surrogate modeling, 2020. <https://res.arxiv.org/abs/2008.02672>`_
 
 Appendix
 ^^^^^^^^
@@ -670,7 +669,7 @@ Noting that :math:`\left(A^\top\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\ri
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.641 seconds)
+   **Total running time of the script:** ( 0 minutes  1.459 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_gaussian_mfnets.py:

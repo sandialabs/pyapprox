@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gaussian processes &mdash; PyApprox 1.0.2 documentation</title>
+  <title>Gaussian processes &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -22,7 +22,7 @@
         <script src="../../_static/underscore.js"></script>
         <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
-        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -62,13 +62,16 @@
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#surrogates">Surrogates</a><ul class="current">
-<li class="toctree-l3"><a class="reference internal" href="plot_tensor_product_interpolation.html">Tensor-product Barycentric Interpolation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_univariate_interpolation.html">Univariate Interpolation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_tensor_product_interpolation.html">Tensor-product Interpolation</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_sparse_grids.html">Sparse Grids</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_adaptive_leja_interpolation.html">Adaptive Leja Sequences</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Gaussian processes</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#experimental-design">Experimental design</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#active-learning">Active Learning</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#constrained-gaussian-processes">Constrained Gaussian processes</a></li>
 </ul>
 </li>
 </ul>
@@ -118,7 +121,7 @@ to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="gaussian-processes">
 <span id="sphx-glr-auto-tutorials-surrogates-plot-gaussian-processes-py"></span><h1>Gaussian processes<a class="headerlink" href="#gaussian-processes" title="Permalink to this heading"></a></h1>
-<p>Gaussian processes (GPs) are an extremely popular tool for approximating multivariate functions from limited data. A GP is a distribution over a set of functions. Given a prior distribution on the class of admissible functions an approximation of a deterministic function is obtained by conditioning the GP on available observations of the function.</p>
+<p>Gaussian processes (GPs) <a class="reference internal" href="#rw2006" id="id1"><span>[RW2006]</span></a> are an extremely popular tool for approximating multivariate functions from limited data. A GP is a distribution over a set of functions. Given a prior distribution on the class of admissible functions an approximation of a deterministic function is obtained by conditioning the GP on available observations of the function.</p>
 <p>Constructing a GP requires specifying a prior mean <span class="math notranslate nohighlight">\(m(\rv)\)</span> and covariance kernel <span class="math notranslate nohighlight">\(C(\rv, \rv^\star)\)</span>. The GP leverages the correlation between training samples to approximate the residuals between the training data and the mean function. In the following we set the mean to zero. The covariance kernel should be tailored to the smoothness of the class of functions under consideration. The matern kernel with hyper-parameters <span class="math notranslate nohighlight">\(\theta=[\sigma^2,\ell^\top]^\top\)</span> is a common choice.</p>
 <div class="math notranslate nohighlight">
 \[C_\nu(\rv, \rv^\star; \theta)=\sigma^2 \frac{2^{1-\nu}}{\mathsf{\Gamma}(\nu)}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right)^{\nu}K_{\nu}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right).\]</div>
@@ -213,11 +216,11 @@ the posterior mean and variance.</p>
 </div>
 <section id="experimental-design">
 <h2>Experimental design<a class="headerlink" href="#experimental-design" title="Permalink to this heading"></a></h2>
-<p>The nature of the training samples significantly impacts the accuracy of a Gaussian process. Noting that the variance of a GP reflects the accuracy of a Gaussian process, <a class="reference internal" href="#swmw1989" id="id1"><span>[SWMW1989]</span></a> developed an experimental design procedure which minimizes the average variance with respect to a specified measure. This measure is typically the probability measure <span class="math notranslate nohighlight">\(\pdf(\rv)\)</span> of the random variables <span class="math notranslate nohighlight">\(\rv\)</span>. Integrated variance designs, as they are often called, find a set of samples <span class="math notranslate nohighlight">\(\mathcal{Z}\subset\Omega\subset\rvdom\)</span> from a set of candidate samples <span class="math notranslate nohighlight">\(\Omega\)</span> by solving the minimization problem</p>
+<p>The nature of the training samples significantly impacts the accuracy of a Gaussian process. Noting that the variance of a GP reflects the accuracy of a Gaussian process, <a class="reference internal" href="#swmw1989" id="id2"><span>[SWMW1989]</span></a> developed an experimental design procedure which minimizes the average variance with respect to a specified measure. This measure is typically the probability measure <span class="math notranslate nohighlight">\(\pdf(\rv)\)</span> of the random variables <span class="math notranslate nohighlight">\(\rv\)</span>. Integrated variance designs, as they are often called, find a set of samples <span class="math notranslate nohighlight">\(\mathcal{Z}\subset\Omega\subset\rvdom\)</span> from a set of candidate samples <span class="math notranslate nohighlight">\(\Omega\)</span> by solving the minimization problem</p>
 <div class="math notranslate nohighlight">
 \[\mathcal{Z}^\dagger=\argmin_{\mathcal{Z}\subset\Omega\subset\rvdom, \lvert\mathcal{Z}\rvert=M} \int_{\rvdom} C^\star(\rv, \rv\mid \mathcal{Z})\pdf(\rv)d\rv\]</div>
 <p>where we have made explicit the posterior variance dependence on <span class="math notranslate nohighlight">\(\mathcal{Z}\)</span>.</p>
-<p>The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples. The IVAR criterion - also called active learning Cohn (ALC) - can be minimized over discrete <a class="reference internal" href="#hjz2021" id="id2"><span>[HJZ2021]</span></a> or continuous <a class="reference internal" href="#gm2016" id="id3"><span>[GM2016]</span></a> design spaces <span class="math notranslate nohighlight">\(\Omega\)</span>. When employing a discrete design space, greedy methods <a class="reference internal" href="#c2006" id="id4"><span>[C2006]</span></a> are used to sample one at a time from a finite set of candidate samples to minimize the learning objective.  This approach requires a representative candidate set which, we have found, can be generated with low-discrepancy sequences, e.g. Sobol sequences. The continuous optimization optimization is non-convex and thus requires a good initial guess to start the gradient based optimization. Greedy methods can be used to produce the initial guess, however in certain situation optimizing from the greedy design resulted in minimal improvement.</p>
+<p>The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples. The IVAR criterion - also called active learning Cohn (ALC) - can be minimized over discrete <a class="reference internal" href="#hjz2021" id="id3"><span>[HJZ2021]</span></a> or continuous <a class="reference internal" href="#gm2016" id="id4"><span>[GM2016]</span></a> design spaces <span class="math notranslate nohighlight">\(\Omega\)</span>. When employing a discrete design space, greedy methods <a class="reference internal" href="#c2006" id="id5"><span>[C2006]</span></a> are used to sample one at a time from a finite set of candidate samples to minimize the learning objective.  This approach requires a representative candidate set which, we have found, can be generated with low-discrepancy sequences, e.g. Sobol sequences. The continuous optimization optimization is non-convex and thus requires a good initial guess to start the gradient based optimization. Greedy methods can be used to produce the initial guess, however in certain situation optimizing from the greedy design resulted in minimal improvement.</p>
 <p>The following code plots the samples chosen by greedily minimizing the IVAR criterion</p>
 <div class="math notranslate nohighlight">
 \[\int_{\rvdom} C^\star(\rv, \rv\mid \mathcal{Z})\pdf(\rv)d\rv = 1-\mathrm{Trace}\left[A_\mathcal{Z}P_\mathcal{Z}\right]\qquad P_\mathcal{Z}=\int_{\rvdom} A_{\mathcal{Z}\cup\{\rv\}}A_{\mathcal{Z}\cup\{\rv\}}^\top\pdf(\rv)d\rv\]</div>
@@ -270,10 +273,10 @@ starting from the greedy IVAR samples as the intial guess. The samples are plott
 <img src="../../_images/sphx_glr_plot_gaussian_processes_006.png" srcset="../../_images/sphx_glr_plot_gaussian_processes_006.png" alt="plot gaussian processes" class = "sphx-glr-single-img"/><p>Computing IVAR designs can be computationally expensive. An alternative cheaper algorithm called active learning Mckay (ALM) greedily chooses samples that minimizes the maximum variance of the Gaussian process. That is, given M training samples the next sample is chosen via</p>
 <div class="math notranslate nohighlight">
 \[\rv^{(n+1)}=\argmax_{\mathcal{Z}\subset\Omega\subset\rvdom} C^\star(\rv, \rv\mid \mathcal{Z}_M)\]</div>
-<p>Although more computationally efficient than ALC, empirical studies suggest that ALM tends to produce GPs with worse predictive performance <a class="reference internal" href="#gl2009" id="id5"><span>[GL2009]</span></a>.</p>
-<p>Accurately evaluating the ALC and ALM criterion is often challenging because inverting the covariance matrix <span class="math notranslate nohighlight">\(C(\mathcal{Z}_M\cup \rv)\)</span> is poorly conditioned when <span class="math notranslate nohighlight">\(\rv\)</span> is ‘close’ to a point in <span class="math notranslate nohighlight">\(\mathcal{Z}_M\)</span>. Consequently a small constant (nugget) is often added to the diagonal of <span class="math notranslate nohighlight">\(C(\mathcal{Z}_M\cup \rv)\)</span> to improve numerical stability <a class="reference internal" href="#pw2014" id="id6"><span>[PW2014]</span></a>.</p>
-<p>Experimental design strategies similar to ALM and ALC have been developed for radial basis functions (RBFs). The strong connections between radial basis function and Gaussian process approximation mean that the RBF algorithms can often be used for constructing GPs. A popular RBF design strategy minimizes the worst case error function (power function) of kernel based approximations <a class="reference internal" href="#sw2006" id="id7"><span>[SW2006]</span></a>. The minimization of the power function is equivalent to minimizing the ALM criteria <a class="reference internal" href="#hjz2021" id="id8"><span>[HJZ2021]</span></a>. As with ALM and ALC, evaluation of the power function is unstable <a class="reference internal" href="#sw2006" id="id9"><span>[SW2006]</span></a>. However the authors of <a class="reference internal" href="#ps2011" id="id10"><span>[PS2011]</span></a> established that stability can be improved by greedily minimizing the power function using pivoted Cholesky factorization <a class="reference internal" href="#ps2011" id="id11"><span>[PS2011]</span></a>. Specifically, the first <span class="math notranslate nohighlight">\(M\)</span> pivots of the pivoted Cholesky factorization of a kernel (covariance matrix), evaluated a large set of candidate sample, define the <span class="math notranslate nohighlight">\(M\)</span> samples which greedily minimize the power function (ALM criteria). Minimizing the power function does not take into account any available distribution information about the inputs <span class="math notranslate nohighlight">\(\rv\)</span>. In <a class="reference internal" href="#hjz2021" id="id12"><span>[HJZ2021]</span></a> this information was incorporated by weighting the power function by the density <span class="math notranslate nohighlight">\(\pdf(\rv)\)</span> of the input variables. This procedure attempts to greedily minimizes the <span class="math notranslate nohighlight">\(\pdf\)</span>-weighted <span class="math notranslate nohighlight">\(L^2\)</span> error and produces GPs with predictive performance comparable to those based upon ALC designs while being much more computationally efficient because of its use of pivoted Cholesky factorization.</p>
-<p>Finally we remark that while ALM and ALC are the most popular experimental design strategies for GPs, alternative methods have been proposed. Of note are those methods which approximately minimize the mutual information between the Gaussian process evaluated at the training data and the Gaussian process evaluated at the remaining candidate samples <a class="reference internal" href="#ksg2008" id="id13"><span>[KSG2008]</span></a>, <a class="reference internal" href="#bg2016" id="id14"><span>[BG2016]</span></a>. We do not consider these methods in our numerical comparisons.</p>
+<p>Although more computationally efficient than ALC, empirical studies suggest that ALM tends to produce GPs with worse predictive performance <a class="reference internal" href="#gl2009" id="id6"><span>[GL2009]</span></a>.</p>
+<p>Accurately evaluating the ALC and ALM criterion is often challenging because inverting the covariance matrix <span class="math notranslate nohighlight">\(C(\mathcal{Z}_M\cup \rv)\)</span> is poorly conditioned when <span class="math notranslate nohighlight">\(\rv\)</span> is ‘close’ to a point in <span class="math notranslate nohighlight">\(\mathcal{Z}_M\)</span>. Consequently a small constant (nugget) is often added to the diagonal of <span class="math notranslate nohighlight">\(C(\mathcal{Z}_M\cup \rv)\)</span> to improve numerical stability <a class="reference internal" href="#pw2014" id="id7"><span>[PW2014]</span></a>.</p>
+<p>Experimental design strategies similar to ALM and ALC have been developed for radial basis functions (RBFs). The strong connections between radial basis function and Gaussian process approximation mean that the RBF algorithms can often be used for constructing GPs. A popular RBF design strategy minimizes the worst case error function (power function) of kernel based approximations <a class="reference internal" href="#sw2006" id="id8"><span>[SW2006]</span></a>. The minimization of the power function is equivalent to minimizing the ALM criteria <a class="reference internal" href="#hjz2021" id="id9"><span>[HJZ2021]</span></a>. As with ALM and ALC, evaluation of the power function is unstable <a class="reference internal" href="#sw2006" id="id10"><span>[SW2006]</span></a>. However the authors of <a class="reference internal" href="#ps2011" id="id11"><span>[PS2011]</span></a> established that stability can be improved by greedily minimizing the power function using pivoted Cholesky factorization <a class="reference internal" href="#ps2011" id="id12"><span>[PS2011]</span></a>. Specifically, the first <span class="math notranslate nohighlight">\(M\)</span> pivots of the pivoted Cholesky factorization of a kernel (covariance matrix), evaluated a large set of candidate sample, define the <span class="math notranslate nohighlight">\(M\)</span> samples which greedily minimize the power function (ALM criteria). Minimizing the power function does not take into account any available distribution information about the inputs <span class="math notranslate nohighlight">\(\rv\)</span>. In <a class="reference internal" href="#hjz2021" id="id13"><span>[HJZ2021]</span></a> this information was incorporated by weighting the power function by the density <span class="math notranslate nohighlight">\(\pdf(\rv)\)</span> of the input variables. This procedure attempts to greedily minimizes the <span class="math notranslate nohighlight">\(\pdf\)</span>-weighted <span class="math notranslate nohighlight">\(L^2\)</span> error and produces GPs with predictive performance comparable to those based upon ALC designs while being much more computationally efficient because of its use of pivoted Cholesky factorization.</p>
+<p>Finally we remark that while ALM and ALC are the most popular experimental design strategies for GPs, alternative methods have been proposed. Of note are those methods which approximately minimize the mutual information between the Gaussian process evaluated at the training data and the Gaussian process evaluated at the remaining candidate samples <a class="reference internal" href="#ksg2008" id="id14"><span>[KSG2008]</span></a>, <a class="reference internal" href="#bg2016" id="id15"><span>[BG2016]</span></a>. We do not consider these methods in our numerical comparisons.</p>
 <p>The following code shows how to use pivoted Cholesky factorization to greedily choose trainig samples for a GP.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sampler</span> <span class="o">=</span> <span class="n">CholeskySampler</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="n">variable</span><span class="p">)</span>
 <span class="n">sampler</span><span class="o">.</span><span class="n">set_kernel</span><span class="p">(</span><span class="n">kernel</span><span class="p">)</span>
@@ -286,64 +289,68 @@ starting from the greedy IVAR samples as the intial guess. The samples are plott
 <section id="active-learning">
 <h2>Active Learning<a class="headerlink" href="#active-learning" title="Permalink to this heading"></a></h2>
 <blockquote>
-<div><p>The samples selected by the aforementioned methods depends on the kernel specified. Change the length_scale of the kernel above to see how the selected samples changes. Active learning chooses a small initial sample set then trains the GP to learn the best kernel hyper-parameters. These parameters are then used to increment the training set and then used to train the GP hyper-parameters again and so until a sufficient accuracy or computational budget is reached. PyApprox’s AdaptiveGaussianProcess implements this procedure <a class="reference internal" href="#hjz2021" id="id15"><span>[HJZ2021]</span></a>.</p>
+<div><p>The samples selected by the aforementioned methods depends on the kernel specified. Change the length_scale of the kernel above to see how the selected samples changes. Active learning chooses a small initial sample set then trains the GP to learn the best kernel hyper-parameters. These parameters are then used to increment the training set and then used to train the GP hyper-parameters again and so until a sufficient accuracy or computational budget is reached. PyApprox’s AdaptiveGaussianProcess implements this procedure <a class="reference internal" href="#hjz2021" id="id16"><span>[HJZ2021]</span></a>.</p>
 </div></blockquote>
+</section>
+<section id="constrained-gaussian-processes">
+<h2>Constrained Gaussian processes<a class="headerlink" href="#constrained-gaussian-processes" title="Permalink to this heading"></a></h2>
+<p>For certain application is it desirable for GPs to satisfy certain properties, e.g. positivity or monotonicity. See <a class="reference internal" href="#sgfsj2020" id="id17"><span>[SGFSJ2020]</span></a> for a review of methods to construct constrained GPs.</p>
 <section id="references">
 <h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
 <div role="list" class="citation-list">
 <div class="citation" id="rw2006" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span>RW2006<span class="fn-bracket">]</span></span>
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">RW2006</a><span class="fn-bracket">]</span></span>
 <p><a class="reference external" href="http://www.gaussianprocess.org/gpml/">C.E. Rasmussen and C. WIlliams. Gaussian Processes for Machine Learning. MIT Press (2006)</a></p>
 </div>
 <div class="citation" id="swmw1989" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">SWMW1989</a><span class="fn-bracket">]</span></span>
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">SWMW1989</a><span class="fn-bracket">]</span></span>
 <p><a class="reference external" href="http://www.jstor.org/stable/2245858">J. Sacks, W.J. Welch, T.J.Mitchell, H.P. Wynn Designs and analysis of computer experiments (with discussion). Statistical Science, 4:409-435 (1989)</a></p>
 </div>
 <div class="citation" id="hjz2021" role="doc-biblioentry">
 <span class="label"><span class="fn-bracket">[</span>HJZ2021<span class="fn-bracket">]</span></span>
-<span class="backrefs">(<a role="doc-backlink" href="#id2">1</a>,<a role="doc-backlink" href="#id8">2</a>,<a role="doc-backlink" href="#id12">3</a>,<a role="doc-backlink" href="#id15">4</a>)</span>
+<span class="backrefs">(<a role="doc-backlink" href="#id3">1</a>,<a role="doc-backlink" href="#id9">2</a>,<a role="doc-backlink" href="#id13">3</a>,<a role="doc-backlink" href="#id16">4</a>)</span>
 <p><a class="reference external" href="https://edoc.unibas.ch/79042/">H. Harbrecht, J.D. Jakeman, P. Zaspel. Cholesky-based experimental design for Gaussian process and kernel-based emulation and calibration . Communications in Computational Physics (2021) In press</a></p>
 </div>
 <div class="citation" id="sgfsj2020" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span>SGFSJ2020<span class="fn-bracket">]</span></span>
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id17">SGFSJ2020</a><span class="fn-bracket">]</span></span>
 <p><a class="reference external" href="http://www.dl.begellhouse.com/journals/558048804a15188a,2cbcbe11139f18e5,0776649265326db4.html">L.P. Swiler, M. Gulian, A. Frankel, C. Safta, J.D. Jakeman. A Survey of Constrained Gaussian Process Regression: Approaches and Implementation Challenges. Journal of Machine Learning for Modeling and Computing (2020)</a></p>
 </div>
 <div class="citation" id="gm2016" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id3">GM2016</a><span class="fn-bracket">]</span></span>
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id4">GM2016</a><span class="fn-bracket">]</span></span>
 <p><a class="reference external" href="https://doi.org/10.1137/15M1017119">A. Gorodetsky, Y. Marzouk. Mercer kernels and integrated variance experimental design. Connec- tions between Gaussian process regression and polynomial approximation. SIAM/ASA J. Uncertain. Quantif., 4(1):796–828 (2016)</a></p>
 </div>
 <div class="citation" id="c2006" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id4">C2006</a><span class="fn-bracket">]</span></span>
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id5">C2006</a><span class="fn-bracket">]</span></span>
 <p><a class="reference external" href="https://proceedings.neurips.cc/paper/1993/file/d840cc5d906c3e9c84374c8919d2074e-Paper.pdf">D. Cohn Neural network exploration using optimal experiment design, Neural Netw., 9 (1996), pp. 1071–1083.</a></p>
 </div>
 <div class="citation" id="ksg2008" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id13">KSG2008</a><span class="fn-bracket">]</span></span>
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id14">KSG2008</a><span class="fn-bracket">]</span></span>
 <p><a class="reference external" href="https://doi.org/10.1002/env.769">A. Krause, A. Singh, C. Guestrin, Near-optimal sensor placements in Gaussian processes: Theory, efficient algorithms and empirical studies, J. Mach. Learn. Res., 9 (2008), pp. 235–284.</a></p>
 </div>
 <div class="citation" id="pw2014" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id6">PW2014</a><span class="fn-bracket">]</span></span>
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id7">PW2014</a><span class="fn-bracket">]</span></span>
 <p><a class="reference external" href="https://doi.org/10.1080/10618600.2012.738961">C.Y. Peng, J. Wu, On the choice of nugget in kriging modeling for deterministic computer experiments, J. Comput. Graph. Statist., 23 (2014), pp. 151–168.</a></p>
 </div>
 <div class="citation" id="bg2016" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id14">BG2016</a><span class="fn-bracket">]</span></span>
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id15">BG2016</a><span class="fn-bracket">]</span></span>
 <p><a class="reference external" href="https://doi.org/10.1137/140989613">J. Beck, S. Guillas, Sequential Design with Mutual Information for Computer Experiments (MICE): Emulation of a Tsunami Model, SIAM/ASA J. UNCERTAINTY QUANTIFICATION Vol. 4, pp. 739–766 (2016)</a></p>
 </div>
 <div class="citation" id="gl2009" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id5">GL2009</a><span class="fn-bracket">]</span></span>
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id6">GL2009</a><span class="fn-bracket">]</span></span>
 <p><a class="reference external" href="https://doi.org/10.1198/TECH.2009.0015">R.B. Gramacy, H.K.H. Lee, Adaptive design and analysis of supercomputer experiments, Technometrics, 51 (2009), pp. 130–145.</a></p>
 </div>
 <div class="citation" id="sw2006" role="doc-biblioentry">
 <span class="label"><span class="fn-bracket">[</span>SW2006<span class="fn-bracket">]</span></span>
-<span class="backrefs">(<a role="doc-backlink" href="#id7">1</a>,<a role="doc-backlink" href="#id9">2</a>)</span>
+<span class="backrefs">(<a role="doc-backlink" href="#id8">1</a>,<a role="doc-backlink" href="#id10">2</a>)</span>
 <p><a class="reference external" href="https://doi.org/10.1017/S0962492906270016">R. Schaback and H. Wendland. Kernel techniques: From machine learning to meshless methods. Acta Numer., 15:543–639 (2006).</a></p>
 </div>
 <div class="citation" id="ps2011" role="doc-biblioentry">
 <span class="label"><span class="fn-bracket">[</span>PS2011<span class="fn-bracket">]</span></span>
-<span class="backrefs">(<a role="doc-backlink" href="#id10">1</a>,<a role="doc-backlink" href="#id11">2</a>)</span>
+<span class="backrefs">(<a role="doc-backlink" href="#id11">1</a>,<a role="doc-backlink" href="#id12">2</a>)</span>
 <p><a class="reference external" href="https://doi.org/10.1016/j.cam.2011.05.021">M. Pazouki and R. Schaback. Bases for kernel-based spaces. J. Comput. Appl. Math., 236:575–588 (2011).</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.347 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.813 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-surrogates-plot-gaussian-processes-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/c6ebc6c0c54620076e8ff48cb4cca67e/plot_gaussian_processes.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_gaussian_processes.py</span></code></a></p>

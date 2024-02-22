@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tensor-product Barycentric Interpolation &mdash; PyApprox 1.0.2 documentation</title>
+  <title>Tensor-product Interpolation &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -22,13 +22,13 @@
         <script src="../../_static/underscore.js"></script>
         <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
-        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Sparse Grids" href="plot_sparse_grids.html" />
-    <link rel="prev" title="Push Forward Based Inference" href="../inference/plot_push_forward_based_inference.html" /> 
+    <link rel="prev" title="Univariate Interpolation" href="plot_univariate_interpolation.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -62,8 +62,10 @@
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#surrogates">Surrogates</a><ul class="current">
-<li class="toctree-l3 current"><a class="current reference internal" href="#">Tensor-product Barycentric Interpolation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="plot_univariate_interpolation.html">Univariate Interpolation</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Tensor-product Interpolation</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#construction">Construction</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#post-processing">Post-processing</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#piecewise-polynomial-approximation">Piecewise-polynomial approximation</a></li>
@@ -102,7 +104,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
-      <li class="breadcrumb-item active">Tensor-product Barycentric Interpolation</li>
+      <li class="breadcrumb-item active">Tensor-product Interpolation</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/auto_tutorials/surrogates/plot_tensor_product_interpolation.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -117,8 +119,8 @@
 <p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
-<section class="sphx-glr-example-title" id="tensor-product-barycentric-interpolation">
-<span id="sphx-glr-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"></span><h1>Tensor-product Barycentric Interpolation<a class="headerlink" href="#tensor-product-barycentric-interpolation" title="Permalink to this heading"></a></h1>
+<section class="sphx-glr-example-title" id="tensor-product-interpolation">
+<span id="sphx-glr-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"></span><h1>Tensor-product Interpolation<a class="headerlink" href="#tensor-product-interpolation" title="Permalink to this heading"></a></h1>
 <p>Many simulation models are extremely computationally expensive such that adequately understanding their behaviour and quantifying uncertainty can be computationally intractable for any of the aforementioned techniques. Various methods have been developed to produce surrogates of the model response to uncertain parameters, the most efficient are goal-oriented in nature and target very specific uncertainty measures.</p>
 <p>Generally speaking surrogates are built using a “small” number of model simulations and are then substituted in place of the expensive simulation models in future analysis. Some of the most popular surrogate types include polynomial chaos expansions (PCE) <a class="reference internal" href="#xksisc2002" id="id1"><span>[XKSISC2002]</span></a>, Gaussian processes (GP) <a class="reference internal" href="#rwmit2006" id="id2"><span>[RWMIT2006]</span></a>, and sparse grids (SG) <a class="reference internal" href="#bgan2004" id="id3"><span>[BGAN2004]</span></a>.</p>
 <p>Reduced order models (e.g. <a class="reference internal" href="#sfijnme2017" id="id4"><span>[SFIJNME2017]</span></a>) can also be used to construct surrogates and have been applied successfully for UQ on many applications. These methods do not construct response surface approximations, but rather solve the governing equations on a reduced basis. PyApprox does not currently implement reduced order modeling, however the modeling analyis tools found in PyApprox can easily be applied to assess or design systems based on reduced order models.</p>
@@ -145,15 +147,12 @@ to download the full example code</p>
 <p>It is often reasonable to assume that, for any <span class="math notranslate nohighlight">\(\mathbf{z}\)</span>, the cost of each simulation is constant for a given <span class="math notranslate nohighlight">\(\boldsymbol{\alpha}\)</span>. So letting <span class="math notranslate nohighlight">\(W_{\boldsymbol{\alpha}}\)</span> denote the cost of a single simulation, we can write the total cost of evaluating the interpolant <span class="math notranslate nohighlight">\(W_{\boldsymbol{\alpha},\boldsymbol{\beta}}=W_{\boldsymbol{\alpha}} M_{\boldsymbol{\beta}}\)</span>. Here we have assumed that the computational effort to compute the interpolant once data has been obtained is negligible, which is true for sufficiently expensive models <span class="math notranslate nohighlight">\(\hat{f}_{\boldsymbol{\alpha}}\)</span>.
 Here we will use the nested Clenshaw-Curtis points</p>
 <div class="math notranslate nohighlight">
-\[z_{i}^{(j)}=\cos\left(\frac{(j-1)\pi}{m_{\beta_i}}\right),\qquad j=1,\ldots,m_{\beta_i}\]</div>
+\[z_{i}^{(j)}=\cos\left(\frac{(j-1)\pi}{m_{\beta_i}-1}\right),\qquad j=1,\ldots,m_{\beta_i}\]</div>
 <p>to define the univariate Lagrange polynomials. The number of points <span class="math notranslate nohighlight">\(m(l)\)</span> of this rule grows exponentially with the level <span class="math notranslate nohighlight">\(l\)</span>, specifically
 <span class="math notranslate nohighlight">\(m(0)=1\)</span> and <span class="math notranslate nohighlight">\(m(l)=2^{l}+1\)</span> for <span class="math notranslate nohighlight">\(l\geq1\)</span>. The univariate Clenshaw-Curtis points, the tensor-product grid <span class="math notranslate nohighlight">\(\mathcal{Z}_{\boldsymbol{\beta}}\)</span>, and two multivariate Lagrange polynomials with their corresponding univariate Lagrange polynomials are shown below for <span class="math notranslate nohighlight">\(\boldsymbol{\beta}=(2,2)\)</span>.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">cartesian_product</span>
 <span class="kn">from</span> <span class="nn">pyapprox.util.visualization</span> <span class="kn">import</span> <span class="n">get_meshgrid_function_data</span><span class="p">,</span> <span class="n">plt</span>
-<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.barycentric_interpolation</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">plot_tensor_product_lagrange_basis_2d</span><span class="p">,</span>
-    <span class="n">tensor_product_barycentric_lagrange_interpolation</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.util.utilities</span> <span class="kn">import</span> <span class="n">get_tensor_product_quadrature_rule</span>
 <span class="kn">from</span> <span class="nn">pyapprox.surrogates.orthopoly.quadrature</span> <span class="kn">import</span> <span class="n">clenshaw_curtis_pts_wts_1D</span>
 <span class="kn">from</span> <span class="nn">pyapprox.surrogates.approximate</span> <span class="kn">import</span> <span class="n">adaptive_approximate</span>
@@ -165,54 +164,50 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.tensorprod</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">canonical_univariate_piecewise_polynomial_quad_rule</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
-<span class="kn">from</span> <span class="nn">pyapprox.variables.transforms</span> <span class="kn">import</span> <span class="n">AffineTransform</span>
 <span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.tensorprod</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">tensor_product_piecewise_polynomial_basis</span><span class="p">,</span>
-    <span class="n">tensor_product_piecewise_polynomial_interpolation</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">pyapprox.surrogates.interp.barycentric_interpolation</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">precompute_tensor_product_lagrange_polynomial_basis</span><span class="p">)</span>
+    <span class="n">UnivariatePiecewiseQuadraticBasis</span><span class="p">,</span> <span class="n">UnivariateLagrangeBasis</span><span class="p">,</span>
+    <span class="n">TensorProductInterpolant</span><span class="p">,</span> <span class="n">TensorProductBasis</span><span class="p">)</span>
 
-<span class="n">quad_rule</span> <span class="o">=</span> <span class="n">clenshaw_curtis_pts_wts_1D</span>
+<span class="n">nnodes_1d</span> <span class="o">=</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">9</span><span class="p">]</span>
+<span class="n">nodes_1d</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="p">(</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">nnodes</span> <span class="ow">in</span> <span class="n">nnodes_1d</span><span class="p">]</span>
+<span class="n">nodes</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">nodes_1d</span><span class="p">)</span>
+<span class="n">lagrange_basis_1d</span> <span class="o">=</span> <span class="n">UnivariateLagrangeBasis</span><span class="p">()</span>
+<span class="n">tp_lagrange_basis</span> <span class="o">=</span> <span class="n">TensorProductBasis</span><span class="p">([</span><span class="n">lagrange_basis_1d</span><span class="p">]</span><span class="o">*</span><span class="mi">2</span><span class="p">)</span>
+
 <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
 <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
-<span class="n">level</span> <span class="o">=</span> <span class="mi">2</span>
-<span class="n">ii</span><span class="p">,</span> <span class="n">jj</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span>
-<span class="n">plot_tensor_product_lagrange_basis_2d</span><span class="p">(</span><span class="n">quad_rule</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span>
+<span class="n">ii</span><span class="p">,</span> <span class="n">jj</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span>
+<span class="n">tp_lagrange_basis</span><span class="o">.</span><span class="n">plot_single_basis</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">nodes_1d</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">nodes</span><span class="p">)</span>
 
 <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
 <span class="n">level</span> <span class="o">=</span> <span class="mi">2</span>
-<span class="n">ii</span><span class="p">,</span> <span class="n">jj</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span>
-<span class="n">ii</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="n">plot_tensor_product_lagrange_basis_2d</span><span class="p">(</span><span class="n">quad_rule</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span>
+<span class="n">ii</span><span class="p">,</span> <span class="n">jj</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span>
+<span class="n">tp_lagrange_basis</span><span class="o">.</span><span class="n">plot_single_basis</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">nodes_1d</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">nodes</span><span class="p">)</span>
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_tensor_product_interpolation_001.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_001.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>To construct a surrogate using tensor product interpolation we simply multiply all such basis functions by the value of the function <span class="math notranslate nohighlight">\(f_\ai\)</span> evaluated at the corresponding interpolation point. The following uses tensor product interpolation to approximate the simple function</p>
 <div class="math notranslate nohighlight">
 \[f_\ai(\rv) = \cos(2\pi\rv_1)\cos(2\pi\rv_2), \qquad \rv\in\rvdom=[-1,1]^2\]</div>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">f</span><span class="p">(</span><span class="n">z</span><span class="p">):</span> <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">z</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:])</span> <span class="o">*</span>
-                  <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">z</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]))[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">fun</span><span class="p">(</span><span class="n">z</span><span class="p">):</span> <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">z</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:])</span> <span class="o">*</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">z</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]))[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
 
 
-<span class="n">grid_levels</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
-<span class="n">grid_samples_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">clenshaw_curtis_pts_wts_1D</span><span class="p">(</span><span class="n">ll</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="n">grid_levels</span><span class="p">]</span>
-<span class="n">grid_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">grid_samples_1d</span><span class="p">)</span>
-
-
-<span class="k">def</span> <span class="nf">interp</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
-    <span class="k">return</span> <span class="n">tensor_product_barycentric_lagrange_interpolation</span><span class="p">(</span>
-        <span class="n">grid_samples_1d</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
+<span class="n">lagrange_interpolant</span> <span class="o">=</span> <span class="n">TensorProductInterpolant</span><span class="p">([</span><span class="n">lagrange_basis_1d</span><span class="p">]</span><span class="o">*</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
+<span class="n">lagrange_interpolant</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">nodes_1d</span><span class="p">,</span> <span class="n">values</span><span class="p">)</span>
 
 
 <span class="n">marker_color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span>
 <span class="n">alpha</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
-<span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">grid_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">grid_samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">nodes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">nodes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span>
          <span class="n">color</span><span class="o">=</span><span class="n">marker_color</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">)</span>
 
 <span class="n">plot_limits</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
 <span class="n">num_pts_1d</span> <span class="o">=</span> <span class="mi">101</span>
 <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Z</span> <span class="o">=</span> <span class="n">get_meshgrid_function_data</span><span class="p">(</span>
-    <span class="n">interp</span><span class="p">,</span> <span class="n">plot_limits</span><span class="p">,</span> <span class="n">num_pts_1d</span><span class="p">)</span>
+    <span class="n">lagrange_interpolant</span><span class="p">,</span> <span class="n">plot_limits</span><span class="p">,</span> <span class="n">num_pts_1d</span><span class="p">)</span>
 
 <span class="n">num_contour_levels</span> <span class="o">=</span> <span class="mi">10</span>
 <span class="n">levels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">Z</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="n">num_contour_levels</span><span class="p">)</span>
@@ -243,7 +238,7 @@ Here we will use the nested Clenshaw-Curtis points</p>
 \[v_{\V{j}}=\prod_{i=1}^d\int_{\rvdom_i}{\phi_{i,j_i}(\rv_i)}\,dw(\rv_i),\]</div>
 <p>which can be computed analytically.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">x</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">get_tensor_product_quadrature_rule</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">clenshaw_curtis_pts_wts_1D</span><span class="p">)</span>
-<span class="n">surrogate_mean</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+<span class="n">surrogate_mean</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">x</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Quadrature mean&#39;</span><span class="p">,</span> <span class="n">surrogate_mean</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -254,53 +249,32 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <p>Now let us compare the quadrature mean with the MC mean computed using the surrogate</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">num_samples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">1e6</span><span class="p">)</span>
 <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">))</span>
-<span class="n">values</span> <span class="o">=</span> <span class="n">interp</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">lagrange_interpolant</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
 <span class="n">mc_mean</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Monte Carlo surrogate mean&#39;</span><span class="p">,</span> <span class="n">mc_mean</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Monte Carlo surrogate mean -7.621895538507388e-07
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Monte Carlo surrogate mean -0.00010377793672674781
 </pre></div>
 </div>
 </section>
 <section id="piecewise-polynomial-approximation">
 <h2>Piecewise-polynomial approximation<a class="headerlink" href="#piecewise-polynomial-approximation" title="Permalink to this heading"></a></h2>
 <p>Polynomial interpolation accurately approximates smooth functions, however its accuracy degrades as the regularity of the target function decreases. For piecewise continuous functions, or functions with only a limited number of continuous derivaties, piecewise-polynomial approximation may be more appropriate.</p>
-<p>The following code compares polynomial and piecewise polynomial univariate basis functions.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">201</span><span class="p">)[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
-<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">sharey</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
-<span class="n">lagrange_basis</span> <span class="o">=</span> <span class="n">precompute_tensor_product_lagrange_polynomial_basis</span><span class="p">(</span>
-        <span class="n">samples</span><span class="p">,</span> <span class="n">grid_samples_1d</span><span class="p">[:</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
-<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">lagrange_basis</span><span class="p">)</span>
-<span class="n">piecewise_basis</span> <span class="o">=</span> <span class="n">tensor_product_piecewise_polynomial_basis</span><span class="p">(</span>
-    <span class="n">grid_levels</span><span class="p">[:</span><span class="mi">1</span><span class="p">],</span> <span class="n">samples</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="s2">&quot;quadratic&quot;</span><span class="p">)</span>
-<span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">piecewise_basis</span><span class="p">)</span>
+<p>The following plots two piecewise-quadratic basis functions in 2D</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">nnodes_1d</span> <span class="o">=</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">]</span>
+<span class="n">nodes_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nnodes</span><span class="p">)</span> <span class="k">for</span> <span class="n">nnodes</span> <span class="ow">in</span> <span class="n">nnodes_1d</span><span class="p">]</span>
+<span class="n">nodes</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">nodes_1d</span><span class="p">)</span>
+<span class="n">tp_quadratic_basis</span> <span class="o">=</span> <span class="n">TensorProductBasis</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">UnivariatePiecewiseQuadraticBasis</span><span class="p">()]</span><span class="o">*</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
+<span class="n">tp_quadratic_basis</span><span class="o">.</span><span class="n">plot_single_basis</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">nodes_1d</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">nodes</span><span class="p">)</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
+<span class="n">tp_quadratic_basis</span><span class="o">.</span><span class="n">plot_single_basis</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">nodes_1d</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nodes</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_003.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_003.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>Notice that the unlike the lagrange basis the picewise polynomial basis is non-zero only on a local region of the input space.</p>
-<p>The compares the accuracy of lagrange basis the picewise polynomial approximations for a piecewise continuous function</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">fun</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
-    <span class="n">yy</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-    <span class="n">yy</span><span class="p">[</span><span class="n">yy</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
-    <span class="n">yy</span><span class="p">[</span><span class="n">yy</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
-    <span class="k">return</span> <span class="n">yy</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
-
-<span class="n">piecewise_basis_type</span> <span class="o">=</span> <span class="s2">&quot;quadratic&quot;</span>
-<span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
-<span class="p">[</span><span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fun</span><span class="p">(</span><span class="n">samples</span><span class="p">))</span> <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axs</span><span class="p">]</span>
-<span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
-    <span class="n">lgrid_samples_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">clenshaw_curtis_pts_wts_1D</span><span class="p">(</span><span class="n">level</span><span class="p">)[</span><span class="mi">0</span><span class="p">]]</span>
-    <span class="n">lgrid_samples</span> <span class="o">=</span> <span class="n">cartesian_product</span><span class="p">(</span><span class="n">lgrid_samples_1d</span><span class="p">)</span>
-    <span class="n">lvalues</span> <span class="o">=</span> <span class="n">tensor_product_barycentric_lagrange_interpolation</span><span class="p">(</span>
-        <span class="n">lgrid_samples_1d</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
-    <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">lvalues</span><span class="p">,</span> <span class="s1">&#39;:&#39;</span><span class="p">)</span>
-    <span class="n">pvalues</span> <span class="o">=</span> <span class="n">tensor_product_piecewise_polynomial_interpolation</span><span class="p">(</span>
-        <span class="n">samples</span><span class="p">,</span> <span class="p">[</span><span class="n">level</span><span class="p">],</span> <span class="n">fun</span><span class="p">,</span> <span class="n">piecewise_basis_type</span><span class="p">)</span>
-    <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pvalues</span><span class="p">,</span> <span class="s1">&#39;--&#39;</span><span class="p">)</span>
-</pre></div>
-</div>
-<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_004.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_004.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>The Lagrange polynomials induce oscillations around the discontinuity, which significantly decreases the convergence rate of the approximation. The picewise quadratic also over and undershoots around the discontinuity, but the phenomena is localized.</p>
-<p>The following compares the convergence of lagrange and picewise polynomial tensor product interpolants. Change the benchmark to see the effect of smoothness on the approximation accuracy.</p>
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_003.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_003.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>The following compares the convergence of Lagrange and picewise polynomial tensor product interpolants. Change the benchmark to see the effect of smoothness on the approximation accuracy.</p>
 <p>First define wrappers to build the tensor product interpolants</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">build_lagrange_tp</span><span class="p">(</span><span class="n">max_level_1d</span><span class="p">):</span>
     <span class="n">univariate_quad_rule_info</span> <span class="o">=</span> <span class="p">[</span>
@@ -312,6 +286,7 @@ Here we will use the nested Clenshaw-Curtis points</p>
          <span class="s2">&quot;max_level_1d&quot;</span><span class="p">:</span> <span class="n">max_level_1d</span><span class="p">,</span>
          <span class="s2">&quot;univariate_quad_rule_info&quot;</span><span class="p">:</span> <span class="n">univariate_quad_rule_info</span><span class="p">,</span>
          <span class="s2">&quot;max_nsamples&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">})</span><span class="o">.</span><span class="n">approx</span>
+
 
 <span class="k">def</span> <span class="nf">build_piecewise_tp</span><span class="p">(</span><span class="n">max_level_1d</span><span class="p">):</span>
     <span class="n">basis_type</span> <span class="o">=</span> <span class="s2">&quot;quadratic&quot;</span>
@@ -365,7 +340,7 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_005.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_005.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>Similar behavior occurs when using quadrature.</p>
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_004.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_004.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><p>Similar behavior occurs when using quadrature.</p>
 <p>Load in the benchmark.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nvars</span> <span class="o">=</span> <span class="mi">2</span>
 <span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;genz&quot;</span><span class="p">,</span> <span class="n">nvars</span><span class="o">=</span><span class="n">nvars</span><span class="p">,</span> <span class="n">test_name</span><span class="o">=</span><span class="s2">&quot;oscillatory&quot;</span><span class="p">)</span>
@@ -397,7 +372,7 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_006.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_006.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><section id="references">
+<img src="../../_images/sphx_glr_plot_tensor_product_interpolation_005.png" srcset="../../_images/sphx_glr_plot_tensor_product_interpolation_005.png" alt="plot tensor product interpolation" class = "sphx-glr-single-img"/><section id="references">
 <h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
 <div role="list" class="citation-list">
 <div class="citation" id="xksisc2002" role="doc-biblioentry">
@@ -417,7 +392,7 @@ Here we will use the nested Clenshaw-Curtis points</p>
 <p><a class="reference external" href="https://onlinelibrary.wiley.com/doi/abs/10.1002/nme.5312">C Soize and C. Farhat. A nonparametric probabilistic approach for quantifying uncertainties in low-dimensional and high-dimensional nonlinear models. International Journal for Numerical Methods in Engineering, 109(6), 837-888, 2017.</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.977 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  2.055 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-surrogates-plot-tensor-product-interpolation-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/6adbd4b57861b4fd460bd3079ed801ef/plot_tensor_product_interpolation.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_tensor_product_interpolation.py</span></code></a></p>
@@ -435,7 +410,7 @@ Here we will use the nested Clenshaw-Curtis points</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../inference/plot_push_forward_based_inference.html" class="btn btn-neutral float-left" title="Push Forward Based Inference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_univariate_interpolation.html" class="btn btn-neutral float-left" title="Univariate Interpolation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="plot_sparse_grids.html" class="btn btn-neutral float-right" title="Sparse Grids" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

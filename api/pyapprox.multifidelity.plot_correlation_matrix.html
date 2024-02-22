@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>plot_correlation_matrix &mdash; PyApprox 1.0.2 documentation</title>
+  <title>plot_correlation_matrix &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -26,7 +26,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="plot_model_costs" href="pyapprox.multifidelity.plot_model_costs.html" />
-    <link rel="prev" title="estimate_model_ensemble_covariance" href="pyapprox.multifidelity.estimate_model_ensemble_covariance.html" /> 
+    <link rel="prev" title="plot_estimator_sample_allocation_comparison" href="pyapprox.multifidelity.plot_estimator_sample_allocation_comparison.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -74,14 +74,11 @@
 <li class="toctree-l2 current"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.multifidelity">pyapprox.multifidelity Package</a><ul class="current">
 <li class="toctree-l3 current"><a class="reference internal" href="../user_reference_guide.html#id8">Functions</a><ul class="current">
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.get_estimator.html">get_estimator</a></li>
-<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.estimate_variance.html">estimate_variance</a></li>
-<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.compare_estimator_variances.html">compare_estimator_variances</a></li>
-<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_estimator_variances.html">plot_estimator_variances</a></li>
-<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_acv_sample_allocation_comparison.html">plot_acv_sample_allocation_comparison</a></li>
-<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.estimate_model_ensemble_covariance.html">estimate_model_ensemble_covariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_estimator_variance_reductions.html">plot_estimator_variance_reductions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_estimator_sample_allocation_comparison.html">plot_estimator_sample_allocation_comparison</a></li>
 <li class="toctree-l4 current"><a class="current reference internal" href="#">plot_correlation_matrix</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_model_costs.html">plot_model_costs</a></li>
-<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.get_best_models_for_acv_estimator.html">get_best_models_for_acv_estimator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.estimate_model_ensemble_covariance.html">estimate_model_ensemble_covariance</a></li>
 </ul>
 </li>
 </ul>
@@ -123,7 +120,7 @@
 <h1>plot_correlation_matrix<a class="headerlink" href="#plot-correlation-matrix" title="Permalink to this heading"></a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="pyapprox.multifidelity.plot_correlation_matrix">
-<span class="sig-prename descclassname"><span class="pre">pyapprox.multifidelity.</span></span><span class="sig-name descname"><span class="pre">plot_correlation_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">corr_matrix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">format_string</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'{:1.3f}'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'jet'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/multifidelity/control_variate_monte_carlo.html#plot_correlation_matrix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.multifidelity.plot_correlation_matrix" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">pyapprox.multifidelity.</span></span><span class="sig-name descname"><span class="pre">plot_correlation_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">corr_matrix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">format_string</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'{:1.3f}'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'jet'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nqoi</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label_fontsize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">16</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/multifidelity/visualize.html#plot_correlation_matrix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.multifidelity.plot_correlation_matrix" title="Permalink to this definition"></a></dt>
 <dd><p>Plot a correlation matrix</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -141,7 +138,7 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="pyapprox.multifidelity.estimate_model_ensemble_covariance.html" class="btn btn-neutral float-left" title="estimate_model_ensemble_covariance" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pyapprox.multifidelity.plot_estimator_sample_allocation_comparison.html" class="btn btn-neutral float-left" title="plot_estimator_sample_allocation_comparison" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="pyapprox.multifidelity.plot_model_costs.html" class="btn btn-neutral float-right" title="plot_model_costs" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

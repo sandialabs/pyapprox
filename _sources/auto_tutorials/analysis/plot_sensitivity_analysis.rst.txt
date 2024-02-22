@@ -104,7 +104,7 @@ Now lets compare the estimated values with the exact value
 
  .. code-block:: none
 
-    [3.15088866e-01 4.41602285e-01 1.16784377e-07]
+    [0.31468864 0.44232231 0.        ]
     [0.31390519 0.44241114 0.        ]
 
 
@@ -149,19 +149,32 @@ We can visualize the sensitivity indices using the following
  --------------------
  [MT1991]_
 
-.. GENERATED FROM PYTHON SOURCE LINES 85-91
+.. GENERATED FROM PYTHON SOURCE LINES 85-90
 
 References
 ^^^^^^^^^^
 .. [SMCS2001] `I.M. Sobol. Global sensitivity indices for nonlinear mathematical models and their Monte Carlo estimates. Mathematics and Computers in Simulation, 55(3): 271-280, 2001. <https://doi.org/10.1016/S0378-4754(00)00270-6>`_
 .. [SRESS2008] `B. Sudret. Global sensitivity analysis using polynomial chaos expansions. Reliability Engineering & System Safety, 93(7): 964-979, 2008. <https://doi.org/10.1016/j.ress.2007.04.002>`_
 ..
-.. [MT1991]  `M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991 <https://doi.org/10.1080/00401706.1991.10484804>`_
+
+.. GENERATED FROM PYTHON SOURCE LINES 90-93
+
+.. code-block:: default
+
+
+    #..
+    # .. [MT1991]  `M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991 <https://doi.org/10.1080/00401706.1991.10484804>`_
+
+
+
+
+
+
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  3.029 seconds)
+   **Total running time of the script:** ( 0 minutes  3.141 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_analysis_plot_sensitivity_analysis.py:

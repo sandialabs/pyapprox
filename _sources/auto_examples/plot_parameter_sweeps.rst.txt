@@ -37,15 +37,15 @@ PDF. For bounded variables the true bounds are used (i.e. are not truncated)
 .. code-block:: default
 
     from pyapprox import analysis
-    from pyapprox.util.configure_plots import plt, mathrm_label
+    from pyapprox.util.visualization import plt, mathrm_label
     from pyapprox.benchmarks import setup_benchmark
     import numpy as np
     np.random.seed(1)
 
     benchmark = setup_benchmark("oakley")
-    fig, axs = analysis.generate_parameter_sweeps_and_plot_from_variable(
+    axs = analysis.generate_parameter_sweeps_and_plot_from_variable(
         benchmark.fun, benchmark.variable, num_samples_per_sweep=20, num_sweeps=3)
-    fig.suptitle(mathrm_label("Oakely model parameter sweeps"))
+    plt.gcf().suptitle(mathrm_label("Oakely model parameter sweeps"))
     plt.show()
 
 
@@ -64,14 +64,14 @@ PDF. For bounded variables the true bounds are used (i.e. are not truncated)
 
 Now lets plot parameter sweeps for the Sobol G function
 
-.. GENERATED FROM PYTHON SOURCE LINES 32-38
+.. GENERATED FROM PYTHON SOURCE LINES 30-36
 
 .. code-block:: default
 
     benchmark = setup_benchmark("sobol_g", nvars=4)
-    fig, axs = analysis.generate_parameter_sweeps_and_plot_from_variable(
+    axs = analysis.generate_parameter_sweeps_and_plot_from_variable(
         benchmark.fun, benchmark.variable, num_samples_per_sweep=50, num_sweeps=3)
-    fig.suptitle(mathrm_label("Sobol G model parameter sweeps"))
+    plt.gcf().suptitle(mathrm_label("Sobol G model parameter sweeps"))
     plt.show()
 
 
@@ -92,16 +92,16 @@ Now lets plot parameter sweeps for the Sobol G function
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 39-42
+.. GENERATED FROM PYTHON SOURCE LINES 37-40
 
 The Sobol G function is not as smooth as the Oakely function. The former
 has discontinuous first derivatives which can be seen by inspecting their
-prameter sweeps
+aprameter sweeps
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.194 seconds)
+   **Total running time of the script:** ( 0 minutes  0.122 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_parameter_sweeps.py:

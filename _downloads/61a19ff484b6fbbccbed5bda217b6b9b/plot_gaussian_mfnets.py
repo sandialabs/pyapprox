@@ -27,19 +27,17 @@ Let's first import the necessary functions and modules and set the seed for repr
 """
 import networkx as nx
 import numpy as np
-from scipy import stats
 import scipy
+from scipy import stats
+import matplotlib.pyplot as plt
 
-from pyapprox.util.configure_plots import plt
 from pyapprox.bayes.laplace import (
-    laplace_posterior_approximation_for_linear_models
-)
+    laplace_posterior_approximation_for_linear_models)
 from pyapprox.bayes.gaussian_network import (
     get_total_degree_polynomials, plot_1d_lvn_approx, GaussianNetwork,
     cond_prob_variable_elimination,
     convert_gaussian_from_canonical_form,
-    plot_peer_network_with_data
-)
+    plot_peer_network_with_data)
 
 np.random.seed(2)
 
@@ -358,7 +356,8 @@ _ = axs.plot(xx, functions[2](xx[np.newaxis, :]), 'r', label=r'$f_3$')
 #^^^^^^^^^^
 #.. [GJGEIJUQ2020] `A. Gorodetsky et al. MFNets: Multi-fidelity data-driven networks for bayesian learning and prediction, International Journal for Uncertainty Quantification, 2020. <https://www.alexgorodetsky.com/static/papers/gorodetsky_jakeman_geraci_eldred_mfnets_2020.pdf>`_
 #
-#.. [GJGJCP2020] `A. Gorodetsky et al. MFNets: Learning network representations for multifidelity surrogate modeling, 2020. <https://res.arxiv.org/abs/2008.02672>`_
+#..
+# .. [GJGJCP2020] `A. Gorodetsky et al. MFNets: Learning network representations for multifidelity surrogate modeling, 2020. <https://res.arxiv.org/abs/2008.02672>`_
 #
 #Appendix
 #^^^^^^^^

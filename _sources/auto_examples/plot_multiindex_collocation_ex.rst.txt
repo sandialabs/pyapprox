@@ -104,16 +104,14 @@ Now set up and run the multi-index algorithm
 
  .. code-block:: none
 
-    [inf, 2]
-    3
     Cannot add subspace [0 3]
     Max level of 2 reached in variable 1
     Max num evaluations (20) reached
-    Error estimate 0.5336307283210865
+    Error estimate 0.5336307283210873
     Max num evaluations (20) reached
-    Error estimate 0.19831215919512346
+    Error estimate 0.19831215919512413
     Max num evaluations (20) reached
-    Error estimate 0.08311648892091944
+    Error estimate 0.0831164889209195
 
 
 
@@ -153,7 +151,7 @@ The following can be used to plot the approximation and high-fidelity target fun
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.104 seconds)
+   **Total running time of the script:** ( 0 minutes  0.065 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_multiindex_collocation_ex.py:

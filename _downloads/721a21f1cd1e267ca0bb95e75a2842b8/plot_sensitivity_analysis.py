@@ -87,4 +87,6 @@ plt.show()
 #.. [SMCS2001] `I.M. Sobol. Global sensitivity indices for nonlinear mathematical models and their Monte Carlo estimates. Mathematics and Computers in Simulation, 55(3): 271-280, 2001. <https://doi.org/10.1016/S0378-4754(00)00270-6>`_
 #.. [SRESS2008] `B. Sudret. Global sensitivity analysis using polynomial chaos expansions. Reliability Engineering & System Safety, 93(7): 964-979, 2008. <https://doi.org/10.1016/j.ress.2007.04.002>`_
 #..
-#.. [MT1991]  `M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991 <https://doi.org/10.1080/00401706.1991.10484804>`_
+
+#..
+# .. [MT1991]  `M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991 <https://doi.org/10.1080/00401706.1991.10484804>`_

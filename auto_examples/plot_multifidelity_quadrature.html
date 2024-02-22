@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Multi-fidelity Quadrature &mdash; PyApprox 1.0.2 documentation</title>
+  <title>Multi-fidelity Quadrature &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -131,8 +131,8 @@ to download the full example code</p>
 <p>First define an ensemble of models using <a class="reference internal" href="../api/pyapprox.benchmarks.setup_benchmark.html#pyapprox.benchmarks.setup_benchmark" title="pyapprox.benchmarks.setup_benchmark"><code class="xref py py-class docutils literal notranslate"><span class="pre">setup_benchmark</span></code></a>, see  <a class="reference internal" href="../user_reference_guide.html#module-pyapprox.benchmarks" title="pyapprox.benchmarks"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox.benchmarks</span></code></a>.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span>
     <span class="s2">&quot;tunable_model_ensemble&quot;</span><span class="p">,</span> <span class="n">theta1</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">2</span><span class="o">*</span><span class="mf">.95</span><span class="p">,</span> <span class="n">shifts</span><span class="o">=</span><span class="p">[</span><span class="mf">.1</span><span class="p">,</span> <span class="mf">.2</span><span class="p">])</span>
-<span class="n">model_ensemble</span> <span class="o">=</span> <span class="n">interface</span><span class="o">.</span><span class="n">ModelEnsemble</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="o">.</span><span class="n">models</span><span class="p">)</span>
-<span class="n">hf_mean</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">means</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">model_ensemble</span> <span class="o">=</span> <span class="n">interface</span><span class="o">.</span><span class="n">ModelEnsemble</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">funs</span><span class="p">)</span>
+<span class="n">hf_mean</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">mean</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 </pre></div>
 </div>
 <p>Initialize a multifidelity estimator. This requires an estimate of the covariance between the models and the model costs and the random variable representing the model inputs</p>
@@ -141,28 +141,37 @@ to download the full example code</p>
 <span class="c1"># The models are trivial to evaluate so make up model costs</span>
 <span class="n">model_costs</span> <span class="o">=</span> <span class="mf">10.</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>
 
-<span class="n">est_name</span> <span class="o">=</span> <span class="s2">&quot;mlblue&quot;</span>
+
+<span class="n">stat_name</span> <span class="o">=</span> <span class="s2">&quot;mean&quot;</span>
 <span class="n">cov</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">estimate_model_ensemble_covariance</span><span class="p">(</span>
     <span class="n">npilot_samples</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span> <span class="n">model_ensemble</span><span class="p">,</span>
     <span class="n">model_ensemble</span><span class="o">.</span><span class="n">nmodels</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-<span class="n">est</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">get_estimator</span><span class="p">(</span>
-    <span class="n">est_name</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">model_costs</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
+<span class="n">stat</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">multioutput_stats</span><span class="p">[</span><span class="n">stat_name</span><span class="p">](</span><span class="n">benchmark</span><span class="o">.</span><span class="n">nqoi</span><span class="p">)</span>
+<span class="n">stat</span><span class="o">.</span><span class="n">set_pilot_quantities</span><span class="p">(</span><span class="n">cov</span><span class="p">)</span>
+<span class="n">est_name</span> <span class="o">=</span> <span class="s2">&quot;mlblue&quot;</span>
+<span class="n">est</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">get_estimator</span><span class="p">(</span><span class="n">est_name</span><span class="p">,</span> <span class="n">stat</span><span class="p">,</span> <span class="n">model_costs</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Define a target cost and determine the optimal number of samples to allocate to each model</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">target_cost</span> <span class="o">=</span> <span class="mi">1000</span>
 <span class="n">est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span><span class="n">target_cost</span><span class="p">)</span>
 <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">]</span> <span class="k">if</span> <span class="n">est_name</span> <span class="o">==</span> <span class="s2">&quot;mlblue&quot;</span> <span class="k">else</span> <span class="p">[]</span>
-<span class="n">data</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">generate_data</span><span class="p">(</span><span class="n">model_ensemble</span><span class="o">.</span><span class="n">functions</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
-<span class="n">values</span> <span class="o">=</span> <span class="n">data</span> <span class="k">if</span> <span class="n">est_name</span> <span class="o">==</span> <span class="s2">&quot;mlblue&quot;</span> <span class="k">else</span> <span class="n">data</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-<span class="n">mf_mean</span> <span class="o">=</span> <span class="n">est</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+<span class="n">samples_per_model</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">generate_samples_per_model</span><span class="p">(</span>
+    <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">)</span>
+<span class="n">best_models</span> <span class="o">=</span> <span class="p">[</span><span class="n">benchmark</span><span class="o">.</span><span class="n">funs</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">est</span><span class="o">.</span><span class="n">_best_model_indices</span><span class="p">]</span>
+<span class="n">values_per_model</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">fun</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span> <span class="k">for</span> <span class="n">fun</span><span class="p">,</span> <span class="n">samples</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">best_models</span><span class="p">,</span> <span class="n">samples_per_model</span><span class="p">)]</span>
+<span class="n">mf_mean</span> <span class="o">=</span> <span class="n">est</span><span class="p">(</span><span class="n">values_per_model</span><span class="p">)</span>
 
 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Multi-fidelity mean&quot;</span><span class="p">,</span> <span class="n">mf_mean</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Exact high-fidelity mean&quot;</span><span class="p">,</span> <span class="n">hf_mean</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Multi-fidelity estimator variance&quot;</span><span class="p">,</span>
+      <span class="n">est</span><span class="o">.</span><span class="n">_covariance_from_npartition_samples</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">_rounded_npartition_samples</span><span class="p">))</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Multi-fidelity mean [[-0.0060008]]
-Exact high-fidelity mean 0.0
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Multi-fidelity mean tensor(-0.0121)
+Exact high-fidelity mean [0.]
+Multi-fidelity estimator variance tensor([[0.0004]])
 </pre></div>
 </div>
 <section id="excercises">
@@ -170,14 +179,19 @@ Exact high-fidelity mean 0.0
 <p>Compare the multi-fidelity mean to the single-fidelity means using only one model</p>
 <p>Increase the target cost</p>
 <p>Change the correlation between the models by varying the theta1 argument to setup benchmarks</p>
-<p>Change the estimator. Names of the available estimators can be printed via</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">multifidelity</span><span class="o">.</span><span class="n">monte_carlo_estimators</span><span class="o">.</span><span class="n">monte_carlo_estimators</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<p>Change the estimator (via est_name). Names of the available estimators can be printed via</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">multifidelity</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">multioutput_estimators</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+<span class="c1">#Change the statistic computed (via stat_name). Names of the implemented statistics can be printed via</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">multifidelity</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">multioutput_stats</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>dict_keys([&#39;acvmf&#39;, &#39;acvis&#39;, &#39;mfmc&#39;, &#39;mlmc&#39;, &#39;acvgmf&#39;, &#39;acvgmfb&#39;, &#39;mc&#39;, &#39;mlblue&#39;])
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>dict_keys([&#39;cv&#39;, &#39;gmf&#39;, &#39;gis&#39;, &#39;grd&#39;, &#39;mfmc&#39;, &#39;mlmc&#39;, &#39;mc&#39;, &#39;mlblue&#39;])
+dict_keys([&#39;mean&#39;, &#39;variance&#39;, &#39;mean_variance&#39;])
 </pre></div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.006 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.013 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-multifidelity-quadrature-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/88147a13c9a402e43d8d6ad3d612ff75/plot_multifidelity_quadrature.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multifidelity_quadrature.py</span></code></a></p>

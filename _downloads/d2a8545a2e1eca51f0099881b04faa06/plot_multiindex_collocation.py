@@ -64,14 +64,14 @@ axs[0].plot(zz, funs[0](zz[None, :]), 'k', label=r"$f_0$")
 axs[0].plot(zz, funs[1](zz[None, :]), 'r', label=r"$f_1$")
 axs[0].plot(lf_approx.samples[0], lf_approx.values[:, 0], 'ko')
 axs[0].plot(zz, lf_approx(zz[None])[:, 0], 'g:', label=r"$f_{0,\mathcal{I}_0}$")
-axs[0].legend()
+axs[0].legend(fontsize=18)
 
 hf_approx = build_tp(funs[1], 1)
 axs[1].plot(zz, funs[1](zz[None, :]), 'r', label=r"$f_1$")
 axs[1].plot(hf_approx.samples[0], hf_approx.values[:, 0], 'ro')
 axs[1].plot(zz, hf_approx(zz[None])[:, 0], ':', color='gray',
             label=r"$f_{1,\mathcal{I}_1}$")
-axs[1].legend()
+axs[1].legend(fontsize=18)
 
 def discrepancy_fun(fun1, fun0, zz):
     return fun1(zz)-fun0(zz)
@@ -79,14 +79,14 @@ def discrepancy_fun(fun1, fun0, zz):
 discp_approx = build_tp(partial(discrepancy_fun, funs[1], lf_approx), 1)
 axs[2].plot(zz, funs[1](zz[None, :]), 'r', label=r"$f_1$")
 axs[2].plot(zz, funs[1](zz[None, :])-funs[0](zz[None, :]), 'k',
-            label=r"$f_1-f_0$")
+            label=r"$\delta=f_1-f_0$")
 axs[2].plot(discp_approx.samples[0], discp_approx.values[:, 0], 'ko')
 axs[2].plot(zz, discp_approx(zz[None, :]),
-            'g:', label=r"$f_{0,\mathcal{I}_0}+\delta_{\mathcal{I}_1}$")
+            'g:', label=r"$\delta_{\mathcal{I}_1}$")
 axs[2].plot(zz, lf_approx(zz[None])+discp_approx(zz[None, :]),
             'b:', label=r"$f_{0,\mathcal{I}_1}+\delta_{\mathcal{I}_1}$")
 [ax.set_xlabel(r"$z$") for ax in axs]
-_ = axs[2].legend()
+_ = axs[2].legend(fontsize=18)
 
 #%%
 #The left plot shows that using 5 samples of the low-fidelity model produces an accurate approximation of the low-fidelity model, but it will be a poor approximation of the high fidelity model in the limit of infinite low-fidelity data. The middle plot shows three samples of the high-fidelity model also produces a poor approximation, but if more samples were added the approximation would coverge to the high-fidelity model. In contrast the right plot shows that 5 samples of the low-fideliy model plus three samples of the high-fidelity model produces a good approximation of the high-fidelity model.
@@ -143,7 +143,7 @@ for ii, subspace_index in enumerate(tp_approx.subspace_indices.T):
         tp_approx.samples_1d, tp_approx.config_variables_idx)
     ax.plot(zz, subspace_approx_vals, '--', color=approx_colors[kk],
             label=r"$f_{%d,%d}$" % (kk, jj))
-    ax.legend()
+    ax.legend(fontsize=18)
 _ = [[ax.set_ylim([-1, 1]), ax.set_xlabel(r"$z$")] for ax in axs.flatten()]
 
 #%%
@@ -228,21 +228,36 @@ sg = adaptive_approximate(
     {"refinement_indicator": variance_refinement_indicator,
      "max_level_1d": [10,  len(config_values[0])-1],
      "univariate_quad_rule_info": None,
-     "max_level": np.inf, "max_nsamples": 50,
+     "max_level": np.inf, "max_nsamples": 80,
      "config_variables_idx": nvars,
      "config_var_trans": config_var_trans,
      "cost_function": cost_function,
      "callback": adaptive_callback}).approx
 
+from pyapprox.interface.wrappers import SingleFidelityWrapper
+hf_model = SingleFidelityWrapper(mi_model, config_values[0][2:3])
+mf_model = SingleFidelityWrapper(mi_model, config_values[0][1:2])
+lf_model = SingleFidelityWrapper(mi_model, config_values[0][:1])
+
 #%%
 #Now plot the adaptive algorithm
-fig, axs = plt.subplots(1, 2, sharey=False, figsize=(16, 6))
+fig, axs = plt.subplots(1, 3, sharey=False, figsize=(3*8, 6))
+plot_xx = np.linspace(-1, 1, 101)
 def animate(ii):
     [ax.clear() for ax in axs]
     sg = adaptive_callback.sparse_grids[ii]
     plot_adaptive_sparse_grid_2d(sg, axs=axs[:2])
     axs[0].set_xlim([0, 10])
     axs[0].set_ylim([0, len(config_values[0])-1])
+    axs[1].set_ylim([0, len(config_values[0])-1])
+    axs[1].set_ylabel(r"$\alpha_1$")
+    axs[2].plot(plot_xx, lf_model(plot_xx[None, :]), 'r', label=r"$f_0(z_1)$")
+    axs[2].plot(plot_xx, mf_model(plot_xx[None, :]), 'g', label=r"$f_1(z_1)$")
+    axs[2].plot(plot_xx, hf_model(plot_xx[None, :]), 'k', label=r"$f_2(z_1)$")
+    axs[2].plot(plot_xx, sg(plot_xx[None, :]), '--b', label=r"$f_{I}(z_1)$")
+    axs[2].set_xlabel(r"$z_1$")
+    axs[2].legend(fontsize=18)
+
 
 import matplotlib.animation as animation
 ani = animation.FuncAnimation(
@@ -266,7 +281,7 @@ ani.save("adaptive_misc.gif", dpi=100,
 #
 #.. list-table::
 #
-#   * - .. _multilevel_hierarchy:
+#   * - .. _multiindex_hierarchy:
 #
 #       .. figure:: ../../figures/multiindex-hierarchy.png
 #          :width: 50%

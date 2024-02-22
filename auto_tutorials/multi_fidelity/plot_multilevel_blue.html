@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Multilevel Best Linear Unbiased estimators (MLBLUE) &mdash; PyApprox 1.0.2 documentation</title>
+  <title>Multilevel Best Linear Unbiased estimators (MLBLUE) &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -22,13 +22,13 @@
         <script src="../../_static/underscore.js"></script>
         <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
-        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Multi-level and Multi-index Collocation" href="plot_multiindex_collocation.html" />
-    <link rel="prev" title="Generalized Approximate Control Variate Monte Carlo" href="plot_many_model_approximate_control_variate_monte_carlo.html" /> 
+    <link rel="prev" title="Model Ensemble Selection" href="plot_ensemble_selection.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -62,14 +62,22 @@
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
-<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
-<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_monte_carlo.html">Monte Carlo Quadrature: Beyond Mean Estimation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Two Model Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variates.html">Two model Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_many_model_acv.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="acv_covariances.html">Delta-Based Covariance Formulas For Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_allocation_matrices.html">Approximate Control Variate Allocation Matrices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
-<li class="toctree-l3"><a class="reference internal" href="plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pacv.html">Parametrically Defined Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_acv.html">Multioutput Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pilot_studies.html">Pilot Studies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_ensemble_selection.html">Model Ensemble Selection</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Multilevel Best Linear Unbiased estimators (MLBLUE)</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#optimal-sample-allocation">Optimal sample allocation</a></li>
 </ul>
@@ -123,14 +131,14 @@ to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="multilevel-best-linear-unbiased-estimators-mlblue">
 <span id="sphx-glr-auto-tutorials-multi-fidelity-plot-multilevel-blue-py"></span><h1>Multilevel Best Linear Unbiased estimators (MLBLUE)<a class="headerlink" href="#multilevel-best-linear-unbiased-estimators-mlblue" title="Permalink to this heading"></a></h1>
-<p>This tutorial introduces Multilevel Best Linear Unbiased estimators (MLBLUE) and compares its characteristics and performance with the previously introduced
+<p>This tutorial introduces Multilevel Best Linear Unbiased estimators (MLBLUE) <a class="reference internal" href="#susiamuq2020" id="id1"><span>[SUSIAMUQ2020]</span></a>, <a class="reference internal" href="#susiamuq2021" id="id2"><span>[SUSIAMUQ2021]</span></a> and compares its characteristics and performance with the previously introduced
 multi-fidelity estimators.</p>
 <table class="docutils align-default">
 <tbody>
-<tr class="row-odd"><td><figure class="align-center" id="id1">
+<tr class="row-odd"><td><figure class="align-center" id="id4">
 <span id="mlblue-sample-allocation"></span><a class="reference internal image-reference" href="../../_images/MLBLUE-sets.png"><img alt="../../_images/MLBLUE-sets.png" src="../../_images/MLBLUE-sets.png" style="width: 50%;" /></a>
 <figcaption>
-<p><span class="caption-text">MLBLUE sample allocations.</span><a class="headerlink" href="#id1" title="Permalink to this image"></a></p>
+<p><span class="caption-text">MLBLUE sample allocations.</span><a class="headerlink" href="#id4" title="Permalink to this image"></a></p>
 </figcaption>
 </figure>
 </td>
@@ -153,10 +161,10 @@ multi-fidelity estimators.</p>
 <p>The figure below gives an example of the construction of the least squares system when only three subsets are active, <span class="math notranslate nohighlight">\(S_2, S_3, S_5\)</span>; one, one and two samples of the models in each subset are taken, respectively. <span class="math notranslate nohighlight">\(S_2\)</span> only contributes on equation because it consists one model that is only sampled once. <span class="math notranslate nohighlight">\(S_3\)</span> contributes two equations, because it consists of two models sampled once each. Finally, <span class="math notranslate nohighlight">\(S_5\)</span> contributes four equations because it consists of two models sampled twice.</p>
 <table class="docutils align-default">
 <tbody>
-<tr class="row-odd"><td><figure class="align-center" id="id2">
+<tr class="row-odd"><td><figure class="align-center" id="id5">
 <span id="mlblue-sample-example"></span><a class="reference internal image-reference" href="../../_images/MLBLUE_sample_example.png"><img alt="../../_images/MLBLUE_sample_example.png" src="../../_images/MLBLUE_sample_example.png" style="width: 100%;" /></a>
 <figcaption>
-<p><span class="caption-text">Example of subset data construction.</span><a class="headerlink" href="#id2" title="Permalink to this image"></a></p>
+<p><span class="caption-text">Example of subset data construction.</span><a class="headerlink" href="#id5" title="Permalink to this image"></a></p>
 </figcaption>
 </figure>
 </td>
@@ -166,10 +174,10 @@ multi-fidelity estimators.</p>
 <p>The figure below depicts the structure of the <span class="math notranslate nohighlight">\(\covar{\epsilon}{\epsilon}\)</span> for the same example, where <span class="math notranslate nohighlight">\(\sigma_{ij}^2\)</span> denotes the covariance between the models <span class="math notranslate nohighlight">\(f_i,f_j\)</span> and must be computed from a pilot study.</p>
 <table class="docutils align-default">
 <tbody>
-<tr class="row-odd"><td><figure class="align-center" id="id3">
+<tr class="row-odd"><td><figure class="align-center" id="id6">
 <span id="mlblue-covariance-example"></span><a class="reference internal image-reference" href="../../_images/MLBLUE_covariance_example.png"><img alt="../../_images/MLBLUE_covariance_example.png" src="../../_images/MLBLUE_covariance_example.png" style="width: 100%;" /></a>
 <figcaption>
-<p><span class="caption-text">Example of the covariance structure.</span><a class="headerlink" href="#id3" title="Permalink to this image"></a></p>
+<p><span class="caption-text">Example of the covariance structure.</span><a class="headerlink" href="#id6" title="Permalink to this image"></a></p>
 </figcaption>
 </figure>
 </td>
@@ -192,64 +200,59 @@ multi-fidelity estimators.</p>
 <p>The following code compares MLBLUE to other multif-fidelity esimators when the number of high-fidelity samples is fixed and the number of low-fidelity samples increases. This example shows that unlike MLMC and MFMC, MLBLUE like ACV obtains the optimal variance reduction obtained by control variate MC, using known means,  as the number of low-fidelity samples becomes very large.</p>
 <p>First setup the polynomial benchmark</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
-<span class="kn">from</span> <span class="nn">pyapprox.util.configure_plots</span> <span class="kn">import</span> <span class="n">plt</span><span class="p">,</span> <span class="n">mathrm_labels</span><span class="p">,</span> <span class="n">mathrm_label</span>
-<span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">multifidelity</span>
-<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.control_variate_monte_carlo</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">get_control_variate_rsquared</span><span class="p">)</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.util.visualization</span> <span class="kn">import</span> <span class="n">mathrm_labels</span>
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
-
-<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
-<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;polynomial_ensemble&quot;</span><span class="p">)</span>
-<span class="n">poly_model</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span>
-<span class="n">cov</span> <span class="o">=</span> <span class="n">poly_model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">()</span>
-<span class="n">model_costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mi">10</span><span class="o">**-</span><span class="n">ii</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">cov</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])])</span>
-<span class="n">nhf_samples</span> <span class="o">=</span> <span class="mi">10</span>
-<span class="n">nsample_ratios_base</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">16</span><span class="p">])</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.factory</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_estimator</span><span class="p">,</span> <span class="n">compare_estimator_variances</span><span class="p">,</span> <span class="n">compute_variance_reductions</span><span class="p">,</span>
+    <span class="n">multioutput_stats</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.visualize</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">plot_estimator_variance_reductions</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_multilevel_blue_001.png" srcset="../../_images/sphx_glr_plot_multilevel_blue_001.png" alt="plot multilevel blue" class = "sphx-glr-single-img"/><p>First, plot the variance reduction of the optimal control variates using known low-fidelity means.</p>
+<p>First, plot the variance reduction of the optimal control variates using known low-fidelity means.</p>
 <p>Second, plot the variance reduction of multi-fidelity estimators that do not assume known low-fidelity means. The code below repeatedly doubles the number of low-fidelity samples according to the initial allocation defined by nsample_ratios_base=[2,4,8,16].</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># plot optimal control variate variance reduction</span>
-<span class="n">cv_labels</span> <span class="o">=</span> <span class="n">mathrm_labels</span><span class="p">([</span><span class="s2">&quot;OCV-1&quot;</span><span class="p">,</span> <span class="s2">&quot;OCV-2&quot;</span><span class="p">,</span> <span class="s2">&quot;OCV-4&quot;</span><span class="p">])</span>
-<span class="n">cv_rsquared_funcs</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="k">lambda</span> <span class="n">cov</span><span class="p">:</span> <span class="n">get_control_variate_rsquared</span><span class="p">(</span><span class="n">cov</span><span class="p">[:</span><span class="mi">2</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]),</span>
-    <span class="k">lambda</span> <span class="n">cov</span><span class="p">:</span> <span class="n">get_control_variate_rsquared</span><span class="p">(</span><span class="n">cov</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]),</span>
-    <span class="k">lambda</span> <span class="n">cov</span><span class="p">:</span> <span class="n">get_control_variate_rsquared</span><span class="p">(</span><span class="n">cov</span><span class="p">)]</span>
-<span class="n">cv_gammas</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="o">-</span><span class="n">f</span><span class="p">(</span><span class="n">cov</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">cv_rsquared_funcs</span><span class="p">]</span>
-<span class="n">xloc</span> <span class="o">=</span> <span class="o">-</span><span class="mf">.35</span>
-<span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cv_gammas</span><span class="p">)):</span>
-    <span class="n">plt</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">y</span><span class="o">=</span><span class="n">cv_gammas</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
-    <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">xloc</span><span class="p">,</span> <span class="n">cv_gammas</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="mf">1.1</span><span class="p">,</span> <span class="n">cv_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">y</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">xloc</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;MC&quot;</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;polynomial_ensemble&quot;</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span>
 
-<span class="c1"># plot multi-fidelity estimator variance reduction</span>
-<span class="n">est_labels</span> <span class="o">=</span> <span class="n">mathrm_labels</span><span class="p">([</span><span class="s2">&quot;MLMC&quot;</span><span class="p">,</span> <span class="s2">&quot;MFMC&quot;</span><span class="p">,</span> <span class="s2">&quot;ACVMF&quot;</span><span class="p">,</span> <span class="s2">&quot;ACVGMFB&quot;</span><span class="p">,</span> <span class="s2">&quot;MLBLUE&quot;</span><span class="p">])</span>
-<span class="n">estimator_types</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;mlmc&quot;</span><span class="p">,</span> <span class="s2">&quot;mfmc&quot;</span><span class="p">,</span> <span class="s2">&quot;acvmf&quot;</span><span class="p">,</span> <span class="s2">&quot;acvgmfb&quot;</span><span class="p">,</span> <span class="s2">&quot;mlblue&quot;</span><span class="p">]</span>
+<span class="n">nmodels</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="n">cov</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">covariance</span>
+<span class="n">costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mi">10</span><span class="o">**-</span><span class="n">ii</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)])</span>
+<span class="n">nhf_samples</span> <span class="o">=</span> <span class="mi">1</span>
+
+<span class="n">cv_stats</span><span class="p">,</span> <span class="n">cv_ests</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nmodels</span><span class="p">):</span>
+    <span class="n">cv_stats</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">multioutput_stats</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">](</span><span class="n">benchmark</span><span class="o">.</span><span class="n">nqoi</span><span class="p">))</span>
+    <span class="n">cv_stats</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_pilot_quantities</span><span class="p">(</span><span class="n">cov</span><span class="p">[:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">cv_ests</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">get_estimator</span><span class="p">(</span>
+        <span class="s2">&quot;cv&quot;</span><span class="p">,</span> <span class="n">cv_stats</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">costs</span><span class="p">[:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span>
+        <span class="n">lowfi_stats</span><span class="o">=</span><span class="n">benchmark</span><span class="o">.</span><span class="n">mean</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">]))</span>
+<span class="n">cv_labels</span> <span class="o">=</span> <span class="n">mathrm_labels</span><span class="p">([</span><span class="s2">&quot;CV-{</span><span class="si">%d</span><span class="s2">}&quot;</span> <span class="o">%</span> <span class="n">ii</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nmodels</span><span class="p">)])</span>
+<span class="n">target_cost</span> <span class="o">=</span> <span class="n">nhf_samples</span><span class="o">*</span><span class="nb">sum</span><span class="p">(</span><span class="n">costs</span><span class="p">)</span>
+<span class="p">[</span><span class="n">est</span><span class="o">.</span><span class="n">allocate_samples</span><span class="p">(</span><span class="n">target_cost</span><span class="p">)</span> <span class="k">for</span> <span class="n">est</span> <span class="ow">in</span> <span class="n">cv_ests</span><span class="p">]</span>
+<span class="n">cv_variance_reductions</span> <span class="o">=</span> <span class="n">compute_variance_reductions</span><span class="p">(</span><span class="n">cv_ests</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+<span class="kn">from</span> <span class="nn">util</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">plot_control_variate_variance_ratios</span><span class="p">,</span>
+    <span class="n">plot_estimator_variance_ratios_for_polynomial_ensemble</span><span class="p">)</span>
+
 <span class="n">estimators</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="n">multifidelity</span><span class="o">.</span><span class="n">get_estimator</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">model_costs</span><span class="p">,</span> <span class="n">poly_model</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">estimator_types</span><span class="p">]</span>
-<span class="c1"># acvgmfb and mlblue require nhf_samples so create wrappers of that does not</span>
-<span class="n">estimators</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">_get_rsquared</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
-    <span class="n">estimators</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">_get_rsquared_from_nhf_samples</span><span class="p">,</span> <span class="n">nhf_samples</span><span class="p">)</span>
-<span class="n">estimators</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">_get_rsquared</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
-    <span class="n">estimators</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">_get_rsquared_from_nhf_samples</span><span class="p">,</span> <span class="n">nhf_samples</span><span class="p">)</span>
-<span class="n">nplot_points</span> <span class="o">=</span> <span class="mi">20</span>
-<span class="n">acv_gammas</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nplot_points</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">estimators</span><span class="p">)))</span>
-<span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nplot_points</span><span class="p">):</span>
-    <span class="n">nsample_ratios</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">r</span><span class="o">*</span><span class="p">(</span><span class="mi">2</span><span class="o">**</span><span class="n">ii</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">nsample_ratios_base</span><span class="p">])</span>
-    <span class="n">acv_gammas</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="o">-</span><span class="n">est</span><span class="o">.</span><span class="n">_get_rsquared</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">nsample_ratios</span><span class="p">)</span>
-                         <span class="k">for</span> <span class="n">est</span> <span class="ow">in</span> <span class="n">estimators</span><span class="p">]</span>
-<span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">est_labels</span><span class="p">)):</span>
-    <span class="n">plt</span><span class="o">.</span><span class="n">semilogy</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nplot_points</span><span class="p">),</span> <span class="n">acv_gammas</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">],</span>
-                 <span class="n">label</span><span class="o">=</span><span class="n">est_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\log_2(r_i)-i$&#39;</span><span class="p">)</span>
-<span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s1">&#39;Variance reduction ratio &#39;</span><span class="p">)</span><span class="o">+</span><span class="sa">r</span><span class="s1">&#39;$\gamma$&#39;</span><span class="p">)</span>
+    <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mlmc&quot;</span><span class="p">,</span> <span class="n">cv_stats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">costs</span><span class="p">),</span>
+    <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mfmc&quot;</span><span class="p">,</span> <span class="n">cv_stats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">costs</span><span class="p">),</span>
+    <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;grd&quot;</span><span class="p">,</span> <span class="n">cv_stats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">costs</span><span class="p">,</span> <span class="n">tree_depth</span><span class="o">=</span><span class="mi">4</span><span class="p">),</span>
+    <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mlblue&quot;</span><span class="p">,</span> <span class="n">cv_stats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">costs</span><span class="p">,</span> <span class="n">subsets</span><span class="o">=</span><span class="p">[</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]),</span>  <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">4</span><span class="p">,])])]</span>
+<span class="n">est_labels</span> <span class="o">=</span> <span class="n">est_labels</span> <span class="o">=</span> <span class="n">mathrm_labels</span><span class="p">([</span><span class="s2">&quot;MLMC&quot;</span><span class="p">,</span> <span class="s2">&quot;MFMC&quot;</span><span class="p">,</span> <span class="s2">&quot;PACV&quot;</span><span class="p">,</span> <span class="s2">&quot;MLBLUE&quot;</span><span class="p">])</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">plot_control_variate_variance_ratios</span><span class="p">(</span><span class="n">cv_variance_reductions</span><span class="p">,</span> <span class="n">cv_labels</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">plot_estimator_variance_ratios_for_polynomial_ensemble</span><span class="p">(</span>
+    <span class="n">estimators</span><span class="p">,</span> <span class="n">est_labels</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_multilevel_blue_002.png" srcset="../../_images/sphx_glr_plot_multilevel_blue_002.png" alt="plot multilevel blue" class = "sphx-glr-single-img"/><section id="optimal-sample-allocation">
+<img src="../../_images/sphx_glr_plot_multilevel_blue_001.png" srcset="../../_images/sphx_glr_plot_multilevel_blue_001.png" alt="plot multilevel blue" class = "sphx-glr-single-img"/><section id="optimal-sample-allocation">
 <h2>Optimal sample allocation<a class="headerlink" href="#optimal-sample-allocation" title="Permalink to this heading"></a></h2>
 <p>In the following we show how to optimize the sample allocation of MLBLUE and compare the optimized estimator to other alternatives.</p>
 <p>The optimal sample allocation is obtained by solving</p>
@@ -257,63 +260,54 @@ multi-fidelity estimators.</p>
 \[\min_{m\in\mathbb{N}_0^K}\var{Q^B_\beta(m)}\quad\text{such that}\quad\sum_{k=1}^K m_k \sum_{j=1}^{|S_k|} W_j \le W_{\max},\]</div>
 <p>where <span class="math notranslate nohighlight">\(W_j\)</span> denotes the cost of evaluating the jth model and <span class="math notranslate nohighlight">\(W_{\max}\)</span> is the total budget.</p>
 <blockquote>
-<div><p>We will again use the polynomail model and to be consistent with previous tutoriuals, we will only use the first 4 models</p>
+<div><p>This optimization problem can be solved effectively using semi-definite programming <a class="reference internal" href="#cwarxiv2023" id="id3"><span>[CWARXIV2023]</span></a>.</p>
 </div></blockquote>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cov</span> <span class="o">=</span> <span class="n">cov</span><span class="p">[:</span><span class="mi">4</span><span class="p">,</span> <span class="p">:</span><span class="mi">4</span><span class="p">]</span>
-<span class="n">model_costs</span> <span class="o">=</span> <span class="n">model_costs</span><span class="p">[:</span><span class="mi">4</span><span class="p">]</span>
-
-<span class="c1"># Add MC estimator to comparison</span>
-<span class="n">estimator_types</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;mc&quot;</span><span class="p">,</span> <span class="s2">&quot;mlmc&quot;</span><span class="p">,</span> <span class="s2">&quot;mfmc&quot;</span><span class="p">,</span> <span class="s2">&quot;acvmf&quot;</span><span class="p">,</span> <span class="s2">&quot;acvgmfb&quot;</span><span class="p">,</span> <span class="s2">&quot;mlblue&quot;</span><span class="p">]</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">target_costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1e1</span><span class="p">,</span> <span class="mf">1e2</span><span class="p">,</span> <span class="mf">1e3</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
 <span class="n">estimators</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="n">multifidelity</span><span class="o">.</span><span class="n">get_estimator</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">model_costs</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">estimator_types</span><span class="p">]</span>
-<span class="n">est_labels</span> <span class="o">=</span> <span class="n">mathrm_labels</span><span class="p">(</span>
-    <span class="p">[</span><span class="s2">&quot;MC&quot;</span><span class="p">,</span> <span class="s2">&quot;MLMC&quot;</span><span class="p">,</span> <span class="s2">&quot;MFMC&quot;</span><span class="p">,</span> <span class="s2">&quot;ACVMF&quot;</span><span class="p">,</span> <span class="s2">&quot;ACVGMFB&quot;</span><span class="p">,</span> <span class="s2">&quot;MLBLUE&quot;</span><span class="p">])</span>
-
-<span class="n">target_costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1e1</span><span class="p">,</span> <span class="mf">1e2</span><span class="p">,</span> <span class="mf">1e3</span><span class="p">,</span> <span class="mf">1e4</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
-<span class="n">optimized_estimators</span> <span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">compare_estimator_variances</span><span class="p">(</span>
+    <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mc&quot;</span><span class="p">,</span> <span class="n">cv_stats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">costs</span><span class="p">),</span>
+    <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mlmc&quot;</span><span class="p">,</span> <span class="n">cv_stats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">costs</span><span class="p">),</span>
+    <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;mlblue&quot;</span><span class="p">,</span> <span class="n">cv_stats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">costs</span><span class="p">,</span> <span class="n">subsets</span><span class="o">=</span><span class="p">[</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]),</span>  <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">4</span><span class="p">,])]),</span>
+    <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;gmf&quot;</span><span class="p">,</span> <span class="n">cv_stats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">costs</span><span class="p">,</span> <span class="n">tree_depth</span><span class="o">=</span><span class="mi">4</span><span class="p">),</span>
+    <span class="n">get_estimator</span><span class="p">(</span><span class="s2">&quot;cv&quot;</span><span class="p">,</span> <span class="n">cv_stats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">costs</span><span class="p">,</span>
+                  <span class="n">lowfi_stats</span><span class="o">=</span><span class="n">benchmark</span><span class="o">.</span><span class="n">mean</span><span class="p">[</span><span class="mi">1</span><span class="p">:])]</span>
+<span class="n">est_labels</span> <span class="o">=</span> <span class="n">mathrm_labels</span><span class="p">([</span><span class="s2">&quot;MC&quot;</span><span class="p">,</span> <span class="s2">&quot;MLMC&quot;</span><span class="p">,</span> <span class="s2">&quot;MLBLUE&quot;</span><span class="p">,</span> <span class="s2">&quot;GRD&quot;</span><span class="p">,</span> <span class="s2">&quot;CV&quot;</span><span class="p">])</span>
+<span class="n">optimized_estimators</span> <span class="o">=</span> <span class="n">compare_estimator_variances</span><span class="p">(</span>
     <span class="n">target_costs</span><span class="p">,</span> <span class="n">estimators</span><span class="p">)</span>
 
-<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
-<span class="n">multifidelity</span><span class="o">.</span><span class="n">plot_estimator_variances</span><span class="p">(</span>
-    <span class="n">optimized_estimators</span><span class="p">,</span> <span class="n">est_labels</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span>
-    <span class="n">ylabel</span><span class="o">=</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Relative Estimator Variance&quot;</span><span class="p">))</span>
-<span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">target_costs</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">target_costs</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
-
-<span class="n">ocv_variances</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">target_costs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-<span class="k">for</span> <span class="n">ii</span><span class="p">,</span> <span class="n">target_cost</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">target_costs</span><span class="p">):</span>
-    <span class="c1"># ocv uses one sample for each model (but does not need additional</span>
-    <span class="c1"># values for estimating low fidelity means</span>
-    <span class="n">nocv_samples_per_model</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">target_cost</span><span class="o">//</span><span class="n">model_costs</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
-    <span class="n">ocv_variances</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">cov</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="n">nocv_samples_per_model</span><span class="o">*</span><span class="p">(</span>
-        <span class="mi">1</span><span class="o">-</span><span class="n">get_control_variate_rsquared</span><span class="p">(</span><span class="n">cov</span><span class="p">))</span>
-<span class="n">rel_ocv_variances</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="n">ocv_variances</span><span class="o">/</span><span class="n">optimized_estimators</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">optimized_variance</span><span class="p">)</span>
-<span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">target_costs</span><span class="p">,</span> <span class="n">rel_ocv_variances</span><span class="p">,</span> <span class="s1">&#39;:o&#39;</span><span class="p">,</span>
-          <span class="n">label</span><span class="o">=</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;OCV&quot;</span><span class="p">))</span>
-<span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multifidelity.visualize</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">plot_estimator_variances</span><span class="p">,</span> <span class="n">plot_estimator_sample_allocation_comparison</span><span class="p">)</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">plot_estimator_variances</span><span class="p">(</span>
+    <span class="n">optimized_estimators</span><span class="p">,</span> <span class="n">est_labels</span><span class="p">,</span> <span class="n">axs</span><span class="p">,</span>
+    <span class="n">relative_id</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">cost_normalization</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_multilevel_blue_003.png" srcset="../../_images/sphx_glr_plot_multilevel_blue_003.png" alt="plot multilevel blue" class = "sphx-glr-single-img"/><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[9.948000e+00 9.990200e+01 9.997170e+02 9.999442e+03] 1
-
-&lt;matplotlib.legend.Legend object at 0x1527a8af0&gt;
-</pre></div>
-</div>
-<p>Now plot the number of samples allocated for each target cost</p>
+<img src="../../_images/sphx_glr_plot_multilevel_blue_002.png" srcset="../../_images/sphx_glr_plot_multilevel_blue_002.png" alt="plot multilevel blue" class = "sphx-glr-single-img"/><p>Now plot the number of samples allocated for each target cost</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s2">&quot;$M_</span><span class="si">{0}</span><span class="s2">$&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">cov</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])]</span>
-<span class="n">_</span><span class="o">=</span> <span class="n">multifidelity</span><span class="o">.</span><span class="n">plot_acv_sample_allocation_comparison</span><span class="p">(</span>
-    <span class="n">optimized_estimators</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">model_labels</span><span class="p">,</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span><span class="o">.</span><span class="n">gca</span><span class="p">())</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">_</span><span class="o">=</span> <span class="n">plot_estimator_sample_allocation_comparison</span><span class="p">(</span>
+    <span class="n">optimized_estimators</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">model_labels</span><span class="p">,</span> <span class="n">axs</span><span class="p">)</span>
 </pre></div>
 </div>
-<img src="../../_images/sphx_glr_plot_multilevel_blue_004.png" srcset="../../_images/sphx_glr_plot_multilevel_blue_004.png" alt="plot multilevel blue" class = "sphx-glr-single-img"/><section id="references">
+<img src="../../_images/sphx_glr_plot_multilevel_blue_003.png" srcset="../../_images/sphx_glr_plot_multilevel_blue_003.png" alt="plot multilevel blue" class = "sphx-glr-single-img"/><section id="references">
 <h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
 <div role="list" class="citation-list">
 <div class="citation" id="susiamuq2020" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span>SUSIAMUQ2020<span class="fn-bracket">]</span></span>
-<p><a class="reference external" href="https://doi.org/10.1137/19M1263534">D Schaden, E Ullmann. On multilevel best linear unbiased estimators, SIAM/ASA J. Uncertainty Quantification 8 (2), 601 - 635, 2020.</a></p>
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">SUSIAMUQ2020</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1137/19M1263534">D. Schaden, E. Ullmann. On multilevel best linear unbiased estimators, SIAM/ASA J. Uncertainty Quantification 8 (2): 601 - 635, 2020.</a></p>
+</div>
+<div class="citation" id="susiamuq2021" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">SUSIAMUQ2021</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1137/20M1321607">D. Schaden, E. Ullmann. Asymptotic Analysis of Multilevel Best Linear Unbiased Estimators. SIAM/ASA Journal on Uncertainty Quantification 9 (3):953-978, 2021.</a></p>
+</div>
+<div class="citation" id="cwarxiv2023" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id3">CWARXIV2023</a><span class="fn-bracket">]</span></span>
+<p><a class="reference external" href="https://doi.org/10.1016/j.cma.2023.116130">M. Croci, K. Willcox, S. Wright. Multi-output multilevel best linear unbiased estimators via semidefinite programming. (2023)</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  18.548 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 2 minutes  32.037 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multilevel-blue-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/8d43fa77f8a9c321fe613eb95e949ae6/plot_multilevel_blue.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multilevel_blue.py</span></code></a></p>
@@ -331,7 +325,7 @@ multi-fidelity estimators.</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="plot_many_model_approximate_control_variate_monte_carlo.html" class="btn btn-neutral float-left" title="Generalized Approximate Control Variate Monte Carlo" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_ensemble_selection.html" class="btn btn-neutral float-left" title="Model Ensemble Selection" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="plot_multiindex_collocation.html" class="btn btn-neutral float-right" title="Multi-level and Multi-index Collocation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

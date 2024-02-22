@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.surrogates.approximate &mdash; PyApprox 1.0.2 documentation</title>
+  <title>pyapprox.surrogates.approximate &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -333,9 +333,7 @@
         <span class="k">if</span> <span class="n">max_level_1d</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;max_level_1d must be set if config_var_trans is provided&quot;</span>
             <span class="c1">#raise ValueError(msg)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="n">max_level_1d</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">ii</span><span class="p">,</span> <span class="n">cv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">config_var_trans</span><span class="o">.</span><span class="n">config_values</span><span class="p">):</span>
-            <span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cv</span><span class="p">))</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cv</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">max_level_1d</span><span class="p">[</span><span class="n">config_variables_idx</span><span class="o">+</span><span class="n">ii</span><span class="p">]:</span>
                 <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;maxlevel_1d </span><span class="si">{</span><span class="n">max_level_1d</span><span class="si">}</span><span class="s2"> and &quot;</span>
                 <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;config_var_trans.config_values with shapes </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>

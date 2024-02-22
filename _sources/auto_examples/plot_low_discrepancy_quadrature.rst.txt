@@ -112,7 +112,7 @@ space. This can be seen by comparing the Monte Carlo and Sobol sequence samples
 
 .. code-block:: default
 
-    from pyapprox.util.configure_plots import plt
+    import matplotlib.pyplot as plt
     plt.plot(mc_samples[0, :], mc_samples[1, :], 'ko', label="MC")
     plt.plot(sobol_samples[0, :], sobol_samples[1, :], 'rs', label="Sobol")
     plt.legend()
@@ -163,7 +163,7 @@ then request 200 samples while resuing the first 100.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.035 seconds)
+   **Total running time of the script:** ( 0 minutes  0.044 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_low_discrepancy_quadrature.py:

@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sensitivity Analysis &mdash; PyApprox 1.0.2 documentation</title>
+  <title>Sensitivity Analysis &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -22,7 +22,7 @@
         <script src="../../_static/underscore.js"></script>
         <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
-        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -68,6 +68,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
 </ul>
@@ -164,7 +165,7 @@ to download the full example code</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">main_effects</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[3.15088866e-01 4.41602285e-01 1.16784377e-07]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.31468864 0.44232231 0.        ]
 [0.31390519 0.44241114 0.        ]
 </pre></div>
 </div>
@@ -192,13 +193,11 @@ to download the full example code</p>
 <p><a class="reference external" href="https://doi.org/10.1016/j.ress.2007.04.002">B. Sudret. Global sensitivity analysis using polynomial chaos expansions. Reliability Engineering &amp; System Safety, 93(7): 964-979, 2008.</a></p>
 </div>
 </div>
-<div role="list" class="citation-list">
-<div class="citation" id="mt1991" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span>MT1991<span class="fn-bracket">]</span></span>
-<p><a class="reference external" href="https://doi.org/10.1080/00401706.1991.10484804">M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991</a></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#..</span>
+<span class="c1"># .. [MT1991]  `M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991 &lt;https://doi.org/10.1080/00401706.1991.10484804&gt;`_</span>
+</pre></div>
 </div>
-</div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  3.029 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  3.141 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-analysis-plot-sensitivity-analysis-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/721a21f1cd1e267ca0bb95e75a2842b8/plot_sensitivity_analysis.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_sensitivity_analysis.py</span></code></a></p>

@@ -2,7 +2,7 @@ r"""
 End-to-End Model Analysis
 =========================
 This tutorial describes how to use each of the major model analyses in Pyapprox
-following the exposition in [PYAPPROX2022]_.
+following the exposition in [PYAPPROX2023]_.
 
 First lets load all the necessary modules and set the random seeds for reproducibility.
 """
@@ -13,12 +13,12 @@ import matplotlib.pyplot as plt
 from functools import partial
 import torch
 import time
-from pyapprox.util.configure_plots import mathrm_label, mathrm_labels
+from pyapprox.util.visualization import mathrm_label
 from pyapprox.variables import (
     IndependentMarginalsVariable, print_statistics, AffineTransform)
 from pyapprox.benchmarks import setup_benchmark, list_benchmarks
 from pyapprox.interface.wrappers import (
-    ModelEnsemble, TimerModel, WorkTrackingModel,
+    TimerModel, WorkTrackingModel,
     evaluate_1darray_function_on_2d_array)
 from pyapprox.surrogates import adaptive_approximate
 from pyapprox.analysis.sensitivity_analysis import (
@@ -28,7 +28,7 @@ from pyapprox.bayes.metropolis import (
 from pyapprox.bayes.metropolis import MetropolisMCMCVariable
 from pyapprox.expdesign.bayesian_oed import get_bayesian_oed_optimizer
 from pyapprox import multifidelity
-import warnings
+# import warnings
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
 np.random.seed(2023)
 _ = torch.manual_seed(2023)
@@ -97,11 +97,11 @@ print(model.work_tracker())
 #used to characterize the uncertain diffusivity field of an advection
 #diffusion equation. See documentation of the benchmark for more details).
 print(list_benchmarks())
-noise_stdev = 1 #1e-1
+noise_stdev = 1  # 1e-1
 inv_benchmark = setup_benchmark(
     "advection_diffusion_kle_inversion", kle_nvars=3,
     noise_stdev=noise_stdev, nobs=5, kle_length_scale=0.5)
-print(inv_benchmark.keys())
+print(inv_benchmark)
 
 #%%
 #The following plots the modes of the KLE
@@ -167,6 +167,7 @@ if savefig:
 #the drastic increase in computational cost. Warning: using the numerical model
 #will take many minutes. The plots in the figure, generated from
 #left to right are: main effect, largest Sobol indices and total effect indices.
+
 sa_result = run_sensitivity_analysis(
     "surrogate_sobol", approx, inv_benchmark.variable)
 # sa_result = run_sensitivity_analysis(
@@ -250,7 +251,7 @@ for step in range(ndesign):
     oed_results.append(results_step)
 selected_candidates = design_candidates[:, np.hstack(oed_results)]
 print(selected_candidates)
-ax.plot(design_candidates[0, :], design_candidates[1, :], "rs")
+ax.plot(design_candidates[0, :], design_candidates[1, :], "rs", ms=16)
 ax.plot(selected_candidates[0, :], selected_candidates[1, :], "ko")
 if savefig:
     plt.savefig("oed-selected-design.pdf")
@@ -294,12 +295,11 @@ model = WorkTrackingModel(
 #each of our models. We use samples from the posterior. But uncommenting
 #the code below will use samples from the prior.
 npilot_samples = 20
-generate_samples = inv_benchmark.variable.rvs # for sampling from prior
-# generate_samples = post_samples 
+generate_samples = inv_benchmark.variable.rvs  # for sampling from prior
+# generate_samples = post_samples
 cov = multifidelity.estimate_model_ensemble_covariance(
     npilot_samples, generate_samples, model,
     fwd_benchmark.model_ensemble.nmodels)[0]
-print(cov)
 
 #%%
 #By using a WorkTrackingModel we can extract the median costs
@@ -320,56 +320,50 @@ multifidelity.plot_correlation_matrix(
     multifidelity.get_correlation_from_covariance(cov), ax=axs[0])
 multifidelity.plot_model_costs(model_costs, ax=axs[1])
 axs[0].set_title(mathrm_label("Model covariances"))
-axs[1].set_title(mathrm_label("Relative model costs"))
+_ = axs[1].set_title(mathrm_label("Relative model costs"))
 
 #%%
-#Now find the best multi-fidelity estimator among all available option
+#Now find the best multi-fidelity estimator among all available options
 #Note, the exact predicted variance will change from run to run even with the
 #same seed because the computational time measured will change slightly
 #for each run
-best_est, best_model_indices = (
-    multifidelity.get_best_models_for_acv_estimator(
-        "acvgmfb", cov, model_costs, inv_benchmark.variable, 1e2, max_nmodels=3,
-        init_kwargs={"tree_depth": 4}))
-target_cost = 1000
+stat = multifidelity.multioutput_stats["mean"](1)
+stat.set_pilot_quantities(cov)
+
+best_est = multifidelity.get_estimator(
+    "gmf", stat, model_costs, tree_depth=4, allow_failures=True,
+    max_nmodels=4)
+
+target_cost = 1e2
 best_est.allocate_samples(target_cost)
-print("Predicted variance", best_est.optimized_variance)
+print("Predicted variance",
+      best_est._covariance_from_npartition_samples(
+          best_est._rounded_npartition_samples))
 
 #%%
 #Now we can plot the relative performance of the single and multi-fidelity
 #estimates of the mean before requiring any additional model evaluations
-hf_cov, hf_cost = cov[:1, :1], model_costs[:1]
-estimators = [
-    multifidelity.get_estimator(
-        "mc", hf_cov, hf_cost, inv_benchmark.variable),
-    best_est]
-target_costs = np.array([1e1, 1e2, 1e3, 1e4], dtype=int)
-optimized_estimators = multifidelity.compare_estimator_variances(
-    target_costs, estimators)
-est_labels = mathrm_labels(["MC", "ACV"])
 fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
-multifidelity.plot_estimator_variances(
-    optimized_estimators, est_labels, axs[0],
-    ylabel=mathrm_label("Relative Estimator Variance"))
-axs[0].set_xlim(target_costs.min(), target_costs.max())
-nmodels = cov.shape[0]
+multifidelity.plot_estimator_variance_reductions([best_est], ["Best"], axs[0])
 model_labels = [
-    r"$f_{%d}$" % ii for ii in np.arange(nmodels)[best_model_indices]]
-multifidelity.plot_acv_sample_allocation_comparison(
-    optimized_estimators[1], model_labels, axs[1])
+    r"$f_{%d}$" % ii for ii in np.arange(fwd_benchmark.model_ensemble.nmodels)]
+multifidelity.plot_estimator_sample_allocation_comparison(
+    [best_est], model_labels, axs[1])
 if savefig:
     plt.savefig("acv-variance-reduction.pdf")
 
 #%%
 #It is clear that the multi-fidelity estimator will be more computationally
-#efficient for multiple computational budgets (target costs). Once the user
+#efficient. Once the user
 #is ready to actually estimate the mean QoI they can use
-target_cost = 10
-best_est.allocate_samples(target_cost)
-best_model_ensemble = ModelEnsemble(
-    [fwd_benchmark.model_ensemble.functions[ii] for ii in best_model_indices])
-samples, values = best_est.generate_data(best_model_ensemble)
-mean = best_est(values)
+print(fwd_benchmark)
+samples_per_model = best_est.generate_samples_per_model(
+    fwd_benchmark.variable.rvs)
+best_models = [fwd_benchmark.model_ensemble.functions[idx] for
+               idx in best_est._best_model_indices]
+values_per_model = [
+    fun(samples) for fun, samples in zip(best_models, samples_per_model)]
+mean = best_est(values_per_model)
 print("Mean QoI", mean)
 
 plt.show()
@@ -377,4 +371,4 @@ plt.show()
 #%%
 #References
 #^^^^^^^^^^
-#.. [PYAPPROX2022] `Jakeman J.D., PyApprox: Enabling efficient model analysis. (2022) <https://www.osti.gov/biblio/1879614>`_
+#.. [PYAPPROX2023] `Jakeman J.D., PyApprox: A software package for sensitivity analysis, Bayesian inference, optimal experimental design, and multi-fidelity uncertainty quantification and surrogate modeling. (2023) <https://doi.org/10.1016/j.envsoft.2023.105825>`_

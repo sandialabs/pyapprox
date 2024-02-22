@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Theoretical Tutorials &mdash; PyApprox 1.0.2 documentation</title>
+  <title>Theoretical Tutorials &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -68,8 +68,10 @@
 <li class="toctree-l3"><a class="reference internal" href="inference/plot_push_forward_based_inference.html">Push Forward Based Inference</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#experimental-design">Experimental Design</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#surrogates">Surrogates</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="surrogates/plot_tensor_product_interpolation.html">Tensor-product Barycentric Interpolation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="surrogates/plot_univariate_interpolation.html">Univariate Interpolation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="surrogates/plot_tensor_product_interpolation.html">Tensor-product Interpolation</a></li>
 <li class="toctree-l3"><a class="reference internal" href="surrogates/plot_sparse_grids.html">Sparse Grids</a></li>
 <li class="toctree-l3"><a class="reference internal" href="surrogates/plot_adaptive_leja_interpolation.html">Adaptive Leja Sequences</a></li>
 <li class="toctree-l3"><a class="reference internal" href="surrogates/plot_gaussian_processes.html">Gaussian processes</a></li>
@@ -77,11 +79,18 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#multi-fidelity-methods">Multi-Fidelity Methods</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
-<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
-<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_approximate_control_variate_monte_carlo.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_multioutput_monte_carlo.html">Monte Carlo Quadrature: Beyond Mean Estimation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_control_variate_monte_carlo.html">Two Model Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_approximate_control_variates.html">Two model Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_many_model_acv.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/acv_covariances.html">Delta-Based Covariance Formulas For Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_allocation_matrices.html">Approximate Control Variate Allocation Matrices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
-<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_pacv.html">Parametrically Defined Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_multioutput_acv.html">Multioutput Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_pilot_studies.html">Pilot Studies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_ensemble_selection.html">Model Ensemble Selection</a></li>
 <li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_multilevel_blue.html">Multilevel Best Linear Unbiased estimators (MLBLUE)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_multiindex_collocation.html">Multi-level and Multi-index Collocation</a></li>
 <li class="toctree-l3"><a class="reference internal" href="multi_fidelity/plot_multifidelity_gp.html">Multifidelity Gaussian processes</a></li>
@@ -152,11 +161,18 @@
 </div></div><div class="toctree-wrapper compound">
 </div>
 </section>
+<section id="experimental-design">
+<h2>Experimental Design<a class="headerlink" href="#experimental-design" title="Permalink to this heading"></a></h2>
+<p>The next release will contain a gallery of foundational tutorials on experimental design</p>
+<div class="sphx-glr-thumbnails"></div></section>
 <section id="surrogates">
 <h2>Surrogates<a class="headerlink" href="#surrogates" title="Permalink to this heading"></a></h2>
-<div class="sphx-glr-thumbnails"><div class="sphx-glr-thumbcontainer" tooltip="Generally speaking surrogates are built using a &quot;small&quot; number of model simulations and are the..."><img alt="" src="../_images/sphx_glr_plot_tensor_product_interpolation_thumb.png" />
-<p><a class="reference internal" href="surrogates/plot_tensor_product_interpolation.html#sphx-glr-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"><span class="std std-ref">Tensor-product Barycentric Interpolation</span></a></p>
-  <div class="sphx-glr-thumbnail-title">Tensor-product Barycentric Interpolation</div>
+<div class="sphx-glr-thumbnails"><div class="sphx-glr-thumbcontainer" tooltip="This tutorial will present methods to approximate univariate functions \hat{f}_{\alpha}:\reals\..."><img alt="" src="../_images/sphx_glr_plot_univariate_interpolation_thumb.png" />
+<p><a class="reference internal" href="surrogates/plot_univariate_interpolation.html#sphx-glr-auto-tutorials-surrogates-plot-univariate-interpolation-py"><span class="std std-ref">Univariate Interpolation</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Univariate Interpolation</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Generally speaking surrogates are built using a &quot;small&quot; number of model simulations and are the..."><img alt="" src="../_images/sphx_glr_plot_tensor_product_interpolation_thumb.png" />
+<p><a class="reference internal" href="surrogates/plot_tensor_product_interpolation.html#sphx-glr-auto-tutorials-surrogates-plot-tensor-product-interpolation-py"><span class="std std-ref">Tensor-product Interpolation</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Tensor-product Interpolation</div>
 </div><div class="sphx-glr-thumbcontainer" tooltip="Sparse grids approximate a model (function) f_\alpha with D inputs z=[z_1,\ldots,z_D]^\top as a..."><img alt="" src="../_images/sphx_glr_plot_sparse_grids_thumb.png" />
 <p><a class="reference internal" href="surrogates/plot_sparse_grids.html#sphx-glr-auto-tutorials-surrogates-plot-sparse-grids-py"><span class="std std-ref">Sparse Grids</span></a></p>
   <div class="sphx-glr-thumbnail-title">Sparse Grids</div>
@@ -180,24 +196,45 @@
 <p><a class="reference external" href="https://doi.org/10.1137/130929461">Narayan, A. and Gittelson, C. and Xiu, D. A Stochastic Collocation Algorithm with Multifidelity Models. SIAM Journal on Scientific Computing 36(2), A495-A521, 2014.</a></p>
 </div>
 </div>
-<div class="sphx-glr-thumbnails"><div class="sphx-glr-thumbcontainer" tooltip="We can approximate the integral Q_\alpha using Monte Carlo quadrature by drawing N random sampl..."><img alt="" src="../_images/sphx_glr_plot_monte_carlo_thumb.png" />
+<div class="sphx-glr-thumbnails"><div class="sphx-glr-thumbcontainer" tooltip="using Monte Carlo quadrature applied to an approximation f_\alpha of the function f, e.g. a rep..."><img alt="" src="../_images/sphx_glr_plot_monte_carlo_thumb.png" />
 <p><a class="reference internal" href="multi_fidelity/plot_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-monte-carlo-py"><span class="std std-ref">Monte Carlo Quadrature</span></a></p>
   <div class="sphx-glr-thumbnail-title">Monte Carlo Quadrature</div>
-</div><div class="sphx-glr-thumbcontainer" tooltip="Let us introduce a model Q_\V{\kappa} with known mean \mu_{\V{\kappa}}. We can use this model t..."><img alt="" src="../_images/sphx_glr_plot_control_variate_monte_carlo_thumb.png" />
-<p><a class="reference internal" href="multi_fidelity/plot_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-control-variate-monte-carlo-py"><span class="std std-ref">Control Variate Monte Carlo</span></a></p>
-  <div class="sphx-glr-thumbnail-title">Control Variate Monte Carlo</div>
-</div><div class="sphx-glr-thumbcontainer" tooltip="CVMC is often not useful for practical analysis of numerical models because typically the mean ..."><img alt="" src="../_images/sphx_glr_plot_approximate_control_variate_monte_carlo_thumb.png" />
-<p><a class="reference internal" href="multi_fidelity/plot_approximate_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-approximate-control-variate-monte-carlo-py"><span class="std std-ref">Approximate Control Variate Monte Carlo</span></a></p>
+</div><div class="sphx-glr-thumbcontainer" tooltip="In this tutorial we will discuss using MC to estimate the mean \mat{\mu} and covariance \mat{\S..."><img alt="" src="../_images/sphx_glr_plot_multioutput_monte_carlo_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_multioutput_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multioutput-monte-carlo-py"><span class="std std-ref">Monte Carlo Quadrature: Beyond Mean Estimation</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Monte Carlo Quadrature: Beyond Mean Estimation</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Let us introduce a model f_\kappa with known statistic Q_{\kappa}. We can use this model to est..."><img alt="" src="../_images/sphx_glr_plot_control_variate_monte_carlo_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-control-variate-monte-carlo-py"><span class="std std-ref">Two Model Control Variate Monte Carlo</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Two Model Control Variate Monte Carlo</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="CVMC is often not useful for practical analysis of numerical models because typically the stati..."><img alt="" src="../_images/sphx_glr_plot_approximate_control_variates_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_approximate_control_variates.html#sphx-glr-auto-tutorials-multi-fidelity-plot-approximate-control-variates-py"><span class="std std-ref">Two model Approximate Control Variate Monte Carlo</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Two model Approximate Control Variate Monte Carlo</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="The approximate control variate estimator of a vector-valued statistic \mat{Q}_0\in\reals^{S} t..."><img alt="" src="../_images/sphx_glr_plot_many_model_acv_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_many_model_acv.html#sphx-glr-auto-tutorials-multi-fidelity-plot-many-model-acv-py"><span class="std std-ref">Approximate Control Variate Monte Carlo</span></a></p>
   <div class="sphx-glr-thumbnail-title">Approximate Control Variate Monte Carlo</div>
-</div><div class="sphx-glr-thumbcontainer" tooltip="Two Model MLMC -------------- The two model MLMC estimator is very similar to the CVMC estimato..."><img alt="" src="../_images/sphx_glr_plot_multi_level_monte_carlo_thumb.png" />
+</div><div class="sphx-glr-thumbcontainer" tooltip="These covariancesdepend on how samples are allocated to the sets \rvset_\alpha,\rvset_\alpha^, ..."><img alt="" src="../_images/sphx_glr_acv_covariances_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/acv_covariances.html#sphx-glr-auto-tutorials-multi-fidelity-acv-covariances-py"><span class="std std-ref">Delta-Based Covariance Formulas For Approximate Control Variates</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Delta-Based Covariance Formulas For Approximate Control Variates</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Optimizing and constructing PACV estimators requires estimating \covar{Q_0}{\Delta} and \covar{..."><img alt="" src="../_images/sphx_glr_plot_allocation_matrices_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_allocation_matrices.html#sphx-glr-auto-tutorials-multi-fidelity-plot-allocation-matrices-py"><span class="std std-ref">Approximate Control Variate Allocation Matrices</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Approximate Control Variate Allocation Matrices</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Two Model MLMC -------------- The two model MLMC estimator is based upon the observations that ..."><img alt="" src="../_images/sphx_glr_plot_multi_level_monte_carlo_thumb.png" />
 <p><a class="reference internal" href="multi_fidelity/plot_multi_level_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py"><span class="std std-ref">Multi-level Monte Carlo</span></a></p>
   <div class="sphx-glr-thumbnail-title">Multi-level Monte Carlo</div>
-</div><div class="sphx-glr-thumbcontainer" tooltip="Many Model MFMC ---------------"><img alt="" src="../_images/sphx_glr_plot_multi_fidelity_monte_carlo_thumb.png" />
+</div><div class="sphx-glr-thumbcontainer" tooltip="To derive the MFMC estimator first recall the two model ACV estimator"><img alt="" src="../_images/sphx_glr_plot_multi_fidelity_monte_carlo_thumb.png" />
 <p><a class="reference internal" href="multi_fidelity/plot_multi_fidelity_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multi-fidelity-monte-carlo-py"><span class="std std-ref">Multi-fidelity Monte Carlo</span></a></p>
   <div class="sphx-glr-thumbnail-title">Multi-fidelity Monte Carlo</div>
-</div><div class="sphx-glr-thumbcontainer" tooltip="Control variate Monte Carlo can be easily extended and applied to more than two models. Conside..."><img alt="" src="../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_thumb.png" />
-<p><a class="reference internal" href="multi_fidelity/plot_many_model_approximate_control_variate_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-many-model-approximate-control-variate-monte-carlo-py"><span class="std std-ref">Generalized Approximate Control Variate Monte Carlo</span></a></p>
-  <div class="sphx-glr-thumbnail-title">Generalized Approximate Control Variate Monte Carlo</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="sphx_glr_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py) demonstrates that MF..."><img alt="" src="../_images/sphx_glr_plot_pacv_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_pacv.html#sphx-glr-auto-tutorials-multi-fidelity-plot-pacv-py"><span class="std std-ref">Parametrically Defined Approximate Control Variates</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Parametrically Defined Approximate Control Variates</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="This tutorial demonstrates how computing statistics for multiple outputs simultaneoulsy can imp..."><img alt="" src="../_images/sphx_glr_plot_multioutput_acv_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_multioutput_acv.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multioutput-acv-py"><span class="std std-ref">Multioutput Approximate Control Variates</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Multioutput Approximate Control Variates</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="This tutorial presents how to use a pilot-study to compute the statistics needed to compute a M..."><img alt="" src="../_images/sphx_glr_plot_pilot_studies_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_pilot_studies.html#sphx-glr-auto-tutorials-multi-fidelity-plot-pilot-studies-py"><span class="std std-ref">Pilot Studies</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Pilot Studies</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="The following tutorial shows how to choose the best subset of models."><img alt="" src="../_images/sphx_glr_plot_ensemble_selection_thumb.png" />
+<p><a class="reference internal" href="multi_fidelity/plot_ensemble_selection.html#sphx-glr-auto-tutorials-multi-fidelity-plot-ensemble-selection-py"><span class="std std-ref">Model Ensemble Selection</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Model Ensemble Selection</div>
 </div><div class="sphx-glr-thumbcontainer" tooltip="   * - .. _MLBLUE-sample-allocation:"><img alt="" src="../_images/sphx_glr_plot_multilevel_blue_thumb.png" />
 <p><a class="reference internal" href="multi_fidelity/plot_multilevel_blue.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multilevel-blue-py"><span class="std std-ref">Multilevel Best Linear Unbiased estimators (MLBLUE)</span></a></p>
   <div class="sphx-glr-thumbnail-title">Multilevel Best Linear Unbiased estimators (MLBLUE)</div>

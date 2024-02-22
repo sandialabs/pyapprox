@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Model interfacing &mdash; PyApprox 1.0.2 documentation</title>
+  <title>Model interfacing &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -62,6 +62,7 @@
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Model interfacing</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#timing-function-evaluations">Timing function evaluations</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#evaluating-multiple-models">Evaluating multiple models</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#evaluating-non-python-models">Evaluating non-python models</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#evaluating-functions-at-multiple-samples-in-parallel">Evaluating functions at multiple samples in parallel</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#note">Note</a></li>
 </ul>
@@ -124,7 +125,7 @@ to download the full example code</p>
 <p>This tutorial demonstrats how to use model wrappers to time function calls and evaluate a function at multiple samples in parallel.</p>
 <section id="timing-function-evaluations">
 <h2>Timing function evaluations<a class="headerlink" href="#timing-function-evaluations" title="Permalink to this heading"></a></h2>
-<p>It is often useful to be able to track the time needed to evaluate a function. We can track this using the <a class="reference internal" href="../api/pyapprox.interface.TimerModel.html#pyapprox.interface.TimerModel" title="pyapprox.interface.wrappers.TimerModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.interface.wrappers.TimerModel</span></code></a> and <a class="reference internal" href="../api/pyapprox.interface.WorkTrackingModel.html#pyapprox.interface.WorkTrackingModel" title="pyapprox.interface.wrappers.WorkTrackingModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.interface.wrappers.WorkTrackingModel</span></code></a> objects which are designed to work together. The former times each evaluation of a function that returns output of shape (nsamples,nqoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,nqoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsamples,nqoi) of the user function.</p>
+<p>It is often useful to be able to track the time needed to evaluate a function. We can track this using the <a class="reference internal" href="../api/pyapprox.interface.TimerModel.html#pyapprox.interface.TimerModel" title="pyapprox.interface.wrappers.TimerModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimerModel</span></code></a> and <a class="reference internal" href="../api/pyapprox.interface.WorkTrackingModel.html#pyapprox.interface.WorkTrackingModel" title="pyapprox.interface.wrappers.WorkTrackingModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">WorkTrackingModel</span></code></a> objects which are designed to work together. The former times each evaluation of a function that returns output of shape (nsamples,nqoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,nqoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsamples,nqoi) of the user function.</p>
 <p>Lets use the class with a function that takes a random amount of time. We will use the previous function but add a random pause between 0 and .1 seconds. Lets import some functions and define a multi-variate random variable</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">fun_pause_1</span><span class="p">(</span><span class="n">sample</span><span class="p">):</span>
     <span class="k">assert</span> <span class="n">sample</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span>
@@ -140,6 +141,7 @@ to download the full example code</p>
 </div>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">tempfile</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
 
@@ -147,6 +149,8 @@ to download the full example code</p>
 <span class="kn">from</span> <span class="nn">pyapprox.interface.wrappers</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">TimerModel</span><span class="p">,</span> <span class="n">WorkTrackingModel</span><span class="p">,</span> <span class="n">PoolModel</span><span class="p">,</span> <span class="n">ModelEnsemble</span>
 <span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.interface.async_model</span> <span class="kn">import</span> <span class="n">AynchModel</span>
+<span class="kn">from</span> <span class="nn">pyapprox.interface.tests.test_async_model</span> <span class="kn">import</span> <span class="n">get_file_io_model</span>
 
 <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">)]</span>
 <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
@@ -160,12 +164,12 @@ to download the full example code</p>
 <span class="n">values</span> <span class="o">=</span> <span class="n">worktracking_fun</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>The <a class="reference internal" href="../api/pyapprox.interface.WorkTrackingModel.html#pyapprox.interface.WorkTrackingModel" title="pyapprox.interface.wrappers.WorkTrackingModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.interface.wrappers.WorkTrackingModel</span></code></a> has an attribute <code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.interface.wrappers.WorkTracker</span></code> which stores the execution time of each function evaluation as a dictionary. The key corresponds is the model id. For this example the id will always be the same, but the id can vary and this is useful when evaluating mutiple models, e.g. when using multi-fidelity methods. To print the dictionary use</p>
+<p>The <a class="reference internal" href="../api/pyapprox.interface.WorkTrackingModel.html#pyapprox.interface.WorkTrackingModel" title="pyapprox.interface.wrappers.WorkTrackingModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">WorkTrackingModel</span></code></a> has an attribute <code class="xref py py-class docutils literal notranslate"><span class="pre">WorkTracker</span></code> which stores the execution time of each function evaluation as a dictionary. The key corresponds is the model id. For this example the id will always be the same, but the id can vary and this is useful when evaluating mutiple models, e.g. when using multi-fidelity methods. To print the dictionary use</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">costs</span> <span class="o">=</span> <span class="n">worktracking_fun</span><span class="o">.</span><span class="n">work_tracker</span><span class="o">.</span><span class="n">costs</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">costs</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.048851966857910156, 0.030686140060424805, 0.04111194610595703, 0.04323410987854004, 0.03814506530761719, 0.05255603790283203, 0.0352940559387207, 0.03332686424255371, 0.027848005294799805, 0.008494138717651367]}
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.05384230613708496, 0.03567171096801758, 0.046114206314086914, 0.04846787452697754, 0.03335690498352051, 0.05100297927856445, 0.04039502143859863, 0.02930903434753418, 0.028896093368530273, 0.010175943374633789]}
 </pre></div>
 </div>
 <p>We can also call the work tracker to query the median cost for a model with a given id. The default id is 0.</p>
@@ -173,7 +177,7 @@ to download the full example code</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">worktracking_fun</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">(</span><span class="n">fun_id</span><span class="p">))</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.03671956]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.03803337]
 </pre></div>
 </div>
 </section>
@@ -192,7 +196,7 @@ to download the full example code</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">__util</span> <span class="kn">import</span> <span class="n">pyapprox_fun_2</span>
 </pre></div>
 </div>
-<p>Now using <a class="reference internal" href="../api/pyapprox.interface.ModelEnsemble.html#pyapprox.interface.ModelEnsemble" title="pyapprox.interface.ModelEnsemble"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.interface.ModelEnsemble</span></code></a> we can create a function which takes the random samples plus an additional configure variable which defines which model to evaluate. Lets use half the samples to evaluate the first model and evaluate the second model at the remaining samples</p>
+<p>Now using <a class="reference internal" href="../api/pyapprox.interface.ModelEnsemble.html#pyapprox.interface.ModelEnsemble" title="pyapprox.interface.ModelEnsemble"><code class="xref py py-class docutils literal notranslate"><span class="pre">ModelEnsemble</span></code></a> we can create a function which takes the random samples plus an additional configure variable which defines which model to evaluate. Lets use half the samples to evaluate the first model and evaluate the second model at the remaining samples</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model_ensemble</span> <span class="o">=</span> <span class="n">ModelEnsemble</span><span class="p">([</span><span class="n">pyapprox_fun_1</span><span class="p">,</span> <span class="n">pyapprox_fun_2</span><span class="p">])</span>
 <span class="n">timer_fun_ensemble</span> <span class="o">=</span> <span class="n">TimerModel</span><span class="p">(</span><span class="n">model_ensemble</span><span class="p">)</span>
 <span class="n">worktracking_fun_ensemble</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span>
@@ -221,15 +225,36 @@ WorkTrackingModel. PyApprox assumes that the configure variables are the last ro
 <span class="nb">print</span><span class="p">(</span><span class="n">worktracking_fun_ensemble</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">(</span><span class="n">query_fun_ids</span><span class="p">))</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.04669690132141113, 0.04035592079162598, 0.0060231685638427734, 0.040384769439697266, 0.005959987640380859], (1.0,): [0.06752824783325195, 0.07092499732971191, 0.0667259693145752, 0.06674790382385254, 0.0886991024017334]}
-[0.04035592 0.06752825]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0.0,): [0.04745125770568848, 0.03804421424865723, 0.00721287727355957, 0.03682303428649902, 0.0058078765869140625], (1.0,): [0.06682920455932617, 0.0755620002746582, 0.06383419036865234, 0.07273602485656738, 0.08753705024719238]}
+[0.03682303 0.07273602]
 </pre></div>
 </div>
 <p>As expected there are 5 samples tracked for each model and the median evaluation time of the second function is about twice as large as for the first function.</p>
 </section>
+<section id="evaluating-non-python-models">
+<h2>Evaluating non-python models<a class="headerlink" href="#evaluating-non-python-models" title="Permalink to this heading"></a></h2>
+<p>The <a class="reference internal" href="../api/pyapprox.interface.AynchModel.html#pyapprox.interface.AynchModel" title="pyapprox.interface.async_model.AynchModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">AynchModel</span></code></a> can be used to run models that may not be written in Python, but can be evaluated from the command line via a shell script. The <a class="reference internal" href="../api/pyapprox.interface.AynchModel.html#pyapprox.interface.AynchModel" title="pyapprox.interface.async_model.AynchModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">AynchModel</span></code></a> creates a file named params.in (the name can be changed by the user) and assumes that the shell script reads in that file and returns the output of the model in a file called results.out (this name can also be changed). Each evaluation of the model is performed in a separate work directory to ensure that no results are overwritten, which is especially important when running the model in parallel. If a list of filenames needed to run the bash script is provided a soft link to each file is created in each work directory. This is extremely useful when running large finite element simulations that may have input files, such as mesh and topography data, with large memory footprints.</p>
+<p>The following creates a model with two inputs and two quantities of interest and evaluates it at three samples. Temporary work directories are created to run the model at each sample. The directories are automatically deleted, however the user can choose to keep each directory.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">file_io_model</span> <span class="o">=</span> <span class="n">get_file_io_model</span><span class="p">(</span><span class="mf">0.02</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">tmp_dir</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">TemporaryDirectory</span><span class="p">()</span>
+<span class="n">asynch_model</span> <span class="o">=</span> <span class="n">AynchModel</span><span class="p">(</span>
+    <span class="n">file_io_model</span><span class="o">.</span><span class="n">shell_command</span><span class="p">,</span> <span class="n">workdir_basename</span><span class="o">=</span><span class="n">tmp_dir</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+    <span class="n">save_workdirs</span><span class="o">=</span><span class="s2">&quot;no&quot;</span><span class="p">)</span>
+<span class="n">asynch_variable</span> <span class="o">=</span> <span class="n">IndependentMarginalsVariable</span><span class="p">([</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span><span class="o">*</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">samples</span> <span class="o">=</span> <span class="n">asynch_variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">asynch_model</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[[0.69414315 0.13057696]
+ [0.89572623 1.03101536]
+ [0.19839214 0.12735394]]
+</pre></div>
+</div>
+</section>
 <section id="evaluating-functions-at-multiple-samples-in-parallel">
 <h2>Evaluating functions at multiple samples in parallel<a class="headerlink" href="#evaluating-functions-at-multiple-samples-in-parallel" title="Permalink to this heading"></a></h2>
-<p>For expensive models it is often useful to be able to evaluate each model concurrently. This can be achieved using <a class="reference internal" href="../api/pyapprox.interface.PoolModel.html#pyapprox.interface.PoolModel" title="pyapprox.interface.wrappers.PoolModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.interface.wrappers.PoolModel</span></code></a>. Note this function is not intended for use with distributed memory systems, but rather is intended to use all the threads of a personal computer or compute node. See <a class="reference internal" href="../api/pyapprox.interface.AynchModel.html#pyapprox.interface.AynchModel" title="pyapprox.interface.async_model.AynchModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.interface.async_model.AynchModel</span></code></a> if you are interested in running multiple simulations in parallel on a distributed memory system.</p>
+<p>For expensive models it is often useful to be able to evaluate each model concurrently. This can be achieved using <a class="reference internal" href="../api/pyapprox.interface.PoolModel.html#pyapprox.interface.PoolModel" title="pyapprox.interface.wrappers.PoolModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">PoolModel</span></code></a>. Note this function is not intended for use with distributed memory systems, but rather is intended to use all the threads of a personal computer or compute node. See the documention of the , max_eval_concurrency keyword argument to the initization function for <a class="reference internal" href="../api/pyapprox.interface.AynchModel.html#pyapprox.interface.AynchModel" title="pyapprox.interface.async_model.AynchModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">AynchModel</span></code></a> if you are interested in running multiple simulations in parallel on a distributed memory system.</p>
 <p>PoolModel cannot be used to wrap WorkTrackingModel. However it can still
 be used with WorkTrackingModel using the sequence of wrappers below.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">max_eval_concurrency</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># set higher</span>
@@ -238,7 +263,7 @@ be used with WorkTrackingModel using the sequence of wrappers below.</p>
     <span class="n">timer_fun_ensemble</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">,</span> <span class="n">assert_omp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="n">worktracking_fun_ensemble</span><span class="o">.</span><span class="n">work_tracker</span><span class="o">.</span><span class="n">costs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
 <span class="n">worktracking_fun_ensemble</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span>
-    <span class="n">pool_model</span><span class="p">,</span> <span class="n">num_config_vars</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">pool_model</span><span class="p">,</span> <span class="n">num_config_vars</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">enforce_timer_model</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 <span class="c1"># create more samples to notice improvement in wall time</span>
 <span class="n">nsamples</span> <span class="o">=</span> <span class="mi">10</span>
@@ -264,9 +289,8 @@ be used with WorkTrackingModel using the sequence of wrappers below.</p>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;With </span><span class="si">{</span><span class="n">max_eval_concurrency</span><span class="si">}</span><span class="s1"> threads that took </span><span class="si">{</span><span class="n">t1</span><span class="o">-</span><span class="n">t0</span><span class="si">}</span><span class="s1"> seconds&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>With 1 threads that took 0.4701979160308838 seconds
-Warning set OMP_NUM_THREADS=1 for best performance
-With 4 threads that took 1.2375938892364502 seconds
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>With 1 threads that took 0.5262501239776611 seconds
+With 4 threads that took 2.020951986312866 seconds
 </pre></div>
 </div>
 <p>Lets print a summary of the costs to make sure individual function evaluation
@@ -276,18 +300,25 @@ costs are still being recorded correctly</p>
 </div>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>WorkTracker Cost Summary
 Funtion ID Median Cost
-(0.0,)     0.012865543365478516
-(1.0,)     0.07081997394561768
+(0.0,)     0.03803455829620361
+(1.0,)     0.07765007019042969
 </pre></div>
 </div>
 </section>
 <section id="note">
 <h2>Note<a class="headerlink" href="#note" title="Permalink to this heading"></a></h2>
 <p>PoolModel cannot be used with lambda functions. You will get error similar to pickle.PicklingError: Can’t pickle &lt;function &lt;lambda&gt; at 0x12b4e6440&gt;: attribute lookup &lt;lambda&gt; on __main__ failed</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># sphinx_gallery_thumbnail_path = &#39;./figures/cantilever-beam.png&#39;</span>
+<p>When because the benchmark fun is run using multiprocessing.Pool
+The .py script of this tutorial cannot be run with max_eval_concurrency &gt; 1
+via the shell command using python plot_pde_convergence.py because Pool
+must be called inside</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
 </pre></div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  3.076 seconds)</p>
+<p>sphinx_gallery_thumbnail_path = ‘./figures/cantilever-beam.png’
+.. gallery thumbnail will say broken if no plots are made in this file so
+.. specify a default file as above. Must start with a #</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  9.004 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-interface-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/b46e5c7eeabdb0d4d28ef61aca452c9d/plot_interface.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_interface.py</span></code></a></p>

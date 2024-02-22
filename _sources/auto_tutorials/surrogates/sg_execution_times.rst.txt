@@ -6,14 +6,16 @@
 
 Computation times
 =================
-**00:36.943** total execution time for **auto_tutorials_surrogates** files:
+**00:38.594** total execution time for **auto_tutorials_surrogates** files:
 
 +---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_surrogates_plot_sparse_grids.py` (``plot_sparse_grids.py``)                                 | 00:32.339 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_surrogates_plot_sparse_grids.py` (``plot_sparse_grids.py``)                                 | 00:33.048 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_surrogates_plot_tensor_product_interpolation.py` (``plot_tensor_product_interpolation.py``) | 00:01.977 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_surrogates_plot_tensor_product_interpolation.py` (``plot_tensor_product_interpolation.py``) | 00:02.055 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_surrogates_plot_gaussian_processes.py` (``plot_gaussian_processes.py``)                     | 00:01.347 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_surrogates_plot_univariate_interpolation.py` (``plot_univariate_interpolation.py``)         | 00:01.680 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py` (``plot_adaptive_leja_interpolation.py``)   | 00:01.280 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_surrogates_plot_adaptive_leja_interpolation.py` (``plot_adaptive_leja_interpolation.py``)   | 00:00.998 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_surrogates_plot_gaussian_processes.py` (``plot_gaussian_processes.py``)                     | 00:00.813 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------+-----------+--------+

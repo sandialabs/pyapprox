@@ -60,7 +60,7 @@ X, Y, Z = get_meshgrid_function_data_from_variable(
 
 #%%
 #Here we will create 2D subplots, a contour plot and a surface plot
-from pyapprox.util.configure_plots import plt
+import matplotlib.pyplot as plt
 import numpy as np
 ncontours = 20
 fig = plt.figure(figsize=(2*8, 6))

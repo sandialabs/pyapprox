@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.util.utilities &mdash; PyApprox 1.0.2 documentation</title>
+  <title>pyapprox.util.utilities &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -1033,7 +1033,8 @@
 
 <span class="k">def</span> <span class="nf">_check_gradients</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span> <span class="n">zz</span><span class="p">,</span> <span class="n">direction</span><span class="p">,</span> <span class="n">plot</span><span class="p">,</span> <span class="n">disp</span><span class="p">,</span> <span class="n">rel</span><span class="p">,</span> <span class="n">fd_eps</span><span class="p">):</span>
     <span class="n">function_val</span><span class="p">,</span> <span class="n">directional_derivative</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">zz</span><span class="p">,</span> <span class="n">direction</span><span class="p">)</span>
-    <span class="n">function_val</span> <span class="o">=</span> <span class="n">function_val</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function_val</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">function_val</span> <span class="o">=</span> <span class="n">function_val</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
 
     <span class="k">if</span> <span class="n">fd_eps</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">fd_eps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logspace</span><span class="p">(</span><span class="o">-</span><span class="mi">13</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">14</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
@@ -1055,12 +1056,13 @@
         <span class="c1"># perturbed_function_val = fun(zz_perturbed)</span>
         <span class="c1"># add jac=False so that exact gradient is not always computed</span>
         <span class="n">perturbed_function_val</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">zz_perturbed</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">perturbed_function_val</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">perturbed_function_val</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
             <span class="n">perturbed_function_val</span> <span class="o">=</span> <span class="n">perturbed_function_val</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
         <span class="c1"># print(inspect.getfullargspec(fun).args)</span>
-        <span class="c1"># print(perturbed_function_val.shape, function_val.shape, fd_eps[ii])</span>
+        <span class="c1"># print(perturbed_function_val, function_val, fd_eps[ii])</span>
         <span class="n">fd_directional_derivative</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="n">perturbed_function_val</span><span class="o">-</span><span class="n">function_val</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span><span class="o">/</span><span class="n">fd_eps</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="n">perturbed_function_val</span><span class="o">-</span><span class="n">function_val</span><span class="p">)</span><span class="o">/</span><span class="n">fd_eps</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+        <span class="c1"># print(fd_directional_derivative)</span>
         <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span>
             <span class="n">fd_directional_derivative</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">directional_derivative</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">-</span>
             <span class="n">directional_derivative</span><span class="p">))</span>
@@ -1206,8 +1208,8 @@
         <span class="n">direction</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">direction</span><span class="p">)</span>
     <span class="k">assert</span> <span class="n">direction</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">direction</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
 
-    <span class="k">return</span> <span class="n">_check_gradients</span><span class="p">(</span><span class="n">fun_wrapper</span><span class="p">,</span> <span class="n">zz</span><span class="p">,</span> <span class="n">direction</span><span class="p">,</span> <span class="n">plot</span><span class="p">,</span> <span class="n">disp</span><span class="p">,</span> <span class="n">rel</span><span class="p">,</span> <span class="n">fd_eps</span><span class="p">)</span></div>
-
+    <span class="k">return</span> <span class="n">_check_gradients</span><span class="p">(</span>
+        <span class="n">fun_wrapper</span><span class="p">,</span> <span class="n">zz</span><span class="p">,</span> <span class="n">direction</span><span class="p">,</span> <span class="n">plot</span><span class="p">,</span> <span class="n">disp</span><span class="p">,</span> <span class="n">rel</span><span class="p">,</span> <span class="n">fd_eps</span><span class="p">)</span></div>
 
 
 <span class="k">def</span> <span class="nf">check_hessian</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span> <span class="n">hessian_matvec</span><span class="p">,</span> <span class="n">zz</span><span class="p">,</span> <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">disp</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">rel</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>

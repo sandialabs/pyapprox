@@ -1,0 +1,6 @@
+plot_estimator_variance_reductions
+==================================
+
+.. currentmodule:: pyapprox.multifidelity
+
+.. autofunction:: plot_estimator_variance_reductions

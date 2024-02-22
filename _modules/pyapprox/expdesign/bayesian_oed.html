@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.expdesign.bayesian_oed &mdash; PyApprox 1.0.2 documentation</title>
+  <title>pyapprox.expdesign.bayesian_oed &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -656,24 +656,6 @@
         <span class="n">in_pred_qois</span><span class="p">,</span> <span class="n">deviation_fun</span><span class="p">,</span> <span class="n">pred_risk_fun</span><span class="p">,</span> <span class="n">data_risk_fun</span><span class="p">,</span>
         <span class="n">noise_samples</span><span class="p">,</span> <span class="n">noise_std</span><span class="p">,</span> <span class="n">active_indices</span><span class="p">,</span> <span class="n">return_all</span><span class="p">):</span>
     <span class="n">nout_samples</span> <span class="o">=</span> <span class="n">out_pred_obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="n">nin_samples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">in_pred_obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">//</span><span class="n">nout_samples</span><span class="p">)</span>
-    <span class="n">nobs</span> <span class="o">=</span> <span class="n">out_pred_obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-
-    <span class="c1"># tmp = in_pred_obs.reshape(nout_samples, nin_samples, nobs)</span>
-    <span class="c1"># inner_log_likelihood_vals = _loglike_fun_from_noiseless_obs(</span>
-    <span class="c1">#     out_pred_obs, tmp, noise_samples,</span>
-    <span class="c1">#     noise_std, active_indices)</span>
-    <span class="c1"># # evidences = _evidences(inner_log_likelihood_vals, in_weights)</span>
-    <span class="c1"># # print(evidences.shape, &#39;e&#39;)</span>
-
-    <span class="c1"># # inner_log_likelihood_vals = log_likelihood_fun(</span>
-    <span class="c1"># #     out_pred_obs, tmp, active_indices)</span>
-    <span class="c1"># evidences, weights = _evidences_and_weights(</span>
-    <span class="c1">#     inner_log_likelihood_vals, in_weights)</span>
-
-    <span class="c1"># # make deviation_fun operate on columns of samples</span>
-    <span class="c1"># # so that it returns a vector of deviations one for each column</span>
-    <span class="c1"># deviations = deviation_fun(in_pred_qois, weights)</span>
 
     <span class="n">out_obs</span> <span class="o">=</span> <span class="n">out_pred_obs</span><span class="p">[:,</span> <span class="n">active_indices</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
     <span class="c1"># print(out_obs.shape, active_indices.shape, noise_samples.shape)</span>
@@ -681,6 +663,8 @@
     <span class="n">deviations</span><span class="p">,</span> <span class="n">evidences</span> <span class="o">=</span> <span class="n">deviation_fun</span><span class="p">(</span>
         <span class="n">out_obs</span><span class="p">,</span> <span class="n">in_pred_obs</span><span class="p">,</span> <span class="n">in_weights</span><span class="p">,</span> <span class="n">active_indices</span><span class="p">,</span> <span class="n">noise_std</span><span class="p">,</span>
         <span class="n">in_pred_qois</span><span class="p">)</span>
+    <span class="c1"># deviation.shape = [nout_quad, nprediction_candidates]</span>
+    <span class="c1"># evidences.shape = [nout_quad, 1]</span>
 
     <span class="c1"># expectation taken with respect to observations</span>
     <span class="c1"># assume always want deviation here, but this can be changed</span>

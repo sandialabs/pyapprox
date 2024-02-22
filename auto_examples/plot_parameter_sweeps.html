@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Parameter Sweeps &mdash; PyApprox 1.0.2 documentation</title>
+  <title>Parameter Sweeps &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -126,23 +126,23 @@ be the cartesian product of the centered truncated intervals of each
 1D variable marginal. For unbounded variables each interval captures 99% of the
 PDF. For bounded variables the true bounds are used (i.e. are not truncated)</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">analysis</span>
-<span class="kn">from</span> <span class="nn">pyapprox.util.configure_plots</span> <span class="kn">import</span> <span class="n">plt</span><span class="p">,</span> <span class="n">mathrm_label</span>
+<span class="kn">from</span> <span class="nn">pyapprox.util.visualization</span> <span class="kn">import</span> <span class="n">plt</span><span class="p">,</span> <span class="n">mathrm_label</span>
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
 <span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;oakley&quot;</span><span class="p">)</span>
-<span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">generate_parameter_sweeps_and_plot_from_variable</span><span class="p">(</span>
+<span class="n">axs</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">generate_parameter_sweeps_and_plot_from_variable</span><span class="p">(</span>
     <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-<span class="n">fig</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Oakely model parameter sweeps&quot;</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">gcf</span><span class="p">()</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Oakely model parameter sweeps&quot;</span><span class="p">))</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
 <img src="../_images/sphx_glr_plot_parameter_sweeps_001.png" srcset="../_images/sphx_glr_plot_parameter_sweeps_001.png" alt="$\mathrm{Oakely\;model\;parameter\;sweeps}$, $\mathrm{QoI\;0}$" class = "sphx-glr-single-img"/><p>Now lets plot parameter sweeps for the Sobol G function</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s2">&quot;sobol_g&quot;</span><span class="p">,</span> <span class="n">nvars</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
-<span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">generate_parameter_sweeps_and_plot_from_variable</span><span class="p">(</span>
+<span class="n">axs</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">generate_parameter_sweeps_and_plot_from_variable</span><span class="p">(</span>
     <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">num_samples_per_sweep</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">num_sweeps</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-<span class="n">fig</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Sobol G model parameter sweeps&quot;</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">gcf</span><span class="p">()</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="n">mathrm_label</span><span class="p">(</span><span class="s2">&quot;Sobol G model parameter sweeps&quot;</span><span class="p">))</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
@@ -151,8 +151,8 @@ PDF. For bounded variables the true bounds are used (i.e. are not truncated)</p>
 </div>
 <p>The Sobol G function is not as smooth as the Oakely function. The former
 has discontinuous first derivatives which can be seen by inspecting their
-prameter sweeps</p>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.194 seconds)</p>
+aprameter sweeps</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.122 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-parameter-sweeps-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/b5e1f81237845ccfb243d5c78f3ba477/plot_parameter_sweeps.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_parameter_sweeps.py</span></code></a></p>

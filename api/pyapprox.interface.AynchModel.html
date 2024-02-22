@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AynchModel &mdash; PyApprox 1.0.2 documentation</title>
+  <title>AynchModel &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -130,7 +130,7 @@ script.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
-<dt><strong>process sample: callable function (default=None)</strong></dt><dd><p>Function that overwrites the basic implementation
+<dt><strong>process_sample: callable function (default=None)</strong></dt><dd><p>Function that overwrites the basic implementation
 which reads the sample in from a file called params_filename.
 This is useful if there are a number of pre-processing steps
 needed by the model before shall command is executed.</p>
@@ -155,10 +155,24 @@ the tmp directories that are created will always be deleted.</p>
 </dd>
 <dt><strong>model_name</strong><span class="classifier">string (default=None)</span></dt><dd><p>A identifier used when printing model evaluation info</p>
 </dd>
-<dt><strong>saved_data_basename</strong><span class="classifier">string (default=None)</span></dt><dd><p>The basename of the file used to store the output data from the 
+<dt><strong>saved_data_basename</strong><span class="classifier">string (default=None)</span></dt><dd><p>The basename of the file used to store the output data from the
 model. A new file is created every time __call__ is exceuted.
 a unique identifier is created based upon the value of evaluation id
 when __call__ is started.</p>
+</dd>
+<dt><strong>link_filenames</strong><span class="classifier">list (default=[])</span></dt><dd><p>List of filenames (strings), including their absolute path that will
+be made available in each workdirectory using soft links</p>
+</dd>
+<dt><strong>max_eval_concurrency</strong><span class="classifier">integer (default=1)</span></dt><dd><p>How many shell commands to execute a synchronously.</p>
+</dd>
+<dt><strong>params_filename</strong><span class="classifier">string (default=’params.in’)</span></dt><dd><p>The name of the file containing the sample realization read in by the
+shell script.</p>
+</dd>
+<dt><strong>results_filename</strong><span class="classifier">string (default=’results.out’)</span></dt><dd><p>The name of the file containing the model output written by the
+shell script.</p>
+</dd>
+<dt><strong>params_file_header</strong><span class="classifier">string (default=’’)</span></dt><dd><p>A header that will be added to the params_file, which may be
+required by some scripts.</p>
 </dd>
 </dl>
 </dd>

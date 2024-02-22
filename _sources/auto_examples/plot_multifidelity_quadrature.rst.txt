@@ -54,8 +54,8 @@ First define an ensemble of models using :py:class:`~pyapprox.benchmarks.setup_b
 
     benchmark = setup_benchmark(
         "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=[.1, .2])
-    model_ensemble = interface.ModelEnsemble(benchmark.fun.models)
-    hf_mean = benchmark.means[0]
+    model_ensemble = interface.ModelEnsemble(benchmark.funs)
+    hf_mean = benchmark.mean[0]
 
 
 
@@ -68,7 +68,7 @@ First define an ensemble of models using :py:class:`~pyapprox.benchmarks.setup_b
 
 Initialize a multifidelity estimator. This requires an estimate of the covariance between the models and the model costs and the random variable representing the model inputs
 
-.. GENERATED FROM PYTHON SOURCE LINES 24-37
+.. GENERATED FROM PYTHON SOURCE LINES 24-40
 
 .. code-block:: default
 
@@ -78,12 +78,15 @@ Initialize a multifidelity estimator. This requires an estimate of the covarianc
     # The models are trivial to evaluate so make up model costs
     model_costs = 10.**(-np.arange(3))
 
-    est_name = "mlblue"
+
+    stat_name = "mean"
     cov = multifidelity.estimate_model_ensemble_covariance(
         npilot_samples, benchmark.variable.rvs, model_ensemble,
         model_ensemble.nmodels)[0]
-    est = multifidelity.get_estimator(
-        est_name, cov, model_costs, benchmark.variable)
+    stat = multifidelity.multioutput_stats[stat_name](benchmark.nqoi)
+    stat.set_pilot_quantities(cov)
+    est_name = "mlblue"
+    est = multifidelity.get_estimator(est_name, stat, model_costs)
 
 
 
@@ -92,23 +95,28 @@ Initialize a multifidelity estimator. This requires an estimate of the covarianc
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 38-39
+.. GENERATED FROM PYTHON SOURCE LINES 41-42
 
 Define a target cost and determine the optimal number of samples to allocate to each model
 
-.. GENERATED FROM PYTHON SOURCE LINES 39-49
+.. GENERATED FROM PYTHON SOURCE LINES 42-57
 
 .. code-block:: default
 
     target_cost = 1000
     est.allocate_samples(target_cost)
     args = [benchmark.variable] if est_name == "mlblue" else []
-    data = est.generate_data(model_ensemble.functions, *args)
-    values = data if est_name == "mlblue" else data[1]
-    mf_mean = est(values)
+    samples_per_model = est.generate_samples_per_model(
+        benchmark.variable.rvs)
+    best_models = [benchmark.funs[idx] for idx in est._best_model_indices]
+    values_per_model = [
+        fun(samples) for fun, samples in zip(best_models, samples_per_model)]
+    mf_mean = est(values_per_model)
 
     print("Multi-fidelity mean", mf_mean)
     print("Exact high-fidelity mean", hf_mean)
+    print("Multi-fidelity estimator variance",
+          est._covariance_from_npartition_samples(est._rounded_npartition_samples))
 
 
 
@@ -118,13 +126,14 @@ Define a target cost and determine the optimal number of samples to allocate to 
 
  .. code-block:: none
 
-    Multi-fidelity mean [[-0.0060008]]
-    Exact high-fidelity mean 0.0
+    Multi-fidelity mean tensor(-0.0121)
+    Exact high-fidelity mean [0.]
+    Multi-fidelity estimator variance tensor([[0.0004]])
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 50-59
+.. GENERATED FROM PYTHON SOURCE LINES 58-67
 
 Excercises
 ^^^^^^^^^^
@@ -134,14 +143,18 @@ Increase the target cost
 
 Change the correlation between the models by varying the theta1 argument to setup benchmarks
 
-Change the estimator. Names of the available estimators can be printed via
+Change the estimator (via est_name). Names of the available estimators can be printed via
 
-.. GENERATED FROM PYTHON SOURCE LINES 59-61
+.. GENERATED FROM PYTHON SOURCE LINES 67-73
 
 .. code-block:: default
 
 
-    print(multifidelity.monte_carlo_estimators.monte_carlo_estimators.keys())
+    print(multifidelity.factory.multioutput_estimators.keys())
+
+    #Change the statistic computed (via stat_name). Names of the implemented statistics can be printed via
+
+    print(multifidelity.factory.multioutput_stats.keys())
 
 
 
@@ -150,7 +163,8 @@ Change the estimator. Names of the available estimators can be printed via
 
  .. code-block:: none
 
-    dict_keys(['acvmf', 'acvis', 'mfmc', 'mlmc', 'acvgmf', 'acvgmfb', 'mc', 'mlblue'])
+    dict_keys(['cv', 'gmf', 'gis', 'grd', 'mfmc', 'mlmc', 'mc', 'mlblue'])
+    dict_keys(['mean', 'variance', 'mean_variance'])
 
 
 
@@ -158,7 +172,7 @@ Change the estimator. Names of the available estimators can be printed via
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.006 seconds)
+   **Total running time of the script:** ( 0 minutes  0.013 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_multifidelity_quadrature.py:

@@ -16,8 +16,8 @@ np.random.seed(1)
 #First define an ensemble of models using :py:class:`~pyapprox.benchmarks.setup_benchmark`, see  :mod:`pyapprox.benchmarks`.
 benchmark = setup_benchmark(
     "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=[.1, .2])
-model_ensemble = interface.ModelEnsemble(benchmark.fun.models)
-hf_mean = benchmark.means[0]
+model_ensemble = interface.ModelEnsemble(benchmark.funs)
+hf_mean = benchmark.mean[0]
 
 #%%
 #Initialize a multifidelity estimator. This requires an estimate of the covariance between the models and the model costs and the random variable representing the model inputs
@@ -27,24 +27,32 @@ npilot_samples = int(1e2)
 # The models are trivial to evaluate so make up model costs
 model_costs = 10.**(-np.arange(3))
 
-est_name = "mlblue"
+
+stat_name = "mean"
 cov = multifidelity.estimate_model_ensemble_covariance(
     npilot_samples, benchmark.variable.rvs, model_ensemble,
     model_ensemble.nmodels)[0]
-est = multifidelity.get_estimator(
-    est_name, cov, model_costs, benchmark.variable)
+stat = multifidelity.multioutput_stats[stat_name](benchmark.nqoi)
+stat.set_pilot_quantities(cov)
+est_name = "mlblue"
+est = multifidelity.get_estimator(est_name, stat, model_costs)
 
 #%%
 #Define a target cost and determine the optimal number of samples to allocate to each model
 target_cost = 1000
 est.allocate_samples(target_cost)
 args = [benchmark.variable] if est_name == "mlblue" else []
-data = est.generate_data(model_ensemble.functions, *args)
-values = data if est_name == "mlblue" else data[1]
-mf_mean = est(values)
+samples_per_model = est.generate_samples_per_model(
+    benchmark.variable.rvs)
+best_models = [benchmark.funs[idx] for idx in est._best_model_indices]
+values_per_model = [
+    fun(samples) for fun, samples in zip(best_models, samples_per_model)]
+mf_mean = est(values_per_model)
 
 print("Multi-fidelity mean", mf_mean)
 print("Exact high-fidelity mean", hf_mean)
+print("Multi-fidelity estimator variance",
+      est._covariance_from_npartition_samples(est._rounded_npartition_samples))
 
 #%%
 #Excercises
@@ -55,6 +63,10 @@ print("Exact high-fidelity mean", hf_mean)
 #
 #Change the correlation between the models by varying the theta1 argument to setup benchmarks
 #
-#Change the estimator. Names of the available estimators can be printed via
+#Change the estimator (via est_name). Names of the available estimators can be printed via
 
-print(multifidelity.monte_carlo_estimators.monte_carlo_estimators.keys())
+print(multifidelity.factory.multioutput_estimators.keys())
+
+#Change the statistic computed (via stat_name). Names of the implemented statistics can be printed via
+
+print(multifidelity.factory.multioutput_stats.keys())

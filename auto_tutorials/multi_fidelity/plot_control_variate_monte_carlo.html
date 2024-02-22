@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Control Variate Monte Carlo &mdash; PyApprox 1.0.2 documentation</title>
+  <title>Two Model Control Variate Monte Carlo &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -22,13 +22,13 @@
         <script src="../../_static/underscore.js"></script>
         <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
-        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Approximate Control Variate Monte Carlo" href="plot_approximate_control_variate_monte_carlo.html" />
-    <link rel="prev" title="Monte Carlo Quadrature" href="plot_monte_carlo.html" /> 
+    <link rel="next" title="Two model Approximate Control Variate Monte Carlo" href="plot_approximate_control_variates.html" />
+    <link rel="prev" title="Monte Carlo Quadrature: Beyond Mean Estimation" href="plot_multioutput_monte_carlo.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -62,17 +62,25 @@
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
-<li class="toctree-l3 current"><a class="current reference internal" href="#">Control Variate Monte Carlo</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_monte_carlo.html">Monte Carlo Quadrature: Beyond Mean Estimation</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Two Model Control Variate Monte Carlo</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#videos">Videos</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variates.html">Two model Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_many_model_acv.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="acv_covariances.html">Delta-Based Covariance Formulas For Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_allocation_matrices.html">Approximate Control Variate Allocation Matrices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
-<li class="toctree-l3"><a class="reference internal" href="plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pacv.html">Parametrically Defined Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_acv.html">Multioutput Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pilot_studies.html">Pilot Studies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_ensemble_selection.html">Model Ensemble Selection</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multilevel_blue.html">Multilevel Best Linear Unbiased estimators (MLBLUE)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-level and Multi-index Collocation</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multifidelity_gp.html">Multifidelity Gaussian processes</a></li>
@@ -106,7 +114,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../index.html">Theoretical Tutorials</a></li>
-      <li class="breadcrumb-item active">Control Variate Monte Carlo</li>
+      <li class="breadcrumb-item active">Two Model Control Variate Monte Carlo</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/auto_tutorials/multi_fidelity/plot_control_variate_monte_carlo.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -121,35 +129,47 @@
 <p><a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-control-variate-monte-carlo-py"><span class="std std-ref">Go to the end</span></a>
 to download the full example code</p>
 </div>
-<section class="sphx-glr-example-title" id="control-variate-monte-carlo">
-<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-control-variate-monte-carlo-py"></span><h1>Control Variate Monte Carlo<a class="headerlink" href="#control-variate-monte-carlo" title="Permalink to this heading"></a></h1>
-<p>This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute the expectations of the output of a high-fidelity model using a lower-fidelity model with a known mean. The information presented here builds upon the tutorial <a class="reference internal" href="plot_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-monte-carlo-py"><span class="std std-ref">Monte Carlo Quadrature</span></a>.</p>
-<p>Let us introduce a model <span class="math notranslate nohighlight">\(Q_\V{\kappa}\)</span> with known mean <span class="math notranslate nohighlight">\(\mu_{\V{\kappa}}\)</span>. We can use this model to estimate the mean of <span class="math notranslate nohighlight">\(Q_{\V{\alpha}}\)</span> via <a class="reference internal" href="#lmwor1982" id="id1"><span>[LMWOR1982]</span></a></p>
+<section class="sphx-glr-example-title" id="two-model-control-variate-monte-carlo">
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-control-variate-monte-carlo-py"></span><h1>Two Model Control Variate Monte Carlo<a class="headerlink" href="#two-model-control-variate-monte-carlo" title="Permalink to this heading"></a></h1>
+<p>This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute the statistics of the output of a high-fidelity model using a lower-fidelity model with a known mean. The information presented here builds upon the tutorial <a class="reference internal" href="plot_monte_carlo.html#sphx-glr-auto-tutorials-multi-fidelity-plot-monte-carlo-py"><span class="std std-ref">Monte Carlo Quadrature</span></a>. We will focus on estimation of a single statistic for now, but control variates can be used to estiamte multiple statistics simultaneoulsy.</p>
+<p>Let us introduce a model <span class="math notranslate nohighlight">\(f_\kappa\)</span> with known statistic <span class="math notranslate nohighlight">\(Q_{\kappa}\)</span>. We can use this model to estimate the mean of <span class="math notranslate nohighlight">\(f_{\alpha}\)</span> via <a class="reference internal" href="#lmwor1982" id="id1"><span>[LMWOR1982]</span></a></p>
 <div class="math notranslate nohighlight">
-\[\begin{split}Q_{\V{\alpha},N}^{\text{CV}} &amp;= Q_{\V{\alpha},N} + \eta \left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}} \right) \\\end{split}\]</div>
+\[Q_{\alpha}^{\text{CV}}(\rvset_N) = Q_{\alpha}(\rvset_N) + \eta \left( Q_{\kappa}(\rvset_N) - Q_{\kappa} \right)\]</div>
 <p>Here <span class="math notranslate nohighlight">\(\eta\)</span> is a free parameter which can be optimized to the reduce the variance of this so called control variate estimator, which is given by</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}\var{Q_{\V{\alpha},N}^{\text{CV}}} &amp;= \var{Q_{\V{\alpha},N} + \eta \left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\\
- &amp;=\var{Q_{\V{\alpha},N}} + \eta^2\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}+ 2\eta\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\\
- &amp;=\var{Q_{\V{\alpha},N}}\left(1+\eta^2\frac{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}+ 2\eta\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}\right).\end{split}\]</div>
+\[\begin{split}\var{Q_{\alpha}^{\text{CV}}(\rvset_N)} &amp;= \var{Q_{\alpha}(\rvset_N) + \eta \left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}\\
+ &amp;=\var{Q_{\alpha}(\rvset_N)} + \eta^2\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}+ 2\eta\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}\\
+ &amp;=\var{Q_{\alpha}(\rvset_N)}\left(1+\eta^2\frac{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}}{\var{Q_{\alpha}(\rvset_N)}}+ 2\eta\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}}{\var{Q_{\alpha}(\rvset_N)}}\right).\end{split}\]</div>
 <p>The first line follows from the variance of sums of random variables.</p>
-<p>We can measure the change in MSE bys using the control variate estimator, by looking at the ratio of the CVMC and MC estimator variances. The variance reduction ratio is</p>
+<p>We can measure the change in MSE of the control variate estimator from the single model MC estimator, by looking at the ratio of the CVMC and MC estimator variances. This variance reduction ratio is</p>
 <div class="math notranslate nohighlight">
-\[\gamma=\frac{\var{Q_{\V{\alpha},N}^{\text{CV}}}}{\var{Q_{\V{\alpha},N}}}=\left(1+\eta^2\frac{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}+ 2\eta\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}\right)\]</div>
-<p>The variance reduction can be minimized by setting its gradient to zero and solving for <span class="math notranslate nohighlight">\(\eta\)</span>, i.e.</p>
+\[\gamma=\frac{\var{Q_{\alpha}^{\text{CV}}(\rvset_N)}}{\var{Q_{\alpha}(\rvset_N)}}=\left(1+\eta^2\frac{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}}{\var{Q_{\alpha}(\rvset_N)}}+ 2\eta\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}}{\var{Q_{\alpha}(\rvset_N)}}\right)\]</div>
+<p>and can be minimized by setting its gradient to zero and solving for <span class="math notranslate nohighlight">\(\eta\)</span>, i.e.</p>
 <div class="math notranslate nohighlight">
-\[\begin{split} \frac{d}{d\eta}\gamma  &amp;= 2\eta\frac{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}+ 2\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}} = 0\\
-&amp;\implies \eta\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}+ \covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)} = 0\\
-&amp;\implies \eta=-\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}\\
-&amp;=-\frac{\covar{Q_{\V{\alpha},N}}{Q_{\V{\kappa},N}}}{\var{Q_{\V{\kappa},N}}}\end{split}\]</div>
+\[\begin{split} \frac{d}{d\eta}\gamma  &amp;= 2\eta\frac{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}}{\var{Q_{\alpha}(\rvset_N)}}+ 2\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}}{\var{Q_{\alpha}(\rvset_N)}} = 0\\
+&amp;\implies \eta\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}+ \covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)} = 0\\
+&amp;\implies \eta=-\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}}{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}}\\
+&amp;\qquad\quad\;=-\frac{\covar{Q_{\alpha}(\rvset_N)}{Q_{\kappa}(\rvset_N)}}{\var{Q_{\kappa}(\rvset_N)}}\end{split}\]</div>
 <p>With this choice</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}\gamma &amp;= 1+\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2}\frac{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}-2\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}\\
-&amp;= 1+\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\var{Q_{\V{\alpha},N}}}-2\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\var{Q_{\V{\alpha},N}}}\\
- &amp;= 1-\corr{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2\\
- &amp;= 1-\corr{Q_{\V{\alpha},N}}{Q_{\V{\kappa},N}}^2\end{split}\]</div>
-<p>Thus if a two highly correlated models (one with a known mean) are available then we can drastically reduce the MSE of our estimate of the unknown mean.</p>
-<p>Again consider the tunable model ensemble. The correlation between the models <span class="math notranslate nohighlight">\(f_0\)</span> and <span class="math notranslate nohighlight">\(f_1\)</span> can be tuned by varying <span class="math notranslate nohighlight">\(\theta_1\)</span>. For a given choice of theta lets compute a single relization of the CVMC estimate of <span class="math notranslate nohighlight">\(\mean{f_0}\)</span></p>
+\[\begin{split}\gamma &amp;= 1+\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}^2}{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}^2}\frac{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}}{\var{Q_{\alpha}(\rvset_N)}}\\&amp;\qquad-2\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}}{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}}\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}}{\var{Q_{\alpha}(\rvset_N)}}\\
+&amp;= 1+\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}^2}{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}\var{Q_{\alpha}(\rvset_N)}}-2\frac{\covar{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}^2}{\var{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}\var{Q_{\alpha}(\rvset_N)}}\\
+ &amp;= 1-\corr{Q_{\alpha}(\rvset_N)}{\left( Q_{\kappa}(\rvset_N) - Q_{\kappa}\right)}^2\\
+ &amp;= 1-\corr{Q_{\alpha}(\rvset_N)}{Q_{\kappa}(\rvset_N)}^2\end{split}\]</div>
+<p>When estimating the mean we can use <a class="reference internal" href="plot_multioutput_monte_carlo.html#eq-mean-covariance"><span class="std std-ref">Equation</span></a> to obtain</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\eta &amp;= -\frac{\covar{Q_{\alpha}(\rvset_N)}{Q_{\kappa}(\rvset_N)}}{\var{Q_{\kappa}(\rvset_N)}} \\
+ &amp;= N^{-1}\frac{\covar{f_{\alpha}}{f_{\kappa}}}{N^{-1}\var{f_{\kappa}}}\\
+ &amp;= \frac{\covar{f_{\alpha}}{f_{\kappa}}}{\var{f_{\kappa}}}\end{split}\]</div>
+<p>which we can plug back into to <span class="math notranslate nohighlight">\(\gamma\)</span> to give</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\gamma &amp;= 1-\corr{Q_{\alpha}(\rvset_N)}{Q_{\kappa}(\rvset_N)}^2\\
+&amp;= 1-\corr{f_{\alpha}}{f_{\kappa}}^2\\\end{split}\]</div>
+<p>and so</p>
+<div class="math notranslate nohighlight">
+\[\var{Q_{\alpha}^{\text{CV}}(\rvset_N)} = \var{Q_{\alpha}(\rvset_N)}(1-\corr{f_{\alpha}}{f_{\kappa}}^2)\]</div>
+<p>Thus, if two highly correlated models (one with a known mean) are available then we can drastically reduce the MSE of our estimate of the unknown mean. Similar reductions can be obtained for other statistics such as variance. But when estimating variance the estimator variance reduction ratio will no nolonger depend just on the correlation between the models but also higher order moments.</p>
+<p>Again consider the tunable model ensemble. The correlation between the models <span class="math notranslate nohighlight">\(f_0\)</span> and <span class="math notranslate nohighlight">\(f_1\)</span> can be tuned by varying <span class="math notranslate nohighlight">\(\theta_1\)</span>. For a given choice of theta lets compute a single relization of the CVMC estimate of <span class="math notranslate nohighlight">\(Q_0=\mean{f_0}\)</span></p>
 <p>First let us setup the problem and compute a single estimate using CVMC</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
@@ -160,13 +180,12 @@ to download the full example code</p>
 <span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span>
     <span class="s2">&quot;tunable_model_ensemble&quot;</span><span class="p">,</span> <span class="n">theta1</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">2</span><span class="o">*</span><span class="mf">.95</span><span class="p">,</span> <span class="n">shifts</span><span class="o">=</span><span class="n">shifts</span><span class="p">)</span>
 <span class="n">model</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="p">)</span>
 
 <span class="n">nsamples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">1e2</span><span class="p">)</span>
 <span class="n">samples</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">nsamples</span><span class="p">)</span>
 <span class="n">values0</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">m0</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
 <span class="n">values1</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">m1</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
-<span class="n">cov</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">()</span>
+<span class="n">cov</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">covariance</span>
 <span class="n">eta</span> <span class="o">=</span> <span class="o">-</span><span class="n">cov</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">cov</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
 <span class="c1">#cov_mc = np.cov(values0,values1)</span>
 <span class="c1">#eta_mc = -cov_mc[0,1]/cov_mc[0,0]</span>
@@ -176,11 +195,7 @@ to download the full example code</p>
 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;CVMC difference squared =&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">cv_mean</span><span class="o">-</span><span class="n">exact_integral_f0</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Independent Marginal Variable
-Number of variables: 2
-Unique variables and global id:
-    uniform(loc=[-1],scale=[2]): z0, z1
-MC difference squared = 0.01473604359753749
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>MC difference squared = 0.01473604359753749
 CVMC difference squared = 5.954528881712521e-05
 </pre></div>
 </div>
@@ -204,26 +219,34 @@ CVMC difference squared = 5.954528881712521e-05
 Achieved variance reduction 0.05749985629263281
 </pre></div>
 </div>
-<p>The following plot shows that unlike the <a class="reference internal" href="plot_monte_carlo.html#estimator-histogram"><span class="std std-ref">Monte Carlo estimator</span></a>. <span class="math notranslate nohighlight">\(\mean{f_1}\)</span> the CVMC estimator is unbiased and has a smaller variance.</p>
+<p>The following plot shows that unlike the MC estimator of. <span class="math notranslate nohighlight">\(\mean{f_1}\)</span> the CVMC estimator is unbiased and has a smaller variance.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span><span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
 <span class="n">textstr</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
-    <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$E[Q_{0,N}]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
-     <span class="sa">r</span><span class="s1">&#39;$V[Q_{0,N}]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">var</span><span class="p">(),</span>
-     <span class="sa">r</span><span class="s1">&#39;$E[Q_{0,N}^\mathrm</span><span class="si">{CV}</span><span class="s1">]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">means</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
-     <span class="sa">r</span><span class="s1">&#39;$V[Q_{0,N}^\mathrm</span><span class="si">{CV}</span><span class="s1">]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">means</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">var</span><span class="p">()])</span>
+    <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_</span><span class="si">{0}</span><span class="s1">(\mathcal</span><span class="si">{Z}</span><span class="s1">_N)]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
+     <span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{V}</span><span class="s1">[Q_</span><span class="si">{0}</span><span class="s1">(\mathcal</span><span class="si">{Z}</span><span class="s1">_N)]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">var</span><span class="p">(),</span>
+     <span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_</span><span class="si">{0}</span><span class="s1">^\mathrm</span><span class="si">{CV}</span><span class="s1">(\mathcal</span><span class="si">{Z}</span><span class="s1">_N)]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="p">(</span>
+         <span class="n">means</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()),</span>
+     <span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{V}</span><span class="s1">[Q_</span><span class="si">{0}</span><span class="s1">^\mathrm</span><span class="si">{CV}</span><span class="s1">(\mathcal</span><span class="si">{Z}</span><span class="s1">_N)]=\mathrm{</span><span class="si">%.2e</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="p">(</span>
+         <span class="n">means</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">var</span><span class="p">())])</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">means</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="n">ntrials</span><span class="o">//</span><span class="mi">100</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
-        <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$Q_{0,N}$&#39;</span><span class="p">)</span>
+        <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$Q_</span><span class="si">{0}</span><span class="s1">(\mathcal</span><span class="si">{Z}</span><span class="s1">_N)$&#39;</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">means</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="n">ntrials</span><span class="o">//</span><span class="mi">100</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
-        <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$Q_{0,N}^\mathrm</span><span class="si">{CV}</span><span class="s1">$&#39;</span><span class="p">)</span>
-<span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$E[Q_0]$&#39;</span><span class="p">)</span>
+        <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$Q_</span><span class="si">{0}</span><span class="s1">^\mathrm</span><span class="si">{CV}</span><span class="s1">(\mathcal</span><span class="si">{Z}</span><span class="s1">_N)$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$\mathbb</span><span class="si">{E}</span><span class="s1">[Q_0]$&#39;</span><span class="p">)</span>
 <span class="n">props</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;boxstyle&#39;</span><span class="p">:</span> <span class="s1">&#39;round&#39;</span><span class="p">,</span> <span class="s1">&#39;facecolor&#39;</span><span class="p">:</span> <span class="s1">&#39;white&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">0.6</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="n">textstr</span><span class="p">,</span><span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">props</span><span class="p">)</span>
 <span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;upper left&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <img src="../../_images/sphx_glr_plot_control_variate_monte_carlo_001.png" srcset="../../_images/sphx_glr_plot_control_variate_monte_carlo_001.png" alt="plot control variate monte carlo" class = "sphx-glr-single-img"/><p>Change <code class="docutils literal notranslate"><span class="pre">eta</span></code> to <code class="docutils literal notranslate"><span class="pre">eta_mc</span></code> to see how the variance reduction changes when the covariance between models is approximated</p>
+<section id="videos">
+<h2>Videos<a class="headerlink" href="#videos" title="Permalink to this heading"></a></h2>
+<p>Click on the image below to view a video tutorial on control variate Monte Carlo quadrature with one low-fidelity model</p>
+<a class="reference external image-reference" href="https://youtu.be/2GpwGG8EmNU"><img alt="../../_images/cvmc.png" src="../../_images/cvmc.png" /></a>
+<p>Click on the image below to view a video tutorial on control variate Monte Carlo quadrature with one multiple lower fidelity models</p>
+<a class="reference external image-reference" href="https://youtu.be/lBvtWo2ZwaU"><img alt="../../_images/cvmc-many-models.png" src="../../_images/cvmc-many-models.png" /></a>
 <section id="references">
-<h2>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h2>
+<h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
 <div role="list" class="citation-list">
 <div class="citation" id="lmwor1982" role="doc-biblioentry">
 <span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">LMWOR1982</a><span class="fn-bracket">]</span></span>
@@ -242,13 +265,14 @@ Achieved variance reduction 0.05749985629263281
 <p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
 </section>
 </section>
+</section>
 
 
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="plot_monte_carlo.html" class="btn btn-neutral float-left" title="Monte Carlo Quadrature" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="plot_approximate_control_variate_monte_carlo.html" class="btn btn-neutral float-right" title="Approximate Control Variate Monte Carlo" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="plot_multioutput_monte_carlo.html" class="btn btn-neutral float-left" title="Monte Carlo Quadrature: Beyond Mean Estimation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plot_approximate_control_variates.html" class="btn btn-neutral float-right" title="Two model Approximate Control Variate Monte Carlo" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

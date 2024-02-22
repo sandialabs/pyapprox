@@ -457,7 +457,7 @@ The sparse grid spends more points resolving the function variation in the horiz
     fig, axs = plt.subplots(1, 3, sharey=False, figsize=(3*8, 6))
     ranges = benchmark.variable.get_statistics("interval", 1.0).flatten()
     data = [get_meshgrid_function_data(sg, ranges, 51)
-            for sg in  adaptive_callback.sparse_grids]
+            for sg in adaptive_callback.sparse_grids]
     Z_min = np.min([d[2] for d in data])
     Z_max = np.max([d[2] for d in data])
     levels = np.linspace(Z_min, Z_max, 21)
@@ -668,42 +668,42 @@ The sparse grid spends more points resolving the function variation in the horiz
      </style>
 
      <div class="animation">
-       <img id="_anim_img9db18cfe78a041168d0202b883fb4a2a">
+       <img id="_anim_imgd1c1819a3f3a4e06ab3cd284e2fb240b">
        <div class="anim-controls">
-         <input id="_anim_slider9db18cfe78a041168d0202b883fb4a2a" type="range" class="anim-slider"
+         <input id="_anim_sliderd1c1819a3f3a4e06ab3cd284e2fb240b" type="range" class="anim-slider"
                 name="points" min="0" max="1" step="1" value="0"
-                oninput="anim9db18cfe78a041168d0202b883fb4a2a.set_frame(parseInt(this.value));">
+                oninput="animd1c1819a3f3a4e06ab3cd284e2fb240b.set_frame(parseInt(this.value));">
          <div class="anim-buttons">
-           <button title="Decrease speed" aria-label="Decrease speed" onclick="anim9db18cfe78a041168d0202b883fb4a2a.slower()">
+           <button title="Decrease speed" aria-label="Decrease speed" onclick="animd1c1819a3f3a4e06ab3cd284e2fb240b.slower()">
                <i class="fa fa-minus"></i></button>
-           <button title="First frame" aria-label="First frame" onclick="anim9db18cfe78a041168d0202b883fb4a2a.first_frame()">
+           <button title="First frame" aria-label="First frame" onclick="animd1c1819a3f3a4e06ab3cd284e2fb240b.first_frame()">
              <i class="fa fa-fast-backward"></i></button>
-           <button title="Previous frame" aria-label="Previous frame" onclick="anim9db18cfe78a041168d0202b883fb4a2a.previous_frame()">
+           <button title="Previous frame" aria-label="Previous frame" onclick="animd1c1819a3f3a4e06ab3cd284e2fb240b.previous_frame()">
                <i class="fa fa-step-backward"></i></button>
-           <button title="Play backwards" aria-label="Play backwards" onclick="anim9db18cfe78a041168d0202b883fb4a2a.reverse_animation()">
+           <button title="Play backwards" aria-label="Play backwards" onclick="animd1c1819a3f3a4e06ab3cd284e2fb240b.reverse_animation()">
                <i class="fa fa-play fa-flip-horizontal"></i></button>
-           <button title="Pause" aria-label="Pause" onclick="anim9db18cfe78a041168d0202b883fb4a2a.pause_animation()">
+           <button title="Pause" aria-label="Pause" onclick="animd1c1819a3f3a4e06ab3cd284e2fb240b.pause_animation()">
                <i class="fa fa-pause"></i></button>
-           <button title="Play" aria-label="Play" onclick="anim9db18cfe78a041168d0202b883fb4a2a.play_animation()">
+           <button title="Play" aria-label="Play" onclick="animd1c1819a3f3a4e06ab3cd284e2fb240b.play_animation()">
                <i class="fa fa-play"></i></button>
-           <button title="Next frame" aria-label="Next frame" onclick="anim9db18cfe78a041168d0202b883fb4a2a.next_frame()">
+           <button title="Next frame" aria-label="Next frame" onclick="animd1c1819a3f3a4e06ab3cd284e2fb240b.next_frame()">
                <i class="fa fa-step-forward"></i></button>
-           <button title="Last frame" aria-label="Last frame" onclick="anim9db18cfe78a041168d0202b883fb4a2a.last_frame()">
+           <button title="Last frame" aria-label="Last frame" onclick="animd1c1819a3f3a4e06ab3cd284e2fb240b.last_frame()">
                <i class="fa fa-fast-forward"></i></button>
-           <button title="Increase speed" aria-label="Increase speed" onclick="anim9db18cfe78a041168d0202b883fb4a2a.faster()">
+           <button title="Increase speed" aria-label="Increase speed" onclick="animd1c1819a3f3a4e06ab3cd284e2fb240b.faster()">
                <i class="fa fa-plus"></i></button>
          </div>
-         <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_select9db18cfe78a041168d0202b883fb4a2a"
+         <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_selectd1c1819a3f3a4e06ab3cd284e2fb240b"
                class="anim-state">
-           <input type="radio" name="state" value="once" id="_anim_radio1_9db18cfe78a041168d0202b883fb4a2a"
+           <input type="radio" name="state" value="once" id="_anim_radio1_d1c1819a3f3a4e06ab3cd284e2fb240b"
                   >
-           <label for="_anim_radio1_9db18cfe78a041168d0202b883fb4a2a">Once</label>
-           <input type="radio" name="state" value="loop" id="_anim_radio2_9db18cfe78a041168d0202b883fb4a2a"
+           <label for="_anim_radio1_d1c1819a3f3a4e06ab3cd284e2fb240b">Once</label>
+           <input type="radio" name="state" value="loop" id="_anim_radio2_d1c1819a3f3a4e06ab3cd284e2fb240b"
                   checked>
-           <label for="_anim_radio2_9db18cfe78a041168d0202b883fb4a2a">Loop</label>
-           <input type="radio" name="state" value="reflect" id="_anim_radio3_9db18cfe78a041168d0202b883fb4a2a"
+           <label for="_anim_radio2_d1c1819a3f3a4e06ab3cd284e2fb240b">Loop</label>
+           <input type="radio" name="state" value="reflect" id="_anim_radio3_d1c1819a3f3a4e06ab3cd284e2fb240b"
                   >
-           <label for="_anim_radio3_9db18cfe78a041168d0202b883fb4a2a">Reflect</label>
+           <label for="_anim_radio3_d1c1819a3f3a4e06ab3cd284e2fb240b">Reflect</label>
          </form>
        </div>
      </div>
@@ -713,9 +713,9 @@ The sparse grid spends more points resolving the function variation in the horiz
        /* Instantiate the Animation class. */
        /* The IDs given should match those used in the template above. */
        (function() {
-         var img_id = "_anim_img9db18cfe78a041168d0202b883fb4a2a";
-         var slider_id = "_anim_slider9db18cfe78a041168d0202b883fb4a2a";
-         var loop_select_id = "_anim_loop_select9db18cfe78a041168d0202b883fb4a2a";
+         var img_id = "_anim_imgd1c1819a3f3a4e06ab3cd284e2fb240b";
+         var slider_id = "_anim_sliderd1c1819a3f3a4e06ab3cd284e2fb240b";
+         var loop_select_id = "_anim_loop_selectd1c1819a3f3a4e06ab3cd284e2fb240b";
          var frames = new Array(33);
     
        frames[0] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAACWAAAAJYCAYAAADmY91UAAAAOXRFWHRTb2Z0d2FyZQBNYXRwbG90\
@@ -20981,7 +20981,7 @@ The sparse grid spends more points resolving the function variation in the horiz
          /* set a timeout to make sure all the above elements are created before
             the object is initialized. */
          setTimeout(function() {
-             anim9db18cfe78a041168d0202b883fb4a2a = new Animation(frames, img_id, slider_id, 500.0,
+             animd1c1819a3f3a4e06ab3cd284e2fb240b = new Animation(frames, img_id, slider_id, 500.0,
                                       loop_select_id);
          }, 0);
        })()
@@ -21005,7 +21005,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  32.339 seconds)
+   **Total running time of the script:** ( 0 minutes  33.048 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_surrogates_plot_sparse_grids.py:

@@ -133,6 +133,22 @@ Below is a gallery of foundational tutorials probabilistic inversion
    /auto_tutorials/inference/plot_bayesian_networks
    /auto_tutorials/inference/plot_push_forward_based_inference
 
+*******************
+Experimental Design
+*******************
+The next release will contain a gallery of foundational tutorials on experimental design
+
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbnails">
+
+
+.. raw:: html
+
+    </div>
+
 **********
 Surrogates
 **********
@@ -142,6 +158,23 @@ Surrogates
 .. raw:: html
 
     <div class="sphx-glr-thumbnails">
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="This tutorial will present methods to approximate univariate functions \hat{f}_{\alpha}:\reals\...">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/surrogates/images/thumb/sphx_glr_plot_univariate_interpolation_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_tutorials_surrogates_plot_univariate_interpolation.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Univariate Interpolation</div>
+    </div>
 
 
 .. raw:: html
@@ -157,7 +190,7 @@ Surrogates
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">Tensor-product Barycentric Interpolation</div>
+      <div class="sphx-glr-thumbnail-title">Tensor-product Interpolation</div>
     </div>
 
 
@@ -220,6 +253,7 @@ Surrogates
 .. toctree::
    :hidden:
 
+   /auto_tutorials/surrogates/plot_univariate_interpolation
    /auto_tutorials/surrogates/plot_tensor_product_interpolation
    /auto_tutorials/surrogates/plot_sparse_grids
    /auto_tutorials/surrogates/plot_adaptive_leja_interpolation
@@ -251,7 +285,7 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="We can approximate the integral Q_\alpha using Monte Carlo quadrature by drawing N random sampl...">
+    <div class="sphx-glr-thumbcontainer" tooltip="using Monte Carlo quadrature applied to an approximation f_\alpha of the function f, e.g. a rep...">
 
 .. only:: html
 
@@ -268,7 +302,24 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Let us introduce a model Q_\V{\kappa} with known mean \mu_{\V{\kappa}}. We can use this model t...">
+    <div class="sphx-glr-thumbcontainer" tooltip="In this tutorial we will discuss using MC to estimate the mean \mat{\mu} and covariance \mat{\S...">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_multioutput_monte_carlo_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multioutput_monte_carlo.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Monte Carlo Quadrature: Beyond Mean Estimation</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Let us introduce a model f_\kappa with known statistic Q_{\kappa}. We can use this model to est...">
 
 .. only:: html
 
@@ -279,20 +330,37 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">Control Variate Monte Carlo</div>
+      <div class="sphx-glr-thumbnail-title">Two Model Control Variate Monte Carlo</div>
     </div>
 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="CVMC is often not useful for practical analysis of numerical models because typically the mean ...">
+    <div class="sphx-glr-thumbcontainer" tooltip="CVMC is often not useful for practical analysis of numerical models because typically the stati...">
 
 .. only:: html
 
-  .. image:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_approximate_control_variate_monte_carlo_thumb.png
+  .. image:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_approximate_control_variates_thumb.png
     :alt:
 
-  :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py`
+  :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variates.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Two model Approximate Control Variate Monte Carlo</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="The approximate control variate estimator of a vector-valued statistic \mat{Q}_0\in\reals^{S} t...">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_many_model_acv_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_many_model_acv.py`
 
 .. raw:: html
 
@@ -302,7 +370,41 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Two Model MLMC -------------- The two model MLMC estimator is very similar to the CVMC estimato...">
+    <div class="sphx-glr-thumbcontainer" tooltip="These covariancesdepend on how samples are allocated to the sets \rvset_\alpha,\rvset_\alpha^, ...">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_acv_covariances_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_tutorials_multi_fidelity_acv_covariances.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Delta-Based Covariance Formulas For Approximate Control Variates</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Optimizing and constructing PACV estimators requires estimating \covar{Q_0}{\Delta} and \covar{...">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_allocation_matrices_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_allocation_matrices.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Approximate Control Variate Allocation Matrices</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Two Model MLMC -------------- The two model MLMC estimator is based upon the observations that ...">
 
 .. only:: html
 
@@ -319,7 +421,7 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Many Model MFMC ---------------">
+    <div class="sphx-glr-thumbcontainer" tooltip="To derive the MFMC estimator first recall the two model ACV estimator">
 
 .. only:: html
 
@@ -336,18 +438,69 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Control variate Monte Carlo can be easily extended and applied to more than two models. Conside...">
+    <div class="sphx-glr-thumbcontainer" tooltip="sphx_glr_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py) demonstrates that MF...">
 
 .. only:: html
 
-  .. image:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_thumb.png
+  .. image:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_pacv_thumb.png
     :alt:
 
-  :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_many_model_approximate_control_variate_monte_carlo.py`
+  :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_pacv.py`
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">Generalized Approximate Control Variate Monte Carlo</div>
+      <div class="sphx-glr-thumbnail-title">Parametrically Defined Approximate Control Variates</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="This tutorial demonstrates how computing statistics for multiple outputs simultaneoulsy can imp...">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_multioutput_acv_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multioutput_acv.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Multioutput Approximate Control Variates</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="This tutorial presents how to use a pilot-study to compute the statistics needed to compute a M...">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_pilot_studies_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_pilot_studies.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Pilot Studies</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="The following tutorial shows how to choose the best subset of models.">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_ensemble_selection_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_ensemble_selection.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Model Ensemble Selection</div>
     </div>
 
 
@@ -428,11 +581,18 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
    :hidden:
 
    /auto_tutorials/multi_fidelity/plot_monte_carlo
+   /auto_tutorials/multi_fidelity/plot_multioutput_monte_carlo
    /auto_tutorials/multi_fidelity/plot_control_variate_monte_carlo
-   /auto_tutorials/multi_fidelity/plot_approximate_control_variate_monte_carlo
+   /auto_tutorials/multi_fidelity/plot_approximate_control_variates
+   /auto_tutorials/multi_fidelity/plot_many_model_acv
+   /auto_tutorials/multi_fidelity/acv_covariances
+   /auto_tutorials/multi_fidelity/plot_allocation_matrices
    /auto_tutorials/multi_fidelity/plot_multi_level_monte_carlo
    /auto_tutorials/multi_fidelity/plot_multi_fidelity_monte_carlo
-   /auto_tutorials/multi_fidelity/plot_many_model_approximate_control_variate_monte_carlo
+   /auto_tutorials/multi_fidelity/plot_pacv
+   /auto_tutorials/multi_fidelity/plot_multioutput_acv
+   /auto_tutorials/multi_fidelity/plot_pilot_studies
+   /auto_tutorials/multi_fidelity/plot_ensemble_selection
    /auto_tutorials/multi_fidelity/plot_multilevel_blue
    /auto_tutorials/multi_fidelity/plot_multiindex_collocation
    /auto_tutorials/multi_fidelity/plot_multifidelity_gp

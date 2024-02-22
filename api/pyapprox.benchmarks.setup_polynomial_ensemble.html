@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>setup_polynomial_ensemble &mdash; PyApprox 1.0.2 documentation</title>
+  <title>setup_polynomial_ensemble &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -22,7 +22,7 @@
         <script src="../_static/underscore.js"></script>
         <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
-        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
@@ -129,7 +129,7 @@
 <h1>setup_polynomial_ensemble<a class="headerlink" href="#setup-polynomial-ensemble" title="Permalink to this heading"></a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="pyapprox.benchmarks.setup_polynomial_ensemble">
-<span class="sig-prename descclassname"><span class="pre">pyapprox.benchmarks.</span></span><span class="sig-name descname"><span class="pre">setup_polynomial_ensemble</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/benchmarks/benchmarks.html#setup_polynomial_ensemble"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.benchmarks.setup_polynomial_ensemble" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">pyapprox.benchmarks.</span></span><span class="sig-name descname"><span class="pre">setup_polynomial_ensemble</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nmodels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/benchmarks/benchmarks.html#setup_polynomial_ensemble"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.benchmarks.setup_polynomial_ensemble" title="Permalink to this definition"></a></dt>
 <dd><p>Return an ensemble of 5 univariate models of the form</p>
 <div class="math notranslate nohighlight">
 \[f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4\]</div>
@@ -145,7 +145,7 @@
 </dd>
 <dt><strong>means</strong><span class="classifier">np.ndarray (nmodels)</span></dt><dd><p>The mean of each model fidelity</p>
 </dd>
-<dt><strong>model_covariance</strong><span class="classifier">np.ndarray (nmodels)</span></dt><dd><p>The covariance between the outputs of each model fidelity</p>
+<dt><strong>covariance</strong><span class="classifier">np.ndarray (nmodels)</span></dt><dd><p>The covariance between the outputs of each model fidelity</p>
 </dd>
 </dl>
 </dd>

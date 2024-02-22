@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.benchmarks.benchmarks &mdash; PyApprox 1.0.2 documentation</title>
+  <title>pyapprox.benchmarks.benchmarks &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -116,7 +116,8 @@
     <span class="n">ParameterizedNonlinearModel</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks.genz</span> <span class="kn">import</span> <span class="n">GenzFunction</span>
 <span class="kn">from</span> <span class="nn">pyapprox.benchmarks.multifidelity_benchmarks</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">PolynomialModelEnsemble</span><span class="p">,</span> <span class="n">TunableModelEnsemble</span><span class="p">,</span> <span class="n">ShortColumnModelEnsemble</span><span class="p">)</span>
+    <span class="n">PolynomialModelEnsemble</span><span class="p">,</span> <span class="n">TunableModelEnsemble</span><span class="p">,</span> <span class="n">ShortColumnModelEnsemble</span><span class="p">,</span>
+    <span class="n">MultioutputModelEnsemble</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.variables.joint</span> <span class="kn">import</span> <span class="n">IndependentMarginalsVariable</span>
 <span class="kn">from</span> <span class="nn">pyapprox.interface.wrappers</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">TimerModel</span><span class="p">,</span> <span class="n">PoolModel</span><span class="p">,</span> <span class="n">WorkTrackingModel</span><span class="p">)</span>
@@ -172,7 +173,10 @@
 <span class="sd">    -----</span>
 <span class="sd">    Use the `keys()` method to see a list of the available</span>
 <span class="sd">    attributes for a specific benchmark</span>
-<span class="sd">    &quot;&quot;&quot;</span></div>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;Benchmark(&quot;</span><span class="o">+</span><span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span> <span class="o">+</span> <span class="s2">&quot;)&quot;</span></div>
 
 
 <div class="viewcode-block" id="setup_sobol_g_function"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_sobol_g_function.html#pyapprox.benchmarks.setup_sobol_g_function">[docs]</a><span class="k">def</span> <span class="nf">setup_sobol_g_function</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
@@ -766,7 +770,14 @@
     <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="setup_polynomial_ensemble"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_polynomial_ensemble.html#pyapprox.benchmarks.setup_polynomial_ensemble">[docs]</a><span class="k">def</span> <span class="nf">setup_polynomial_ensemble</span><span class="p">():</span>
+<span class="k">def</span> <span class="nf">_extract_acv_benchmark_dict</span><span class="p">(</span><span class="n">model</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span>
+            <span class="s2">&quot;mean&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_means</span><span class="p">(),</span>
+            <span class="s2">&quot;covariance&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">(),</span>
+            <span class="s2">&quot;funs&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">funs</span><span class="p">,</span> <span class="s2">&quot;nqoi&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">nqoi</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="setup_polynomial_ensemble"><a class="viewcode-back" href="../../../api/pyapprox.benchmarks.setup_polynomial_ensemble.html#pyapprox.benchmarks.setup_polynomial_ensemble">[docs]</a><span class="k">def</span> <span class="nf">setup_polynomial_ensemble</span><span class="p">(</span><span class="n">nmodels</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return an ensemble of 5 univariate models of the form</span>
 
@@ -788,31 +799,30 @@
 <span class="sd">    means : np.ndarray (nmodels)</span>
 <span class="sd">        The mean of each model fidelity</span>
 
-<span class="sd">    model_covariance : np.ndarray (nmodels)</span>
+<span class="sd">    covariance : np.ndarray (nmodels)</span>
 <span class="sd">        The covariance between the outputs of each model fidelity</span>
 
 <span class="sd">    References</span>
 <span class="sd">    ----------</span>
 <span class="sd">    .. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020. &lt;https://doi.org/10.1016/j.jcp.2020.109257&gt;`_</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">model</span> <span class="o">=</span> <span class="n">PolynomialModelEnsemble</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span>
-        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="s2">&quot;means&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_means</span><span class="p">(),</span>
-         <span class="s2">&quot;model_covariance&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">()})</span></div>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">PolynomialModelEnsemble</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">_extract_acv_benchmark_dict</span><span class="p">(</span><span class="n">model</span><span class="p">))</span></div>
 
 
 <span class="k">def</span> <span class="nf">setup_tunable_model_ensemble</span><span class="p">(</span><span class="n">theta1</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">2</span><span class="o">*</span><span class="mf">0.95</span><span class="p">,</span> <span class="n">shifts</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="n">model</span> <span class="o">=</span> <span class="n">TunableModelEnsemble</span><span class="p">(</span><span class="n">theta1</span><span class="p">,</span> <span class="n">shifts</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span>
-        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="s2">&quot;means&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_means</span><span class="p">(),</span>
-         <span class="s2">&quot;model_covariance&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">()})</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">_extract_acv_benchmark_dict</span><span class="p">(</span><span class="n">model</span><span class="p">))</span>
 
 
-<span class="k">def</span> <span class="nf">setup_short_column_ensemble</span><span class="p">():</span>
-    <span class="n">model</span> <span class="o">=</span> <span class="n">ShortColumnModelEnsemble</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span>
-        <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="s2">&quot;means&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_means</span><span class="p">(),</span>
-         <span class="s2">&quot;model_covariance&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">()})</span>
+<span class="k">def</span> <span class="nf">setup_short_column_ensemble</span><span class="p">(</span><span class="n">nmodels</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">ShortColumnModelEnsemble</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">_extract_acv_benchmark_dict</span><span class="p">(</span><span class="n">model</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">setup_multioutput_model_ensemble</span><span class="p">():</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">MultioutputModelEnsemble</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">_extract_acv_benchmark_dict</span><span class="p">(</span><span class="n">model</span><span class="p">))</span>
 
 
 <span class="k">def</span> <span class="nf">setup_parameterized_nonlinear_model</span><span class="p">():</span>
@@ -990,7 +1000,8 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">base_model</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">config_var_trans</span><span class="p">,</span> <span class="n">model_ensemble</span> <span class="o">=</span> <span class="p">(</span>
         <span class="n">_setup_multi_index_advection_diffusion_benchmark</span><span class="p">(</span>
-            <span class="n">kle_length_scale</span><span class="p">,</span> <span class="n">kle_stdev</span><span class="p">,</span> <span class="n">kle_nvars</span><span class="p">,</span> <span class="n">time_scenario</span><span class="o">=</span><span class="n">time_scenario</span><span class="p">,</span>
+            <span class="n">kle_length_scale</span><span class="p">,</span> <span class="n">kle_stdev</span><span class="p">,</span> <span class="n">kle_nvars</span><span class="p">,</span>
+            <span class="n">time_scenario</span><span class="o">=</span><span class="n">time_scenario</span><span class="p">,</span>
             <span class="n">functional</span><span class="o">=</span><span class="n">functional</span><span class="p">,</span> <span class="n">config_values</span><span class="o">=</span><span class="n">config_values</span><span class="p">,</span>
             <span class="n">source_loc</span><span class="o">=</span><span class="n">source_loc</span><span class="p">,</span> <span class="n">source_scale</span><span class="o">=</span><span class="n">source_scale</span><span class="p">,</span>
             <span class="n">source_amp</span><span class="o">=</span><span class="n">source_amp</span><span class="p">,</span> <span class="n">vel_vec</span><span class="o">=</span><span class="n">vel_vec</span><span class="p">,</span>
@@ -998,14 +1009,16 @@
     <span class="n">timer_model</span> <span class="o">=</span> <span class="n">TimerModel</span><span class="p">(</span><span class="n">base_model</span><span class="p">,</span> <span class="n">base_model</span><span class="p">)</span>
     <span class="n">pool_model</span> <span class="o">=</span> <span class="n">PoolModel</span><span class="p">(</span>
         <span class="n">timer_model</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">,</span> <span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span><span class="p">)</span>
+    <span class="c1"># enforce_timer_model must be False because pool is wrapping TimerModel</span>
     <span class="n">model</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span><span class="n">pool_model</span><span class="p">,</span> <span class="n">base_model</span><span class="p">,</span>
-                              <span class="n">base_model</span><span class="o">.</span><span class="n">_nconfig_vars</span><span class="p">)</span>
+                              <span class="n">base_model</span><span class="o">.</span><span class="n">_nconfig_vars</span><span class="p">,</span>
+                              <span class="n">enforce_timer_model</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     <span class="n">model0</span> <span class="o">=</span> <span class="n">base_model</span><span class="o">.</span><span class="n">_model_ensemble</span><span class="o">.</span><span class="n">functions</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s1">&#39;fun&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">,</span>
         <span class="s2">&quot;get_num_degrees_of_freedom&quot;</span><span class="p">:</span> <span class="n">model0</span><span class="o">.</span><span class="n">get_num_degrees_of_freedom_cost</span><span class="p">,</span>
         <span class="s2">&quot;config_var_trans&quot;</span><span class="p">:</span> <span class="n">config_var_trans</span><span class="p">,</span>
-        <span class="s1">&#39;model_ensemble&#39;</span><span class="p">:</span> <span class="n">model_ensemble</span><span class="p">}</span>
+        <span class="s1">&#39;model_ensemble&#39;</span><span class="p">:</span> <span class="n">model_ensemble</span><span class="p">,</span> <span class="s2">&quot;funs&quot;</span><span class="p">:</span> <span class="n">model_ensemble</span><span class="o">.</span><span class="n">functions</span><span class="p">}</span>
     <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span></div>
 
 
@@ -1162,7 +1175,7 @@
         <span class="n">timer_model</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="p">,</span> <span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span><span class="p">)</span>
 
     <span class="c1"># add wrapper that tracks execution times.</span>
-    <span class="n">model</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span><span class="n">pool_model</span><span class="p">,</span> <span class="n">base_model</span><span class="p">)</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span><span class="n">pool_model</span><span class="p">,</span> <span class="n">base_model</span><span class="p">,</span> <span class="n">enforce_timer_model</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
     <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;negloglike&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span> <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">variable</span><span class="p">,</span>
                   <span class="s2">&quot;noiseless_obs&quot;</span><span class="p">:</span> <span class="n">noiseless_obs</span><span class="p">,</span> <span class="s2">&quot;obs&quot;</span><span class="p">:</span> <span class="n">obs</span><span class="p">,</span>
@@ -1190,6 +1203,7 @@
     <span class="n">setup_advection_diffusion_kle_inversion_benchmark</span><span class="p">,</span>
     <span class="s1">&#39;polynomial_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_polynomial_ensemble</span><span class="p">,</span>
     <span class="s1">&#39;tunable_model_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_tunable_model_ensemble</span><span class="p">,</span>
+    <span class="s1">&#39;multioutput_model_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_multioutput_model_ensemble</span><span class="p">,</span>
     <span class="s1">&#39;short_column_ensemble&#39;</span><span class="p">:</span> <span class="n">setup_short_column_ensemble</span><span class="p">,</span>
     <span class="s2">&quot;parameterized_nonlinear_model&quot;</span><span class="p">:</span> <span class="n">setup_parameterized_nonlinear_model</span><span class="p">}</span>
 

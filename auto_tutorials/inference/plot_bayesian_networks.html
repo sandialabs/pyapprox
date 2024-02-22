@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gaussian Networks &mdash; PyApprox 1.0.2 documentation</title>
+  <title>Gaussian Networks &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -22,7 +22,7 @@
         <script src="../../_static/underscore.js"></script>
         <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
-        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -75,6 +75,7 @@
 <li class="toctree-l3"><a class="reference internal" href="plot_push_forward_based_inference.html">Push Forward Based Inference</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
 </ul>
@@ -121,16 +122,17 @@ to download the full example code</p>
 </div>
 <section class="sphx-glr-example-title" id="gaussian-networks">
 <span id="sphx-glr-auto-tutorials-inference-plot-bayesian-networks-py"></span><h1>Gaussian Networks<a class="headerlink" href="#gaussian-networks" title="Permalink to this heading"></a></h1>
-<p>This tutorial describes how to perform efficient inference on a network of Gaussian-linear models using Bayesian networks, often referred to as Gaussian networks. Bayesian networks can be constructed to provide a compact representation of joint distribution, which can be used to marginalize out variables and condition on observational data without the need to construct a full representation of the joint density over all variables.</p>
+<p>This tutorial describes how to perform efficient inference on a network of Gaussian-linear models using Bayesian networks, often referred to as Gaussian networks. Bayesian networks <a class="reference internal" href="#kfpgm2009" id="id1"><span>[KFPGM2009]</span></a> can be constructed to provide a compact representation of joint distribution, which can be used to marginalize out variables and condition on observational data without the need to construct a full representation of the joint density over all variables.</p>
 <section id="directed-acyclic-graphs">
 <h2>Directed Acyclic Graphs<a class="headerlink" href="#directed-acyclic-graphs" title="Permalink to this heading"></a></h2>
 <p>A Bayesian network (BN) structure is a directed acyclic graphs (DAG) whose nodes represent random variables and whose edges represent probabilistic relationships between them. The graph can be represented by a tuple of vertices (or nodes) and edges <span class="math notranslate nohighlight">\(\mathcal{G} = \left( \mathbf{V}, \mathbf{E} \right)\)</span>. A node <span class="math notranslate nohighlight">\(\theta_{j} \in \mathbf{V}\)</span> is a parent of a random variable <span class="math notranslate nohighlight">\(\theta_{i} \in \mathbf{V}\)</span> if there is a directed edge <span class="math notranslate nohighlight">\([\theta_{j} \to \theta_{i}] \in \mathbf{E}\)</span>. The set of parents of random variable <span class="math notranslate nohighlight">\(\theta_{i}\)</span> is denoted by <span class="math notranslate nohighlight">\(\theta_{\mathrm{pa}(i)}\)</span>.</p>
 <p>Lets import some necessary modules and then construct a DAG consisting of 3 groups of variables.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">networkx</span> <span class="k">as</span> <span class="nn">nx</span>
-<span class="kn">from</span> <span class="nn">pyapprox.bayes.laplace</span> <span class="kn">import</span> \
-    <span class="n">laplace_posterior_approximation_for_linear_models</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">from</span> <span class="nn">pyapprox.util.configure_plots</span> <span class="kn">import</span> <span class="n">plt</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.bayes.laplace</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">laplace_posterior_approximation_for_linear_models</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.bayes.gaussian_network</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">plot_hierarchical_network</span><span class="p">,</span> <span class="n">plot_peer_network</span><span class="p">,</span> <span class="n">plot_diverging_network</span><span class="p">,</span>
     <span class="n">GaussianNetwork</span><span class="p">,</span> <span class="n">convert_gaussian_from_canonical_form</span><span class="p">,</span>
@@ -509,11 +511,11 @@ Posterior Covariance
 <h3>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h3>
 <div role="list" class="citation-list">
 <div class="citation" id="kfpgm2009" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span>KFPGM2009<span class="fn-bracket">]</span></span>
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">KFPGM2009</a><span class="fn-bracket">]</span></span>
 <p><a class="reference external" href="https://mitpress.mit.edu/books/probabilistic-graphical-models">Probabilistic Graphical Models: Principles and Techinques. 2009</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.232 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.170 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-inference-plot-bayesian-networks-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/e95bd50d1e271dafaaa9564238b044ae/plot_bayesian_networks.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_bayesian_networks.py</span></code></a></p>

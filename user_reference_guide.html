@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>User Reference Guide &mdash; PyApprox 1.0.2 documentation</title>
+  <title>User Reference Guide &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
@@ -22,7 +22,7 @@
         <script src="_static/underscore.js"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
-        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
@@ -158,14 +158,11 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.multifidelity">pyapprox.multifidelity Package</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#id8">Functions</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.get_estimator.html">get_estimator</a></li>
-<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.estimate_variance.html">estimate_variance</a></li>
-<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.compare_estimator_variances.html">compare_estimator_variances</a></li>
-<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.plot_estimator_variances.html">plot_estimator_variances</a></li>
-<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.plot_acv_sample_allocation_comparison.html">plot_acv_sample_allocation_comparison</a></li>
-<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.estimate_model_ensemble_covariance.html">estimate_model_ensemble_covariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.plot_estimator_variance_reductions.html">plot_estimator_variance_reductions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.plot_estimator_sample_allocation_comparison.html">plot_estimator_sample_allocation_comparison</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.plot_correlation_matrix.html">plot_correlation_matrix</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.plot_model_costs.html">plot_model_costs</a></li>
-<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.get_best_models_for_acv_estimator.html">get_best_models_for_acv_estimator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multifidelity.estimate_model_ensemble_covariance.html">estimate_model_ensemble_covariance</a></li>
 </ul>
 </li>
 </ul>
@@ -360,7 +357,7 @@ the modeling literature.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_wing_weight_benchmark.html#pyapprox.benchmarks.setup_wing_weight_benchmark" title="pyapprox.benchmarks.setup_wing_weight_benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_wing_weight_benchmark</span></code></a>()</p></td>
 <td><p>Setup the wing weight model benchmark.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_polynomial_ensemble.html#pyapprox.benchmarks.setup_polynomial_ensemble" title="pyapprox.benchmarks.setup_polynomial_ensemble"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_polynomial_ensemble</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.setup_polynomial_ensemble.html#pyapprox.benchmarks.setup_polynomial_ensemble" title="pyapprox.benchmarks.setup_polynomial_ensemble"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_polynomial_ensemble</span></code></a>([nmodels])</p></td>
 <td><p>Return an ensemble of 5 univariate models of the form</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.list_benchmarks.html#pyapprox.benchmarks.list_benchmarks" title="pyapprox.benchmarks.list_benchmarks"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list_benchmarks</span></code></a>()</p></td>
@@ -496,32 +493,27 @@ models of varying cost and fidelity.</p>
 <h3>Functions<a class="headerlink" href="#id8" title="Permalink to this heading"></a></h3>
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.get_estimator.html#pyapprox.multifidelity.get_estimator" title="pyapprox.multifidelity.get_estimator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_estimator</span></code></a>(estimator_type, cov, costs, ...)</p></td>
-<td><p>Initialize an monte-carlo estimator.</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.get_estimator.html#pyapprox.multifidelity.get_estimator" title="pyapprox.multifidelity.get_estimator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_estimator</span></code></a>(estimator_types, stat, costs)</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.estimate_variance.html#pyapprox.multifidelity.estimate_variance" title="pyapprox.multifidelity.estimate_variance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">estimate_variance</span></code></a>(model_ensemble, estimator, ...)</p></td>
-<td><p>Numerically estimate the variance of an approximate control variate estimator.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_estimator_variance_reductions.html#pyapprox.multifidelity.plot_estimator_variance_reductions" title="pyapprox.multifidelity.plot_estimator_variance_reductions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_estimator_variance_reductions</span></code></a>(...[, ...])</p></td>
+<td><p>Plot the variance reduction (relative to single model MC) for a list of optimized estimtors.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.compare_estimator_variances.html#pyapprox.multifidelity.compare_estimator_variances" title="pyapprox.multifidelity.compare_estimator_variances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compare_estimator_variances</span></code></a>(target_costs, ...)</p></td>
-<td><p>Compute the variances of different Monte-Carlo like estimators.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_estimator_variances.html#pyapprox.multifidelity.plot_estimator_variances" title="pyapprox.multifidelity.plot_estimator_variances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_estimator_variances</span></code></a>(...[, ylabel, ...])</p></td>
-<td><p>Plot variance as a function of the total cost for a set of estimators.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_acv_sample_allocation_comparison.html#pyapprox.multifidelity.plot_acv_sample_allocation_comparison" title="pyapprox.multifidelity.plot_acv_sample_allocation_comparison"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_acv_sample_allocation_comparison</span></code></a>(...[, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_estimator_sample_allocation_comparison.html#pyapprox.multifidelity.plot_estimator_sample_allocation_comparison" title="pyapprox.multifidelity.plot_estimator_sample_allocation_comparison"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_estimator_sample_allocation_comparison</span></code></a>(...)</p></td>
 <td><p>Plot the number of samples allocated to each model for a set of estimators</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_correlation_matrix.html#pyapprox.multifidelity.plot_correlation_matrix" title="pyapprox.multifidelity.plot_correlation_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_correlation_matrix</span></code></a>(corr_matrix[, ax, ...])</p></td>
+<td><p>Plot a correlation matrix</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_model_costs.html#pyapprox.multifidelity.plot_model_costs" title="pyapprox.multifidelity.plot_model_costs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_model_costs</span></code></a>(costs[, model_names, ax])</p></td>
+<td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.estimate_model_ensemble_covariance.html#pyapprox.multifidelity.estimate_model_ensemble_covariance" title="pyapprox.multifidelity.estimate_model_ensemble_covariance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">estimate_model_ensemble_covariance</span></code></a>(...)</p></td>
 <td><p>Estimate the covariance of a model ensemble from a set of pilot samples</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_correlation_matrix.html#pyapprox.multifidelity.plot_correlation_matrix" title="pyapprox.multifidelity.plot_correlation_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_correlation_matrix</span></code></a>(corr_matrix[, ax, ...])</p></td>
-<td><p>Plot a correlation matrix</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.plot_model_costs.html#pyapprox.multifidelity.plot_model_costs" title="pyapprox.multifidelity.plot_model_costs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_model_costs</span></code></a>(costs[, model_names, ax])</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multifidelity.get_best_models_for_acv_estimator.html#pyapprox.multifidelity.get_best_models_for_acv_estimator" title="pyapprox.multifidelity.get_best_models_for_acv_estimator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_best_models_for_acv_estimator</span></code></a>(...[, ...])</p></td>
-<td><p></p></td>
 </tr>
 </tbody>
 </table>

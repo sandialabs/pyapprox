@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.analysis.sensitivity_analysis &mdash; PyApprox 1.0.2 documentation</title>
+  <title>pyapprox.analysis.sensitivity_analysis &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -1021,6 +1021,8 @@
                            <span class="s2">&quot;std&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">,</span>
                            <span class="s2">&quot;quantile-0.25&quot;</span><span class="p">:</span> <span class="n">quantile_stats</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
                            <span class="s2">&quot;quantile-0.75&quot;</span><span class="p">:</span> <span class="n">quantile_stats</span><span class="p">[</span><span class="mi">1</span><span class="p">]}</span>
+    <span class="n">stat_functions_dict</span><span class="p">[</span><span class="s2">&quot;min&quot;</span><span class="p">]</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">=</span> <span class="s2">&quot;amin&quot;</span>
+    <span class="n">stat_functions_dict</span><span class="p">[</span><span class="s2">&quot;max&quot;</span><span class="p">]</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">=</span> <span class="s2">&quot;amax&quot;</span>
     <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">summary_stats</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">stat_functions_dict</span><span class="p">:</span>
             <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Summary stats </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> not supported</span><span class="se">\n</span><span class="s2">&quot;</span>

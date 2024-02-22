@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>get_estimator &mdash; PyApprox 1.0.2 documentation</title>
+  <title>get_estimator &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
@@ -25,7 +25,7 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="estimate_variance" href="pyapprox.multifidelity.estimate_variance.html" />
+    <link rel="next" title="plot_estimator_variance_reductions" href="pyapprox.multifidelity.plot_estimator_variance_reductions.html" />
     <link rel="prev" title="MultiIndexModel" href="pyapprox.interface.MultiIndexModel.html" /> 
 </head>
 
@@ -74,14 +74,11 @@
 <li class="toctree-l2 current"><a class="reference internal" href="../user_reference_guide.html#module-pyapprox.multifidelity">pyapprox.multifidelity Package</a><ul class="current">
 <li class="toctree-l3 current"><a class="reference internal" href="../user_reference_guide.html#id8">Functions</a><ul class="current">
 <li class="toctree-l4 current"><a class="current reference internal" href="#">get_estimator</a></li>
-<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.estimate_variance.html">estimate_variance</a></li>
-<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.compare_estimator_variances.html">compare_estimator_variances</a></li>
-<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_estimator_variances.html">plot_estimator_variances</a></li>
-<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_acv_sample_allocation_comparison.html">plot_acv_sample_allocation_comparison</a></li>
-<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.estimate_model_ensemble_covariance.html">estimate_model_ensemble_covariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_estimator_variance_reductions.html">plot_estimator_variance_reductions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_estimator_sample_allocation_comparison.html">plot_estimator_sample_allocation_comparison</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_correlation_matrix.html">plot_correlation_matrix</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.plot_model_costs.html">plot_model_costs</a></li>
-<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.get_best_models_for_acv_estimator.html">get_best_models_for_acv_estimator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.multifidelity.estimate_model_ensemble_covariance.html">estimate_model_ensemble_covariance</a></li>
 </ul>
 </li>
 </ul>
@@ -123,8 +120,28 @@
 <h1>get_estimator<a class="headerlink" href="#get-estimator" title="Permalink to this heading"></a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="pyapprox.multifidelity.get_estimator">
-<span class="sig-prename descclassname"><span class="pre">pyapprox.multifidelity.</span></span><span class="sig-name descname"><span class="pre">get_estimator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">estimator_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cov</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">costs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_nmodels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/multifidelity/monte_carlo_estimators.html#get_estimator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.multifidelity.get_estimator" title="Permalink to this definition"></a></dt>
-<dd><p>Initialize an monte-carlo estimator.</p>
+<span class="sig-prename descclassname"><span class="pre">pyapprox.multifidelity.</span></span><span class="sig-name descname"><span class="pre">get_estimator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">estimator_types</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">costs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_nmodels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">est_kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/multifidelity/factory.html#get_estimator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyapprox.multifidelity.get_estimator" title="Permalink to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>estimator_types</strong><span class="classifier">list [str] or str</span></dt><dd><p>If str (or len(estimators_types==1), then return the estimator
+named estimator_type (or estimator_types[0])</p>
+</dd>
+<dt><strong>stat_type</strong><span class="classifier">str</span></dt><dd><p>The type of statistics to compute</p>
+</dd>
+<dt><strong>costs</strong><span class="classifier">np.ndarray (nmodels)</span></dt><dd><p>The computational cost of evaluating each model</p>
+</dd>
+<dt><strong>stat_args</strong><span class="classifier">list or tuple</span></dt><dd><p>The arguments that are needed to compute the statistic</p>
+</dd>
+<dt><strong>max_nmodels</strong><span class="classifier">integer</span></dt><dd><p>If None, compute the estimator using all the models. If not None,
+find the model subset that uses at most max_nmodels that minimizes
+the estimator covariance.</p>
+</dd>
+<dt><strong>est_kwargs</strong><span class="classifier">dict</span></dt><dd><p>Keyword arguments that will be passed when creating each estimator.</p>
+</dd>
+</dl>
+</dd>
+</dl>
 </dd></dl>
 
 </section>
@@ -134,7 +151,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="pyapprox.interface.MultiIndexModel.html" class="btn btn-neutral float-left" title="MultiIndexModel" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="pyapprox.multifidelity.estimate_variance.html" class="btn btn-neutral float-right" title="estimate_variance" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="pyapprox.multifidelity.plot_estimator_variance_reductions.html" class="btn btn-neutral float-right" title="plot_estimator_variance_reductions" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

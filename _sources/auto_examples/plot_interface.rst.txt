@@ -26,7 +26,7 @@ This tutorial demonstrats how to use model wrappers to time function calls and e
 
 Timing function evaluations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-It is often useful to be able to track the time needed to evaluate a function. We can track this using the :class:`pyapprox.interface.wrappers.TimerModel` and :class:`pyapprox.interface.wrappers.WorkTrackingModel` objects which are designed to work together. The former times each evaluation of a function that returns output of shape (nsamples,nqoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,nqoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsamples,nqoi) of the user function.
+It is often useful to be able to track the time needed to evaluate a function. We can track this using the :class:`~pyapprox.interface.wrappers.TimerModel` and :class:`~pyapprox.interface.wrappers.WorkTrackingModel` objects which are designed to work together. The former times each evaluation of a function that returns output of shape (nsamples,nqoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,nqoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsamples,nqoi) of the user function.
 
 Lets use the class with a function that takes a random amount of time. We will use the previous function but add a random pause between 0 and .1 seconds. Lets import some functions and define a multi-variate random variable
 
@@ -39,13 +39,14 @@ Lets use the class with a function that takes a random amount of time. We will u
 .. Also note that path above is relative to source/auto_examples
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 22-44
+.. GENERATED FROM PYTHON SOURCE LINES 22-47
 
 .. code-block:: default
 
 
     import os
     import time
+    import tempfile
     import numpy as np
     from scipy import stats
 
@@ -53,6 +54,8 @@ Lets use the class with a function that takes a random amount of time. We will u
     from pyapprox.interface.wrappers import (
         TimerModel, WorkTrackingModel, PoolModel, ModelEnsemble
     )
+    from pyapprox.interface.async_model import AynchModel
+    from pyapprox.interface.tests.test_async_model import get_file_io_model
 
     univariate_variables = [stats.uniform(-2, 4), stats.uniform(-2, 4)]
     variable = IndependentMarginalsVariable(univariate_variables)
@@ -72,11 +75,11 @@ Lets use the class with a function that takes a random amount of time. We will u
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 45-46
+.. GENERATED FROM PYTHON SOURCE LINES 48-49
 
-The :class:`pyapprox.interface.wrappers.WorkTrackingModel` has an attribute :class:`pyapprox.interface.wrappers.WorkTracker` which stores the execution time of each function evaluation as a dictionary. The key corresponds is the model id. For this example the id will always be the same, but the id can vary and this is useful when evaluating mutiple models, e.g. when using multi-fidelity methods. To print the dictionary use
+The :class:`~pyapprox.interface.wrappers.WorkTrackingModel` has an attribute :class:`~pyapprox.interface.wrappers.WorkTracker` which stores the execution time of each function evaluation as a dictionary. The key corresponds is the model id. For this example the id will always be the same, but the id can vary and this is useful when evaluating mutiple models, e.g. when using multi-fidelity methods. To print the dictionary use
 
-.. GENERATED FROM PYTHON SOURCE LINES 46-49
+.. GENERATED FROM PYTHON SOURCE LINES 49-52
 
 .. code-block:: default
 
@@ -91,16 +94,16 @@ The :class:`pyapprox.interface.wrappers.WorkTrackingModel` has an attribute :cla
 
  .. code-block:: none
 
-    {(0.0,): [0.048851966857910156, 0.030686140060424805, 0.04111194610595703, 0.04323410987854004, 0.03814506530761719, 0.05255603790283203, 0.0352940559387207, 0.03332686424255371, 0.027848005294799805, 0.008494138717651367]}
+    {(0.0,): [0.05384230613708496, 0.03567171096801758, 0.046114206314086914, 0.04846787452697754, 0.03335690498352051, 0.05100297927856445, 0.04039502143859863, 0.02930903434753418, 0.028896093368530273, 0.010175943374633789]}
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 50-51
+.. GENERATED FROM PYTHON SOURCE LINES 53-54
 
 We can also call the work tracker to query the median cost for a model with a given id. The default id is 0.
 
-.. GENERATED FROM PYTHON SOURCE LINES 51-55
+.. GENERATED FROM PYTHON SOURCE LINES 54-58
 
 .. code-block:: default
 
@@ -116,12 +119,12 @@ We can also call the work tracker to query the median cost for a model with a gi
 
  .. code-block:: none
 
-    [0.03671956]
+    [0.03803337]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 56-67
+.. GENERATED FROM PYTHON SOURCE LINES 59-70
 
 Evaluating multiple models
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -135,7 +138,7 @@ Now let apply this two an ensemble of models to explore the use of model ids. Fi
 .. Also note that path above is relative to source/auto_examples
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 67-69
+.. GENERATED FROM PYTHON SOURCE LINES 70-72
 
 .. code-block:: default
 
@@ -148,11 +151,11 @@ Now let apply this two an ensemble of models to explore the use of model ids. Fi
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 70-71
+.. GENERATED FROM PYTHON SOURCE LINES 73-74
 
-Now using :class:`pyapprox.interface.ModelEnsemble` we can create a function which takes the random samples plus an additional configure variable which defines which model to evaluate. Lets use half the samples to evaluate the first model and evaluate the second model at the remaining samples
+Now using :class:`~pyapprox.interface.ModelEnsemble` we can create a function which takes the random samples plus an additional configure variable which defines which model to evaluate. Lets use half the samples to evaluate the first model and evaluate the second model at the remaining samples
 
-.. GENERATED FROM PYTHON SOURCE LINES 71-81
+.. GENERATED FROM PYTHON SOURCE LINES 74-84
 
 .. code-block:: default
 
@@ -173,14 +176,14 @@ Now using :class:`pyapprox.interface.ModelEnsemble` we can create a function whi
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 82-86
+.. GENERATED FROM PYTHON SOURCE LINES 85-89
 
 Here we had to pass the number (1) of configure variables to the
 WorkTrackingModel. PyApprox assumes that the configure variables are the last rows of the samples 2D array
 
 Now check that the new values are the same as when using the individual functions directly
 
-.. GENERATED FROM PYTHON SOURCE LINES 86-91
+.. GENERATED FROM PYTHON SOURCE LINES 89-94
 
 .. code-block:: default
 
@@ -196,11 +199,11 @@ Now check that the new values are the same as when using the individual function
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 92-93
+.. GENERATED FROM PYTHON SOURCE LINES 95-96
 
 Again we can query the execution times of each model
 
-.. GENERATED FROM PYTHON SOURCE LINES 93-99
+.. GENERATED FROM PYTHON SOURCE LINES 96-102
 
 .. code-block:: default
 
@@ -218,26 +221,63 @@ Again we can query the execution times of each model
 
  .. code-block:: none
 
-    {(0.0,): [0.04669690132141113, 0.04035592079162598, 0.0060231685638427734, 0.040384769439697266, 0.005959987640380859], (1.0,): [0.06752824783325195, 0.07092499732971191, 0.0667259693145752, 0.06674790382385254, 0.0886991024017334]}
-    [0.04035592 0.06752825]
+    {(0.0,): [0.04745125770568848, 0.03804421424865723, 0.00721287727355957, 0.03682303428649902, 0.0058078765869140625], (1.0,): [0.06682920455932617, 0.0755620002746582, 0.06383419036865234, 0.07273602485656738, 0.08753705024719238]}
+    [0.03682303 0.07273602]
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 100-101
+.. GENERATED FROM PYTHON SOURCE LINES 103-104
 
 As expected there are 5 samples tracked for each model and the median evaluation time of the second function is about twice as large as for the first function.
 
-.. GENERATED FROM PYTHON SOURCE LINES 103-109
+.. GENERATED FROM PYTHON SOURCE LINES 106-111
+
+Evaluating non-python models
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The :class:`~pyapprox.interface.async_model.AynchModel` can be used to run models that may not be written in Python, but can be evaluated from the command line via a shell script. The :class:`~pyapprox.interface.async_model.AynchModel` creates a file named params.in (the name can be changed by the user) and assumes that the shell script reads in that file and returns the output of the model in a file called results.out (this name can also be changed). Each evaluation of the model is performed in a separate work directory to ensure that no results are overwritten, which is especially important when running the model in parallel. If a list of filenames needed to run the bash script is provided a soft link to each file is created in each work directory. This is extremely useful when running large finite element simulations that may have input files, such as mesh and topography data, with large memory footprints.
+
+The following creates a model with two inputs and two quantities of interest and evaluates it at three samples. Temporary work directories are created to run the model at each sample. The directories are automatically deleted, however the user can choose to keep each directory.
+
+.. GENERATED FROM PYTHON SOURCE LINES 111-121
+
+.. code-block:: default
+
+    file_io_model = get_file_io_model(0.02)[0]
+    tmp_dir = tempfile.TemporaryDirectory()
+    asynch_model = AynchModel(
+        file_io_model.shell_command, workdir_basename=tmp_dir.name,
+        save_workdirs="no")
+    asynch_variable = IndependentMarginalsVariable([stats.uniform(0, 1)]*2)
+    samples = asynch_variable.rvs(3)
+    values = asynch_model(samples)
+    print(values)
+
+
+
+
+
+.. rst-class:: sphx-glr-script-out
+
+ .. code-block:: none
+
+    [[0.69414315 0.13057696]
+     [0.89572623 1.03101536]
+     [0.19839214 0.12735394]]
+
+
+
+
+.. GENERATED FROM PYTHON SOURCE LINES 122-128
 
 Evaluating functions at multiple samples in parallel
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-For expensive models it is often useful to be able to evaluate each model concurrently. This can be achieved using :class:`pyapprox.interface.wrappers.PoolModel`. Note this function is not intended for use with distributed memory systems, but rather is intended to use all the threads of a personal computer or compute node. See :class:`pyapprox.interface.async_model.AynchModel` if you are interested in running multiple simulations in parallel on a distributed memory system.
+For expensive models it is often useful to be able to evaluate each model concurrently. This can be achieved using :class:`~pyapprox.interface.wrappers.PoolModel`. Note this function is not intended for use with distributed memory systems, but rather is intended to use all the threads of a personal computer or compute node. See the documention of the , max_eval_concurrency keyword argument to the initization function for :class:`~pyapprox.interface.async_model.AynchModel` if you are interested in running multiple simulations in parallel on a distributed memory system.
 
 PoolModel cannot be used to wrap WorkTrackingModel. However it can still
 be used with WorkTrackingModel using the sequence of wrappers below.
 
-.. GENERATED FROM PYTHON SOURCE LINES 109-141
+.. GENERATED FROM PYTHON SOURCE LINES 128-160
 
 .. code-block:: default
 
@@ -248,7 +288,7 @@ be used with WorkTrackingModel using the sequence of wrappers below.
         timer_fun_ensemble, max_eval_concurrency, assert_omp=False)
     worktracking_fun_ensemble.work_tracker.costs = dict()
     worktracking_fun_ensemble = WorkTrackingModel(
-        pool_model, num_config_vars=1)
+        pool_model, num_config_vars=1, enforce_timer_model=False)
 
     # create more samples to notice improvement in wall time
     nsamples = 10
@@ -281,19 +321,18 @@ be used with WorkTrackingModel using the sequence of wrappers below.
 
  .. code-block:: none
 
-    With 1 threads that took 0.4701979160308838 seconds
-    Warning set OMP_NUM_THREADS=1 for best performance
-    With 4 threads that took 1.2375938892364502 seconds
+    With 1 threads that took 0.5262501239776611 seconds
+    With 4 threads that took 2.020951986312866 seconds
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 142-144
+.. GENERATED FROM PYTHON SOURCE LINES 161-163
 
 Lets print a summary of the costs to make sure individual function evaluation
 costs are still being recorded correctly
 
-.. GENERATED FROM PYTHON SOURCE LINES 144-147
+.. GENERATED FROM PYTHON SOURCE LINES 163-166
 
 .. code-block:: default
 
@@ -310,42 +349,39 @@ costs are still being recorded correctly
 
     WorkTracker Cost Summary
     Funtion ID Median Cost
-    (0.0,)     0.012865543365478516
-    (1.0,)     0.07081997394561768
+    (0.0,)     0.03803455829620361
+    (1.0,)     0.07765007019042969
 
 
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 148-151
+.. GENERATED FROM PYTHON SOURCE LINES 167-180
 
 Note
 ^^^^
 PoolModel cannot be used with lambda functions. You will get error similar to pickle.PicklingError: Can't pickle <function <lambda> at 0x12b4e6440>: attribute lookup <lambda> on __main__ failed
 
-.. GENERATED FROM PYTHON SOURCE LINES 151-154
+When because the benchmark fun is run using multiprocessing.Pool
+The .py script of this tutorial cannot be run with max_eval_concurrency > 1
+via the shell command using python plot_pde_convergence.py because Pool
+must be called inside
 
-.. code-block:: default
+.. code-block:: python
 
-
-    # sphinx_gallery_thumbnail_path = './figures/cantilever-beam.png'
-
-
-
-
+    if __name__ == '__main__':
 
 
+.. GENERATED FROM PYTHON SOURCE LINES 182-185
 
-
-.. GENERATED FROM PYTHON SOURCE LINES 155-157
-
+sphinx_gallery_thumbnail_path = './figures/cantilever-beam.png'
 .. gallery thumbnail will say broken if no plots are made in this file so
 .. specify a default file as above. Must start with a #
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  3.076 seconds)
+   **Total running time of the script:** ( 0 minutes  9.004 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_interface.py:

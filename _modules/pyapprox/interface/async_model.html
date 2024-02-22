@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pyapprox.interface.async_model &mdash; PyApprox 1.0.2 documentation</title>
+  <title>pyapprox.interface.async_model &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
@@ -106,7 +106,7 @@
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    process sample: callable function (default=None)</span>
+<span class="sd">    process_sample: callable function (default=None)</span>
 <span class="sd">        Function that overwrites the basic implementation</span>
 <span class="sd">        which reads the sample in from a file called params_filename.</span>
 <span class="sd">        This is useful if there are a number of pre-processing steps</span>
@@ -137,10 +137,29 @@
 <span class="sd">        A identifier used when printing model evaluation info</span>
 
 <span class="sd">    saved_data_basename : string (default=None)</span>
-<span class="sd">        The basename of the file used to store the output data from the </span>
+<span class="sd">        The basename of the file used to store the output data from the</span>
 <span class="sd">        model. A new file is created every time __call__ is exceuted.</span>
 <span class="sd">        a unique identifier is created based upon the value of evaluation id</span>
 <span class="sd">        when __call__ is started.</span>
+
+<span class="sd">    link_filenames : list (default=[])</span>
+<span class="sd">        List of filenames (strings), including their absolute path that will</span>
+<span class="sd">        be made available in each workdirectory using soft links</span>
+
+<span class="sd">    max_eval_concurrency : integer (default=1)</span>
+<span class="sd">        How many shell commands to execute a synchronously.</span>
+
+<span class="sd">    params_filename : string (default=&#39;params.in&#39;)</span>
+<span class="sd">        The name of the file containing the sample realization read in by the</span>
+<span class="sd">        shell script.</span>
+
+<span class="sd">    results_filename : string (default=&#39;results.out&#39;)</span>
+<span class="sd">        The name of the file containing the model output written by the</span>
+<span class="sd">        shell script.</span>
+
+<span class="sd">    params_file_header : string (default=&#39;&#39;)</span>
+<span class="sd">        A header that will be added to the params_file, which may be</span>
+<span class="sd">        required by some scripts.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shell_command</span><span class="p">,</span> <span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>

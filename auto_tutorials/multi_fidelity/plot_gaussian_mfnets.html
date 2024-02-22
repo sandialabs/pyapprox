@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MFNets: Multi-fidelity networks &mdash; PyApprox 1.0.2 documentation</title>
+  <title>MFNets: Multi-fidelity networks &mdash; PyApprox 1.0.3 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
@@ -22,7 +22,7 @@
         <script src="../../_static/underscore.js"></script>
         <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
-        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}}</script>
+        <script>window.MathJax = {"tex": {"macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "rv": "{z}", "rvset": "{\\mathcal{Z}}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "argmin": ["\\operatorname{argmin}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\text{d}#1", 1], "mat": ["{\\boldsymbol{\\mathrm{#1}}}", 1]}}}</script>
         <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -62,14 +62,22 @@
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Theoretical Tutorials</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../index.html#model-analysis">Model Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#experimental-design">Experimental Design</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#surrogates">Surrogates</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
-<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
-<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_monte_carlo.html">Monte Carlo Quadrature: Beyond Mean Estimation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Two Model Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variates.html">Two model Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_many_model_acv.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="acv_covariances.html">Delta-Based Covariance Formulas For Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_allocation_matrices.html">Approximate Control Variate Allocation Matrices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
-<li class="toctree-l3"><a class="reference internal" href="plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pacv.html">Parametrically Defined Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multioutput_acv.html">Multioutput Approximate Control Variates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_pilot_studies.html">Pilot Studies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_ensemble_selection.html">Model Ensemble Selection</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multilevel_blue.html">Multilevel Best Linear Unbiased estimators (MLBLUE)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multiindex_collocation.html">Multi-level and Multi-index Collocation</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multifidelity_gp.html">Multifidelity Gaussian processes</a></li>
@@ -141,19 +149,17 @@ f_3(\rv) &amp;= f_1(\rv)+f_2(\rv)+2\rv_1-1\end{split}\]</div>
 <p>Let’s first import the necessary functions and modules and set the seed for reproducibility</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">networkx</span> <span class="k">as</span> <span class="nn">nx</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
 <span class="kn">import</span> <span class="nn">scipy</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
 
-<span class="kn">from</span> <span class="nn">pyapprox.util.configure_plots</span> <span class="kn">import</span> <span class="n">plt</span>
 <span class="kn">from</span> <span class="nn">pyapprox.bayes.laplace</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">laplace_posterior_approximation_for_linear_models</span>
-<span class="p">)</span>
+    <span class="n">laplace_posterior_approximation_for_linear_models</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyapprox.bayes.gaussian_network</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">get_total_degree_polynomials</span><span class="p">,</span> <span class="n">plot_1d_lvn_approx</span><span class="p">,</span> <span class="n">GaussianNetwork</span><span class="p">,</span>
     <span class="n">cond_prob_variable_elimination</span><span class="p">,</span>
     <span class="n">convert_gaussian_from_canonical_form</span><span class="p">,</span>
-    <span class="n">plot_peer_network_with_data</span>
-<span class="p">)</span>
+    <span class="n">plot_peer_network_with_data</span><span class="p">)</span>
 
 <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
 </pre></div>
@@ -442,10 +448,6 @@ f_3(\rv) &amp;= f_2(\rv)+\cos(3\pi\rv_1)\end{split}\]</div>
 <span class="backrefs">(<a role="doc-backlink" href="#id1">1</a>,<a role="doc-backlink" href="#id2">2</a>)</span>
 <p><a class="reference external" href="https://www.alexgorodetsky.com/static/papers/gorodetsky_jakeman_geraci_eldred_mfnets_2020.pdf">A. Gorodetsky et al. MFNets: Multi-fidelity data-driven networks for bayesian learning and prediction, International Journal for Uncertainty Quantification, 2020.</a></p>
 </div>
-<div class="citation" id="gjgjcp2020" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span>GJGJCP2020<span class="fn-bracket">]</span></span>
-<p><a class="reference external" href="https://res.arxiv.org/abs/2008.02672">A. Gorodetsky et al. MFNets: Learning network representations for multifidelity surrogate modeling, 2020.</a></p>
-</div>
 </div>
 </section>
 <section id="appendix">
@@ -465,7 +467,7 @@ f_3(\rv) &amp;= f_2(\rv)+\cos(3\pi\rv_1)\end{split}\]</div>
 <p>Noting that <span class="math notranslate nohighlight">\(\left(A^\top\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}\)</span> is the posterior covariance we obtain the usual expression for the posterior mean</p>
 <div class="math notranslate nohighlight">
 \[\mu^\mathrm{post}=\Sigma^\mathrm{post}\left(A^\top\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right)\]</div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.641 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.459 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/61a19ff484b6fbbccbed5bda217b6b9b/plot_gaussian_mfnets.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_gaussian_mfnets.py</span></code></a></p>
