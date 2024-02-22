@@ -171,9 +171,9 @@ sphinx_gallery_conf['first_notebook_cell'] = r"Add latex macros$$\newcommand{\V}
 # Note sphinx can use align with single line, e.g. a=1 & & b=1 if \\ is added to the end of the line, i.e  a=1 & & b=1\\
 
 # silence warning created by sphinx-gallery
-warnings.filterwarnings("ignore", category=UserWarning,
-                        message='Matplotlib is currently using agg, which is a'
-                                ' non-GUI backend, so cannot show the figure.')
+# warnings.filterwarnings("ignore", category=UserWarning,
+#                         message='Matplotlib is currently using agg, which is a'
+#                                 ' non-GUI backend, so cannot show the figure.')
 
 # numpydoc_show_class_members=False option is ncessary when using automodapi
 # to avoid having methods and attributes of classes being shown multiple times.

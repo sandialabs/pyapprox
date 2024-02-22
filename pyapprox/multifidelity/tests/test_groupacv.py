@@ -215,15 +215,15 @@ class TestGroupACV(unittest.TestCase):
         gest = GroupACVEstimator(stat, costs, reg_blue=0)
         gest.allocate_samples(
             target_cost,
-            options={"disp": False, "verbose": 0, "maxiter": 1000,
-                     "gtol": 1e-8, "method": "trust-constr"},
+            optim_options={"disp": False, "maxiter": 1000,
+                           "method": "slsqp"},
             min_nhf_samples=min_nhf_samples)
         assert gest._nhf_samples(
             gest._rounded_npartition_samples) >= min_nhf_samples
 
         mlest = MLBLUEEstimator(stat, costs, reg_blue=0)
         mlest.allocate_samples(
-            target_cost, options={"method": "trust-constr", "gtol": 1e-8},
+            target_cost, optim_options={"method": "slsqp"},
             min_nhf_samples=min_nhf_samples)
         assert mlest._nhf_samples(
             mlest._rounded_npartition_samples) >= min_nhf_samples
@@ -242,6 +242,7 @@ class TestGroupACV(unittest.TestCase):
 
         # the answers will be different because group acv optimization
         # currently uses finite differences
+        print(gest._optimized_criteria, mlest._optimized_criteria)
         assert np.allclose(gest._optimized_criteria,
                            mlest._optimized_criteria, rtol=5e-3)
 
@@ -267,12 +268,12 @@ class TestGroupACV(unittest.TestCase):
         gest = MLBLUEEstimator(stat, costs, reg_blue=0)
         gest.allocate_samples(
             target_cost,
-            options={"disp": False, "verbose": 0, "maxiter": 1000,
-                     "gtol": 1e-9, "method": "trust-constr"},
+            optim_options={"disp": False, "verbose": 0, "maxiter": 1000,
+                           "gtol": 1e-9, "method": "trust-constr"},
             min_nhf_samples=min_nhf_samples)
 
         mlest = MLBLUEEstimator(stat, costs, reg_blue=0)
-        mlest.allocate_samples(target_cost, options={"method": "cvxpy"},
+        mlest.allocate_samples(target_cost, optim_options={"method": "cvxpy"},
                                min_nhf_samples=min_nhf_samples)
         assert mlest._nhf_samples(
             mlest._rounded_npartition_samples) >= min_nhf_samples
@@ -345,8 +346,14 @@ class TestGroupACV(unittest.TestCase):
         costs = np.logspace(-nmodels+1, 0, nmodels)[::-1].copy()
         stat = multioutput_stats["mean"](1)
         stat.set_pilot_quantities(cov)
-        est = MLBLUEEstimator(stat, costs, reg_blue=0)
-        est.allocate_samples(target_cost, min_nhf_samples=min_nhf_samples)
+        est = MLBLUEEstimator(stat, costs, reg_blue=1e-10)
+        # trust-const method does not work on some platforms.
+        # It produces an interate and the lower bound and the SubBarrierProblem
+        # returns a nan because it take the log of 0=x-lb.
+        est.allocate_samples(
+            target_cost, min_nhf_samples=min_nhf_samples,
+            optim_options={"maxiter": 1000, "init_guess": {"maxfev": 1000},
+                           "bounds": [1e-10, 1e6], "method": "slsqp"})
 
         # the following test only works if variable.num_vars()==1 because
         # variable.rvs does not produce nested samples when this condition does

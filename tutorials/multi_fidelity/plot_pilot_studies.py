@@ -32,9 +32,6 @@ from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
 from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.util.visualization import mathrm_label
 
-import warnings
-warnings.filterwarnings("error")
-
 np.random.seed(1)
 
 #%%

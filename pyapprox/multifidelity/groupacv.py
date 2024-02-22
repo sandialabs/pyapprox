@@ -409,16 +409,16 @@ class GroupACVEstimator():
         return full(
             (self.npartitions,), np.floor(target_cost/cost))
 
-    def _update_init_guess(self, init_guess, constraints, options):
+    def _update_init_guess(self, init_guess, constraints, options, bounds):
         method = "nelder-mead"
-        #options["xatol"] = 1e-6
-        #options["fatol"] = 1e-6
-        options["maxfev"] = 100 * len(init_guess)
+        # options["xatol"] = 1e-6
+        # options["fatol"] = 1e-6
+        # options["maxfev"] = 100 * len(init_guess)
         obj = partial(self._constrained_objective, constraints)
         res = minimize(
             obj, init_guess, jac=False,
             method=method, constraints=None, options=options,
-            bounds=self._get_bounds())
+            bounds=self._get_bounds(*bounds))
         return res.x
 
     def _set_optimized_params_base(self, rounded_npartition_samples,
@@ -442,13 +442,13 @@ class GroupACVEstimator():
             self._compute_nsamples_per_model(rounded_npartition_samples),
             self._estimator_cost(rounded_npartition_samples))
 
-    def _get_bounds(self):
+    def _get_bounds(self, lb, ub):
         # better to use bounds because they are never violated
         # but enforcing bounds as constraints means bounds can be violated
         # bounds = [(0, np.inf) for ii in range(self.npartitions)]
         # optimizer has trouble when ub in np.inf
-        bounds = Bounds(np.zeros(self.npartitions)+1e-8,
-                        np.full((self.npartitions,), 1e10),
+        bounds = Bounds(np.zeros(self.npartitions)+lb,
+                        np.full((self.npartitions,), ub),
                         keep_feasible=True)
         return bounds
 
@@ -465,7 +465,7 @@ class GroupACVEstimator():
 
     def allocate_samples(self, target_cost,
                          constraint_reg=0, round_nsamples=True,
-                         options={}, init_guess=None,
+                         init_guess=None,
                          min_nhf_samples=1, min_nlf_samples=None,
                          optim_options={}):
         """
@@ -483,24 +483,26 @@ class GroupACVEstimator():
         obj = partial(self._objective, return_grad=self._obj_jac)
         constraints = self._get_constraints(
             target_cost, min_nhf_samples, min_nlf_samples, constraint_reg)
+        optim_options_copy = optim_options.copy()
+        bounds = optim_options_copy.pop("bounds", [1e-8, 1e10])
         if init_guess is None:
             init_guess = self._init_guess(target_cost)
-            init_opts = optim_options.get("init_guess", {})
+            init_opts = optim_options_copy.pop("init_guess", {})
             if isinstance(init_opts, dict):
                 nelder_mead_constraints = self._get_nelder_mead_constraints(
                     target_cost, min_nhf_samples, min_nlf_samples,
                     constraint_reg)
                 init_guess = self._update_init_guess(
-                    init_guess, nelder_mead_constraints, init_opts)
+                    init_guess, nelder_mead_constraints, init_opts, bounds)
         init_guess = np.maximum(init_guess, self._npartition_samples_lb)
-        options_copy = options.copy()
-        method = options_copy.pop("method", "trust-constr")
+        method = optim_options_copy.pop("method", "trust-constr")
         # import warnings
         # warnings.filterwarnings("error")
         res = minimize(
             obj, init_guess, jac=self._obj_jac,
-            method=method, constraints=constraints, options=options_copy,
-            bounds=self._get_bounds())
+            method=method, constraints=constraints,
+            options=optim_options_copy,
+            bounds=self._get_bounds(*bounds))
         if not res.success or np.any(res["x"] < 0):
             # second condition is needed, even though bounds should enforce,
             # positivity, because somtimes trust-constr does not enforce
@@ -509,8 +511,6 @@ class GroupACVEstimator():
             print(msg)
             print(res)
             raise RuntimeError(msg)
-        # print([con.residual(res["x"]) for con in constraints])
-        # print([(con.lb, con.ub) for con in constraints])
 
         self._set_optimized_params(asarray(res["x"]), round_nsamples)
 
@@ -785,10 +785,10 @@ class MLBLUEEstimator(GroupACVEstimator):
 
     def allocate_samples(self, target_cost,
                          constraint_reg=0, round_nsamples=True,
-                         options={}, init_guess=None, min_nhf_samples=1,
+                         init_guess=None, min_nhf_samples=1,
                          min_nlf_samples=None, optim_options={}):
-        options_copy = options.copy()
-        method = options_copy.pop(
+        optim_options_copy = optim_options.copy()
+        method = optim_options_copy.get(
             "method", "cvxpy" if _cvx_available else "trust-constr")
         if method == "cvxpy":
             if not _cvx_available:
@@ -803,7 +803,7 @@ class MLBLUEEstimator(GroupACVEstimator):
         # TODO put all keyword args into optim_options
         return super().allocate_samples(
             target_cost, constraint_reg, round_nsamples,
-            options_copy, init_guess, min_nhf_samples, min_nlf_samples)
+            init_guess, min_nhf_samples, min_nlf_samples, optim_options_copy)
 
     def estimate_all_means(self, values_per_subset):
         asketch = copy(self._asketch)

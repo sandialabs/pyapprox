@@ -521,8 +521,8 @@ def lognormal_cvar(p, mu, sigma_sq):
     mean = lognormal_mean(mu, sigma_sq)
     if p == 0:
         return mean
-    import warnings
-    warnings.filterwarnings("error")
+    # import warnings
+    # warnings.filterwarnings("error")
     if sigma_sq < 0 and sigma_sq > -1e-16:
         sigma_sq = 0
     sigma = np.sqrt(sigma_sq)
