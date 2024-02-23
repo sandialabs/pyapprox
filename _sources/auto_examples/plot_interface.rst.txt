@@ -94,7 +94,7 @@ The :class:`~pyapprox.interface.wrappers.WorkTrackingModel` has an attribute :cl
 
  .. code-block:: none
 
-    {(0.0,): [0.048834800720214844, 0.030699968338012695, 0.04114794731140137, 0.043380022048950195, 0.03644394874572754, 0.052088022232055664, 0.0309751033782959, 0.033277034759521484, 0.026198148727416992, 0.008434772491455078]}
+    {(0.0,): [0.05384182929992676, 0.03567314147949219, 0.04611515998840332, 0.048449039459228516, 0.03619694709777832, 0.051397085189819336, 0.03651094436645508, 0.033383846282958984, 0.028954029083251953, 0.01028299331665039]}
 
 
 
@@ -119,7 +119,7 @@ We can also call the work tracker to query the median cost for a model with a gi
 
  .. code-block:: none
 
-    [0.03486049]
+    [0.03635395]
 
 
 
@@ -221,8 +221,8 @@ Again we can query the execution times of each model
 
  .. code-block:: none
 
-    {(0.0,): [0.04386615753173828, 0.03546404838562012, 0.005116939544677734, 0.039038896560668945, 0.005476951599121094], (1.0,): [0.06718325614929199, 0.07482719421386719, 0.06654596328735352, 0.0634310245513916, 0.0876610279083252]}
-    [0.03546405 0.06718326]
+    {(0.0,): [0.04654693603515625, 0.03600907325744629, 0.005505800247192383, 0.036306142807006836, 0.007191896438598633], (1.0,): [0.0686650276184082, 0.07927918434143066, 0.06643199920654297, 0.0727388858795166, 0.09210491180419922]}
+    [0.03600907 0.07273889]
 
 
 
@@ -321,8 +321,8 @@ be used with WorkTrackingModel using the sequence of wrappers below.
 
  .. code-block:: none
 
-    With 1 threads that took 0.4943351745605469 seconds
-    With 4 threads that took 2.06349778175354 seconds
+    With 1 threads that took 0.5184891223907471 seconds
+    With 4 threads that took 1.8328609466552734 seconds
 
 
 
@@ -349,8 +349,8 @@ costs are still being recorded correctly
 
     WorkTracker Cost Summary
     Funtion ID Median Cost
-    (0.0,)     0.030101537704467773
-    (1.0,)     0.08911943435668945
+    (0.0,)     0.024840116500854492
+    (1.0,)     0.07507240772247314
 
 
 
@@ -381,7 +381,7 @@ sphinx_gallery_thumbnail_path = './figures/cantilever-beam.png'
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  10.166 seconds)
+   **Total running time of the script:** ( 0 minutes  6.366 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_interface.py:

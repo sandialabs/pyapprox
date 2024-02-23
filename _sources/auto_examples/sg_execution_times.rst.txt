@@ -6,32 +6,32 @@
 
 Computation times
 =================
-**03:18.868** total execution time for **auto_examples** files:
+**03:04.784** total execution time for **auto_examples** files:
 
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_paper_demo.py` (``plot_paper_demo.py``)                                                                           | 02:14.459 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_paper_demo.py` (``plot_paper_demo.py``)                                                                           | 02:06.828 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_pde_convergence.py` (``plot_pde_convergence.py``)                                                                 | 00:51.635 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_pde_convergence.py` (``plot_pde_convergence.py``)                                                                 | 00:49.084 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_interface.py` (``plot_interface.py``)                                                                             | 00:10.166 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_interface.py` (``plot_interface.py``)                                                                             | 00:06.366 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_variables.py` (``plot_variables.py``)                                                                             | 00:01.943 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_variables.py` (``plot_variables.py``)                                                                             | 00:01.889 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_sparse_grid_uq.py` (``plot_sparse_grid_uq.py``)                                                                   | 00:00.135 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_sparse_grid_uq.py` (``plot_sparse_grid_uq.py``)                                                                   | 00:00.130 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_parameter_sweeps.py` (``plot_parameter_sweeps.py``)                                                               | 00:00.130 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_parameter_sweeps.py` (``plot_parameter_sweeps.py``)                                                               | 00:00.123 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_gaussian_quadrature.py` (``plot_gaussian_quadrature.py``)                                                         | 00:00.101 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_gaussian_quadrature.py` (``plot_gaussian_quadrature.py``)                                                         | 00:00.096 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_multivariate_piecewise_polynomial_interpolation.py` (``plot_multivariate_piecewise_polynomial_interpolation.py``) | 00:00.100 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_multivariate_piecewise_polynomial_interpolation.py` (``plot_multivariate_piecewise_polynomial_interpolation.py``) | 00:00.092 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
 | :ref:`sphx_glr_auto_examples_plot_multiindex_collocation_ex.py` (``plot_multiindex_collocation_ex.py``)                                             | 00:00.066 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_barycentric_interpolation.py` (``plot_barycentric_interpolation.py``)                                             | 00:00.049 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_barycentric_interpolation.py` (``plot_barycentric_interpolation.py``)                                             | 00:00.045 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_low_discrepancy_quadrature.py` (``plot_low_discrepancy_quadrature.py``)                                           | 00:00.042 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_low_discrepancy_quadrature.py` (``plot_low_discrepancy_quadrature.py``)                                           | 00:00.033 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_setup_model.py` (``plot_setup_model.py``)                                                                         | 00:00.029 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_setup_model.py` (``plot_setup_model.py``)                                                                         | 00:00.020 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_examples_plot_multifidelity_quadrature.py` (``plot_multifidelity_quadrature.py``)                                               | 00:00.014 | 0.0 MB |
+| :ref:`sphx_glr_auto_examples_plot_multifidelity_quadrature.py` (``plot_multifidelity_quadrature.py``)                                               | 00:00.013 | 0.0 MB |
 +-----------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+

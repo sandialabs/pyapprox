@@ -618,42 +618,42 @@ input[type=range].anim-slider {
 </style>
 
 <div class="animation">
-  <img id="_anim_imgcd4c9d54471543f092065af30defef15">
+  <img id="_anim_img833bd06ab849489598567146b4186939">
   <div class="anim-controls">
-    <input id="_anim_slidercd4c9d54471543f092065af30defef15" type="range" class="anim-slider"
+    <input id="_anim_slider833bd06ab849489598567146b4186939" type="range" class="anim-slider"
            name="points" min="0" max="1" step="1" value="0"
-           oninput="animcd4c9d54471543f092065af30defef15.set_frame(parseInt(this.value));">
+           oninput="anim833bd06ab849489598567146b4186939.set_frame(parseInt(this.value));">
     <div class="anim-buttons">
-      <button title="Decrease speed" aria-label="Decrease speed" onclick="animcd4c9d54471543f092065af30defef15.slower()">
+      <button title="Decrease speed" aria-label="Decrease speed" onclick="anim833bd06ab849489598567146b4186939.slower()">
           <i class="fa fa-minus"></i></button>
-      <button title="First frame" aria-label="First frame" onclick="animcd4c9d54471543f092065af30defef15.first_frame()">
+      <button title="First frame" aria-label="First frame" onclick="anim833bd06ab849489598567146b4186939.first_frame()">
         <i class="fa fa-fast-backward"></i></button>
-      <button title="Previous frame" aria-label="Previous frame" onclick="animcd4c9d54471543f092065af30defef15.previous_frame()">
+      <button title="Previous frame" aria-label="Previous frame" onclick="anim833bd06ab849489598567146b4186939.previous_frame()">
           <i class="fa fa-step-backward"></i></button>
-      <button title="Play backwards" aria-label="Play backwards" onclick="animcd4c9d54471543f092065af30defef15.reverse_animation()">
+      <button title="Play backwards" aria-label="Play backwards" onclick="anim833bd06ab849489598567146b4186939.reverse_animation()">
           <i class="fa fa-play fa-flip-horizontal"></i></button>
-      <button title="Pause" aria-label="Pause" onclick="animcd4c9d54471543f092065af30defef15.pause_animation()">
+      <button title="Pause" aria-label="Pause" onclick="anim833bd06ab849489598567146b4186939.pause_animation()">
           <i class="fa fa-pause"></i></button>
-      <button title="Play" aria-label="Play" onclick="animcd4c9d54471543f092065af30defef15.play_animation()">
+      <button title="Play" aria-label="Play" onclick="anim833bd06ab849489598567146b4186939.play_animation()">
           <i class="fa fa-play"></i></button>
-      <button title="Next frame" aria-label="Next frame" onclick="animcd4c9d54471543f092065af30defef15.next_frame()">
+      <button title="Next frame" aria-label="Next frame" onclick="anim833bd06ab849489598567146b4186939.next_frame()">
           <i class="fa fa-step-forward"></i></button>
-      <button title="Last frame" aria-label="Last frame" onclick="animcd4c9d54471543f092065af30defef15.last_frame()">
+      <button title="Last frame" aria-label="Last frame" onclick="anim833bd06ab849489598567146b4186939.last_frame()">
           <i class="fa fa-fast-forward"></i></button>
-      <button title="Increase speed" aria-label="Increase speed" onclick="animcd4c9d54471543f092065af30defef15.faster()">
+      <button title="Increase speed" aria-label="Increase speed" onclick="anim833bd06ab849489598567146b4186939.faster()">
           <i class="fa fa-plus"></i></button>
     </div>
-    <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_selectcd4c9d54471543f092065af30defef15"
+    <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_select833bd06ab849489598567146b4186939"
           class="anim-state">
-      <input type="radio" name="state" value="once" id="_anim_radio1_cd4c9d54471543f092065af30defef15"
+      <input type="radio" name="state" value="once" id="_anim_radio1_833bd06ab849489598567146b4186939"
              >
-      <label for="_anim_radio1_cd4c9d54471543f092065af30defef15">Once</label>
-      <input type="radio" name="state" value="loop" id="_anim_radio2_cd4c9d54471543f092065af30defef15"
+      <label for="_anim_radio1_833bd06ab849489598567146b4186939">Once</label>
+      <input type="radio" name="state" value="loop" id="_anim_radio2_833bd06ab849489598567146b4186939"
              checked>
-      <label for="_anim_radio2_cd4c9d54471543f092065af30defef15">Loop</label>
-      <input type="radio" name="state" value="reflect" id="_anim_radio3_cd4c9d54471543f092065af30defef15"
+      <label for="_anim_radio2_833bd06ab849489598567146b4186939">Loop</label>
+      <input type="radio" name="state" value="reflect" id="_anim_radio3_833bd06ab849489598567146b4186939"
              >
-      <label for="_anim_radio3_cd4c9d54471543f092065af30defef15">Reflect</label>
+      <label for="_anim_radio3_833bd06ab849489598567146b4186939">Reflect</label>
     </form>
   </div>
 </div>
@@ -663,9 +663,9 @@ input[type=range].anim-slider {
   /* Instantiate the Animation class. */
   /* The IDs given should match those used in the template above. */
   (function() {
-    var img_id = "_anim_imgcd4c9d54471543f092065af30defef15";
-    var slider_id = "_anim_slidercd4c9d54471543f092065af30defef15";
-    var loop_select_id = "_anim_loop_selectcd4c9d54471543f092065af30defef15";
+    var img_id = "_anim_img833bd06ab849489598567146b4186939";
+    var slider_id = "_anim_slider833bd06ab849489598567146b4186939";
+    var loop_select_id = "_anim_loop_select833bd06ab849489598567146b4186939";
     var frames = new Array(33);
 
   frames[0] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAACWAAAAJYCAYAAADmY91UAAAAOXRFWHRTb2Z0d2FyZQBNYXRwbG90\
@@ -20931,7 +20931,7 @@ AElFTkSuQmCC\
     /* set a timeout to make sure all the above elements are created before
        the object is initialized. */
     setTimeout(function() {
-        animcd4c9d54471543f092065af30defef15 = new Animation(frames, img_id, slider_id, 500.0,
+        anim833bd06ab849489598567146b4186939 = new Animation(frames, img_id, slider_id, 500.0,
                                  loop_select_id);
     }, 0);
   })()
@@ -20960,7 +20960,7 @@ AElFTkSuQmCC\
 <p><a class="reference external" href="http://dx.doi.org/10.1137/140966368">A. Narayan and J.D. Jakeman. Adaptive Leja Sparse Grid Constructions for Stochastic Collocation and High-Dimensional Approximation. SIAM Journal on Scientific Computing (2014).</a></p>
 </div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  32.574 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  33.039 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-surrogates-plot-sparse-grids-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/6cbb37eace996ba5329e056efe08e6a6/plot_sparse_grids.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_sparse_grids.py</span></code></a></p>

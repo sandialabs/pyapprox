@@ -6,36 +6,36 @@
 
 Computation times
 =================
-**07:38.055** total execution time for **auto_tutorials_multi_fidelity** files:
+**07:09.977** total execution time for **auto_tutorials_multi_fidelity** files:
 
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_pacv.py` (``plot_pacv.py``)                                                 | 02:47.983 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_pacv.py` (``plot_pacv.py``)                                                 | 02:41.851 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multilevel_blue.py` (``plot_multilevel_blue.py``)                           | 02:37.275 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multilevel_blue.py` (``plot_multilevel_blue.py``)                           | 02:30.119 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_ensemble_selection.py` (``plot_ensemble_selection.py``)                     | 01:26.110 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_ensemble_selection.py` (``plot_ensemble_selection.py``)                     | 01:14.525 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_pilot_studies.py` (``plot_pilot_studies.py``)                               | 00:21.262 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_pilot_studies.py` (``plot_pilot_studies.py``)                               | 00:20.181 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multiindex_collocation.py` (``plot_multiindex_collocation.py``)             | 00:14.073 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multiindex_collocation.py` (``plot_multiindex_collocation.py``)             | 00:12.438 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multifidelity_gp.py` (``plot_multifidelity_gp.py``)                         | 00:04.017 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multifidelity_gp.py` (``plot_multifidelity_gp.py``)                         | 00:03.800 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` (``plot_multi_level_monte_carlo.py``)           | 00:02.703 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` (``plot_multi_level_monte_carlo.py``)           | 00:02.570 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_gaussian_mfnets.py` (``plot_gaussian_mfnets.py``)                           | 00:01.571 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_gaussian_mfnets.py` (``plot_gaussian_mfnets.py``)                           | 00:01.467 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variates.py` (``plot_approximate_control_variates.py``) | 00:01.299 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variates.py` (``plot_approximate_control_variates.py``) | 00:01.296 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py` (``plot_multi_fidelity_monte_carlo.py``)     | 00:00.408 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py` (``plot_multi_fidelity_monte_carlo.py``)     | 00:00.400 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_many_model_acv.py` (``plot_many_model_acv.py``)                             | 00:00.353 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_many_model_acv.py` (``plot_many_model_acv.py``)                             | 00:00.342 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py` (``plot_monte_carlo.py``)                                   | 00:00.325 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py` (``plot_monte_carlo.py``)                                   | 00:00.327 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multioutput_monte_carlo.py` (``plot_multioutput_monte_carlo.py``)           | 00:00.277 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multioutput_monte_carlo.py` (``plot_multioutput_monte_carlo.py``)           | 00:00.276 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multioutput_acv.py` (``plot_multioutput_acv.py``)                           | 00:00.260 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multioutput_acv.py` (``plot_multioutput_acv.py``)                           | 00:00.247 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
 | :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` (``plot_control_variate_monte_carlo.py``)   | 00:00.100 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
