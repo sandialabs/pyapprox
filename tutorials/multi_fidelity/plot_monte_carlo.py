@@ -105,7 +105,6 @@ _ = ax.legend()
 #Letting :math:`Q` denote the true mean we want to estimate, e.g. :math:`Q=Q_0` in the example we have used so far, the mean squared error (MSE) is typically used to quantify the quality of a MC  estimator. The MSE can be expressed as
 #
 #.. math::
-#   :label: eq_mse
 #
 #   \mean{\left(Q_{\alpha}(\rvset_N)-Q\right)^2}&=\mean{\left(Q_{\alpha}(\rvset_N)-\mean{Q_{\alpha}(\rvset_N)}+\mean{Q_{\alpha}(\rvset_N)}-Q\right)^2}\\
 #   &=\mean{\left(Q_{\alpha}(\rvset_N)-\mean{Q_{\alpha}(\rvset_N)}\right)^2}+\mean{\left(\mean{Q_{\alpha}(\rvset_N)}-Q\right)^2}\\
@@ -131,7 +130,7 @@ _ = ax.legend()
 #
 #where :math:`\covar{f^{(n)}}{f^{(p)}}=0, n\neq p` because the samples are drawn independently.
 #
-#Finally, substituting :math:`\var{Q_{\alpha}(\rvset_N)}` into the expression for MSE :eq:`eq_mse` yields
+#Finally, substituting :math:`\var{Q_{\alpha}(\rvset_N)}` into the expression for MSE yields
 #
 #.. math::
 #
