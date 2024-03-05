@@ -94,6 +94,15 @@ example_filenames_in_order = [
     'plot_multiindex_collocation.py',
     'plot_multifidelity_gp.py',
     'plot_gaussian_mfnets.py',
+    # SciML
+    'plot_derive_certann.py',
+    'plot_fourier_transform.py',
+    'plot_derive_dct.py',
+    'plot_dct_properties.py',
+    'plot_neural_operator_cases.py',
+    'plot_greens_function.py',
+    'plot_wave_equation.py',
+    'plot_neural_network_backprop.py',
 ]
 
 example_dirs = ['../../tutorials', '../../examples']
@@ -141,6 +150,7 @@ sphinx_gallery_conf = {
         '../../tutorials/expdesign',
         '../../tutorials/surrogates',
         '../../tutorials/multi_fidelity',
+        '../../tutorials/sciml',
         '../../examples']),
     'within_subsection_order': ExamplesExplicitOrder,
     'ignore_pattern': r'util|plot_bayesian_oed\.py',  # any filenames containing util or plot_bayesian_oed.py in the filename are ignored
@@ -165,7 +175,7 @@ except ImportError:
 #     add_markdown_cell(work_notebook, first_cell)#jdj
 #     add_code_cell(work_notebook,"%matplotlib inline")#jdj
 # then add user defs like so
-sphinx_gallery_conf['first_notebook_cell'] = r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\rvset{{\mathcal{Z}}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\text{d}#1}\newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}$$"
+sphinx_gallery_conf['first_notebook_cell'] = r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\rvset{{\mathcal{Z}}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\text{d}#1}\newcommand{\dydx}[2]{\frac{\partial #1}{\partial #2}}\newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}$$"
 
 # if change conf make sure to remove source/auto_examples, using make clean
 # Note sphinx can use align with single line, e.g. a=1 & & b=1 if \\ is added to the end of the line, i.e  a=1 & & b=1\\
@@ -269,6 +279,7 @@ SOFTWARE.\par
 \def\ai{\alpha}
 \def\bi{\beta}
 \newcommand{\dx}[1]{\;\text{d}#1}
+\newcommand{\dydx}[2]{\frac{\partial #1}{\partial #2}}
 \newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}
 ''',
 }
@@ -281,31 +292,6 @@ SOFTWARE.\par
 # """
 
 # used when building html version
-# mathjax 2
-# mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
-# mathjax2_config = {
-#     "TeX": {
-#         "Macros": {
-#             "V": [r'{\boldsymbol{#1}}', 1],
-#             "mean": [r'{\mathbb{E}\left[#1\right]}', 1],
-#             "var": [r'{\mathbb{V}\left[#1\right]}', 1],
-#             "rv": r'{z}',
-#             "reals": r'\mathbb{R}',
-#             "pdf": r'\rho',
-#             "rvdom": r'\Gamma',
-#             "coloneqq": r'\colon=',
-#             "norm": [r'{\lVert #1 \rVert}', 1],
-#             "argmax": [r'\operatorname{argmax}'],
-#             "argmin": [r'\operatorname{argmin}'],
-#             "covar": [r'\mathbb{C}\text{ov}\left[#1,#2\right]', 2],
-#             "corr": [r'\mathbb{C}\text{or}\left[#1,#2\right]', 2],
-#             "ai": r'\alpha',
-#             "bi": r'\beta',
-#             "dx": [r'\;\mathrm{d}#1', 1],
-#             },
-#         'extensions': ["AMSmath.js", "AMSsymbols.js"]
-#         }
-#     }
 # mathjax 3
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 mathjax3_config = {
@@ -328,8 +314,9 @@ mathjax3_config = {
           "ai": r'\alpha',
           "bi": r'\beta',
           "dx": [r'\;\text{d}#1', 1],
+          "dydx": [r'\frac{\partial #1}{\partial #2}', 2],
           "mat": [r'{\boldsymbol{\mathrm{#1}}}', 1],
-    },
+      },
   },
 }
 
