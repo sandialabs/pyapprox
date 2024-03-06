@@ -59,7 +59,7 @@ class TestIntegralOperators(unittest.TestCase):
         fftshift_v = tw.fftshift(tw.fft(v))
         nyquist = [n//2 for n in X.shape]
         slices = [slice(n-kmax, n+kmax+1) for n in nyquist]
-        fftshift_v_proj = fftshift_v[*slices].flatten()
+        fftshift_v_proj = fftshift_v[slices].flatten()
         fftshift_v_proj_trim = fftshift_v_proj[fftshift_v_proj.shape[0]//2:]
         fcoef_target = tw.hstack([fftshift_v_proj_trim.real.flatten(),
                                   fftshift_v_proj_trim.imag.flatten()[1:]])
