@@ -1,3 +1,8 @@
+import requests
+import os
+import subprocess
+import signal
+import time
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -327,7 +332,7 @@ class ScipyModelWrapper():
         return self._model.apply_hessian(sample[:, None], vec[:, None])
 
 
-class UmbrdigeModelWrapper(Model):
+class UmbridgeModelWrapper(Model):
     def __init__(self, umb_model, config={}):
         """
         Evaluate an umbridge model at multiple samples
@@ -360,7 +365,8 @@ class UmbrdigeModelWrapper(Model):
         # sens is vector v and applies a constant to each sublist of outputs
         # we want jacobian so set sens to [1]
         parameters = self._check_sample(sample)
-        self._model.gradient(0, 0, parameters, [1.], config=self._config)
+        return np.array(self._model.gradient(
+            0, 0, parameters, [1.], config=self._config)).T
 
     def _apply_jacobian(self, sample, vec):
         parameters = self._check_sample(sample)
@@ -379,3 +385,30 @@ class UmbrdigeModelWrapper(Model):
             parameters = self._check_sample(samples[:, ii:ii+1])
             values.append(self._model(parameters, config=self._config))
         return np.vstack(values)
+
+    @staticmethod
+    def start_server(
+            run_server_string, url='http://localhost:4242', out=None,
+            max_connection_time=20):
+        if out is None:
+            out = open(os.devnull, 'w')
+        process = subprocess.Popen(
+            run_server_string, shell=True, stdout=out,
+            stderr=out, preexec_fn=os.setsid)
+        t0 = time.time()
+        print("Starting server using {0}".format(run_server_string))
+        while True:
+            try:
+                requests.get(os.path.join(url, 'Info'))
+                print("Server running")
+                break
+            except requests.exceptions.ConnectionError:
+                if time.time()-t0 > max_connection_time:
+                    UmbridgeModelWrapper.kill_server(process, out)
+                    raise RuntimeError("Could not connect to server") from None
+        return process, out
+
+    @staticmethod
+    def kill_server(process, out):
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        out.close()

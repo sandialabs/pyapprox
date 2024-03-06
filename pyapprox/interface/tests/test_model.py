@@ -3,7 +3,8 @@ import unittest
 import numpy as np
 import sympy as sp
 
-from pyapprox.interface.model import ModelFromCallable, ScipyModelWrapper
+from pyapprox.interface.model import (
+    ModelFromCallable, ScipyModelWrapper, UmbridgeModelWrapper, umbridge)
 
 
 class TestModel(unittest.TestCase):
@@ -91,6 +92,20 @@ class TestModel(unittest.TestCase):
                 sp.lambdify(symbs, sp_fun, "numpy"), sample))
         scipy_model = ScipyModelWrapper(model)
         self.assertRaises(ValueError, scipy_model, sample)
+
+    def test_umbridge_model(self):
+        import os
+        server_dir = os.path.dirname(__file__)
+        url = 'http://localhost:4242'
+        run_server_string = "python {0}".format(
+            os.path.join(server_dir, "genz_umbridge_server.py"))
+        process, out = UmbridgeModelWrapper.start_server(
+            run_server_string, url=url)
+        umb_model = umbridge.HTTPModel(url, "genz")
+        config = {"name": "oscillatory", "nvars": 2, "coef_type": "none"}
+        model = UmbridgeModelWrapper(umb_model, config)
+        sample = np.random.uniform(0, 1, (config["nvars"], 1))
+        model.check_apply_jacobian(sample, disp=True)
 
 
 if __name__ == "__main__":
