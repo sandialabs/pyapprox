@@ -1091,8 +1091,9 @@ def setup_advection_diffusion_kle_inversion_benchmark(
          kle_length_scale, kle_stdev, kle_nvars, orders, obs_indices)
     # add wrapper to allow execution times to be captured
     timer_model = TimerModel(base_model, base_model)
-    pool_model = PoolModel(
-        timer_model, max_eval_concurrency, base_model=base_model)
+    pool_model = timer_model 
+    # PoolModel(
+    #     timer_model, max_eval_concurrency, base_model=base_model)
 
     # add wrapper that tracks execution times.
     model = WorkTrackingModel(pool_model, base_model, enforce_timer_model=False)
