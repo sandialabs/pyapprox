@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+
 import numpy as np
+import umbridge
 
 
 class Model(ABC):
@@ -323,3 +325,57 @@ class ScipyModelWrapper():
                 "vec shape {0} and sample shape {1} are inconsistent".format(
                     vec.shape, sample.shape))
         return self._model.apply_hessian(sample[:, None], vec[:, None])
+
+
+class UmbrdigeModelWrapper(Model):
+    def __init__(self, umb_model, config={}):
+        """
+        Evaluate an umbridge model at multiple samples
+        """
+        super().__init__()
+        if not isinstance(umb_model, umbridge.HTTPModel):
+            raise ValueError("model is not an umbridge.HTTPModel")
+        self._model = umb_model
+        self._config = config
+        self._jacobian_implemented = self._model.supports_gradient()
+        self._apply_jacobian_implemented = (
+            self._model.supports_apply_jacobian())
+        self._apply_hessian_implemented = self._model.supports_apply_hessian()
+
+    def _check_sample(self, sample):
+        if sample.ndim != 2:
+            raise ValueError(
+                "sample is not a 2D array, has shape {0}".format(sample.shape))
+        return [sample[:, 0].tolist()]
+
+    def _jacobian(self, sample):
+        # self._model.gradient computes the v * Jac
+        # umbridge models accept a list of lists. Each sub list represents
+        # a subset of the total model parameters. Here we just assume
+        # that there is only one sublist
+        # in_wrt specifies which sublist to take the gradient with respect to
+        # because we assume only one sublist inWrt=0
+        # out_wrt specifies which output sublist to take the gradient of
+        # because we assume only one sublist outWrt=0
+        # sens is vector v and applies a constant to each sublist of outputs
+        # we want jacobian so set sens to [1]
+        parameters = self._check_sample(sample)
+        self._model.gradient(0, 0, parameters, [1.], config=self._config)
+
+    def _apply_jacobian(self, sample, vec):
+        parameters = self._check_sample(sample)
+        self._model.apply_jacobian(
+            None, None, parameters, vec, config=self._config)
+
+    def _apply_hessian(self, sample, vec):
+        parameters = self._check_sample(sample)
+        self._model.apply_hessian(
+            None, None, None, parameters, vec, None, config=self._config)
+
+    def __call__(self, samples):
+        values = []
+        nsamples = samples.shape[1]
+        for ii in range(nsamples):
+            parameters = self._check_sample(samples[:, ii:ii+1])
+            values.append(self._model(parameters, config=self._config))
+        return np.vstack(values)
