@@ -350,6 +350,7 @@ class UmbridgeModelWrapper(Model):
         self._apply_jacobian_implemented = (
             self._model.supports_apply_jacobian())
         self._apply_hessian_implemented = self._model.supports_apply_hessian()
+        self._nmodel_evaluations = 0
 
     def _check_sample(self, sample):
         if sample.ndim != 2:
@@ -382,23 +383,29 @@ class UmbridgeModelWrapper(Model):
         self._model.apply_hessian(
             None, None, None, parameters, vec, None, config=self._config)
 
-    def _evaluate_single_thread(self, sample):
+    def _evaluate_single_thread(self, sample, sample_id):
         parameters = self._check_sample(sample)
         return self._model(parameters, config=self._config)[0]
 
     def _evaluate_parallel(self, samples):
         pool = ThreadPool(self._nprocs)
+        nsamples = samples.shape[1]
         results = pool.map(
             self._evaluate_single_thread,
-            [samples[:, ii:ii+1] for ii in range(samples.shape[1])])
+            [(samples[:, ii:ii+1], self._nmodel_evaluations+ii)
+             for ii in range(nsamples)])
         pool.close()
+        self._nmodel_evaluations += nsamples
         return results
 
     def _evaluate_serial(self, samples):
         results = []
         nsamples = samples.shape[1]
         for ii in range(nsamples):
-            results.append(self._evaluate_single_thread(samples[:, ii:ii+1]))
+            results.append(
+                self._evaluate_single_thread(
+                    samples[:, ii:ii+1], self._nmodel_evaluations+ii))
+        self._nmodel_evaluations += nsamples
         return results
 
     def __call__(self, samples):
@@ -429,9 +436,29 @@ class UmbridgeModelWrapper(Model):
         return process, out
 
     @staticmethod
-    def kill_server(process, out):
+    def kill_server(process, out=None):
         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-        out.close()
+        if out is not None:
+            out.close()
+
+
+class UmbridgeIOModelWrapper(UmbridgeModelWrapper):
+    def __init__(self, umb_model, config={}, nprocs=1,
+                 outdir_basename="modelresults"):
+        """
+        Evaluate an umbridge model that wraps models that require
+        creation of separate directories for each model run to enable
+        loading and writing of files
+        """
+        super().__init__(umb_model, config, nprocs)
+        self._outdir_basename = outdir_basename
+
+    def _evaluate_single_thread(self, sample, sample_id):
+        parameters = self._check_sample(sample)
+        config = self._config.copy()
+        config["outdir_basename"] = os.path.join(
+            self._outdir_basename, "wdir-{0}".format(sample_id))
+        return self._model(parameters, config=config)[0]
 
 
 class IOModel(SingleSampleModel):
@@ -475,7 +502,7 @@ class IOModel(SingleSampleModel):
         for filename_w_src_path in self._infilenames:
             filename = os.path.basename(filename_w_src_path)
             filename_w_target_path = os.path.join(outdirname, filename)
-            if not os.path.exists(filename):
+            if not os.path.exists(filename_w_target_path):
                 os.symlink(
                     filename_w_src_path, filename_w_target_path)
             else:

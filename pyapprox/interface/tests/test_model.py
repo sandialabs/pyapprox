@@ -8,7 +8,7 @@ import sympy as sp
 
 from pyapprox.interface.model import (
     ModelFromCallable, ScipyModelWrapper, UmbridgeModelWrapper, umbridge,
-    IOModel)
+    IOModel, UmbridgeIOModelWrapper)
 
 
 class TestModel(unittest.TestCase):
@@ -98,7 +98,6 @@ class TestModel(unittest.TestCase):
         self.assertRaises(ValueError, scipy_model, sample)
 
     def test_umbridge_model(self):
-        import os
         server_dir = os.path.dirname(__file__)
         url = 'http://localhost:4242'
         run_server_string = "python {0}".format(
@@ -110,6 +109,7 @@ class TestModel(unittest.TestCase):
         model = UmbridgeModelWrapper(umb_model, config)
         sample = np.random.uniform(0, 1, (config["nvars"], 1))
         model.check_apply_jacobian(sample, disp=True)
+        UmbridgeModelWrapper.kill_server(process, out)
 
     def test_io_model(self):
         intmpdir = tempfile.TemporaryDirectory()
@@ -120,7 +120,7 @@ class TestModel(unittest.TestCase):
         vec = np.random.uniform(0., 1., (1, nvars))
         np.savez(infilenames[0], vec=vec)
 
-        class TestModel(IOModel):
+        class TestIOModel(IOModel):
             def _run(self, sample, linked_filenames, outdirname):
                 vec = np.load(linked_filenames[0])["vec"]
                 # save a file to check cleaning of directories works
@@ -132,7 +132,7 @@ class TestModel(unittest.TestCase):
         test_values = np.array([vec @ sample for sample in samples.T])
 
         # test when temp work directories are used
-        model = TestModel(infilenames)
+        model = TestIOModel(infilenames)
         values = model(samples)
         assert np.allclose(values, test_values)
 
@@ -140,7 +140,7 @@ class TestModel(unittest.TestCase):
         outtmpdir = tempfile.TemporaryDirectory()
         outdir_basename = outtmpdir.name
         datafilename = "data.npz"
-        model = TestModel(
+        model = TestIOModel(
             infilenames, outdir_basename, save="full",
             datafilename=datafilename)
         values = model(samples)
@@ -159,8 +159,8 @@ class TestModel(unittest.TestCase):
         outtmpdir = tempfile.TemporaryDirectory()
         outdir_basename = outtmpdir.name
         datafilename = "data.npz"
-        model = TestModel(infilenames, outdir_basename, save="limited",
-                          datafilename=datafilename)
+        model = TestIOModel(infilenames, outdir_basename, save="limited",
+                            datafilename=datafilename)
         values = model(samples)
         assert np.allclose(values, test_values)
         for outdirname in glob.glob(os.path.join(outdir_basename, '*')):
@@ -170,6 +170,111 @@ class TestModel(unittest.TestCase):
         outtmpdir.cleanup()
 
         intmpdir.cleanup()
+
+    def test_umbridge_io_model(self):
+        server_string = """
+import os
+import umbridge
+import numpy as np
+from pyapprox.interface.model import IOModel
+
+
+class TestIOModel(IOModel):
+    def _run(self, sample, linked_filenames, outdirname):
+        vec = np.load(linked_filenames[0])["vec"]
+        # save a file to check cleaning of directories works
+        np.savez(os.path.join(outdirname, "out.npz"), sample+1)
+        return np.atleast_2d(vec.dot(sample))
+
+
+class UMBModel(umbridge.Model):
+    def __init__(self):
+        super().__init__("umbmodel")
+
+    def get_input_sizes(self, config):
+        return [config.get("nvars", 5)]
+
+    def get_output_sizes(self, config):
+        return [1]
+
+    def __call__(self, parameters, config):
+        model = TestIOModel(
+            config["infilenames"], config["outdir_basename"],
+            save=config["save"], datafilename=config["datafilename"])
+        return [model(np.array(parameters).T)[0].tolist()]
+
+    def supports_evaluate(self):
+        return True
+
+
+if __name__ == "__main__":
+    models = [UMBModel()]
+    umbridge.serve_models(models, 4242)
+"""
+        intmpdir = tempfile.TemporaryDirectory()
+        server_filename = os.path.join(intmpdir.name, "server.py")
+        out = open(os.path.join(intmpdir.name, "out"), "w")
+
+        with open(server_filename, 'w') as writefile:
+            writefile.write(server_string)
+        nvars = 2
+        vec = np.random.uniform(0., 1., (1, nvars))
+        infilenames = [os.path.join(intmpdir.name, "vec.npz")]
+        np.savez(infilenames[0], vec=vec)
+
+        url = 'http://localhost:4242'
+        run_server_string = "python {0}".format(server_filename)
+        process, out = UmbridgeIOModelWrapper.start_server(
+           run_server_string, url=url, out=out)
+        umb_model = umbridge.HTTPModel(url, "umbmodel")
+
+        nsamples = 10
+        samples = np.random.uniform(0, 1, (nvars, nsamples))
+
+        # test limited save
+        outtmpdir = tempfile.TemporaryDirectory()
+        config = {
+            "infilenames": infilenames, "save": "limited", "nvars": nvars,
+            "datafilename": "data.npz"}
+        outdir_basename = os.path.join(outtmpdir.name, "results")
+        model = UmbridgeIOModelWrapper(
+            umb_model, config, outdir_basename=outdir_basename)
+        values = model(samples)
+        test_values = np.array([vec @ sample for sample in samples.T])
+        assert np.allclose(values, test_values)
+        for outdirname in glob.glob(os.path.join(outdir_basename, '*')):
+            # UmbridgeIOModelWrapper creates folders
+            # join(self._outdir_basename, "wdir-{0}".format(sample_id)
+            # but then TestIOModel also creates wdir-0 so look two levels
+            # deep from outdir_basename to find files
+            filenames = glob.glob(os.path.join(outdirname, "wdir-0/*"))
+            assert len(filenames) == 1
+            assert os.path.basename(filenames[0]) == config["datafilename"]
+        outtmpdir.cleanup()
+
+        # test full save
+        outtmpdir = tempfile.TemporaryDirectory()
+        config = {
+            "infilenames": infilenames, "save": "full", "nvars": nvars,
+            "datafilename": "data.npz"}
+        outdir_basename = os.path.join(outtmpdir.name, "results")
+        model = UmbridgeIOModelWrapper(
+            umb_model, config, outdir_basename=outdir_basename)
+        values = model(samples)
+        test_values = np.array([vec @ sample for sample in samples.T])
+        assert np.allclose(values, test_values)
+        for outdirname in glob.glob(os.path.join(outdir_basename, '*')):
+            # UmbridgeIOModelWrapper creates folders
+            # join(self._outdir_basename, "wdir-{0}".format(sample_id)
+            # but then TestIOModel also creates wdir-0 so look two levels
+            # deep from outdir_basename to find files
+            filenames = glob.glob(os.path.join(outdirname, "wdir-0/*"))
+            assert len(filenames) == 3
+        outtmpdir.cleanup()
+
+        intmpdir.cleanup()
+        UmbridgeIOModelWrapper.kill_server(process)
+        out.close()
 
 
 if __name__ == "__main__":
