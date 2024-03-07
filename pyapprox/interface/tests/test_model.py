@@ -1,10 +1,14 @@
 import unittest
+import os
+import tempfile
+import glob
 
 import numpy as np
 import sympy as sp
 
 from pyapprox.interface.model import (
-    ModelFromCallable, ScipyModelWrapper, UmbridgeModelWrapper, umbridge)
+    ModelFromCallable, ScipyModelWrapper, UmbridgeModelWrapper, umbridge,
+    IOModel)
 
 
 class TestModel(unittest.TestCase):
@@ -106,6 +110,66 @@ class TestModel(unittest.TestCase):
         model = UmbridgeModelWrapper(umb_model, config)
         sample = np.random.uniform(0, 1, (config["nvars"], 1))
         model.check_apply_jacobian(sample, disp=True)
+
+    def test_io_model(self):
+        intmpdir = tempfile.TemporaryDirectory()
+
+        infilenames = [os.path.join(intmpdir.name, "vec.npz")]
+
+        nvars = 2
+        vec = np.random.uniform(0., 1., (1, nvars))
+        np.savez(infilenames[0], vec=vec)
+
+        class TestModel(IOModel):
+            def _run(self, sample, linked_filenames, outdirname):
+                vec = np.load(linked_filenames[0])["vec"]
+                # save a file to check cleaning of directories works
+                np.savez(os.path.join(outdirname, "out.npz"), sample+1)
+                return np.atleast_2d(vec.dot(sample))
+
+        nsamples = 10
+        samples = np.random.uniform(0., 1., (nvars, nsamples))
+        test_values = np.array([vec @ sample for sample in samples.T])
+
+        # test when temp work directories are used
+        model = TestModel(infilenames)
+        values = model(samples)
+        assert np.allclose(values, test_values)
+
+        # test when all contents of work directories are saved
+        outtmpdir = tempfile.TemporaryDirectory()
+        outdir_basename = outtmpdir.name
+        datafilename = "data.npz"
+        model = TestModel(
+            infilenames, outdir_basename, save="full",
+            datafilename=datafilename)
+        values = model(samples)
+        assert np.allclose(values, test_values)
+        for outdirname in glob.glob(os.path.join(outdir_basename, '*')):
+            filenames = glob.glob(os.path.join(outdirname, "*"))
+            filenames = [os.path.basename(fname) for fname in filenames]
+            filenames.sort()
+            assert len(filenames) == 3
+            assert os.path.basename(filenames[0]) == datafilename
+            assert os.path.basename(filenames[1]) == "out.npz"
+            assert os.path.basename(filenames[2]) == "vec.npz"
+        outtmpdir.cleanup()
+
+        # test when save="limited"
+        outtmpdir = tempfile.TemporaryDirectory()
+        outdir_basename = outtmpdir.name
+        datafilename = "data.npz"
+        model = TestModel(infilenames, outdir_basename, save="limited",
+                          datafilename=datafilename)
+        values = model(samples)
+        assert np.allclose(values, test_values)
+        for outdirname in glob.glob(os.path.join(outdir_basename, '*')):
+            filenames = glob.glob(os.path.join(outdirname, "*"))
+            assert len(filenames) == 1
+            assert os.path.basename(filenames[0]) == datafilename
+        outtmpdir.cleanup()
+
+        intmpdir.cleanup()
 
 
 if __name__ == "__main__":

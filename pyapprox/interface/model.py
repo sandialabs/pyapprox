@@ -3,7 +3,11 @@ import os
 import subprocess
 import signal
 import time
+import glob
+import shutil
+import tempfile
 from abc import ABC, abstractmethod
+from multiprocessing.pool import ThreadPool
 
 import numpy as np
 import umbridge
@@ -240,19 +244,18 @@ class SingleSampleModel(Model):
 
         Parameters
         ----------
-        sample: np.ndarray (nvars)
+        sample: np.ndarray (nvars, 1)
             The sample use to evaluate the model
 
         Returns
         -------
-        values : np.ndarray (nqoi)
+        values : np.ndarray (1, nqoi)
             The model outputs returned by the model when evaluated
             at the sample
         """
         raise NotImplementedError
 
     def __call__(self, samples):
-        assert samples.ndim == 2
         nvars, nsamples = samples.shape
         values_0 = self._evaluate(samples[:, :1])
         if values_0.ndim != 2 or values_0.shape[0] != 1:
@@ -264,7 +267,7 @@ class SingleSampleModel(Model):
         values = np.empty((nsamples, nqoi), float)
         values[0, :] = values_0
         for ii in range(1, nsamples):
-            values[ii, :] = self._model(samples[:, ii:ii+1])
+            values[ii, :] = self._evaluate(samples[:, ii:ii+1])
         return values
 
 
@@ -333,7 +336,7 @@ class ScipyModelWrapper():
 
 
 class UmbridgeModelWrapper(Model):
-    def __init__(self, umb_model, config={}):
+    def __init__(self, umb_model, config={}, nprocs=1):
         """
         Evaluate an umbridge model at multiple samples
         """
@@ -342,6 +345,7 @@ class UmbridgeModelWrapper(Model):
             raise ValueError("model is not an umbridge.HTTPModel")
         self._model = umb_model
         self._config = config
+        self._nprocs = nprocs
         self._jacobian_implemented = self._model.supports_gradient()
         self._apply_jacobian_implemented = (
             self._model.supports_apply_jacobian())
@@ -378,13 +382,29 @@ class UmbridgeModelWrapper(Model):
         self._model.apply_hessian(
             None, None, None, parameters, vec, None, config=self._config)
 
-    def __call__(self, samples):
-        values = []
+    def _evaluate_single_thread(self, sample):
+        parameters = self._check_sample(sample)
+        return self._model(parameters, config=self._config)[0]
+
+    def _evaluate_parallel(self, samples):
+        pool = ThreadPool(self._nprocs)
+        results = pool.map(
+            self._evaluate_single_thread,
+            [samples[:, ii:ii+1] for ii in range(samples.shape[1])])
+        pool.close()
+        return results
+
+    def _evaluate_serial(self, samples):
+        results = []
         nsamples = samples.shape[1]
         for ii in range(nsamples):
-            parameters = self._check_sample(samples[:, ii:ii+1])
-            values.append(self._model(parameters, config=self._config))
-        return np.vstack(values)
+            results.append(self._evaluate_single_thread(samples[:, ii:ii+1]))
+        return results
+
+    def __call__(self, samples):
+        if self._nprocs > 1:
+            return np.array(self._evaluate_parallel(samples))
+        return np.array(self._evaluate_serial(samples))
 
     @staticmethod
     def start_server(
@@ -412,3 +432,84 @@ class UmbridgeModelWrapper(Model):
     def kill_server(process, out):
         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
         out.close()
+
+
+class IOModel(SingleSampleModel):
+    def __init__(self, infilenames, outdir_basename=None, save="no",
+                 datafilename=None):
+        """
+        Base class for models that require loading and or writing of files
+        """
+        self._infilenames = infilenames
+        save_values = ["full", "limited", "no"]
+        if save not in save_values:
+            raise ValueError("save must be in {0}".format(save_values))
+        if outdir_basename is None and save != "no":
+            msg = " You are requesting temporary files but save not set to no"
+            raise ValueError(msg)
+        if save == "no" and datafilename is not None:
+            raise ValueError("datafilename provided even though save='no'")
+        if save != "no" and datafilename is None:
+            raise ValueError("datafilename must be provided if save != 'no'")
+        self._outdir_basename = outdir_basename
+        self._save = save
+        self._datafilename = datafilename
+        self._nmodel_evaluations = 0
+
+    def _create_outdir(self):
+        if self._outdir_basename is None:
+            tmpdir = tempfile.TemporaryDirectory()
+            outdirname = tmpdir.name
+            return outdirname, tmpdir
+
+        ext = "wdir-{0}".format(self._nmodel_evaluations)
+        outdirname = os.path.join(self._outdir_basename, ext)
+        if os.path.exists(outdirname):
+            raise RuntimeError(
+                "Tried to create {0} but it already exists".format(outdirname))
+        os.makedirs(outdirname)
+        return outdirname, None
+
+    def _link_files(self, outdirname):
+        linked_filenames = []
+        for filename_w_src_path in self._infilenames:
+            filename = os.path.basename(filename_w_src_path)
+            filename_w_target_path = os.path.join(outdirname, filename)
+            if not os.path.exists(filename):
+                os.symlink(
+                    filename_w_src_path, filename_w_target_path)
+            else:
+                msg = '{0} exists in {1} so cannot create soft link'.format(
+                    filename, outdirname)
+                raise Exception(msg)
+            linked_filenames.append(filename_w_target_path)
+        return linked_filenames
+
+    def _cleanup_outdir(self, outdirname):
+        filenames_to_delete = glob.glob(os.path.join(outdirname, '*'))
+        for filename in filenames_to_delete:
+            os.remove(filename)
+
+    def _save_samples_and_values(self, sample, values, outdirname, tmpfile):
+        filename = os.path.join(outdirname, self._datafilename)
+        np.savez(filename, sample=sample, values=values)
+
+    def _process_outdir(self, sample, values, outdirname, tmpfile):
+        if tmpfile is not None:
+            tmpfile.cleanup()
+            return
+        if self._save == "limited":
+            self._cleanup_outdir(outdirname)
+        self._save_samples_and_values(sample, values, outdirname, tmpfile)
+
+    @abstractmethod
+    def _run(self, sample, linked_filenames, outdirname):
+        raise NotImplementedError
+
+    def _evaluate(self, sample):
+        outdirname, tmpfile = self._create_outdir()
+        self._nmodel_evaluations += 1
+        linked_filenames = self._link_files(outdirname)
+        values = self._run(sample, linked_filenames, outdirname)
+        self._process_outdir(sample, values, outdirname, tmpfile)
+        return values
