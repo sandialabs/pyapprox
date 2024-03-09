@@ -21,7 +21,7 @@ class TestModel(unittest.TestCase):
         vals = np.atleast_2d(sp_lambda(*sample[:, 0]))
         return vals
 
-    def test_scalar_model_from_callable(self):
+    def test_scalar_model_from_callable_2D_sample(self):
         symbs = sp.symbols(["x", "y", "z"])
         nvars = len(symbs)
         sp_fun = sum([s*(ii+1) for ii, s in enumerate(symbs)])**4
@@ -46,6 +46,33 @@ class TestModel(unittest.TestCase):
         # when hessian() is not provided
         assert np.allclose(model.hessian(sample), self._evaluate_sp_lambda(
                sp.lambdify(symbs, sp_hessian, "numpy"), sample))
+
+    def test_scalar_model_from_callable_1D_sample(self):
+        # check jacobian with 1D samples
+        model = ModelFromCallable(
+            lambda x: ((x[0] - 1)**2 + (x[1] - 2.5)**2),
+            jacobian=lambda x: np.array([2*(x[0] - 1), 2*(x[1] - 2.5)]),
+            sample_ndim=1, values_ndim=0)
+        sample = np.array([2, 0])[:, None]
+        errors = model.check_apply_jacobian(sample)
+        assert errors.min()/errors.max() < 1e-6
+
+        # check apply_jacobian and apply_hessian with 1D samples
+        model = ModelFromCallable(
+            lambda x: ((x[0] - 1)**2 + (x[1] - 2.5)**2),
+            jacobian=lambda x: np.array([2*(x[0] - 1), 2*(x[1] - 2.5)]),
+            apply_jacobian=lambda x, v: 2*(x[0] - 1)*v[0]+2*(x[1] - 2.5)*v[1],
+            apply_hessian=lambda x, v: np.array(np.diag([2, 2])) @ v,
+            sample_ndim=1, values_ndim=0)
+        sample = np.array([2, 0])[:, None]
+        errors = model.check_apply_jacobian(sample)
+        assert errors.min()/errors.max() < 1e-6
+        # hessian is constant diagonal matrix so check first
+        # finite difference is exact
+        errors = model.check_apply_hessian(sample)
+        assert errors[0] < 1e-15
+
+        
 
     def test_vector_model_from_callable(self):
         symbs = sp.symbols(["x", "y", "z"])

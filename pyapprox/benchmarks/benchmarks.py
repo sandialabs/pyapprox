@@ -4,6 +4,7 @@ import numpy as np
 from scipy import stats
 from scipy.optimize import OptimizeResult
 
+from pyapprox.interface.model import ModelFromCallable
 from pyapprox.benchmarks.sensitivity_benchmarks import (
     get_sobol_g_function_statistics, get_ishigami_funciton_statistics,
     oakley_function, oakley_function_statistics, sobol_g_function,
@@ -367,8 +368,11 @@ def setup_rosenbrock_function(nvars):
     univariate_variables = [stats.uniform(-2, 4)]*nvars
     variable = IndependentMarginalsVariable(univariate_variables)
 
+    model = ModelFromCallable(
+        rosenbrock_function, rosenbrock_function_jacobian,
+        apply_hessian=rosenbrock_function_hessian_prod)
     benchmark = Benchmark(
-        {'fun': rosenbrock_function, 'jac': rosenbrock_function_jacobian,
+        {'fun': model, 'jac': rosenbrock_function_jacobian,
          'hessp': rosenbrock_function_hessian_prod, 'variable': variable,
          'mean': rosenbrock_function_mean(nvars)})
     benchmark.update({'loglike': lambda x: -benchmark['fun'](x),

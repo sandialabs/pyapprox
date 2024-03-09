@@ -272,24 +272,60 @@ class SingleSampleModel(Model):
 
 
 class ModelFromCallable(SingleSampleModel):
-    def __init__(self, function, apply_jacobian=None, apply_hessian=None):
+    def __init__(self, function, jacobian=None, apply_jacobian=None,
+                 apply_hessian=None, sample_ndim=2, values_ndim=2):
+        """
+        Parameters
+        ----------
+        samples_ndim : integer
+            The dimension of the np.ndarray accepted by function in [1, 2]
+
+        values_ndim : integer
+            The dimension of the np.ndarray returned by function in [0, 1, 2]
+        """
         super().__init__()
         if not callable(function):
             raise ValueError("function must be callable")
-        self._function = function
+        self._user_function = function
+        if jacobian is not None:
+            if not callable(jacobian):
+                raise ValueError("jacobian must be callable")
+            self._user_jacobian = jacobian
+            self._jacobian_implemented = True
         if apply_jacobian is not None:
             if not callable(apply_jacobian):
                 raise ValueError("apply_jacobian must be callable")
-            self._apply_jacobian = apply_jacobian
+            self._user_apply_jacobian = apply_jacobian
             self._apply_jacobian_implemented = True
         if apply_hessian is not None:
-            if not callable(apply_jacobian):
+            if not callable(apply_hessian):
                 raise ValueError("apply_hessian must be callable")
-            self._apply_hessian = apply_hessian
+            self._user_apply_hessian = apply_hessian
             self._apply_hessian_implemented = True
+        self._sample_ndim = sample_ndim
+        self._values_ndim = values_ndim
+
+    def _eval_fun(self, fun, sample, *args):
+        if self._sample_ndim == 2:
+            return fun(sample, *args)
+        return fun(sample[:, 0], *args)
 
     def _evaluate(self, sample):
-        return self._function(sample)
+        values = self._eval_fun(self._user_function, sample)
+        if self._values_ndim != 2:
+            return np.atleast_2d(values)
+        return values
+
+    def _jacobian(self, sample):
+        return self._eval_fun(self._user_jacobian, sample)
+
+    def _apply_jacobian(self, sample, vec):
+        return self._eval_fun(
+            self._user_apply_jacobian, sample, vec)
+
+    def _apply_hessian(self, sample, vec):
+        return self._eval_fun(
+            self._user_apply_hessian, sample, vec)       
 
 
 class ScipyModelWrapper():
@@ -301,6 +337,10 @@ class ScipyModelWrapper():
         if not issubclass(model.__class__, Model):
             raise ValueError("model must be derived from Model")
         self._model = model
+        for attr in ["_jacobian_implemented",
+                     "_hessian_implemented",
+                     "_apply_hessian_implemented"]:
+            setattr(self, attr, self._model.__dict__[attr])
 
     def _check_sample(self, sample):
         if sample.ndim != 1:
@@ -308,19 +348,19 @@ class ScipyModelWrapper():
                 "sample must be a 1D array but has shape {0}".format(
                     sample.shape))
 
-    def __call__(self, sample, return_grad=False):
+    def __call__(self, sample):
         self._check_sample(sample)
-        vals = self._model(sample[:, None])[0]
-        if vals.shape[0] != 1:
-            raise ValueError("model does not return a scalar")
-        vals = vals[0]
-        if not return_grad:
-            return vals
-        return vals, self.jacobian(sample)
+        vals = self._model(sample[:, None])
+        if vals.shape[0] == 1:
+            return vals[0]
+        return vals
 
     def jac(self, sample):
         self._check_sample(sample)
-        return self._model.jacobian(sample[:, None])
+        jac = self._model.jacobian(sample[:, None])
+        if jac.shape[0] == 1:
+            return jac[0]
+        return jac
 
     def hess(self, sample):
         self._check_sample(sample)
