@@ -4,13 +4,15 @@ import subprocess
 import signal
 import time
 import glob
-import shutil
 import tempfile
 from abc import ABC, abstractmethod
 from multiprocessing.pool import ThreadPool
 
 import numpy as np
 import umbridge
+
+from pyapprox.util.utilities import (
+    get_all_sample_combinations)
 
 
 class Model(ABC):
@@ -235,6 +237,20 @@ class Model(ABC):
             sample, "H", self.jacobian, self.apply_hessian, fd_eps,
             direction, relative, disp)
 
+    def approx_jacobian(self, sample, eps=np.sqrt(np.finfo(float).eps)):
+        self._check_sample_shape(sample)
+        nvars = sample.shape[0]
+        val = self(sample)
+        nqoi = val.shape[1]
+        jac = np.zeros([nqoi, nvars])
+        dx = np.zeros((nvars, 1))
+        for ii in range(nvars):
+            dx[ii] = eps
+            val_perturbed = self(sample+dx)
+            jac[:, ii] = (val_perturbed - val)/eps
+            dx[ii] = 0.0
+        return jac
+
 
 class SingleSampleModel(Model):
     @abstractmethod
@@ -325,7 +341,7 @@ class ModelFromCallable(SingleSampleModel):
 
     def _apply_hessian(self, sample, vec):
         return self._eval_fun(
-            self._user_apply_hessian, sample, vec)       
+            self._user_apply_hessian, sample, vec)
 
 
 class ScipyModelWrapper():
@@ -580,3 +596,65 @@ class IOModel(SingleSampleModel):
         values = self._run(sample, linked_filenames, outdirname)
         self._process_outdir(sample, values, outdirname, tmpfile)
         return values
+
+
+class ActiveSetVariableModel(Model):
+    r"""
+    Create a model wrapper that only accepts a subset of the model variables.
+    """
+
+    def __init__(self, function, nvars, inactive_var_values,
+                 active_var_indices, base_model=None):
+        super().__init__()
+        # nvars can de determined from inputs but making it
+        # necessary allows for better error checking
+        self._model = function
+        assert inactive_var_values.ndim == 2
+        self._inactive_var_values = np.asarray(inactive_var_values)
+        self._active_var_indices = np.asarray(active_var_indices)
+        assert self._active_var_indices.shape[0] + \
+            self._inactive_var_values.shape[0] == nvars
+        self._nvars = nvars
+        assert np.all(self._active_var_indices < self._nvars)
+        self._inactive_var_indices = np.delete(
+            np.arange(self._nvars), active_var_indices)
+        self._base_model = base_model
+
+    def _expand_samples(self, reduced_samples):
+        assert reduced_samples.ndim == 2
+        raw_samples = get_all_sample_combinations(
+            self._inactive_var_values, reduced_samples)
+        samples = np.empty_like(raw_samples)
+        samples[self._inactive_var_indices, :] = (
+                    raw_samples[:self._inactive_var_indices.shape[0]])
+        samples[self._active_var_indices, :] = (
+            raw_samples[self._inactive_var_indices.shape[0]:])
+        return samples
+
+    def __call__(self, reduced_samples):
+        samples = self._expand_samples(reduced_samples)
+        return self._model(samples)
+
+    def _jacobian(self, reduced_samples):
+        samples = self._expand_samples(reduced_samples)
+        jac = self._model.jacobian(samples)
+        return jac[:, self._active_var_indices]
+
+    def _apply_jacobian(self, reduced_samples, vec):
+        samples = self._expand_samples(reduced_samples)
+        # set inactive entries of vec to zero when peforming
+        # matvec product so they do not contribute to sum
+        expanded_vec = np.zeros((self._nvars, 1))
+        expanded_vec[self._active_var_indices] = vec
+        return self._model.apply_jacobian(samples, expanded_vec)
+
+    def _apply_hessian(self, reduced_samples, vec):
+        samples = self._expand_samples(reduced_samples)
+        # set inactive entries of vec to zero when peforming
+        # matvec product  so they do not contribute to sum
+        expanded_vec = np.zeros((self._nvars, 1))
+        expanded_vec[self._active_var_indices] = vec
+        return self._model.apply_jacobian(samples, expanded_vec)
+
+    def nactive_vars(self):
+        return len(self._active_var_indices)
