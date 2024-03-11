@@ -84,7 +84,7 @@ def beam_stress_constraint(samples):
     L = 100                  # length of beam
     # vals = 1-6*L*(X/(w**2*t)+X/(t*w**2))/R  # scaled version
     vals = 1-6*L/(w*t)*(X/w+Y/t)/R  # factored scaled version
-    return -vals[:, np.newaxis]
+    return vals[:, np.newaxis]
 
 
 def beam_stress_constraint_jac(samples):
@@ -101,7 +101,7 @@ def beam_stress_constraint_jac(samples):
     grad[:, 3] = 6*L*(t*X+w*Y)/(R**2*t**2*w**2)
     grad[:, 4] = (6*L*(2*t*X+w*Y))/(R*t**2*w**3)
     grad[:, 5] = (6*L*(t*X+2*w*Y))/(R*t**3*w**2)
-    return -grad
+    return grad
 
 
 def beam_displacement_constraint(samples):
@@ -112,7 +112,7 @@ def beam_displacement_constraint(samples):
     L, D0 = 100, 2.2535
     # scaled version
     vals = 1-4*L**3/(E*w*t)*np.sqrt(X**2/w**4+Y**2/t**4)/D0
-    return -vals[:, np.newaxis]
+    return vals[:, np.newaxis]
 
 
 def beam_displacement_constraint_jac(samples):
@@ -131,7 +131,7 @@ def beam_displacement_constraint_jac(samples):
         D0*E*t**5*w**6*np.sqrt(X**2/w**4+Y**2/t**4))
     grad[:, 5] = (4*L**3*(t**4*X**2+3*w**4*Y**2))/(
         D0*E*t**6*w**5*np.sqrt(X**2/w**4+Y**2/t**4))
-    return -grad
+    return grad
 
 
 def cantilever_beam_constraints(samples):

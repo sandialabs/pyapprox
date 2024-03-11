@@ -112,7 +112,8 @@ example_filenames_in_order += [
     'plot_sparse_grid_uq.py',
     'plot_paper_demo.py',
     'plot_multifidelity_quadrature.py',
-    'plot_multiindex_collocation_ex.py']
+    'plot_multiindex_collocation_ex.py',
+    'plot_design_under_uncertainty.py']
 
 # print(installed_pkgs)
 # print(example_filenames_in_order)
@@ -141,6 +142,7 @@ sphinx_gallery_conf = {
         '../../tutorials/expdesign',
         '../../tutorials/surrogates',
         '../../tutorials/multi_fidelity',
+        '../../tutorials/sciml',
         '../../examples']),
     'within_subsection_order': ExamplesExplicitOrder,
     'ignore_pattern': r'util|plot_bayesian_oed\.py',  # any filenames containing util or plot_bayesian_oed.py in the filename are ignored
