@@ -395,6 +395,10 @@ class UmbridgeModelWrapper(Model):
     def __init__(self, umb_model, config={}, nprocs=1):
         """
         Evaluate an umbridge model at multiple samples
+
+        Notes:
+        Sometimes port can be left open. On linux and osx the PID of the
+        process using the port 4242 can be checked using lsof -i :4242
         """
         super().__init__()
         if not isinstance(umb_model, umbridge.HTTPModel):
@@ -512,6 +516,30 @@ class UmbridgeIOModelWrapper(UmbridgeModelWrapper):
     def _evaluate_single_thread(self, sample, sample_id):
         parameters = self._check_sample(sample)
         config = self._config.copy()
+        config["outdir_basename"] = os.path.join(
+            self._outdir_basename, "wdir-{0}".format(sample_id))
+        return self._model(parameters, config=config)[0]
+
+
+class UmbridgeIOModelEnsembleWrapper(UmbridgeModelWrapper):
+    def __init__(self, umb_model, model_configs={}, nprocs=1,
+                 outdir_basename="modelresults"):
+        """
+        Evaluate an umbridge model with multiple configs that wraps models
+        that require
+        creation of separate directories for each model run to enable
+        loading and writing of files
+        """
+        super().__init__(umb_model, None, nprocs)
+        self._outdir_basename = outdir_basename
+        self._model_configs = model_configs
+
+    def _evaluate_single_thread(self, sample, sample_id):
+        if sample.shape[0] != self._model.get_input_sizes[0]:
+            raise ValueError("sample must contain model id")
+        sample, model_id = sample[:-1], sample[-1, 0]
+        parameters = self._check_sample(sample)
+        config = self._model_configs[model_id].copy()
         config["outdir_basename"] = os.path.join(
             self._outdir_basename, "wdir-{0}".format(sample_id))
         return self._model(parameters, config=config)[0]
