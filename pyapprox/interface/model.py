@@ -534,14 +534,14 @@ class UmbridgeIOModelEnsembleWrapper(UmbridgeModelWrapper):
         self._outdir_basename = outdir_basename
         self._model_configs = model_configs
 
-    def _evaluate_single_thread(self, sample, sample_id):
-        if sample.shape[0] != self._model.get_input_sizes[0]:
-            raise ValueError("sample must contain model id")
-        sample, model_id = sample[:-1], sample[-1, 0]
+    def _evaluate_single_thread(self, full_sample, sample_id):
+        sample, model_id = full_sample[:-1], int(full_sample[-1, 0])
         parameters = self._check_sample(sample)
         config = self._model_configs[model_id].copy()
         config["outdir_basename"] = os.path.join(
             self._outdir_basename, "wdir-{0}".format(sample_id))
+        if sample.shape[0] != self._model.get_input_sizes(config)[0]:
+            raise ValueError("sample must contain model id")
         return self._model(parameters, config=config)[0]
 
 
