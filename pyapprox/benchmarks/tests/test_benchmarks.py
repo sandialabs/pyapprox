@@ -53,7 +53,7 @@ class TestBenchmarks(unittest.TestCase):
         assert errors.min()/errors.max() < 1e-6
         assert np.allclose(benchmark.fun.approx_jacobian(init_guess),
                            benchmark.fun.jacobian(init_guess), atol=6e-6)
-       
+
         from pyapprox.interface.model import ActiveSetVariableModel
         fun = ActiveSetVariableModel(
             benchmark.fun,

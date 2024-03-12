@@ -38,6 +38,40 @@ The marginal distribution of the independent random variables are
    Vertical Load   :math:`Y` :math:`N(1000,100)`
    =============== ========= =======================
 
+
+.. math:: \mean{f(\rv, \xi)} \approx \mu(\xi)=N^{-1}\sum_{n=1}^N f(\rv^{(n)}, \xi)
+
+.. math:: \nabla_\xi \mu(\xi) =  N^{-1}\sum_{n=1}^N \nabla_\xi f(\rv^{(n)}, \xi)
+
+.. math:: \var{f(\rv, \xi)} \approx \Sigma(\xi) = (2N(N-1))^{-1}\sum_{m=1}^N\sum_{n=1}^N (f(\rv^{(m)}, \xi)-f(\rv^{(n)}, \xi))^2
+
+or
+
+.. math:: \var{f(\rv, \xi)} \approx \Sigma(\xi) = (N-1)^{-1}\sum_{n=1}^N (f(\rv^{(m)}, \xi)-\mu(\xi))^2
+
+Chain rule for :math:`g(h(x))`
+
+.. math:: \dydx{g}{x}(x) = \dydx{g}{h}(h(x))\dydx{h}{x}(x)
+
+So setting :math:`g(y) = y^2` and :math:`h(\xi)=(f(\rv^{(m)}, \xi)-f(\rv^{(n)}, \xi))` then
+
+.. math:: \dydx{g}{h}(h(\xi))\dydx{h}{\xi}(\xi) = 2(f(\rv^{(m)}, \xi)-f(\rv^{(n)}, \xi))(\nabla_\xi f(\rv^{(m)}, \xi)-\nabla_\xi f(\rv^{(n)}, \xi))
+
+Thus
+
+.. math:: \nabla_\xi  \Sigma(\xi) = (2N(N-1))^{-1}\sum_{m=1}^N\sum_{n=1}^N 2(f(\rv^{(m)}, \xi)-f(\rv^{(n)}, \xi))(\nabla_\xi f(\rv^{(m)}, \xi)-\nabla_\xi f(\rv^{(n)}, \xi))
+
+or setting  :math:`g(y) = y^2` and :math:`h(\xi)=(f(\rv^{(m)}, \xi)-\mu(\xi))` then
+
+.. math:: \dydx{g}{h}(h(\xi))\dydx{h}{\xi}(\xi) = 2(f(\rv^{(m)}, \xi)-\mu(\xi))(\nabla_\xi f(\rv^{(m)}, \xi)-\nabla_\xi\mu(\xi))
+
+
+Chain rule for Hessian of a scalar function :math:`g(h(x))`
+
+.. math:: \nabla_x^2 \dydx{g}{x} = \dydx{g}{h}(h(x))\nabla_x^2 f(x) + \frac{\partial^2 g}{\partial h^2}(h(x))(\nabla_x h(x))(\nabla_x h(x))^\top
+
+where :math:`\nabla_x h(x)\in\reals^{1\times D}`
+
 First lets perform a deterministic optimization at the nominal values
 of the random variables
 """

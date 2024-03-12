@@ -66,7 +66,8 @@ def pyapprox_minimize(fun, x0, args=(), method='rol-trust-constr', jac=None,
     raise ValueError(f"Method {method} was not found")
 
 from abc import ABC, abstractmethod
-from pyapprox.interface.model import Model, ScipyModelWrapper
+from pyapprox.interface.model import (
+    Model, ScipyModelWrapper, ActiveSetVariableModel)
 from scipy.optimize import Bounds, NonlinearConstraint, LinearConstraint
 
 
@@ -81,6 +82,9 @@ class Constraint(Model):
             raise ValueError("bounds must be 2D np.ndarray with two columns")
         self._bounds = bounds
         self._keep_feasible = keep_feasible
+        self._update_attributes()
+
+    def _update_attributes(self):
         for attr in ["_apply_jacobian_implemented", "_jacobian_implemented",
                      "_jacobian_implemented", "_hessian_implemented",
                      "_apply_hessian_implemented", "jacobian",
@@ -167,3 +171,160 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             jac=jac, hess=hess, hessp=hessp, bounds=bounds,
             constraints=self._constraints, options=self._opts)
         return result
+
+
+# TODO consider merging with multifidelity.stat
+class SampleAverageStat(ABC):
+    @abstractmethod
+    def __call__(self, values, weights):
+        raise NotImplementedError
+
+    def jacobian(self, jac_values, weights):
+        raise NotImplementedError
+
+    def jacobian_apply(self, values, jv_values, weights, vec):
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "{0}()".format(self.__class__.__name__)
+
+
+class SampleAverageMean(SampleAverageStat):
+    def __call__(self, values, weights):
+        # values.shape (nsamples, ncontraints)
+        return values.T @ weights
+
+    def jacobian(self, values, jac_values, weights):
+        # jac_values.shape (nsamples, ncontraints, ndesign_vars)
+        return np.einsum("ijk,i->jk", jac_values, weights[:, 0])
+
+    def apply_jacobian(self, values, jv_values, weights):
+        # jac_values.shape (nsamples, ncontraints)
+        return (jv_values[..., 0].T @ weights[:, 0])[:, None]
+
+
+class SampleAverageVariance(SampleAverageStat):
+    def __init__(self):
+        self._mean_stat = SampleAverageMean()
+
+    def _diff(self, values, weights):
+        mean = self._mean_stat(values, weights)
+        return (values-mean[:, 0]).T
+
+    def __call__(self, values, weights):
+        # values.shape (nsamples, ncontraints)
+        return self._diff(values, weights)**2 @ weights
+
+    def jacobian(self, values, jac_values, weights):
+        # jac_values.shape (nsamples, ncontraints, ndesign_vars)
+        mean_jac = self._mean_stat.jacobian(
+            values, jac_values, weights)[None, :]
+        tmp = (jac_values - mean_jac)
+        tmp = 2*self._diff(values, weights).T[..., None]*tmp
+        return np.einsum("ijk,i->jk", tmp, weights[:, 0])
+
+    def apply_jacobian(self, values, jv_values, weights):
+        mean_jv = self._mean_stat.apply_jacobian(
+            values, jv_values, weights)
+        tmp = (jv_values - mean_jv)
+        tmp = 2*self._diff(values, weights).T*tmp[..., 0]
+        return np.einsum("ij,i->j", tmp, weights[:, 0])
+
+
+class SampleAverageStdev(SampleAverageVariance):
+    def __call__(self, samples, weights):
+        return np.sqrt(super().__call__(samples, weights))
+
+    def jacobian(self, values, jac_values, weights):
+        variance_jac = super().jacobian(values, jac_values, weights)
+        # d/dx y^{1/2} = 0.5y^{-1/2}
+        tmp = 1/(2*np.sqrt(super().__call__(values, weights)))
+        return tmp*variance_jac
+
+    def apply_jacobian(self, values, jac_values, weights):
+        variance_jv = super().apply_jacobian(values, jac_values, weights)
+        # d/dx y^{1/2} = 0.5y^{-1/2}
+        tmp = 1/(2*np.sqrt(super().__call__(values, weights)))
+        return tmp*variance_jv[:, None]
+
+
+class SampleAverageMeanPlusStdev(SampleAverageStat):
+    def __init__(self, safety_factor):
+        self._mean_stat = SampleAverageMean()
+        self._stded_stat = SampleAverageStdev()
+        self._safety_factor = safety_factor
+
+    def __call__(self, values, weights):
+        # values.shape (nsamples, ncontraints)
+        return (self._mean_stat(values, weights) +
+                self._safety_factor*self._stdev_stat(values, weights))
+
+    def jacobian(self, values, jac_values, weights):
+        # jac_values.shape (nsamples, ncontraints, ndesign_vars)
+        mean_jac = self._mean_stat.jacobian(
+            values, jac_values, weights)[None, :]
+        tmp = (jac_values - mean_jac)
+        tmp = 2*self._diff(values, weights).T[..., None]*tmp
+        return np.einsum("ijk,i->jk", tmp, weights[:, 0])
+
+    def apply_jacobian(self, values, jv_values, weights):
+        mean_jv = self._mean_stat.apply_jacobian(
+            values, jv_values, weights)
+        tmp = (jv_values - mean_jv)
+        tmp = 2*self._diff(values, weights).T*tmp[..., 0]
+        return np.einsum("ij,i->j", tmp, weights[:, 0])
+
+
+class SampleAverageConstraint(Constraint):
+    def __init__(self, model, samples, weights, stat, design_bounds,
+                 nvars, design_indices, keep_feasible=False):
+        super().__init__(model, design_bounds, keep_feasible)
+        self._samples = samples
+        self._weights = weights
+        if samples.ndim != 2 or weights.ndim != 2 or weights.shape[1] != 1:
+            raise ValueError("shapes of samples and/or weights are incorrect")
+        if samples.shape[1] != weights.shape[0]:
+            raise ValueError("samples and weights are inconsistent")
+        self._stat = stat
+        self._nvars = nvars
+        self._design_indices = design_indices
+        self._random_indices = np.delete(np.arange(nvars), design_indices)
+
+    def _update_attributes(self):
+        self._jacobian_implemented = self._model._jacobian_implemented
+        self._apply_jacobian_implemented = (
+            self._model._apply_jacobian_implemented)
+
+    def _random_samples_at_design_sample(self, design_sample):
+        return ActiveSetVariableModel._expand_samples_from_indices(
+            self._samples, self._random_indices, self._design_indices,
+            design_sample)
+
+    def __call__(self, design_sample):
+        samples = self._random_samples_at_design_sample(design_sample)
+        values = self._model(samples)
+        return self._stat(values, self._weights)
+
+    def _jacobian(self, design_sample):
+        samples = self._random_samples_at_design_sample(design_sample)
+        # todo take advantage of model prallelism to compute
+        # multiple jacobians. Also how to take advantage of
+        # adjoint methods that compute model values to then
+        # compute jacobian
+        values = self._model(samples)
+        jac_values = np.array([
+            self._model.jacobian(sample[:, None])[:, self._design_indices]
+            for sample in samples.T])
+        return self._stat.jacobian(values, jac_values, self._weights)
+
+    def _apply_jacobian(self, design_sample, vec):
+        samples = self._random_samples_at_design_sample(design_sample)
+        # todo take advantage of model prallelism to compute
+        # multiple apply_jacs
+        expanded_vec = np.zeros((self._nvars, 1))
+        expanded_vec[self._design_indices] = vec
+        values = self._model(samples)
+        jv_values = np.array(
+            [self._model._apply_jacobian(sample[:, None], expanded_vec)
+             for sample in samples.T])
+        return self._stat.apply_jacobian(values, jv_values, self._weights)

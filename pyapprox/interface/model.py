@@ -11,8 +11,7 @@ from multiprocessing.pool import ThreadPool
 import numpy as np
 import umbridge
 
-from pyapprox.util.utilities import (
-    get_all_sample_combinations)
+from pyapprox.util.utilities import get_all_sample_combinations
 
 
 class Model(ABC):
@@ -124,9 +123,9 @@ class Model(ABC):
                 "apply_jacobian and jacobian are not implemented")
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
-        if self._jacobian_implemented:
-            return self.jacobian(sample) @ vec
-        return self._apply_jacobian(sample, vec)
+        if self._apply_jacobian_implemented:
+            return self._apply_jacobian(sample, vec)
+        return self.jacobian(sample) @ vec
 
     def _apply_hessian(self, sample, vec):
         raise NotImplementedError
@@ -648,16 +647,24 @@ class ActiveSetVariableModel(Model):
             np.arange(self._nvars), active_var_indices)
         self._base_model = base_model
 
-    def _expand_samples(self, reduced_samples):
+    @abstractmethod
+    def _expand_samples_from_indices(reduced_samples, active_var_indices,
+                                     inactive_var_indices,
+                                     inactive_var_values):
         assert reduced_samples.ndim == 2
         raw_samples = get_all_sample_combinations(
-            self._inactive_var_values, reduced_samples)
+            inactive_var_values, reduced_samples)
         samples = np.empty_like(raw_samples)
-        samples[self._inactive_var_indices, :] = (
-                    raw_samples[:self._inactive_var_indices.shape[0]])
-        samples[self._active_var_indices, :] = (
-            raw_samples[self._inactive_var_indices.shape[0]:])
+        samples[inactive_var_indices, :] = (
+                    raw_samples[:inactive_var_indices.shape[0]])
+        samples[active_var_indices, :] = (
+            raw_samples[inactive_var_indices.shape[0]:])
         return samples
+
+    def _expand_samples(self, reduced_samples):
+        return self._expand_samples_from_indices(
+            self._active_var_indices, self._inactive_var_indices,
+            self._inactive_var_values)
 
     def __call__(self, reduced_samples):
         samples = self._expand_samples(reduced_samples)
