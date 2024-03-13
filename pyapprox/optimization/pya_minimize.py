@@ -40,7 +40,7 @@ def pyapprox_minimize(fun, x0, args=(), method='rol-trust-constr', jac=None,
     if method == 'rol-trust-constr' and not has_ROL:
         print('ROL requested by not available switching to scipy.minimize')
         method = 'trust-constr'
-    
+
     if method == 'trust-constr':
         if 'ctol' in options:
             del options['ctol']
@@ -91,7 +91,12 @@ class Constraint(Model):
                      "apply_jacobian", "apply_hessian", "hessian"]:
             setattr(self, attr, getattr(self._model, attr))
 
+    def _check_sample(self, sample):
+        if sample.shape[1] > 1:
+            raise ValueError("Constraint can only be evaluated at one sample")
+
     def __call__(self, sample):
+        self._check_sample(sample)
         return self._model(sample)
 
     def __repr__(self):
@@ -192,7 +197,7 @@ class SampleAverageStat(ABC):
 class SampleAverageMean(SampleAverageStat):
     def __call__(self, values, weights):
         # values.shape (nsamples, ncontraints)
-        return values.T @ weights
+        return (values.T @ weights).T
 
     def jacobian(self, values, jac_values, weights):
         # jac_values.shape (nsamples, ncontraints, ndesign_vars)
@@ -208,12 +213,12 @@ class SampleAverageVariance(SampleAverageStat):
         self._mean_stat = SampleAverageMean()
 
     def _diff(self, values, weights):
-        mean = self._mean_stat(values, weights)
+        mean = self._mean_stat(values, weights).T
         return (values-mean[:, 0]).T
 
     def __call__(self, values, weights):
         # values.shape (nsamples, ncontraints)
-        return self._diff(values, weights)**2 @ weights
+        return (self._diff(values, weights)**2 @ weights).T
 
     def jacobian(self, values, jac_values, weights):
         # jac_values.shape (nsamples, ncontraints, ndesign_vars)
@@ -238,41 +243,56 @@ class SampleAverageStdev(SampleAverageVariance):
     def jacobian(self, values, jac_values, weights):
         variance_jac = super().jacobian(values, jac_values, weights)
         # d/dx y^{1/2} = 0.5y^{-1/2}
-        tmp = 1/(2*np.sqrt(super().__call__(values, weights)))
+        tmp = 1/(2*np.sqrt(super().__call__(values, weights).T))
         return tmp*variance_jac
 
     def apply_jacobian(self, values, jac_values, weights):
         variance_jv = super().apply_jacobian(values, jac_values, weights)
         # d/dx y^{1/2} = 0.5y^{-1/2}
-        tmp = 1/(2*np.sqrt(super().__call__(values, weights)))
+        tmp = 1/(2*np.sqrt(super().__call__(values, weights).T))
         return tmp*variance_jv[:, None]
 
 
 class SampleAverageMeanPlusStdev(SampleAverageStat):
     def __init__(self, safety_factor):
         self._mean_stat = SampleAverageMean()
-        self._stded_stat = SampleAverageStdev()
+        self._stdev_stat = SampleAverageStdev()
         self._safety_factor = safety_factor
 
     def __call__(self, values, weights):
-        # values.shape (nsamples, ncontraints)
         return (self._mean_stat(values, weights) +
                 self._safety_factor*self._stdev_stat(values, weights))
 
     def jacobian(self, values, jac_values, weights):
-        # jac_values.shape (nsamples, ncontraints, ndesign_vars)
-        mean_jac = self._mean_stat.jacobian(
-            values, jac_values, weights)[None, :]
-        tmp = (jac_values - mean_jac)
-        tmp = 2*self._diff(values, weights).T[..., None]*tmp
-        return np.einsum("ijk,i->jk", tmp, weights[:, 0])
+        return (
+            self._mean_stat.jacobian(values, jac_values, weights) +
+            self._safety_factor*self._stdev_stat.jacobian(
+                values, jac_values, weights))
 
     def apply_jacobian(self, values, jv_values, weights):
-        mean_jv = self._mean_stat.apply_jacobian(
-            values, jv_values, weights)
-        tmp = (jv_values - mean_jv)
-        tmp = 2*self._diff(values, weights).T*tmp[..., 0]
-        return np.einsum("ij,i->j", tmp, weights[:, 0])
+        return (
+            self._mean_stat.apply_jacobian(values, jv_values, weights) +
+            self._safety_factor*self._stdev_stat.apply_jacobian(
+                values, jv_values, weights))
+
+
+class SampleAverageEntropicRisk(SampleAverageStat):
+    def __call__(self, values, weights):
+        return np.log(np.exp(values.T) @ weights).T
+
+    def jacobian(self, values, jac_values, weights):
+        exp_values = np.exp(values)
+        tmp = exp_values.T @ weights
+        jac = 1/tmp * np.einsum(
+            "ijk,i->jk", (exp_values[..., None]*jac_values), weights[:, 0])
+        return jac
+
+    def apply_jacobian(self, values, jv_values, weights):
+        exp_values = np.exp(values)
+        tmp = exp_values.T @ weights
+        jv = 1/tmp * np.einsum(
+            "ij,i->j", (exp_values*jv_values[..., 0]), weights[:, 0])[:, None]
+        return jv
 
 
 class SampleAverageConstraint(Constraint):
@@ -294,6 +314,8 @@ class SampleAverageConstraint(Constraint):
         self._jacobian_implemented = self._model._jacobian_implemented
         self._apply_jacobian_implemented = (
             self._model._apply_jacobian_implemented)
+        self._hessian_implemented = False
+        self._apply_hessian_implemented = False
 
     def _random_samples_at_design_sample(self, design_sample):
         return ActiveSetVariableModel._expand_samples_from_indices(
@@ -301,6 +323,7 @@ class SampleAverageConstraint(Constraint):
             design_sample)
 
     def __call__(self, design_sample):
+        self._check_sample(design_sample)
         samples = self._random_samples_at_design_sample(design_sample)
         values = self._model(samples)
         return self._stat(values, self._weights)
@@ -328,3 +351,7 @@ class SampleAverageConstraint(Constraint):
             [self._model._apply_jacobian(sample[:, None], expanded_vec)
              for sample in samples.T])
         return self._stat.apply_jacobian(values, jv_values, self._weights)
+
+    def __repr__(self):
+        return "{0}(model={1}, stat={2})".format(
+            self.__class__.__name__, self._model, self._stat)

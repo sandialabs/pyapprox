@@ -106,8 +106,12 @@ optimizer = ScipyConstrainedOptimizer(
     objective_model, constraints=[constraint],
     bounds=benchmark.design_variable.bounds)
 result = optimizer.minimize(np.array([3, 3])[:, None])
-print("optimal design vars", result.x)
-print("optimal", result.fun)
+print("Optimal design vars", result.x)
+print("Optimal objective", result.fun)
+# M. Eldred. FORMULATIONS FOR SURROGATE-BASED OPTIMIZATION UNDER UNCERTAINTY.
+# AIAA-2002-5585
+print("Optimal design vars from literature", [2.35, 3.33])
+print("Optimal objective from literature", 7.82)
 
 #%%
 # Plot objective and constraints
@@ -119,7 +123,7 @@ X, Y, Z_o = get_meshgrid_function_data(
                benchmark.design_variable.bounds.ub[:, None]]).flatten(), 101)
 im = plt.contourf(X, Y, Z_o, levels=40, cmap="coolwarm")
 plt.colorbar(im)
-for ii in range(1):
+for ii in range(2):
     X, Y, Z_c = get_meshgrid_function_data(
         constraint_model,
         np.hstack([benchmark.design_variable.bounds.lb[:, None],
@@ -133,8 +137,82 @@ for ii in range(1):
     Z_c[JJ] = np.nan
     im = plt.contourf(X, Y, Z_c, levels=40, cmap="gray")
 plt.plot(*result.x, 'og')
-plt.show()
+# # plt.show()
 
+print("###")
+#%%
+#Now lets optimize under uncertainty
+from pyapprox.optimization.pya_minimize import (
+    SampleAverageConstraint, SampleAverageMeanPlusStdev)
+# set nominal values of the random variabels for the objective.
+# The values chosen do not matter
+# because the objective does not depend on the random variables
+nominal_values = benchmark.variable.get_statistics('mean')
+objective_model = ActiveSetVariableModel(
+    benchmark.funs[0],
+    benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+    nominal_values, benchmark.design_var_indices)
+stat = SampleAverageMeanPlusStdev(3)
+constraint_bounds = np.hstack(
+    [np.full((2, 1), -np.inf), np.zeros((2, 1))])
+# TODO change weights to create unbiased estimators of mean and variance
+from pyapprox.surrogates.integrate import integrate
+samples, weights = integrate(
+   "tensorproduct", benchmark.variable,
+   levels=[4]*benchmark.variable.num_vars())
+nsamples = samples.shape[1]
+# nsamples = 50
+# samples = benchmark.variable.rvs(nsamples)
+# weights = np.full((nsamples, 1), 1/nsamples)
+print(f"optimizing using {nsamples} quadrature samples")
+from pyapprox.interface.model import ChangeModelSignWrapper
+constraint_model = ChangeModelSignWrapper(benchmark.funs[1])
+constraint = SampleAverageConstraint(
+    constraint_model, samples, weights, stat, constraint_bounds,
+    benchmark.variable.num_vars() +
+    benchmark.design_variable.num_vars(),
+    benchmark.design_var_indices)
+optimizer = ScipyConstrainedOptimizer(
+    objective_model, constraints=[constraint],
+    bounds=benchmark.design_variable.bounds)
+result = optimizer.minimize(np.array([3, 3])[:, None])
+print("optimal design vars", result.x)
+print("optimal objective", result.fun)
+# M. Eldred. FORMULATIONS FOR SURROGATE-BASED OPTIMIZATION UNDER UNCERTAINTY.
+# AIAA-2002-5585
+print("Optimal, literature values use a very coarse MC estimate of stats")
+print("Optimal design vars from literature", [2.53, 3.69])
+print("Optimal objective from literature", 9.32)
+print("Number of constraint evals", result.constr_nfev[0])
+# print(result)
+
+#%%
+# Plot objective and constraints
+# plt.figure()
+# X, Y, Z_o = get_meshgrid_function_data(
+#     objective_model,
+#     np.hstack([benchmark.design_variable.bounds.lb[:, None],
+#                benchmark.design_variable.bounds.ub[:, None]]).flatten(), 101)
+# im = plt.contourf(X, Y, Z_o, levels=40, cmap="coolwarm")
+# plt.colorbar(im)
+# from pyapprox.interface.model import ModelFromCallable
+# # contraint can only be evaluated at one sample so wrap it
+# batch_constraint_model = ModelFromCallable(constraint)
+# for ii in range(2):
+#     X, Y, Z_c = get_meshgrid_function_data(
+#         batch_constraint_model,
+#         np.hstack([benchmark.design_variable.bounds.lb[:, None],
+#                    benchmark.design_variable.bounds.ub[:, None]]).flatten(),
+#         101, qoi=ii)
+#     II = np.where(Z_c < 0)
+#     JJ = np.where(Z_c >= 0)
+#     Z_c[II] = 1
+#     # set region that satisfies constraints to np.nan so contourf
+#     # does not plot anything in that area
+#     Z_c[JJ] = np.nan
+#     im = plt.contourf(X, Y, Z_c, levels=40, cmap="gray")
+# plt.plot(*result.x, 'og')
+# plt.show()
 
 #robust design
 #min f subject to variance<tol

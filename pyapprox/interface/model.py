@@ -389,6 +389,9 @@ class ScipyModelWrapper():
                     vec.shape, sample.shape))
         return self._model.apply_hessian(sample[:, None], vec[:, None])
 
+    def __repr__(self):
+        return "{0}(model={1})".format(self.__class__.__name__, self._model)
+
 
 class UmbridgeModelWrapper(Model):
     def __init__(self, umb_model, config={}, nprocs=1):
@@ -650,7 +653,7 @@ class ActiveSetVariableModel(Model):
             np.arange(self._nvars), active_var_indices)
         self._base_model = base_model
 
-    @abstractmethod
+    @staticmethod
     def _expand_samples_from_indices(reduced_samples, active_var_indices,
                                      inactive_var_indices,
                                      inactive_var_values):
@@ -666,8 +669,8 @@ class ActiveSetVariableModel(Model):
 
     def _expand_samples(self, reduced_samples):
         return self._expand_samples_from_indices(
-            self._active_var_indices, self._inactive_var_indices,
-            self._inactive_var_values)
+            reduced_samples, self._active_var_indices,
+            self._inactive_var_indices, self._inactive_var_values)
 
     def __call__(self, reduced_samples):
         samples = self._expand_samples(reduced_samples)
@@ -696,3 +699,42 @@ class ActiveSetVariableModel(Model):
 
     def nactive_vars(self):
         return len(self._active_var_indices)
+
+    def __repr__(self):
+        return "{0}(model={1})".format(self.__class__.__name__, self._model)
+
+
+class ChangeModelSignWrapper(Model):
+    def __init__(self, model):
+        """
+        Create a API that takes a sample as a 1D array and returns
+        a scalar
+        """
+        super().__init__()
+        if not issubclass(model.__class__, Model):
+            raise ValueError("model must be derived from Model")
+        self._model = model
+        for attr in ["_jacobian_implemented",
+                     "_apply_jacobian_implemented",
+                     "_hessian_implemented",
+                     "_apply_hessian_implemented"]:
+            setattr(self, attr, self._model.__dict__[attr])
+
+    def __call__(self, samples):
+        vals = -self._model(samples)
+        return vals
+
+    def _jacobian(self, sample):
+        return -self._model.jacobian(sample)
+
+    def _apply_jacobian(self, sample, vec):
+        return -self._model.jacobian(sample, vec)
+
+    def _hessian(self, sample):
+        return -self._model.hessian(sample)
+
+    def _apply_hessian(self, sample, vec):
+        return -self._model.hessian(sample, vec)
+
+    def __repr__(self):
+        return "{0}(model={1})".format(self.__class__.__name__, self._model)

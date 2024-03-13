@@ -47,12 +47,6 @@ def define_beam_random_variables():
     E = stats.norm(loc=2.9e7, scale=np.sqrt(1.45e6)**2)
     R = stats.norm(loc=40000, scale=np.sqrt(2000)**2)
 
-    # increased total variance contribution from E
-    # X = stats.norm(loc=500,scale=np.sqrt(100)**2/10)
-    # Y = stats.norm(loc=1000,scale=np.sqrt(100)**2/10)
-    # E = stats.norm(loc=2.9e7,scale=np.sqrt(1.45e6)**2)
-    # R = stats.norm(loc=40000,scale=np.sqrt(2000)**2/10)
-
     from scipy.optimize import Bounds
     design_bounds = Bounds([1, 1], [4, 4])
     design_variable = DesignVariable(design_bounds)
