@@ -449,7 +449,7 @@ class UmbridgeModelWrapper(Model):
     def _evaluate_parallel(self, samples):
         pool = ThreadPool(self._nprocs)
         nsamples = samples.shape[1]
-        results = pool.map(
+        results = pool.starmap(
             self._evaluate_single_thread,
             [(samples[:, ii:ii+1], self._nmodel_evaluations+ii)
              for ii in range(nsamples)])
@@ -537,10 +537,13 @@ class UmbridgeIOModelEnsembleWrapper(UmbridgeModelWrapper):
         sample, model_id = full_sample[:-1], int(full_sample[-1, 0])
         parameters = self._check_sample(sample)
         config = self._model_configs[model_id].copy()
+        print(sample.shape, config)
         config["outdir_basename"] = os.path.join(
             self._outdir_basename, "wdir-{0}".format(sample_id))
         if sample.shape[0] != self._model.get_input_sizes(config)[0]:
-            raise ValueError("sample must contain model id")
+            raise ValueError(
+                "sample must contain model id but shape {0}!={1}".format(
+                    sample.shape[0], self._model.get_input_sizes(config)[0]))
         return self._model(parameters, config=config)[0]
 
 
