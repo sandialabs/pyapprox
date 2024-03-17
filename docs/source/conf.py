@@ -68,7 +68,7 @@ example_filenames_in_order = [
     'plot_bayesian_networks.py',
     'plot_push_forward_based_inference.py',
     # ExpDesign
-    # 'plot_bayesian_oed.py', # ignore until paper published
+    'plot_bayesian_oed.py',
     # Surrogates
     'plot_univariate_interpolation.py',
     'plot_tensor_product_interpolation.py',
@@ -145,7 +145,8 @@ sphinx_gallery_conf = {
         '../../tutorials/sciml',
         '../../examples']),
     'within_subsection_order': ExamplesExplicitOrder,
-    'ignore_pattern': r'util|plot_bayesian_oed\.py',  # any filenames containing util or plot_bayesian_oed.py in the filename are ignored
+    'ignore_pattern': r'util',
+    # 'ignore_pattern': r'util|plot_bayesian_oed\.py',  # any filenames containing util or plot_bayesian_oed.py in the filename are ignored
     'matplotlib_animations': True,
 }
 try:
@@ -157,7 +158,7 @@ try:
     sphinx_gallery_conf['nested_sections'] = False
 except ImportError:
     pass
-    
+
 
 # If want to specify user latex macrors to jupyter using sphinx-gallery go to
 # /miniconda3/envs/pyapprox-base/lib/python3.8/site-packages/sphinx_gallery/notebook.py
