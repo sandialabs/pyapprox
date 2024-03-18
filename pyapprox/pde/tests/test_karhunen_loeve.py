@@ -4,7 +4,7 @@ import numpy as np
 
 from pyapprox.pde.karhunen_loeve_expansion import (
     multivariate_chain_rule, MeshKLE, compute_kle_gradient_from_mesh_gradient,
-    KLE1D)
+    KLE1D, DataDrivenKLE)
 from pyapprox.util.utilities import approx_jacobian
 
 
@@ -56,8 +56,9 @@ class TestKLE(unittest.TestCase):
         kle_mean = mesh[0, :]+2
 
         for use_log in [False, True]:
-            kle = MeshKLE(mesh, kle_mean, use_log)
-            kle.compute_basis(length_scale, sigma, nvars)
+            kle = MeshKLE(
+                mesh, length_scale, mean_field=kle_mean, use_log=use_log,
+                sigma=sigma, nterms=nvars)
 
             def scalar_function_of_field(field):
                 return np.dot(field[:, 0], field[:, 0])
@@ -71,8 +72,8 @@ class TestKLE(unittest.TestCase):
                 approx_jacobian(scalar_function_of_field, kle_vals), atol=1e-7)
 
             gradient = compute_kle_gradient_from_mesh_gradient(
-                mesh_gradient, kle.eig_vecs, kle.mean_field,
-                kle.use_log, sample[:, 0])
+                mesh_gradient, kle._eig_vecs, kle._mean_field,
+                kle._use_log, sample[:, 0])
 
             def scalar_function_of_sample(sample):
                 field = kle(sample)
@@ -96,21 +97,21 @@ class TestKLE(unittest.TestCase):
         mesh_coords = (mesh_coords+1)/2*dom_len+lb
         quad_weights *= (ub-lb)/2
         mesh_coords = mesh_coords[None, :]
-        kle = MeshKLE(mesh_coords, matern_nu=0.5, quad_weights=quad_weights)
-        kle.compute_basis(len_scale, sigma, nterms)
+        kle = MeshKLE(mesh_coords, len_scale, sigma=sigma, nterms=nterms,
+                      matern_nu=0.5, quad_weights=quad_weights)
 
         opts = {"mean_field": 0, "sigma2": sigma, "corr_len": len_scale,
-                "num_vars": int(kle.nterms), "use_log": False,
+                "num_vars": int(kle._nterms), "use_log": False,
                 "dom_len": dom_len}
         kle_exact = KLE1D(opts)
         kle_exact.update_basis_vals(mesh_coords[0, :])
 
-        # kle.eig_vecs are pre multiplied by sqrt_eigvals
-        eig_vecs = kle.eig_vecs/kle.sqrt_eig_vals
+        # kle._eig_vecs are pre multiplied by sqrt_eigvals
+        eig_vecs = kle._eig_vecs/kle._sqrt_eig_vals
 
         # check eigenvalues match
-        # print((kle.sqrt_eig_vals**2-kle_exact.eig_vals)/kle_exact.eig_vals)
-        assert np.allclose(kle.sqrt_eig_vals**2, kle_exact.eig_vals, rtol=3e-5)
+        assert np.allclose(
+            kle._sqrt_eig_vals**2, kle_exact.eig_vals, rtol=3e-5)
 
         # Check basis is orthonormal
         assert np.allclose(
@@ -148,8 +149,9 @@ class TestKLE(unittest.TestCase):
         mesh_coords = (mesh_coords+1)/2*dom_len+lb
         quad_weights *= (ub-lb)/2
         mesh_coords = mesh_coords[None, :]
-        kle = MeshKLE(mesh_coords, matern_nu=0.5, quad_weights=quad_weights)
-        kle.compute_basis(len_scale, sigma, nterms)
+        kle = MeshKLE(
+            mesh_coords, len_scale, sigma=sigma, nterms=nterms,
+            matern_nu=0.5, quad_weights=quad_weights)
 
         # quad_rule = clenshaw_curtis_pts_wts_1D
         mesh_coords1, quad_weights1 = quad_rule(level1)
@@ -162,19 +164,19 @@ class TestKLE(unittest.TestCase):
         mesh_coords1 = mesh_coords1[None, :]
 
         kle1 = MeshKLE(
-            mesh_coords1, matern_nu=0.5, quad_weights=quad_weights1)
-        kle1.compute_basis(len_scale, sigma, nterms)
+            mesh_coords1, len_scale, sigma=sigma, nterms=nterms,
+            matern_nu=0.5, quad_weights=quad_weights1)
 
-        # kle.eig_vecs are pre multiplied by sqrt_eigvals
-        eig_vecs = kle.eig_vecs/kle.sqrt_eig_vals
-        eig_vecs1 = kle1.eig_vecs/kle1.sqrt_eig_vals
+        # kle._eig_vecs are pre multiplied by sqrt_eigvals
+        eig_vecs = kle._eig_vecs/kle._sqrt_eig_vals
+        eig_vecs1 = kle1._eig_vecs/kle1._sqrt_eig_vals
 
         assert np.allclose(
             np.sum(quad_weights[:, None]*eig_vecs**2, axis=0), 1)
         assert np.allclose(
             np.sum(quad_weights1[:, None]*eig_vecs1**2, axis=0), 1)
         # print(kle.sqrt_eig_vals-kle1.sqrt_eig_vals)
-        assert np.allclose(kle.sqrt_eig_vals, kle1.sqrt_eig_vals, atol=3e-4)
+        assert np.allclose(kle._sqrt_eig_vals, kle1._sqrt_eig_vals, atol=3e-4)
 
         # import matplotlib.pyplot as plt
         # plt.plot(mesh_coords[0, :], eig_vecs, '-ko')
@@ -206,8 +208,8 @@ class TestKLE(unittest.TestCase):
         quad_weights *= (ub-lb)/2
         mesh_coords = mesh_coords[None, :]
         quad_weights = None
-        kle = MeshKLE(mesh_coords, matern_nu=0.5, quad_weights=quad_weights)
-        kle.compute_basis(len_scale, sigma, nterms)
+        kle = MeshKLE(mesh_coords, len_scale, sigma=sigma, nterms=nterms,
+                      matern_nu=0.5, quad_weights=quad_weights)
 
         # quad_rule = clenshaw_curtis_pts_wts_1D
         mesh_coords1, quad_weights1 = quad_rule(level1)
@@ -236,20 +238,46 @@ class TestKLE(unittest.TestCase):
         # assert np.allclose(quad_weights, quad_weights_mix)
 
         kle_mix = MeshKLE(
-            mesh_coords_mix, matern_nu=0.5, quad_weights=quad_weights_mix)
-        kle_mix.compute_basis(len_scale, sigma, nterms)
+            mesh_coords_mix, len_scale, sigma=sigma, nterms=nterms,
+            matern_nu=0.5, quad_weights=quad_weights_mix)
 
-        # kle.eig_vecs are pre multiplied by sqrt_eigvals
-        eig_vecs = kle.eig_vecs/kle.sqrt_eig_vals
-        eig_vecs_mix = kle_mix.eig_vecs/kle_mix.sqrt_eig_vals
+        # kle._eig_vecs are pre multiplied by sqrt_eigvals
+        eig_vecs = kle._eig_vecs/kle._sqrt_eig_vals
+        eig_vecs_mix = kle_mix._eig_vecs/kle_mix._sqrt_eig_vals
 
         # print(np.sum(quad_weights[:, None]*eig_vecs**2, axis=0))
         # print(np.sum(quad_weights_mix[:, None]*eig_vecs_mix**2, axis=0))
 
-        import matplotlib.pyplot as plt
-        plt.plot(mesh_coords[0, :], eig_vecs, '-ko')
-        plt.plot(mesh_coords_mix[0, :], eig_vecs_mix, 'r--s')
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # plt.plot(mesh_coords[0, :], eig_vecs, '-ko')
+        # plt.plot(mesh_coords_mix[0, :], eig_vecs_mix, 'r--s')
+        # plt.show()
+
+    def test_data_driven_kle(self):
+        level = 10
+        nterms = 3
+        len_scale, sigma = 1, 1
+        from pyapprox.surrogates.orthopoly.quadrature import (
+            clenshaw_curtis_pts_wts_1D)
+        mesh_coords, quad_weights = clenshaw_curtis_pts_wts_1D(level)
+        quad_weights *= 2   # remove pdf of uniform variable
+        # map to [lb, ub]
+        lb, ub = 0, 2
+        dom_len = ub-lb
+        mesh_coords = (mesh_coords+1)/2*dom_len+lb
+        quad_weights *= (ub-lb)/2
+        mesh_coords = mesh_coords[None, :]
+        quad_weights = None
+        kle = MeshKLE(mesh_coords, len_scale, sigma=sigma, nterms=nterms,
+                      matern_nu=0.5, quad_weights=quad_weights)
+
+        nsamples = 10000
+        samples = np.random.normal(0., 1., (nterms, nsamples))
+        kle_realizations = kle(samples)
+
+        # TODO: pass in optiional quadrature weights
+        kle_data = DataDrivenKLE(kle_realizations, nterms=nterms)
+        print(kle_data._sqrt_eig_vals, kle._sqrt_eig_vals)
 
 
 if __name__ == "__main__":
