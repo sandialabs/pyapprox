@@ -1,14 +1,14 @@
 import unittest
 import numpy as np
 from functools import partial
-from skfem import (ElementVector, Basis, condense, solve, Functional)
+from skfem import (ElementVector, Basis, Functional)
 
 from pyapprox.pde.galerkin.util import (
     _get_mesh, _get_element)
 from pyapprox.pde.galerkin.physics import (
     _assemble_advection_diffusion_reaction, _assemble_stokes)
 from pyapprox.pde.galerkin.solvers import (
-    newton_solve, SteadyStatePDE, TransientPDE, TransientFunction)
+    SteadyStatePDE, TransientPDE, TransientFunction)
 from pyapprox.pde.galerkin.physics import (
     AdvectionDiffusionReaction, Helmholtz, Stokes)
 from pyapprox.pde.autopde.manufactured_solutions import (

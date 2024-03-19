@@ -98,11 +98,11 @@ $$ \hat{c}_d=\frac{d+0.5}{D}$$
 
 Quadratic decay (qudratic)
 
-$$ \hat{c}_d = \frac{1}{(D + 1)^2}$$
+$$ \hat{c}_d = \frac{1}{(d+ 1)^2}$$
 
 Quartic decay (quartic)
 
-$$ \hat{c}_d = \frac{1}{(D + 1)^4}$$
+$$ \hat{c}_d = \frac{1}{(d + 1)^4}$$
 
 Exponential decay (exp)
 
@@ -110,7 +110,7 @@ $$ \hat{c}_d=\exp\left(\log(c_\mathrm{min})\frac{d+1}{D}\right)$$
 
 Squared-exponential decay (sqexp)
 
-$$ \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D}\right)}$$
+$$ \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D^2}\right)}$$
 
 Here $c_\mathrm{min}$ is argument that sets the minimum value of $c_D$.
 

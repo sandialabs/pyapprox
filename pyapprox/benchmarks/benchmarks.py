@@ -488,11 +488,11 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
     Quadratic decay (qudratic)
 
-    .. math:: \hat{c}_d = \frac{1}{(D + 1)^2}
+    .. math:: \hat{c}_d = \frac{1}{(d + 1)^2}
 
     Quartic decay (quartic)
 
-    .. math:: \hat{c}_d = \frac{1}{(D + 1)^4}
+    .. math:: \hat{c}_d = \frac{1}{(d + 1)^4}
 
     Exponential decay (exp)
 
@@ -500,7 +500,7 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
     Squared-exponential decay (sqexp)
 
-    .. math:: \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D}\right)}
+    .. math:: \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D^2}\right)}
 
     Here :math:`c_\mathrm{min}` is argument that sets the minimum value of :math:`c_D`.
 

@@ -66,12 +66,14 @@ def _enforce_scalar_robin_neumann_boundary_conditions(
         for key in R_bndry_conds.keys()]
     for b, key in zip(R_bases, R_bndry_conds.keys()):
         fun, alpha = R_bndry_conds[key]
+        # robin is assumed to take the form -flux = alpha*u + fun(x)
         bilinear_mat += asm(BilinearForm(_robin), b, alpha=alpha)
         if u_prev is not None:
             # when u_prev is not None. then linear vec represents the residual
             # and so robin contribution to mass term must be reflected in res
             linear_vec -= asm(
                 LinearForm(_robin_prev_sol), b, alpha=alpha, u_prev=u_prev)
+        # add contribution of robin boundary to forcing
         linear_vec += asm(LinearForm(_forcing), b, forc=b.interpolate(
             b.project(fun)))
     # see https://fenicsproject.org/pub/tutorial/sphinx1/._ftut1005.html
@@ -473,6 +475,12 @@ class LinearAdvectionDiffusionReaction(Physics):
             forc_fun: Callable[[np.ndarray],  np.ndarray],
             vel_fun: Optional[Callable[[np.ndarray],  np.ndarray]] = None,
             react_fun: Optional[Callable[[np.ndarray],  np.ndarray]] = None):
+        """
+        Linear advection diffusion reaction physics.
+
+        Warning: do not wrap in SteadyStatePDE solver
+        To compute solution just run physics.init_guess()
+        """
 
         self.diff_fun = diff_fun
         self.vel_fun = vel_fun
