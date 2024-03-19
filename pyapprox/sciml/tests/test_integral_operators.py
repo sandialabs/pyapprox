@@ -1,11 +1,9 @@
 import unittest
 from functools import partial
-
 import numpy as np
-import torch
-
 from pyapprox.sciml.util import fct
 from pyapprox.sciml.util import _torch_wrappers as tw
+import torch
 from pyapprox.sciml.network import CERTANN
 from pyapprox.sciml.integraloperators import (
     FourierConvolutionOperator, ChebyshevConvolutionOperator,
@@ -34,13 +32,13 @@ class TestIntegralOperators(unittest.TestCase):
                       [IdentityActivation()])
         training_samples = u[:, None]
         training_values = u_conv_v[:, None]
-        ctn.fit(training_samples, training_values, tol=1e-10)
+        ctn.fit(training_samples, training_values, tol=1e-12)
         fcoef_target = tw.hstack([tw.fft(v).real[:kmax+1],
                                   tw.fft(v).imag[1:kmax+1]])
 
         assert (
             tw.norm(fcoef_target - ctn._hyp_list.get_values()) /
-            tw.norm(fcoef_target) < 4e-4)
+            tw.norm(fcoef_target) < 2e-4)
 
     def test_fourier_convolution_operator_multidim(self):
         N = 101
@@ -52,9 +50,10 @@ class TestIntegralOperators(unittest.TestCase):
         u_conv_v = tw.ifft(tw.fft(u)*tw.fft(v)).real
 
         kmax = 10
-        layers = [Layer(FourierConvolutionOperator(kmax, shape=X.shape))]
+        layers = [Layer(FourierConvolutionOperator(kmax, nx=X.shape))]
         ctn = CERTANN(X.size, layers, [IdentityActivation()])
-        ctn.fit(u.flatten()[:, None], u_conv_v.flatten()[:, None], tol=1e-5)
+        ctn.fit(u.flatten()[:, None, None], u_conv_v.flatten()[:, None, None],
+                tol=1e-8)
 
         fftshift_v = tw.fftshift(tw.fft(v))
         nyquist = [n//2 for n in X.shape]
@@ -66,7 +65,7 @@ class TestIntegralOperators(unittest.TestCase):
 
         assert (
             tw.norm(fcoef_target - ctn._hyp_list.get_values()) /
-            tw.norm(fcoef_target) < 6e-5)
+            tw.norm(fcoef_target) < 2e-6)
 
     def test_chebyshev_convolution_operator_1d(self):
         N = 101
@@ -93,12 +92,11 @@ class TestIntegralOperators(unittest.TestCase):
         N = 21
         xx = np.linspace(-1, 1, N)
         (X, Y) = np.meshgrid(xx, xx)
-        u = tw.asarray((X+Y)**2)[..., None]
-        v = tw.asarray(1 / (1 + (5*X*Y)**2))[..., None]
+        u = tw.asarray((X+Y)**2)[..., None, None]
+        v = tw.asarray(1 / (1 + (5*X*Y)**2))[..., None, None]
         u_per = fct.even_periodic_extension(u)
         v_per = fct.even_periodic_extension(v)
-        u_tconv_v = tw.ifft(tw.fft(u_per) * tw.fft(v_per))[:N, :N].real
-
+        u_tconv_v = tw.ifft(tw.fft(u_per) * tw.fft(v_per))[:N, :N, 0].real
         kmax = N-1
         fct_v = fct.fct(v)[:kmax+1, :kmax+1, 0]
         v0 = (fct_v.flatten() *
@@ -106,7 +104,7 @@ class TestIntegralOperators(unittest.TestCase):
 
         # We do not have enough "quality" (def?) samples to recover fct(v).
         # Set initial iterate with 10% noise until we figure out sampling.
-        layers = [Layer(ChebyshevConvolutionOperator(kmax, shape=X.shape,
+        layers = [Layer(ChebyshevConvolutionOperator(kmax, nx=X.shape,
                                                      v0=v0))]
         ctn = CERTANN(X.size, layers, [IdentityActivation()])
         ctn.fit(u.flatten()[..., None], u_tconv_v.flatten()[..., None],
@@ -200,6 +198,61 @@ class TestIntegralOperators(unittest.TestCase):
         YY = W @ XX + b
         assert np.allclose(iop._integrate(XX), YY)
         assert np.allclose(iop._hyp_list.nactive_vars(), N0*N1)
+
+    def test_cheno_channels(self):
+        n = 21
+        w = fct.make_weights(n)[:, None]
+        xx = np.cos(np.pi*np.arange(n)/(n-1))
+        u = tw.asarray(np.cos(2*np.pi*3.0*xx + 0.5))[:, None]
+        v1 = tw.asarray(np.random.normal(0, 1, (n,)))[:, None]
+        v2 = tw.asarray(np.random.normal(0, 1, (n,)))[:, None]
+        u_tconv_v1 = fct.ifct(fct.fct(u) * fct.fct(v1) * 2*(n-1)/w)
+        u_tconv_v2 = fct.ifct(fct.fct(u) * fct.fct(v2) * 2*(n-1)/w)
+        samples = u[..., None]
+        values = tw.hstack([u_tconv_v1, u_tconv_v2])[..., None]
+
+        kmax = n-1
+        channel_in = 1
+        channel_out = 2
+        v0 = tw.zeros(channel_in * channel_out * n)
+        v0[::2] = fct.fct(v1).flatten()
+        v0[1::2] = fct.fct(v2).flatten()
+        layers = [Layer(ChebyshevConvolutionOperator(kmax, nx=n,
+                                                     channel_in=channel_in,
+                                                     channel_out=channel_out))]
+        ctn = CERTANN(n, layers, [IdentityActivation()])
+        ctn.fit(samples, values, tol=1e-8, verbosity=0)
+
+        assert (np.linalg.norm(v0 - ctn._hyp_list.get_values()) /
+               np.linalg.norm(v0)) < 3e-5
+
+    def test_fno_channels(self):
+        n = 21
+        xx = np.cos(np.pi*np.arange(n)/(n-1))
+        u = tw.asarray(np.cos(2*np.pi*3.0*xx + 0.5))
+        v1 = tw.asarray(np.random.normal(0, 1, (n,)))
+        v2 = tw.asarray(np.random.normal(0, 1, (n,)))
+        u_conv_v1 = tw.ifft(tw.fft(u) * tw.fft(v1)).real
+        u_conv_v2 = tw.ifft(tw.fft(u) * tw.fft(v2)).real
+        samples = u[:, None, None]
+        values = tw.hstack([u_conv_v1[:, None], u_conv_v2[:, None]])[..., None]
+
+        kmax = n//2
+        channel_in = 1
+        channel_out = 2
+        v0 = tw.zeros(channel_in * channel_out * (2*kmax+1))
+        v0[:2*(kmax+1):2] = tw.fft(v1).real[:kmax+1]
+        v0[1:2*(kmax+1):2] = tw.fft(v2).real[:kmax+1]
+        v0[2*(kmax+1)::2] = tw.fft(v1).imag[1:kmax+1]
+        v0[2*(kmax+1)+1::2] = tw.fft(v2).imag[1:kmax+1]
+
+        layers = [Layer(FourierConvolutionOperator(kmax, nx=n,
+                                                   channel_in=channel_in,
+                                                   channel_out=channel_out))]
+        ctn = CERTANN(n, layers, [IdentityActivation()])
+        ctn.fit(samples, values, tol=1e-8, verbosity=0)
+        assert (np.linalg.norm(v0 - ctn._hyp_list.get_values()) /
+                np.linalg.norm(v0)) < 4e-7
 
 
 if __name__ == "__main__":

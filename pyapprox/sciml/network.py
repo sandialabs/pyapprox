@@ -121,7 +121,7 @@ class CERTANN():
         if train_samples.shape[0] != self._nvars:
             raise ValueError("train_samples has the wrong shape {0}".format(
                 train_samples.shape))
-        if train_samples.shape[1] != train_values.shape[1]:
+        if train_samples.shape[-1] != train_values.shape[-1]:
             raise ValueError("train_values has the wrong shape {0}".format(
                 train_values.shape))
 

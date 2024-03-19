@@ -1,10 +1,8 @@
 from abc import ABC, abstractmethod
-
 import numpy as np
-
 from pyapprox.sciml.util._torch_wrappers import (
-    empty, inf, hstack, flip, cos, arange, diag, zeros, pi, sqrt, cfloat, conj,
-    fft, ifft, fftshift, ifftshift, meshgrid, ones)
+    empty, inf, vstack, flip, cos, arange, diag, zeros, pi, sqrt, cfloat, conj,
+    fft, ifft, fftshift, ifftshift, meshgrid, ones, einsum)
 from pyapprox.sciml.util.hyperparameter import (
     HyperParameter, HyperParameterList, IdentityHyperParameterTransform)
 from pyapprox.sciml.util import fct
@@ -21,6 +19,60 @@ class IntegralOperator(ABC):
     def __repr__(self):
         return "{0}({1})".format(
             self.__class__.__name__, self._hyp_list._short_repr())
+
+    def _format_nx(self, nx):
+        if hasattr(nx, '__iter__'):
+            self._nx = tuple(nx)
+        elif nx is None:
+            self._nx = None
+        elif type(nx) == int:
+            self._nx = (nx,)
+        else:
+            raise ValueError('nx must be int, tuple of ints, or None')
+
+
+class EmbeddingOperator(IntegralOperator):
+    def __init__(self, dim_in: int, dim_out: int, nx=None, v0=None):
+        nvars_mat = dim_in*dim_out
+        bounds = np.tile([-np.inf, np.inf], nvars_mat)
+        W = np.empty((nvars_mat,), dtype=float)
+        W[:] = (np.random.normal(0, 1/nvars_mat, nvars_mat) if v0 is None
+                else v0)
+        self._W = HyperParameter(
+            "W_embedding", nvars_mat, W, bounds,
+            IdentityHyperParameterTransform())
+        self._hyp_list = HyperParameterList([self._W])
+        self._dim_in = dim_in
+        self._dim_out = dim_out
+        self._format_nx(nx)
+
+    def _integrate(self, y_k_samples):
+        if y_k_samples.ndim < 3:
+            raise ValueError('y_k_samples must have shape (n_x, d_c, n_train)')
+        if self._nx is None:
+            self._format_nx(y_k_samples.shape[:-2])
+        W = self._hyp_list.get_values().reshape(self._dim_out, self._dim_in)
+        # y_k_flat = y_k_samples.reshape(self._N, self._dim_in,
+        #                                y_k_samples.shape[-1])
+        return einsum('ij,...jl->...il', W, y_k_samples)
+
+    def _format_nx(self, nx):
+        if hasattr(nx, '__iter__'):
+            self._nx = tuple(nx)
+        elif type(nx) == int:
+            self._nx = (nx,)
+        elif nx is None:
+            self._nx = None
+        else:
+            raise ValueError('nx must be int, tuple of ints, or None')
+        self._N = 1
+        for n in self._nx:
+            self._N *= n
+
+
+class AffineChannelOperator(EmbeddingOperator):
+    def __init__(self, d_c=1, nx=None, v0=None):
+        super().__init__(d_c, d_c, nx, v0)
 
 
 class KernelIntegralOperator(IntegralOperator):
@@ -95,7 +147,7 @@ class DenseAffineIntegralOperatorFixedBias(DenseAffineIntegralOperator):
 
 
 class FourierConvolutionOperator(IntegralOperator):
-    def __init__(self, kmax, shape=None, v0=None):
+    def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1):
         """
         Parameters
         ----------
@@ -107,17 +159,15 @@ class FourierConvolutionOperator(IntegralOperator):
             transform of the implicitly defined kernel
         """
         self._kmax = kmax
-        if hasattr(shape, '__iter__'):
-            self._shape = tuple(shape)
-        elif shape is None:
-            self._shape = None
-        else:
-            self._shape = (shape,)
-        self._d = 1 if self._shape is None else len(self._shape)
+        self._format_nx(nx)
+        self._d = 1 if self._nx is None else len(self._nx)
+        self._channel_in = channel_in
+        self._channel_out = channel_out
 
         # Use symmetry since target is real-valued.
         # 1 entry for constant, 2 for each mode between 1 and kmax
-        v = empty(((2*self._kmax+1) ** self._d,)).numpy()
+        v = empty((self._channel_in * self._channel_out *
+                  (2*self._kmax+1)**self._d,)).numpy()
         v[:] = 0.0 if v0 is None else v0
         self._R = HyperParameter(
             'Fourier_R', v.size, v, [-inf, inf],
@@ -125,63 +175,92 @@ class FourierConvolutionOperator(IntegralOperator):
         self._hyp_list = HyperParameterList([self._R])
 
     def _integrate(self, y_k_samples):
-        if self._shape is None:
-            self._shape = (y_k_samples.shape[0],)
-        kmax_lim = min(self._shape) // 2
+        # If channel_in is not explicit in y_k_samples, then assume
+        # channel_in = 1. Otherwise, raise error.
+        channel_implicit = False
+        if y_k_samples.shape[-2] != self._channel_in:
+            if self._channel_in == 1:
+                channel_implicit = True
+                y_k_samples = y_k_samples[..., None, :]
+            else:
+                raise ValueError(
+                    'Could not infer channel dimension. y_k_samples.shape[-2] '
+                    'must be channel_in.')
+
+        # Bookkeeping on shape in case channel_dim is squeezed
+        if not channel_implicit:
+            output_shape = (*y_k_samples.shape[:-2], self._channel_out,
+                            y_k_samples.shape[-1])
+        else:
+            output_shape = (*y_k_samples.shape[:-2], y_k_samples.shape[-1])
+
+        # If nx was not specified at initialization
+        if self._nx is None:
+            self._nx = (*y_k_samples.shape[:-2],)
+
+        # Enforce limits on kmax
+        kmax_lim = min(self._nx) // 2
         if self._kmax > kmax_lim:
             raise ValueError(
                 'Maximum retained frequency too high; kmax must be <= '
                 f'{kmax_lim}')
-        nyquist = [n // 2 for n in self._shape]
+        nyquist = [n // 2 for n in self._nx]
         ntrain = y_k_samples.shape[-1]
 
         # Project onto modes -kmax, ..., 0, ..., kmax
-        fft_y = fft(y_k_samples.reshape((*self._shape, ntrain)),
+        fft_y = fft(y_k_samples.reshape((*self._nx, self._channel_in, ntrain)),
                     axis=list(range(self._d)))
-        fftshift_y = fftshift(fft_y)
+
+        fftshift_y = fftshift(fft_y, axis=list(range(self._d)))
         freq_slices = [slice(n-self._kmax, n+self._kmax+1) for n in nyquist]
         fftshift_y_proj = fftshift_y[freq_slices]
 
         # Use symmetry c_{-n} = c_n, 1 <= n <= kmax
         v_float = self._hyp_list.get_values()
-        v = zeros(((v_float.shape[0]+1) // 2,), dtype=cfloat)
+        v = zeros(((1+(2*self._kmax+1)**self._d) // 2, self._channel_out,
+                   self._channel_in), dtype=cfloat)
+
         # v[n] = c_n,   0 <= n <= kmax
-        v.real = v_float[:v.shape[0]]
-        v.imag[1:] = v_float[v.shape[0]:]
-        # R[n] = c_n,   -kmax <= n <= kmax
-        R = hstack([flip(conj(v[1:]), dims=[0]), v])
+        real_imag_cutoff = v.shape[0] * self._channel_in * self._channel_out
+        v.real.flatten()[:] = v_float[:real_imag_cutoff]
+        v.imag[1:, ...].flatten()[:] = v_float[real_imag_cutoff:]
+
+        # R[n, d_c, d_c] = c_n,   -kmax <= n <= kmax
+        R = vstack([flip(conj(v[1:, ...]), dims=[0]), v])
 
         # Do convolution and lift into original spatial resolution
-        conv_shift = diag(R) @ fftshift_y_proj.reshape(R.shape[0], ntrain)
-        conv_shift = conv_shift.reshape(fftshift_y_proj.shape)
-        conv_shift_lift = zeros(fftshift_y.shape, dtype=cfloat)
+        fftshift_y_proj_flat = fftshift_y_proj.reshape(R.shape[0],
+                                                       self._channel_in,
+                                                       ntrain)
+        conv_shift = einsum('ijk,ikl->ijl', R, fftshift_y_proj_flat)
+        conv_shift = conv_shift.reshape((*fftshift_y_proj.shape[:-2],
+                                         self._channel_out,
+                                         ntrain))
+        conv_shift_lift = zeros((*fft_y.shape[:-2], self._channel_out, ntrain),
+                                dtype=cfloat)
         conv_shift_lift[freq_slices] = conv_shift
-        conv_lift = ifftshift(conv_shift_lift)
+        conv_lift = ifftshift(conv_shift_lift, axis=list(range(self._d)))
         res = ifft(conv_lift, axis=list(range(self._d))).real
-        return res.reshape(y_k_samples.shape)
+        return res.reshape(output_shape)
 
 
 class ChebyshevConvolutionOperator(IntegralOperator):
-    def __init__(self, kmax, shape=None, v0=None):
+    def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1):
         # maximum retained degree
         self._kmax = kmax
-
-        if hasattr(shape, '__iter__'):
-            self._shape = tuple(shape)
-        elif shape is None:
-            self._shape = None
-        else:
-            self._shape = (shape,)
-        self._d = 1 if self._shape is None else len(self._shape)
+        self._format_nx(nx)
+        self._d = 1 if self._nx is None else len(self._nx)
+        self._channel_in = channel_in
+        self._channel_out = channel_out
 
         # 1 entry for each mode between 0 and kmax
-        v = empty(((self._kmax+1) ** self._d,)).numpy()
+        v = empty((channel_in * channel_out *
+                  (self._kmax+1)**self._d,)).numpy()
         v[:] = 0.0 if v0 is None else v0
         self._R = HyperParameter(
             'Chebyshev_R', v.size, v, [-inf, inf],
             IdentityHyperParameterTransform())
         self._hyp_list = HyperParameterList([self._R])
-        self._fct_y = None
         self._N_tot = None
         self._W_tot_R = None
         self._W_tot_ifct = None
@@ -190,7 +269,7 @@ class ChebyshevConvolutionOperator(IntegralOperator):
         w_arr = []
         w_arr_ifct = []
         N_tot = 1
-        for s in self._shape:
+        for s in self._nx:
             w = fct.make_weights(self._kmax+1)
             w[-1] += (self._kmax != s-1)    # adjust final element
             w_arr.append(w)
@@ -207,16 +286,37 @@ class ChebyshevConvolutionOperator(IntegralOperator):
         for k in range(self._d):
             W_tot *= W[k]
             W_tot_ifct *= W_ifct[k]
-        W_tot_ifct = fct.even_periodic_extension(W_tot_ifct[..., None])
 
         self._N_tot = N_tot
         self._W_tot_R = W_tot.flatten()
         self._W_tot_ifct = W_tot_ifct.flatten()
 
     def _integrate(self, y_k_samples):
-        if self._shape is None:
-            self._shape = (y_k_samples.shape[0],)
-        kmax_lim = min(self._shape)-1
+        # If channel_in is not explicit in y_k_samples, then assume
+        # channel_in = 1. Otherwise, raise error.
+        channel_implicit = False
+        if y_k_samples.shape[-2] != self._channel_in:
+            if self._channel_in == 1:
+                channel_implicit = True
+                y_k_samples = y_k_samples[..., None, :]
+            else:
+                raise ValueError(
+                    'Could not infer channel dimension. y_k_samples.shape[-2] '
+                    'must be channel_in.')
+
+        # Bookkeeping on shape in case channel_dim is squeezed
+        if not channel_implicit:
+            output_shape = (*y_k_samples.shape[:-2], self._channel_out,
+                            y_k_samples.shape[-1])
+        else:
+            output_shape = (*y_k_samples.shape[:-2], y_k_samples.shape[-1])
+
+        # If nx was not specified at initialization
+        if self._nx is None:
+            self._nx = (*y_k_samples.shape[:-2],)
+
+        # kmax <= \min_k nx[k]-1
+        kmax_lim = min(self._nx)-1
         ntrain = y_k_samples.shape[-1]
         if self._kmax > kmax_lim:
             raise ValueError(
@@ -224,24 +324,30 @@ class ChebyshevConvolutionOperator(IntegralOperator):
                 f'{kmax_lim}')
 
         # Project onto T_0, ..., T_{kmax}
-        if self._fct_y is None:
-            self._fct_y = fct.fct(y_k_samples.reshape((*self._shape, ntrain)))
-        deg_slices = [slice(self._kmax+1) for k in self._shape]
-        fct_y_proj = self._fct_y[deg_slices]
+        fct_y = fct.fct(y_k_samples.reshape((*self._nx, self._channel_in,
+                                             ntrain)))
+        deg_slices = [slice(self._kmax+1) for k in self._nx]
+        fct_y_proj = fct_y[deg_slices]
 
         # Construct convolution factor R; keep books on weights
         if self._W_tot_R is None:
             self._precompute_weights()
-        R = empty(((self._kmax+1) ** self._d,))
-        R[:] = self._N_tot/self._W_tot_R * self._hyp_list.get_values()
+        P = diag(self._N_tot / self._W_tot_R)
+        fct_y_proj_flat = fct_y_proj.reshape(P.shape[0], self._channel_in,
+                                             ntrain)
+        fct_y_proj_precond = einsum('ij,jkl->ikl', P, fct_y_proj_flat)
+        R = self._hyp_list.get_values().reshape(P.shape[0], self._channel_out,
+                                                self._channel_in)
 
         # Do convolution and lift into original spatial resolution
-        r_conv_y = diag(R) @ fct_y_proj.reshape((R.shape[0], ntrain))
-        r_conv_y = r_conv_y.reshape(fct_y_proj.shape)
-        conv_lift = zeros(self._fct_y.shape)
+        r_conv_y = einsum('ijk,ikl->ijl', R, fct_y_proj_precond)
+        r_conv_y = r_conv_y.reshape((*fct_y_proj.shape[:-2], self._channel_out,
+                                     ntrain))
+        conv_lift = zeros((*fct_y.shape[:-2], self._channel_out,
+                           fct_y.shape[-1]))
         conv_lift[deg_slices] = r_conv_y
         res = fct.ifct(conv_lift, W_tot=self._W_tot_ifct)
-        return res.reshape(y_k_samples.shape)
+        return res.reshape(output_shape)
 
 
 class ChebyshevIntegralOperator(IntegralOperator):

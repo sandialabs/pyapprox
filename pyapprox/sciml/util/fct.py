@@ -1,15 +1,17 @@
 from pyapprox.sciml.util._torch_wrappers import (
-    fft, ifft, zeros, flip, ones, delete, cat, diagflat, meshgrid)
+    fft, ifft, zeros, flip, ones, delete, cat, diagflat, meshgrid, einsum)
 
 
 def even_periodic_extension(array):
     '''
-    Make even periodic extension along all dimensions of `array` before -1
+    Make even periodic extension along first ndim-2 axes of `array`
     '''
     Z = array.clone()
     if Z.ndim == 1:
-        Z = Z[:, None]
-    for k in range(Z.ndim-1):
+        Z = Z[:, None, None]
+    elif Z.ndim == 2:
+        Z = Z[:, None, :]
+    for k in range(Z.ndim-2):
         Z_extension = flip(Z, dims=[k])
         Z_extension_trim = delete(Z_extension, [0, -1], dim=k)
         Z = cat([Z, Z_extension_trim], dim=k)
@@ -32,20 +34,22 @@ def fct(values, W_tot=None):
     v = zeros(values.shape)
     v[:] = values[:]
     if v.ndim == 1:
-        v = v[:, None]
+        v = v[:, None, None]
+    elif v.ndim == 2:
+        v = v[:, None, :]
     transform_shape = v.shape[:-1]
     N_tot = v[..., 0].flatten().shape[0]
     ntrain = v.shape[-1]
     slices = [slice(d) for d in v.shape]
     values_ext = even_periodic_extension(v)
-    uhat = ifft(values_ext).real[slices]
+    uhat = ifft(values_ext, axis=list(range(values_ext.ndim-2))).real[slices]
     if W_tot is None:
         W = meshgrid(*[make_weights(d) for d in transform_shape],
                      indexing='ij')
         W_tot = ones(W[0].shape)
         for w in W:
             W_tot *= w
-    uhat = diagflat(W_tot) @ uhat.reshape((N_tot, ntrain))
+    uhat = diagflat(W_tot) @ uhat.reshape(N_tot, ntrain)
     return uhat.reshape(values.shape)
 
 
@@ -64,22 +68,25 @@ def ifct(coefs, W_tot=None):
     '''
     c = coefs.clone()
     if c.ndim == 1:
-        c = c[:, None]
-    transform_shape = c.shape[:-1]
+        c = c[:, None, None]
+    elif c.ndim == 2:
+        # explicit channel dim if d_c=1
+        c = c[:, None, :]
+    transform_shape = c.shape[:-2]
     slices = [slice(d) for d in c.shape]
-    c_per = even_periodic_extension(c)
-    c_per_vec = c_per.reshape((c_per[..., 0].flatten().shape[0],
-                               c_per.shape[-1]))
+    nx = c[..., 0, 0].flatten().shape[0]
+    d_c = c.shape[-2]
+    ntrain = c.shape[-1]
     if W_tot is None:
         W = meshgrid(*[make_weights(d) for d in transform_shape],
                      indexing='ij')
-        W_tot_restricted = ones(W[0].shape)
+        W_tot = ones(W[0].shape)
         for w in W:
-            W_tot_restricted *= w
-        W_tot = even_periodic_extension(W_tot_restricted[..., None])
-    c_per_vec = diagflat(1.0 / W_tot) @ c_per_vec
-    c_per = c_per_vec.reshape(c_per.shape)
-    u = fft(c_per).real
+            W_tot *= w
+    P = diagflat(1.0 / W_tot)
+    c = einsum('ij,jkl->ikl', P, c.reshape(nx, d_c, ntrain)).reshape(c.shape)
+    c_per = even_periodic_extension(c)
+    u = fft(c_per, axis=list(range(c_per.ndim-2))).real
     return u[slices].reshape(coefs.shape)
 
 
