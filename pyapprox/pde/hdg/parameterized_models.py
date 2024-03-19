@@ -16,6 +16,8 @@ from pyapprox.pde.hdg.pde_coupling import (
 from skfem.element import ElementVector
 from pyapprox.pde.galerkin.util import _get_element
 from pyapprox.pde.galerkin.physics import Stokes, Basis
+from pyapprox.pde.galerkin.physics import (
+    LinearAdvectionDiffusionReaction as LinearAdvectionDiffusionReactionFEM)
 from pyapprox.pde.galerkin.solvers import SteadyStatePDE as FEMSteadyStatePDE
 from skfem.visuals.matplotlib import plot, plt
 from skfem import MeshQuad
@@ -48,7 +50,13 @@ def obstructed_flow_boundary_fun(amp, const, aa, bb, xx):
 
 def obstructed_flow_forcing_fun(amp, loc, scale, x):
     assert loc.ndim == 1
-    return amp*np.exp(-np.sum((x-loc[:, None])**2/scale**2, axis=0))[:, None]
+    if x.ndim == 2:
+        loc = loc[:, None]
+        return amp*np.exp(-np.sum((x-loc)**2/scale**2, axis=0))[:, None]
+    else:
+        loc = loc[:, None, None]
+        vals = amp*np.exp(-np.sum((x-loc)**2/scale**2, axis=0))
+        return vals
 
 
 def update_obstructed_tracer_flow_boundary_conds(
@@ -159,7 +167,7 @@ def zero_vel_fun(xx):
 
 
 def fixed_vel_fun(vel_vals, xx):
-    assert vel_vals.shape[0] == xx.shape[1]
+    # assert vel_vals.shape[0] == xx.shape[1]
     return vel_vals
 
 
@@ -208,6 +216,11 @@ def _fem_gappy_stokes_inlet_bndry_fun(x):
     return vals
 
 
+def _fem_dirichlet_scalar_bndry_fun(val, x):
+    vals = np.stack([0 * x[1]+val])
+    return vals
+
+
 def _fem_gappy_stokes_bndry_conds(keys):
     D_bndry_conds = dict()
     for key in keys:
@@ -218,6 +231,16 @@ def _fem_gappy_stokes_bndry_conds(keys):
         # else:
         #   apply zero neumann on right boundary, i.e. do nothing
 
+    return [D_bndry_conds, {}, {}]
+
+
+def _fem_gappy_advection_diffusion_reaction_bndry_conds(keys):
+    D_bndry_conds = dict()
+    for key in keys:
+        if key == "right":
+            D_bndry_conds[key] = [partial(_fem_dirichlet_scalar_bndry_fun, 0)]
+        # else:
+        #   apply zero neumann on right boundary, i.e. do nothing
     return [D_bndry_conds, {}, {}]
 
 
@@ -233,17 +256,19 @@ def _forcing_full(fill_value, xx):
 
 class SteadyObstructedFlowModel():
     def __init__(self, L, orders, bndry_info,
-                 source_info, functional=None, flow_type="navier_stokes",
-                 vel_filename=None, reynolds_num=None):
+                 source_info, functionals=None, flow_type="navier_stokes",
+                 vel_filename=None, reynolds_num=None,
+                 tracer_solver_type="hdg"):
         self.domain_bounds = [0, L, 0, 1]
         self.orders = orders
         aa, bb, pleft, pright = bndry_info
         self.nominal_concentration = 1.0
         amp, scale = source_info[:2]
         loc = np.array(source_info[2:])
-        self._functional = functional
+        self._functionals = functionals
         self._flow_type = flow_type
         self._reynolds_num = reynolds_num
+        self._tracer_solver_type = tracer_solver_type
 
         nsubdomains_1d = [5, 3]
         missing_subdomain_indices = [[1, 1], [3, 0], [3, 2]]
@@ -274,11 +299,13 @@ class SteadyObstructedFlowModel():
             self._subdomain_vels = self._compute_velocities()
             if vel_filename is not None:
                 with open(vel_filename, 'wb') as file_object:
-                    pickle.dump([self.subdomain_vels, self.psols], file_object)
+                    pickle.dump([self.subdomain_vels, self.psols, self.vel],
+                                file_object)
         elif os.path.exists(vel_filename):
             print("Loading velocity file")
             with open(vel_filename, 'rb') as file_object:
-                self.subdomain_vels, self.psols = pickle.load(file_object)
+                self.subdomain_vels, self.psols, self.vel = pickle.load(
+                    file_object)
         else:
             raise RuntimeError("Should not happen")
 
@@ -325,6 +352,7 @@ class SteadyObstructedFlowModel():
             # assert False
             vel, pres = np.split(
                 sol, [sol.shape[0]-basis['p'].zeros().shape[0]])
+            self.vel = vel
             self.subdomain_vels = self._get_velocities_fem(
                 self.pressure_solver._decomp, basis, vel)
             self.psols = self._get_presure_fem(
@@ -404,9 +432,30 @@ class SteadyObstructedFlowModel():
         # axs[0].quiver(*m.p[:, ::stride], *z.reshape(2, -1)[:, ::stride],
         #               angles='xy', scale_units="xy")
 
-    def _set_tracer_solver(self, tracer_domain_decomp,
-                           active_subdomain_indices, nsubdomains_1d,
-                           orders, amp, loc, scale):
+    def _set_fem_tracer_solver(self, amp, loc, scale):
+        nrefine = 5
+        mesh = _fem_gappy_mesh(nrefine, self.intervals)
+        element = _get_element(mesh, 1)
+        basis = Basis(mesh, element, intorder=4)
+        stokes_element = {'u': ElementVector(_get_element(mesh, 2)),
+                          'p': _get_element(mesh, 1)}
+        stokes_basis = {variable: Basis(mesh, e, intorder=4)
+                        for variable, e in stokes_element.items()}
+        forc_fun = partial(obstructed_flow_forcing_fun, amp, loc, scale)
+        diff_fun = partial(full_fun_axis_1, .1, oned=False)
+        vel_fun = partial(fixed_vel_fun, stokes_basis['u'].interpolate(
+            self.vel))
+        bndry_conds = _fem_gappy_advection_diffusion_reaction_bndry_conds(
+            mesh.boundaries.keys())
+        tracer_solver = FEMSteadyStatePDE(
+            LinearAdvectionDiffusionReactionFEM(
+                mesh, element, basis, bndry_conds,
+                diff_fun, forc_fun, vel_fun, None))
+        return tracer_solver
+
+    def _set_hdg_tracer_solver(self, tracer_domain_decomp,
+                               active_subdomain_indices, nsubdomains_1d,
+                               orders, amp, loc, scale):
         tracer_solver = SteadyStateDomainDecompositionSolver(
             tracer_domain_decomp)
         tracer_solver._decomp.init_subdomains(
@@ -416,6 +465,21 @@ class SteadyObstructedFlowModel():
                 nsubdomains_1d, self.subdomain_vels, None, orders,
                 self.nominal_concentration, amp, loc, scale))
         return tracer_solver
+
+    def _set_tracer_solver(self, tracer_domain_decomp,
+                           active_subdomain_indices, nsubdomains_1d,
+                           orders, amp, loc, scale):
+        if self._tracer_solver_type == "fem":
+            # boundary conditions are not consistent with hdg
+            # need to add general test to test_finite_elements to
+            # check interpolating velocity field into function
+            # passed to AdvectionDiffusionReaction
+            raise NotImplementedError("Need to complete")
+            return self._set_fem_tracer_solver(amp, loc, scale)
+        return self._set_hdg_tracer_solver(
+            tracer_domain_decomp,
+            active_subdomain_indices, nsubdomains_1d,
+            orders, amp, loc, scale)
 
     def _get_collocation_velocities(self, psols):
         subdomain_vels = []
@@ -445,7 +509,7 @@ class SteadyObstructedFlowModel():
         masks = self.pressure_solver._decomp._in_subdomains(pts)
         Z1 = np.full((pts.shape[1], 1), np.nan)
         Z2 = np.full((pts.shape[1], 1), np.nan)
-        Z3 = np.full((pts.shape[1], 1), np.nan)
+        # Z3 = np.full((pts.shape[1], 1), np.nan)
         for ii, mask in enumerate(masks):
             model = self.pressure_solver._decomp._subdomain_models[ii]
             mesh = model.physics.mesh
@@ -455,17 +519,26 @@ class SteadyObstructedFlowModel():
                 self.subdomain_vels[ii][:, 1], pts[:, mask])
         ax.streamplot(X, Y, Z1.reshape(X.shape), Z2.reshape(X.shape),
                       color='k', density=2)
-        im = ax.contourf(
+        ax.contourf(
             X, Y, np.sqrt(Z1**2+Z2**2).reshape(X.shape), **kwargs)
 
     def _set_random_sample(self, sample):
-        assert sample.shape[0] == 4
+        assert sample.shape[0] == 5
         amp, scale = sample[:2]
-        loc = sample[2:]
+        loc = sample[2:4]
+        diff = np.exp(sample[4])
         forc_fun = partial(obstructed_flow_forcing_fun, amp, loc, scale)
-        for model in self.tracer_solver._decomp._subdomain_models:
-            model.physics._forc_fun = forc_fun
-            model.physics._funs[-1] = forc_fun
+        diff_fun = partial(full_fun_axis_1, diff, oned=False)
+        if self._tracer_solver_type == "hdg":
+            for model in self.tracer_solver._decomp._subdomain_models:
+                model.physics._forc_fun = forc_fun
+                model.physics._funs[-1] = forc_fun
+                model.physics._diff_fun = diff_fun
+                model.physics._funs[0] = diff_fun
+            return
+
+        self.tracer_solver.physics.funs[0] = diff_fun
+        self.tracer_solver.physics.funs[2] = forc_fun
 
     def _solve(self, sample):
         self._set_random_sample(sample)
@@ -474,13 +547,16 @@ class SteadyObstructedFlowModel():
 
     def _eval(self, sample):
         tracer_sols = self._solve(sample)
-        qoi = self._functional(tracer_sols, sample.copy)
-        if isinstance(qoi, np.ndarray):
-            if qoi.ndim == 1:
-                return qoi
-            assert qoi.shape[1] == 1
-            return qoi[:, 0]
-        return np.asarray([qoi])
+        qoi = []
+        print("A")
+        for ii in range(len(self._functionals)):
+            qoi_ii = np.atleast_1d(self._functionals[ii](
+                tracer_sols, sample.copy()))
+            if qoi_ii.ndim == 2:
+                assert qoi_ii.shape[1] == 1
+                qoi_ii = qoi_ii[:, 0]
+            qoi.append(qoi_ii)
+        return np.hstack(qoi)
 
     def __call__(self, samples, return_grad=False):
         return evaluate_1darray_function_on_2d_array(

@@ -867,7 +867,7 @@ class AbstractBayesianOED(ABC):
     def populate(self):
         raise NotImplementedError()
 
-    def update_design(self, return_all=False, nnew=1):
+    def update_design(self, return_all=False, nnew=1, with_replacement=True):
         if not hasattr(self, "out_pred_obs"):
             raise ValueError("Must call self.populate before creating designs")
         if self.collected_design_indices is None:
@@ -877,7 +877,7 @@ class AbstractBayesianOED(ABC):
             msg += "increase self.max_ncollected_obs"
             raise ValueError(msg)
         utility_vals, selected_indices, results = self.select_design(
-            self.collected_design_indices, nnew, return_all)
+            self.collected_design_indices, nnew, return_all, with_replacement)
 
         self.collected_design_indices = np.hstack(
             (self.collected_design_indices, selected_indices)).astype(int)
@@ -961,7 +961,8 @@ class AbstractBayesianOED(ABC):
         # return self._compute_utilities_parallel(
         #     ncandidates, collected_design_indices, return_all)
 
-    def select_design(self, collected_design_indices, nnew, return_all):
+    def select_design(self, collected_design_indices, nnew, return_all,
+                      with_replacement=True):
         """
         Update an experimental design.
 
@@ -985,8 +986,19 @@ class AbstractBayesianOED(ABC):
             Dictionary of useful data used to compute expected utility
             At a minimum it has the keys ["utilties", "evidences", "weights"]
         """
-        new_indices = np.asarray(list(itertools.combinations_with_replacement(
-            np.arange(self.ndesign_candidates), nnew)))
+        if with_replacement:
+            new_indices = np.asarray(
+                list(itertools.combinations_with_replacement(
+                    np.arange(self.ndesign_candidates), nnew)))
+            print("No. total {0} pt designs: {1}".format(
+                nnew, new_indices.shape[0]))
+        else:
+            new_indices = np.asarray(
+                list(itertools.combinations(
+                    np.delete(np.arange(self.ndesign_candidates),
+                              collected_design_indices), nnew)))
+            print("No. total {0} pt designs: {1}".format(
+                nnew, new_indices.shape[0]))
         utility_vals, results = self.compute_utilities(
             self.ndesign_candidates, collected_design_indices, new_indices,
             return_all)
