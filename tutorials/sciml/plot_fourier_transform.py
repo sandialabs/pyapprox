@@ -155,8 +155,6 @@ First define the Gaussian PDF and its Fourier transform
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use("Qt5Agg")
 
 
 def gauss(x, var):
