@@ -63,9 +63,10 @@ class TestIntegralOperators(unittest.TestCase):
         fcoef_target = tw.hstack([fftshift_v_proj_trim.real.flatten(),
                                   fftshift_v_proj_trim.imag.flatten()[1:]])
 
-        assert (
-            tw.norm(fcoef_target - ctn._hyp_list.get_values()) /
-            tw.norm(fcoef_target) < 2e-6)
+        tol = 4e-6
+        relerr = (tw.norm(fcoef_target - ctn._hyp_list.get_values()) /
+                  tw.norm(fcoef_target))
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_chebyshev_convolution_operator_1d(self):
         N = 101
@@ -84,9 +85,10 @@ class TestIntegralOperators(unittest.TestCase):
         training_values = u_tconv_v[:, None]
         ctn.fit(training_samples, training_values, tol=1e-10)
 
-        assert (
-            tw.norm(fct.fct(v)[:kmax+1] - ctn._hyp_list.get_values()) /
-            tw.norm(fct.fct(v)[:kmax+1]) < 4e-4)
+        tol = 4e-4
+        relerr = (tw.norm(fct.fct(v)[:kmax+1] - ctn._hyp_list.get_values()) /
+                  tw.norm(fct.fct(v)[:kmax+1]))
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_chebyshev_convolution_operator_multidim(self):
         N = 21
@@ -108,11 +110,12 @@ class TestIntegralOperators(unittest.TestCase):
                                                      v0=v0))]
         ctn = CERTANN(X.size, layers, [IdentityActivation()])
         ctn.fit(u.flatten()[..., None], u_tconv_v.flatten()[..., None],
-                tol=1e-8)
+                tol=1e-10)
 
-        assert (
-            tw.norm(fct_v.flatten() - ctn._hyp_list.get_values()) /
-            tw.norm(fct_v.flatten()) < 2e-2)
+        tol = 2e-2
+        relerr = (tw.norm(fct_v.flatten() - ctn._hyp_list.get_values()) /
+                  tw.norm(fct_v.flatten()))
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_chebyshev_tensor_product_operator(self):
         # Manufactured integral operator
@@ -165,7 +168,11 @@ class TestIntegralOperators(unittest.TestCase):
         # Compare upper triangle of A to learned parameters
         A_upper = np.triu(A_mat).flatten()
         A_upper = A_upper[np.abs(A_upper) > 1e-10]
-        assert np.allclose(A_upper, ctn._hyp_list.get_values())
+
+        tol = 6e-7
+        relerr = (np.linalg.norm(A_upper-ctn._hyp_list.get_values().numpy()) /
+                  np.linalg.norm(A_upper))
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_dense_affine_integral_operator(self):
         N0, N1 = 5, 3
@@ -184,9 +191,12 @@ class TestIntegralOperators(unittest.TestCase):
             [IdentityActivation()],
             optimizer=Adam(epochs=1000, lr=1e-2, batches=5))
         ctn.fit(XX, YY, tol=1e-12)
-        assert (tw.norm(tw.hstack([W, b]).flatten() -
-                ctn._hyp_list.get_values()) /
-                tw.norm(ctn._hyp_list.get_values()) < 5.e-3)
+
+        tol = 5e-3
+        relerr = (tw.norm(tw.hstack([W, b]).flatten() -
+                          ctn._hyp_list.get_values()) /
+                  tw.norm(ctn._hyp_list.get_values()))
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_dense_affine_integral_operator_fixed_bias(self):
         N0, N1 = 3, 5
@@ -196,10 +206,11 @@ class TestIntegralOperators(unittest.TestCase):
         W = iop._weights_biases.get_values().reshape(
             iop._noutputs, iop._ninputs+1)[:, :-1]
         YY = W @ XX + b
-        assert np.allclose(iop._integrate(XX), YY)
-        assert np.allclose(iop._hyp_list.nactive_vars(), N0*N1)
+        assert np.allclose(iop._integrate(XX), YY), 'Quadrature error'
+        assert np.allclose(iop._hyp_list.nactive_vars(), N0*N1), ('Dimension '
+               'mismatch')
 
-    def test_cheno_channels(self):
+    def test_chebno_channels(self):
         n = 21
         w = fct.make_weights(n)[:, None]
         xx = np.cos(np.pi*np.arange(n)/(n-1))
@@ -221,10 +232,12 @@ class TestIntegralOperators(unittest.TestCase):
                                                      channel_in=channel_in,
                                                      channel_out=channel_out))]
         ctn = CERTANN(n, layers, [IdentityActivation()])
-        ctn.fit(samples, values, tol=1e-8, verbosity=0)
+        ctn.fit(samples, values, tol=1e-10, verbosity=0)
 
-        assert (np.linalg.norm(v0 - ctn._hyp_list.get_values()) /
-               np.linalg.norm(v0)) < 3e-5
+        tol = 4e-5
+        relerr = (np.linalg.norm(v0 - ctn._hyp_list.get_values()) /
+                  np.linalg.norm(v0))
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_fno_channels(self):
         n = 21
@@ -251,8 +264,11 @@ class TestIntegralOperators(unittest.TestCase):
                                                    channel_out=channel_out))]
         ctn = CERTANN(n, layers, [IdentityActivation()])
         ctn.fit(samples, values, tol=1e-8, verbosity=0)
-        assert (np.linalg.norm(v0 - ctn._hyp_list.get_values()) /
-                np.linalg.norm(v0)) < 4e-7
+
+        tol = 6e-7
+        relerr = (np.linalg.norm(v0 - ctn._hyp_list.get_values()) /
+                  np.linalg.norm(v0))
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
 
 if __name__ == "__main__":

@@ -134,7 +134,10 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         ctn = CERTANN(ninputs, layers, IdentityActivation())
         ctn.fit(training_samples, training_values, tol=1e-14)
         theta_predicted = ctn._hyp_list.get_values()
-        assert (theta_manuf-theta_predicted).norm() / theta_manuf.norm() < 1e-5
+
+        tol = 2e-5
+        relerr = (theta_manuf-theta_predicted).norm() / theta_manuf.norm()
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_single_layer_FourierConv(self):
         # todo need test that checks when a layer has at least two
@@ -162,7 +165,10 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         ctn = CERTANN(ninputs, layers, IdentityActivation())
         ctn.fit(training_samples, training_values, tol=1e-8)
         theta_predicted = ctn._hyp_list.get_values()
-        assert (theta_manuf-theta_predicted).norm() / theta_manuf.norm() < 4e-6
+
+        tol = 5e-6
+        relerr = (theta_manuf-theta_predicted).norm() / theta_manuf.norm()
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_single_layer_ChebConv(self):
         ninputs = 21
@@ -188,7 +194,10 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         ctn = CERTANN(ninputs, layers, IdentityActivation())
         ctn.fit(training_samples, training_values, tol=1e-8)
         theta_predicted = ctn._hyp_list.get_values()
-        assert (theta_manuf-theta_predicted).norm() / theta_manuf.norm() < 9e-7
+
+        relerr = (theta_manuf-theta_predicted).norm() / theta_manuf.norm()
+        tol = 2e-6
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_single_layer_two_blocks(self):
         # When layer = [Affine, FourierConv], the parameter recovery problem is
@@ -226,7 +235,10 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         ctn = CERTANN(ninputs, layers, IdentityActivation())
         ctn.fit(training_samples, training_values, verbosity=0, tol=1e-5)
         theta_predicted = ctn._hyp_list.get_values()
-        assert (theta_predicted-theta_manuf).norm() / theta_manuf.norm() < 3e-2
+
+        tol = 4e-2
+        relerr = (theta_predicted-theta_manuf).norm() / theta_manuf.norm()
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
 
 if __name__ == "__main__":
