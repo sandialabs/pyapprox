@@ -83,11 +83,12 @@ class TestIntegralOperators(unittest.TestCase):
                       [IdentityActivation()])
         training_samples = u[:, None]
         training_values = u_tconv_v[:, None]
-        ctn.fit(training_samples, training_values, tol=1e-10)
+        ctn.fit(training_samples, training_values, tol=1e-12)
 
         tol = 4e-4
         relerr = (tw.norm(fct.fct(v)[:kmax+1] - ctn._hyp_list.get_values()) /
                   tw.norm(fct.fct(v)[:kmax+1]))
+        print(relerr)
         assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_chebyshev_convolution_operator_multidim(self):
