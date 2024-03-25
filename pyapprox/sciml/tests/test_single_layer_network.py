@@ -12,6 +12,7 @@ from pyapprox.sciml.activations import TanhActivation, IdentityActivation
 from pyapprox.sciml.network import CERTANN
 from pyapprox.sciml.util.hyperparameter import LogHyperParameterTransform
 from pyapprox.sciml.layers import Layer
+from pyapprox.sciml.util import _torch_wrappers as tw
 
 
 def smooth_fun(xx):
@@ -108,27 +109,74 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         #     plt.plot(plot_samples[0], ctn(plot_samples)[0], 'k-', lw=0.5)
         # plt.show()
 
-    def test_single_layer_DenseAffine(self):
+    def test_single_layer_DenseAffine_single_channel(self):
         ninputs = 21
         noutputs = ninputs
+        channel_in = 1
+        channel_out = 1
 
         # manufactured solution
-        v0 = (1/ninputs) * np.ones((ninputs+1)*noutputs,)
+        v0 = (1/ninputs) * np.ones((ninputs+1)*noutputs*channel_out,)
         AffineBlock_manuf = DenseAffineIntegralOperator(ninputs, noutputs,
-                                                        v0=v0)
+                                                        v0=v0,
+                                                        channel_in=channel_in,
+                                                        channel_out=channel_out
+                                                        )
         layers_manuf = Layer([AffineBlock_manuf])
         ctn_manuf = CERTANN(ninputs, layers_manuf, IdentityActivation())
         theta_manuf = ctn_manuf._hyp_list.get_values()
 
         # generate training samples from normal distribution with squared
         # inverse elliptic covariance
-        ntrain = 1000
+        ntrain = 2000
         training_samples = sqinv_elliptic_prior_samples(ninputs, ntrain)
         training_values = ctn_manuf(training_samples)
 
         # recover parameters
-        v0 += np.random.normal(0, 1/ninputs, ((ninputs+1)*noutputs,))
-        AffineBlock = DenseAffineIntegralOperator(ninputs, noutputs, v0=v0)
+        v0 += np.random.normal(0, 1/ninputs, v0.shape)
+        AffineBlock = DenseAffineIntegralOperator(ninputs, noutputs,
+                                                  channel_in=channel_in,
+                                                  channel_out=channel_out,
+                                                  v0=v0)
+        layers = Layer([AffineBlock])
+
+        ctn = CERTANN(ninputs, layers, IdentityActivation())
+        ctn.fit(training_samples, training_values, tol=1e-14)
+        theta_predicted = ctn._hyp_list.get_values()
+
+        tol = 2e-5
+        relerr = (theta_manuf-theta_predicted).norm() / theta_manuf.norm()
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
+
+    def test_single_layer_DenseAffine_multichannel(self):
+        ninputs = 21
+        noutputs = ninputs
+        channel_in = 1
+        channel_out = 2
+
+        # manufactured solution
+        v0 = (1/ninputs) * np.ones((ninputs+1)*noutputs*channel_out,)
+        AffineBlock_manuf = DenseAffineIntegralOperator(ninputs, noutputs,
+                                                        v0=v0,
+                                                        channel_in=channel_in,
+                                                        channel_out=channel_out
+                                                        )
+        layers_manuf = Layer([AffineBlock_manuf])
+        ctn_manuf = CERTANN(ninputs, layers_manuf, IdentityActivation())
+        theta_manuf = ctn_manuf._hyp_list.get_values()
+
+        # generate training samples from normal distribution with squared
+        # inverse elliptic covariance
+        ntrain = 2000
+        training_samples = sqinv_elliptic_prior_samples(ninputs, ntrain)
+        training_values = ctn_manuf(training_samples)
+
+        # recover parameters
+        v0 += np.random.normal(0, 1/ninputs, v0.shape)
+        AffineBlock = DenseAffineIntegralOperator(ninputs, noutputs,
+                                                  channel_in=channel_in,
+                                                  channel_out=channel_out,
+                                                  v0=v0)
         layers = Layer([AffineBlock])
 
         ctn = CERTANN(ninputs, layers, IdentityActivation())
@@ -197,6 +245,64 @@ class TestSingleLayerCERTANN(unittest.TestCase):
 
         relerr = (theta_manuf-theta_predicted).norm() / theta_manuf.norm()
         tol = 2e-6
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
+
+    def test_single_layer_parameterized_kernel_single_channel(self):
+        ninputs = 21
+        matern_manuf = MaternKernel(np.inf, tw.asarray([0.2]), [0.01, 0.5], 1)
+
+        quad_rule_k = Fixed1DGaussLegendreIOQuadRule(ninputs)
+        quad_rule_kp1 = Fixed1DGaussLegendreIOQuadRule(ninputs)
+
+        # Manufactured solution
+        iop = KernelIntegralOperator([matern_manuf], quad_rule_k,
+                                     quad_rule_kp1, channel_in=1,
+                                     channel_out=1)
+        ctn_manuf = CERTANN(ninputs, Layer([iop]), IdentityActivation())
+        training_samples = tw.asarray(np.linspace(0, 1, ninputs)[:, None])
+        training_values = ctn_manuf(training_samples)
+
+        # Optimization problem
+        matern_opt = MaternKernel(np.inf, tw.asarray([0.4]), [0.01, 0.5], 1)
+        iop_opt = KernelIntegralOperator([matern_opt], quad_rule_k,
+                                     quad_rule_kp1, channel_in=1,
+                                     channel_out=1)
+        layers = Layer([iop_opt])
+        ctn = CERTANN(ninputs, layers, IdentityActivation())
+        ctn.fit(training_samples, training_values, tol=1e-12, verbosity=0)
+        relerr = tw.norm(ctn._hyp_list.get_values() - 0.2)/0.2
+        tol = 4e-9
+        assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
+
+    def test_single_layer_parameterized_kernel_multichannel(self):
+        ninputs = 21
+
+        matern_sqexp = MaternKernel(tw.inf, [0.25], [0.01, 0.5], 1)
+        matern_exp = MaternKernel(0.5, [0.1], [0.01, 0.5], 1)
+        quad_rule_k = Fixed1DGaussLegendreIOQuadRule(ninputs)
+        quad_rule_kp1 = Fixed1DGaussLegendreIOQuadRule(ninputs)
+
+        # Manufactured solution
+        iop = KernelIntegralOperator([matern_sqexp, matern_exp], quad_rule_k,
+                                     quad_rule_kp1, channel_in=2,
+                                     channel_out=2)
+        xx = tw.asarray(np.linspace(0, 1, ninputs))[:, None]
+        samples = tw.hstack([xx, xx])[..., None]
+        values = iop(samples)
+
+        # Optimization problem
+        matern_sqexp_opt = MaternKernel(np.inf, tw.asarray([0.4]), [0.01, 0.5],
+                                        1)
+        matern_exp_opt = MaternKernel(0.5, [0.1], [0.01, 0.5], 1)
+        iop_opt = KernelIntegralOperator([matern_sqexp_opt, matern_exp_opt],
+                                         quad_rule_k, quad_rule_kp1,
+                                         channel_in=2, channel_out=2)
+        layers = Layer([iop_opt])
+        ctn = CERTANN(ninputs, layers, IdentityActivation())
+        ctn.fit(samples, values, tol=1e-12, verbosity=0)
+        relerr = (tw.norm(ctn._hyp_list.get_values() - tw.asarray([0.25, 0.1]))
+                  / tw.norm(tw.asarray([0.25, 0.1])))
+        tol = 4e-9
         assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_single_layer_two_blocks(self):

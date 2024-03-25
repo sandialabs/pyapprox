@@ -8,10 +8,12 @@ from pyapprox.sciml.network import CERTANN
 from pyapprox.sciml.integraloperators import (
     FourierConvolutionOperator, ChebyshevConvolutionOperator,
     DenseAffineIntegralOperator, DenseAffineIntegralOperatorFixedBias,
-    ChebyshevIntegralOperator)
+    ChebyshevIntegralOperator, KernelIntegralOperator)
 from pyapprox.sciml.layers import Layer
 from pyapprox.sciml.activations import IdentityActivation
 from pyapprox.sciml.optimizers import Adam
+from pyapprox.sciml.kernels import MaternKernel
+from pyapprox.sciml.quadrature import Fixed1DGaussLegendreIOQuadRule
 
 
 class TestIntegralOperators(unittest.TestCase):
@@ -88,7 +90,6 @@ class TestIntegralOperators(unittest.TestCase):
         tol = 4e-4
         relerr = (tw.norm(fct.fct(v)[:kmax+1] - ctn._hyp_list.get_values()) /
                   tw.norm(fct.fct(v)[:kmax+1]))
-        print(relerr)
         assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_chebyshev_convolution_operator_multidim(self):
@@ -184,7 +185,7 @@ class TestIntegralOperators(unittest.TestCase):
         ctn = CERTANN(N0, [Layer([DenseAffineIntegralOperator(N0, N1)])],
                       [IdentityActivation()])
         ctn.fit(XX, YY, tol=1e-14)
-        assert np.allclose(tw.hstack([W, b]).flatten(),
+        assert np.allclose(tw.hstack([W.flatten(), b.flatten()]),
                            ctn._hyp_list.get_values())
 
         ctn = CERTANN(
@@ -193,10 +194,10 @@ class TestIntegralOperators(unittest.TestCase):
             optimizer=Adam(epochs=1000, lr=1e-2, batches=5))
         ctn.fit(XX, YY, tol=1e-12)
 
-        tol = 5e-3
-        relerr = (tw.norm(tw.hstack([W, b]).flatten() -
+        tol = 1e-8
+        relerr = (tw.norm(tw.hstack([W.flatten(), b.flatten()]) -
                           ctn._hyp_list.get_values()) /
-                  tw.norm(ctn._hyp_list.get_values()))
+                  tw.norm(tw.hstack([W.flatten(), b.flatten()])))
         assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
 
     def test_dense_affine_integral_operator_fixed_bias(self):
@@ -204,12 +205,41 @@ class TestIntegralOperators(unittest.TestCase):
         XX = tw.asarray(np.random.normal(0, 1, (N0, 20)))
         iop = DenseAffineIntegralOperatorFixedBias(N0, N1)
         b = tw.full((N1, 1), 0)
-        W = iop._weights_biases.get_values().reshape(
-            iop._noutputs, iop._ninputs+1)[:, :-1]
+        W = iop._weights_biases.get_values()[:-N1].reshape(iop._noutputs,
+                                                           iop._ninputs)
         YY = W @ XX + b
         assert np.allclose(iop._integrate(XX), YY), 'Quadrature error'
         assert np.allclose(iop._hyp_list.nactive_vars(), N0*N1), ('Dimension '
                'mismatch')
+
+    def test_parameterized_kernels_parallel_channels(self):
+        ninputs = 21
+
+        matern_sqexp = MaternKernel(tw.inf, [0.2], [0.01, 0.5], 1)
+        matern_exp = MaternKernel(0.5, [0.2], [0.01, 0.5], 1)
+
+        # One block, two channels
+        quad_rule_k = Fixed1DGaussLegendreIOQuadRule(ninputs)
+        quad_rule_kp1 = Fixed1DGaussLegendreIOQuadRule(ninputs)
+        iop = KernelIntegralOperator([matern_sqexp, matern_exp], quad_rule_k,
+                                     quad_rule_kp1, channel_in=2,
+                                     channel_out=2)
+        xx = tw.asarray(np.linspace(0, 1, ninputs))[:, None]
+        samples = tw.hstack([xx, xx])[..., None]
+        values = iop(samples)
+
+        # Two blocks, one channel
+        iop_sqexp = KernelIntegralOperator([matern_sqexp], quad_rule_k,
+                                           quad_rule_kp1, channel_in=1,
+                                           channel_out=1)
+        iop_exp = KernelIntegralOperator([matern_exp], quad_rule_k,
+                                          quad_rule_kp1, channel_in=1,
+                                          channel_out=1)
+
+        # Results should be identical
+        assert (np.allclose(iop_sqexp(xx), values[:, 0]) and
+                np.allclose(iop_exp(xx), values[:, 1])), ('Kernel integral '
+                'operators not acting on channels in parallel')
 
     def test_chebno_channels(self):
         n = 21
