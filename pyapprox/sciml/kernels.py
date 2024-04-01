@@ -207,7 +207,7 @@ class Legendre1DHilbertSchmidtKernel(Kernel):
         else:
             X2 = asarray(X2)
         X1 = 2*X1-1
-        X2 = 2*X2-1 # hack
+        X2 = 2*X2-1  # hack
         X1basis = hstack(
             [scipy.special.eval_legendre(dd, X1[0])[:, None]
              for dd in range(self._nterms)])
@@ -219,11 +219,3 @@ class Legendre1DHilbertSchmidtKernel(Kernel):
             X2basis /= norm(X2basis, axis=1)[:, None]
         K = (X1basis*weights) @ X2basis.T
         return K
-
-
-#%%
-#TODO Compute Fourier transform of Green's function
-
-#import torch
-#K_ft = torch.rfft(K, 1)
-#K = torch.irfft(K_ft, 1)

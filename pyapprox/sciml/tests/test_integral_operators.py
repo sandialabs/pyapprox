@@ -8,7 +8,8 @@ from pyapprox.sciml.network import CERTANN
 from pyapprox.sciml.integraloperators import (
     FourierConvolutionOperator, ChebyshevConvolutionOperator,
     DenseAffineIntegralOperator, DenseAffineIntegralOperatorFixedBias,
-    ChebyshevIntegralOperator, KernelIntegralOperator)
+    ChebyshevIntegralOperator, KernelIntegralOperator, EmbeddingOperator,
+    AffineProjectionOperator)
 from pyapprox.sciml.layers import Layer
 from pyapprox.sciml.activations import IdentityActivation
 from pyapprox.sciml.optimizers import Adam
@@ -233,13 +234,14 @@ class TestIntegralOperators(unittest.TestCase):
                                            quad_rule_kp1, channel_in=1,
                                            channel_out=1)
         iop_exp = KernelIntegralOperator([matern_exp], quad_rule_k,
-                                          quad_rule_kp1, channel_in=1,
-                                          channel_out=1)
+                                         quad_rule_kp1, channel_in=1,
+                                         channel_out=1)
 
         # Results should be identical
         assert (np.allclose(iop_sqexp(xx), values[:, 0]) and
-                np.allclose(iop_exp(xx), values[:, 1])), ('Kernel integral '
-                'operators not acting on channels in parallel')
+                np.allclose(iop_exp(xx), values[:, 1])), (
+                'Kernel integral operators not acting on channels in '
+                'parallel')
 
     def test_chebno_channels(self):
         n = 21
@@ -300,6 +302,48 @@ class TestIntegralOperators(unittest.TestCase):
         relerr = (np.linalg.norm(v0 - ctn._hyp_list.get_values()) /
                   np.linalg.norm(v0))
         assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
+
+    def test_embedding_operator(self):
+        nx = 17
+        input_samples = tw.asarray(np.random.normal(0, 1, nx))[:, None, None]
+        quad = Fixed1DGaussLegendreIOQuadRule(17)
+
+        # Same kernel for all output channels
+        lenscale = tw.asarray(np.asarray([0.5]))
+        lenscale_bounds = tw.asarray(np.asarray([1e-5, 10]))
+        kernel = MaternKernel(nu=0.5, lenscale=lenscale,
+                              lenscale_bounds=lenscale_bounds, nvars=1)
+        kio = KernelIntegralOperator(kernel, quad, quad)
+        embedding = EmbeddingOperator(kio, channel_in=1, channel_out=10,
+                                      nx=nx)
+        out = embedding(input_samples)
+        assert np.allclose(out, kio(input_samples))
+
+        # Channels 1-2 have shared kernel; channels 3-10 have different kernel
+        kernel2 = MaternKernel(nu=np.inf, lenscale=lenscale,
+                               lenscale_bounds=lenscale_bounds, nvars=1)
+        kio2 = KernelIntegralOperator(kernel2, quad, quad)
+        embedding2 = EmbeddingOperator(2*[kio] + 8*[kio2], channel_in=1,
+                                       channel_out=10, nx=nx)
+        out2 = embedding2(input_samples)
+        assert (np.allclose(out[:, :2, :], kio(input_samples)) and
+                np.allclose(out2[:, 2:, :], kio2(input_samples))), (
+                'Embedded values do not match corresponding kernels')
+
+        assert not np.allclose(out2[:, 2:, :], kio(input_samples)), (
+               'In unshared kernel case, channels 3-10 match kernel for '
+               'channels 1-2')
+
+    def test_affine_projection_operator(self):
+        channel_in = 10
+        nx = 17
+        input_samples = np.tile(np.random.normal(0, 1, nx), (channel_in, 1)).T
+        v0 = np.ones(channel_in + 1)
+        v0[-1] = 1
+        proj = AffineProjectionOperator(channel_in, v0=v0, nx=nx)
+        out = proj(tw.asarray(input_samples)[..., None])
+        assert np.allclose(out.squeeze(), input_samples.sum(axis=1)+1), (
+               'Default affine projection does not match explicit sum')
 
 
 if __name__ == "__main__":

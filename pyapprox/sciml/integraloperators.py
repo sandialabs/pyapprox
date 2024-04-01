@@ -32,18 +32,27 @@ class IntegralOperator(ABC):
 
 
 class EmbeddingOperator(IntegralOperator):
-    def __init__(self, channel_in: int, channel_out: int, nx=None, v0=None):
-        nvars_mat = channel_in*channel_out
-        bounds = np.tile([-np.inf, np.inf], nvars_mat)
-        W = np.empty((nvars_mat,), dtype=float)
-        W[:] = (np.random.normal(0, 1/nvars_mat, nvars_mat) if v0 is None
-                else v0)
-        self._W = HyperParameter(
-            "W_embedding", nvars_mat, W, bounds,
-            IdentityHyperParameterTransform())
-        self._hyp_list = HyperParameterList([self._W])
+    def __init__(self, integralops, channel_in: int, channel_out: int,
+                 nx=None):
         self._channel_in = channel_in
         self._channel_out = channel_out
+        if (isinstance(integralops, list) and
+            all(issubclass(op.__class__, IntegralOperator)
+                for op in integralops)):
+            self._integralops = integralops
+        elif issubclass(integralops.__class__, IntegralOperator):
+            self._integralops = self._channel_out*[integralops]
+        else:
+            raise ValueError(
+                'integralops must be IntegralOperator, or list '
+                'thereof')
+        self._hyp_list = sum([iop._hyp_list for iop in self._integralops])
+
+        # ensure proper setup
+        assert len(self._integralops) == self._channel_out
+        for iop in self._integralops:
+            assert iop._channel_in == self._channel_in
+            assert iop._channel_out == 1    # decoupled channels for now
         self._format_nx(nx)
 
     def _integrate(self, y_k_samples):
@@ -51,27 +60,39 @@ class EmbeddingOperator(IntegralOperator):
             raise ValueError('y_k_samples must have shape (n_x, d_c, n_train)')
         if self._nx is None:
             self._format_nx(y_k_samples.shape[:-2])
-        W = self._hyp_list.get_values().reshape(self._channel_out,
-                                                self._channel_in)
-        return einsum('ij,...jl->...il', W, y_k_samples)
 
-    def _format_nx(self, nx):
-        if hasattr(nx, '__iter__'):
-            self._nx = tuple(nx)
-        elif type(nx) == int:
-            self._nx = (nx,)
-        elif nx is None:
-            self._nx = None
+        out = zeros(*self._nx, self._channel_out, y_k_samples.shape[-1])
+        for k in range(self._channel_out):
+            out[..., k, :] = self._integralops[k](y_k_samples)[..., 0, :]
+        return out
+
+
+class AffineProjectionOperator(IntegralOperator):
+    def __init__(self, channel_in: int, v0=None, nx=None):
+        self._channel_in = channel_in
+        self._channel_out = 1
+        self._format_nx(nx)
+        self._nvars_mat = self._channel_in + 1
+        affine_weights = np.ones(self._nvars_mat)
+        if v0 is not None:
+            affine_weights[:] = v0
         else:
-            raise ValueError('nx must be int, tuple of ints, or None')
-        self._N = 1
-        for n in self._nx:
-            self._N *= n
+            affine_weights[-1] = 0.0
+        self._affine_weights = HyperParameter(
+            'affine_weights', self._nvars_mat, affine_weights,
+            np.tile([-np.inf, np.inf], self._nvars_mat),
+            IdentityHyperParameterTransform())
+        self._hyp_list = HyperParameterList([self._affine_weights])
+        self._format_nx(nx)
 
-
-class AffineChannelOperator(EmbeddingOperator):
-    def __init__(self, d_c=1, nx=None, v0=None):
-        super().__init__(d_c, d_c, nx, v0)
+    def _integrate(self, y_k_samples):
+        if y_k_samples.ndim < 3:
+            raise ValueError('y_k_samples must have shape (n_x, d_c, n_train)')
+        if self._nx is None:
+            self._format_nx(y_k_samples.shape[:-2])
+        out = einsum('i,...ik->...k', self._hyp_list.get_values()[:-1],
+                     y_k_samples) + self._hyp_list.get_values()[-1]
+        return out[..., None, :]
 
 
 class KernelIntegralOperator(IntegralOperator):
@@ -79,12 +100,15 @@ class KernelIntegralOperator(IntegralOperator):
                  channel_out=1):
         if not hasattr(kernels, '__iter__'):
             self._kernels = channel_in*[kernels]
+            self._hyp_list = kernels.hyp_list
         elif len(kernels) != channel_in:
             raise ValueError('len(kernels) must equal channel_in')
         else:
             self._kernels = kernels
-        self._hyp_list = sum([kernel.hyp_list for kernel in self._kernels])
+            self._hyp_list = sum([kernel.hyp_list for kernel in kernels])
 
+        self._channel_in = channel_in
+        self._channel_out = channel_out
         self._quad_rule_k = quad_rule_k
         self._quad_rule_kp1 = quad_rule_kp1
 
@@ -148,7 +172,6 @@ class DenseAffineIntegralOperator(IntegralOperator):
                     'Could not infer channel dimension. y_k_samples.shape[-2] '
                     'must be channel_in.')
 
-        ntrain = y_k_samples.shape[-1]
         W = (self._weights_biases.get_values()[:-self._b_size].reshape(
              self._noutputs, self._ninputs, self._channel_out,
              self._channel_in))
