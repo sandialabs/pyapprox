@@ -276,7 +276,7 @@ class FEMIntegrateRectangularSubdomain(Functional):
         return vals
 
     def _form(self, w):
-        return self.indicator(w.x)
+        return w.y*self.indicator(w.x)
 
 
 class SteadyObstructedFlowModel():
@@ -353,8 +353,9 @@ class SteadyObstructedFlowModel():
                        partial(_forcing_full, 0),
                        viscosity=L/self._reynolds_num))
             sol = self.vel_solver.solve()
-            with open(self.vel_filename, 'wb') as file_object:
-                pickle.dump(sol, file_object)
+            if self.vel_filename is not None:
+                with open(self.vel_filename, 'wb') as file_object:
+                    pickle.dump(sol, file_object)
         else:
             print("Loading velocity file", self.vel_filename)
             with open(self.vel_filename, 'rb') as file_object:
@@ -579,7 +580,11 @@ class SteadyObstructedFlowModel():
         return tracer_sols
 
     def _eval(self, sample):
+        # import time
+        # t0 = time.time()
         tracer_sols = self._solve(sample)
+        # print("solve took", time.time()-t0)
+        # t0 = time.time()
         qoi = []
         for ii in range(len(self._functionals)):
             qoi_ii = np.atleast_1d(self._functionals[ii](
@@ -588,6 +593,7 @@ class SteadyObstructedFlowModel():
                 assert qoi_ii.shape[1] == 1
                 qoi_ii = qoi_ii[:, 0]
             qoi.append(qoi_ii)
+        # print("qoi took", time.time()-t0)
         return np.hstack(qoi)
 
     def __call__(self, samples, return_grad=False):

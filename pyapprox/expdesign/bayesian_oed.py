@@ -222,7 +222,7 @@ def sq_dists_3d_prereduced(XX, YY, a=1, b=0, active_indices=None):
     try:
         from pyapprox.cython.utilities import sq_dists_3d_prereduced_pyx
         return sq_dists_3d_prereduced_pyx(XX, YY, active_indices, a, b)
-    except(ImportError, ModuleNotFoundError) as e:
+    except (ImportError, ModuleNotFoundError) as e:
         msg = 'sq_dists_3d_prereduced extension failed'
         trace_error_with_msg(msg, e)
 

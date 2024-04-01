@@ -552,6 +552,11 @@ def determinant_triangular_matrix(matrix):
     return np.prod(np.diag(matrix))
 
 
+def log_determinant_from_cholesky_factor(L):
+    """Get determinant of LL@.T"""
+    return 2*np.sum(np.log(np.diag(L)))
+
+
 def cholesky_solve_linear_system(L, rhs):
     r"""
     Solve LL'x = b using forwards and backwards substitution
@@ -561,6 +566,13 @@ def cholesky_solve_linear_system(L, rhs):
     # Use backwards subsitution to solve L'x = y
     x = solve_triangular(L.T, y, lower=False)
     return x
+
+
+def cholesky_inverse(L):
+    rhs = np.eye(L.shape[0])
+    L_inv = solve_triangular(L, rhs, lower=True)
+    return L_inv
+    
 
 
 def update_cholesky_factorization(L_11, A_12, A_22):
@@ -736,3 +748,23 @@ def equality_constrained_linear_least_squares(A, B, y, z):
         The solution
     """
     return lapack.dgglse(A, B, y, z)[3]
+
+
+def trace_of_mat_mat_product(Amat, Bmat):
+    """
+    Compute Trace(A @ B)
+    """
+    assert Amat.shape == Bmat.T.shape
+    # use einsum because unlike other approaches, e.g. np.sum(A*B.T)
+    # it does not use any explicit intermediate storage
+    return np.einsum("ij,ji->", Amat, Bmat)
+
+
+def diag_of_mat_mat_product(Amat, Bmat):
+    """
+    Compute Diag(A @ B)
+    """
+    assert Amat.shape == Bmat.T.shape
+    # use einsum because unlike other approaches, e.g. np.diag(A*B.T)
+    # it does not use any explicit intermediate storage
+    return np.einsum("ij,ji->i", Amat, Bmat)

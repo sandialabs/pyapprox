@@ -14,7 +14,9 @@ from pyapprox.util.linalg import (
     update_trace_involving_cholesky_inverse, solve_triangular, swap_rows,
     num_entries_rectangular_triangular_matrix,
     flattened_rectangular_lower_triangular_matrix_index, qr_solve,
-    num_entries_square_triangular_matrix
+    num_entries_square_triangular_matrix, cholesky_inverse,
+    log_determinant_from_cholesky_factor, trace_of_mat_mat_product,
+    diag_of_mat_mat_product
 )
 
 
@@ -812,6 +814,29 @@ class TestLinalg(unittest.TestCase):
         Q, R = qr_factorization(A)
         sol = qr_solve(Q, R, rhs)
         assert np.allclose(sol, np.linalg.solve(A, rhs))
+
+    def test_cholesky_inverse(self):
+        nrows = 3
+        A = np.random.normal(0., 1., (nrows, nrows))
+        A = A.T.dot(A)
+        L = cholesky_decomposition(A)
+        L_inv = cholesky_inverse(L)
+        assert np.allclose(np.linalg.inv(L), L_inv)
+        assert np.allclose(np.linalg.inv(A), L_inv.T@L_inv)
+        assert np.allclose(
+            np.log(np.linalg.det(A)),
+            log_determinant_from_cholesky_factor(L))
+
+    def test_trace_of_mat_mat_product(self):
+        nrows, ncols = 3, 4
+        Amat = np.random.normal(0., 1., (nrows, ncols))
+        Bmat = Amat.T
+        trace_true = np.trace(Amat@Bmat)
+        trace = trace_of_mat_mat_product(Amat, Bmat)
+        assert np.allclose(trace, trace_true)
+
+        diag_true = np.diag(Amat@Bmat)
+        assert np.allclose(diag_of_mat_mat_product(Amat, Bmat), diag_true)
 
 
 if __name__ == "__main__":
