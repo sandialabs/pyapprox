@@ -6,13 +6,15 @@ from pyapprox.pde.galerkin.util import _forcing
 
 
 def newton_solve(assemble, u_init,
-                 maxiters=10, atol=1e-5, rtol=1e-5, verbosity=0,
+                 maxiters=10, atol=1e-5, rtol=1e-5, verbosity=3,
                  hard_exit=True):
     u = u_init.copy()
     it = 0
     while True:
         u_prev = u.copy()
         bilinear_mat, res, D_vals, D_dofs = assemble(u_prev)
+        np.set_printoptions(linewidth=1000)
+        print(res, 'r')
         # minus sign because res = -a(u_prev, v) + L(v)
         # todo remove minus sign and just change sign of update u = u + du
         jac = -bilinear_mat
@@ -29,6 +31,11 @@ def newton_solve(assemble, u_init,
             init_res_norm = res_norm
         if verbosity > 1:
             print("Iter", it, "rnorm", res_norm)
+        if not np.isfinite(res_norm):
+            msg = "Newton solve residual was not finite"
+            if hard_exit:
+                raise RuntimeError("Newton solve did not converge\n\t"+msg)
+            break
         if it > 0 and res_norm < init_res_norm*rtol+atol:
             msg = f"Netwon solve: tolerance {atol}+norm(res_init)*{rtol}"
             msg += f" = {init_res_norm*rtol+atol} reached"
@@ -110,36 +117,31 @@ class TransientPDE():
     def _rhs(self, sol, time):
         self._set_physics_time(time)
         bilinear_mat, linear_vec = self.physics.raw_assemble(sol)
-        rhs = -bilinear_mat.dot(sol) + linear_vec
-        # print(rhs.shape, bilinear_mat.shape)
-        return rhs, -bilinear_mat
+        return linear_vec, -bilinear_mat
 
-    def _diag_runge_kutta_stage_solution(
+    def _diag_runge_kutta_residual(
             self, sol, time, deltat, stage_unknowns):
         active_stage_time = time+deltat
-        active_stage_sol = stage_unknowns
-        srhs, jac = self._rhs(active_stage_sol, active_stage_time)
+        srhs, jac = self._rhs(stage_unknowns, active_stage_time)
+        print("sol", sol)
         temp = asm(LinearForm(_forcing), self.physics.basis, forc=sol)
-        new_active_stage_unknowns = (temp+srhs*deltat)
-        return new_active_stage_unknowns, srhs, jac
+        residual = (srhs*deltat-temp)
+        return residual, self._mass_mat-deltat*jac
 
     def _diag_residual_fun(self, stage_unknowns):
-        out = self._diag_runge_kutta_stage_solution(
+        residual, jac = self._diag_runge_kutta_residual(
             self._residual_sol, self._residual_time, self._residual_deltat,
             stage_unknowns)
-        stage_jac = self._residual_deltat*out[2]
-        jac = self._mass_mat-stage_jac
-        new_active_stage_unknowns = out[0]
-        residual = self._mass_mat.dot(stage_unknowns)-new_active_stage_unknowns
         jac, residual, D_vals, D_dofs = (
             self.physics.apply_dirichlet_boundary_conditions(
-                new_active_stage_unknowns, jac, residual))
+                stage_unknowns, jac, residual))
         return jac, residual, D_vals, D_dofs
 
     def _update(self, sol, time, deltat, init_guess):
         self._residual_sol = sol
         self._residual_time = time
         self._residual_deltat = deltat
+        print(init_guess, "I")
         stage_sol = newton_solve(
             self._diag_residual_fun, init_guess, **self._newton_kwargs)
         return stage_sol

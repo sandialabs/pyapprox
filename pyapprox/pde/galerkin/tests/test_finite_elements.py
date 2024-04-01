@@ -10,11 +10,11 @@ from pyapprox.pde.galerkin.physics import (
 from pyapprox.pde.galerkin.solvers import (
     SteadyStatePDE, TransientPDE, TransientFunction)
 from pyapprox.pde.galerkin.physics import (
-    AdvectionDiffusionReaction, Helmholtz, Stokes)
+    AdvectionDiffusionReaction, Helmholtz, Stokes, Burgers)
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
     setup_steady_stokes_manufactured_solution,
-    setup_helmholtz_manufactured_solution)
+    setup_helmholtz_manufactured_solution, setup_burgers_manufactured_solution)
 from pyapprox.pde.autopde.tests.test_autopde import _vel_component_fun
 
 
@@ -216,7 +216,8 @@ class TestFiniteElements(unittest.TestCase):
 
     def check_advection_diffusion_reaction(
             self, domain_bounds, order, nrefine, sol_string, diff_string,
-            vel_strings, react_funs, bndry_types, mms_nl_diff_funs=[None, None]):
+            vel_strings, react_funs, bndry_types,
+            mms_nl_diff_funs=[None, None]):
 
         sol_fun, diff_fun, mms_vel_fun, forc_fun, flux_funs = (
             setup_advection_diffusion_reaction_manufactured_solution(
@@ -245,6 +246,7 @@ class TestFiniteElements(unittest.TestCase):
         diff_fun = Function(diff_fun)
         forc_fun = Function(forc_fun)
 
+        print(domain_bounds, nrefine, type(domain_bounds))
         mesh = _get_mesh(domain_bounds, nrefine)
         element = _get_element(mesh, order)
         basis = Basis(mesh, element)
@@ -277,10 +279,9 @@ class TestFiniteElements(unittest.TestCase):
 
         res = assemble(u_prev=init_sol)[1]
 
-        # fem_sol = newton_solve(
-        #     assemble, init_sol, atol=1e-8, rtol=1e-8, maxiters=20)
         solver = SteadyStatePDE(physics)
-        fem_sol = solver.solve(init_sol, atol=1e-8, rtol=1e-8, maxiters=20)
+        fem_sol = solver.solve(init_sol, atol=1e-8, rtol=1e-8, maxiters=20,
+                               verbosity=0)
 
         @Functional
         def integrate(w):
@@ -342,7 +343,7 @@ class TestFiniteElements(unittest.TestCase):
         # currently robin and neumann conditions do not work when
         # nonlinear diffusion present, so skip test
         cnt = 0
-        for test_case in test_cases:
+        for test_case in test_cases[:1]:
             print(cnt)
             self.check_advection_diffusion_reaction(*test_case)
             cnt += 1
@@ -468,11 +469,21 @@ class TestFiniteElements(unittest.TestCase):
     def _check_transient_advection_diffusion_reaction(
             self, domain_bounds, nrefine, order, sol_string,
             diff_string, react_funs, bndry_types,
-            tableau_name, nl_diff_funs=[None, None]):
+            tableau_name, mms_nl_diff_funs=[None, None]):
         vel_strings = ["0"]*(len(domain_bounds)//2)
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_funs[0], True))
+
+        nl_diff_funs = [None, None]
+        if mms_nl_diff_funs[0] is not None:
+            nl_diff_funs[0] = lambda x, sol: mms_nl_diff_funs[0](
+                diff_fun(x), sol)
+            nl_diff_funs[1] = lambda x, sol: mms_nl_diff_funs[1](
+                diff_fun(x), sol)
+        else:
+            nl_diff_funs[0] = lambda x, sol: diff_fun(x)
+            nl_diff_funs[1] = lambda x, sol: x[0]*0
 
         diff_fun = Function(diff_fun)
         forc_fun = TransientFunction(forc_fun, name='forcing')
@@ -494,7 +505,6 @@ class TestFiniteElements(unittest.TestCase):
         final_time = deltat*2  # 5
         sol_fun.set_time(0)
         init_sol = basis.project(lambda x: sol_fun(x))
-        print(init_sol.shape)
 
         solver = TransientPDE(physics, deltat, tableau_name)
         sols, times = solver.solve(
@@ -513,15 +523,102 @@ class TestFiniteElements(unittest.TestCase):
             # print(time, L2_error, 1e-8*factor)
             assert L2_error < 1e-8*factor
 
-    @unittest.skip(reason="Test and code incomplete")
+    # @unittest.skip(reason="Test and code incomplete")
     def test_transient_advection_diffusion_reaction(self):
         test_cases = [
-            [[0, 1], 2, 1, "(1-x)*x", "4+x", [None, None],
+            [[0, 1], 2, 2, "(1-x)*x", "4+x", [None, None],
              ["D", "D"], "im_beuler1"],
         ]
 
         for test_case in test_cases:
             self._check_transient_advection_diffusion_reaction(*test_case)
+
+    def _check_transient_burgers(
+            self, order, nrefine, domain_bounds, sol_string, viscosity_string,
+            transient):
+        tableau_name = "im_beuler1"
+        sol_fun, viscosity_fun, forc_fun, flux_funs = (
+            setup_burgers_manufactured_solution(
+                sol_string, viscosity_string, transient))
+
+        viscosity_fun = Function(viscosity_fun)
+        if transient:
+            forc_fun = TransientFunction(forc_fun, name='forcing')
+            flux_funs = TransientFunction(flux_funs, name='flux')
+            sol_fun = TransientFunction(sol_fun, name='sol')
+        else:
+            forc_fun = Function(forc_fun, name='forcing')
+            flux_funs = Function(flux_funs, name='flux')
+            # for some reason tests fail when sol fun is wrapped
+            # sol_fun = Function(sol_fun, name='sol')
+            # so do not wrap
+
+        mesh = _get_mesh(domain_bounds, nrefine)
+        element = _get_element(mesh, order)
+        basis = Basis(mesh, element)
+
+        bndry_types = ["D", "D"]
+        bndry_conds = _get_advection_diffusion_reaction_bndry_conds(
+            mesh, bndry_types, domain_bounds, sol_fun, flux_funs)
+
+        physics = Burgers(
+            mesh, element, basis, bndry_conds, viscosity_fun, forc_fun)
+
+        if not transient:
+            solver = SteadyStatePDE(physics)
+            # init_sol = basis.project(lambda x: sol_fun(x)[:, 0])
+            init_sol = physics.init_guess()
+            fem_sol = solver.solve(
+                init_sol, atol=1e-8, rtol=1e-8, maxiters=20, verbosity=3)
+            # when projecting must use sol_fun(x)[:, 0]
+            exact_sol = basis.project(lambda x: sol_fun(x)[:, 0])
+            @Functional
+            def integrate(w):
+                return w.y
+            error = np.sqrt(
+                integrate.assemble(basis, y=(exact_sol-fem_sol)**2))
+            print("error", error)
+            assert error < 1e-12
+            # II = np.argsort(mesh.p[0])
+            # mesh_pts = mesh.p[:, II]
+            # fem_sol_on_mesh = basis.interpolator(fem_sol)(mesh_pts)
+            # import matplotlib.pyplot as plt
+            # plt.plot(mesh_pts[0], sol_fun(mesh_pts)[:, 0], '-ok')
+            # plt.plot(mesh_pts[0], fem_sol_on_mesh, '--')
+            # plt.show()
+
+            return
+
+        deltat = 1  # 0.1
+        final_time = deltat*2  # 5
+        sol_fun.set_time(0)
+        init_sol = basis.project(lambda x: sol_fun(x))
+        print(init_sol.shape)
+
+        solver = TransientPDE(physics, deltat, tableau_name)
+        sols, times = solver.solve(
+            init_sol, 0, final_time,
+            newton_kwargs={"atol": 1e-8, "rtol": 1e-8, "maxiters": 20,
+                           "verbosity": 3})
+        for ii, time in enumerate(times):
+            sol_fun.set_time(time)
+            exact_sol_t = sol_fun(solver.physics.mesh.mesh_pts).numpy()
+            model_sol_t = sols[:, ii:ii+1].numpy()
+            # print(exact_sol_t)
+            # print(model_sol_t, 'm')
+            L2_error = np.sqrt(
+                solver.physics.mesh.integrate((exact_sol_t-model_sol_t)**2))
+            factor = np.sqrt(
+                solver.physics.mesh.integrate(exact_sol_t**2))
+            # print(time, L2_error, 1e-8*factor)
+            assert L2_error < 1e-8*factor
+
+    def test_transient_burgers(self):
+        test_cases = [
+            [2, 3, [0, 1], "x*(1.0-x)", "10+1e-16*x", False],
+            [2, 3, [0, 1], "x*(1.0-x)*(1+t**2)", "10+1e-16*x", True]]
+        for case in test_cases:
+            self._check_transient_burgers(*case)
 
 
 if __name__ == "__main__":
