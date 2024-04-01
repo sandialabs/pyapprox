@@ -1,23 +1,30 @@
 import numpy as np
 from skfem import (
-    MeshLine, MeshQuad, Mesh2D, Mesh3D,
+    MeshLine, MeshQuad, Mesh2D, Mesh3D, MeshLine1DG,
     ElementLineP1, ElementLineP2, ElementQuad1, ElementQuad2)
-from skfem.helpers import dot, grad
+from skfem.helpers import dot
 
 
-def _get_mesh(bounds, nrefine):
+def _get_mesh(bounds, nrefine, periodic=False):
     nphys_vars = len(bounds)//2
     if nphys_vars > 2:
         raise ValueError("Only 1D and 2D meshes supported")
 
     if nphys_vars == 1:
-        mesh = (MeshLine.init_tensor(np.linspace(*bounds, 3))
-                .refined(nrefine)
-                .with_boundaries({
-                    "left": lambda x: x[0] == 0,
-                    "right": lambda x: x[0] == 1}))
+        if not periodic:
+            mesh = (MeshLine.init_tensor(np.linspace(*bounds, 3))
+                    .refined(nrefine)
+                    .with_boundaries({
+                        "left": lambda x: x[0] == 0,
+                        "right": lambda x: x[0] == 1}))
+            return mesh
+        # can use refine with periodic mesh
+        mesh = MeshLine1DG.init_tensor(
+            np.linspace(*bounds, 2**(nrefine+1)+1), periodic=[0])
         return mesh
 
+    if periodic:
+        raise ValueError("Periodic not yet wrapped for 2d mesh")
     mesh = (
         MeshQuad.init_tensor(
             np.linspace(*bounds[:2], 3), np.linspace(*bounds[2:], 3))

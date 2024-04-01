@@ -13,8 +13,6 @@ def newton_solve(assemble, u_init,
     while True:
         u_prev = u.copy()
         bilinear_mat, res, D_vals, D_dofs = assemble(u_prev)
-        np.set_printoptions(linewidth=1000)
-        print(res, 'r')
         # minus sign because res = -a(u_prev, v) + L(v)
         # todo remove minus sign and just change sign of update u = u + du
         jac = -bilinear_mat
@@ -119,17 +117,18 @@ class TransientPDE():
         bilinear_mat, linear_vec = self.physics.raw_assemble(sol)
         return linear_vec, -bilinear_mat
 
-    def _diag_runge_kutta_residual(
+    def _backward_euler_residual(
             self, sol, time, deltat, stage_unknowns):
         active_stage_time = time+deltat
         srhs, jac = self._rhs(stage_unknowns, active_stage_time)
-        print("sol", sol)
-        temp = asm(LinearForm(_forcing), self.physics.basis, forc=sol)
-        residual = (srhs*deltat-temp)
+        temp1 = asm(LinearForm(_forcing), self.physics.basis, forc=sol)
+        temp2 = asm(LinearForm(_forcing), self.physics.basis,
+                    forc=stage_unknowns)
+        residual = (srhs*deltat+temp1-temp2)
         return residual, self._mass_mat-deltat*jac
 
-    def _diag_residual_fun(self, stage_unknowns):
-        residual, jac = self._diag_runge_kutta_residual(
+    def _residual_fun(self, stage_unknowns):
+        residual, jac = self._backward_euler_residual(
             self._residual_sol, self._residual_time, self._residual_deltat,
             stage_unknowns)
         jac, residual, D_vals, D_dofs = (
@@ -141,9 +140,8 @@ class TransientPDE():
         self._residual_sol = sol
         self._residual_time = time
         self._residual_deltat = deltat
-        print(init_guess, "I")
         stage_sol = newton_solve(
-            self._diag_residual_fun, init_guess, **self._newton_kwargs)
+            self._residual_fun, init_guess, **self._newton_kwargs)
         return stage_sol
 
     def solve(self, init_sol, init_time, final_time, verbosity=0,
@@ -154,16 +152,17 @@ class TransientPDE():
         time = init_time
         times.append(time)
         sol = init_sol.copy()
+        sols.append(init_sol[:, None])
         while time < final_time-1e-12:
             if verbosity >= 1:
                 print("Time", time)
             deltat = min(self._deltat, final_time-time)
             sol = self._update(
                 sol, time, deltat, sol.copy())
-            sols.append(sol.detach())
+            sols.append(sol[:, None])
             time += deltat
             times.append(time)
         if verbosity >= 1:
             print("Time", time)
-        sols = np.stack(sols, dim=1)
+        sols = np.hstack(sols)
         return sols, times
