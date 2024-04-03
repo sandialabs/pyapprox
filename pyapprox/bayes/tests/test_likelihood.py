@@ -8,7 +8,7 @@ from pyapprox.bayes.likelihood import (
     GaussianLogLikelihood, ModelBasedGaussianLogLikelihood,
     IndependentGaussianLogLikelihood,
     ModelBasedIndependentGaussianLogLikelihood,
-    OEDGaussianLogLikelihood, Evidence, LogEvidence,
+    OEDGaussianLogLikelihood, Evidence, LogEvidence, KLOEDObjective,
     SingleObsIndependentGaussianLogLikelihood)
 from pyapprox.bayes.laplace import (
     laplace_posterior_approximation_for_linear_models, laplace_evidence)
@@ -159,14 +159,15 @@ class TestLikelihood(unittest.TestCase):
 
         nobs = 2
         design = np.linspace(-1, 1, nobs)[None, :]
-        noise_cov = np.full((nobs, 1), 0.3)
+        noise_cov_diag = np.full((nobs, 1), 0.3)
         obs_model = Linear1DRegressionModel(design, degree)
-        loglike = IndependentGaussianLogLikelihood(noise_cov)
+        loglike = IndependentGaussianLogLikelihood(noise_cov_diag)
 
         ntrue_samples = 3
         true_samples = prior_variable.rvs(ntrue_samples)
-        obs = loglike._make_noisy(
-            obs_model(true_samples).T, loglike._sample_noise(ntrue_samples))
+        outer_pred_obs = obs_model(true_samples).T
+        noise_samples = loglike._sample_noise(ntrue_samples)
+        obs = loglike._make_noisy(outer_pred_obs, noise_samples)
         loglike.set_observations(obs)
 
         samples, ww_gauss = integrate(
@@ -185,19 +186,19 @@ class TestLikelihood(unittest.TestCase):
 
         evidence_model = Evidence(oed_loglike)
         evidence = evidence_model(weights)
-        np.set_printoptions(precision=16, linewidth=1000)
-        print(evidence)
         assert evidence.shape[0] == ntrue_samples
         evidence_model.check_apply_jacobian(weights, disp=True)
 
         log_evidence_model = LogEvidence(oed_loglike)
         log_evidence = log_evidence_model(weights)
         np.set_printoptions(precision=16, linewidth=1000)
-        print(log_evidence)
         assert log_evidence.shape[0] == ntrue_samples
         log_evidence_model.check_apply_jacobian(weights, disp=True)
 
-        
+        inner_pred_obs = many_pred_obs
+        oed_objective = KLOEDObjective(
+            noise_cov_diag, outer_pred_obs, noise_samples, inner_pred_obs)
+        errors = oed_objective.check_apply_jacobian(weights, disp=True)
 
 
 if __name__ == '__main__':
