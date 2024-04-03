@@ -164,6 +164,8 @@ class DenseAffineIntegralOperator(IntegralOperator):
         return np.tile([-np.inf, np.inf], self._nvars_mat)
 
     def _integrate(self, y_k_samples):
+        if y_k_samples.ndim < 3:
+            y_k_samples = y_k_samples[..., None, :]
         if y_k_samples.shape[-2] != self._channel_in:
             if self._channel_in == 1:
                 y_k_samples = y_k_samples[..., None, :]
@@ -181,7 +183,7 @@ class DenseAffineIntegralOperator(IntegralOperator):
             return einsum('ijkl,jlm->ikm', W, y_k_samples) + b[..., None]
         else:
             # handle separately for speed
-            return W.squeeze() @ y_k_samples[..., 0, :] + b
+            return W[..., 0, 0] @ y_k_samples[..., 0, :] + b
 
 
 class DenseAffineIntegralOperatorFixedBias(DenseAffineIntegralOperator):

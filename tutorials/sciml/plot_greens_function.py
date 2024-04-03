@@ -646,7 +646,7 @@ print('\n\nSINGLE-LAYER MLP\n')
 print('Network size | Rel test err')
 print('---------------------------')
 mlp_size, mlp_err = [], []
-for width in range(4):
+for width in range(1, 4):
     integralops = [DenseAffineIntegralOperator(nx, width),
                    DenseAffineIntegralOperator(width, nx)]
     activations = 2*[IdentityActivation()]
