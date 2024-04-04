@@ -5,13 +5,15 @@ import numpy as np
 
 from pyapprox.sciml.greensfunctions import (
     GreensFunctionSolver, DrivenHarmonicOscillatorGreensKernel,
-    Helmholtz1DGreensKernel, HeatEquation1DGreensKernel)
+    Helmholtz1DGreensKernel, HeatEquation1DGreensKernel,
+    WaveEquation1DGreensKernel)
 from pyapprox.sciml.kernels import HomogeneousLaplace1DGreensKernel
 from pyapprox.sciml.quadrature import (
     IntegralOperatorQuadratureRule, Fixed1DTrapezoidIOQuadRule,
     Fixed1DGaussLegendreIOQuadRule, TensorProduct2DQuadRule,
     TransformedQuadRule, OnePointRule1D)
-from pyapprox.sciml.util._torch_wrappers import asarray
+
+from pyapprox.util.visualization import get_meshgrid_samples
 
 
 class TransformedUnitIntervalQuadRule(TransformedQuadRule):
@@ -103,7 +105,7 @@ class TestGreensFunction(unittest.TestCase):
         # ax.imshow(G, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
         # plt.show()
 
-    def test_heat_quation_1d_no_forcing(self):
+    def test_heat_equation_1d_no_forcing(self):
         kappa, L, final_time = 10.0, 10, 0.1
         kernel = HeatEquation1DGreensKernel(
             kappa, [1e-3, 100], L=L, nterms=100)
@@ -171,7 +173,7 @@ class TestGreensFunction(unittest.TestCase):
         # # ax.contourf(X, Y, G.reshape(X.shape), cmap="jet", levels=40)
         # plt.show()
 
-    def test_heat_quation_1d_with_forcing(self):
+    def test_heat_equation_1d_with_forcing(self):
         kappa, L, final_time = 10.0, 10, np.pi*2
         kernel = HeatEquation1DGreensKernel(
             kappa, [1e-3, 100], L=L, nterms=10)
@@ -198,7 +200,6 @@ class TestGreensFunction(unittest.TestCase):
             exact_solution(np.array([[0, L], [0.1, 0.1]])),
             np.zeros(2)[:, None])
 
-        from pyapprox.util.visualization import get_meshgrid_samples
         X, Y, plot_xx = get_meshgrid_samples([0, L, 0, final_time], 51)
         green_sol = solver(forcing_function, plot_xx).numpy()
         rel_error = (np.linalg.norm(exact_solution(plot_xx)-green_sol) /
@@ -217,6 +218,47 @@ class TestGreensFunction(unittest.TestCase):
         # im = axs[1].contourf(X, Y, green_sol.reshape(X.shape), levels=40)
         # plt.colorbar(im, ax=axs[1])
         # plt.show()
+
+    def test_wave_equation_1d_with_forcing(self):
+        L = 1
+        omega, k = 2*np.pi/L, 5*np.pi/L
+        final_time = 10
+        coeff = omega/k
+        kernel_pos = WaveEquation1DGreensKernel(
+            coeff, [1e-3, 100], L=L, nterms=10, pos=True)
+        kernel_vel = WaveEquation1DGreensKernel(
+            coeff, [1e-3, 100], L=L, nterms=10, pos=False)
+        # as k increase nquad must increase
+        nquad = 100
+        quad_rule1 = TransformedUnitIntervalQuadRule(
+            Fixed1DTrapezoidIOQuadRule(nquad), [0, L])
+        quad_rule2 = OnePointRule1D(0, 1)
+        quad_rule = TensorProduct2DQuadRule(quad_rule1, quad_rule2)
+        solver_pos = GreensFunctionSolver(kernel_pos, quad_rule)
+        solver_vel = GreensFunctionSolver(kernel_vel, quad_rule)
+
+        def exact_solution(xx):
+            x = xx[0]
+            t = xx[1]
+            return (np.cos(omega*t+0.25)*np.sin(k*x))[:, None]
+
+        def initial_pos_function(xx):
+            xx = np.vstack([xx, np.zeros(xx.shape)])
+            return exact_solution(xx)
+
+        def initial_vel_function(xx):
+            x = xx[0]
+            t = 0
+            return -omega*(np.sin(omega*t+0.25)*np.sin(k*x))[:, None]
+
+        assert np.allclose(
+            exact_solution(np.array([[0, L], [0.1, 0.1]])),
+            np.zeros(2)[:, None])
+
+        X, Y, plot_xx = get_meshgrid_samples([0, L, 0, final_time], 51)
+        green_sol = (solver_pos(initial_pos_function, plot_xx).numpy() +
+                     solver_vel(initial_vel_function, plot_xx).numpy())
+        assert np.allclose(green_sol, exact_solution(plot_xx))
 
 
 if __name__ == '__main__':
