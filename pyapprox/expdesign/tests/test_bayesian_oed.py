@@ -124,7 +124,9 @@ def expected_kl_divergence_gaussian_inference(
         The inverse of the covariance of the prior
 
     post_cov : np.ndarray (nvars, nvars)
-        The covariance of the posterior
+        The covariance of the posterior. It is independent of the data
+        and thus a single matrix can be passed for all data when computing
+        the average
 
     nu_vec : np.ndarray (nvars, 1)
         The mean of the posterior mean

@@ -61,13 +61,13 @@ class GaussianLogLikelihood(LogLikelihood):
         self._log_noise_cov_det = log_determinant_from_cholesky_factor(
             self._noise_chol)
         self._last_L_inv_res = None
-        self.set_weights(np.ones((self._nobs, 1)))
+        self.set_design_weights(np.ones((self._nobs, 1)))
         return self._nobs*np.log(2*np.pi) + self._log_noise_cov_det
 
-    def set_weights(self, weights):
-        self._weights = weights
+    def set_design_weights(self, design_weights):
+        self._design_weights = design_weights
         self._weighted_noise_chol_inv = self._noise_chol_inv*np.sqrt(
-            self._weights)
+            self._design_weights)
 
     def _make_noisy(self, noiseless_obs, noise):
         if noiseless_obs.shape != noise.shape:
@@ -77,7 +77,11 @@ class GaussianLogLikelihood(LogLikelihood):
         return noiseless_obs + noise
 
     def _sample_noise(self, nsamples):
-        normal_samples = np.random.normal(0, 1, (self._get_nobs(), nsamples))
+        # create samples (nsamples, nobs) then take transpose
+        # to ensure same noise is used for ith sample
+        # regardless of size of nsam
+        normal_samples = np.random.normal(
+            0, 1, (nsamples, self._get_nobs())).T
         return self._noise_chol @ normal_samples
 
     def _loglike_many(self, many_obs, many_pred_obs):
@@ -116,10 +120,10 @@ class IndependentGaussianLogLikelihood(
         """
         super().__init__(noise_cov_diag, tile_obs)
 
-    def set_weights(self, weights):
-        self._weights = weights
+    def set_design_weights(self, design_weights):
+        self._design_weights = design_weights
         self._weighted_noise_cov_inv_diag = (
-            self._noise_cov_inv_diag*self._weights)
+            self._noise_cov_inv_diag*self._design_weights)
 
     def _setup(self, noise_cov_diag):
         if (noise_cov_diag.ndim != 2 or noise_cov_diag.shape[1] != 1):
@@ -131,7 +135,7 @@ class IndependentGaussianLogLikelihood(
         self._log_noise_cov_det = np.log(self._noise_cov_diag).sum()
         self._noise_cov_inv_diag = 1/(self._noise_cov_diag)
         self._r_noise_cov_inv = None
-        self.set_weights(np.ones((self._nobs, 1)))
+        self.set_design_weights(np.ones((self._nobs, 1)))
         return self._nobs*np.log(2*np.pi) + self._log_noise_cov_det
 
     def _loglike_many(self, many_obs, many_pred_obs):
@@ -141,8 +145,12 @@ class IndependentGaussianLogLikelihood(
         return (-0.5*(vals + self._loglike_consts))[:, None]
 
     def _sample_noise(self, nsamples):
-        samples = np.random.normal(0, 1, (self._get_nobs(), nsamples))
-        return self._noise_std_diag*samples
+        # create samples (nsamples, nobs) then take transpose
+        # to ensure same noise is used for ith sample
+        # regardless of size of nsam
+        normal_samples = np.random.normal(
+            0, 1, (nsamples, self._get_nobs())).T
+        return self._noise_std_diag*normal_samples
 
     def noise_covariance(self):
         return np.diag(self._noise_cov_diag[:, 0])
@@ -250,20 +258,23 @@ class ModelBasedIndependentGaussianLogLikelihood(ModelBasedLogLikelihood):
 # TODO when complete move classes (and tests in test_likelihood.py) to
 # expdesign module
 class OEDGaussianLogLikelihood(Model):
-    def __init__(self, loglike, many_pred_obs):
+    def __init__(self, loglike, many_pred_obs, pred_weights):
         super().__init__()
         if not isinstance(loglike, IndependentGaussianLogLikelihood):
             raise ValueError(
                 "loglike must be IndependentGaussianLogLikelihood")
         self._loglike = loglike
         self._many_pred_obs = many_pred_obs
+        if pred_weights.shape[0] != many_pred_obs.shape[1]:
+            raise ValueError("pred_weights and many_pred_obs are inconsistent")
+        self._pred_weights = pred_weights
         self._jacobian_implemented = True
 
-    def __call__(self, weights):
-        self._loglike.set_weights(weights)
+    def __call__(self, design_weights):
+        self._loglike.set_design_weights(design_weights)
         return self._loglike(self._many_pred_obs)
 
-    def _jacobian(self, weights):
+    def _jacobian(self, design_weights):
         # stack jacobians for each obs vertically
         # todo could be just done once when objected is created
         obs, many_pred_obs = self._loglike._parse_obs(
@@ -295,22 +306,26 @@ class Evidence(Model):
         # unflatten vals
         return vals.reshape((
             self._loglike._many_pred_obs.shape[1],
-            self._loglike._loglike._obs.shape[1]))
+            self._loglike._loglike._obs.shape[1]), order='F')
 
     def _reshape_jacobian(self, jac):
         # unflatten jacobian
         return jac.reshape(
             self._loglike._many_pred_obs.shape[1],
-            self._loglike._loglike._obs.shape[1], jac.shape[1])
+            self._loglike._loglike._obs.shape[1], jac.shape[1],
+            order='F')
 
-    def __call__(self, weights):
-        like_vals = self._reshape_vals(np.exp(self._loglike(weights)))
-        return (like_vals.sum(axis=0)/like_vals.shape[0])
+    def __call__(self, design_weights):
+        like_vals = self._reshape_vals(np.exp(self._loglike(design_weights)))
+        return (self._loglike._pred_weights*like_vals).sum(axis=0)[:, None]
 
-    def _jacobian(self, weights):
-        like_vals = self._reshape_vals(np.exp(self._loglike(weights)))
-        like_jac = self._reshape_jacobian(self._loglike.jacobian(weights))
-        jac = np.sum(like_vals[..., None]*like_jac, axis=0)/like_vals.shape[0]
+    def _jacobian(self, design_weights):
+        like_vals = self._reshape_vals(np.exp(self._loglike(design_weights)))
+        like_jac = self._reshape_jacobian(
+            self._loglike.jacobian(design_weights))
+        jac = np.sum(
+            (self._loglike._pred_weights*like_vals)[..., None]*like_jac,
+            axis=0)
         return jac
 
     def __repr__(self):
@@ -319,27 +334,25 @@ class Evidence(Model):
 
 
 class LogEvidence(Evidence):
-    def __call__(self, weights):
-        like_vals = self._reshape_vals(np.exp(self._loglike(weights)))
-        if like_vals.ndim != 2:
-            raise ValueError("like_vals must be a 2d array")
-        log_like_vals = np.log(
-            (like_vals.sum(axis=0)/like_vals.shape[0]))[:, None]
-        return log_like_vals
+    def __call__(self, design_weights):
+        return np.log(super().__call__(design_weights))
 
-    def _jacobian(self, weights):
-        like_vals = self._reshape_vals(np.exp(self._loglike(weights)))
-        like_jac = self._reshape_jacobian(self._loglike.jacobian(weights))
-        jac = 1/np.sum(like_vals, axis=0)[:, None]*np.sum(
-            like_vals[..., None]*like_jac, axis=0)
+    def _jacobian(self, design_weights):
+        like_vals = np.exp(self._reshape_vals(self._loglike(design_weights)))
+        weighted_like_vals = self._loglike._pred_weights*like_vals
+        like_jac = self._reshape_jacobian(
+            self._loglike.jacobian(design_weights))
+        jac = 1/np.sum(weighted_like_vals, axis=0)[:, None]*np.sum(
+            weighted_like_vals[..., None]*like_jac, axis=0)
         return jac
 
 
 class KLOEDObjective(Model):
     #TODO this is currently only useful for GaussianLikelihood. Generalize
     #to allow any loglike
-    def __init__(self, noise_cov_diag, outer_pred_obs, noise_samples,
-                 inner_pred_obs):
+    def __init__(self, noise_cov_diag, outer_pred_obs,
+                 outer_pred_weights, noise_samples,
+                 inner_pred_obs, inner_pred_weights):
         super().__init__()
 
         self._outer_loglike = IndependentGaussianLogLikelihood(
@@ -348,26 +361,27 @@ class KLOEDObjective(Model):
             outer_pred_obs, noise_samples)
         self._outer_loglike.set_observations(outer_obs)
         self._outer_oed_loglike = OEDGaussianLogLikelihood(
-            self._outer_loglike, outer_pred_obs)
+            self._outer_loglike, outer_pred_obs, outer_pred_weights)
 
         self._inner_loglike = IndependentGaussianLogLikelihood(noise_cov_diag)
         self._inner_loglike.set_observations(outer_obs)
         self._inner_oed_loglike = OEDGaussianLogLikelihood(
-            self._inner_loglike, inner_pred_obs)
+            self._inner_loglike, inner_pred_obs, inner_pred_weights)
         self._log_evidence = LogEvidence(self._inner_oed_loglike)
 
         self._jacobian_implemented = True
 
-    def __call__(self, weights):
-        log_evidences = self._log_evidence(weights)
-        outer_log_like_vals = self._outer_oed_loglike(weights)
+    def __call__(self, design_weights):
+        log_evidences = self._log_evidence(design_weights)
+        outer_log_like_vals = self._outer_oed_loglike(design_weights)
         if log_evidences.shape != outer_log_like_vals.shape:
             msg = "log_evidences and outer_log_like_vals.shape do not match"
             raise ValueError(msg)
         if log_evidences.ndim != 2:
             raise ValueError("log_evidences must be a 2d array")
-        vals = (outer_log_like_vals-log_evidences).sum(axis=0)[:, None]/(
-            self._outer_loglike._get_nobs())
+        outer_weights = self._outer_oed_loglike._pred_weights
+        vals = (outer_weights*(outer_log_like_vals-log_evidences)).sum(
+            axis=0)[:, None]
         return vals
 
     def _reshape_jacobian(self, jac):
@@ -375,10 +389,11 @@ class KLOEDObjective(Model):
         return jac.reshape(
             self._outer_loglike._obs.shape[1], jac.shape[1])
 
-    def jacobian(self, weights):
-        jac_log_evidences = self._log_evidence.jacobian(weights)
-        jac_outer_log_like = self._outer_oed_loglike.jacobian(weights)
+    def jacobian(self, design_weights):
+        jac_log_evidences = self._log_evidence.jacobian(design_weights)
+        jac_outer_log_like = self._outer_oed_loglike.jacobian(design_weights)
         jac_outer_log_like = self._reshape_jacobian(jac_outer_log_like)
-        jac = (jac_outer_log_like-jac_log_evidences).sum(axis=0)/(
-            self._outer_loglike._get_nobs())
+        outer_weights = self._outer_oed_loglike._pred_weights
+        jac = (outer_weights*(jac_outer_log_like-jac_log_evidences)).sum(
+            axis=0)
         return jac
