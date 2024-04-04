@@ -52,8 +52,8 @@ def multidot(arrays):
     return torch.linalg.multi_dot(arrays)
 
 
-def prod(array_list):
-    return torch.prod(array_list)
+def prod(array_list, axis=0):
+    return torch.prod(array_list, dim=axis)
 
 
 def atleast1d(array, dtype=None):
@@ -256,3 +256,17 @@ def cat(array, **kwargs):
 
 def meshgrid(*args, **kwargs):
     return torch.meshgrid(*args, **kwargs)
+
+
+where = torch.where
+
+absolute = torch.absolute
+
+
+def cartesian_product(items):
+    return torch.cartesian_prod(*items).T
+
+
+def outer_product(input_sets):
+    out = cartesian_product(input_sets)
+    return prod(out, axis=0)

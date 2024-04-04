@@ -5,7 +5,8 @@ import numpy as np
 import scipy
 
 from pyapprox.sciml.util._torch_wrappers import (
-    exp, cdist, asarray, inf, full, array, empty, get_diagonal, hstack, norm)
+    exp, cdist, asarray, inf, full, array, empty, get_diagonal, hstack, norm,
+    absolute)
 from pyapprox.sciml.util.hyperparameter import (
     HyperParameter, HyperParameterList, LogHyperParameterTransform,
     IdentityHyperParameterTransform)
@@ -145,7 +146,7 @@ class HomogeneousLaplace1DGreensKernel(Kernel):
             X2 = X1
         else:
             X2 = asarray(X2)
-        K = (0.5*(X1.T+X2-np.abs(X2-X1.T))-X1.T*X2)/kappa
+        K = (0.5*(X1.T+X2-absolute(X2-X1.T))-X1.T*X2)/kappa
         return K
 
 

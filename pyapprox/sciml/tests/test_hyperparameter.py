@@ -40,6 +40,7 @@ class TestHyperParameter(unittest.TestCase):
                 np.array([[-3, 3]]),
             )))
 
+
 if __name__ == "__main__":
     hyperparameter_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestHyperParameter)

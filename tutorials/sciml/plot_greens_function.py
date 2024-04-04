@@ -469,30 +469,30 @@ for kmax in range(0, 9, 2):
 # %%
 # Now, let's do the MLP.
 
-print('SINGLE-LAYER MLP\n')
-print('Network size | Rel test err')
-print('---------------------------')
-mlp_size, mlp_err = [], []
-for width in range(4):
-    integralops = [DenseAffineIntegralOperator(nx, width),
-                   DenseAffineIntegralOperator(width, nx)]
-    activations = 2*[IdentityActivation()]
-    ctn = CERTANN(nx, integralops, activations)
-    ctn.fit(train_samples, train_values, tol=1e-14)
-    approx_values = ctn(test_samples)
-    mlp_size.append(ctn._hyp_list.get_values().shape[0])
-    mlp_err.append(
-        np.linalg.norm(approx_values-test_values, 'fro') /
-        np.linalg.norm(test_values, 'fro'))
-    print('%8d     | %10.3e' % (mlp_size[-1], mlp_err[-1]))
+# print('SINGLE-LAYER MLP\n')
+# print('Network size | Rel test err')
+# print('---------------------------')
+# mlp_size, mlp_err = [], []
+# for width in range(4):
+#     integralops = [DenseAffineIntegralOperator(nx, width),
+#                    DenseAffineIntegralOperator(width, nx)]
+#     activations = 2*[IdentityActivation()]
+#     ctn = CERTANN(nx, integralops, activations)
+#     ctn.fit(train_samples, train_values, tol=1e-14)
+#     approx_values = ctn(test_samples)
+#     mlp_size.append(ctn._hyp_list.get_values().shape[0])
+#     mlp_err.append(
+#         np.linalg.norm(approx_values-test_values, 'fro') /
+#         np.linalg.norm(test_values, 'fro'))
+#     print('%8d     | %10.3e' % (mlp_size[-1], mlp_err[-1]))
 
-# %%
-# A side-by-side plot shows a that the prediction error is an order of
-# magnitude lower with Chebyshev kernels than with a dense MLP. Axes are chosen
-# for consistency with later convergence plots.
+# # %%
+# # A side-by-side plot shows a that the prediction error is an order of
+# # magnitude lower with Chebyshev kernels than with a dense MLP. Axes are chosen
+# # for consistency with later convergence plots.
 
 plt.semilogy(cheb_size, cheb_err, 'ko-', label='Chebyshev kernel', linewidth=2)
-plt.semilogy(mlp_size, mlp_err, 'bs--', label='Single-layer MLP', linewidth=2)
+# plt.semilogy(mlp_size, mlp_err, 'bs--', label='Single-layer MLP', linewidth=2)
 plt.grid()
 plt.title(r'Approximation of $f \mapsto u$: %d training polynomials, %d nodes'
           % (ntrain_samples, nx))
@@ -660,7 +660,7 @@ for width in range(1, 4):
     print('%8d     | %10.3e' % (mlp_size[-1], mlp_err[-1]))
 
 plt.semilogy(cheb_size, cheb_err, 'ko-', label='Chebyshev kernel', linewidth=2)
-plt.semilogy(mlp_size, mlp_err, 'bs--', label='Single-layer MLP', linewidth=2)
+# plt.semilogy(mlp_size, mlp_err, 'bs--', label='Single-layer MLP', linewidth=2)
 plt.grid()
 plt.title(r'Approximation of $f \mapsto u$: %d Dirac deltas, %d nodes' %
           (ntrain_samples, nx))
