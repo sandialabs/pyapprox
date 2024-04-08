@@ -6,7 +6,8 @@ from pyapprox.optimization.pya_minimize import (
     ScipyConstrainedOptimizer, Bounds, Constraint,
     SampleAverageMean, SampleAverageVariance, SampleAverageStdev,
     SampleAverageMeanPlusStdev, SampleAverageEntropicRisk,
-    SampleAverageConstraint)
+    SampleAverageConstraint, SmoothLogBasedMaxFunction,
+    SampleAverageConditionalValueAtRisk)
 from pyapprox.benchmarks import setup_benchmark
 from pyapprox.interface.model import ModelFromCallable
 
@@ -107,6 +108,38 @@ class TestMinimize(unittest.TestCase):
             errors = constraint.check_apply_jacobian(design_sample)
             # print(errors.min()/errors.max(), stat)
             assert errors.min()/errors.max() < 1.3e-6
+
+    def test_smooth_max_function(self):
+        eps = 1e-1
+        maxfun = SmoothLogBasedMaxFunction(eps)
+        samples = np.linspace(-1, 1, 101)[None, :]
+        assert maxfun.jacobians(samples).shape == (samples.shape[1], 1)
+        errors = maxfun.check_apply_jacobian(samples[:, :1], disp=True)
+        assert errors.min()/errors.max() < 1e-6
+
+    def test_conditional_value_at_risk(self):
+        benchmark = setup_benchmark('cantilever_beam')
+        constraint_model = benchmark.funs[1]
+
+        # test jacobian
+        nsamples = 10000
+        samples = benchmark.variable.rvs(nsamples)
+        weights = np.full((nsamples, 1), 1/nsamples)
+        for stat in [SampleAverageConditionalValueAtRisk(0.5),
+                     SampleAverageConditionalValueAtRisk(0.85)]:
+            constraint_bounds = np.hstack(
+                [np.zeros((2, 1)), np.full((2, 1), np.inf)])
+            constraint = SampleAverageConstraint(
+                constraint_model, samples, weights, stat, constraint_bounds,
+                benchmark.variable.num_vars() +
+                benchmark.design_variable.num_vars(),
+                benchmark.design_var_indices)
+            design_sample = np.array([3, 3])[:, None]
+            assert constraint(design_sample).shape == (1, 2)
+            errors = constraint.check_apply_jacobian(design_sample)
+            # print(errors.min()/errors.max())
+            assert errors.min()/errors.max() < 1.3e-6
+        
 
 
 if __name__ == '__main__':

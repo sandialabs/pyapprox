@@ -295,6 +295,67 @@ class SampleAverageEntropicRisk(SampleAverageStat):
         return jv
 
 
+class SmoothLogBasedMaxFunction(Model):
+    def __init__(self, eps, threshold=None):
+        super().__init__()
+        self._eps = eps
+        if threshold is None:
+            threshold = 1e2
+        self._thresh = threshold
+        self._jacobian_implemented = True
+
+    def _check_samples(self, samples):
+        if samples.ndim != 2 or samples.shape[0] != 1:
+            raise ValueError("samples must be a 2D array row vector")
+
+    def __call__(self, samples):
+        self._check_samples(samples)
+        x = samples
+        x_div_eps = x/self._eps
+        # avoid overflow
+        vals = np.zeros_like(x)
+        II = np.where((x_div_eps < self._thresh) & (x_div_eps > -self._thresh))
+        vals[II] = x[II]+self._eps*np.log(1+np.exp(-x_div_eps[II]))
+        J = np.where(x_div_eps >= self._thresh)
+        vals[J] = x[J]
+        return vals
+
+    def _jacobian(self, sample):
+        return self.jacobians(sample)
+
+    def jacobians(self, samples):
+        self._check_samples(samples)
+        x = samples
+        x_div_eps = x[0, :]/self._eps
+        # Avoid overflow.
+        II = np.where((x_div_eps < self._thresh) & (x_div_eps > -self._thresh))
+        jac = np.zeros((x_div_eps.shape[0]))
+        jac[II] = 1./(1+np.exp(-x_div_eps[II]))
+        jac[x_div_eps >= self._thresh] = 1.
+        return jac[:, None]
+
+
+class SampleAverageConditionalValueAtRisk(SampleAverageStat):
+    def __init__(self, alpha, eps=1e-2):
+        self._alpha = alpha
+        self._max = SmoothLogBasedMaxFunction(eps)
+        self._t = None
+
+    def set_value_at_risk(self, t):
+        self._t = t
+
+    def __call__(self, values, weights):
+        return self._t+(self._max(values-self._t)@weights.T)/(1-self._alpha)
+
+    def jacobian(self, values, jac_values, weights):
+        if values.ndim != 2 or values.shape[1] != 1:
+            raise ValueError("values must be a 2D array column vector")
+        # grad withe respect to parameters of x
+        max_jac = self._max.jacobians(values.T-self._t)
+        jac = max_jac * np.einsum("ijk,i->jk", (jac_values), weights[:, 0])
+        return jac
+
+
 class SampleAverageConstraint(Constraint):
     def __init__(self, model, samples, weights, stat, design_bounds,
                  nvars, design_indices, keep_feasible=False):
