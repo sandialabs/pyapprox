@@ -6,7 +6,7 @@ from scipy import stats
 from pyapprox.interface.model import Model
 from pyapprox.bayes.likelihood import (
     GaussianLogLikelihood, ModelBasedGaussianLogLikelihood,
-    IndependentGaussianLogLikelihood,
+    IndependentGaussianLogLikelihood, IndependentExponentialLogLikelihood,
     ModelBasedIndependentGaussianLogLikelihood,
     OEDGaussianLogLikelihood, Evidence, LogEvidence, KLOEDObjective,
     SingleObsIndependentGaussianLogLikelihood)
@@ -120,6 +120,41 @@ class TestLikelihood(unittest.TestCase):
         model_loglike = ModelBasedIndependentGaussianLogLikelihood(
             obs_model, loglike)
         self._check_gaussian_loglike_fun(model_loglike, prior_variable)
+
+    def test_exponential_likelihood(self):
+        nobs = 2
+        # noise_scale_diag = np.full((nobs, 1), .5)
+        noise_scale_diag = np.random.uniform(0.5, 1, (nobs, 1))
+        design_weights = np.ones((nobs, 1))
+        loglike = IndependentExponentialLogLikelihood(
+            noise_scale_diag, tile_obs=False)
+        loglike.set_design_weights(design_weights)
+        design = np.linspace(-1, 1, nobs)[None, :]
+        degree = 2
+        obs_model = Linear1DRegressionModel(design, degree)
+        nvars = degree+1
+        prior_variable = IndependentMarginalsVariable(
+            [stats.norm(0, 1)]*nvars)
+        nsamples = int(1e5)
+        true_sample = prior_variable.rvs(1)
+        # true_pred_obs = obs_model(true_sample).T*0  # hack works
+        true_pred_obs = obs_model(true_sample).T
+        noise = loglike._sample_noise(nsamples)
+        assert np.allclose(
+            noise.mean(axis=1), 1/noise_scale_diag[:, 0], rtol=1e-2)
+        assert np.allclose(
+            noise.std(axis=1), 1/noise_scale_diag[:, 0], rtol=1e-2)
+        many_pred_obs = np.repeat(true_pred_obs, nsamples, axis=1)
+        obs = loglike._make_noisy(many_pred_obs, noise)
+        loglike.set_observations(obs)
+        like_vals = np.exp(loglike(many_pred_obs))
+        assert np.allclose(
+            np.prod(np.vstack(
+                [stats.expon(scale=1/noise_scale_diag[ii, 0]).pdf(
+                    obs[ii]-true_pred_obs[ii])
+                 for ii in range(nobs)]), axis=0),
+            like_vals[:, 0])
+        assert like_vals.shape == (nsamples, 1)
 
     def test_many_obs_independent_gaussian_likelihood_many_obs(self):
         degree = 1

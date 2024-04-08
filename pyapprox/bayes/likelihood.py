@@ -397,3 +397,105 @@ class KLOEDObjective(Model):
         jac = (outer_weights*(jac_outer_log_like-jac_log_evidences)).sum(
             axis=0)
         return jac
+
+
+class PredictionOEDDeviation(Model):
+    def __init__(self, loglike, qoi_vals, qoi_weights):
+        self._qoi_vals = qoi_vals
+        self._qoi_weights = qoi_weights
+        self._loglike = loglike
+
+    def __call__(self):
+        raise NotImplementedError
+
+
+class OEDStandardDeviation(PredictionOEDDeviation):
+    def _first_momement(self, like_vals):
+        return (self._qoi_vals*like_vals).sum(axis=1)
+
+    def _second_momement(self, like_vals):
+        return (self._qoi_vals**2*like_vals).sum(axis=1)
+
+    def __call__(self, like_vals):
+        return (self._second_moment(like_vals)/evidences-self._first_moment(like_vals)/evidences**2)
+
+    def _first_momement_jac(self, like_vals):
+        return (self._qoi_vals*like_vals).sum(axis=1)
+
+    def _second_momement_jac(self, like_vals):
+        return (self._qoi_vals**2*like_vals).sum(axis=1)
+
+    def _jacobian(self, like_vals):
+        return (self._second_moment(like_vals)/evidences-self._first_moment(like_vals)/evidences**2)
+
+
+class PredictionOEDObjective(KLOEDObjective):
+    #TODO this is currently only useful for GaussianLikelihood. Generalize
+    #to allow any loglike
+    def __init__(self, noise_cov_diag, outer_pred_obs,
+                 outer_pred_weights, noise_samples,
+                 inner_pred_obs, inner_pred_weights):
+        super().__init__(
+            noise_cov_diag, outer_pred_obs, outer_pred_weights, noise_samples,
+            inner_pred_obs, inner_pred_weights)
+
+
+class IndependentExponentialLogLikelihood(LogLikelihood):
+    def __init__(self, noise_scale_diag, tile_obs=True):
+        r"""
+        p(y|z)=\lambda\exp(-\lambda (y-f(z)))
+        lambda = scale
+        log p(y|z) = log(\lambda)-\lambda*(y-f(z))
+        """
+        super().__init__()
+        self._loglike_consts = self._setup(noise_scale_diag)
+        self._tile_obs = tile_obs
+
+    def _setup(self, noise_scale_diag):
+        if (noise_scale_diag.ndim != 2 or noise_scale_diag.shape[1] != 1):
+            raise ValueError("noise_scale_diag has the wrong shape {0}".format(
+                noise_scale_diag.shape))
+        self._nobs = noise_scale_diag.shape[0]
+        self._noise_scale_diag = noise_scale_diag
+        self._noise_log_scale_diag = np.log(self._noise_scale_diag)
+        self._weighted_noise_scale_diag = None
+        return np.log(self._noise_scale_diag).sum()
+
+    def set_design_weights(self, design_weights):
+        self._design_weights = design_weights
+        self._weighted_noise_scale_diag = (
+            self._noise_scale_diag*self._design_weights)
+
+    def _parse_obs(self, obs, many_pred_obs):
+        if self._tile_obs:
+            # stack vals for each obs vertically
+            return (
+                np.repeat(self._obs, many_pred_obs.shape[1], axis=1),
+                np.tile(many_pred_obs, (1, self._obs.shape[1])))
+        if many_pred_obs.shape != self._obs.shape:
+            msg = "many_pred_obs shape does not match self._obs shape"
+            raise ValueError(msg)
+        return (self._obs, many_pred_obs)
+
+    def _loglike(self, many_pred_obs):
+        return self._loglike_many(
+            *self._parse_obs(self._obs, many_pred_obs))
+
+    def _loglike_many(self, many_obs, many_pred_obs):
+        return self._loglike_consts-(self._weighted_noise_scale_diag*(
+            many_obs-many_pred_obs)).sum(axis=0)[:, None]
+
+    def _make_noisy(self, noiseless_obs, noise):
+        if noiseless_obs.shape != noise.shape:
+            msg = "shapes of noiseless_obs {0} and obs {1} must match".format(
+                noiseless_obs.shape, noise.shape)
+            raise ValueError(msg)
+        return noiseless_obs + noise
+
+    def _sample_noise(self, nsamples):
+        # create samples (nsamples, nobs) then take transpose
+        # to ensure same noise is used for ith sample
+        # regardless of size of nsam
+        exponential_samples = np.random.exponential(
+            1, (nsamples, self._get_nobs())).T
+        return 1/self._noise_scale_diag * exponential_samples
