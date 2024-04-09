@@ -540,7 +540,6 @@ class UmbridgeIOModelEnsembleWrapper(UmbridgeModelWrapper):
         sample, model_id = full_sample[:-1], int(full_sample[-1, 0])
         parameters = self._check_sample(sample)
         config = self._model_configs[model_id].copy()
-        print(sample.shape, config)
         config["outdir_basename"] = os.path.join(
             self._outdir_basename, "wdir-{0}".format(sample_id))
         if sample.shape[0] != self._model.get_input_sizes(config)[0]:

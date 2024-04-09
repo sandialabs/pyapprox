@@ -278,9 +278,11 @@ class SampleAverageMeanPlusStdev(SampleAverageStat):
 
 class SampleAverageEntropicRisk(SampleAverageStat):
     def __call__(self, values, weights):
+        # values (nsamples, noutputs)
         return np.log(np.exp(values.T) @ weights).T
 
     def jacobian(self, values, jac_values, weights):
+        # jac_values (nsamples, noutputs, nvars)
         exp_values = np.exp(values)
         tmp = exp_values.T @ weights
         jac = 1/tmp * np.einsum(
@@ -295,7 +297,7 @@ class SampleAverageEntropicRisk(SampleAverageStat):
         return jv
 
 
-class SmoothLogBasedMaxFunction(Model):
+class SmoothLogBasedMaxFunction():
     def __init__(self, eps, threshold=None):
         super().__init__()
         self._eps = eps
@@ -305,8 +307,8 @@ class SmoothLogBasedMaxFunction(Model):
         self._jacobian_implemented = True
 
     def _check_samples(self, samples):
-        if samples.ndim != 2 or samples.shape[0] != 1:
-            raise ValueError("samples must be a 2D array row vector")
+        if samples.ndim != 2:
+            raise ValueError("samples must be a 2D array")
 
     def __call__(self, samples):
         self._check_samples(samples)
@@ -320,40 +322,52 @@ class SmoothLogBasedMaxFunction(Model):
         vals[J] = x[J]
         return vals
 
-    def _jacobian(self, sample):
-        return self.jacobians(sample)
-
     def jacobians(self, samples):
+        # samples (noutputs, nsamples)
+        # jac_values (nsamples, noutputs, noutputs)
+        # but only return (nsamples, noutputs) because jac for each sample
+        # is just a diagonal matrix
         self._check_samples(samples)
         x = samples
-        x_div_eps = x[0, :]/self._eps
+        x_div_eps = x/self._eps
         # Avoid overflow.
         II = np.where((x_div_eps < self._thresh) & (x_div_eps > -self._thresh))
-        jac = np.zeros((x_div_eps.shape[0]))
+        jac = np.zeros((x_div_eps.shape))
         jac[II] = 1./(1+np.exp(-x_div_eps[II]))
         jac[x_div_eps >= self._thresh] = 1.
-        return jac[:, None]
+        return jac[..., None]
 
 
 class SampleAverageConditionalValueAtRisk(SampleAverageStat):
     def __init__(self, alpha, eps=1e-2):
+        alpha = np.atleast_1d(alpha)
         self._alpha = alpha
         self._max = SmoothLogBasedMaxFunction(eps)
         self._t = None
 
     def set_value_at_risk(self, t):
+        t = np.atleast_1d(t)
+        if t.shape[0] != self._alpha.shape[0]:
+            raise ValueError("VaR and alpha shapes are inconsitent")
+        if t.ndim != 1:
+            raise ValueError("t must be a 1D array")
         self._t = t
 
     def __call__(self, values, weights):
-        return self._t+(self._max(values-self._t)@weights.T)/(1-self._alpha)
+        if values.shape[1] != self._t.shape[0]:
+            raise ValueError("must specify a VaR for each QoI")
+        return self._t+(self._max(values-self._t).T@weights).T/(1-self._alpha)
 
     def jacobian(self, values, jac_values, weights):
-        if values.ndim != 2 or values.shape[1] != 1:
-            raise ValueError("values must be a 2D array column vector")
         # grad withe respect to parameters of x
-        max_jac = self._max.jacobians(values.T-self._t)
-        jac = max_jac * np.einsum("ijk,i->jk", (jac_values), weights[:, 0])
-        return jac
+        max_jac = self._max.jacobians(values-self._t)
+        param_jac = np.einsum(
+            "ijk,i->jk", (max_jac * jac_values), weights[:, 0])/(
+                1-self._alpha[:, None])
+        t_jac = 1-np.einsum("ij,i->j", max_jac[..., 0], weights[:, 0])/(
+            1-self._alpha)
+        print(np.hstack((param_jac, np.diag(t_jac))).shape, "S")
+        return np.hstack((param_jac, np.diag(t_jac)))
 
 
 class SampleAverageConstraint(Constraint):
@@ -416,3 +430,23 @@ class SampleAverageConstraint(Constraint):
     def __repr__(self):
         return "{0}(model={1}, stat={2})".format(
             self.__class__.__name__, self._model, self._stat)
+
+
+class CVaRSampleAverageConstraint(SampleAverageConstraint):
+    def __init__(self, model, samples, weights, stat, design_bounds,
+                 nvars, design_indices, keep_feasible=False):
+        if not isinstance(stat, SampleAverageConditionalValueAtRisk):
+            msg = "stat not instance of SampleAverageConditionalValueAtRisk"
+            raise ValueError(msg)
+        self._nconstraints = stat._alpha.shape[0]
+        super().__init__(model, samples, weights, stat, design_bounds,
+                         nvars, design_indices, keep_feasible)
+
+    def __call__(self, design_sample):
+        self._stat.set_value_at_risk(design_sample[self._nconstraints:, 0])
+        return super().__call__(design_sample[:-self._nconstraints])
+
+    def _jacobian(self, design_sample):
+        self._stat.set_value_at_risk(design_sample[self._nconstraints:, 0])
+        jac = super()._jacobian(design_sample[:-self._nconstraints])
+        return jac
