@@ -348,7 +348,9 @@ class SampleAverageConditionalValueAtRisk(SampleAverageStat):
     def set_value_at_risk(self, t):
         t = np.atleast_1d(t)
         if t.shape[0] != self._alpha.shape[0]:
-            raise ValueError("VaR and alpha shapes are inconsitent")
+            msg = "VaR shape {0} and alpha shape {1} are inconsitent".format(
+                t.shape, self._alpha.shape)
+            raise ValueError(msg)
         if t.ndim != 1:
             raise ValueError("t must be a 1D array")
         self._t = t
@@ -366,7 +368,6 @@ class SampleAverageConditionalValueAtRisk(SampleAverageStat):
                 1-self._alpha[:, None])
         t_jac = 1-np.einsum("ij,i->j", max_jac[..., 0], weights[:, 0])/(
             1-self._alpha)
-        print(np.hstack((param_jac, np.diag(t_jac))).shape, "S")
         return np.hstack((param_jac, np.diag(t_jac)))
 
 
@@ -374,16 +375,22 @@ class SampleAverageConstraint(Constraint):
     def __init__(self, model, samples, weights, stat, design_bounds,
                  nvars, design_indices, keep_feasible=False):
         super().__init__(model, design_bounds, keep_feasible)
-        self._samples = samples
-        self._weights = weights
         if samples.ndim != 2 or weights.ndim != 2 or weights.shape[1] != 1:
             raise ValueError("shapes of samples and/or weights are incorrect")
         if samples.shape[1] != weights.shape[0]:
             raise ValueError("samples and weights are inconsistent")
+        self._weights = weights
+        self._samples = samples
         self._stat = stat
         self._nvars = nvars
         self._design_indices = design_indices
         self._random_indices = np.delete(np.arange(nvars), design_indices)
+        # warning self._joint_samples must be recomputed if self._samples
+        # is changed.
+        self._joint_samples = (
+            ActiveSetVariableModel._expand_samples_from_indices(
+                self._samples, self._random_indices, self._design_indices,
+                np.zeros((design_indices.shape[0], 1))))
 
     def _update_attributes(self):
         self._jacobian_implemented = self._model._jacobian_implemented
@@ -393,9 +400,14 @@ class SampleAverageConstraint(Constraint):
         self._apply_hessian_implemented = False
 
     def _random_samples_at_design_sample(self, design_sample):
-        return ActiveSetVariableModel._expand_samples_from_indices(
-            self._samples, self._random_indices, self._design_indices,
-            design_sample)
+        # this is slow so only update design samples as self._samples is
+        # always fixed
+        # return ActiveSetVariableModel._expand_samples_from_indices(
+        #     self._samples, self._random_indices, self._design_indices,
+        #     design_sample)
+        self._joint_samples[self._design_indices, :] = np.repeat(
+            design_sample, self._samples.shape[1], axis=1)
+        return self._joint_samples
 
     def __call__(self, design_sample):
         self._check_sample(design_sample)
@@ -443,10 +455,60 @@ class CVaRSampleAverageConstraint(SampleAverageConstraint):
                          nvars, design_indices, keep_feasible)
 
     def __call__(self, design_sample):
-        self._stat.set_value_at_risk(design_sample[self._nconstraints:, 0])
+        # assumes avar variable t is at the end of design_sample
+        self._stat.set_value_at_risk(design_sample[-self._nconstraints:, 0])
         return super().__call__(design_sample[:-self._nconstraints])
 
     def _jacobian(self, design_sample):
-        self._stat.set_value_at_risk(design_sample[self._nconstraints:, 0])
+        self._stat.set_value_at_risk(design_sample[-self._nconstraints:, 0])
         jac = super()._jacobian(design_sample[:-self._nconstraints])
         return jac
+
+
+class ObjectiveWithCVaRConstraints(Model):
+    """
+    When optimizing for CVaR additional variables t are introduced.
+    This class wraps a function that does not take variables t
+    and returns a jacobian that includes derivatives with respect to the
+    variables t (they will be zero).
+
+    Assumes samples consist of vstack(random_vars, t)
+    """
+    def __init__(self, model, ncvar_constraints):
+        super().__init__()
+        self._model = model
+        self._ncvar_constraints = ncvar_constraints
+        self._jacobian_implemented = self._model._jacobian_implemented
+        self._apply_jacobian_implemented = (
+            self._model._apply_jacobian_implemented)
+
+    def __call__(self, design_samples):
+        return self._model(design_samples[:-self._ncvar_constraints])
+
+    def _apply_jacobian(self, design_sample, vec):
+        return self._model.apply_jacobian(
+            design_sample[:-self._ncvar_constraints],
+            vec[:-self._ncvar_constraints])
+
+    def _jacobian(self, design_sample):
+        jac = self._model.jacobian(design_sample[:-self._ncvar_constraints])
+        return np.hstack(
+            (jac, np.zeros((jac.shape[0], self._ncvar_constraints))))
+
+
+def approx_jacobian(func, x, epsilon=np.sqrt(np.finfo(float).eps)):
+    x0 = np.asfarray(x)
+    assert x0.ndim == 1 or x0.shape[1] == 1
+    f0 = np.atleast_2d(func(x0))
+    assert f0.shape[0] == 1
+    f0 = f0[0, :]
+    jac = np.zeros([len(f0), len(x0)])
+    dx = np.zeros(x0.shape)
+    for ii in range(len(x0)):
+        dx[ii] = epsilon
+        f1 = np.atleast_2d(func(x0+dx))
+        assert f1.shape[0] == 1
+        f1 = f1[0, :]
+        jac[:, ii] = (f1 - f0)/epsilon
+        dx[ii] = 0.0
+    return jac

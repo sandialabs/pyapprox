@@ -661,7 +661,7 @@ class ActiveSetVariableModel(Model):
             inactive_var_values, reduced_samples)
         samples = np.empty_like(raw_samples)
         samples[inactive_var_indices, :] = (
-                    raw_samples[:inactive_var_indices.shape[0]])
+            raw_samples[:inactive_var_indices.shape[0]])
         samples[active_var_indices, :] = (
             raw_samples[inactive_var_indices.shape[0]:])
         return samples
