@@ -9,7 +9,7 @@ from pyapprox.bayes.likelihood import (
     SingleObsIndependentGaussianLogLikelihood)
 from pyapprox.expdesign.optbayes import (
     OEDGaussianLogLikelihood, Evidence, LogEvidence, KLOEDObjective,
-    WeightsConstraint)
+    WeightsConstraint, SparseOEDObjective, DOptimalLinearModelObjective)
 from pyapprox.bayes.laplace import (
     laplace_posterior_approximation_for_linear_models, laplace_evidence)
 from pyapprox.variables.joint import IndependentMarginalsVariable
@@ -18,16 +18,18 @@ from pyapprox.expdesign.tests.test_bayesian_oed import (
     expected_kl_divergence_gaussian_inference,
     posterior_mean_data_stats, gaussian_kl_divergence)
 from pyapprox.optimization.pya_minimize import (
-    ScipyConstrainedOptimizer, Bounds)
+    ScipyConstrainedOptimizer, Bounds, LinearConstraint)
 
 
 class Linear1DRegressionModel(Model):
-    def __init__(self, design, degree):
+    def __init__(self, design, degree, min_degree=0):
         super().__init__()
+        assert degree >= min_degree
         self._design = design
         self._degree = degree
         self._jac_matrix = self._design.T**(
-            np.arange(self._degree+1)[None, :])
+            np.arange(min_degree, self._degree+1)[None, :])
+        print(self._jac_matrix.shape)
         self._jacobian_implemented = True
 
     def __call__(self, samples):
@@ -140,17 +142,97 @@ class TestBayesOED(unittest.TestCase):
         assert np.allclose(
             expected_kl_div, -oed_objective(design_weights), rtol=1e-2)
 
-        bounds = Bounds(np.zeros((nobs,)), np.ones((nobs,)))
+    def test_OED_gaussian_optimization(self):
+        nobs = 20
+        # min_degree, degree, nout_samples, level1d = 1, 1, 10000, 300
+        # min_degree, degree, nout_samples, level1d = 0, 1, 10000, 30
+        min_degree, degree, nout_samples, level1d = 0, 3, 10000, None
+        # min_degree, degree, nout_samples, level1d = 0, 2, 10000, None
+        nvars = degree-min_degree+1
+        # noise_std = 0.02
+        noise_std = 0.1
+        prior_std = 1
+        prior_variable = IndependentMarginalsVariable(
+            [stats.norm(0, prior_std)]*nvars)
+        design = np.linspace(-1, 1, nobs-2)[None, :]
+        design = np.sort(np.hstack(
+            (design[0], [-1/np.sqrt(5), 1/np.sqrt(5)])))[None, :]
+        noise_cov_diag = np.full((nobs, 1), noise_std**2)
+        obs_model = Linear1DRegressionModel(
+            design, degree, min_degree=min_degree)
+        loglike = IndependentGaussianLogLikelihood(noise_cov_diag)
+
+        true_samples = prior_variable.rvs(nout_samples)
+        outer_pred_weights = np.full((nout_samples, 1), 1/nout_samples)
+        outer_pred_obs = obs_model(true_samples).T
+        noise_samples = loglike._sample_noise(nout_samples)
+
+        if level1d is not None:
+            samples, inner_pred_weights = integrate(
+                "tensorproduct", prior_variable, levels=[level1d]*nvars)
+        else:
+            samples = prior_variable.rvs(int(np.sqrt(nout_samples)))
+            inner_pred_weights = np.full(
+                (samples.shape[1], 1), 1/samples.shape[1])
+        many_pred_obs = obs_model(samples).T
+
+        inner_pred_obs = many_pred_obs
+        oed_objective = KLOEDObjective(
+            noise_cov_diag, outer_pred_obs, outer_pred_weights,
+            noise_samples, inner_pred_obs, inner_pred_weights)
+
+        bounds = Bounds(
+            np.zeros((nobs,)), np.ones((nobs,)), keep_feasible=True)
 
         nfinal_obs = 1
-        constraint = WeightsConstraint(nfinal_obs)
-        x0 = np.full((nobs, 1), 0.5)
-        constraint._model.check_apply_jacobian(x0)
+        dopt_objective = DOptimalLinearModelObjective(
+            obs_model, noise_cov_diag[0, 0], prior_std**2)
+        constraint = LinearConstraint(
+           np.ones((1, nobs)), nfinal_obs, nfinal_obs, keep_feasible=True)
         optimizer = ScipyConstrainedOptimizer(
-            oed_objective, bounds=bounds, constraints=[constraint],
+            dopt_objective, bounds=bounds, constraints=[constraint],
+            opts={"gtol": 1e-6, "verbose": 3, "maxiter": 200})
+        x0 = np.full((nobs, 1), nfinal_obs/nobs)
+        errors = dopt_objective.check_apply_jacobian(x0, disp=True)
+        assert errors.min()/errors.max() < 1e-6
+        result = optimizer.minimize(x0)
+        print(result.x, result.fun, result.x.sum())
+        # should choose 1.np.sqrt(5) when min_degree, degree=0,3
+        print(design[0, result.x > 0.1], 1/np.sqrt(5))
+        import matplotlib.pyplot as plt
+        plt.plot(design[0], result.x, 'o')
+
+        II = np.hstack(
+            [[0], np.where(np.isclose(np.abs(design[0]), 1/np.sqrt(5))==True)[0],
+             [nobs-1]])
+        x0 = np.zeros((nobs, 1))
+        x0[II] = 1.
+        print(x0)
+        print(dopt_objective(x0), oed_objective(x0))
+        assert False
+        plt.show()
+
+        # constraint = WeightsConstraint(nfinal_obs, keep_feasible=True)
+        constraint = LinearConstraint(
+            np.ones((1, nobs)), nfinal_obs, nfinal_obs, keep_feasible=True)
+        objective = oed_objective
+        # objective = SparseOEDObjective(oed_objective, 1)
+        x0 = np.full((nobs, 1), nfinal_obs/nobs)
+        errors = objective.check_apply_jacobian(
+            x0, disp=True, fd_eps=np.logspace(-13, np.log(0.5), 13)[::-1])
+        assert errors.min()/errors.max() < 1e-6
+        if isinstance(constraint, WeightsConstraint):
+            errors = constraint._model.check_apply_jacobian(
+                x0, disp=True, fd_eps=np.logspace(-13, -1, 13)[::-1])
+            assert errors.min()/errors.max() < 1e-6
+        optimizer = ScipyConstrainedOptimizer(
+            objective, bounds=bounds, constraints=[constraint],
             opts={"gtol": 1e-6, "verbose": 3, "maxiter": 200})
         result = optimizer.minimize(x0)
-        print(result.x, result.fun)
+        print(result.x, result.fun, result.x.sum())
+        import matplotlib.pyplot as plt
+        plt.plot(design[0], result.x, 'o')
+        plt.show()
 
 
 if __name__ == '__main__':

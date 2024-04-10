@@ -84,7 +84,9 @@ class Evidence(Model):
 
 class LogEvidence(Evidence):
     def __call__(self, design_weights):
-        return np.log(super().__call__(design_weights))
+        evidence = super().__call__(design_weights)
+        print(evidence.min(),'e')
+        return np.log(evidence)
 
     def _jacobian(self, design_weights):
         like_vals = np.exp(self._reshape_vals(self._loglike(design_weights)))
@@ -197,25 +199,101 @@ class WeightsConstraintModel(Model):
         self._jacobian_implemented = True
 
     def __call__(self, weights):
+        assert np.all(weights >= 0)
         return weights.sum(axis=0)[:, None]
 
     def _jacobian(self, weights):
+        assert np.all(weights >= 0)
         return np.ones((1, weights.shape[0]))
 
 
 class WeightsConstraint(Constraint):
     def __init__(self, nobs, keep_feasible=False):
         model = WeightsConstraintModel()
-        bounds = np.array([[0, nobs]])
+        bounds = np.array([[nobs, nobs]])
         super().__init__(model, bounds, keep_feasible)
 
 
 class SparseOEDObjective(Model):
     def __init__(self, objective, penalty):
-        super.__init__()
+        super().__init__()
         self._objective = objective
         self._penalty = penalty
         self._jacobian_implemented = self._objective._jacobian_implemented
 
+    def _l1norm(self, weights):
+        # assumes weights are positive
+        return np.sum(weights)
+
+    def _l1norm_jac(self, weights):
+        # assumes weights are positive
+        return np.ones((1, weights.shape[0]))
+
     def __call__(self, weights):
-        return self._objective(weights) + self._penalty*self._l1norm(weights)
+        assert np.all(weights >= 0)
+        # neagtive penalty because we are minimizing negative KL divergence
+        return self._objective(weights) - self._penalty*self._l1norm(weights)
+
+    def _jacobian(self, weights):
+        assert np.all(weights >= 0)
+        # neagtive penalty because we are minimizing negative KL divergence
+        return self._objective.jacobian(
+            weights) - self._penalty*self._l1norm_jac(weights)
+
+
+class DOptimalLinearModelObjective(Model):
+    def __init__(self, model, noise_cov, prior_cov):
+        """
+        Compute the d-optimality criterion for a linear model
+        f(x) = Amat.dot(x)
+
+        F = A.T@A/sigma^2
+        G = F*prior_cov
+        obj(w) = 1/2 log(Det(G+I)))
+
+        References
+        ----------
+        Alen Alexanderian and Arvind K. Saibaba
+        Efficient D-Optimal Design of Experiments for
+        Infinite-Dimensional Bayesian Linear Inverse Problems
+        SIAM Journal on Scientific Computing 2018 40:5, A2956-A2985
+        https://doi.org/10.1137/17M115712X
+        """
+        super().__init__()
+        if not np.isscalar(noise_cov):
+            raise ValueError("noise_cov must be a scalar")
+        if not np.isscalar(prior_cov):
+            raise ValueError("prior_cov must be a scalar")
+        self._model = model
+        self._noise_cov = noise_cov
+        self._prior_cov = prior_cov
+        self._jacobian_implemented = True
+
+    def __call__(self, weights):
+        Amat = self._model._jac_matrix
+        nvars = Amat.shape[1]
+        hess_misfit = Amat.T.dot(weights*Amat)*self._prior_cov/self._noise_cov
+        ident = np.eye(nvars)
+        # return negative because we want to maximize KL divergence
+        # which is equivalent to minimizing the negative KL divergence
+        return -np.array(
+            [0.5*np.linalg.slogdet(hess_misfit+ident)[1]])[:, None]
+
+    def _jacobian(self, weights):
+        Amat = self._model._jac_matrix
+        nvars = Amat.shape[1]
+        hess_misfit = Amat.T.dot(weights*Amat)*self._prior_cov/self._noise_cov
+        ident = np.eye(nvars)
+        Y = hess_misfit+ident
+        det_Y = np.linalg.det(Y)
+        inv_Y = np.linalg.inv(Y)
+        # use identity d det[Y]/dw_k = det(Y)Tr[inv(T)*dY/dw_k]
+        # Y = sum_k w_k/sigma^2 a_k.T@a_k + I
+        # dY/dw_k = 1/sigma^2 a_k.T@a_k
+        # a_k is row of A
+        jac_det_Y = np.array(
+            [det_Y*np.trace(inv_Y@row[:, None]@row[None, :])
+             for row in Amat])*self._prior_cov/self._noise_cov
+        # return negative because we want to maximize KL divergence
+        # which is equivalent to minimizing the negative KL divergence
+        return -0.5*1/det_Y*jac_det_Y
