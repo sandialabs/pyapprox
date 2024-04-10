@@ -86,7 +86,7 @@ class Model(ABC):
         if (not self._jacobian_implemented and
                 not self._apply_jacobian_implemented):
             raise NotImplementedError(
-                "_jacobian and _apply_jacobian are not implemented")
+                "_jacobian and _apply_jacobian of {0} are not implemented".format(self))
         self._check_sample_shape(sample)
         if self._jacobian_implemented:
             return self._jacobian(sample)
