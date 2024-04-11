@@ -412,7 +412,6 @@ def _compute_expected_kl_utility_monte_carlo(
     utility : float
         The expected utility
     """
-
     outer_log_likelihood_vals, evidences = _compute_evidences(
          out_pred_obs, in_pred_obs, in_weights, out_weights,
          active_indices, noise_samples, noise_std)
@@ -946,7 +945,6 @@ class AbstractBayesianOED(ABC):
         results = [None for ii in range(ncandidates)]
         ii = 0
         for idx in indices:
-            # print(ii)
             results[ii] = compute_expected_utility(
                 collected_design_indices, np.asarray(idx, dtype=int),
                 return_all=return_all)

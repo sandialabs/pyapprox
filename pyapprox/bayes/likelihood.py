@@ -1,6 +1,7 @@
 from abc import abstractmethod
 
 import numpy as np
+from pyapprox.util.pya_numba import njit
 
 from pyapprox.util.linalg import (
     cholesky_inverse, log_determinant_from_cholesky_factor,
@@ -122,6 +123,7 @@ class IndependentGaussianLogLikelihood(
 
     def set_design_weights(self, design_weights):
         self._design_weights = design_weights
+        assert np.all(design_weights >= 0), design_weights
         self._weighted_noise_cov_inv_diag = (
             self._noise_cov_inv_diag*self._design_weights)
 
@@ -139,10 +141,12 @@ class IndependentGaussianLogLikelihood(
         return self._nobs*np.log(2*np.pi) + self._log_noise_cov_det
 
     def _loglike_many(self, many_obs, many_pred_obs):
-        residual = (many_obs-many_pred_obs)
-        vals = diag_of_mat_mat_product(
-            residual.T, self._weighted_noise_cov_inv_diag*residual)
-        return (-0.5*(vals + self._loglike_consts))[:, None]
+        weighted_residual = np.sqrt(
+            self._weighted_noise_cov_inv_diag)*(many_obs-many_pred_obs)
+        vals = (-0.5*diag_of_mat_mat_product(
+            weighted_residual.T, weighted_residual) -
+                0.5*self._loglike_consts)[:, None]
+        return vals
 
     def _sample_noise(self, nsamples):
         # create samples (nsamples, nobs) then take transpose

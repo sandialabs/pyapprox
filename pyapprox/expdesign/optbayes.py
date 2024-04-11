@@ -85,7 +85,6 @@ class Evidence(Model):
 class LogEvidence(Evidence):
     def __call__(self, design_weights):
         evidence = super().__call__(design_weights)
-        print(evidence.min(),'e')
         return np.log(evidence)
 
     def _jacobian(self, design_weights):

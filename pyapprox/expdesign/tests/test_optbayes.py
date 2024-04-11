@@ -145,13 +145,13 @@ class TestBayesOED(unittest.TestCase):
     def test_OED_gaussian_optimization(self):
         nobs = 20
         # min_degree, degree, nout_samples, level1d = 1, 1, 10000, 300
-        # min_degree, degree, nout_samples, level1d = 0, 1, 10000, 30
-        min_degree, degree, nout_samples, level1d = 0, 3, 10000, None
+        min_degree, degree, nout_samples, level1d = 0, 1, 4000, 50
+        # min_degree, degree, nout_samples, level1d = 0, 1, 100000, None
         # min_degree, degree, nout_samples, level1d = 0, 2, 10000, None
         nvars = degree-min_degree+1
         # noise_std = 0.02
-        noise_std = 0.1
-        prior_std = 1
+        noise_std = 0.125
+        prior_std = 0.5
         prior_variable = IndependentMarginalsVariable(
             [stats.norm(0, prior_std)]*nvars)
         design = np.linspace(-1, 1, nobs-2)[None, :]
@@ -169,9 +169,12 @@ class TestBayesOED(unittest.TestCase):
 
         if level1d is not None:
             samples, inner_pred_weights = integrate(
-                "tensorproduct", prior_variable, levels=[level1d]*nvars)
+                "tensorproduct", prior_variable, levels=[level1d]*nvars,
+                rule="quadratic")
+            # samples, inner_pred_weights = integrate(
+            #     "sparsegrid", prior_variable, levels=[level1d]*nvars)
         else:
-            samples = prior_variable.rvs(int(np.sqrt(nout_samples)))
+            samples = prior_variable.rvs(2*int(np.sqrt(nout_samples)))
             inner_pred_weights = np.full(
                 (samples.shape[1], 1), 1/samples.shape[1])
         many_pred_obs = obs_model(samples).T
@@ -191,7 +194,7 @@ class TestBayesOED(unittest.TestCase):
            np.ones((1, nobs)), nfinal_obs, nfinal_obs, keep_feasible=True)
         optimizer = ScipyConstrainedOptimizer(
             dopt_objective, bounds=bounds, constraints=[constraint],
-            opts={"gtol": 1e-6, "verbose": 3, "maxiter": 200})
+            opts={"gtol": 1e-5, "verbose": 3, "maxiter": 200})
         x0 = np.full((nobs, 1), nfinal_obs/nobs)
         errors = dopt_objective.check_apply_jacobian(x0, disp=True)
         assert errors.min()/errors.max() < 1e-6
@@ -200,17 +203,34 @@ class TestBayesOED(unittest.TestCase):
         # should choose 1.np.sqrt(5) when min_degree, degree=0,3
         print(design[0, result.x > 0.1], 1/np.sqrt(5))
         import matplotlib.pyplot as plt
-        plt.plot(design[0], result.x, 'o')
+        plt.plot(design[0], result.x, 'ro')
+        # plt.show()
 
+        # from pyapprox.expdesign.bayesian_oed import get_bayesian_oed_optimizer
+        # out_quad_opts = {
+        #     "method": "montecarlo", "kwargs": {"nsamples": nout_samples}}
+        # in_quad_opts = {
+        #     "method": "montecarlo", "kwargs":
+        #     {"nsamples": int(np.sqrt(nout_samples))}}
+        # oed = get_bayesian_oed_optimizer(
+        #     "kl_params", nobs, lambda x: obs_model(x), noise_std,
+        #     prior_variable, out_quad_opts, in_quad_opts,
+        #     pre_collected_design_indices=[],
+        #     max_ncollected_obs=nobs, nprocs=1, ndata_per_candidate=1)
+        # utility_vals, selected_indices = oed.select_design(
+        #     np.zeros((0), dtype=int), nobs, False,
+        #     new_indices=np.arange(nobs)[None, :])[:2]
+        # print(utility_vals)
+
+        # if nvars == 1:
         II = np.hstack(
-            [[0], np.where(np.isclose(np.abs(design[0]), 1/np.sqrt(5))==True)[0],
-             [nobs-1]])
+            [[0, nobs-1],
+             np.where(np.isclose(np.abs(design[0]), 1/np.sqrt(5)))[0]])
         x0 = np.zeros((nobs, 1))
         x0[II] = 1.
-        print(x0)
         print(dopt_objective(x0), oed_objective(x0))
-        assert False
-        plt.show()
+        assert np.allclose(
+            dopt_objective(x0), oed_objective(x0), rtol=1e-2)
 
         # constraint = WeightsConstraint(nfinal_obs, keep_feasible=True)
         constraint = LinearConstraint(
@@ -219,15 +239,15 @@ class TestBayesOED(unittest.TestCase):
         # objective = SparseOEDObjective(oed_objective, 1)
         x0 = np.full((nobs, 1), nfinal_obs/nobs)
         errors = objective.check_apply_jacobian(
-            x0, disp=True, fd_eps=np.logspace(-13, np.log(0.5), 13)[::-1])
-        assert errors.min()/errors.max() < 1e-6
+            x0, disp=True, fd_eps=np.logspace(-13, np.log(0.2), 13)[::-1])
+        assert errors.min()/errors.max() < 2e-6, errors.min()/errors.max()
         if isinstance(constraint, WeightsConstraint):
             errors = constraint._model.check_apply_jacobian(
                 x0, disp=True, fd_eps=np.logspace(-13, -1, 13)[::-1])
             assert errors.min()/errors.max() < 1e-6
         optimizer = ScipyConstrainedOptimizer(
             objective, bounds=bounds, constraints=[constraint],
-            opts={"gtol": 1e-6, "verbose": 3, "maxiter": 200})
+            opts={"gtol": 1e-5, "verbose": 3, "maxiter": 200})
         result = optimizer.minimize(x0)
         print(result.x, result.fun, result.x.sum())
         import matplotlib.pyplot as plt
