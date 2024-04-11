@@ -148,7 +148,10 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
                 continue
             con = ScipyModelWrapper(_con)
             jac = con.jac if con._jacobian_implemented else "2-point"
-            hess = scipy.optimize._hessian_update_strategy.BFGS()
+            if (con._apply_hessian_implemented or con._hessian_implemented):
+                hess = con.hessp
+            else:
+                hess = scipy.optimize._hessian_update_strategy.BFGS()
             scipy_con = NonlinearConstraint(
                 con, *_con._bounds.T, jac, hess, _con._keep_feasible)
             scipy_constraints.append(scipy_con)
@@ -164,16 +167,15 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             bounds = self._bounds
         objective = ScipyModelWrapper(self._objective)
         jac = (objective.jac if objective._jacobian_implemented else None)
-        hessp = (objective.hessp
-                 if objective._apply_hessian_implemented else None)
-        if hessp is None and self._objective._apply_hessian_implemented:
-            hess = self._objective.hessian
+        if (objective._apply_hessian_implemented or
+                objective._hessian_implemented):
+            hessp = objective.hessp
         else:
-            hess = None
+            hessp = None
         result = scipy_minimize(
             objective, init_guess[:, 0],
             method=opts.pop("method", "trust-constr"),
-            jac=jac, hess=hess, hessp=hessp, bounds=bounds,
+            jac=jac, hessp=hessp, bounds=bounds,
             constraints=self._constraints, options=self._opts)
         return result
 
@@ -512,3 +514,7 @@ def approx_jacobian(func, x, epsilon=np.sqrt(np.finfo(float).eps)):
         jac[:, ii] = (f1 - f0)/epsilon
         dx[ii] = 0.0
     return jac
+
+
+def approx_hessian(jac_fun, x, epsilon=np.sqrt(np.finfo(float).eps)):
+    return approx_jacobian(lambda y: jac_fun(y).T, x, epsilon)

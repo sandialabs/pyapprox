@@ -147,12 +147,17 @@ class Model(ABC):
         result : np.ndarray (nvars, 1)
             The dot product of the Hessian with the vector
         """
-        if not self._apply_hessian:
+        if not self._apply_hessian and not self._hessian_implemented:
             raise RuntimeError(
-                "apply_hessian not implemented")
+                "apply_hessian and hessian are not implemented")
         self._check_sample_shape(sample)
-        self._check_vec_shape(sample, vec)
-        return self._apply_hessian(sample, vec)
+        # when hessian is for constraints then vec will be the size of the
+        # constraints and not the size of the number of variables so
+        # turn off check here
+        # self._check_vec_shape(sample, vec)
+        if self._apply_hessian_implemented:
+            return self._apply_hessian(sample, vec)
+        return self.hessian(sample) @ vec
 
     def _hessian(self, sample):
         raise NotImplementedError
@@ -288,7 +293,7 @@ class SingleSampleModel(Model):
 
 class ModelFromCallable(SingleSampleModel):
     def __init__(self, function, jacobian=None, apply_jacobian=None,
-                 apply_hessian=None, sample_ndim=2, values_ndim=2):
+                 apply_hessian=None, hessian=None, sample_ndim=2, values_ndim=2):
         """
         Parameters
         ----------
@@ -317,6 +322,11 @@ class ModelFromCallable(SingleSampleModel):
                 raise ValueError("apply_hessian must be callable")
             self._user_apply_hessian = apply_hessian
             self._apply_hessian_implemented = True
+        if hessian is not None:
+            if not callable(hessian):
+                raise ValueError("hessian must be callable")
+            self._user_hessian = hessian
+            self._hessian_implemented = True
         self._sample_ndim = sample_ndim
         self._values_ndim = values_ndim
 
@@ -341,6 +351,10 @@ class ModelFromCallable(SingleSampleModel):
     def _apply_hessian(self, sample, vec):
         return self._eval_fun(
             self._user_apply_hessian, sample, vec)
+
+    def _hessian(self, sample):
+        return self._eval_fun(
+            self._user_hessian, sample)
 
 
 class ScipyModelWrapper():
@@ -383,10 +397,8 @@ class ScipyModelWrapper():
 
     def hessp(self, sample, vec):
         self._check_sample(sample)
-        if (vec.ndim != 1 or vec.shape[0] != sample.shape[0]):
-            raise ValueError(
-                "vec shape {0} and sample shape {1} are inconsistent".format(
-                    vec.shape, sample.shape))
+        if (vec.ndim != 1):
+            raise ValueError("vec must be 1D array")
         return self._model.apply_hessian(sample[:, None], vec[:, None])
 
     def __repr__(self):

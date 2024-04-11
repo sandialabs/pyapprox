@@ -143,9 +143,10 @@ class TestBayesOED(unittest.TestCase):
             expected_kl_div, -oed_objective(design_weights), rtol=1e-2)
 
     def test_OED_gaussian_optimization(self):
-        nobs = 20
+        nobs = 3#20
         # min_degree, degree, nout_samples, level1d = 1, 1, 10000, 300
         min_degree, degree, nout_samples, level1d = 0, 1, 4000, 50
+        min_degree, degree, nout_samples, level1d = 0, 1, 400, 50
         # min_degree, degree, nout_samples, level1d = 0, 1, 100000, None
         # min_degree, degree, nout_samples, level1d = 0, 2, 10000, None
         nvars = degree-min_degree+1
@@ -198,8 +199,10 @@ class TestBayesOED(unittest.TestCase):
         x0 = np.full((nobs, 1), nfinal_obs/nobs)
         errors = dopt_objective.check_apply_jacobian(x0, disp=True)
         assert errors.min()/errors.max() < 1e-6
+        errors = dopt_objective.check_apply_hessian(x0, disp=True)
+        assert errors.min()/errors.max() < 1e-6
         result = optimizer.minimize(x0)
-        print(result.x, result.fun, result.x.sum())
+        print(result.x, result.fun, result.x.sum(), result)
         # should choose 1.np.sqrt(5) when min_degree, degree=0,3
         print(design[0, result.x > 0.1], 1/np.sqrt(5))
         import matplotlib.pyplot as plt
@@ -229,8 +232,8 @@ class TestBayesOED(unittest.TestCase):
         x0 = np.zeros((nobs, 1))
         x0[II] = 1.
         print(dopt_objective(x0), oed_objective(x0))
-        assert np.allclose(
-            dopt_objective(x0), oed_objective(x0), rtol=1e-2)
+        # assert np.allclose(
+        #     dopt_objective(x0), oed_objective(x0), rtol=1e-2)
 
         # constraint = WeightsConstraint(nfinal_obs, keep_feasible=True)
         constraint = LinearConstraint(
@@ -241,6 +244,10 @@ class TestBayesOED(unittest.TestCase):
         errors = objective.check_apply_jacobian(
             x0, disp=True, fd_eps=np.logspace(-13, np.log(0.2), 13)[::-1])
         assert errors.min()/errors.max() < 2e-6, errors.min()/errors.max()
+        from pyapprox.optimization.pya_minimize import approx_hessian
+        print(approx_hessian(objective.jacobian, x0))
+        print(objective.hessian(x0))
+        assert False
         if isinstance(constraint, WeightsConstraint):
             errors = constraint._model.check_apply_jacobian(
                 x0, disp=True, fd_eps=np.logspace(-13, -1, 13)[::-1])

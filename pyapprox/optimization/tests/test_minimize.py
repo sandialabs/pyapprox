@@ -41,16 +41,25 @@ class TestMinimize(unittest.TestCase):
             lambda x: ((x[0] - 1)**2 + (x[1] - 2.5)**2),
             jacobian=lambda x: np.array([2*(x[0] - 1), 2*(x[1] - 2.5)]),
             apply_jacobian=lambda x, v: 2*(x[0] - 1)*v[0]+2*(x[1] - 2.5)*v[1],
-            apply_hessian=lambda x, v: np.array(np.diag([2, 2])) @ v,
+            # apply_hessian=lambda x, v: np.array(np.diag([2, 2])) @ v,
+            hessian=lambda x: np.array(np.diag([2, 2])),
             sample_ndim=1, values_ndim=0)
+        sample = np.array([2, 0])[:, None]
+        errors = objective.check_apply_jacobian(sample, disp=True)
+        assert errors.min()/errors.max() < 1e-6
+        errors = objective.check_apply_hessian(sample, disp=True)
+        assert errors[0] < 1e-15
 
         constraint_model = ModelFromCallable(
             lambda x:  np.array(
                 [x[0]-2*x[1]+2, -x[0]-2*x[1]+6, -x[0]+2*x[1]+2]),
-            lambda x:  np.array(
+            lambda x: np.array(
                 [[1., -2.], [-1., -2], [-1, 2.]]),
+            # if there are m constraints with n inputs
+            # then apply hessian must return a matrix of shape (n, n)
+            # given a vector of shape (m)
+            apply_hessian=lambda x, v: np.zeros((2, 2)),
             sample_ndim=1, values_ndim=1)
-        sample = np.array([2, 0])[:, None]
         errors = constraint_model.check_apply_jacobian(sample, disp=True)
         # jacobian is constant so check first finite difference is exact
         assert errors[0] < 1e-15
@@ -62,7 +71,8 @@ class TestMinimize(unittest.TestCase):
 
         bounds = Bounds(np.full((nvars,), 0), np.full((nvars,), np.inf))
         optimizer = ScipyConstrainedOptimizer(
-            objective, bounds=bounds, constraints=[constraint])
+            objective, bounds=bounds, constraints=[constraint],
+            opts={"gtol": 1e-10, "verbose": 3})
         result = optimizer.minimize(np.array([2, 0])[:, None])
         assert np.allclose(result.x, np.array([1.4, 1.7]))
 

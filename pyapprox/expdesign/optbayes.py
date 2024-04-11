@@ -120,6 +120,7 @@ class KLOEDObjective(Model):
         self._log_evidence = LogEvidence(self._inner_oed_loglike)
 
         self._jacobian_implemented = True
+        self._hessian_implemented = True
 
     def __call__(self, design_weights):
         log_evidences = self._log_evidence(design_weights)
@@ -141,7 +142,7 @@ class KLOEDObjective(Model):
         return jac.reshape(
             self._outer_loglike._obs.shape[1], jac.shape[1])
 
-    def jacobian(self, design_weights):
+    def _jacobian(self, design_weights):
         jac_log_evidences = self._log_evidence.jacobian(design_weights)
         jac_outer_log_like = self._outer_oed_loglike.jacobian(design_weights)
         jac_outer_log_like = self._reshape_jacobian(jac_outer_log_like)
@@ -152,6 +153,20 @@ class KLOEDObjective(Model):
         # which is equivalent to minimizing the negative KL divergence
         return -jac
 
+    def _hessian(self, design_weights):
+        like_vals = np.exp(self._log_evidence._reshape_vals(self._log_evidence._loglike(design_weights)))
+        weighted_like_vals = self._log_evidence._loglike._pred_weights*like_vals
+        like_jac = self._log_evidence._reshape_jacobian(
+            self._log_evidence._loglike.jacobian(design_weights))
+        jac = np.sum(
+            weighted_like_vals[..., None]*like_jac, axis=0)
+        const = 1/np.sum(weighted_like_vals, axis=0)[:, None]
+        hess = 0
+        for ii in range(jac.shape[0]):
+            hess += (-(jac[ii:ii+1].T@jac[ii:ii+1])*const[ii]**2+
+                     (jac[ii:ii+1].T@jac[ii:ii+1])*const[ii])*self._outer_oed_loglike._pred_weights[ii]
+        return hess
+        
 
 class PredictionOEDDeviation(Model):
     def __init__(self, loglike, qoi_vals, qoi_weights):
@@ -267,6 +282,7 @@ class DOptimalLinearModelObjective(Model):
         self._noise_cov = noise_cov
         self._prior_cov = prior_cov
         self._jacobian_implemented = True
+        self._hessian_implemented = True
 
     def __call__(self, weights):
         Amat = self._model._jac_matrix
@@ -278,21 +294,50 @@ class DOptimalLinearModelObjective(Model):
         return -np.array(
             [0.5*np.linalg.slogdet(hess_misfit+ident)[1]])[:, None]
 
-    def _jacobian(self, weights):
+    def _Y(self, weights):
         Amat = self._model._jac_matrix
         nvars = Amat.shape[1]
         hess_misfit = Amat.T.dot(weights*Amat)*self._prior_cov/self._noise_cov
         ident = np.eye(nvars)
         Y = hess_misfit+ident
-        det_Y = np.linalg.det(Y)
+        return Y
+
+    def _jacobian(self, weights):
+        Y = self._Y(weights)
         inv_Y = np.linalg.inv(Y)
-        # use identity d det[Y]/dw_k = det(Y)Tr[inv(T)*dY/dw_k]
-        # Y = sum_k w_k/sigma^2 a_k.T@a_k + I
-        # dY/dw_k = 1/sigma^2 a_k.T@a_k
-        # a_k is row of A
-        jac_det_Y = np.array(
-            [det_Y*np.trace(inv_Y@row[:, None]@row[None, :])
-             for row in Amat])*self._prior_cov/self._noise_cov
+        jac_log_det_Y = np.array(
+            [np.trace(inv_Y@row[:, None]@row[None, :])
+             for row in self._model._jac_matrix])*(
+                     self._prior_cov/self._noise_cov)
         # return negative because we want to maximize KL divergence
         # which is equivalent to minimizing the negative KL divergence
-        return -0.5*1/det_Y*jac_det_Y
+        return -0.5*jac_log_det_Y
+
+    def _Y_inv_dYdw(self, inv_Y, ii):
+        rowii = self._model._jac_matrix[ii]
+        return inv_Y@rowii[:, None]@rowii[None, :]
+
+    def _hessian(self, weights):
+        Y = self._Y(weights)
+        inv_Y = np.linalg.inv(Y)
+        det_Y = np.linalg.det(Y)
+        jac_det_Y = (np.array(
+            [np.trace(inv_Y@row[:, None]@row[None, :])
+             for row in self._model._jac_matrix])*(
+                     det_Y*self._prior_cov/self._noise_cov))[None, :]
+        hess_det_Y = np.empty((weights.shape[0], weights.shape[0]))
+        const = det_Y*(self._prior_cov/self._noise_cov)**2
+        for ii in range(weights.shape[0]):
+            for jj in range(ii, weights.shape[0]):
+                hess_det_Y[ii, jj] = (
+                    const *
+                    np.trace(self._Y_inv_dYdw(inv_Y, ii)) *
+                    np.trace(self._Y_inv_dYdw(inv_Y, jj)) -
+                    const *
+                    np.trace(self._Y_inv_dYdw(inv_Y, ii) @
+                             self._Y_inv_dYdw(inv_Y, jj))
+                )
+                hess_det_Y[jj, ii] = hess_det_Y[ii, jj]
+
+        hess_log_det_Y = (hess_det_Y/det_Y-jac_det_Y.T@jac_det_Y/det_Y**2)
+        return -0.5*hess_log_det_Y
