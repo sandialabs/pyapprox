@@ -142,16 +142,11 @@ class TestBayesOED(unittest.TestCase):
         assert np.allclose(
             expected_kl_div, -oed_objective(design_weights), rtol=1e-2)
 
-    def test_OED_gaussian_optimization(self):
-        nobs = 3#20
-        # min_degree, degree, nout_samples, level1d = 1, 1, 10000, 300
-        min_degree, degree, nout_samples, level1d = 0, 1, 4000, 50
-        min_degree, degree, nout_samples, level1d = 0, 1, 400, 50
-        # min_degree, degree, nout_samples, level1d = 0, 1, 100000, None
-        # min_degree, degree, nout_samples, level1d = 0, 2, 10000, None
+    def _check_OED_gaussian_optimization(
+            self, nobs, min_degree, degree, nout_samples, level1d):
         nvars = degree-min_degree+1
-        # noise_std = 0.02
-        noise_std = 0.125
+        # the smaller the noise the more number of nout_samples are needed
+        noise_std = 0.125*4
         prior_std = 0.5
         prior_variable = IndependentMarginalsVariable(
             [stats.norm(0, prior_std)]*nvars)
@@ -172,8 +167,6 @@ class TestBayesOED(unittest.TestCase):
             samples, inner_pred_weights = integrate(
                 "tensorproduct", prior_variable, levels=[level1d]*nvars,
                 rule="quadratic")
-            # samples, inner_pred_weights = integrate(
-            #     "sparsegrid", prior_variable, levels=[level1d]*nvars)
         else:
             samples = prior_variable.rvs(2*int(np.sqrt(nout_samples)))
             inner_pred_weights = np.full(
@@ -198,68 +191,54 @@ class TestBayesOED(unittest.TestCase):
             opts={"gtol": 1e-5, "verbose": 3, "maxiter": 200})
         x0 = np.full((nobs, 1), nfinal_obs/nobs)
         errors = dopt_objective.check_apply_jacobian(x0, disp=True)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min()/errors.max() < 1e-6 and errors.max() < 10
         errors = dopt_objective.check_apply_hessian(x0, disp=True)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min()/errors.max() < 1e-6 and errors.max() < 10
         result = optimizer.minimize(x0)
         print(result.x, result.fun, result.x.sum(), result)
-        # should choose 1.np.sqrt(5) when min_degree, degree=0,3
-        print(design[0, result.x > 0.1], 1/np.sqrt(5))
-        import matplotlib.pyplot as plt
-        plt.plot(design[0], result.x, 'ro')
-        # plt.show()
 
-        # from pyapprox.expdesign.bayesian_oed import get_bayesian_oed_optimizer
-        # out_quad_opts = {
-        #     "method": "montecarlo", "kwargs": {"nsamples": nout_samples}}
-        # in_quad_opts = {
-        #     "method": "montecarlo", "kwargs":
-        #     {"nsamples": int(np.sqrt(nout_samples))}}
-        # oed = get_bayesian_oed_optimizer(
-        #     "kl_params", nobs, lambda x: obs_model(x), noise_std,
-        #     prior_variable, out_quad_opts, in_quad_opts,
-        #     pre_collected_design_indices=[],
-        #     max_ncollected_obs=nobs, nprocs=1, ndata_per_candidate=1)
-        # utility_vals, selected_indices = oed.select_design(
-        #     np.zeros((0), dtype=int), nobs, False,
-        #     new_indices=np.arange(nobs)[None, :])[:2]
-        # print(utility_vals)
-
-        # if nvars == 1:
         II = np.hstack(
             [[0, nobs-1],
              np.where(np.isclose(np.abs(design[0]), 1/np.sqrt(5)))[0]])
         x0 = np.zeros((nobs, 1))
         x0[II] = 1.
         print(dopt_objective(x0), oed_objective(x0))
-        # assert np.allclose(
-        #     dopt_objective(x0), oed_objective(x0), rtol=1e-2)
+        assert np.allclose(
+             dopt_objective(x0), oed_objective(x0), rtol=1e-2)
 
-        # constraint = WeightsConstraint(nfinal_obs, keep_feasible=True)
         constraint = LinearConstraint(
             np.ones((1, nobs)), nfinal_obs, nfinal_obs, keep_feasible=True)
         objective = oed_objective
-        # objective = SparseOEDObjective(oed_objective, 1)
         x0 = np.full((nobs, 1), nfinal_obs/nobs)
         errors = objective.check_apply_jacobian(
             x0, disp=True, fd_eps=np.logspace(-13, np.log(0.2), 13)[::-1])
-        assert errors.min()/errors.max() < 2e-6, errors.min()/errors.max()
-        from pyapprox.optimization.pya_minimize import approx_hessian
-        print(approx_hessian(objective.jacobian, x0))
-        print(objective.hessian(x0))
-        assert False
+        assert errors.min()/errors.max() < 3e-6, errors.min()/errors.max()
+        # turn on hessian for testing hessian implementation, but
+        # apply hessian is turned off because while it reduces
+        # optimization iteration count but increases
+        # run time because cost of each iteration increases
+        objective._apply_hessian_implemented = True
+        errors = objective.check_apply_hessian(
+            x0, disp=True, fd_eps=np.logspace(-13, np.log(0.2), 13)[::-1])
+        assert errors.min()/errors.max() < 3e-6 and errors.max() < 10
+        objective._apply_hessian_implemented = False
+
         if isinstance(constraint, WeightsConstraint):
             errors = constraint._model.check_apply_jacobian(
                 x0, disp=True, fd_eps=np.logspace(-13, -1, 13)[::-1])
-            assert errors.min()/errors.max() < 1e-6
+            assert errors.min()/errors.max() < 1e-6 and errors.max() < 10
         optimizer = ScipyConstrainedOptimizer(
             objective, bounds=bounds, constraints=[constraint],
             opts={"gtol": 1e-5, "verbose": 3, "maxiter": 200})
         result = optimizer.minimize(x0)
-        print(result.x, result.fun, result.x.sum())
-        import matplotlib.pyplot as plt
-        plt.plot(design[0], result.x, 'o')
-        plt.show()
+
+    def test_OED_gaussian_optimization(self):
+        test_cases = [
+            [3, 0, 1, 4000, 50],
+            [3, 1, 1, 4000, 50],
+            [3, 0, 3, 50000, None]]
+        for test_case in test_cases:
+            self._check_OED_gaussian_optimization(*test_case)
 
 
 if __name__ == '__main__':

@@ -51,6 +51,13 @@ class Evidence(Model):
         self._loglike = loglike
         self._jacobian_implemented = True
 
+        self._prev_design_weights = None
+        self._like_vals = None
+        self._like_jac = None
+        self._weighted_like_vals = None
+        self._weighted_like_vals_prod_jac = None
+        self._evidence_jac = None
+
     def _reshape_vals(self, vals):
         # unflatten vals
         return vals.reshape((
@@ -65,17 +72,27 @@ class Evidence(Model):
             order='F')
 
     def __call__(self, design_weights):
-        like_vals = self._reshape_vals(np.exp(self._loglike(design_weights)))
-        return (self._loglike._pred_weights*like_vals).sum(axis=0)[:, None]
+        if (self._prev_design_weights is None or
+            not np.allclose(design_weights, self._prev_design_weights,
+                            atol=1e-15, rtol=1e-15)):
+            self._prev_design_weights = design_weights.copy()
+            self._like_vals = self._reshape_vals(
+                np.exp(self._loglike(design_weights)))
+            self._weighted_like_vals = (
+                self._loglike._pred_weights*self._like_vals)
+        return (self._weighted_like_vals).sum(axis=0)[:, None]
 
     def _jacobian(self, design_weights):
-        like_vals = self._reshape_vals(np.exp(self._loglike(design_weights)))
-        like_jac = self._reshape_jacobian(
+        if not np.allclose(design_weights, self._prev_design_weights,
+                           atol=1e-15, rtol=1e-15):
+            # recompute necessary data
+            self(design_weights)
+        self._like_jac = self._reshape_jacobian(
             self._loglike.jacobian(design_weights))
-        jac = np.sum(
-            (self._loglike._pred_weights*like_vals)[..., None]*like_jac,
-            axis=0)
-        return jac
+        self._weighted_like_vals_prod_jac = (
+            self._weighted_like_vals[..., None] * self._like_jac)
+        self._evidence_jac = np.sum(self._weighted_like_vals_prod_jac, axis=0)
+        return self._evidence_jac
 
     def __repr__(self):
         return "{0}(loglike={1})".format(
@@ -88,18 +105,13 @@ class LogEvidence(Evidence):
         return np.log(evidence)
 
     def _jacobian(self, design_weights):
-        like_vals = np.exp(self._reshape_vals(self._loglike(design_weights)))
-        weighted_like_vals = self._loglike._pred_weights*like_vals
-        like_jac = self._reshape_jacobian(
-            self._loglike.jacobian(design_weights))
-        jac = 1/np.sum(weighted_like_vals, axis=0)[:, None]*np.sum(
-            weighted_like_vals[..., None]*like_jac, axis=0)
+        evidence = super().__call__(design_weights)
+        jac = super()._jacobian(design_weights)
+        jac = 1/evidence*jac
         return jac
 
 
 class KLOEDObjective(Model):
-    #TODO this is currently only useful for GaussianLikelihood. Generalize
-    #to allow any loglike
     def __init__(self, noise_cov_diag, outer_pred_obs,
                  outer_pred_weights, noise_samples,
                  inner_pred_obs, inner_pred_weights):
@@ -120,16 +132,13 @@ class KLOEDObjective(Model):
         self._log_evidence = LogEvidence(self._inner_oed_loglike)
 
         self._jacobian_implemented = True
-        self._hessian_implemented = True
+        # apply hessian reduces optimization iteration count but increases
+        # run time because cost of each iteration increases so turn off
+        # self._apply_hessian_implemented = True
 
     def __call__(self, design_weights):
         log_evidences = self._log_evidence(design_weights)
         outer_log_like_vals = self._outer_oed_loglike(design_weights)
-        if log_evidences.shape != outer_log_like_vals.shape:
-            msg = "log_evidences and outer_log_like_vals.shape do not match"
-            raise ValueError(msg)
-        if log_evidences.ndim != 2:
-            raise ValueError("log_evidences must be a 2d array")
         outer_weights = self._outer_oed_loglike._pred_weights
         vals = (outer_weights*(outer_log_like_vals-log_evidences)).sum(
             axis=0)[:, None]
@@ -153,20 +162,34 @@ class KLOEDObjective(Model):
         # which is equivalent to minimizing the negative KL divergence
         return -jac
 
-    def _hessian(self, design_weights):
-        like_vals = np.exp(self._log_evidence._reshape_vals(self._log_evidence._loglike(design_weights)))
-        weighted_like_vals = self._log_evidence._loglike._pred_weights*like_vals
-        like_jac = self._log_evidence._reshape_jacobian(
-            self._log_evidence._loglike.jacobian(design_weights))
-        jac = np.sum(
-            weighted_like_vals[..., None]*like_jac, axis=0)
-        const = 1/np.sum(weighted_like_vals, axis=0)[:, None]
-        hess = 0
-        for ii in range(jac.shape[0]):
-            hess += (-(jac[ii:ii+1].T@jac[ii:ii+1])*const[ii]**2+
-                     (jac[ii:ii+1].T@jac[ii:ii+1])*const[ii])*self._outer_oed_loglike._pred_weights[ii]
-        return hess
-        
+    def _hvp1(self, outer_weights, evidence, vec):
+        # g'(f(x))\nabla^2 f^\top \dot v
+        # this assumes that hessian of log-likelihood is zero
+        # thus this function can only be used with log likelihoods that are
+        # linear in the weights
+        tmp = np.sum((
+            self._log_evidence._weighted_like_vals_prod_jac*(
+                self._log_evidence._like_jac@vec)), axis=0)
+        hvp1 = np.sum((outer_weights/evidence)*tmp, axis=0)
+        return hvp1
+
+    def _hvp2(self, outer_weights, evidence, vec):
+        # g''(f(x))\nabla f^\top nabla f \dot v
+        evidence_jac = self._log_evidence._evidence_jac
+        hvp2 = np.sum(
+            (outer_weights/evidence**2)*evidence_jac*(evidence_jac@vec),
+            axis=0)
+        return hvp2
+
+    def _apply_hessian(self, design_weights, vec):
+        evidence = super(LogEvidence, self._log_evidence).__call__(
+            design_weights)
+        outer_weights = self._outer_oed_loglike._pred_weights
+        hvp1 = self._hvp1(outer_weights, evidence, vec)
+        hvp2 = self._hvp2(outer_weights, evidence, vec)
+        hvp = hvp1-hvp2
+        return hvp[:, None]
+
 
 class PredictionOEDDeviation(Model):
     def __init__(self, loglike, qoi_vals, qoi_weights):
