@@ -130,7 +130,7 @@ class KernelIntegralOperator(IntegralOperator):
 class DenseAffineIntegralOperator(IntegralOperator):
     def __init__(self, ninputs: int, noutputs: int, v0=None, channel_in=1,
                  channel_out=1):
-        '''
+        r"""
         Implements the usual fully connected layer of an MLP:
 
             u_{k+1} = W_k y_k + b_k         (single channel)
@@ -144,7 +144,7 @@ class DenseAffineIntegralOperator(IntegralOperator):
                 c_{k+1}, c_k) y_k(z_k, c_k) d(c_k) d(z_k)
 
         where c is the channel variable.
-        '''
+        """
         self._ninputs = ninputs
         self._noutputs = noutputs
         self._channel_in = channel_in
@@ -212,7 +212,7 @@ class DenseAffineIntegralOperatorFixedBias(DenseAffineIntegralOperator):
 
 class DenseAffinePointwiseOperator(IntegralOperator):
     def __init__(self, v0=None, channel_in=1, channel_out=1):
-        '''
+        r"""
         Implements a pointwise lifting/projection:
 
             u_{k+1} = W_k y_k + b_k
@@ -228,7 +228,7 @@ class DenseAffinePointwiseOperator(IntegralOperator):
         where c is the channel variable. This is analogous to
         DenseAffineIntegralOperator, but with \delta(z_k-z_{k+1}) inserted in
         the integral.
-        '''
+        """
         self._channel_in = channel_in
         self._channel_out = channel_out
         self._b_size = self._channel_out
@@ -483,7 +483,7 @@ class ChebyshevConvolutionOperator(IntegralOperator):
 class ChebyshevIntegralOperator(IntegralOperator):
     def __init__(self, kmax, shape=None, v0=None, nonzero_inds=None,
                  chol=False):
-        r'''
+        r"""
         Compute
 
             .. math:: \int_{-1}^1 K(x,z) y(z) dz
@@ -493,7 +493,7 @@ class ChebyshevIntegralOperator(IntegralOperator):
 
             .. math:: \phi_i(x) = T_i(x), \qquad i = 0, ..., k_\mathrm{max}
 
-        '''
+        """
         # maximum retained degree
         self._kmax = kmax
 

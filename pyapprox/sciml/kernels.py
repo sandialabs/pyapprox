@@ -4,9 +4,15 @@ from abc import ABC, abstractmethod
 import numpy as np
 import scipy
 
+from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.surrogates.polychaos.gpc import get_polynomial_from_variable
+from pyapprox.surrogates.interp.indexing import (
+    compute_hyperbolic_indices)
+from pyapprox.surrogates.integrate import integrate
+
 from pyapprox.sciml.util._torch_wrappers import (
     exp, cdist, asarray, inf, full, array, empty, get_diagonal, hstack, norm,
-    absolute)
+    absolute, to_numpy)
 from pyapprox.sciml.util.hyperparameter import (
     HyperParameter, HyperParameterList, LogHyperParameterTransform,
     IdentityHyperParameterTransform)
@@ -219,4 +225,82 @@ class Legendre1DHilbertSchmidtKernel(Kernel):
             X1basis /= norm(X1basis, axis=1)[:, None]
             X2basis /= norm(X2basis, axis=1)[:, None]
         K = (X1basis*weights) @ X2basis.T
+        return K
+
+
+class HilbertSchmidtBasis(ABC):
+    @abstractmethod
+    def __call__(self, samples: array):
+        raise NotImplementedError
+
+    @abstractmethod
+    def nterms(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def nvars(self):
+        raise NotImplementedError
+
+
+class PCEHilbertSchmidtBasis1D():
+    def __init__(self,
+                 marginal_variable,
+                 degree: int):
+        self._variable = IndependentMarginalsVariable([marginal_variable])
+        self._poly = get_polynomial_from_variable(self._variable)
+        indices = compute_hyperbolic_indices(
+            self._variable.num_vars(), degree, 1.0)
+        self._poly.set_indices(indices)
+        self._quadrule = integrate(
+            "tensorproduct", self._variable,
+            levels=[(degree+2)]*self._variable.num_vars())
+        # avoid error about negative strides thrown by torch
+        self._quadrule = (asarray(self._quadrule[0].copy()),
+                          asarray(self._quadrule[1]))
+
+    def nterms(self):
+        return self._poly.indices.shape[1]
+
+    def nvars(self):
+        return 1
+
+    def __call__(self, samples):
+        return asarray(self._poly.basis_matrix(to_numpy(samples)))
+
+    def quadrule(self):
+        return self._quadrule
+
+
+class HilbertSchmidtKernel(Kernel):
+    def __init__(self,
+                 basis: HilbertSchmidtBasis,
+                 weights: Union[float, array],
+                 weight_bounds: array,
+                 normalize: bool = False):
+        self._nvars = basis.nvars()
+        self._basis = basis
+        self._nterms = basis.nterms()**2
+        self._normalize = normalize
+        self._weights = HyperParameter(
+            "weights", self._nterms, weights, weight_bounds,
+            LogHyperParameterTransform())
+        self.hyp_list = HyperParameterList([self._weights])
+
+    def _get_weights(self):
+        return self._weights.get_values().reshape(
+            (self._basis.nterms(), self._basis.nterms()))
+
+    def __call__(self, X1, X2=None):
+        weights = self._get_weights()
+        X1 = asarray(X1)
+        if X2 is None:
+            X2 = X1
+        else:
+            X2 = asarray(X2)
+        X1basis_mat = self._basis(X1)
+        X2basis_mat = self._basis(X2)
+        if self._normalize:
+            X1basis_mat /= norm(X1basis_mat, axis=1)[:, None]
+            X2basis_mat /= norm(X2basis_mat, axis=1)[:, None]
+        K = (X1basis_mat @ weights) @ X2basis_mat.T
         return K

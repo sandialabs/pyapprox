@@ -54,61 +54,6 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         np.random.seed(1)
         torch.manual_seed(1)
 
-    @unittest.skip("Broken")
-    def test_matern(self):
-        nvars = 1   # dimension of inputs
-        noutputs = 1  # dimension of outputs
-        nu = np.inf  # matern smoothness parameter
-        nquad = 20  # number of quadrature points used for each layer
-        nlayers = 3
-        output_kernel = (
-            ConstantKernel(1.0, [np.nan, np.nan], LogHyperParameterTransform())
-            * MaternKernel(nu, [0.1], [1e-2, 10], nvars))
-
-        kernels = [MaternKernel(nu, [0.1], [1e-2, 1], nvars)
-                   for ii in range(nlayers-1)]+[output_kernel]
-        mat = np.random.normal(0, 1, (nquad, nvars))
-        quad_rules = (
-            [Fixed1DGaussLegendreIOQuadRule(
-                nvars if isinstance(lift, NoLift) else lift._noutputs)] +
-            [Fixed1DGaussLegendreIOQuadRule(nquad)
-             for kl in range(nlayers-1)] +
-            [Fixed1DGaussLegendreIOQuadRule(noutputs)])
-        integral_ops = (
-            [KernelIntegralOperator(
-                kernels[kk], quad_rules[kk], quad_rules[kk+1])
-             for kk in range(len(kernels))])
-        activations = (
-            [TanhActivation() for ii in range(nlayers-1)] +
-            [IdentityActivation()])
-        ctn = CERTANN(nvars, integral_ops, activations, lift=lift)
-
-        ntrain_samples = 11
-        train_samples = np.linspace(-1, 1, ntrain_samples)[None, :]
-        train_values = smooth_fun(train_samples)
-
-        ctn.fit(train_samples, train_values)
-
-        print(ctn)
-
-        # import matplotlib.pyplot as plt
-        # plot_samples = np.linspace(-1, 1, 51)[None, :]
-        # plt.plot(plot_samples[0], smooth_fun(plot_samples)[0])
-        # plt.plot(ctn.train_samples, ctn.train_values, 'o')
-        # plt.plot(plot_samples[0], ctn(plot_samples)[0])
-
-        # from pyapprox.sciml.util._torch_wrappers import (asarray)
-        # nparam_samples = 100
-        # for ii in range(nparam_samples):
-        #     bounds = ctn._hyp_list.get_active_opt_bounds().numpy()
-        #     active_opt_params_np = (
-        #         np.random.uniform(bounds[:, 0], bounds[:, 1]))
-        #     active_opt_params = asarray(active_opt_params_np)
-        #     ctn._hyp_list.set_active_opt_params(active_opt_params)
-        #     print(ctn)
-        #     plt.plot(plot_samples[0], ctn(plot_samples)[0], 'k-', lw=0.5)
-        # plt.show()
-
     def test_single_layer_DenseAffine_single_channel(self):
         ninputs = 21
         noutputs = ninputs
