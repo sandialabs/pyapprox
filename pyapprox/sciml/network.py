@@ -1,7 +1,7 @@
 import pickle
 
 from pyapprox.sciml.util._torch_wrappers import (
-    asarray, array, randperm, cumsum, ones, copy)
+    asarray, array, randperm, cumsum, ones, copy, sqrt)
 from pyapprox.sciml.transforms import IdentityValuesTransform
 from pyapprox.sciml.optimizers import LBFGSB
 from pyapprox.sciml.integraloperators import (
@@ -13,7 +13,7 @@ from pyapprox.sciml.layers import Layer
 
 class CERTANN():
     def __init__(self, nvars, layers, activations, var_trans=None,
-                 values_trans=None, optimizer=None):
+                 values_trans=None, optimizer=None, loss='mse'):
         """
         A quadrature based nerual operator.
 
@@ -66,6 +66,7 @@ class CERTANN():
             self._values_trans = values_trans
 
         self._hyp_list = sum([layer._hyp_list for layer in self._layers])
+        self._loss_str = loss
 
     def _forward(self, input_samples):
         if input_samples.shape[0] != self._nvars:
@@ -95,8 +96,17 @@ class CERTANN():
         batch_approx_values = self._forward(
             self._canonical_train_samples[..., idx0:idx1])
         batch_canonical_values = self._canonical_train_values[..., idx0:idx1]
-        return ((batch_approx_values-batch_canonical_values)**2).sum()/(
-                ntrain_samples)
+        if self._loss_str == 'mse':
+            return ((batch_approx_values-batch_canonical_values)**2).sum() / (
+                    ntrain_samples)
+        elif self._loss_str == 'rel_rmse':
+            diff = ((batch_approx_values-batch_canonical_values)**2).sum(
+                    dim=list(range(batch_approx_values.ndim-1))) / (
+                    (batch_canonical_values**2).sum(
+                     dim=list(range(batch_approx_values.ndim-1))))
+            return sqrt(diff).mean()
+        else:
+            raise ValueError("Supported losses are 'mse' and 'rel_rmse'")
 
     def _fit_objective(self, active_opt_params_np, batches=1, batch_index=0):
         active_opt_params = asarray(

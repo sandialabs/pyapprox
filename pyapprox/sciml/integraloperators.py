@@ -136,7 +136,14 @@ class DenseAffineIntegralOperator(IntegralOperator):
             u_{k+1} = W_k y_k + b_k         (single channel)
 
         where W_k is a 2D array of shape (N_{k+1}, N_k), y_k is a 1D array of
-        shape (N_k,), and b_k is a 1D array of shape (N_{k+1},)
+        shape (N_k,), and b_k is a 1D array of shape (N_{k+1},).
+
+        In continuous form,
+
+            u_{k+1}(z_{k+1}, c_{k+1}) = \int_{D_k} \int_{D'_k} K(z_{k+1}, z_k;
+                c_{k+1}, c_k) y_k(z_k, c_k) d(c_k) d(z_k)
+
+        where c is the channel variable.
         '''
         self._ninputs = ninputs
         self._noutputs = noutputs
@@ -190,6 +197,80 @@ class DenseAffineIntegralOperatorFixedBias(DenseAffineIntegralOperator):
     def __init__(self, ninputs: int, noutputs: int, v0=None, channel_in=1,
                  channel_out=1):
         super().__init__(ninputs, noutputs, v0, channel_in, channel_out)
+
+    def _default_values(self, v0):
+        weights_biases = super()._default_values(v0)
+        weights_biases[-self._b_size:] = 0.
+        return weights_biases
+
+    def _default_bounds(self):
+        bounds = super()._default_bounds().reshape(self._nvars_mat, 2)
+        bounds[-self._b_size:, 0] = np.nan
+        bounds[-self._b_size:, 1] = np.nan
+        return bounds.flatten()
+
+
+class DenseAffinePointwiseOperator(IntegralOperator):
+    def __init__(self, v0=None, channel_in=1, channel_out=1):
+        '''
+        Implements a pointwise lifting/projection:
+
+            u_{k+1} = W_k y_k + b_k
+
+        where W_k is a 2D array of shape (channel_out, channel_in), y_k is a 1D
+        array of shape (channel_in,), and b_k is a 1D array of shape
+        (channel_out,).
+
+        In continuous form,
+
+            u(z, c_{k+1}) = \int_{D'_k) K(c_{k+1}, c_k) y_k(z, c_k) d(c_k)
+
+        where c is the channel variable. This is analogous to
+        DenseAffineIntegralOperator, but with \delta(z_k-z_{k+1}) inserted in
+        the integral.
+        '''
+        self._channel_in = channel_in
+        self._channel_out = channel_out
+        self._b_size = self._channel_out
+        self._nvars_mat = (self._channel_out * (self._channel_in + 1))
+
+        weights_biases = self._default_values(v0)
+        bounds = self._default_bounds()
+        self._weights_biases = HyperParameter(
+            "weights_biases_ptwise", self._nvars_mat, weights_biases, bounds,
+            IdentityHyperParameterTransform())
+
+        self._hyp_list = HyperParameterList([self._weights_biases])
+
+    def _default_values(self, v0):
+        weights_biases = np.empty((self._nvars_mat,), dtype=float)
+        weights_biases[:] = (
+            np.random.normal(0, 1, self._nvars_mat) if v0 is None else v0)
+        return weights_biases
+
+    def _default_bounds(self):
+        return np.tile([-np.inf, np.inf], self._nvars_mat)
+
+    def _integrate(self, y_k_samples):
+        if y_k_samples.ndim < 3:
+            y_k_samples = y_k_samples[..., None, :]
+        if y_k_samples.shape[-2] != self._channel_in:
+            if self._channel_in == 1:
+                y_k_samples = y_k_samples[..., None, :]
+            else:
+                raise ValueError(
+                    'Could not infer channel dimension. y_k_samples.shape[-2] '
+                    'must be channel_in.')
+
+        W = (self._weights_biases.get_values()[:-self._b_size].reshape(
+             self._channel_out, self._channel_in))
+        b = self._weights_biases.get_values()[-self._b_size:]
+        return einsum('ij,...jk->...ik', W, y_k_samples) + b[None, ..., None]
+
+
+class DenseAffinePointwiseOperatorFixedBias(DenseAffinePointwiseOperator):
+    def __init__(self, v0=None, channel_in=1, channel_out=1):
+        super().__init__(v0, channel_in, channel_out)
 
     def _default_values(self, v0):
         weights_biases = super()._default_values(v0)

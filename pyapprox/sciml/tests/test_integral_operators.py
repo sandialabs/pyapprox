@@ -9,7 +9,8 @@ from pyapprox.sciml.integraloperators import (
     FourierConvolutionOperator, ChebyshevConvolutionOperator,
     DenseAffineIntegralOperator, DenseAffineIntegralOperatorFixedBias,
     ChebyshevIntegralOperator, KernelIntegralOperator, EmbeddingOperator,
-    AffineProjectionOperator)
+    AffineProjectionOperator, DenseAffinePointwiseOperator,
+    DenseAffinePointwiseOperatorFixedBias)
 from pyapprox.sciml.layers import Layer
 from pyapprox.sciml.activations import IdentityActivation
 from pyapprox.sciml.optimizers import Adam
@@ -344,6 +345,41 @@ class TestIntegralOperators(unittest.TestCase):
         out = proj(tw.asarray(input_samples)[..., None])
         assert np.allclose(out.squeeze(), input_samples.sum(axis=1)+1), (
                'Default affine projection does not match explicit sum')
+
+    def test_dense_affine_pointwise_operator(self):
+        channel_in = 2
+        channel_out = 5
+        nx = 5
+        nsamples = 10
+        v0 = np.random.normal(0, 1, (channel_out*(channel_in+1),))
+        op = DenseAffinePointwiseOperator(channel_in=channel_in,
+                                          channel_out=channel_out, v0=v0)
+        samples = tw.asarray(np.random.normal(0, 1,
+                                              (nx, channel_in, nsamples)))
+        W = tw.asarray(np.reshape(v0[:-channel_out],
+                                  (channel_out, channel_in)))
+        b = tw.asarray(np.reshape(v0[-channel_out:], (channel_out,)))
+        values = tw.einsum('ij,...jk->...ik', W, samples) + b[None, ..., None]
+        assert np.allclose(op(samples), values), (
+               'Pointwise affine operator does not match values')
+
+    def test_dense_affine_pointwise_operator_fixed_bias(self):
+        channel_in = 2
+        channel_out = 5
+        nx = 5
+        nsamples = 10
+        v0 = np.random.normal(0, 1, (channel_out*(channel_in+1),))
+        op = DenseAffinePointwiseOperatorFixedBias(channel_in=channel_in,
+                                                   channel_out=channel_out,
+                                                   v0=v0)
+        samples = tw.asarray(np.random.normal(0, 1,
+                                              (nx, channel_in, nsamples)))
+        W = tw.asarray(np.reshape(v0[:-channel_out],
+                                  (channel_out, channel_in)))
+        values = tw.einsum('ij,...jk->...ik', W, samples)
+        assert np.allclose(op(samples), values), (
+               'Pointwise affine operator with fixed bias does not match ' +
+               'values')
 
 
 if __name__ == "__main__":
