@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
-from pyapprox.sciml.util._torch_wrappers import tanh, zeros, maximum, erf, exp
+from pyapprox.sciml.util._torch_wrappers import (
+    tanh, zeros, maximum, exp, gelu)
 
 
 class Activation(ABC):
@@ -32,7 +33,8 @@ class RELUActivation(Activation):
 
 class GELUActivation(Activation):
     def _evaluate(self, values):
-        return values * (1.0 + erf(values/1.41421356237))/2
+        g = gelu()
+        return g(values)
 
 
 class ELUActivation(Activation):

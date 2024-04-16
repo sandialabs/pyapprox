@@ -219,10 +219,6 @@ def maximum(*args):
     return torch.maximum(*args)
 
 
-def erf(array):
-    return torch.special.erf(array)
-
-
 def randperm(n):
     return torch.randperm(n)
 
@@ -270,3 +266,6 @@ def cartesian_product(items):
 def outer_product(input_sets):
     out = cartesian_product(input_sets)
     return prod(out, axis=0)
+
+
+gelu = torch.nn.GELU
