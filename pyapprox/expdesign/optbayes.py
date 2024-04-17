@@ -111,12 +111,36 @@ class LogEvidence(Evidence):
         return jac
 
 
+from pyapprox.optimization.pya_minimize import SampleAverageMean
+class NoiseStatistic():
+    def __init__(self, stat):
+        self._stat = stat
+    
+    def __call__(self, outer_vals, outer_weights):
+        return self._stat.__call__(outer_vals, outer_weights)
+
+    def jacobian(self, outer_vals, outer_jacs, outer_weights):
+        return self._stat.jacobian(
+            outer_vals, outer_jacs[..., None], outer_weights).T
+
+
+# class EntropicNoiseStatistic(SampleAverageEntropicRisk):
+#     def __call__(self, outer_vals, outer_weights):
+#         return np.log((np.exp(outer_weights)*outer_vals)).sum(axis=0)[:, None]
+
+#     def jacobian(self, outer_vals, outer_jacs, outer_weights):
+#         risk = self(outer_vals, outer_weights)
+#         return ((outer_weights*outer_vals)*outer_jacs).sum(axis=0)/risk
+
+
 class KLOEDObjective(Model):
     def __init__(self, noise_cov_diag, outer_pred_obs,
                  outer_pred_weights, noise_samples,
-                 inner_pred_obs, inner_pred_weights):
+                 inner_pred_obs, inner_pred_weights,
+                 noise_stat=NoiseStatistic(SampleAverageMean())):
         super().__init__()
 
+        self._noise_stat = noise_stat
         self._outer_loglike = IndependentGaussianLogLikelihood(
             noise_cov_diag, tile_obs=False)
         outer_obs = self._outer_loglike._make_noisy(
@@ -140,8 +164,8 @@ class KLOEDObjective(Model):
         log_evidences = self._log_evidence(design_weights)
         outer_log_like_vals = self._outer_oed_loglike(design_weights)
         outer_weights = self._outer_oed_loglike._pred_weights
-        vals = (outer_weights*(outer_log_like_vals-log_evidences)).sum(
-            axis=0)[:, None]
+        vals = self._noise_stat(
+            outer_log_like_vals-log_evidences, outer_weights)
         # return negative because we want to maximize KL divergence
         # which is equivalent to minimizing the negative KL divergence
         return -vals
@@ -152,12 +176,15 @@ class KLOEDObjective(Model):
             self._outer_loglike._obs.shape[1], jac.shape[1])
 
     def _jacobian(self, design_weights):
+        log_evidences = self._log_evidence(design_weights)
+        outer_log_like_vals = self._outer_oed_loglike(design_weights)
         jac_log_evidences = self._log_evidence.jacobian(design_weights)
         jac_outer_log_like = self._outer_oed_loglike.jacobian(design_weights)
         jac_outer_log_like = self._reshape_jacobian(jac_outer_log_like)
         outer_weights = self._outer_oed_loglike._pred_weights
-        jac = (outer_weights*(jac_outer_log_like-jac_log_evidences)).sum(
-            axis=0)
+        jac = self._noise_stat.jacobian(
+            outer_log_like_vals-log_evidences,
+            jac_outer_log_like-jac_log_evidences, outer_weights)
         # return negative because we want to maximize KL divergence
         # which is equivalent to minimizing the negative KL divergence
         return -jac
@@ -182,6 +209,9 @@ class KLOEDObjective(Model):
         return hvp2
 
     def _apply_hessian(self, design_weights, vec):
+        if not isinstance(self._noise_stat._stat, SampleAverageMean):
+            msg = "apply hessian only supported for MeanNoiseStatistic"
+            raise ValueError(msg)
         evidence = super(LogEvidence, self._log_evidence).__call__(
             design_weights)
         outer_weights = self._outer_oed_loglike._pred_weights
@@ -224,11 +254,15 @@ class OEDStandardDeviation(PredictionOEDDeviation):
 class PredictionOEDObjective(KLOEDObjective):
     def __init__(self, noise_cov_diag, outer_pred_obs,
                  outer_pred_weights, noise_samples,
-                 inner_pred_obs, inner_pred_weights):
+                 inner_pred_obs, inner_pred_weights,
+                 noise_stat=NoiseStatistic(SampleAverageMean())):
         super().__init__(
             noise_cov_diag, outer_pred_obs, outer_pred_weights, noise_samples,
             inner_pred_obs, inner_pred_weights)
 
+    def __call__(self, design_weights):
+        evidences = self._log_evidence._evidence(design_weights)
+        deviations = 
 
 class WeightsConstraintModel(Model):
     def __init__(self):

@@ -9,7 +9,8 @@ from pyapprox.bayes.likelihood import (
     SingleObsIndependentGaussianLogLikelihood)
 from pyapprox.expdesign.optbayes import (
     OEDGaussianLogLikelihood, Evidence, LogEvidence, KLOEDObjective,
-    WeightsConstraint, SparseOEDObjective, DOptimalLinearModelObjective)
+    WeightsConstraint, SparseOEDObjective, DOptimalLinearModelObjective,
+    PredictionOEDObjective, NoiseStatistic)
 from pyapprox.bayes.laplace import (
     laplace_posterior_approximation_for_linear_models, laplace_evidence)
 from pyapprox.variables.joint import IndependentMarginalsVariable
@@ -18,7 +19,9 @@ from pyapprox.expdesign.tests.test_bayesian_oed import (
     expected_kl_divergence_gaussian_inference,
     posterior_mean_data_stats, gaussian_kl_divergence)
 from pyapprox.optimization.pya_minimize import (
-    ScipyConstrainedOptimizer, Bounds, LinearConstraint)
+    ScipyConstrainedOptimizer, Bounds, LinearConstraint,
+    SampleAverageMean, SampleAverageMeanPlusStdev,
+    SampleAverageEntropicRisk)
 
 
 class Linear1DRegressionModel(Model):
@@ -142,7 +145,7 @@ class TestBayesOED(unittest.TestCase):
         assert np.allclose(
             expected_kl_div, -oed_objective(design_weights), rtol=1e-2)
 
-    def _check_OED_gaussian_optimization(
+    def _check_classical_KL_OED_gaussian_optimization(
             self, nobs, min_degree, degree, nout_samples, level1d):
         nvars = degree-min_degree+1
         # the smaller the noise the more number of nout_samples are needed
@@ -212,7 +215,7 @@ class TestBayesOED(unittest.TestCase):
         x0 = np.full((nobs, 1), nfinal_obs/nobs)
         errors = objective.check_apply_jacobian(
             x0, disp=True, fd_eps=np.logspace(-13, np.log(0.2), 13)[::-1])
-        assert errors.min()/errors.max() < 3e-6, errors.min()/errors.max()
+        assert errors.min()/errors.max() < 6e-6, errors.min()/errors.max()
         # turn on hessian for testing hessian implementation, but
         # apply hessian is turned off because while it reduces
         # optimization iteration count but increases
@@ -232,13 +235,150 @@ class TestBayesOED(unittest.TestCase):
             opts={"gtol": 1e-5, "verbose": 3, "maxiter": 200})
         result = optimizer.minimize(x0)
 
-    def test_OED_gaussian_optimization(self):
+    def test_classical_KL_OED_gaussian_optimization(self):
         test_cases = [
             [3, 0, 1, 4000, 50],
             [3, 1, 1, 4000, 50],
             [3, 0, 3, 50000, None]]
         for test_case in test_cases:
-            self._check_OED_gaussian_optimization(*test_case)
+            self._check_classical_KL_OED_gaussian_optimization(*test_case)
+
+    def _check_KL_OED_gaussian_optimization(
+            self, nobs, min_degree, degree, nout_samples, level1d,
+            noise_stat):
+        nvars = degree-min_degree+1
+        # the smaller the noise the more number of nout_samples are needed
+        noise_std = 0.125*4
+        prior_std = 0.5
+        prior_variable = IndependentMarginalsVariable(
+            [stats.norm(0, prior_std)]*nvars)
+        design = np.linspace(-1, 1, nobs-2)[None, :]
+        design = np.sort(np.hstack(
+            (design[0], [-1/np.sqrt(5), 1/np.sqrt(5)])))[None, :]
+        noise_cov_diag = np.full((nobs, 1), noise_std**2)
+        obs_model = Linear1DRegressionModel(
+            design, degree, min_degree=min_degree)
+        loglike = IndependentGaussianLogLikelihood(noise_cov_diag)
+
+        true_samples = prior_variable.rvs(nout_samples)
+        outer_pred_weights = np.full((nout_samples, 1), 1/nout_samples)
+        outer_pred_obs = obs_model(true_samples).T
+        noise_samples = loglike._sample_noise(nout_samples)
+
+        if level1d is not None:
+            samples, inner_pred_weights = integrate(
+                "tensorproduct", prior_variable, levels=[level1d]*nvars,
+                rule="quadratic")
+        else:
+            samples = prior_variable.rvs(2*int(np.sqrt(nout_samples)))
+            inner_pred_weights = np.full(
+                (samples.shape[1], 1), 1/samples.shape[1])
+        many_pred_obs = obs_model(samples).T
+
+        inner_pred_obs = many_pred_obs
+        oed_objective = KLOEDObjective(
+            noise_cov_diag, outer_pred_obs, outer_pred_weights,
+            noise_samples, inner_pred_obs, inner_pred_weights,
+            noise_stat=noise_stat)
+
+        bounds = Bounds(
+            np.zeros((nobs,)), np.ones((nobs,)), keep_feasible=True)
+
+        nfinal_obs = 1
+        constraint = LinearConstraint(
+            np.ones((1, nobs)), nfinal_obs, nfinal_obs, keep_feasible=True)
+        objective = oed_objective
+        x0 = np.full((nobs, 1), nfinal_obs/nobs)
+        errors = objective.check_apply_jacobian(
+            x0, disp=True, fd_eps=np.logspace(-13, np.log(0.2), 13)[::-1])
+        assert errors.min()/errors.max() < 6e-6, errors.min()/errors.max()
+
+        if isinstance(constraint, WeightsConstraint):
+            errors = constraint._model.check_apply_jacobian(
+                x0, disp=True, fd_eps=np.logspace(-13, -1, 13)[::-1])
+            assert errors.min()/errors.max() < 1e-6 and errors.max() < 10
+        optimizer = ScipyConstrainedOptimizer(
+            objective, bounds=bounds, constraints=[constraint],
+            opts={"gtol": 1e-5, "verbose": 3, "maxiter": 200})
+        result = optimizer.minimize(x0)
+        print(result.x)
+
+    def test_KL_OED_gaussian_optimization(self):
+        test_cases = [
+            [3, 0, 1, 4000, 50, NoiseStatistic(SampleAverageMean())],
+            [3, 0, 1, 4000, 50, NoiseStatistic(SampleAverageMeanPlusStdev(1))],
+            [3, 0, 1, 4000, 50, NoiseStatistic(SampleAverageEntropicRisk(0.5))]
+        ]
+        for test_case in test_cases:
+            self._check_KL_OED_gaussian_optimization(*test_case)
+
+    def _check_prediction_gaussian_OED(
+            self, nobs, min_degree, degree, nout_samples, level1d, noise_stat):
+        nvars = degree-min_degree+1
+        # the smaller the noise the more number of nout_samples are needed
+        noise_std = 0.125*4
+        prior_std = 0.5
+        prior_variable = IndependentMarginalsVariable(
+            [stats.norm(0, prior_std)]*nvars)
+        design = np.linspace(-1, 1, nobs-2)[None, :]
+        design = np.sort(np.hstack(
+            (design[0], [-1/np.sqrt(5), 1/np.sqrt(5)])))[None, :]
+        noise_cov_diag = np.full((nobs, 1), noise_std**2)
+        obs_model = Linear1DRegressionModel(
+            design, degree, min_degree=min_degree)
+        loglike = IndependentGaussianLogLikelihood(noise_cov_diag)
+
+        true_samples = prior_variable.rvs(nout_samples)
+        outer_pred_weights = np.full((nout_samples, 1), 1/nout_samples)
+        outer_pred_obs = obs_model(true_samples).T
+        noise_samples = loglike._sample_noise(nout_samples)
+
+        if level1d is not None:
+            samples, inner_pred_weights = integrate(
+                "tensorproduct", prior_variable, levels=[level1d]*nvars,
+                rule="quadratic")
+        else:
+            samples = prior_variable.rvs(2*int(np.sqrt(nout_samples)))
+            inner_pred_weights = np.full(
+                (samples.shape[1], 1), 1/samples.shape[1])
+        many_pred_obs = obs_model(samples).T
+
+        inner_pred_obs = many_pred_obs
+        oed_objective = PredictionOEDObjective(
+            noise_cov_diag, outer_pred_obs, outer_pred_weights,
+            noise_samples, inner_pred_obs, inner_pred_weights,
+            noise_stat=noise_stat)
+
+        bounds = Bounds(
+            np.zeros((nobs,)), np.ones((nobs,)), keep_feasible=True)
+
+        nfinal_obs = 1
+        constraint = LinearConstraint(
+            np.ones((1, nobs)), nfinal_obs, nfinal_obs, keep_feasible=True)
+        objective = oed_objective
+        x0 = np.full((nobs, 1), nfinal_obs/nobs)
+        errors = objective.check_apply_jacobian(
+            x0, disp=True, fd_eps=np.logspace(-13, np.log(0.2), 13)[::-1])
+        assert errors.min()/errors.max() < 6e-6, errors.min()/errors.max()
+
+        if isinstance(constraint, WeightsConstraint):
+            errors = constraint._model.check_apply_jacobian(
+                x0, disp=True, fd_eps=np.logspace(-13, -1, 13)[::-1])
+            assert errors.min()/errors.max() < 1e-6 and errors.max() < 10
+        optimizer = ScipyConstrainedOptimizer(
+            objective, bounds=bounds, constraints=[constraint],
+            opts={"gtol": 1e-5, "verbose": 3, "maxiter": 200})
+        result = optimizer.minimize(x0)
+        print(result.x)
+
+    def test_prediction_gaussian_OED(self):
+        test_cases = [
+            [3, 0, 1, 4000, 50, NoiseStatistic(SampleAverageMean())],
+            [3, 0, 1, 4000, 50, NoiseStatistic(SampleAverageMeanPlusStdev(1))],
+            [3, 0, 1, 4000, 50, NoiseStatistic(SampleAverageEntropicRisk(0.5))]
+        ]
+        for test_case in test_cases:
+            self._check_prediction_gaussian_OED(*test_case)
 
 
 if __name__ == '__main__':

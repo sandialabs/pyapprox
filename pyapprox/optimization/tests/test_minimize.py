@@ -86,7 +86,7 @@ class TestMinimize(unittest.TestCase):
         weights = np.full((nsamples, 1), 1/nsamples)
         for stat in [SampleAverageMean(), SampleAverageVariance(),
                      SampleAverageStdev(), SampleAverageMeanPlusStdev(2),
-                     SampleAverageEntropicRisk()]:
+                     SampleAverageEntropicRisk(0.5)]:
             constraint_bounds = np.hstack(
                 [np.zeros((2, 1)), np.full((2, 1), np.inf)])
             constraint = SampleAverageConstraint(
@@ -110,7 +110,7 @@ class TestMinimize(unittest.TestCase):
         weights = np.full((nsamples, 1), 1/nsamples)
         for stat in [SampleAverageMean(), SampleAverageVariance(),
                      SampleAverageStdev(), SampleAverageMeanPlusStdev(2),
-                     SampleAverageEntropicRisk()]:
+                     SampleAverageEntropicRisk(0.5)]:
             constraint_bounds = np.hstack(
                 [np.zeros((2, 1)), np.full((2, 1), np.inf)])
             constraint = SampleAverageConstraint(

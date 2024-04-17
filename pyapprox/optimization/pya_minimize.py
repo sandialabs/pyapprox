@@ -279,20 +279,23 @@ class SampleAverageMeanPlusStdev(SampleAverageStat):
 
 
 class SampleAverageEntropicRisk(SampleAverageStat):
+    def __init__(self, alpha):
+        self._alpha = alpha
+
     def __call__(self, values, weights):
         # values (nsamples, noutputs)
-        return np.log(np.exp(values.T) @ weights).T
+        return np.log(np.exp(self._alpha*values.T) @ weights).T/self._alpha
 
     def jacobian(self, values, jac_values, weights):
         # jac_values (nsamples, noutputs, nvars)
-        exp_values = np.exp(values)
+        exp_values = np.exp(self._alpha*values)
         tmp = exp_values.T @ weights
         jac = 1/tmp * np.einsum(
             "ijk,i->jk", (exp_values[..., None]*jac_values), weights[:, 0])
         return jac
 
     def apply_jacobian(self, values, jv_values, weights):
-        exp_values = np.exp(values)
+        exp_values = np.exp(self._alpha*values)
         tmp = exp_values.T @ weights
         jv = 1/tmp * np.einsum(
             "ij,i->j", (exp_values*jv_values[..., 0]), weights[:, 0])[:, None]
