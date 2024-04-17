@@ -6,24 +6,14 @@ import numpy as np
 from pyapprox.sciml.greensfunctions import (
     GreensFunctionSolver, DrivenHarmonicOscillatorGreensKernel,
     Helmholtz1DGreensKernel, HeatEquation1DGreensKernel,
-    WaveEquation1DGreensKernel)
+    WaveEquation1DGreensKernel, ActiveGreensKernel)
 from pyapprox.sciml.kernels import HomogeneousLaplace1DGreensKernel
 from pyapprox.sciml.quadrature import (
-    IntegralOperatorQuadratureRule, Fixed1DTrapezoidIOQuadRule,
-    Fixed1DGaussLegendreIOQuadRule, TensorProduct2DQuadRule,
-    TransformedQuadRule, OnePointRule1D)
+    Fixed1DTrapezoidIOQuadRule, TensorProduct2DQuadRule,
+    Transformed1DQuadRule, OnePointRule1D)
+from pyapprox.sciml.util._torch_wrappers import (to_numpy)
 
 from pyapprox.util.visualization import get_meshgrid_samples
-
-
-class TransformedUnitIntervalQuadRule(TransformedQuadRule):
-    def __init__(self, quad_rule, bounds):
-        self._quad_rule = quad_rule
-        self._bounds = bounds
-
-    def _transform(self, points, weights):
-        length = self._bounds[1]-self._bounds[0]
-        return points*length+self._bounds[0], weights*length
 
 
 class TestGreensFunction(unittest.TestCase):
@@ -35,7 +25,7 @@ class TestGreensFunction(unittest.TestCase):
         omega = 3
         final_time = 3
         kernel = DrivenHarmonicOscillatorGreensKernel(omega, [1e-8, 10])
-        quad_rule = TransformedUnitIntervalQuadRule(
+        quad_rule = Transformed1DQuadRule(
             Fixed1DTrapezoidIOQuadRule(nquad), [0, final_time])
         solver = GreensFunctionSolver(kernel, quad_rule)
 
@@ -48,7 +38,7 @@ class TestGreensFunction(unittest.TestCase):
             return f0*omega*tt.T
 
         plot_tt = np.linspace(0, final_time, 101)[None, :]
-        green_sol = solver(partial(forcing_function, omega), plot_tt).numpy()
+        green_sol = to_numpy(solver(partial(forcing_function, omega), plot_tt))
         # print(exact_solution(plot_tt)-green_sol)
         assert np.allclose(exact_solution(plot_tt), green_sol)
 
@@ -56,7 +46,7 @@ class TestGreensFunction(unittest.TestCase):
         nquad = 10000
         kappa = 0.1
         kernel = HomogeneousLaplace1DGreensKernel(kappa, [1e-3, 1])
-        quad_rule = TransformedUnitIntervalQuadRule(
+        quad_rule = Transformed1DQuadRule(
             Fixed1DTrapezoidIOQuadRule(nquad), [0, 1])
         solver = GreensFunctionSolver(kernel, quad_rule)
 
@@ -68,7 +58,7 @@ class TestGreensFunction(unittest.TestCase):
                     192*xx**2*(1 - xx)**4).T*kappa
 
         plot_xx = np.linspace(0, 1, 101)[None, :]
-        green_sol = solver(forcing_function, plot_xx).numpy()
+        green_sol = to_numpy(solver(forcing_function, plot_xx))
         assert np.allclose(exact_solution(plot_xx), green_sol)
 
     def test_helmholtz_1d(self):
@@ -78,7 +68,7 @@ class TestGreensFunction(unittest.TestCase):
         x_freq = 2*np.pi
         wavenum = 10
         kernel = Helmholtz1DGreensKernel(wavenum, [1e-3, 100])
-        quad_rule = TransformedUnitIntervalQuadRule(
+        quad_rule = Transformed1DQuadRule(
             Fixed1DTrapezoidIOQuadRule(nquad), [0, 1])
         solver = GreensFunctionSolver(kernel, quad_rule)
 
@@ -89,8 +79,20 @@ class TestGreensFunction(unittest.TestCase):
             return (wavenum**2-x_freq**2)*np.sin(x_freq*xx.T)
 
         plot_xx = np.linspace(0, 1, 101)[None, :]
-        green_sol = solver(forcing_function, plot_xx).numpy()
+        green_sol = to_numpy(solver(forcing_function, plot_xx))
         assert np.allclose(exact_solution(plot_xx), green_sol)
+
+        # test that multiple solutions can be computed at once
+        forcing_vals = np.hstack(
+            [forcing_function(solver._quad_rule.get_samples_weights()[0]),
+             2*forcing_function(solver._quad_rule.get_samples_weights()[0])])
+        assert np.allclose(
+            solver._eval(forcing_vals, plot_xx),
+            np.hstack([to_numpy(solver._eval(fvals[:, None], plot_xx))
+                      for fvals in forcing_vals.T]))
+        assert np.allclose(
+            solver._eval(forcing_vals[:, 1:2], plot_xx),
+            2*solver._eval(forcing_vals[:, :1], plot_xx))
 
         # import matplotlib.pyplot as plt
         # ax = plt.figure().gca()
@@ -110,7 +112,7 @@ class TestGreensFunction(unittest.TestCase):
         kernel = HeatEquation1DGreensKernel(
             kappa, [1e-3, 100], L=L, nterms=100)
         nquad = 10000
-        quad_rule1 = TransformedUnitIntervalQuadRule(
+        quad_rule1 = Transformed1DQuadRule(
             Fixed1DTrapezoidIOQuadRule(nquad), [0, L])
 
         quad_rule2 = OnePointRule1D(0, 1)
@@ -137,50 +139,26 @@ class TestGreensFunction(unittest.TestCase):
 
         from pyapprox.util.visualization import get_meshgrid_samples
         X, Y, plot_xx = get_meshgrid_samples([0, L, 0, final_time], 51)
-        # plot_xx = np.linspace(0, 1, 101)[None, :]
         green_sol = solver(initial_condition_function, plot_xx).numpy()
         assert np.allclose(exact_solution(plot_xx), green_sol)
 
-        # import matplotlib.pyplot as plt
-        # axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
-        # axs[0].contourf(
-        #     X, Y, exact_solution(plot_xx).reshape(X.shape), levels=40)
-        # axs[0].set_xlabel("space")
-        # axs[0].set_ylabel("time")
-        # axs[1].contourf(X, Y, green_sol.reshape(X.shape), levels=40)
-
-        # # Now plot the greens function for a fixed time
-        # ax = plt.figure().gca()
-        # time = 0.05
-        # nx = 51
-        # x = np.linspace(0, L, nx)
-        # from pyapprox.util.utilities import cartesian_product
-        # plot_xx = cartesian_product([x, np.array([time])]).copy()
-        # print(plot_xx.shape)
-        # G = kernel(plot_xx, plot_xx)
-        # ax.imshow(G, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
-
-        # # Now plot the greens function for a spatial location
-        # ax = plt.figure().gca()
-        # space = L/2
-        # nt = 51
-        # t = np.linspace(0, final_time, nt)
-        # from pyapprox.util.utilities import cartesian_product
-        # plot_tt = cartesian_product([np.array([space]), t]).copy()
-        # G = kernel(plot_tt, plot_tt)
-        # ax.imshow(G, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
-        # # X, Y = np.meshgrid(x, x)
-        # # ax.contourf(X, Y, G.reshape(X.shape), cmap="jet", levels=40)
-        # plt.show()
+        kernel = ActiveGreensKernel(
+            HeatEquation1DGreensKernel(
+                kappa, [1e-3, 100], L, nterms=100), [final_time], [0.])
+        solver = GreensFunctionSolver(kernel, quad_rule1)
+        plot_xx = np.vstack((
+            np.linspace(0, 1, 101)[None, :], np.full((101,), final_time)))
+        green_sol = solver(initial_condition_function, plot_xx[:1]).numpy()
+        assert np.allclose(exact_solution(plot_xx), green_sol)
 
     def test_heat_equation_1d_with_forcing(self):
         kappa, L, final_time = 10.0, 10, np.pi*2
         kernel = HeatEquation1DGreensKernel(
             kappa, [1e-3, 100], L=L, nterms=10)
         nquad = 200
-        quad_rule1 = TransformedUnitIntervalQuadRule(
+        quad_rule1 = Transformed1DQuadRule(
             Fixed1DTrapezoidIOQuadRule(nquad), [0, L])
-        quad_rule2 = TransformedUnitIntervalQuadRule(
+        quad_rule2 = Transformed1DQuadRule(
             Fixed1DTrapezoidIOQuadRule(nquad), [0, final_time])
         quad_rule = TensorProduct2DQuadRule(quad_rule1, quad_rule2)
         solver = GreensFunctionSolver(kernel, quad_rule)
@@ -201,7 +179,7 @@ class TestGreensFunction(unittest.TestCase):
             np.zeros(2)[:, None])
 
         X, Y, plot_xx = get_meshgrid_samples([0, L, 0, final_time], 51)
-        green_sol = solver(forcing_function, plot_xx).numpy()
+        green_sol = to_numpy(solver(forcing_function, plot_xx))
         rel_error = (np.linalg.norm(exact_solution(plot_xx)-green_sol) /
                      np.linalg.norm(exact_solution(plot_xx)))
         assert rel_error < 1.3e-2
@@ -230,7 +208,7 @@ class TestGreensFunction(unittest.TestCase):
             coeff, [1e-3, 100], L=L, nterms=10, pos=False)
         # as k increase nquad must increase
         nquad = 100
-        quad_rule1 = TransformedUnitIntervalQuadRule(
+        quad_rule1 = Transformed1DQuadRule(
             Fixed1DTrapezoidIOQuadRule(nquad), [0, L])
         quad_rule2 = OnePointRule1D(0, 1)
         quad_rule = TensorProduct2DQuadRule(quad_rule1, quad_rule2)

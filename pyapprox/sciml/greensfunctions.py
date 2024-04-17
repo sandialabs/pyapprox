@@ -4,7 +4,7 @@ import numpy as np
 
 from pyapprox.sciml.kernels import Kernel
 from pyapprox.sciml.util._torch_wrappers import (
-    array, asarray, where, sin, zeros, exp, cos)
+    array, asarray, where, sin, zeros, exp, cos, einsum)
 from pyapprox.sciml.util.hyperparameter import (
     HyperParameter, HyperParameterList, LogHyperParameterTransform)
 # todo move HomogeneousLaplace1DGreensKernel here
@@ -15,12 +15,19 @@ class GreensFunctionSolver():
         self._kernel = kernel
         self._quad_rule = quad_rule
 
+    def _eval(self, forcing_vals, xx):
+        quad_xx, quad_ww = self._quad_rule.get_samples_weights()
+        assert forcing_vals.ndim == 2
+        # assert forcing_vals.shape[1] == 1
+        # return (self._kernel(xx, quad_xx)*forcing_vals[:, 0]) @ quad_ww
+        return einsum(
+            "ijk,j->ik", self._kernel(xx, quad_xx)[..., None]*forcing_vals,
+            quad_ww[:, 0])
+
     def __call__(self, forcing_fun, xx):
         quad_xx, quad_ww = self._quad_rule.get_samples_weights()
         assert quad_xx.shape[0] == xx.shape[0]
-        forcing_vals = forcing_fun(quad_xx)
-        assert forcing_vals.shape[1] == 1
-        return (self._kernel(xx, quad_xx)*forcing_vals[:, 0]) @ quad_ww
+        return self._eval(forcing_fun(quad_xx), xx)
 
 
 class DrivenHarmonicOscillatorGreensKernel(Kernel):
@@ -186,6 +193,19 @@ class WaveEquation1DGreensKernel(Kernel):
             vals += self._series_term(ii, coeff, self._L, X1, X2)
         vals *= 2/self._L
         return vals
+
+
+class ActiveGreensKernel():
+    def __init__(self, kernel, inactive_X1, inactive_X2):
+        self._kernel = kernel
+        self._inactive_X1 = np.atleast_2d(inactive_X1)
+        self._inactive_X2 = np.atleast_2d(inactive_X2)
+
+    def __call__(self, X1, X2):
+        X1 = np.vstack((X1, np.tile(self._inactive_X1, X1.shape[1])))
+        if X2 is not None:
+            X2 = np.vstack((X2, np.tile(self._inactive_X2, X2.shape[1])))
+        return self._kernel(X1, X2)
 
 
 # For good notes see

@@ -245,15 +245,18 @@ class HilbertSchmidtBasis(ABC):
 class PCEHilbertSchmidtBasis1D():
     def __init__(self,
                  marginal_variable,
-                 degree: int):
+                 degree: int,
+                 nquad: int = None):
         self._variable = IndependentMarginalsVariable([marginal_variable])
         self._poly = get_polynomial_from_variable(self._variable)
         indices = compute_hyperbolic_indices(
             self._variable.num_vars(), degree, 1.0)
         self._poly.set_indices(indices)
+        if nquad is None:
+            nquad = degree+2
         self._quadrule = integrate(
             "tensorproduct", self._variable,
-            levels=[(degree+2)]*self._variable.num_vars())
+            levels=[nquad]*self._variable.num_vars())
         # avoid error about negative strides thrown by torch
         self._quadrule = (asarray(self._quadrule[0].copy()),
                           asarray(self._quadrule[1]))
@@ -269,6 +272,43 @@ class PCEHilbertSchmidtBasis1D():
 
     def quadrule(self):
         return self._quadrule
+
+
+from pyapprox.surrogates.interp.tensorprod import (
+    UnivariatePiecewiseLinearBasis, UnivariatePiecewiseMidPointConstantBasis)
+class EquidistantPicewisePolyBasis1D():
+    def __init__(self,
+                 bounds: Union[list, array],
+                 degree: int,
+                 nmesh: int):
+        self._degree = degree
+        if self._degree == 0:
+            self._basis = UnivariatePiecewiseMidPointConstantBasis()
+        elif self._degree == 1:
+            self._basis = UnivariatePiecewiseLinearBasis()
+        else:
+            raise ValueError("degree {0} not supported".format(degree))
+        self._mesh = np.linspace(*bounds, nmesh)
+        self._quadweights = asarray(
+            self._basis.quadrature_weights(self._mesh)[:, None])
+
+    def nterms(self):
+        if self._degree == 0:
+            return self._mesh.shape[0]-1
+        return self._mesh.shape[0]
+
+    def nvars(self):
+        return 1
+
+    def __call__(self, samples):
+        return asarray(self._basis(self._mesh, to_numpy(samples[0])))
+
+    def quadrule(self):
+        if self._degree == 0:
+            return (asarray(
+                (self._mesh[None, 1:]+self._mesh[None, :-1])/2),
+                    self._quadweights)
+        return asarray(self._mesh[None, :]), self._quadweights
 
 
 class HilbertSchmidtKernel(Kernel):

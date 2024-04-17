@@ -4,8 +4,7 @@ from abc import ABC, abstractmethod
 
 from pyapprox.util.pya_numba import njit
 from pyapprox.util.utilities import (
-    cartesian_product, get_tensor_product_quadrature_rule
-)
+    cartesian_product, get_tensor_product_quadrature_rule, outer_product)
 from pyapprox.surrogates.orthopoly.quadrature import (
     clenshaw_curtis_poly_indices_to_quad_rule_indices,
     clenshaw_curtis_rule_growth)
@@ -504,14 +503,94 @@ def get_univariate_interpolation_basis(basis_type):
     return basis_dict[basis_type]()
 
 
+class UnivariateInterpolatingBasisWrapper():
+    def __init__(self, basis, nodes):
+        self._basis = basis
+        self._nodes = nodes
+
+    def __call__(self, samples):
+        return self._basis(self._nodes, samples)
+
+
 class TensorProductBasis():
     def __init__(self, bases_1d):
         self._bases_1d = bases_1d
+        self._nvars = len(bases_1d)
+
+    def _eval(self, samples):
+        # assumes each array in nodes_1d is in ascending order
+        basis_vals_1d_list = [
+            self._bases_1d[dd](samples[dd]) for dd in range(self._nvars)]
+        nterms_1d = [v.shape[1] for v in basis_vals_1d_list]
+        indices = cartesian_product([np.arange(N) for N in nterms_1d])
+        nvars, nsamples = samples.shape
+        max_level_1d = np.empty((nvars), dtype=np.int_)
+        for ii in range(nvars):
+            max_level_1d[ii] = indices[ii, :].max()
+        basis_vals_1d = np.empty(
+            (nvars, max_level_1d.max()+1, samples.shape[1]),
+            dtype=np.float64)
+        for ii in range(nvars):
+            basis_vals_1d[ii][:max_level_1d[ii]+1] = basis_vals_1d_list[ii].T
+        temp1 = basis_vals_1d.reshape(
+            (self._nvars*basis_vals_1d.shape[1], nsamples))
+        nvars, num_indices = indices.shape
+        temp1 = basis_vals_1d.reshape(
+            (nvars*basis_vals_1d.shape[1], nsamples))
+        temp2 = temp1[indices.ravel()+np.repeat(
+            np.arange(nvars)*basis_vals_1d.shape[1], num_indices), :].reshape(
+                nvars, num_indices, nsamples)
+        basis_vals = np.prod(temp2, axis=0).T
+        return basis_vals
+
+    def __call__(self, samples):
+        return self._eval(samples)
+
+    def _plot_single_basis(
+            self, ax, ii, jj, nterms_1d,
+            plot_limits, num_pts_1d, surface_cmap, contour_cmap):
+        from pyapprox.util.visualization import (
+            get_meshgrid_samples, plot_surface)
+        X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d)
+        idx = jj*nterms_1d[0]+ii
+        basis_vals = self._eval(pts)
+        Z = basis_vals[:, idx].reshape(X.shape)
+        if surface_cmap is not None:
+            plot_surface(X, Y, Z, ax, axis_labels=None, limit_state=None,
+                         alpha=0.3, cmap=surface_cmap, zorder=3,
+                         plot_axes=False)
+        if contour_cmap is not None:
+            num_contour_levels = 30
+            offset = -(Z.max()-Z.min())/2
+            ax.contourf(
+                X, Y, Z, zdir='z', offset=offset,
+                levels=np.linspace(Z.min(), Z.max(), num_contour_levels),
+                cmap=contour_cmap, zorder=-1)
+        return offset, idx, nterms_1d, X, Y
+
+    def plot_single_basis(
+            self, ax, ii, jj,
+            plot_limits=[-1, 1, -1, 1],
+            num_pts_1d=101, surface_cmap="coolwarm",
+            contour_cmap="gray"):
+        # evaluate 1D basis functions once to get number of basis functions
+        sample = np.array(plot_limits).reshape(2, 2).T[:, 0]
+        nterms_1d = [basis(sample).shape[1] for basis in self._bases_1d]
+        self._plot_single_basis(
+            ax, ii, jj, nterms_1d,
+            plot_limits, num_pts_1d, surface_cmap, contour_cmap)
+
+
+class TensorProductInterpolatingBasis(TensorProductBasis):
 
     def __call__(self, nodes_1d, samples):
+        self._nodes_1d = nodes_1d
+        return self._eval(samples)
+
+    def _eval(self, samples):
         # assumes each array in nodes_1d is in ascending order
-        nvars = len(nodes_1d)
-        nnodes_1d = np.array([n.shape[0] for n in nodes_1d])
+        nvars = len(self._nodes_1d)
+        nnodes_1d = np.array([n.shape[0] for n in self._nodes_1d])
         active_vars = np.arange(nvars)[nnodes_1d > 1]
         nactive_vars = active_vars.shape[0]
         if nactive_vars == 0:
@@ -524,7 +603,7 @@ class TensorProductBasis():
         for dd in range(nactive_vars):
             idx = active_vars[dd]
             basis_vals_1d[dd, :nnodes_1d_active[dd], :] = self._bases_1d[idx](
-                nodes_1d[idx], samples[idx, :]).T
+                self._nodes_1d[idx], samples[idx, :]).T
 
         temp1 = basis_vals_1d.reshape(
             (nactive_vars*basis_vals_1d.shape[1], nsamples))
@@ -536,29 +615,15 @@ class TensorProductBasis():
         basis_vals = np.prod(temp2, axis=0).T
         return basis_vals
 
-    def _single_basis_fun(self, nodes_1d, idx, xx):
-        return self(nodes_1d, xx)[:, idx]
-
-    def plot_single_basis(self, ax, nodes_1d, ii, jj, nodes=None,
-                          plot_limits=[-1, 1, -1, 1],
-                          num_pts_1d=101, surface_cmap="coolwarm",
-                          contour_cmap="gray"):
-        from pyapprox.util.visualization import (
-            get_meshgrid_function_data, plot_surface)
-        idx = jj*nodes_1d[0].shape[0]+ii
-        single_basis_fun = partial(self._single_basis_fun, nodes_1d, idx)
-        X, Y, Z = get_meshgrid_function_data(
-            single_basis_fun, plot_limits, num_pts_1d)
-        if surface_cmap is not None:
-            plot_surface(X, Y, Z, ax, axis_labels=None, limit_state=None,
-                         alpha=0.3, cmap=surface_cmap, zorder=3, plot_axes=False)
-        if contour_cmap is not None:
-            num_contour_levels = 30
-            offset = -(Z.max()-Z.min())/2
-            ax.contourf(
-                X, Y, Z, zdir='z', offset=offset,
-                levels=np.linspace(Z.min(), Z.max(), num_contour_levels),
-                cmap=contour_cmap, zorder=-1)
+    def plot_single_basis(
+            self, ax, nodes_1d, ii, jj, nodes=None,
+            plot_limits=[-1, 1, -1, 1],
+            num_pts_1d=101, surface_cmap="coolwarm",
+            contour_cmap="gray"):
+        nterms_1d = [n.shape[0] for n in nodes_1d]
+        offset, idx, nterms_1d, X, Y = super()._plot_single_basis(
+            ax, ii, jj, nterms_1d,
+            plot_limits, num_pts_1d,  surface_cmap, contour_cmap)
 
         if nodes is None:
             return
@@ -568,14 +633,14 @@ class TensorProductBasis():
 
         x = np.linspace(-1, 1, 100)
         y = nodes[1, idx]*np.ones((x.shape[0]))
-        z = single_basis_fun(np.vstack((x[None, :], y[None, :])))
+        z = self._eval(np.vstack((x[None, :], y[None, :])))[:, idx]
         ax.plot(x, Y.max()*np.ones((x.shape[0])), z, '-r')
         ax.plot(nodes_1d[0], Y.max()*np.ones(
-            (nodes_1d[0].shape[0])), np.zeros(nodes_1d[0].shape[0]), 'or')
+            (nterms_1d[0])), np.zeros(nterms_1d[0]), 'or')
 
         y = np.linspace(-1, 1, 100)
         x = nodes[0, idx]*np.ones((y.shape[0]))
-        z = single_basis_fun(np.vstack((x[None, :], y[None, :])))
+        z = self._eval(np.vstack((x[None, :], y[None, :])))[:, idx]
         ax.plot(X.min()*np.ones((x.shape[0])), y, z, '-r')
         ax.plot(X.min()*np.ones(
             (nodes_1d[1].shape[0])), nodes_1d[1],
@@ -584,7 +649,7 @@ class TensorProductBasis():
 
 class TensorProductInterpolant():
     def __init__(self, bases_1d):
-        self.basis = TensorProductBasis(bases_1d)
+        self.basis = TensorProductInterpolatingBasis(bases_1d)
 
         self._nodes_1d = None
         self._nnodes_1d = None

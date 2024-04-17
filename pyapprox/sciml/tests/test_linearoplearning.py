@@ -20,7 +20,8 @@ class TestLinearOperatorLearning(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
-    def _eval_1d_kernel_in_function_form(self, kernel, samples):
+    @staticmethod
+    def _eval_1d_kernel_in_function_form(kernel, samples):
         return np.array([kernel(sample[:1, None], sample[1:2, None])[0, 0]
                          for sample in samples.T])[:, None]
 
@@ -133,6 +134,7 @@ class TestLinearOperatorLearning(unittest.TestCase):
                  label="Approx")
         plt.legend()
         plt.show()
+
 
 if __name__ == '__main__':
     unittest.main()

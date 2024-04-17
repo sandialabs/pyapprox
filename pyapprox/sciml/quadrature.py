@@ -37,12 +37,11 @@ class Fixed1DGaussLegendreIOQuadRule(IntegralOperatorQuadratureRule):
 class Fixed1DTrapezoidIOQuadRule(IntegralOperatorQuadratureRule):
     def __init__(self, nquad):
         self._nquad = nquad
-        # xx in [0, 1] # todo: Zack change this to [-1, 1] and check tests pass
         if nquad == 1:
-            quad_xx = full((nquad, ), 0.5)
-            quad_ww = full((nquad, ), 1)
+            quad_xx = full((nquad, ), 0)
+            quad_ww = full((nquad, ), 2)
         else:
-            quad_xx = linspace(0, 1, nquad)
+            quad_xx = linspace(-1, 1, nquad)
             delta = quad_xx[1]-quad_xx[0]
             quad_ww = full((nquad, ), delta)
             quad_ww[[0, -1]] /= 2
@@ -77,7 +76,8 @@ class TransformedQuadRule(IntegralOperatorQuadratureRule):
         raise NotImplementedError
 
     def get_samples_weights(self):
-        return self._transform(*self._quad_rule.get_samples_weights())
+        return self._transform(
+            *self._quad_rule.get_samples_weights())
 
 
 class OnePointRule1D(IntegralOperatorQuadratureRule):

@@ -66,14 +66,14 @@ from pyapprox.surrogates.interp.tensorprod import (
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 from pyapprox.surrogates.interp.tensorprod import (
     UnivariatePiecewiseQuadraticBasis, UnivariateLagrangeBasis,
-    TensorProductInterpolant, TensorProductBasis)
+    TensorProductInterpolant, TensorProductInterpolatingBasis)
 
 nnodes_1d = [5, 9]
 nodes_1d = [-np.cos(np.arange(nnodes)*np.pi/(nnodes-1))
             for nnodes in nnodes_1d]
 nodes = cartesian_product(nodes_1d)
 lagrange_basis_1d = UnivariateLagrangeBasis()
-tp_lagrange_basis = TensorProductBasis([lagrange_basis_1d]*2)
+tp_lagrange_basis = TensorProductInterpolatingBasis([lagrange_basis_1d]*2)
 
 fig = plt.figure(figsize=(2*8, 6))
 ax = fig.add_subplot(1, 2, 1, projection='3d')
@@ -173,7 +173,7 @@ fig = plt.figure(figsize=(2*8, 6))
 nnodes_1d = [5, 5]
 nodes_1d = [np.linspace(-1, 1, nnodes) for nnodes in nnodes_1d]
 nodes = cartesian_product(nodes_1d)
-tp_quadratic_basis = TensorProductBasis(
+tp_quadratic_basis = TensorProductInterpolatingBasis(
     [UnivariatePiecewiseQuadraticBasis()]*2)
 ax = fig.add_subplot(1, 2, 1, projection='3d')
 tp_quadratic_basis.plot_single_basis(ax, nodes_1d, 2, 2, nodes)

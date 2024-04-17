@@ -11,7 +11,9 @@ from pyapprox.surrogates.interp.tensorprod import (
     piecewise_univariate_linear_quad_rule,
     piecewise_univariate_quadratic_quad_rule, irregular_piecewise_linear_basis,
     irregular_piecewise_quadratic_basis, irregular_piecewise_cubic_basis,
-    get_univariate_interpolation_basis, TensorProductInterpolant
+    get_univariate_interpolation_basis, TensorProductInterpolant,
+    UnivariateInterpolatingBasisWrapper, TensorProductBasis,
+    TensorProductInterpolatingBasis
 )
 
 
@@ -328,6 +330,29 @@ class TestTensorProd(unittest.TestCase):
             samples, xx, mesh_vals, range_1d)
         assert np.allclose(vals.mean()*(range_1d[1]-range_1d[0]),
                            mesh_vals.dot(ww), atol=1e-3)
+
+    def test_tensor_product_basis(self):
+        nvars = 2
+        basis_types = ["linear"]*nvars
+        nodes_1d = [np.linspace(-1, 1, 5)]*nvars
+        bases_1d = [
+            get_univariate_interpolation_basis(bt) for bt in basis_types]
+        wrapped_bases_1d = [
+            UnivariateInterpolatingBasisWrapper(basis, nodes)
+            for basis, nodes in zip(bases_1d, nodes_1d)]
+        basis = TensorProductBasis(wrapped_bases_1d)
+        interp_basis = TensorProductInterpolatingBasis(bases_1d)
+
+        samples = np.random.uniform(-1, 1, (nvars, 100))
+        assert np.allclose(basis(samples), interp_basis(nodes_1d, samples))
+
+        # test plotting completes without failure
+        import matplotlib.pyplot as plt
+        ax = plt.subplot(1, 2, 1, projection='3d')
+        basis.plot_single_basis(ax, 0, 0)
+        ax = plt.subplot(1, 2, 2, projection='3d')
+        interp_basis.plot_single_basis(ax, nodes_1d, 0, 0)
+        # plt.show()
 
 
 if __name__ == '__main__':
