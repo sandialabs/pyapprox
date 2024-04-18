@@ -96,13 +96,13 @@ class TestLinearOperatorLearning(unittest.TestCase):
             levels=[kernel_degree+3]*coef_variable.num_vars())
 
         train_in_values = self._generate_random_functions(
-            train_coefs, basis, basis.quadrule()[0])
+            train_coefs, basis, basis.quadrature_rule()[0])
         train_out_values = self._generate_output_functions(
-            kernel, basis.quadrule(), train_in_values,
-            basis.quadrule()[0])
+            kernel, basis.quadrature_rule(), train_in_values,
+            basis.quadrature_rule()[0])
 
         basis_mat = linearop._basis_matrix(
-            basis.quadrule()[0], train_in_values)
+            basis.quadrature_rule()[0], train_in_values)
         gram_mat = linearop._gram_matrix(basis_mat, out_weights)
         np.set_printoptions(linewidth=1000)
         assert np.allclose(gram_mat, np.eye(gram_mat.shape[0]))
@@ -123,9 +123,9 @@ class TestLinearOperatorLearning(unittest.TestCase):
         in_coef = np.random.normal(0, 1, (kernel_degree+1, 1))
 
         infun_values = self._generate_random_functions(
-            in_coef, basis, basis.quadrule()[0])
+            in_coef, basis, basis.quadrature_rule()[0])
         plot_out_values = self._generate_output_functions(
-            kernel, basis.quadrule(), infun_values, plot_xx)
+            kernel, basis.quadrature_rule(), infun_values, plot_xx)
         assert np.allclose(linearop(infun_values, plot_xx), plot_out_values)
 
         import matplotlib.pyplot as plt

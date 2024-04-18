@@ -12,7 +12,7 @@ from pyapprox.surrogates.integrate import integrate
 
 from pyapprox.sciml.util._torch_wrappers import (
     exp, cdist, asarray, inf, full, array, empty, get_diagonal, hstack, norm,
-    absolute, to_numpy)
+    absolute, to_numpy, linspace)
 from pyapprox.sciml.util.hyperparameter import (
     HyperParameter, HyperParameterList, LogHyperParameterTransform,
     IdentityHyperParameterTransform)
@@ -241,8 +241,11 @@ class HilbertSchmidtBasis(ABC):
     def nvars(self):
         raise NotImplementedError
 
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
 
-class PCEHilbertSchmidtBasis1D():
+
+class PCEHilbertSchmidtBasis1D(HilbertSchmidtBasis):
     def __init__(self,
                  marginal_variable,
                  degree: int,
@@ -258,8 +261,7 @@ class PCEHilbertSchmidtBasis1D():
             "tensorproduct", self._variable,
             levels=[nquad]*self._variable.num_vars())
         # avoid error about negative strides thrown by torch
-        self._quadrule = (asarray(self._quadrule[0].copy()),
-                          asarray(self._quadrule[1]))
+        self._quadrule = (self._quadrule[0].copy(), self._quadrule[1])
 
     def nterms(self):
         return self._poly.indices.shape[1]
@@ -268,15 +270,20 @@ class PCEHilbertSchmidtBasis1D():
         return 1
 
     def __call__(self, samples):
-        return asarray(self._poly.basis_matrix(to_numpy(samples)))
+        return self._poly.basis_matrix(samples)
 
-    def quadrule(self):
+    def quadrature_rule(self):
         return self._quadrule
+
+    def __repr__(self):
+        return "{0}(nterms={1})".format(
+            self.__class__.__name__, self.nterms())
 
 
 from pyapprox.surrogates.interp.tensorprod import (
-    UnivariatePiecewiseLinearBasis, UnivariatePiecewiseMidPointConstantBasis)
-class EquidistantPicewisePolyBasis1D():
+    UnivariatePiecewiseLinearBasis, UnivariatePiecewiseMidPointConstantBasis,
+    UnivariatePiecewiseQuadraticBasis)
+class EquidistantPiecewisePolyBasis1D(HilbertSchmidtBasis):
     def __init__(self,
                  bounds: Union[list, array],
                  degree: int,
@@ -286,29 +293,28 @@ class EquidistantPicewisePolyBasis1D():
             self._basis = UnivariatePiecewiseMidPointConstantBasis()
         elif self._degree == 1:
             self._basis = UnivariatePiecewiseLinearBasis()
+        elif self._degree == 2:
+            self._basis = UnivariatePiecewiseQuadraticBasis()
         else:
             raise ValueError("degree {0} not supported".format(degree))
-        self._mesh = np.linspace(*bounds, nmesh)
-        self._quadweights = asarray(
-            self._basis.quadrature_weights(self._mesh)[:, None])
+        self._mesh = np.linspace(*bounds, nmesh)[None, :]
+        self._basis.set_nodes(self._mesh)
 
     def nterms(self):
-        if self._degree == 0:
-            return self._mesh.shape[0]-1
-        return self._mesh.shape[0]
+        return self._basis.nterms()
 
     def nvars(self):
         return 1
 
     def __call__(self, samples):
-        return asarray(self._basis(self._mesh, to_numpy(samples[0])))
+        return self._basis(samples)
 
-    def quadrule(self):
-        if self._degree == 0:
-            return (asarray(
-                (self._mesh[None, 1:]+self._mesh[None, :-1])/2),
-                    self._quadweights)
-        return asarray(self._mesh[None, :]), self._quadweights
+    def quadrature_rule(self):
+        return self._basis.quadrature_rule()
+
+    def __repr__(self):
+        return "{0}(degree={1}, nterms={2})".format(
+            self.__class__.__name__, self._degree, self.nterms())
 
 
 class HilbertSchmidtKernel(Kernel):

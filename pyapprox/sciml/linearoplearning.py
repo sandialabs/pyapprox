@@ -3,7 +3,7 @@ import numpy as np
 from pyapprox.sciml.util.hyperparameter import (
     HyperParameter, HyperParameterList, IdentityHyperParameterTransform)
 from pyapprox.sciml.kernels import HilbertSchmidtBasis
-from pyapprox.sciml.util._torch_wrappers import (solve, einsum)
+from pyapprox.sciml.util._torch_wrappers import (asarray)
 
 
 class HilbertSchmidtLinearOperator():
@@ -19,19 +19,19 @@ class HilbertSchmidtLinearOperator():
 
     def _set_coefficients(self, active_coef):
         assert active_coef.ndim == 2 and active_coef.shape[1] == 1
-        self._hyp_list.set_active_opt_params(active_coef[:, 0])
+        self._hyp_list.set_active_opt_params(asarray(active_coef[:, 0]))
 
     def _deterministic_inner_product(self, values1, values2):
         # take inner product over ndof
         # values1 (ndof, nsamples1)
         # values2 (ndof, nsamples2)
-        quad_w = self._basis.quadrule()[1]
+        quad_w = self._basis.quadrature_rule()[1]
         if values1.shape[0] != values2.shape[0]:
             raise ValueError(
                 "values1.shape {0}".format(values1.shape) +
                 " does not match values2.shape {0}".format(
                     values2.shape))
-        integral = einsum("ij,ik->kj", quad_w*values1, values2)
+        integral = np.einsum("ij,ik->kj", quad_w*values1, values2)
         # Keep the following to show what einsum is doing
         # nsamples1, nsamples2 = values1.shape[1], values2.shape[1]
         # integral = np.empty((nsamples1, nsamples2))
@@ -45,14 +45,14 @@ class HilbertSchmidtLinearOperator():
     def _basis_matrix(self, out_points, in_values):
         # out_points (nin_vars, nout_dof)
         # in_fun_values (nin_dof x nsamples)
-        quad_x = self._basis.quadrule()[0]
+        quad_x = self._basis.quadrature_rule()[0]
         # out_basis_vals (nout_dof, nout_basis)
         out_basis_vals = self._basis(out_points)
         # in_prods (nsamples, nin_basis)
         in_prods = self._deterministic_inner_product(
             self._basis(quad_x), in_values)
         # outerproduct of inner and outer basis functions
-        basis_matrix = einsum(
+        basis_matrix = np.einsum(
             "ij,kl->jlik", out_basis_vals, in_prods)
         nout_dof = out_points.shape[1]
         nsamples = in_values.shape[1]
@@ -70,10 +70,9 @@ class HilbertSchmidtLinearOperator():
         return basis_matrix
 
     def __call__(self, in_fun_values, out_points):
-        # in_fun_values must be computed at self._in_quadrule[0]
         # basis_matrix (nbasis, nout_dof, nsamples)
         basis_mat = self._basis_matrix(out_points, in_fun_values)
-        vals = einsum("ijk,i->jk", basis_mat, self._hyp_list.get_values())
+        vals = np.einsum("ijk,i->jk", basis_mat, self._hyp_list.get_values())
         # Keep the following to show what einsum is doing
         # nout_dof = out_points.shape[1]
         # nsamples = in_fun_values.shape[1]
@@ -84,9 +83,9 @@ class HilbertSchmidtLinearOperator():
         return vals
 
     def _gram_matrix(self, basis_mat, out_weights):
-        quad_w = self._basis.quadrule()[1]
+        quad_w = self._basis.quadrature_rule()[1]
         assert quad_w.ndim == 2 and quad_w.shape[1] == 1
-        tmp = einsum(
+        tmp = np.einsum(
             "ijk, ljk->ilk", basis_mat, quad_w[None, ...]*basis_mat)
         gram_mat = (tmp*out_weights[:, 0]).sum(axis=2)
         # Keep the following to show what einsum is doing
@@ -100,8 +99,8 @@ class HilbertSchmidtLinearOperator():
         return gram_mat
 
     def _rhs(self, train_out_values, basis_mat, out_weights):
-        quad_w = self._basis.quadrule()[1]
-        tmp = einsum(
+        quad_w = self._basis.quadrature_rule()[1]
+        tmp = np.einsum(
             "ijk, jk->ik", basis_mat, quad_w*train_out_values)
         rhs = (tmp*out_weights[:, 0]).sum(axis=1)[:, None]
         # Keep the following to show what einsum is doing
@@ -113,9 +112,10 @@ class HilbertSchmidtLinearOperator():
         return rhs
 
     def fit(self, train_in_values, train_out_values, out_weights):
-        quad_x = self._basis.quadrule()[0]
+        quad_x = self._basis.quadrature_rule()[0]
         basis_mat = self._basis_matrix(quad_x, train_in_values)
         gram_mat = self._gram_matrix(basis_mat, out_weights)
         rhs = self._rhs(train_out_values, basis_mat, out_weights)
-        coef = solve(gram_mat, rhs)
+        print(np.linalg.cond(gram_mat))
+        coef = np.linalg.solve(gram_mat, rhs)
         self._set_coefficients(coef)

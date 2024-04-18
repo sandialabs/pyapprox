@@ -16,16 +16,17 @@ class GreensFunctionSolver():
         self._quad_rule = quad_rule
 
     def _eval(self, forcing_vals, xx):
-        quad_xx, quad_ww = self._quad_rule.get_samples_weights()
+        quad_xx, quad_ww = self._quad_rule
         assert forcing_vals.ndim == 2
         # assert forcing_vals.shape[1] == 1
         # return (self._kernel(xx, quad_xx)*forcing_vals[:, 0]) @ quad_ww
         return einsum(
-            "ijk,j->ik", self._kernel(xx, quad_xx)[..., None]*forcing_vals,
-            quad_ww[:, 0])
+            "ijk,j->ik",
+            asarray(self._kernel(xx, quad_xx)[..., None]*forcing_vals),
+            asarray(quad_ww[:, 0]))
 
     def __call__(self, forcing_fun, xx):
-        quad_xx, quad_ww = self._quad_rule.get_samples_weights()
+        quad_xx, quad_ww = self._quad_rule
         assert quad_xx.shape[0] == xx.shape[0]
         return self._eval(forcing_fun(quad_xx), xx)
 
