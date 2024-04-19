@@ -56,8 +56,9 @@ from pyapprox.sciml.integraloperators import (
     DenseAffineIntegralOperator)
 from pyapprox.sciml.kernels import (
     ConstantKernel, MaternKernel, Legendre1DHilbertSchmidtKernel)
-from pyapprox.sciml.kernels import HomogeneousLaplace1DGreensKernel
-from pyapprox.sciml.quadrature import Fixed1DTrapezoidIOQuadRule
+from pyapprox.sciml.greensfunctions import HomogeneousLaplace1DGreensKernel
+from pyapprox.sciml.quadrature import (
+    Fixed1DTrapezoidIOQuadRule, Transformed1DQuadRule)
 from pyapprox.sciml.util import fct
 from pyapprox.sciml.util._torch_wrappers import asarray
 
@@ -68,7 +69,8 @@ nquad = 100
 greens_fun = HomogeneousLaplace1DGreensKernel(kappa, [1e-3, 1])
 # TODO currently quadrature rules defined on [0, 1] need to pass
 # a transform that defines them on a user specified domain
-quad_rule = Fixed1DTrapezoidIOQuadRule(nquad)
+quad_rule = Transformed1DQuadRule(
+    Fixed1DTrapezoidIOQuadRule(nquad), [0, 1])
 
 
 def forc_fun(xx):

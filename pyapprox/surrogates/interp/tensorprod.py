@@ -466,6 +466,7 @@ class UnivariateInterpolatingBasis(UnivariateBasis):
 
     def set_nodes(self, nodes):
         if nodes.ndim != 2 or nodes.shape[0] != 1:
+            print(nodes)
             raise ValueError("nodes must be a 2D row vector")
         self._nodes = nodes
 

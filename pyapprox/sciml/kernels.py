@@ -11,8 +11,7 @@ from pyapprox.surrogates.interp.indexing import (
 from pyapprox.surrogates.integrate import integrate
 
 from pyapprox.sciml.util._torch_wrappers import (
-    exp, cdist, asarray, inf, full, array, empty, get_diagonal, hstack, norm,
-    absolute, to_numpy, linspace)
+    exp, cdist, asarray, inf, full, array, empty, get_diagonal, hstack, norm)
 from pyapprox.sciml.util.hyperparameter import (
     HyperParameter, HyperParameterList, LogHyperParameterTransform,
     IdentityHyperParameterTransform)
@@ -133,27 +132,6 @@ class ConstantKernel(Kernel):
         const = empty((X1.shape[1], X2.shape[1]))
         const[:] = self._const.get_values()[0]
         return const
-
-
-class HomogeneousLaplace1DGreensKernel(Kernel):
-    def __init__(self,
-                 kappa: Union[float, array],
-                 kappa_bounds: array):
-        self._nvars = 1
-        self._kappa = HyperParameter(
-            "kappa", 1, kappa, kappa_bounds,
-            LogHyperParameterTransform())
-        self.hyp_list = HyperParameterList([self._kappa])
-
-    def __call__(self, X1, X2=None):
-        kappa = self._kappa.get_values()
-        X1 = asarray(X1)
-        if X2 is None:
-            X2 = X1
-        else:
-            X2 = asarray(X2)
-        K = (0.5*(X1.T+X2-absolute(X2-X1.T))-X1.T*X2)/kappa
-        return K
 
 
 class PolynomialKernel(Kernel):

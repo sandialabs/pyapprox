@@ -100,7 +100,8 @@ example_filenames_in_order = [
     'plot_derive_dct.py',
     'plot_dct_properties.py',
     'plot_neural_operator_cases.py',
-    'plot_greens_function.py',
+    'plot_greens_functions.py',
+    'plot_learning_greens_functions.py',
     'plot_wave_equation.py',
     'plot_neural_network_backprop.py',
 ]

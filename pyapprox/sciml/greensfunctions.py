@@ -4,7 +4,7 @@ import numpy as np
 
 from pyapprox.sciml.kernels import Kernel
 from pyapprox.sciml.util._torch_wrappers import (
-    array, asarray, where, sin, zeros, exp, cos, einsum)
+    array, asarray, where, sin, zeros, exp, cos, einsum, absolute)
 from pyapprox.sciml.util.hyperparameter import (
     HyperParameter, HyperParameterList, LogHyperParameterTransform)
 # todo move HomogeneousLaplace1DGreensKernel here
@@ -31,10 +31,38 @@ class GreensFunctionSolver():
         return self._eval(forcing_fun(quad_xx), xx)
 
 
-class DrivenHarmonicOscillatorGreensKernel(Kernel):
+class HomogeneousLaplace1DGreensKernel(Kernel):
+    r"""
+    The Laplace Equation with homogeneous boundary conditions in 1D is
+
+    .. math:: -\kappa \nabla^2 u(x) &= f(x),\quad u(0)=u(1)=0
+
     """
-    \frac{d^2u}{dt^2}+w^2u=f
-    u(0) = u'(0) = 0
+    def __init__(self,
+                 kappa: Union[float, array],
+                 kappa_bounds: array):
+        self._nvars = 1
+        self._kappa = HyperParameter(
+            "kappa", 1, kappa, kappa_bounds,
+            LogHyperParameterTransform())
+        self.hyp_list = HyperParameterList([self._kappa])
+
+    def __call__(self, X1, X2=None):
+        kappa = self._kappa.get_values()
+        X1 = asarray(X1)
+        if X2 is None:
+            X2 = X1
+        else:
+            X2 = asarray(X2)
+        K = (0.5*(X1.T+X2-absolute(X2-X1.T))-X1.T*X2)/kappa
+        return K
+
+
+class DrivenHarmonicOscillatorGreensKernel(Kernel):
+    r"""
+    The Driven Harmonic Oscillator satisfies
+    
+    .. math::   \frac{\partial^2 u}{\partial t^2}+\omega^2u(t)=f(t), \quad    u(0) = u'(0) = 0
     """
     def __init__(self,
                  omega: Union[float, array],
@@ -58,9 +86,10 @@ class DrivenHarmonicOscillatorGreensKernel(Kernel):
 
 
 class Helmholtz1DGreensKernel(Kernel):
-    """
-    u_xx+k^2*u_tt = f(x) u(0)=u(L)=0
-    k is wave number
+    r"""
+    The Helmholtz Equation in 1D is
+    
+    .. math::  \frac{\partial^2 u}{\partial x^2}+k^2\frac{\partial^2 u}{\partial t^2} = f(x), \quad u(0)=u(L)=0
     """
     def __init__(self,
                  wavenum: Union[float, array],
@@ -94,17 +123,13 @@ class Helmholtz1DGreensKernel(Kernel):
 
 class HeatEquation1DGreensKernel(Kernel):
     r"""
-    du/dt-kdu^2/dx^2=Q(x,t)
-    u(x, 0) = f(x) u(0, t) = 0 u(L, t) = 0
+    Greens function for the heat equation
 
-    u(x,t) = int_0^L f(\xi)G(x,t;\xi,\tau) dxi +
-             int_0^L int_0^t Q(\xi, \tau)G(x,t;xi,tau)d\tau d\xi
+    .. math:: \dydx{u}{t}-k \frac{\partial^2 u}{\partial x^2}=Q(x,t)
 
-    At tau = 0, G(x, t; \xi, \tau) expresses the influence of the
-    initial temperature at x0 on the temperature at
-    position x and time t. In addition, G(x, t; \xi, \tau) shows the
-    influence of the source/sink term Q(\xi, \tau) at
-    position x0 and time t0 on the temperature at position x and time t
+    subject to
+
+    .. math:: u(x, 0) = f(x), \quad u(0, t) = 0, \quad u(L, t) = 0
 
     Non zero forcing Q requires 2D integration.
     """
@@ -145,9 +170,9 @@ class HeatEquation1DGreensKernel(Kernel):
 
 class WaveEquation1DGreensKernel(Kernel):
     r"""
-    u_tt = c^2u_xx u(0,t)=0 u(L, t)=0 u(x, 0) = f(x) u_t(x, 0)= g(x)
+    The wave equation in 1D is
 
-    u(x,t)=\int_0^L G_c(x,\xi,t,0)f(\xi) d\xi+\int_0^L G_s(x,\xi,t,0)g(\xi) d\xi
+    .. math:: \frac{\partial^2 u}{\partial t^2}+c^2\omega^2 u(t)=f(t), \quad    u(0, t) = u(L, t) = 0, \quad u(x, 0) = f(x), \dydx{u}{t}(x,0) = g(x)
     """
     def __init__(self,
                  coeff: Union[float, array],

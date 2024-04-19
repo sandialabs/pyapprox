@@ -6,8 +6,8 @@ import numpy as np
 from pyapprox.sciml.greensfunctions import (
     GreensFunctionSolver, DrivenHarmonicOscillatorGreensKernel,
     Helmholtz1DGreensKernel, HeatEquation1DGreensKernel,
-    WaveEquation1DGreensKernel, ActiveGreensKernel)
-from pyapprox.sciml.kernels import HomogeneousLaplace1DGreensKernel
+    WaveEquation1DGreensKernel, ActiveGreensKernel,
+    HomogeneousLaplace1DGreensKernel)
 from pyapprox.sciml.quadrature import (
     Fixed1DTrapezoidIOQuadRule, TensorProduct2DQuadRule,
     Transformed1DQuadRule, OnePointRule1D)
