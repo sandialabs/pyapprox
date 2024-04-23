@@ -152,7 +152,7 @@ class CERTANN():
         res = self._optimizer.optimize(self._hyp_list.get_active_opt_params())
         self._hyp_list.set_active_opt_params(res.x)
 
-    def save(self, filename):
+    def save_model(self, filename):
         '''
         To load, use pyapprox.sciml.network.load(filename)
         '''
@@ -166,7 +166,7 @@ class CERTANN():
             self.__class__.__name__, self._hyp_list._short_repr())
 
 
-def load(filename):
+def load_model(filename):
     return pickle.load(open(filename, 'rb'))
 
 

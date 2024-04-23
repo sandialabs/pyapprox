@@ -53,7 +53,7 @@ from pyapprox.sciml.activations import TanhActivation, IdentityActivation
 from pyapprox.sciml.util.hyperparameter import LogHyperParameterTransform
 from pyapprox.sciml.integraloperators import (
     KernelIntegralOperator, ChebyshevIntegralOperator,
-    DenseAffineIntegralOperator)
+    DenseAffineIntegralOperator, FourierHSOperator)
 from pyapprox.sciml.kernels import (
     ConstantKernel, MaternKernel, Legendre1DHilbertSchmidtKernel)
 from pyapprox.sciml.greensfunctions import HomogeneousLaplace1DGreensKernel
@@ -109,7 +109,7 @@ plt.show()
 # %%
 # CERTANN
 # -------
-# Now let's learn the Green's function using a PYAPPROX.SCIML. First load necessary
+# Now let's learn the Green's function using a CERTANN. First load necessary
 # modules
 
 
@@ -662,7 +662,7 @@ for width in range(1, 4):
     print('%8d     | %10.3e' % (mlp_size[-1], mlp_err[-1]))
 
 plt.semilogy(cheb_size, cheb_err, 'ko-', label='Chebyshev kernel', linewidth=2)
-# plt.semilogy(mlp_size, mlp_err, 'bs--', label='Single-layer MLP', linewidth=2)
+plt.semilogy(mlp_size, mlp_err, 'bs--', label='Single-layer MLP', linewidth=2)
 plt.grid()
 plt.title(r'Approximation of $f \mapsto u$: %d Dirac deltas, %d nodes' %
           (ntrain_samples, nx))
@@ -678,3 +678,49 @@ plt.show()
 # As expected, the convergence rates are significantly slower with Dirac
 # delta-like functions than with polynomials, but Chebyshev kernels still
 # outperform MLPs by an order of magnitude.
+
+# %%
+# Fourier Hilbert--Schmidt Kernel
+# -------------------------------
+# Same as before, but with Fourier basis
+
+nx = 128
+ntrain_samples = 50
+abscissa = np.linspace(0, 1, nx)[None, :]
+kmax = 12
+noutputs = abscissa.shape[1]
+train_mass_pts = np.random.uniform(0, 1, (ntrain_samples,))
+train_forc_funs = [
+    partial(dirac_delta_approx, mass_pt) for mass_pt in train_mass_pts]
+train_samples = np.hstack([f(abscissa) for f in train_forc_funs])
+train_values = np.hstack(
+    [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs])
+
+ctn = CERTANN(nx, [FourierHSOperator(kmax, channel_coupling='diag')],
+              [IdentityActivation()])
+ctn.fit(train_samples, train_values, tol=1e-6)
+
+# %%
+# Now let's see how the Fourier basis does on a test set.
+
+test_mass_pts = np.random.uniform(0, 1, (5,))
+test_forc_funs = [
+    partial(dirac_delta_approx, mass_pt) for mass_pt in test_mass_pts]
+test_samples = np.hstack([f(abscissa) for f in test_forc_funs])
+test_values = np.hstack(
+    [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs])
+ctn_sol = ctn(test_samples)
+exact_sol = test_values
+
+ax = plt.figure().gca()
+ax.plot(abscissa[0], exact_sol, '-k')
+ax.plot(abscissa[0], ctn_sol.numpy(), 'r--')
+plt.xlabel(r'$x$')
+plt.title('Fourier basis \n Exact $u$ (black), predicted $u$ (red), ' +
+          r'$k_\mathrm{max} = %d$' % kmax)
+plt.show()
+
+print('Relative error:', np.linalg.norm(
+    ctn_sol.numpy().flatten() - exact_sol.flatten()) / np.linalg.norm(
+    exact_sol.flatten()))
+print('Network size:', ctn._hyp_list.get_values().shape[0])

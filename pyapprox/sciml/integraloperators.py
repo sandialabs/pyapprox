@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from pyapprox.sciml.util._torch_wrappers import (
     empty, inf, vstack, flip, cos, arange, diag, zeros, pi, sqrt, cfloat, conj,
-    fft, ifft, fftshift, ifftshift, meshgrid, ones, einsum)
+    fft, ifft, fftshift, ifftshift, meshgrid, ones, einsum, triu, transpose)
 from pyapprox.sciml.util.hyperparameter import (
     HyperParameter, HyperParameterList, IdentityHyperParameterTransform)
 from pyapprox.sciml.util import fct
@@ -261,7 +261,6 @@ class DenseAffinePointwiseOperator(IntegralOperator):
                 raise ValueError(
                     'Could not infer channel dimension. y_k_samples.shape[-2] '
                     'must be channel_in.')
-
         W = (self._weights_biases.get_values()[:-self._b_size].reshape(
              self._channel_out, self._channel_in))
         b = self._weights_biases.get_values()[-self._b_size:]
@@ -284,37 +283,32 @@ class DenseAffinePointwiseOperatorFixedBias(DenseAffinePointwiseOperator):
         return bounds.flatten()
 
 
-class FourierConvolutionOperator(IntegralOperator):
-    def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1):
-        """
-        Parameters
-        ----------
-        kmax : integer
-            The maximum retained frequency
+class Reshape(IntegralOperator):
+    def __init__(self, output_shape):
+        if not hasattr(output_shape, '__iter__'):
+            raise ValueError('output_shape must be iterable')
+        self._hyps = HyperParameter(
+            "reshape", 0, np.asarray([]), np.asarray([np.nan, np.nan]),
+            IdentityHyperParameterTransform())
+        self._hyp_list = HyperParameterList([self._hyps])
+        self._output_shape = output_shape
 
-        v0 : float
-            the initial entries of the tensor representing the fourier
-            transform of the implicitly defined kernel
-        """
+    def _integrate(self, y_k_samples):
+        nsamples = y_k_samples.shape[-1]
+        return y_k_samples.reshape(*self._output_shape, nsamples)
+
+
+class BaseFourierOperator(IntegralOperator):
+    def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1):
         self._kmax = kmax
         self._format_nx(nx)
         self._d = 1 if self._nx is None else len(self._nx)
         self._channel_in = channel_in
         self._channel_out = channel_out
-
-        # Use symmetry since target is real-valued.
-        # 1 entry for constant, 2 for each mode between 1 and kmax
-        v = empty((self._channel_in * self._channel_out *
-                  (2*self._kmax+1)**self._d,)).numpy()
-        v[:] = 0.0 if v0 is None else v0
-        self._R = HyperParameter(
-            'Fourier_R', v.size, v, [-inf, inf],
-            IdentityHyperParameterTransform())
-        self._hyp_list = HyperParameterList([self._R])
+        self._num_freqs = (self._kmax+1)**self._d
+        self._num_coefs = (2*self._kmax+1)**self._d
 
     def _integrate(self, y_k_samples):
-        # If channel_in is not explicit in y_k_samples, then assume
-        # channel_in = 1. Otherwise, raise error.
         channel_implicit = False
         if y_k_samples.shape[-2] != self._channel_in:
             if self._channel_in == 1:
@@ -353,29 +347,179 @@ class FourierConvolutionOperator(IntegralOperator):
         freq_slices = [slice(n-self._kmax, n+self._kmax+1) for n in nyquist]
         fftshift_y_proj = fftshift_y[freq_slices]
 
-        # Use symmetry c_{-n} = c_n, 1 <= n <= kmax
-        v_float = self._hyp_list.get_values()
-        v = zeros(((1+(2*self._kmax+1)**self._d) // 2, self._channel_out,
-                   self._channel_in), dtype=cfloat)
-
-        # v[n] = c_n,   0 <= n <= kmax
-        real_imag_cutoff = v.shape[0] * self._channel_in * self._channel_out
-        v.real.flatten()[:] = v_float[:real_imag_cutoff]
-        v.imag[1:, ...].flatten()[:] = v_float[real_imag_cutoff:]
-
-        # R[n, d_c, d_c] = c_n,   -kmax <= n <= kmax
-        R = vstack([flip(conj(v[1:, ...]), dims=[0]), v])
-        R = R.reshape(*fftshift_y_proj.shape[:-2], self._channel_out,
-                      self._channel_in)
+        R, summation_str = self._form_operator()
 
         # Do convolution and lift into original spatial resolution
-        conv_shift = einsum('...jk,...kl->...jl', R, fftshift_y_proj)
+        conv_shift = einsum(summation_str, R,
+                            fftshift_y_proj.reshape(self._num_coefs,
+                                                    self._channel_in, ntrain))
+        conv_shift = conv_shift.reshape(*fftshift_y_proj.shape[:-2],
+                                        self._channel_out, ntrain)
         conv_shift_lift = zeros((*fft_y.shape[:-2], self._channel_out, ntrain),
                                 dtype=cfloat)
         conv_shift_lift[freq_slices] = conv_shift
         conv_lift = ifftshift(conv_shift_lift, axis=list(range(self._d)))
         res = ifft(conv_lift, axis=list(range(self._d))).real
         return res.reshape(output_shape)
+
+
+class FourierHSOperator(BaseFourierOperator):
+    def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1,
+                 channel_coupling='full'):
+        """
+        Dense coupling in space (non-radial kernel). Not tested for spatial
+        dimension > 1
+
+        Parameters
+        ----------
+        kmax : integer
+            The maximum retained frequency
+
+        nx : int or tuple of ints
+            Spatial discretization
+
+        v0 : array of floats
+            The initial entries of the tensor representing the fourier
+            transform of the implicitly defined kernel
+
+        channel_in : int
+            Channel dimension of inputs
+
+        channel_out : int
+            Channel dimension of outputs
+
+        channel_coupling : str
+            'full' : dense matrix (fully coupled channels)
+            'diag' : diagonal matrix (fully decoupled channels)
+        """
+
+        super().__init__(kmax=kmax, nx=nx, v0=v0, channel_in=channel_in,
+                         channel_out=channel_out)
+
+        if channel_coupling.lower() not in ['full', 'diag']:
+            raise ValueError("channel_coupling must be 'full' or 'diag'")
+        self._channel_coupling = channel_coupling.lower()
+
+        # Use conjugate symmetry since target is real-valued.
+        # 1 entry for constant, 2 for each mode between 1 and kmax
+        self._channel_factor = (self._channel_in*self._channel_out
+                                if self._channel_coupling == 'full' else
+                                self._channel_in)
+        v = empty(((2*self._num_freqs**2-1) * self._channel_factor,)).numpy()
+        v[:] = 0.0 if v0 is None else v0
+        self._R = HyperParameter(
+            'FourierHS_Operator', v.size, v, [-inf, inf],
+            IdentityHyperParameterTransform())
+        self._hyp_list = HyperParameterList([self._R])
+
+    def _form_operator(self):
+        v_float = self._hyp_list.get_values()
+        if self._channel_coupling == 'full':
+            v = zeros((self._num_coefs, self._num_coefs, self._channel_out,
+                       self._channel_in), dtype=cfloat)
+        else:
+            v = zeros((self._num_coefs, self._num_coefs, self._channel_out),
+                      dtype=cfloat)
+
+        # With channel_in = channel_out = 1, we need
+        #       u_i = \sum_{j=-kmax}^{kmax} R_{ij} y_j
+        # to be conjugate-symmetric about i=0, and we need R to be Hermitian so
+        # that
+        #       K(x, y) = K(y, x).
+        # Pumping through the algebra yields the construction below. Compared
+        # to learning all R_{ij} independently, this reduces the number of
+        # trainable parameters by a factor of 4.
+
+        start = 0
+        for i in range(self._kmax+1):
+            stride = (2*self._kmax+1 - 2*i)*self._channel_factor
+            cols = slice(i, i+stride)
+            v[i, cols, ...].real.flatten()[:] = v_float[start:start+stride]
+            if i < self._kmax:
+                v[i, cols, ...].imag.flatten()[:] = v_float[start + stride:
+                                                            start + 2*stride]
+            start += 2*stride
+
+        # Take Hermitian transpose in first two dimensions; torch operates on
+        # last two dimensions by default
+        A = v + conj(transpose(v, 0, 1))
+        Atilde = triu(flip(A, dims=[1]), diagonal=1)
+        Atilde = conj(flip(Atilde, dims=[0]))
+        R = A + Atilde
+        summation_str = ('ijkl,jlm->ikm' if self._channel_coupling == 'full'
+                         else 'ijk,jkm->ikm')
+        return (R, summation_str)
+
+
+class FourierConvolutionOperator(BaseFourierOperator):
+    def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1,
+                 channel_coupling='full'):
+        """
+        Diagonal coupling in space (radial/convolutional kernel).
+
+        Parameters
+        ----------
+        kmax : integer
+            The maximum retained frequency
+
+        nx : int or tuple of ints
+            Spatial discretization
+
+        v0 : array of floats
+            The initial entries of the tensor representing the fourier
+            transform of the implicitly defined kernel
+
+        channel_in : int
+            Channel dimension of inputs
+
+        channel_out : int
+            Channel dimension of outputs
+
+        channel_coupling : str
+            'full' : dense matrix (fully coupled channels)
+            'diag' : diagonal matrix (fully decoupled channels)
+        """
+
+        super().__init__(kmax=kmax, nx=nx, v0=v0, channel_in=channel_in,
+                         channel_out=channel_out)
+
+        if channel_coupling.lower() not in ['full', 'diag']:
+            raise ValueError("channel_coupling must be 'full' or 'diag'")
+        self._channel_coupling = channel_coupling.lower()
+
+        # Use symmetry since target is real-valued.
+        # 1 entry for constant, 2 for each mode between 1 and kmax
+        self._channel_factor = (self._channel_in*self._channel_out
+                                if self._channel_coupling == 'full' else
+                                self._channel_in)
+        v = empty((self._num_coefs * self._channel_factor,)).numpy()
+        v[:] = 0.0 if v0 is None else v0
+        self._R = HyperParameter(
+            'FourierConv_Operator', v.size, v, [-inf, inf],
+            IdentityHyperParameterTransform())
+        self._hyp_list = HyperParameterList([self._R])
+
+    def _form_operator(self):
+        if self._channel_coupling == 'full':
+            v = zeros(((1+self._num_coefs)//2, self._channel_out,
+                       self._channel_in), dtype=cfloat)
+        else:
+            v = zeros(((1+self._num_coefs)//2, self._channel_out),
+                      dtype=cfloat)
+
+        # Use symmetry c_{-n} = c_n, 1 <= n <= kmax
+        v_float = self._hyp_list.get_values()
+
+        # v[n] = c_n,   0 <= n <= kmax
+        real_imag_cutoff = v.shape[0] * self._channel_factor
+        v.real.flatten()[:] = v_float[:real_imag_cutoff]
+        v.imag[1:, ...].flatten()[:] = v_float[real_imag_cutoff:]
+
+        # R[n, d_c, d_c] = c_n,   -kmax <= n <= kmax
+        R = vstack([flip(conj(v[1:, ...]), dims=[0]), v])
+        summation_str = ('ikl,ilm->ikm' if self._channel_coupling == 'full'
+                         else 'ik,ikm->ikm')
+        return (R, summation_str)
 
 
 class ChebyshevConvolutionOperator(IntegralOperator):
