@@ -163,7 +163,7 @@ class TestModelwrappers(unittest.TestCase):
         model_values = model(valid_samples)
         assert np.allclose(model_values, valid_values)
 
-        # check error thrown if two many samples are requested
+        # check error thrown if too many samples are requested
         # with randomnes=None
         self.assertRaises(ValueError, model.rvs, nsamples, randomness=None)
 
