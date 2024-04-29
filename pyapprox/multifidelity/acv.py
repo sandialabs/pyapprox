@@ -597,7 +597,7 @@ class CVEstimator(MCEstimator):
         bootstrap_vals = (mode in modes[:2])
         bootstrap_weights = (mode in modes[1:])
         nbootstraps = int(nbootstraps)
-        estimator_vals = np.empty((nbootstraps, self._stat._nqoi))
+        estimator_vals = []
         if bootstrap_weights:
             npilot_samples = pilot_values[0].shape[0]
             self_stat = copy.deepcopy(self._stat)
@@ -618,8 +618,9 @@ class CVEstimator(MCEstimator):
                 weights_list.append(weights.flatten())
             else:
                 weights = self._optimized_weights
-            estimator_vals[kk] = self._estimate(
-                values_per_model, weights, bootstrap=bootstrap_vals)
+            estimator_vals.append(self._estimate(
+                values_per_model, weights, bootstrap=bootstrap_vals).flatten())
+        estimator_vals = np.array(estimator_vals)
         bootstrap_values_mean = estimator_vals.mean(axis=0)
         bootstrap_values_covar = np.cov(estimator_vals, rowvar=False, ddof=1)
         if bootstrap_weights:

@@ -609,7 +609,6 @@ class TestMOMC(unittest.TestCase):
             target_cost, {"scaling": 1., "maxiter": 200,
                           "init_guess": {"disp": True, "maxiter": 100,
                                          "lower_bound": 1e-3}})
-        print(est)
 
         samples_per_model = est.generate_samples_per_model(model.variable.rvs)
         values_per_model = [
@@ -630,11 +629,43 @@ class TestMOMC(unittest.TestCase):
             return
 
         # just test that these functions pass
-        # use the previous allocation even though it is not optimal
-        stat = multioutput_stats["mean_variance"](nqoi)
+        # stat_name = "mean"
+        stat_name = "mean_variance"
+        stat = multioutput_stats[stat_name](nqoi)
         npilot_samples = 20
         pilot_samples = model.variable.rvs(npilot_samples)
         pilot_values_per_model = [fun(pilot_samples) for fun in funs]
+        stat.set_pilot_quantities(*stat.compute_pilot_quantities(
+            pilot_values_per_model))
+
+        if est_name == "cv":
+            lfcovs = []
+            lb, ub = 0, 0
+            for ii in range(1, len(cov)):
+                ub += nqoi
+                lfcovs.append(cov[lb:ub, lb:ub])
+                lb = ub
+            if stat_name == "mean":
+                lowfi_stats = means[1:]
+            elif stat_name == "variance":
+                lowfi_stats = lfcovs.flatten()
+            else:
+                lowfi_stats = [
+                    np.hstack((m, cov.flatten()))
+                    for m, cov in zip(means[1:], lfcovs)]
+            est = get_estimator(
+                "cv", stat, costs, lowfi_stats=lowfi_stats)
+        else:
+            est = get_estimator(est_name, stat, costs)
+        est.allocate_samples(
+            target_cost, {"scaling": 1., "maxiter": 200,
+                          "init_guess": {"disp": True, "maxiter": 100,
+                                         "lower_bound": 1e-3}})
+        print(est)
+        samples_per_model = est.generate_samples_per_model(model.variable.rvs)
+        values_per_model = [
+            f(samples) for f, samples in zip(funs, samples_per_model)]
+
         (bootstrap_values_mean, bootstrap_values_cov, bootstrap_weights_mean,
          bootstrap_weights_cov) = est.bootstrap(
              values_per_model, ntrials, mode="values_weights",
@@ -647,7 +678,7 @@ class TestMOMC(unittest.TestCase):
              values_per_model, ntrials, mode="weights",
              pilot_values=pilot_values_per_model)
         # print(bootstrap_values_mean, bootstrap_values_cov, "K")
-        # print(bootstrap_weights_mean, bootstrap_weights_cov) 
+        # print(bootstrap_weights_mean, bootstrap_weights_cov)
 
     def test_bootstrap_estimator(self):
         test_cases = [
