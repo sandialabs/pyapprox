@@ -381,6 +381,47 @@ class TestIntegralOperators(unittest.TestCase):
                'Pointwise affine operator with fixed bias does not match ' +
                'values')
 
+    def test_fourier_hilbert_schmidt(self):
+        # diagonal channel coupling
+        kmax = 4
+        d_c = 2
+        num_entries = (2*(kmax+1)**2-1)*d_c
+        v_float = tw.asarray(np.random.normal(0, 1, (num_entries,)))
+        v = tw.zeros((2*kmax+1, 2*kmax+1, d_c), dtype=tw.cfloat)
+        start = 0
+        for i in range(kmax+1):
+            stride = (2*kmax+1 - 2*i)*d_c
+            cols = slice(i, 2*kmax+1-i)
+            v[i, cols, ...].real.flatten()[:] = v_float[start:start+stride]
+            if i < kmax:
+                v[i, cols, ...].imag.flatten()[:] = v_float[start + stride:
+                                                            start + 2*stride]
+            start += 2*stride
+
+        # Take Hermitian transpose in first two dimensions; torch operates on
+        # last two dimensions by default
+        v = tw.permute(v, list(range(v.ndim-1, -1, -1)))
+        A = v + tw.tril(v, diagonal=-1).mH
+        Atilde = tw.tril(tw.flip(A, dims=[-2]), diagonal=-1)
+        Atilde = tw.conj(tw.flip(Atilde, dims=[-1]))
+        R = A + Atilde
+        R = tw.permute(R, list(range(R.ndim-1, -1, -1)))
+        for k in range(d_c):
+            R_H = R[..., k].mH.clone()
+            for i in range(2*kmax+1):
+                R_H[i, i] = R[i, i, k]
+            assert np.allclose(R_H.resolve_conj(), R[..., k].resolve_conj()), (
+                   'FourierHSOperator: Off-diagonal elements of kernel tensor '
+                   + 'are not Hermitian-symmetric')
+
+        y = tw.asarray(np.random.normal(0, 1, (2*kmax+1, d_c)))[..., None]
+        fftshift_y = tw.fftshift(tw.fft(y))
+        R_fft_y = tw.einsum('ijk,jkl->ikl', R, fftshift_y)
+        out = tw.ifft(tw.ifftshift(R_fft_y))
+        assert np.allclose(out.imag.squeeze(), np.zeros((2*kmax+1, d_c))), (
+               'FourierHSOperator: Kernel tensor does not maintain conjugate-'
+               + 'symmetry of outputs')
+
 
 if __name__ == "__main__":
     integral_operators_test_suite = (

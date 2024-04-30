@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from pyapprox.sciml.util._torch_wrappers import (
     empty, inf, vstack, flip, cos, arange, diag, zeros, pi, sqrt, cfloat, conj,
-    fft, ifft, fftshift, ifftshift, meshgrid, ones, einsum, triu, transpose)
+    fft, ifft, fftshift, ifftshift, meshgrid, ones, einsum, permute, tril)
 from pyapprox.sciml.util.hyperparameter import (
     HyperParameter, HyperParameterList, IdentityHyperParameterTransform)
 from pyapprox.sciml.util import fct
@@ -75,7 +75,7 @@ class AffineProjectionOperator(IntegralOperator):
         self._nvars_mat = self._channel_in + 1
         affine_weights = np.ones(self._nvars_mat)
         if v0 is not None:
-            affine_weights[:] = v0
+            affine_weights[:] = np.copy(v0)
         else:
             affine_weights[-1] = 0.0
         self._affine_weights = HyperParameter(
@@ -164,7 +164,8 @@ class DenseAffineIntegralOperator(IntegralOperator):
     def _default_values(self, v0):
         weights_biases = np.empty((self._nvars_mat,), dtype=float)
         weights_biases[:] = (
-            np.random.normal(0, 1, self._nvars_mat) if v0 is None else v0)
+            np.random.normal(0, 1, self._nvars_mat) if v0 is None else
+            np.copy(v0))
         return weights_biases
 
     def _default_bounds(self):
@@ -245,7 +246,8 @@ class DenseAffinePointwiseOperator(IntegralOperator):
     def _default_values(self, v0):
         weights_biases = np.empty((self._nvars_mat,), dtype=float)
         weights_biases[:] = (
-            np.random.normal(0, 1, self._nvars_mat) if v0 is None else v0)
+            np.random.normal(0, 1, self._nvars_mat) if v0 is None else
+            np.copy(v0))
         return weights_biases
 
     def _default_bounds(self):
@@ -406,7 +408,7 @@ class FourierHSOperator(BaseFourierOperator):
                                 if self._channel_coupling == 'full' else
                                 self._channel_in)
         v = empty(((2*self._num_freqs**2-1) * self._channel_factor,)).numpy()
-        v[:] = 0.0 if v0 is None else v0
+        v[:] = 0.0 if v0 is None else np.copy(v0)
         self._R = HyperParameter(
             'FourierHS_Operator', v.size, v, [-inf, inf],
             IdentityHyperParameterTransform())
@@ -422,10 +424,14 @@ class FourierHSOperator(BaseFourierOperator):
                       dtype=cfloat)
 
         # With channel_in = channel_out = 1, we need
+        #
         #       u_i = \sum_{j=-kmax}^{kmax} R_{ij} y_j
-        # to be conjugate-symmetric about i=0, and we need R to be Hermitian so
-        # that
-        #       K(x, y) = K(y, x).
+        #
+        # to be conjugate-symmetric about i=0, and we need off-diagonal
+        # elements of R to be Hermitian so that
+        #
+        #       K(x, y) = K(y, x)           (in the real part).
+        #
         # Pumping through the algebra yields the construction below. Compared
         # to learning all R_{ij} independently, this reduces the number of
         # trainable parameters by a factor of 4.
@@ -433,7 +439,7 @@ class FourierHSOperator(BaseFourierOperator):
         start = 0
         for i in range(self._kmax+1):
             stride = (2*self._kmax+1 - 2*i)*self._channel_factor
-            cols = slice(i, i+stride)
+            cols = slice(i, 2*self._kmax+1-i)
             v[i, cols, ...].real.flatten()[:] = v_float[start:start+stride]
             if i < self._kmax:
                 v[i, cols, ...].imag.flatten()[:] = v_float[start + stride:
@@ -442,10 +448,12 @@ class FourierHSOperator(BaseFourierOperator):
 
         # Take Hermitian transpose in first two dimensions; torch operates on
         # last two dimensions by default
-        A = v + conj(transpose(v, 0, 1))
-        Atilde = triu(flip(A, dims=[1]), diagonal=1)
-        Atilde = conj(flip(Atilde, dims=[0]))
+        v = permute(v, list(range(v.ndim-1, -1, -1)))
+        A = v + tril(v, diagonal=-1).mH
+        Atilde = tril(flip(A, dims=[-2]), diagonal=-1)
+        Atilde = conj(flip(Atilde, dims=[-1]))
         R = A + Atilde
+        R = permute(R, list(range(R.ndim-1, -1, -1)))
         summation_str = ('ijkl,jlm->ikm' if self._channel_coupling == 'full'
                          else 'ijk,jkm->ikm')
         return (R, summation_str)
@@ -493,7 +501,7 @@ class FourierConvolutionOperator(BaseFourierOperator):
                                 if self._channel_coupling == 'full' else
                                 self._channel_in)
         v = empty((self._num_coefs * self._channel_factor,)).numpy()
-        v[:] = 0.0 if v0 is None else v0
+        v[:] = 0.0 if v0 is None else np.copy(v0)
         self._R = HyperParameter(
             'FourierConv_Operator', v.size, v, [-inf, inf],
             IdentityHyperParameterTransform())
@@ -534,7 +542,7 @@ class ChebyshevConvolutionOperator(IntegralOperator):
         # 1 entry for each mode between 0 and kmax
         v = empty((channel_in * channel_out *
                   (self._kmax+1)**self._d,)).numpy()
-        v[:] = 0.0 if v0 is None else v0
+        v[:] = 0.0 if v0 is None else np.copy(v0)
         self._R = HyperParameter(
             'Chebyshev_R', v.size, v, [-inf, inf],
             IdentityHyperParameterTransform())
@@ -650,9 +658,9 @@ class ChebyshevIntegralOperator(IntegralOperator):
             # Sparse symmetric matrix, nonzero entries of upper triangle
             v = empty((nonzero_inds.shape[0], )).numpy()
         if chol:
-            v[:] = 1.0 if v0 is None else v0
+            v[:] = 1.0 if v0 is None else np.copy(v0)
         else:
-            v[:] = 0.0 if v0 is None else v0
+            v[:] = 0.0 if v0 is None else np.copy(v0)
         self._A = HyperParameter(
             'Chebyshev_A', v.size, v, [-inf, inf],
             IdentityHyperParameterTransform())

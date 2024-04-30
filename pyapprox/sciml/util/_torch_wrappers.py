@@ -269,5 +269,5 @@ def outer_product(input_sets):
 
 
 gelu = torch.nn.GELU
-triu = torch.triu
-transpose = torch.transpose
+tril = torch.tril
+permute = torch.permute
