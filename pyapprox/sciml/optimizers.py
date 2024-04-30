@@ -56,6 +56,7 @@ class Optimizer(ABC):
         self._objective_fun = None
         self._verbosity = 0
         self._tol = 1e-5
+        self._kwargs = {}
 
     def set_objective_function(self, objective_fun):
         """
@@ -110,6 +111,10 @@ class Optimizer(ABC):
         """
         self._tol = tol
 
+    def set_options(self, **kwargs):
+        for key in kwargs.keys():
+            self._kwargs[key] = kwargs[key]
+
     def _get_random_optimizer_initial_guess(self):
         # convert bounds to numpy to use numpy random number generator
         bounds = to_numpy(self._bounds)
@@ -163,16 +168,18 @@ class LBFGSB(Optimizer):
         if not self._is_iterate_within_bounds(iterate):
             raise ValueError('Initial iterate is not within bounds')
 
+        self.set_options(**kwargs)
+        if 'options' not in self._kwargs.keys():
+            self._kwargs['options'] = {}
         if self._verbosity < 3:
-            kwargs['options'] = {'iprint': self._verbosity-1}
+            self._kwargs['options']['iprint'] = self._verbosity-1
         else:
-            kwargs['options'] = {'iprint': 200}
+            self._kwargs['options']['iprint'] = 200
 
-        kwargs['tol'] = self._tol
-
+        self._kwargs['tol'] = self._tol
         scipy_res = scipy.optimize.minimize(
             self._objective_fun, to_numpy(iterate), method='L-BFGS-B',
-            jac=True, bounds=to_numpy(self._bounds), **kwargs)
+            jac=True, bounds=to_numpy(self._bounds), **self._kwargs)
 
         if self._verbosity > 0:
             print(ScipyOptimizationResult(scipy_res))
