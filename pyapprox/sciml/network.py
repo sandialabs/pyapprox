@@ -150,6 +150,7 @@ class CERTANN():
         self._optimizer.set_verbosity(verbosity)
         self._optimizer.set_tolerance(tol)
         res = self._optimizer.optimize(self._hyp_list.get_active_opt_params())
+        self._res = res
         self._hyp_list.set_active_opt_params(res.x)
 
     def save_model(self, filename):
