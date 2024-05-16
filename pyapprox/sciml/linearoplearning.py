@@ -50,7 +50,7 @@ class HilbertSchmidtLinearOperator():
         out_basis_vals = self._basis(out_points)
         # in_prods (nsamples, nin_basis)
         in_prods = self._deterministic_inner_product(
-            self._basis(quad_x), in_values)
+            self._basis(quad_x).numpy(), in_values)
         # outerproduct of inner and outer basis functions
         basis_matrix = np.einsum(
             "ij,kl->jlik", out_basis_vals, in_prods)
@@ -116,6 +116,5 @@ class HilbertSchmidtLinearOperator():
         basis_mat = self._basis_matrix(quad_x, train_in_values)
         gram_mat = self._gram_matrix(basis_mat, out_weights)
         rhs = self._rhs(train_out_values, basis_mat, out_weights)
-        print(np.linalg.cond(gram_mat))
         coef = np.linalg.solve(gram_mat, rhs)
         self._set_coefficients(coef)

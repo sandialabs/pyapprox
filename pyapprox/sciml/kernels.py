@@ -8,10 +8,14 @@ from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.polychaos.gpc import get_polynomial_from_variable
 from pyapprox.surrogates.interp.indexing import (
     compute_hyperbolic_indices)
+from pyapprox.surrogates.interp.tensorprod import (
+    UnivariatePiecewiseLinearBasis, UnivariatePiecewiseMidPointConstantBasis,
+    UnivariatePiecewiseQuadraticBasis)
 from pyapprox.surrogates.integrate import integrate
 
 from pyapprox.sciml.util._torch_wrappers import (
-    exp, cdist, asarray, inf, full, array, empty, get_diagonal, hstack, norm)
+    exp, cdist, asarray, inf, full, array, empty, get_diagonal, hstack, norm,
+    to_numpy)
 from pyapprox.sciml.util.hyperparameter import (
     HyperParameter, HyperParameterList, LogHyperParameterTransform,
     IdentityHyperParameterTransform)
@@ -223,21 +227,25 @@ class HilbertSchmidtBasis(ABC):
         return "{0}".format(self.__class__.__name__)
 
 
-class PCEHilbertSchmidtBasis1D(HilbertSchmidtBasis):
+class PCEHilbertSchmidtBasis(HilbertSchmidtBasis):
     def __init__(self,
-                 marginal_variable,
+                 marginal_variables,
                  degree: int,
                  nquad: int = None):
-        self._variable = IndependentMarginalsVariable([marginal_variable])
-        self._poly = get_polynomial_from_variable(self._variable)
+        if hasattr(marginal_variables, 'rvs'):
+            self._variables = (
+                IndependentMarginalsVariable([marginal_variables]))
+        elif hasattr(marginal_variables, '__iter__'):
+            self._variables = IndependentMarginalsVariable(marginal_variables)
+        self._poly = get_polynomial_from_variable(self._variables)
         indices = compute_hyperbolic_indices(
-            self._variable.num_vars(), degree, 1.0)
+            self._variables.num_vars(), degree, 1.0)
         self._poly.set_indices(indices)
         if nquad is None:
             nquad = degree+2
         self._quadrule = integrate(
-            "tensorproduct", self._variable,
-            levels=[nquad]*self._variable.num_vars())
+            "tensorproduct", self._variables,
+            levels=[nquad]*self._variables.num_vars())
         # avoid error about negative strides thrown by torch
         self._quadrule = (self._quadrule[0].copy(), self._quadrule[1])
 
@@ -245,10 +253,10 @@ class PCEHilbertSchmidtBasis1D(HilbertSchmidtBasis):
         return self._poly.indices.shape[1]
 
     def nvars(self):
-        return 1
+        return self._variables.num_vars()
 
     def __call__(self, samples):
-        return self._poly.basis_matrix(samples)
+        return asarray(self._poly.basis_matrix(to_numpy(samples)))
 
     def quadrature_rule(self):
         return self._quadrule
@@ -258,9 +266,6 @@ class PCEHilbertSchmidtBasis1D(HilbertSchmidtBasis):
             self.__class__.__name__, self.nterms())
 
 
-from pyapprox.surrogates.interp.tensorprod import (
-    UnivariatePiecewiseLinearBasis, UnivariatePiecewiseMidPointConstantBasis,
-    UnivariatePiecewiseQuadraticBasis)
 class EquidistantPiecewisePolyBasis1D(HilbertSchmidtBasis):
     def __init__(self,
                  bounds: Union[list, array],

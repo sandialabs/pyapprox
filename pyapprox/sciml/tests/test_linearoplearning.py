@@ -2,6 +2,7 @@ import unittest
 
 from scipy import stats
 import numpy as np
+import matplotlib.pyplot as plt
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.integrate import integrate
@@ -11,7 +12,7 @@ from pyapprox.surrogates.interp.indexing import (
 
 from pyapprox.sciml.linearoplearning import HilbertSchmidtLinearOperator
 from pyapprox.sciml.kernels import (
-    HilbertSchmidtKernel, PCEHilbertSchmidtBasis1D)
+    HilbertSchmidtKernel, PCEHilbertSchmidtBasis)
 from pyapprox.sciml.util._torch_wrappers import asarray
 
 
@@ -28,7 +29,7 @@ class TestLinearOperatorLearning(unittest.TestCase):
     def test_recover_hilbert_schmidt_coeffs_using_function_approximation(self):
         degree = 2
         marginal_variable = stats.uniform(-1, 2)
-        basis = PCEHilbertSchmidtBasis1D(marginal_variable, degree)
+        basis = PCEHilbertSchmidtBasis(marginal_variable, degree)
         kernel = HilbertSchmidtKernel(basis, 0, [-np.inf, np.inf])
         A = np.random.normal(
             0, 1, (basis.nterms(), basis.nterms()))
@@ -74,7 +75,7 @@ class TestLinearOperatorLearning(unittest.TestCase):
     def test_gaussian_measure_over_1D_functions(self):
         kernel_degree = 2
         marginal_variable = stats.uniform(-1, 2)
-        basis = PCEHilbertSchmidtBasis1D(marginal_variable, kernel_degree)
+        basis = PCEHilbertSchmidtBasis(marginal_variable, kernel_degree)
         linearop = HilbertSchmidtLinearOperator(basis)
         kernel = HilbertSchmidtKernel(basis, 0, [-np.inf, np.inf])
         A = np.random.normal(
@@ -97,6 +98,7 @@ class TestLinearOperatorLearning(unittest.TestCase):
 
         train_in_values = self._generate_random_functions(
             train_coefs, basis, basis.quadrature_rule()[0])
+        train_in_values = train_in_values.numpy()
         train_out_values = self._generate_output_functions(
             kernel, basis.quadrature_rule(), train_in_values,
             basis.quadrature_rule()[0])
@@ -125,14 +127,77 @@ class TestLinearOperatorLearning(unittest.TestCase):
         infun_values = self._generate_random_functions(
             in_coef, basis, basis.quadrature_rule()[0])
         plot_out_values = self._generate_output_functions(
-            kernel, basis.quadrature_rule(), infun_values, plot_xx)
+            kernel, basis.quadrature_rule(), infun_values.numpy(), plot_xx)
         assert np.allclose(linearop(infun_values, plot_xx), plot_out_values)
 
-        import matplotlib.pyplot as plt
         plt.plot(plot_xx[0], plot_out_values, label="Exact")
         plt.plot(plot_xx[0], linearop(infun_values, plot_xx), '--',
                  label="Approx")
         plt.legend()
+        plt.show()
+
+    def test_gaussian_measure_over_2D_functions(self):
+        kernel_degree = 3
+        marginal_variables = 2*[stats.uniform(-1, 2)]
+        basis = PCEHilbertSchmidtBasis(marginal_variables, kernel_degree)
+        linearop = HilbertSchmidtLinearOperator(basis)
+        kernel = HilbertSchmidtKernel(basis, 0, [-np.inf, np.inf])
+        A = np.random.normal(
+            0, 0.1, (basis.nterms(), basis.nterms()))
+        kernel.hyp_list.set_active_opt_params(asarray((A @ A.T).flatten()))
+        coef_variable = IndependentMarginalsVariable(
+            [stats.norm(0, 1)]*basis.nterms())
+        train_coefs, out_weights = integrate(
+            "sparsegrid", coef_variable,
+            levels=[kernel_degree+3]*coef_variable.num_vars())
+        out_weights = out_weights[:, None]
+
+        train_in_values = self._generate_random_functions(
+            train_coefs, basis, basis.quadrature_rule()[0])
+        train_in_values = train_in_values.numpy()
+        train_out_values = self._generate_output_functions(
+            kernel, basis.quadrature_rule(), train_in_values,
+            basis.quadrature_rule()[0])
+        basis_mat = linearop._basis_matrix(
+            basis.quadrature_rule()[0], train_in_values)
+        gram_mat = linearop._gram_matrix(basis_mat, out_weights)
+        np.set_printoptions(linewidth=1000)
+
+        # Gramian concentrates to identity as you perform more accurate
+        # quadrature over L^2_\mu, where train_in_values \sim \mu
+        assert np.allclose(gram_mat, np.eye(gram_mat.shape[0]))
+
+        # Method of manufactured solutions
+        linearop._set_coefficients(kernel._get_weights().flatten()[:, None])
+        linearop.fit(train_in_values, train_out_values, out_weights)
+        assert np.allclose(linearop._hyp_list.get_values(),
+                           kernel._get_weights().flatten())
+
+        (X, Y) = np.meshgrid(np.linspace(-1, 1, 11), np.linspace(-1, 1, 11))
+        plot_xx = np.vstack([X.flatten(), Y.flatten()])
+        # check approximation on training function
+        in_coef = np.random.normal(0, 1, (basis.nterms(), 1))
+
+        infun_values = self._generate_random_functions(
+            in_coef, basis, basis.quadrature_rule()[0])
+        plot_out_values = self._generate_output_functions(
+            kernel, basis.quadrature_rule(), infun_values.numpy(), plot_xx)
+        approx_values = linearop(infun_values, plot_xx)
+        assert np.allclose(approx_values, plot_out_values)
+
+        Z = np.reshape(plot_out_values, X.shape)
+        fig, ax = plt.subplots(1, 2)
+        mappable = ax[0].contourf(X, Y, Z)
+        ax[0].set_title('Exact')
+        ax[0].set_xlabel('x')
+        ax[0].set_ylabel('y')
+        ax[1].contourf(X, Y, Z)
+        ax[1].set_title('Approx')
+        ax[1].set_xlabel('x')
+        ax[1].set_ylabel('y')
+        plt.colorbar(mappable, ax=ax[0])
+        plt.colorbar(mappable, ax=ax[1])
+        plt.tight_layout()
         plt.show()
 
 
